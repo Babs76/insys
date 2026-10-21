@@ -30,7 +30,6 @@ public sealed class InsysAuthenticationOptions
 
 public static class ApiRegistration
 {
-    public const string DocumentName = "v1";
 
     public static IServiceCollection AddInsysApi(this IServiceCollection services)
     {
@@ -102,58 +101,61 @@ public static class ApiRegistration
                 options.SubstituteApiVersionInUrl = true;
             });
 
-        services.AddOpenApi(DocumentName, options =>
+        foreach (var (name, title, description) in ApiDocuments.All)
         {
-            options.AddDocumentTransformer((document, _, _) =>
-            {
-                document.Info = new OpenApiInfo
-                {
-                    Title = "INSYS Core API",
-                    Version = "v1",
-                    Description = "Multi-tenant insurance administration platform. The tenant comes from the bearer token's tenant_id claim.",
-                };
-                // No servers: the document must be the same wherever it is generated (build time, tests, runtime).
-                document.Servers = [];
-                document.Components ??= new OpenApiComponents();
-                document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
-                document.Components.SecuritySchemes["bearer"] = new OpenApiSecurityScheme
-                {
-                    Type = SecuritySchemeType.Http,
-                    Scheme = "bearer",
-                    BearerFormat = "JWT",
-                    Description = "OIDC access token carrying tenant_id and permission claims.",
-                };
-                document.Security = [new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference("bearer", document)] = [] }];
-                return Task.CompletedTask;
-            });
-            options.AddOperationTransformer((operation, context, _) =>
-            {
-                var metadata = context.Description.ActionDescriptor.EndpointMetadata;
-                var permission = metadata.OfType<RequiredPermissionMetadata>().FirstOrDefault();
-                if (permission is not null)
-                {
-                    operation.Extensions ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiExtension>();
-                    operation.Extensions["x-permission"] = new Microsoft.OpenApi.JsonNodeExtension(System.Text.Json.Nodes.JsonValue.Create(permission.Permission));
-                }
-
-                if (metadata.OfType<IdempotentEndpointMetadata>().Any())
-                {
-                    operation.Parameters ??= [];
-                    operation.Parameters.Add(new OpenApiParameter
-                    {
-                        Name = IdempotencyFilter.HeaderName,
-                        In = ParameterLocation.Header,
-                        Required = true,
-                        Description = "A unique key for this operation. A retry with the same key returns the original response.",
-                        Schema = new OpenApiSchema { Type = JsonSchemaType.String, MaxLength = 80 },
-                    });
-                }
-
-                return Task.CompletedTask;
-            });
-        });
+            services.AddOpenApi(name, options => ConfigureDocument(options, name, title, description));
+        }
 
         return services;
+    }
+
+    private static void ConfigureDocument(Microsoft.AspNetCore.OpenApi.OpenApiOptions options, string name, string title, string description)
+    {
+        // Each endpoint belongs to exactly one document (ApiDocuments.For), whatever its API version group.
+        options.ShouldInclude = api => ApiDocuments.For(api.ActionDescriptor.EndpointMetadata) == name;
+        options.AddDocumentTransformer((document, _, _) =>
+        {
+            document.Info = new OpenApiInfo { Title = title, Version = "v1", Description = description };
+
+            // No servers: the document must be the same wherever it is generated (build time, tests, runtime).
+            document.Servers = [];
+            document.Components ??= new OpenApiComponents();
+            document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+            document.Components.SecuritySchemes["bearer"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT",
+                Description = "OIDC access token carrying sub and tenant_id. Permissions come from IAM role assignments.",
+            };
+            document.Security = [new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference("bearer", document)] = [] }];
+            return Task.CompletedTask;
+        });
+        options.AddOperationTransformer((operation, context, _) =>
+        {
+            var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+            var permission = metadata.OfType<RequiredPermissionMetadata>().FirstOrDefault();
+            if (permission is not null)
+            {
+                operation.Extensions ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiExtension>();
+                operation.Extensions["x-permission"] = new Microsoft.OpenApi.JsonNodeExtension(System.Text.Json.Nodes.JsonValue.Create(permission.Permission));
+            }
+
+            if (metadata.OfType<IdempotentEndpointMetadata>().Any())
+            {
+                operation.Parameters ??= [];
+                operation.Parameters.Add(new OpenApiParameter
+                {
+                    Name = IdempotencyFilter.HeaderName,
+                    In = ParameterLocation.Header,
+                    Required = true,
+                    Description = "A unique key for this operation. A retry with the same key returns the original response.",
+                    Schema = new OpenApiSchema { Type = JsonSchemaType.String, MaxLength = 80 },
+                });
+            }
+
+            return Task.CompletedTask;
+        });
     }
 
     /// <summary>Adds the middleware in order: errors, authentication, execution scope, rate limiting, authorisation.</summary>
@@ -169,12 +171,31 @@ public static class ApiRegistration
         return app;
     }
 
-    /// <summary>Health endpoints: liveness without dependencies, readiness with the database.</summary>
+    /// <summary>
+    /// Health endpoints: liveness without dependencies; readiness with the database, outbox lag and partitions; and
+    /// /health with every check and its details (status, description and data per check).
+    /// </summary>
     public static WebApplication MapInsysHealth(this WebApplication app)
     {
+        app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = WriteHealthReport }).AllowAnonymous().DisableRateLimiting();
         app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous().DisableRateLimiting();
         app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous().DisableRateLimiting();
         return app;
+    }
+
+    private static Task WriteHealthReport(HttpContext context, Microsoft.Extensions.Diagnostics.HealthChecks.HealthReport report)
+    {
+        context.Response.ContentType = "application/json";
+        return context.Response.WriteAsJsonAsync(new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.ToDictionary(e => e.Key, e => new
+            {
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                data = e.Value.Data,
+            }),
+        });
     }
 
     /// <summary>The versioned group /api/v1 that modules map their endpoints onto.</summary>

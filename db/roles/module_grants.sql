@@ -67,6 +67,9 @@ BEGIN
   GRANT USAGE ON SCHEMA integration TO insys_api;
   GRANT SELECT, INSERT, UPDATE, DELETE ON integration.idempotency_key TO insys_api;
 
+  -- Outbox relay lag for the health checks: counts and a timestamp only (V0009).
+  GRANT EXECUTE ON FUNCTION integration.outbox_lag(smallint) TO insys_api;
+
   -- Platform administrators: static data tables (ref_, cfg_, mst_) and the outboxes their changes publish to.
   -- Row-level security still limits them to global rows (tenant_id IS NULL) through the V0002 platform policies.
   FOR t IN

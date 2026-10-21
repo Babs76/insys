@@ -16,6 +16,8 @@ namespace Insys.StaticData.Api;
 
 public sealed record RejectChangeRequest(string Reason);
 
+public sealed record Tier2MakerCheckerRequest(bool Tier2MakerChecker);
+
 /// <summary>
 /// The Static Data module: its own reference data (sdm, refdata and ops schemas) and the governance of every static
 /// data change in the platform. Approve and reject are mapped once for all 252 tables, on the same paths as each
@@ -32,10 +34,11 @@ public sealed class StaticDataModule : IModule
         StaticDataStaticDataEndpoints.MapStaticData(api);
         const string tag = "StaticData governance";
 
-        MapDecisions(api.MapGroup("/{module}/static/{entity}").WithTags(tag), global: false);
-        MapDecisions(api.MapGroup("/{module}/static/{entity}/global").WithTags(tag), global: true);
+        var governance = api.MapGroup("").WithMetadata(new StaticDataEndpointMetadata());
+        MapDecisions(governance.MapGroup("/{module}/static/{entity}").WithTags(tag), global: false);
+        MapDecisions(governance.MapGroup("/{module}/static/{entity}/global").WithTags(tag), global: true);
 
-        var changes = api.MapGroup("/static-data/change-requests").WithTags(tag);
+        var changes = governance.MapGroup("/static-data/change-requests").WithTags(tag);
         changes.MapGet("/", async (string? status, string? entityCode, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
             {
                 if (!Cursor.TryDecode(cursor, out var afterId))
@@ -57,7 +60,38 @@ public sealed class StaticDataModule : IModule
             .WithSummary("Get a static data change request")
             .RequirePermission(StaticDataGovernancePermissions.ChangeRequestRead);
 
-        api.MapGroup("/static-data/imports").WithTags(tag).MapGet("/", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+        var settings = governance.MapGroup("/static-data/settings").WithTags(tag);
+        settings.MapGet("/", async (IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetGovernanceSettings(), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                }))
+            .WithName("GetGovernanceSettings")
+            .WithSummary("Get the tenant's static data governance settings")
+            .WithDescription("Tier 1 maker-checker is always on; Tier 2 is on unless the tenant switches it off (SDM-003).")
+            .RequirePermission(StaticDataGovernancePermissions.SettingRead);
+
+        settings.MapPut("/tier2-maker-checker", async (Tier2MakerCheckerRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                if (expected.IsFailure)
+                {
+                    return Problems.For(expected.Error);
+                }
+
+                return (await dispatcher.Send(new ChangeTier2MakerChecker(request.Tier2MakerChecker, expected.Value), ct)).ToHttp(version =>
+                {
+                    Concurrency.SetETag(http, version);
+                    return Results.NoContent();
+                });
+            })
+            .WithName("ChangeTier2MakerChecker")
+            .WithSummary("Switch Tier 2 maker-checker on or off for the tenant")
+            .WithDescription("Audited. Use the ETag from GET; it is \"0\" until the setting is first changed.")
+            .RequirePermission(StaticDataGovernancePermissions.SettingUpdate);
+
+        governance.MapGroup("/static-data/imports").WithTags(tag).MapGet("/", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
             {
                 if (!Cursor.TryDecode(cursor, out var afterId))
                 {
@@ -82,7 +116,7 @@ public sealed class StaticDataModule : IModule
                 var descriptor = Find(modules, module, entity);
                 return descriptor is null
                     ? Problems.For(BuildingBlocks.Domain.ErrorCodes.NotFound, "There is no such static data entity.", StatusCodes.Status404NotFound)
-                    : (await dispatcher.Send(new ApproveChange(descriptor.EntityCode, code, versionNumber, global, descriptor.Tier), ct)).ToHttp(id => Results.Ok(new { changeRequestId = id }));
+                    : (await dispatcher.Send(new ApproveChange(descriptor.EntityCode, code, versionNumber, global), ct)).ToHttp(id => Results.Ok(new { changeRequestId = id }));
             })
             .WithName($"ApproveStaticDataChange{suffix}")
             .WithSummary("Approve the pending change of a static data version")

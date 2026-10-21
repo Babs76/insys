@@ -21,6 +21,62 @@ public interface IChangeRequestRepository
     void Add(ImportBatch batch);
 
     Task<bool> BatchExists(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>The tenant's settings, or null before anyone has changed them (defaults apply).</summary>
+    Task<TenantGovernanceSettings?> Settings(CancellationToken cancellationToken);
+
+    void Add(TenantGovernanceSettings settings);
+}
+
+public sealed record GovernanceSettingsView(bool Tier2MakerChecker, bool Tier1MakerChecker, long RowVersion);
+
+/// <summary>Reads the tenant's static data governance settings (defaults when never changed).</summary>
+public sealed record GetGovernanceSettings : IQuery<GovernanceSettingsView>;
+
+/// <summary>Switches Tier 2 maker-checker on or off for the tenant (SDM-003). Every change is audited.</summary>
+public sealed record ChangeTier2MakerChecker(bool Enabled, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+
+internal sealed class GetGovernanceSettingsHandler(IChangeRequestRepository repository) : IQueryHandler<GetGovernanceSettings, GovernanceSettingsView>
+{
+    public async Task<Result<GovernanceSettingsView>> Handle(GetGovernanceSettings query, CancellationToken cancellationToken) =>
+        await repository.Settings(cancellationToken) is { } settings
+            ? new GovernanceSettingsView(settings.Tier2MakerChecker, true, settings.RowVersion)
+            : new GovernanceSettingsView(true, true, 0);
+}
+
+internal sealed class ChangeTier2MakerCheckerHandler(IChangeRequestRepository repository, IExecutionContext execution, IAuditTrail audit)
+    : ICommandHandler<ChangeTier2MakerChecker, long>
+{
+    public async Task<Result<long>> Handle(ChangeTier2MakerChecker command, CancellationToken cancellationToken)
+    {
+        var actor = Checker.Require(execution);
+        if (actor.IsFailure)
+        {
+            return actor.Error;
+        }
+
+        var settings = await repository.Settings(cancellationToken);
+        if ((settings?.RowVersion ?? 0) != command.ExpectedVersion)
+        {
+            return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The settings have changed since they were read.");
+        }
+
+        if (settings is null)
+        {
+            settings = TenantGovernanceSettings.Defaults(Guid.CreateVersion7());
+            repository.Add(settings);
+        }
+
+        var before = settings.Tier2MakerChecker;
+        if (!settings.ChangeTier2MakerChecker(command.Enabled) && settings.RowVersion > 0)
+        {
+            return settings.RowVersion;
+        }
+
+        audit.Record(new AuditEntry("STATIC_DATA_GOVERNANCE", "ChangeTier2MakerChecker", nameof(TenantGovernanceSettings), settings.Id.ToString(),
+            new Dictionary<string, string?> { ["before"] = before.ToString(), ["after"] = command.Enabled.ToString() }));
+        return settings.RowVersion + 1;
+    }
 }
 
 public sealed record ChangeRequestView(
@@ -40,7 +96,7 @@ public interface IChangeRequestQueries
 }
 
 /// <summary>Command ApproveChange for the pending change of one static data version.</summary>
-public sealed record ApproveChange(string EntityCode, string Code, int Version, bool Global, int Tier) : ICommand<Guid>;
+public sealed record ApproveChange(string EntityCode, string Code, int Version, bool Global) : ICommand<Guid>;
 
 /// <summary>Command RejectChange: the version returns to draft for the maker.</summary>
 public sealed record RejectChange(string EntityCode, string Code, int Version, bool Global, string Reason) : ICommand<Guid>;
@@ -90,7 +146,8 @@ internal sealed class ApproveChangeHandler(IChangeRequestRepository changes, IEx
 
         audit.Record(new AuditEntry("STATIC_DATA", "ApproveChange", command.EntityCode, change.Id.ToString(),
             new Dictionary<string, string?> { ["recordKey"] = change.RecordKey, ["maker"] = change.MakerId.ToString() }));
-        var result = change.ApproveChange(checker.Value, requiresDifferentChecker: command.Tier <= 2, clock.UtcNow);
+        // A change that needed no checker was already approved on submission; any pending change needs a different checker.
+        var result = change.ApproveChange(checker.Value, requiresDifferentChecker: true, clock.UtcNow);
         return result.IsFailure ? result.Error : change.Id;
     }
 }
@@ -150,12 +207,13 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    public Task Handle(StaticDataChangeSubmitted submitted, EventEnvelope envelope, CancellationToken cancellationToken)
+    public async Task Handle(StaticDataChangeSubmitted submitted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         var record = submitted.Record;
+        var tier2MakerChecker = (await changes.Settings(cancellationToken))?.Tier2MakerChecker ?? true;
         changes.Add(StaticDataChange.SubmitChange(submitted.ChangeRequestId, record.EntityCode, StaticDataChange.KeyFor(record.Code, record.Version, record.Global),
-            submitted.Action, JsonSerializer.Serialize(record, Json), submitted.MakerId, submitted.EffectiveFrom, submitted.Reason, submitted.Tier, clock.UtcNow));
-        return Task.CompletedTask;
+            submitted.Action, JsonSerializer.Serialize(record, Json), submitted.MakerId, submitted.EffectiveFrom, submitted.Reason,
+            MakerCheckerPolicy.RequiresChecker(submitted.Tier, tier2MakerChecker), clock.UtcNow));
     }
 
     public async Task Handle(StaticDataVersionActivated activated, EventEnvelope envelope, CancellationToken cancellationToken)

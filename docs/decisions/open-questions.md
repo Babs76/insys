@@ -29,22 +29,29 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-021 | 0 | Test server version | Resolved: CI-equivalent runs on postgres:18 |
 | OQ-022 | 1 | The tenant register has no row_version | Resolved (proposal): V0006 |
 | OQ-023 | 1 | Server time zone and partition bounds | Open |
-| OQ-024 | 1 | Tier 2 maker-checker switch per tenant | Open |
+| OQ-024 | 1 | Tier 2 maker-checker switch per tenant | Resolved: per-tenant setting, default on, audited (V0008) |
 | OQ-025 | 1 | Impact analysis and simulation before Tier 1 activation | Open |
 | OQ-026 | 1 | Bulk import endpoint path | Resolved (proposal) |
-| OQ-027 | 1 | PrivilegedAccessGrant and AccessReview aggregates | Open |
+| OQ-027 | 1 | PrivilegedAccessGrant and AccessReview aggregates | Resolved: V0007 and both aggregates built |
 | OQ-028 | 1 | Events for rejection and retirement of static data changes | Resolved (proposal) |
 | OQ-029 | 1 | Tenant onboarding steps | Resolved (proposal) |
 | OQ-030 | 1 | Approved data migration for an isolation profile change | Open |
 | OQ-031 | 1 | Bootstrapping the platform operator | Resolved (proposal) |
-| OQ-032 | 1 | Permission cache across several API instances | Open |
-| OQ-033 | 1 | `sdm.change_request.status` is too short for PENDING_APPROVAL | Resolved (proposal) |
+| OQ-032 | 1 | Permission cache across several API instances | Resolved: ADR-006, single-instance guard |
+| OQ-033 | 1 | `sdm.change_request.status` is too short for PENDING_APPROVAL | Resolved: widened in V0007 |
 | OQ-034 | 1 | The API role needs more than INSERT on idempotency keys | Resolved (proposal) |
 | OQ-035 | 1 | Static data business keys | Open |
 | OQ-036 | 1 | Configuration items: Published to Effective | Open |
 | OQ-037 | 1 | Identity provider to idp_code mapping | Open |
 | OQ-038 | 1 | Maker-checker for privileged user administration | Open |
-| OQ-039 | 1 | Repository inside iCloud Drive | Open |
+| OQ-039 | 1 | Repository inside iCloud Drive | Resolved: moved; CI refuses conflict copies |
+| OQ-040 | 1 | The privileged access grant table had no concurrency columns | Resolved (proposal): V0007 |
+| OQ-041 | 1 | REVOKED status for privileged access grants | Open |
+| OQ-042 | 1 | Access reviews of service accounts | Open |
+| OQ-043 | 1 | What a privileged access grant permits | Open |
+| OQ-044 | 1 | When access review revocations take effect | Resolved (proposal) |
+| OQ-045 | 1 | Who decides access review items | Resolved (proposal) |
+| OQ-046 | 1 | Maker-checker for the Tier 2 setting itself | Open |
 
 ---
 
@@ -134,8 +141,9 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 - **Proposal:** run every database server in UTC (DBA-013). Local and CI servers do.
 
 ### OQ-024 Tier 2 maker-checker switch per tenant
-- **Sources:** SDM-003 says "unless the tenant switches it off". No setting for this exists in the catalogue.
-- **Current state:** always on.
+- **Resolved by the Phase 1 review, item 5:** `sdm.tenant_governance_setting` (V0008) holds the switch: one row per tenant, `tier2_maker_checker` on by default.
+- **API:** `GET /api/v1/static-data/settings` and `PUT /api/v1/static-data/settings/tier2-maker-checker` (If-Match). Every change is audited with before and after values.
+- **Effect:** when the switch is off, a Tier 2 change is approved on submission with no checker, as Tier 3 is. Tier 1 cannot be switched off.
 
 ### OQ-025 Impact analysis and simulation before Tier 1 activation
 - **Sources:** SDM-010, SDM-011.
@@ -150,11 +158,10 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
   - Imported rows are drafts that then go through approval (SDM-018).
 
 ### OQ-027 PrivilegedAccessGrant and AccessReview aggregates
-- **Sources:** domain-model.json against V0001.
-- **Gap:**
-  - `iam.privileged_access_grant` has no status or requester column, and `approved_by` is NOT NULL, so the Requested state can't be stored.
-  - `iam.access_review` has no table for its ReviewItem entity.
-- **Proposal:** add the columns and table in a new migration, then build both. Deferred until that is agreed.
+- **Resolved by the Phase 1 review, item 2:** V0007 adds the grant's requester, status, decision and nullable approver (approver ≠ requester), and the `iam.access_review_item` table.
+- **Built as in domain-model.json:**
+  - PrivilegedAccessGrant: RequestAccess, ApproveAccess, RejectAccess, ExpireAccess. Time-limited, with the purpose recorded and the approver different from the requester (TEN-007). An expiry job records the "Window ends" transition.
+  - AccessReview: StartReview, ConfirmAccess, RevokeAccess, CompleteReview. Every item is decided before completion, and revoked roles end when the review completes (IAM-005).
 
 ### OQ-028 Events for rejection and retirement of static data changes
 - **Gap:** the model lists the RejectChange and RetireCode commands without events.
@@ -172,12 +179,10 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 - **Note:** a second administrator must be provisioned before any static data can be approved.
 
 ### OQ-032 Permission cache across several API instances
-- **Gap:** eviction is in-process. Other instances see a change when its event reaches them, or within the 30-second cache lifetime.
-- **Proposal:** when a message broker is chosen, broadcast evictions to every instance.
+- **Resolved:** ADR-006. A revocation is immediate on one instance and takes up to the cache lifetime on others. A startup guard refuses a second instance until evictions are distributed.
 
 ### OQ-033 `sdm.change_request.status` is too short for PENDING_APPROVAL
-- **Sources:** `status varchar(15)`.
-- **Proposal:** store PENDING. Widen the column in a later migration if the full name is wanted.
+- **Resolved:** V0007 widens the column to varchar(20), and the stored value is PENDING_APPROVAL as in the specification.
 
 ### OQ-034 The API role needs more than INSERT on idempotency keys
 - **Sources:** review item 4 grants "INSERT on integration.idempotency_key".
@@ -198,5 +203,31 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 - **Gap:** role assignment is not yet maker-checker. It moves to Workflow Approval in Phase 2, with static data approvals.
 
 ### OQ-039 Repository inside iCloud Drive
-- **Issue:** the repository is under `~/Documents`, which iCloud Drive syncs. iCloud created about 1,400 conflict copies such as `Foo 2.cs` and `bin/Debug 2`; the duplicate source files broke builds until removed.
-- **Proposal:** move the repository out of iCloud-synced folders, or turn off "Desktop & Documents" syncing. The generator now updates files in place, and the test helpers ignore copies with spaces in their names.
+- **Resolved:** the repository moved to `~/Development`. A clean build and the full test suite pass there, and no conflict copies remain.
+- **Guard:** CI fails when any file matches `* 2.*` (or a directory matches `* 2`).
+
+### OQ-040 The privileged access grant table had no concurrency columns
+- **Gap:** with V0007 a grant changes after insert (approve, reject, expire), but the table had no `row_version`, `updated_at` or `updated_by`, which DBA-011 requires for mutable rows.
+- **Resolution (proposal):** V0007 adds them, as V0006 did for the tenant register.
+
+### OQ-041 REVOKED status for privileged access grants
+- **Gap:** the V0007 CHECK allows REVOKED (review item 2), but domain-model.json has no transition or command that reaches it.
+- **Current state:** not reachable. Add a RevokeAccess transition to the model if early revocation of a grant is wanted.
+
+### OQ-042 Access reviews of service accounts
+- **Gap:** the Service accounts scope (catalogue `iam.cfg_access_review_schedules`) has nothing to snapshot, because service accounts (IAM-004) are not modelled as users yet.
+- **Current state:** StartReview refuses that scope.
+
+### OQ-043 What a privileged access grant permits
+- **Gap:** the grant records who, why and when (TEN-007), but no table says which permissions it confers.
+- **Current state:** the grant is managed and expired but does not yet change the resolved permissions. Decide whether a grant names a role, or is a fixed "support access" role.
+
+### OQ-044 When access review revocations take effect
+- **Proposal:** revocations take effect when the review completes, through Identity consuming its own `AccessReviewCompleted`. The model lists only this event for AccessReview. All the revocations of one review are applied in one inbox transaction, so a review is never half applied; this is one event reaction changing several UserAccount aggregates.
+
+### OQ-045 Who decides access review items
+- **Proposal:** only the assigned reviewer (`access_review.reviewer_id`) confirms, revokes and completes. The schema implies this but does not state it.
+
+### OQ-046 Maker-checker for the Tier 2 setting itself
+- **Gap:** switching Tier 2 maker-checker off is audited but needs no second person. SRS-002 lists sensitive operations; whether this setting is one is not stated.
+- **Proposal:** once Workflow Approval exists (Phase 2), route the switch-off through it.

@@ -4,13 +4,28 @@
 |---|---|---|
 | 0 Foundation | Solution, building blocks, migration runner, compose, tests, CI | Done, accepted |
 | 0 review items 1–8 | CI on postgres:18, partitions, inboxes, module roles, permissions, global static data, maker-checker, error codes | **Done, awaiting review** |
-| 1 Platform | Tenancy, Identity, Audit, Static Data and generator | **Done, awaiting review** (21 Oct 2026) |
-| 2 Shared services | Party, Product Factory, Rating, Rules, Workflow, Documents | Not started |
+| 1 Platform | Tenancy, Identity, Audit, Static Data and generator | Done, accepted |
+| 1 review items 1–6 | Repository move, V0007 to V0009, access aggregates, cache guard, OpenAPI split, Tier 2 setting, outbox lag | **Done, awaiting review** |
+| 2 Shared services | Party, Product Factory, Rating, Rules, Workflow, Documents | In progress |
 | 3 Money | Billing, Payments, Finance, Claims Framework | Not started |
 | 4 First domain | `FIRST_DOMAIN` (ask first: OQ-001) | Not started |
 | 5 Other domains | The remaining two domains | Not started |
 | 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration | Not started |
 | 7 Hardening | Security suite, OpenAPI review, performance, runbooks | Not started |
+
+## Phase 1 review items
+
+1. **Repository move:** the repository is now in `~/Development`. A clean build and the full test suite pass there, no conflict copies remain, and CI fails on any `* 2.*` file.
+2. **V0007:**
+   - `sdm.change_request.status` is widened, and PENDING_APPROVAL is back.
+   - Privileged access grants get a requester, status and decision, with approver ≠ requester.
+   - `iam.access_review_item` is added.
+
+   The PrivilegedAccessGrant and AccessReview aggregates are built, with tests.
+3. **Permission cache:** ADR-006 records that it is per instance. A startup guard (an advisory lock) refuses a second instance until `Identity:PermissionCache:AllowMultipleInstances` is set.
+4. **OpenAPI documents:** split into core, static-data and platform-operator. Each has its own snapshot in `docs/api`, and every endpoint is in exactly one.
+5. **Tier 2 maker-checker:** a per-tenant setting (V0008), on by default and audited. Tier 1 is always on.
+6. **Outbox relay lag:** reported on `/health` and `/health/ready` through `integration.outbox_lag` (V0009). Degraded after `Outbox:Lag:Warning` (1 minute); Unhealthy and not ready after `Outbox:Lag:Failure` (5 minutes).
 
 ## Phase 1: what exists
 
@@ -83,6 +98,6 @@ dotnet run --project src/Host/Insys.Api
 dotnet run --project tools/Insys.StaticData.Generator          # regenerate static data code after V0002 or catalogue changes
 dotnet test                                    # integration tests use Testcontainers postgres:18
 INSYS_TEST_PG="Host=…;Username=postgres;Database=postgres" dotnet test   # or an existing server, without Docker
-INSYS_UPDATE_OPENAPI=1 dotnet test             # accept an intended API contract change
+INSYS_UPDATE_OPENAPI=1 dotnet test             # accept intended API contract changes (docs/api/openapi-*.json)
 INSYS_UPDATE_SNAPSHOTS=1 dotnet test           # regenerate the error code seed after adding [ErrorCode] constants
 ```

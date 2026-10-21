@@ -4,4 +4,6 @@ namespace Insys.StaticData.Contracts;
 public static class StaticDataGovernancePermissions
 {
     public const string ChangeRequestRead = "change_request.read";
+    public const string SettingRead = "governance_setting.read";
+    public const string SettingUpdate = "governance_setting.update";
 }

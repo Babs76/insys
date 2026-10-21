@@ -8,7 +8,20 @@ public static class IdentityPermissions
     public const string UserRead = "user.read";
     public const string UserCreate = "user.create";
     public const string UserUpdate = "user.update";
+    public const string PrivilegedAccessRead = "privileged_access.read";
+    public const string PrivilegedAccessCreate = "privileged_access.create";
+    public const string PrivilegedAccessApprove = "privileged_access.approve";
+    public const string AccessReviewRead = "access_review.read";
+    public const string AccessReviewCreate = "access_review.create";
+    public const string AccessReviewUpdate = "access_review.update";
 }
+
+/// <summary>A revoked review item, by reference only (INT-007).</summary>
+public sealed record RevokedAccess(Guid UserId, string RoleCode);
+
+/// <summary>Consumed by Identity itself: the roles revoked in the review end today (IAM-005).</summary>
+[IntegrationEvent("iam.AccessReviewCompleted")]
+public sealed record AccessReviewCompleted(Guid ReviewId, IReadOnlyList<RevokedAccess> Revoked) : IIntegrationEvent;
 
 /// <summary>Consumed by Identity itself to drop cached permissions for the tenant (IAM-005).</summary>
 [IntegrationEvent("iam.RoleAssigned")]

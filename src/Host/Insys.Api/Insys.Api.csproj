@@ -2,11 +2,11 @@
   <PropertyGroup>
     <RootNamespace>Insys.Api</RootNamespace>
     <UserSecretsId>insys-core-api</UserSecretsId>
-    <!-- Build-time OpenAPI generation (Microsoft.Extensions.ApiDescription.Server). The committed contract is
-         docs/api/openapi-v1.json; the contract test fails if the generated document differs from it. -->
+    <!-- Build-time OpenAPI generation (Microsoft.Extensions.ApiDescription.Server). The committed contracts are
+         docs/api/openapi-{core,static-data,platform-operator}.json; the contract tests fail if a generated document differs. -->
     <OpenApiGenerateDocuments>true</OpenApiGenerateDocuments>
     <OpenApiDocumentsDirectory>$(BaseIntermediateOutputPath)openapi</OpenApiDocumentsDirectory>
-    <OpenApiGenerateDocumentsOptions>--file-name openapi-v1</OpenApiGenerateDocumentsOptions>
+    <OpenApiGenerateDocumentsOptions>--file-name openapi</OpenApiGenerateDocumentsOptions>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\Insys.BuildingBlocks.Api\Insys.BuildingBlocks.Api.csproj" />

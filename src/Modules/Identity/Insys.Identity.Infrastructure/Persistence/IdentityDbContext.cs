@@ -1,4 +1,5 @@
 using Insys.BuildingBlocks.Infrastructure.Persistence;
+using Insys.Identity.Domain.Access;
 using Insys.Identity.Domain.Users;
 using Insys.Identity.Infrastructure.StaticData;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,10 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     public override string Schema => SchemaName;
 
     public DbSet<UserAccount> Users => Set<UserAccount>();
+
+    public DbSet<PrivilegedAccessGrant> Grants => Set<PrivilegedAccessGrant>();
+
+    public DbSet<AccessReview> Reviews => Set<AccessReview>();
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
@@ -43,6 +48,38 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             assignment.HasKey(a => new { a.TenantId, a.Id });
             assignment.HasAuditColumns();
             assignment.Property(a => a.RoleCode).HasMaxLength(30);
+        });
+
+        modelBuilder.Entity<PrivilegedAccessGrant>(grant =>
+        {
+            grant.ToTable("privileged_access_grant");
+            grant.HasKey(g => new { g.TenantId, g.Id });
+            grant.HasAuditColumns();
+            grant.Ignore(g => g.DomainEvents);
+            grant.Ignore(g => g.HasChanges);
+            grant.Property(g => g.Status).HasConversion(new UpperCaseEnumConverter<GrantStatus>()).HasMaxLength(12);
+        });
+
+        modelBuilder.Entity<AccessReview>(review =>
+        {
+            review.ToTable("access_review");
+            review.HasKey(r => new { r.TenantId, r.Id });
+            review.HasAuditColumns();
+            review.Ignore(r => r.DomainEvents);
+            review.Ignore(r => r.HasChanges);
+            review.Property(r => r.Scope).HasConversion(new UpperCaseEnumConverter<ReviewScope>()).HasMaxLength(20);
+            review.Property(r => r.Status).HasConversion(new UpperCaseEnumConverter<ReviewStatus>()).HasMaxLength(12);
+            review.HasMany(r => r.Items).WithOne().HasForeignKey(i => new { i.TenantId, i.ReviewId });
+            review.Navigation(r => r.Items).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<ReviewItem>(item =>
+        {
+            item.ToTable("access_review_item");
+            item.HasKey(i => new { i.TenantId, i.Id });
+            item.HasAuditColumns();
+            item.Property(i => i.RoleCode).HasMaxLength(30);
+            item.Property(i => i.Decision).HasConversion(new UpperCaseEnumConverter<ItemDecision>()).HasMaxLength(12);
         });
 
         modelBuilder.Entity<Session>(session =>

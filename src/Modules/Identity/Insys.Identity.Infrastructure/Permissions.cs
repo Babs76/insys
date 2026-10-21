@@ -19,8 +19,14 @@ namespace Insys.Identity.Infrastructure;
 
 public sealed class PermissionCacheOptions
 {
-    /// <summary>How long resolved permissions are cached. Every change in this process evicts at once; other processes catch up within this time (OQ-032).</summary>
+    /// <summary>How long resolved permissions are cached. Every change in this process evicts at once; other processes catch up within this time (ADR-006).</summary>
     public TimeSpan Duration { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// False (the default) makes <see cref="SingleInstanceGuard"/> refuse a second API instance on the same database,
+    /// because evictions are not yet shared between instances (ADR-006).
+    /// </summary>
+    public bool AllowMultipleInstances { get; set; }
 }
 
 /// <summary>Resolved principals, keyed by tenant and subject. All entries of a tenant are evicted together (TEN-004: caches are tenant-scoped).</summary>

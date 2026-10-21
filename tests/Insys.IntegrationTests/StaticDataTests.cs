@@ -51,7 +51,7 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
         (await submitted.Json()).GetProperty("recordStatus").GetString().ShouldBe("SUBMITTED");
         await _factory.DrainOutbox();
         (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM sdm.change_request WHERE record_key = 'CLAIMS_CLERK@1' AND tenant_id = @t",
-            ("t", DatabaseFixture.TenantA))).ShouldBe("PENDING");
+            ("t", DatabaseFixture.TenantA))).ShouldBe("PENDING_APPROVAL");
 
         var selfApproval = await maker.Send(HttpMethod.Post, $"{Roles}/CLAIMS_CLERK/versions/1/approve");
         selfApproval.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -258,6 +258,55 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
 
         failures.ShouldBeEmpty();
     }
+
+    [Fact]
+    public async Task Tier2MakerChecker_CanBeSwitchedOffPerTenant_IsAudited_AndTier1StaysOn_SDM003()
+    {
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantB, "admin-b",
+            [.. All, StaticDataGovernancePermissions.SettingRead, StaticDataGovernancePermissions.SettingUpdate]);
+        var admin = _factory.ClientFor(DatabaseFixture.TenantB, "admin-b");
+        const string schedules = "/api/v1/identity/static/access-review-schedules";
+
+        var defaults = await admin.GetAsync("/api/v1/static-data/settings");
+        (await defaults.Json()).GetProperty("tier2MakerChecker").GetBoolean().ShouldBeTrue();
+        defaults.ETag().ShouldBe("\"0\"");
+
+        // On (the default): a Tier 2 change waits for a checker.
+        var pending = await admin.Send(HttpMethod.Post, schedules, Schedule("QUARTERLY"), idempotent: true);
+        await admin.Send(HttpMethod.Post, $"{schedules}/QUARTERLY/versions/1/submit", ifMatch: pending.ETag());
+        await _factory.DrainOutbox();
+        (await (await admin.GetAsync($"{schedules}/QUARTERLY/versions")).Json())[0].GetProperty("recordStatus").GetString().ShouldBe("SUBMITTED");
+
+        var switchedOff = await admin.Send(HttpMethod.Put, "/api/v1/static-data/settings/tier2-maker-checker", new { tier2MakerChecker = false }, ifMatch: "\"0\"");
+        switchedOff.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM audit.audit_event
+            WHERE tenant_id = @t AND operation = 'ChangeTier2MakerChecker' AND details->>'before' = 'True' AND details->>'after' = 'False'
+            """, ("t", DatabaseFixture.TenantB))).ShouldBe(1);
+
+        // Off: the next Tier 2 change is approved on submission, with no checker.
+        var direct = await admin.Send(HttpMethod.Post, schedules, Schedule("MONTHLY"), idempotent: true);
+        await admin.Send(HttpMethod.Post, $"{schedules}/MONTHLY/versions/1/submit", ifMatch: direct.ETag());
+        await _factory.DrainOutbox();
+        await _factory.DrainOutbox();
+        (await (await admin.GetAsync($"{schedules}/MONTHLY/versions")).Json())[0].GetProperty("recordStatus").GetString().ShouldBe("APPROVED");
+
+        // Tier 1 is always maker-checker.
+        var role = await admin.Send(HttpMethod.Post, Roles, Role("TIER1_STILL"), idempotent: true);
+        await admin.Send(HttpMethod.Post, $"{Roles}/TIER1_STILL/versions/1/submit", ifMatch: role.ETag());
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM sdm.change_request WHERE record_key = 'TIER1_STILL@1' AND tenant_id = @t",
+            ("t", DatabaseFixture.TenantB))).ShouldBe("PENDING_APPROVAL");
+
+        // Another tenant keeps the default.
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "settings-reader-a", StaticDataGovernancePermissions.SettingRead);
+        (await (await _factory.ClientFor(DatabaseFixture.TenantA, "settings-reader-a").GetAsync("/api/v1/static-data/settings")).Json())
+            .GetProperty("tier2MakerChecker").GetBoolean().ShouldBeTrue();
+    }
+
+    private static object Schedule(string code) =>
+        new { code, scope = "PRIVILEGED", frequency = "P3M", reviewerRole = "AUDITOR", changeReason = "Test schedule" };
 
     private static object Role(string code) => new { code, roleCode = code, permissions = new[] { "claim.read" }, changeReason = "Test role" };
 

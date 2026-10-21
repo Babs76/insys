@@ -65,6 +65,13 @@ internal sealed class RolePolicyReader(IdentityDbContext db) : IRolePolicyReader
         await db.Set<SegregationOfDutiesConflictRules>().AsNoTracking().InForce(Descriptor<SegregationOfDutiesConflictRules>().Lifecycle, day)
             .Select(r => new DutyConflictRule(r.PermissionA, r.PermissionB, r.Conflict)).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlySet<string>> PrivilegedRoles(DateOnly day, CancellationToken cancellationToken)
+    {
+        var policies = await db.Set<AuthenticationAndSessionPolicies>().AsNoTracking().InForce(Descriptor<AuthenticationAndSessionPolicies>().Lifecycle, day)
+            .ToListAsync(cancellationToken);
+        return policies.SelectMany(p => p.MfaRequiredRoles).ToHashSet(StringComparer.Ordinal);
+    }
+
     private static StaticDataDescriptor Descriptor<T>() => IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(T));
 }
 
@@ -75,6 +82,76 @@ internal sealed class IdentityEventMapper : IDomainEventMapper
         Domain.Users.RoleAssigned e => new Contracts.RoleAssigned(e.UserId, e.RoleCode, e.ValidFrom, e.ValidTo),
         Domain.Users.RoleRevoked e => new Contracts.RoleRevoked(e.UserId, e.RoleCode),
         Domain.Users.UserDisabled e => new Contracts.UserDisabled(e.UserId),
+        Domain.Access.AccessReviewCompleted e => new Contracts.AccessReviewCompleted(e.ReviewId,
+            e.Revoked.Select(r => new Contracts.RevokedAccess(r.UserId, r.RoleCode)).ToList()),
         _ => null,
     };
+}
+
+internal sealed class AccessRepository(IdentityDbContext db) : Application.Access.IAccessRepository
+{
+    public Task<Domain.Access.PrivilegedAccessGrant?> Grant(Guid id, CancellationToken cancellationToken) =>
+        db.Grants.SingleOrDefaultAsync(g => g.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> GrantsToExpire(DateTimeOffset now, int limit, CancellationToken cancellationToken) =>
+        await db.Grants.Where(g => g.Status == Domain.Access.GrantStatus.Approved && g.ValidTo <= now).OrderBy(g => g.ValidTo).Select(g => g.Id).Take(limit)
+            .ToListAsync(cancellationToken);
+
+    public void Add(Domain.Access.PrivilegedAccessGrant grant) => db.Grants.Add(grant);
+
+    public Task<Domain.Access.AccessReview?> Review(Guid id, CancellationToken cancellationToken) =>
+        db.Reviews.Include(r => r.Items).SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<(Guid UserId, string RoleCode)>> EffectiveAssignments(DateOnly today, CancellationToken cancellationToken) =>
+        (await db.Set<RoleAssignment>().AsNoTracking()
+            .Where(a => a.ValidFrom <= today && (a.ValidTo == null || a.ValidTo > today))
+            .Select(a => new { a.UserId, a.RoleCode }).Distinct().ToListAsync(cancellationToken))
+        .Select(a => (a.UserId, a.RoleCode)).ToList();
+
+    public void Add(Domain.Access.AccessReview review) => db.Reviews.Add(review);
+}
+
+internal sealed class AccessQueries(IdentityDbContext db) : Application.Access.IAccessQueries
+{
+    public async Task<IReadOnlyList<Application.Access.GrantView>> Grants(string? status, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var query = db.Grants.AsNoTracking();
+        if (status is not null && Enum.TryParse<Domain.Access.GrantStatus>(status, ignoreCase: true, out var parsed))
+        {
+            query = query.Where(g => g.Status == parsed);
+        }
+
+        if (afterId is not null)
+        {
+            query = query.Where(g => g.Id.CompareTo(afterId.Value) > 0);
+        }
+
+        return (await query.OrderBy(g => g.Id).Take(limit).ToListAsync(cancellationToken)).Select(View).ToList();
+    }
+
+    public async Task<Application.Access.GrantView?> Grant(Guid id, CancellationToken cancellationToken) =>
+        await db.Grants.AsNoTracking().SingleOrDefaultAsync(g => g.Id == id, cancellationToken) is { } grant ? View(grant) : null;
+
+    public async Task<IReadOnlyList<Application.Access.ReviewView>> Reviews(Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var query = db.Reviews.AsNoTracking().Include(r => r.Items).AsQueryable();
+        if (afterId is not null)
+        {
+            query = query.Where(r => r.Id.CompareTo(afterId.Value) > 0);
+        }
+
+        return (await query.OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken)).Select(View).ToList();
+    }
+
+    public async Task<Application.Access.ReviewView?> Review(Guid id, CancellationToken cancellationToken) =>
+        await db.Reviews.AsNoTracking().Include(r => r.Items).SingleOrDefaultAsync(r => r.Id == id, cancellationToken) is { } review ? View(review) : null;
+
+    private static Application.Access.GrantView View(Domain.Access.PrivilegedAccessGrant g) =>
+        new(g.Id, g.UserId, g.Purpose, g.RequestedBy, g.ApprovedBy, g.ValidFrom, g.ValidTo, g.Status.ToString(), g.DecidedAt, g.RejectionReason, g.RowVersion);
+
+    private static Application.Access.ReviewView View(Domain.Access.AccessReview r) =>
+        new(r.Id, r.Scope.ToString(), r.ReviewerId, r.DueDate, r.Status.ToString(), r.ItemsTotal, r.ItemsRevoked,
+            r.Items.OrderBy(i => i.Id).Select(i => new Application.Access.ReviewItemView(i.Id, i.UserId, i.RoleCode, i.Decision.ToString(), i.DecidedBy, i.DecidedAt))
+                .ToList(),
+            r.RowVersion);
 }

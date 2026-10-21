@@ -1,0 +1,1363 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "INSYS Core API",
+    "description": "Multi-tenant insurance administration platform. The tenant comes from the bearer token\u0027s tenant_id claim.",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/v1/integration/dead-letters": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "List dead-lettered messages",
+        "description": "Messages whose delivery failed after all retries (INT-006), oldest first, with cursor pagination.",
+        "operationId": "ListDeadLetters",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DeadLetterStatus"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfDeadLetterSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "dead_letter.read"
+      }
+    },
+    "/api/v1/integration/dead-letters/{id}": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Get a dead-lettered message",
+        "description": "Returns the dead letter with its original event envelope. The ETag is required to replay or discard it.",
+        "operationId": "GetDeadLetter",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeadLetterDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "dead_letter.read"
+      }
+    },
+    "/api/v1/integration/dead-letters/{id}/replay": {
+      "post": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Replay a dead-lettered message",
+        "description": "Delivers the original event to its consumers again. Consumers skip events they already processed (INT-005, INT-006).",
+        "operationId": "ReplayMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "dead_letter.update"
+      }
+    },
+    "/api/v1/integration/dead-letters/{id}/discard": {
+      "post": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Discard a dead-lettered message",
+        "description": "Closes the dead letter without delivering it (INT-006).",
+        "operationId": "DiscardMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "dead_letter.update"
+      }
+    },
+    "/api/v1/identity/users": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Provision a user",
+        "description": "The user is Invited until the first request with a token for the external subject.",
+        "operationId": "ProvisionUser",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvisionUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "user.create"
+      },
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "List users",
+        "operationId": "ListUsers",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "user.read"
+      }
+    },
+    "/api/v1/identity/users/{id}": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Get a user with its role assignments",
+        "operationId": "GetUser",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "user.read"
+      }
+    },
+    "/api/v1/identity/users/{id}/assign-role": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Assign a role",
+        "description": "Refused for roles with no version in force, MFA-required roles without MFA (IAM-003) and segregation-of-duties conflicts (SRS-002).",
+        "operationId": "AssignRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "user.update"
+      }
+    },
+    "/api/v1/identity/users/{id}/revoke-role": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Revoke a role",
+        "description": "Takes effect on the user\u0027s next request (IAM-005).",
+        "operationId": "RevokeRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "user.update"
+      }
+    },
+    "/api/v1/identity/users/{id}/lock": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Lock a user",
+        "operationId": "LockUser",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "user.update"
+      }
+    },
+    "/api/v1/identity/users/{id}/unlock": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Unlock a user",
+        "operationId": "UnlockUser",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "user.update"
+      }
+    },
+    "/api/v1/identity/users/{id}/disable": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Disable a user and revoke their sessions (IAM-005)",
+        "operationId": "DisableUser",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "user.update"
+      }
+    },
+    "/api/v1/identity/privileged-access": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Request time-limited privileged access",
+        "description": "A purpose is recorded and the window is limited; someone other than the requester approves it (TEN-007).",
+        "operationId": "RequestAccess",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "privileged_access.create"
+      },
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "List privileged access requests and grants",
+        "operationId": "ListPrivilegedAccess",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "privileged_access.read"
+      }
+    },
+    "/api/v1/identity/privileged-access/{id}": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Get a privileged access request or grant",
+        "operationId": "GetPrivilegedAccess",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "privileged_access.read"
+      }
+    },
+    "/api/v1/identity/privileged-access/{id}/approve": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Approve privileged access (not by the requester)",
+        "operationId": "ApproveAccess",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "privileged_access.approve"
+      }
+    },
+    "/api/v1/identity/privileged-access/{id}/reject": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Reject privileged access, with a reason",
+        "operationId": "RejectAccess",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "privileged_access.approve"
+      }
+    },
+    "/api/v1/identity/access-reviews": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Start an access review",
+        "description": "Takes a snapshot of the role assignments in scope (AllUsers or Privileged) as review items.",
+        "operationId": "StartReview",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "access_review.create"
+      },
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "List access reviews",
+        "operationId": "ListAccessReviews",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "access_review.read"
+      }
+    },
+    "/api/v1/identity/access-reviews/{id}": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Get an access review with its items",
+        "operationId": "GetAccessReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "access_review.read"
+      }
+    },
+    "/api/v1/identity/access-reviews/{id}/items/{itemId}/confirm": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Confirm a reviewed access",
+        "operationId": "ConfirmAccess",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "access_review.update"
+      }
+    },
+    "/api/v1/identity/access-reviews/{id}/items/{itemId}/revoke": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Revoke a reviewed access",
+        "description": "The role ends when the review completes (IAM-005).",
+        "operationId": "RevokeAccess",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "access_review.update"
+      }
+    },
+    "/api/v1/identity/access-reviews/{id}/complete": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Complete an access review",
+        "description": "Every item must be confirmed or revoked first. Revoked roles end at once (IAM-005).",
+        "operationId": "CompleteReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "access_review.update"
+      }
+    },
+    "/api/v1/audit/events": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "List audit events",
+        "description": "The tenant\u0027s audit trail of sensitive operations and denied requests, newest first (IAM-006, TEN-005).",
+        "operationId": "ListAuditEvents",
+        "parameters": [
+          {
+            "name": "targetType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "targetId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfAuditEventView"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "audit_event.read"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AssignRoleRequest": {
+        "required": [
+          "roleCode",
+          "validFrom",
+          "validTo",
+          "scopeProducts",
+          "scopeBranches"
+        ],
+        "type": "object",
+        "properties": {
+          "roleCode": {
+            "type": "string"
+          },
+          "validFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "scopeProducts": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopeBranches": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AuditEventView": {
+        "required": [
+          "id",
+          "eventType",
+          "actorType",
+          "actorId",
+          "operation",
+          "targetType",
+          "targetId",
+          "outcome",
+          "occurredAt",
+          "correlationId",
+          "details"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "actorType": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "details": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          }
+        }
+      },
+      "CursorPageOfAuditEventView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEventView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfDeadLetterSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeadLetterSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "DeadLetterDetail": {
+        "required": [
+          "id",
+          "source",
+          "messageRef",
+          "status",
+          "attempts",
+          "firstFailedAt",
+          "error",
+          "payload",
+          "resolvedBy",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source": {
+            "type": "string"
+          },
+          "messageRef": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "attempts": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int16"
+          },
+          "firstFailedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error": {
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "resolvedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "DeadLetterStatus": {
+        "enum": [
+          "DeadLettered",
+          "Replayed",
+          "Discarded",
+          null
+        ]
+      },
+      "DeadLetterSummary": {
+        "required": [
+          "id",
+          "source",
+          "messageRef",
+          "status",
+          "attempts",
+          "firstFailedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source": {
+            "type": "string"
+          },
+          "messageRef": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "attempts": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int16"
+          },
+          "firstFailedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "JsonElement": {},
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ProvisionUserRequest": {
+        "required": [
+          "username",
+          "displayName",
+          "idpCode",
+          "externalSubject",
+          "mfaEnrolled"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "idpCode": {
+            "type": "string"
+          },
+          "externalSubject": {
+            "type": "string"
+          },
+          "mfaEnrolled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RejectAccessRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "RequestAccessRequest": {
+        "required": [
+          "userId",
+          "purpose",
+          "validFrom",
+          "validTo"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validTo": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReviewScope": {
+        "enum": [
+          "AllUsers",
+          "Privileged",
+          "ServiceAccounts"
+        ]
+      },
+      "RevokeRoleRequest": {
+        "required": [
+          "roleCode"
+        ],
+        "type": "object",
+        "properties": {
+          "roleCode": {
+            "type": "string"
+          }
+        }
+      },
+      "StartReviewRequest": {
+        "required": [
+          "scope",
+          "reviewerId",
+          "dueDate"
+        ],
+        "type": "object",
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/ReviewScope"
+          },
+          "reviewerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "description": "OIDC access token carrying sub and tenant_id. Permissions come from IAM role assignments.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Integration"
+    },
+    {
+      "name": "Identity"
+    },
+    {
+      "name": "Audit"
+    }
+  ]
+}

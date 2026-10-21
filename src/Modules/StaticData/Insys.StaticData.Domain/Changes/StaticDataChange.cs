@@ -8,8 +8,7 @@ namespace Insys.StaticData.Domain.Changes;
 /// </summary>
 public enum ChangeStatus
 {
-    /// <summary>"Pending approval". Stored as PENDING: status is varchar(15) and PENDING_APPROVAL has 16 characters (OQ-033).</summary>
-    Pending,
+    PendingApproval,
     Approved,
     Rejected,
     Active,
@@ -32,15 +31,15 @@ public sealed record StaticDataChangeApproved(Guid ChangeRequestId, string Recor
 public sealed record StaticDataChangeRejected(Guid ChangeRequestId, string RecordRef, Guid CheckerId, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>
-/// The StaticDataChange aggregate (sdm.change_request). Maker and checker differ for Tier 1 and, by default, Tier 2
-/// (SDM-003); the database also refuses a checker equal to the maker. Tier 3 changes are made by one authorised
-/// maintainer, so they are approved on submission with no checker.
+/// The StaticDataChange aggregate (sdm.change_request). Maker and checker differ for Tier 1 always, and for Tier 2
+/// unless the tenant has switched it off (SDM-003); the database also refuses a checker equal to the maker. Changes
+/// that need no checker (Tier 3, or Tier 2 with the setting off) are approved on submission with no checker.
 /// </summary>
 public sealed class StaticDataChange : AggregateRoot<Guid>
 {
     public static readonly StateMachine<ChangeStatus, ChangeTrigger> Lifecycle = new StateMachine<ChangeStatus, ChangeTrigger>()
-        .Allow(ChangeStatus.Pending, ChangeTrigger.ApproveChange, ChangeStatus.Approved)
-        .Allow(ChangeStatus.Pending, ChangeTrigger.RejectChange, ChangeStatus.Rejected)
+        .Allow(ChangeStatus.PendingApproval, ChangeTrigger.ApproveChange, ChangeStatus.Approved)
+        .Allow(ChangeStatus.PendingApproval, ChangeTrigger.RejectChange, ChangeStatus.Rejected)
         .Allow(ChangeStatus.Approved, ChangeTrigger.ActivateVersion, ChangeStatus.Active)
         .Allow(ChangeStatus.Active, ChangeTrigger.DeprecateCode, ChangeStatus.Deprecated)
         .Allow(ChangeStatus.Deprecated, ChangeTrigger.RetireCode, ChangeStatus.Retired);
@@ -78,7 +77,7 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
 
     /// <summary>Command SubmitChange, from the owning module's StaticDataChangeSubmitted.</summary>
     public static StaticDataChange SubmitChange(Guid id, string entityCode, string recordKey, string action, string after, Guid makerId, DateOnly effectiveFrom,
-        string reason, int tier, DateTimeOffset now)
+        string reason, bool requiresChecker, DateTimeOffset now)
     {
         var change = new StaticDataChange
         {
@@ -91,11 +90,12 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
             MakerId = makerId,
             EffectiveFrom = effectiveFrom,
             Reason = string.IsNullOrWhiteSpace(reason) ? "(no reason given)" : reason,
-            Status = ChangeStatus.Pending,
+            Status = ChangeStatus.PendingApproval,
         };
 
-        // Tier 3 is descriptive data "changed by one authorised maintainer" (static data specification §2).
-        if (tier >= 3)
+        // Tier 3 is descriptive data "changed by one authorised maintainer" (static data specification §2); Tier 2 too when
+        // the tenant has switched maker-checker off.
+        if (!requiresChecker)
         {
             change.Status = ChangeStatus.Approved;
             change.Raise(new StaticDataChangeApproved(id, after, makerId, now));
@@ -258,5 +258,44 @@ public sealed class ImportBatch : AggregateRoot<Guid>
         };
         batch.MarkChanged();
         return batch;
+    }
+}
+
+/// <summary>Whether a change at this tier needs a checker other than the maker (SDM-003).</summary>
+public static class MakerCheckerPolicy
+{
+    public static bool RequiresChecker(int tier, bool tier2MakerChecker) => tier switch
+    {
+        1 => true,
+        2 => tier2MakerChecker,
+        _ => false,
+    };
+}
+
+/// <summary>
+/// The tenant's static data governance settings (sdm.tenant_governance_setting). Proposed aggregate for SDM-003's
+/// "unless the tenant switches it off": Tier 2 maker-checker is on by default, and Tier 1 cannot be switched off.
+/// </summary>
+public sealed class TenantGovernanceSettings : AggregateRoot<Guid>
+{
+    private TenantGovernanceSettings()
+    {
+    }
+
+    public bool Tier2MakerChecker { get; private set; } = true;
+
+    public static TenantGovernanceSettings Defaults(Guid id) => new() { Id = id };
+
+    /// <summary>Switches Tier 2 maker-checker on or off. Returns false when nothing changed.</summary>
+    public bool ChangeTier2MakerChecker(bool enabled)
+    {
+        if (enabled == Tier2MakerChecker)
+        {
+            return false;
+        }
+
+        Tier2MakerChecker = enabled;
+        MarkChanged();
+        return true;
     }
 }

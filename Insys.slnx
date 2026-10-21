@@ -117,8 +117,11 @@
     <Project Path="tests/Insys.ArchitectureTests/Insys.ArchitectureTests.csproj" />
     <Project Path="tests/Insys.BuildingBlocks.Tests/Insys.BuildingBlocks.Tests.csproj" />
     <Project Path="tests/Insys.EndToEndTests/Insys.EndToEndTests.csproj" />
+    <Project Path="tests/Insys.Identity.Tests/Insys.Identity.Tests.csproj" />
     <Project Path="tests/Insys.Integration.Tests/Insys.Integration.Tests.csproj" />
     <Project Path="tests/Insys.IntegrationTests/Insys.IntegrationTests.csproj" />
+    <Project Path="tests/Insys.StaticData.Tests/Insys.StaticData.Tests.csproj" />
+    <Project Path="tests/Insys.Tenancy.Tests/Insys.Tenancy.Tests.csproj" />
     <Project Path="tests/Insys.Testing/Insys.Testing.csproj" />
   </Folder>
   <Folder Name="/tools/">

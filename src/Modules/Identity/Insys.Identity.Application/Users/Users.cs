@@ -22,6 +22,9 @@ public interface IRolePolicyReader
     Task<IReadOnlyList<RoleFacts>> Roles(IEnumerable<string> roleCodes, DateOnly day, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<DutyConflictRule>> ConflictRules(DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>Roles that require MFA under the authentication policies in force (IAM-003): the privileged roles.</summary>
+    Task<IReadOnlySet<string>> PrivilegedRoles(DateOnly day, CancellationToken cancellationToken);
 }
 
 /// <summary>The per-request permission cache (OQ-014). Evicted after a change commits, and again when its event arrives.</summary>

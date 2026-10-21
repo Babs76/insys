@@ -294,4 +294,13 @@ public static class IdentityErrorCodes
 
     [ErrorCode(409, "error.identity.username_taken")]
     public const string UsernameTaken = "USERNAME_TAKEN";
+
+    [ErrorCode(422, "error.identity.access_window_too_long")]
+    public const string AccessWindowTooLong = "ACCESS_WINDOW_TOO_LONG";
+
+    [ErrorCode(422, "error.identity.nothing_to_review")]
+    public const string NothingToReview = "NOTHING_TO_REVIEW";
+
+    [ErrorCode(409, "error.identity.review_incomplete")]
+    public const string ReviewIncomplete = "REVIEW_INCOMPLETE";
 }

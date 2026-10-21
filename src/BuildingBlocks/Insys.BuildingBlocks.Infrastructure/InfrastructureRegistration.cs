@@ -73,7 +73,10 @@ public static class InfrastructureRegistration
             services.AddHostedService<OutboxRelayService>();
         }
 
-        services.AddHealthChecks().AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"]);
+        services.AddOptions<OutboxLagOptions>().Bind(configuration.GetSection("Outbox:Lag"));
+        services.AddHealthChecks()
+            .AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"])
+            .AddCheck<OutboxLagHealthCheck>("outbox-lag", tags: ["ready"]);
         return services;
     }
 

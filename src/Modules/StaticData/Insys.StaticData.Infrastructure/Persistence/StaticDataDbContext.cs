@@ -20,6 +20,8 @@ public sealed class StaticDataDbContext(DbContextOptions<StaticDataDbContext> op
 
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
 
+    public DbSet<TenantGovernanceSettings> Settings => Set<TenantGovernanceSettings>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         StaticDataStaticData.Configure(modelBuilder);
@@ -53,6 +55,16 @@ public sealed class StaticDataDbContext(DbContextOptions<StaticDataDbContext> op
             batch.Property(b => b.Status).HasConversion(new UpperCaseEnumConverter<ImportStatus>()).HasMaxLength(12);
             batch.HasMany(b => b.Errors).WithOne().HasForeignKey(e => new { e.TenantId, e.BatchId });
             batch.Navigation(b => b.Errors).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<TenantGovernanceSettings>(settings =>
+        {
+            settings.ToTable("tenant_governance_setting");
+            settings.HasKey(x => new { x.TenantId, x.Id });
+            settings.HasAuditColumns();
+            settings.Ignore(x => x.DomainEvents);
+            settings.Ignore(x => x.HasChanges);
+            settings.Property(x => x.Tier2MakerChecker).HasColumnName("tier2_maker_checker");
         });
 
         modelBuilder.Entity<ImportError>(error =>

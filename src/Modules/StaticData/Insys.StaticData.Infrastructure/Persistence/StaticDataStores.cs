@@ -14,13 +14,17 @@ internal sealed class ChangeRequestRepository(StaticDataDbContext db) : IChangeR
     public Task<StaticDataChange?> Get(Guid id, CancellationToken cancellationToken) => db.Changes.SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
 
     public Task<StaticDataChange?> FindPending(string entityCode, string recordKey, CancellationToken cancellationToken) =>
-        db.Changes.SingleOrDefaultAsync(c => c.EntityCode == entityCode && c.RecordKey == recordKey && c.Status == ChangeStatus.Pending, cancellationToken);
+        db.Changes.SingleOrDefaultAsync(c => c.EntityCode == entityCode && c.RecordKey == recordKey && c.Status == ChangeStatus.PendingApproval, cancellationToken);
 
     public void Add(StaticDataChange change) => db.Changes.Add(change);
 
     public void Add(ImportBatch batch) => db.ImportBatches.Add(batch);
 
     public Task<bool> BatchExists(Guid id, CancellationToken cancellationToken) => db.ImportBatches.AnyAsync(b => b.Id == id, cancellationToken);
+
+    public Task<TenantGovernanceSettings?> Settings(CancellationToken cancellationToken) => db.Settings.SingleOrDefaultAsync(cancellationToken);
+
+    public void Add(TenantGovernanceSettings settings) => db.Settings.Add(settings);
 }
 
 internal sealed class ChangeRequestQueries(StaticDataDbContext db) : IChangeRequestQueries

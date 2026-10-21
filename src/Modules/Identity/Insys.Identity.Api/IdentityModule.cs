@@ -1,7 +1,9 @@
 using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.Identity.Api.StaticData;
+using Insys.Identity.Application.Access;
 using Insys.Identity.Application.Users;
+using Insys.Identity.Domain.Access;
 using Insys.Identity.Contracts;
 using Insys.Identity.Infrastructure;
 using Microsoft.AspNetCore.Builder;
@@ -17,6 +19,12 @@ public sealed record ProvisionUserRequest(string Username, string DisplayName, s
 public sealed record AssignRoleRequest(string RoleCode, DateOnly? ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches);
 
 public sealed record RevokeRoleRequest(string RoleCode);
+
+public sealed record RequestAccessRequest(Guid UserId, string Purpose, DateTimeOffset ValidFrom, DateTimeOffset ValidTo);
+
+public sealed record RejectAccessRequest(string Reason);
+
+public sealed record StartReviewRequest(ReviewScope Scope, Guid ReviewerId, DateOnly DueDate);
 
 /// <summary>The Identity module: tenant-scoped users and role assignments (IAM-001), resolved per request into permissions.</summary>
 public sealed class IdentityModule : IModule
@@ -83,9 +91,122 @@ public sealed class IdentityModule : IModule
             .WithDescription("Takes effect on the user's next request (IAM-005).")
             .RequirePermission(IdentityPermissions.UserUpdate);
 
+        MapAccess(api.MapGroup("/identity").WithTags(Name));
+
         MapStatus(users, "lock", UserStatusAction.Lock, "Lock a user");
         MapStatus(users, "unlock", UserStatusAction.Unlock, "Unlock a user");
         MapStatus(users, "disable", UserStatusAction.Disable, "Disable a user and revoke their sessions (IAM-005)");
+    }
+
+    private static void MapAccess(RouteGroupBuilder identity)
+    {
+        var grants = identity.MapGroup("/privileged-access");
+        grants.MapPost("/", async (RequestAccessRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Send(new RequestAccess(request.UserId, request.Purpose, request.ValidFrom, request.ValidTo), ct)).ToHttp(id =>
+                {
+                    Concurrency.SetETag(http, 1);
+                    return Results.Created($"/api/v1/identity/privileged-access/{id}", new { id });
+                }))
+            .WithName("RequestAccess")
+            .WithSummary("Request time-limited privileged access")
+            .WithDescription("A purpose is recorded and the window is limited; someone other than the requester approves it (TEN-007).")
+            .RequirePermission(IdentityPermissions.PrivilegedAccessCreate)
+            .RequireIdempotencyKey();
+
+        grants.MapGet("/", async (string? status, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var afterId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListGrants(status, afterId, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<GrantView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .WithName("ListPrivilegedAccess")
+            .WithSummary("List privileged access requests and grants")
+            .RequirePermission(IdentityPermissions.PrivilegedAccessRead);
+
+        grants.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetGrant(id), ct)).ToHttp(grant =>
+                {
+                    Concurrency.SetETag(http, grant.RowVersion);
+                    return Results.Ok(grant);
+                }))
+            .WithName("GetPrivilegedAccess")
+            .WithSummary("Get a privileged access request or grant")
+            .RequirePermission(IdentityPermissions.PrivilegedAccessRead);
+
+        grants.MapPost("/{id:guid}/approve", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new ApproveAccess(id, version), ct)))
+            .WithName("ApproveAccess")
+            .WithSummary("Approve privileged access (not by the requester)")
+            .RequirePermission(IdentityPermissions.PrivilegedAccessApprove);
+
+        grants.MapPost("/{id:guid}/reject", (Guid id, RejectAccessRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new RejectAccess(id, request.Reason, version), ct)))
+            .WithName("RejectAccess")
+            .WithSummary("Reject privileged access, with a reason")
+            .RequirePermission(IdentityPermissions.PrivilegedAccessApprove);
+
+        var reviews = identity.MapGroup("/access-reviews");
+        reviews.MapPost("/", async (StartReviewRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Send(new StartReview(request.Scope, request.ReviewerId, request.DueDate), ct)).ToHttp(id =>
+                {
+                    Concurrency.SetETag(http, 1);
+                    return Results.Created($"/api/v1/identity/access-reviews/{id}", new { id });
+                }))
+            .WithName("StartReview")
+            .WithSummary("Start an access review")
+            .WithDescription("Takes a snapshot of the role assignments in scope (AllUsers or Privileged) as review items.")
+            .RequirePermission(IdentityPermissions.AccessReviewCreate)
+            .RequireIdempotencyKey();
+
+        reviews.MapGet("/", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var afterId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListReviews(afterId, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<ReviewView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .WithName("ListAccessReviews")
+            .WithSummary("List access reviews")
+            .RequirePermission(IdentityPermissions.AccessReviewRead);
+
+        reviews.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetReview(id), ct)).ToHttp(review =>
+                {
+                    Concurrency.SetETag(http, review.RowVersion);
+                    return Results.Ok(review);
+                }))
+            .WithName("GetAccessReview")
+            .WithSummary("Get an access review with its items")
+            .RequirePermission(IdentityPermissions.AccessReviewRead);
+
+        reviews.MapPost("/{id:guid}/items/{itemId:guid}/confirm", (Guid id, Guid itemId, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new DecideReviewItem(id, itemId, Confirm: true, version), ct)))
+            .WithName("ConfirmAccess")
+            .WithSummary("Confirm a reviewed access")
+            .RequirePermission(IdentityPermissions.AccessReviewUpdate);
+
+        reviews.MapPost("/{id:guid}/items/{itemId:guid}/revoke", (Guid id, Guid itemId, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new DecideReviewItem(id, itemId, Confirm: false, version), ct)))
+            .WithName("RevokeAccess")
+            .WithSummary("Revoke a reviewed access")
+            .WithDescription("The role ends when the review completes (IAM-005).")
+            .RequirePermission(IdentityPermissions.AccessReviewUpdate);
+
+        reviews.MapPost("/{id:guid}/complete", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new CompleteReview(id, version), ct)))
+            .WithName("CompleteReview")
+            .WithSummary("Complete an access review")
+            .WithDescription("Every item must be confirmed or revoked first. Revoked roles end at once (IAM-005).")
+            .RequirePermission(IdentityPermissions.AccessReviewUpdate);
     }
 
     private static void MapStatus(RouteGroupBuilder users, string action, UserStatusAction statusAction, string summary) =>

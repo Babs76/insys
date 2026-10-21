@@ -37,7 +37,8 @@ public static class StaticDataEndpoints
         where TEntity : StaticRecord<TInput>, new()
         where TInput : StaticRecordInput
     {
-        var group = api.MapGroup($"/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}").WithTags(tag);
+        var group = api.MapGroup($"/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}").WithTags(tag)
+            .WithMetadata(new StaticDataEndpointMetadata());
         var name = descriptor.EntityName;
 
         group.MapGet("/", async (DateOnly? asAt, string? cursor, int? limit, StaticDataService<TDbContext> service, CancellationToken ct) =>
