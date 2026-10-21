@@ -1,27 +1,95 @@
+using System.Reflection;
+
 namespace Insys.BuildingBlocks.Domain;
 
 /// <summary>
-/// Platform-wide error codes (max 30 characters, the size of error_code in integration.ref_error_code_catalogue).
-/// TODO(spec): the catalogue has no seed rows; these codes should be loaded into it in Phase 1.
+/// Describes an error code for the error code catalogue (integration.ref_error_code_catalogue). The constants in
+/// code are the single source: db/migrations/R__error_code_catalogue.sql is generated from them, and a test fails
+/// if the two differ.
 /// </summary>
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class ErrorCodeAttribute(int httpStatus, string messageKey, bool retryable = false) : Attribute
+{
+    public int HttpStatus { get; } = httpStatus;
+
+    public string MessageKey { get; } = messageKey;
+
+    public bool Retryable { get; } = retryable;
+}
+
+/// <summary>One catalogue entry, read from an <see cref="ErrorCodeAttribute"/>.</summary>
+public sealed record ErrorCodeEntry(string Code, int HttpStatus, string MessageKey, bool Retryable, string Description);
+
+/// <summary>Platform-wide error codes (max 30 characters, the size of error_code).</summary>
 public static class ErrorCodes
 {
+    [ErrorCode(422, "error.request.validation_failed")]
     public const string ValidationFailed = "VALIDATION_FAILED";
+
+    [ErrorCode(409, "error.state.invalid_transition")]
     public const string InvalidStateTransition = "INVALID_STATE_TRANSITION";
+
+    [ErrorCode(404, "error.resource.not_found")]
     public const string NotFound = "NOT_FOUND";
+
+    [ErrorCode(403, "error.access.forbidden")]
     public const string Forbidden = "FORBIDDEN";
+
+    [ErrorCode(403, "error.access.tenant_context_missing")]
     public const string TenantContextMissing = "TENANT_CONTEXT_MISSING";
+
+    [ErrorCode(401, "error.access.unauthenticated")]
     public const string Unauthenticated = "UNAUTHENTICATED";
+
+    [ErrorCode(412, "error.concurrency.precondition_failed")]
     public const string PreconditionFailed = "PRECONDITION_FAILED";
+
+    [ErrorCode(428, "error.concurrency.precondition_required")]
     public const string PreconditionRequired = "PRECONDITION_REQUIRED";
+
+    [ErrorCode(409, "error.concurrency.conflict", retryable: true)]
     public const string ConcurrencyConflict = "CONCURRENCY_CONFLICT";
+
+    [ErrorCode(409, "error.data.duplicate_record")]
     public const string DuplicateRecord = "DUPLICATE_RECORD";
+
+    [ErrorCode(409, "error.data.database_rule_violated")]
     public const string DatabaseRuleViolated = "DATABASE_RULE_VIOLATED";
+
+    [ErrorCode(422, "error.idempotency.key_required")]
     public const string IdempotencyKeyRequired = "IDEMPOTENCY_KEY_REQUIRED";
+
+    [ErrorCode(422, "error.idempotency.key_reused")]
     public const string IdempotencyKeyReused = "IDEMPOTENCY_KEY_REUSED";
+
+    [ErrorCode(409, "error.idempotency.in_progress", retryable: true)]
     public const string IdempotencyInProgress = "IDEMPOTENCY_IN_PROGRESS";
+
+    [ErrorCode(422, "error.money.currency_mismatch")]
     public const string CurrencyMismatch = "CURRENCY_MISMATCH";
+
+    [ErrorCode(403, "error.approval.maker_is_checker")]
     public const string MakerCheckerSamePerson = "MAKER_CHECKER_SAME_PERSON";
+
+    [ErrorCode(429, "error.request.rate_limited", retryable: true)]
     public const string RateLimited = "RATE_LIMITED";
+
+    [ErrorCode(500, "error.internal", retryable: true)]
     public const string InternalError = "INTERNAL_ERROR";
+
+    /// <summary>Reads every [ErrorCode] constant in the given types.</summary>
+    public static IReadOnlyList<ErrorCodeEntry> Describe(IEnumerable<Type> codeClasses) =>
+        codeClasses
+            .SelectMany(t => t.GetFields(BindingFlags.Public | BindingFlags.Static))
+            .Where(f => f.IsLiteral && f.GetCustomAttribute<ErrorCodeAttribute>() is not null)
+            .Select(f =>
+            {
+                var attribute = f.GetCustomAttribute<ErrorCodeAttribute>()!;
+                var code = (string)f.GetRawConstantValue()!;
+                return code.Length > 30
+                    ? throw new InvalidOperationException($"Error code {code} is longer than 30 characters.")
+                    : new ErrorCodeEntry(code, attribute.HttpStatus, attribute.MessageKey, attribute.Retryable, $"{f.DeclaringType!.Name}.{f.Name}");
+            })
+            .OrderBy(e => e.Code, StringComparer.Ordinal)
+            .ToList();
 }

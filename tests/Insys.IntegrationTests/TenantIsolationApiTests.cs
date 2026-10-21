@@ -12,15 +12,21 @@ namespace Insys.IntegrationTests;
 /// </summary>
 public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
-    private static readonly Guid OperatorA = Guid.Parse("0199f000-0000-7000-8000-0000000000a1");
-    private static readonly string[] AllPermissions = [IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate];
+    private const string Operator = "operator-a";
+    private const string Reader = "reader-a";
+    private const string Nobody = "nobody-a";
     private InsysApiFactory _factory = null!;
+    private Guid _operatorUserId;
     private readonly List<Guid> _tenantA = [];
     private Guid _tenantBRow;
 
     public async ValueTask InitializeAsync()
     {
         _factory = new InsysApiFactory(fixture.Database);
+        _operatorUserId = await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, Operator,
+            IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, Reader, IntegrationPermissions.DeadLetterRead);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, Nobody);
         for (var i = 0; i < 3; i++)
         {
             _tenantA.Add(await SeedDeadLetter(DatabaseFixture.TenantA));
@@ -52,16 +58,47 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [Fact]
     public async Task TokenWithoutTenant_Is403_AndReturnsNoData_TEN002()
     {
-        var response = await _factory.ClientFor(null, OperatorA.ToString(), AllPermissions).GetAsync("/api/v1/integration/dead-letters");
+        var response = await _factory.ClientFor(null, Operator).GetAsync("/api/v1/integration/dead-letters");
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await Code(response)).ShouldBe("TENANT_CONTEXT_MISSING");
     }
 
     [Fact]
+    public async Task DeniedRequest_IsAudited_TEN005_IAM006()
+    {
+        (await _factory.ClientFor(DatabaseFixture.TenantA, Nobody).GetAsync("/api/v1/integration/dead-letters")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        (await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM audit.audit_event
+            WHERE tenant_id = @t AND operation = 'AccessDenied' AND outcome = 'DENIED' AND target_id LIKE 'GET /api/v1/integration/dead-letters%'
+            """, ("t", DatabaseFixture.TenantA))).ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task PermissionClaimInTheToken_IsIgnored_OQ014()
+    {
+        var token = new Microsoft.IdentityModel.JsonWebTokens.JsonWebTokenHandler().CreateToken(new Microsoft.IdentityModel.Tokens.SecurityTokenDescriptor
+        {
+            Issuer = TestTokens.Issuer,
+            Audience = TestTokens.Audience,
+            Subject = new System.Security.Claims.ClaimsIdentity([new("sub", Nobody), new("tenant_id", DatabaseFixture.TenantA.ToString()),
+                new("permission", IntegrationPermissions.DeadLetterRead)]),
+            Expires = DateTime.UtcNow.AddMinutes(5),
+            SigningCredentials = new Microsoft.IdentityModel.Tokens.SigningCredentials(
+                new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(TestTokens.SigningKey)),
+                Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256),
+        });
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", token);
+
+        (await client.GetAsync("/api/v1/integration/dead-letters")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task TokenWithoutPermission_Is403_IAM007()
     {
-        var response = await _factory.ClientFor(DatabaseFixture.TenantA, OperatorA.ToString()).GetAsync("/api/v1/integration/dead-letters");
+        var response = await _factory.ClientFor(DatabaseFixture.TenantA, Nobody).GetAsync("/api/v1/integration/dead-letters");
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await Code(response)).ShouldBe("FORBIDDEN");
@@ -70,7 +107,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [Fact]
     public async Task ReadPermission_DoesNotGrantReplay_PrivilegeEscalation()
     {
-        var client = _factory.ClientFor(DatabaseFixture.TenantA, OperatorA.ToString(), IntegrationPermissions.DeadLetterRead);
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, Reader);
 
         var response = await PostWithIfMatch(client, $"/api/v1/integration/dead-letters/{_tenantA[0]}/replay", "\"1\"");
 
@@ -80,7 +117,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [Fact]
     public async Task List_ReturnsOnlyTheCallersTenant_TEN004()
     {
-        var page = await List(_factory.ClientFor(DatabaseFixture.TenantA, OperatorA.ToString(), AllPermissions), "/api/v1/integration/dead-letters?limit=200");
+        var page = await List(_factory.ClientFor(DatabaseFixture.TenantA, Operator), "/api/v1/integration/dead-letters?limit=200");
 
         page.ShouldContain(_tenantA[0]);
         page.ShouldNotContain(_tenantBRow);
@@ -91,7 +128,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [InlineData("?tenantId={B}")]
     public async Task List_IgnoresTenantInQueryString_TEN002(string query)
     {
-        var page = await List(_factory.ClientFor(DatabaseFixture.TenantA, OperatorA.ToString(), AllPermissions),
+        var page = await List(_factory.ClientFor(DatabaseFixture.TenantA, Operator),
             "/api/v1/integration/dead-letters" + query.Replace("{B}", DatabaseFixture.TenantB.ToString()));
 
         page.ShouldNotContain(_tenantBRow);
@@ -100,7 +137,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [Fact]
     public async Task List_IgnoresTenantHeaders_TEN002()
     {
-        var client = _factory.ClientFor(DatabaseFixture.TenantA, OperatorA.ToString(), AllPermissions);
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, Operator);
         client.DefaultRequestHeaders.Add("X-Tenant-Id", DatabaseFixture.TenantB.ToString());
         client.DefaultRequestHeaders.Add("tenant_id", DatabaseFixture.TenantB.ToString());
 
@@ -110,7 +147,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [Fact]
     public async Task List_TokenWithoutTenant_ButTenantHeader_IsStill403_TEN002()
     {
-        var client = _factory.ClientFor(null, OperatorA.ToString(), AllPermissions);
+        var client = _factory.ClientFor(null, Operator);
         client.DefaultRequestHeaders.Add("X-Tenant-Id", DatabaseFixture.TenantA.ToString());
 
         (await client.GetAsync("/api/v1/integration/dead-letters")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -119,7 +156,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [Fact]
     public async Task Get_AnotherTenantsRecord_Is404_TEN004()
     {
-        var response = await _factory.ClientFor(DatabaseFixture.TenantA, OperatorA.ToString(), AllPermissions)
+        var response = await _factory.ClientFor(DatabaseFixture.TenantA, Operator)
             .GetAsync($"/api/v1/integration/dead-letters/{_tenantBRow}");
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -128,7 +165,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [Fact]
     public async Task Replay_AnotherTenantsRecord_Is404_AndLeavesItUnchanged_TEN004()
     {
-        var client = _factory.ClientFor(DatabaseFixture.TenantA, OperatorA.ToString(), AllPermissions);
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, Operator);
 
         var response = await PostWithIfMatch(client, $"/api/v1/integration/dead-letters/{_tenantBRow}/discard", "\"1\"");
 
@@ -140,7 +177,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [Fact]
     public async Task Get_ReturnsETag_AndList_PagesWithCursor()
     {
-        var client = _factory.ClientFor(DatabaseFixture.TenantA, OperatorA.ToString(), AllPermissions);
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, Operator);
 
         var get = await client.GetAsync($"/api/v1/integration/dead-letters/{_tenantA[0]}");
         get.Headers.ETag!.Tag.ShouldBe("\"1\"");
@@ -155,7 +192,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [Fact]
     public async Task Discard_RequiresIfMatch_ChecksVersion_ThenRejectsASecondTransition_DBA011()
     {
-        var client = _factory.ClientFor(DatabaseFixture.TenantA, OperatorA.ToString(), AllPermissions);
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, Operator);
         var url = $"/api/v1/integration/dead-letters/{_tenantA[1]}/discard";
 
         (await client.PostAsync(url, null)).StatusCode.ShouldBe((HttpStatusCode)428);
@@ -173,7 +210,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [Fact]
     public async Task Replay_ByOperator_ResolvesAndAudits_INT006_IAM006()
     {
-        var client = _factory.ClientFor(DatabaseFixture.TenantA, OperatorA.ToString(), AllPermissions);
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, Operator);
 
         var response = await PostWithIfMatch(client, $"/api/v1/integration/dead-letters/{_tenantA[2]}/replay", "\"1\"");
 
@@ -181,17 +218,18 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
         (await fixture.Database.ScalarAsOwner<string>("SELECT resolution FROM integration.dead_letter_message WHERE id = @id", ("id", _tenantA[2])))
             .ShouldBe("REPLAYED");
         (await fixture.Database.ScalarAsOwner<Guid>("SELECT resolved_by FROM integration.dead_letter_message WHERE id = @id", ("id", _tenantA[2])))
-            .ShouldBe(OperatorA);
+            .ShouldBe(_operatorUserId);
+        await _factory.DrainOutbox();
         (await fixture.Database.ScalarAsOwner<long>("""
             SELECT count(*) FROM audit.audit_event
             WHERE tenant_id = @t AND target_id = @id AND operation = 'ReplayMessage' AND outcome = 'SUCCESS' AND actor_id = @actor
-            """, ("t", DatabaseFixture.TenantA), ("id", _tenantA[2].ToString()), ("actor", OperatorA.ToString()))).ShouldBe(1);
+            """, ("t", DatabaseFixture.TenantA), ("id", _tenantA[2].ToString()), ("actor", _operatorUserId.ToString()))).ShouldBe(1);
     }
 
     [Fact]
-    public async Task Replay_ByANonOperatorSubject_Is403_INT006()
+    public async Task Replay_ByASubjectWithNoIamUser_Is403_INT006()
     {
-        var client = _factory.ClientFor(DatabaseFixture.TenantA, "service-account", AllPermissions);
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, "not-provisioned");
 
         var response = await PostWithIfMatch(client, $"/api/v1/integration/dead-letters/{_tenantA[0]}/replay", "\"1\"");
 
@@ -201,7 +239,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     [Fact]
     public async Task Errors_AreProblemDetails_WithoutInternalDetail()
     {
-        var response = await _factory.ClientFor(DatabaseFixture.TenantA, OperatorA.ToString(), AllPermissions)
+        var response = await _factory.ClientFor(DatabaseFixture.TenantA, Operator)
             .GetAsync($"/api/v1/integration/dead-letters/{Guid.CreateVersion7()}");
 
         response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");

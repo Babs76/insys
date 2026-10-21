@@ -2,14 +2,46 @@
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 Foundation | Solution, building blocks, migration runner, compose, tests, CI | **Done, awaiting review** (21 Oct 2026) |
-| 1 Platform | Tenancy, Identity, Audit, Static Data and generator | Not started |
+| 0 Foundation | Solution, building blocks, migration runner, compose, tests, CI | Done, accepted |
+| 0 review items 1–8 | CI on postgres:18, partitions, inboxes, module roles, permissions, global static data, maker-checker, error codes | **Done, awaiting review** |
+| 1 Platform | Tenancy, Identity, Audit, Static Data and generator | **Done, awaiting review** (21 Oct 2026) |
 | 2 Shared services | Party, Product Factory, Rating, Rules, Workflow, Documents | Not started |
 | 3 Money | Billing, Payments, Finance, Claims Framework | Not started |
 | 4 First domain | `FIRST_DOMAIN` (ask first: OQ-001) | Not started |
 | 5 Other domains | The remaining two domains | Not started |
 | 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration | Not started |
 | 7 Hardening | Security suite, OpenAPI review, performance, runbooks | Not started |
+
+## Phase 1: what exists
+
+**Phase 0 review items**
+1. **CI:** the workflow runs on postgres:18 through Testcontainers. GitHub Actions is blocked on the account (see `open-questions.md`, OQ-021), so the same steps run locally on a clean clone.
+2. **Partitions:** V0003 partitions are checked for forced RLS. A partition queried directly as a module role returns only the tenant's rows. The Audit module's job keeps partitions 3 months ahead and warns below 2 (ADR-005).
+3. **Inboxes:** V0004 gives every module schema an `inbox_message`. Idempotency keys stay in `integration`.
+4. **Roles:** one role and connection per module (ADR-001), with tests that a module role cannot write another module's schema.
+5. **Permissions:** tokens carry sub and tenant_id only. Permissions are resolved per request from IAM, cached for 30 seconds, and evicted on change. A revoked role is denied on the next request.
+6. **Global static data:** written only on the platform administrator connection, only from `/global` endpoints, and only by the operator tenant. Tests cover the API and the database.
+7. **Maker-checker:** Tier 1 maker-checker through `sdm.change_request`, with the checker different from the maker (ADR-003).
+8. **Error codes:** the catalogue is seeded from the `[ErrorCode]` constants by a generated repeatable migration.
+
+**Modules**
+- **Tenancy:** the Tenant aggregate, with its onboarding case (11 steps in load order) and status history. Commands: register, complete onboarding step, activate, suspend, reactivate, terminate, change isolation profile. Operator-only endpoints. Publishes `TenantSuspended`.
+- **Identity:** the UserAccount aggregate, with role assignments and sessions. Commands: provision, assign role, revoke role, lock, unlock, disable. Enforces MFA for privileged roles and segregation-of-duties rules from static data. Provides the per-request principal resolver and its cache. PrivilegedAccessGrant and AccessReview wait on OQ-027.
+- **Audit:** records every module's audit events and denied requests, offers audit queries, and runs the partition job and health check.
+- **Static Data:** StaticDataChange (`sdm.change_request`) and ImportBatch, consumers for the owning modules' events, approve and reject for all tables, and change request and import queries.
+- **All 22 modules** now exist with their own DbContext, role and generated static data. 18 of them have no aggregates yet.
+
+**Static data:** `tools/Insys.StaticData.Generator` generates all 252 tables: entity, input with validation from the CHECK constraints, EF mapping, and endpoints. Each table supports:
+- list and get as at a date, and versions;
+- create draft, edit draft (maker only), submit, activate, deprecate, retire;
+- all-or-nothing import;
+- `/global` variants for scopes G and GT.
+
+**New migrations:**
+- V0004: inboxes in every module schema, plus `tenant` and `analytics` outboxes.
+- V0005: partition functions.
+- V0006: tenant register concurrency columns.
+- `R__error_code_catalogue.sql`: the generated error code seed.
 
 ## Phase 0: what exists
 
@@ -44,10 +76,13 @@
 
 ```bash
 docker compose up -d postgres
-INSYS_APP_ROLE_PASSWORD=insys_app_local dotnet run --project tools/Insys.DbMigrator -- \
-  --connection "Host=localhost;Port=5432;Database=insys;Username=insys_owner;Password=insys_owner_local" --app-role insys_app
+INSYS_ROLE_PASSWORD=insys_local dotnet run --project tools/Insys.DbMigrator -- \
+  --connection "Host=localhost;Port=5432;Database=insys;Username=insys_owner;Password=insys_owner_local" --roles db/roles \
+  --bootstrap-operator 0199f000-0000-7000-8000-000000000001 --admin-subject <your IdP subject>
 dotnet run --project src/Host/Insys.Api
+dotnet run --project tools/Insys.StaticData.Generator          # regenerate static data code after V0002 or catalogue changes
 dotnet test                                    # integration tests use Testcontainers postgres:18
 INSYS_TEST_PG="Host=…;Username=postgres;Database=postgres" dotnet test   # or an existing server, without Docker
 INSYS_UPDATE_OPENAPI=1 dotnet test             # accept an intended API contract change
+INSYS_UPDATE_SNAPSHOTS=1 dotnet test           # regenerate the error code seed after adding [ErrorCode] constants
 ```

@@ -10,8 +10,9 @@ namespace Insys.BuildingBlocks.Infrastructure.Messaging;
 
 /// <summary>
 /// Wraps a consumer's event handler. In the consumer module's transaction it first records (consumer, event_id) in
-/// integration.inbox_message; if the row already exists the event is a duplicate and is skipped (INT-005, DBA-007).
-/// The handler's changes, its outbox events and the inbox row commit together.
+/// the module's own &lt;schema&gt;.inbox_message; if the row already exists the event is a duplicate and is skipped
+/// (INT-005, DBA-007). The handler's changes, its outbox events and the inbox row commit together, in the module's
+/// schema only (DBA-004).
 /// </summary>
 public sealed class InboxEventHandler<TEvent, THandler, TDbContext>(
     THandler inner,
@@ -22,7 +23,7 @@ public sealed class InboxEventHandler<TEvent, THandler, TDbContext>(
     where TDbContext : ModuleDbContext
 {
     private const string InsertSql = """
-        INSERT INTO integration.inbox_message
+        INSERT INTO {0}.inbox_message
           (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, consumer, event_id, event_type, received_at, processed_at, status)
         VALUES
           (@tenant_id, @id, 1, @now, @consumer, @now, @consumer, @consumer, @event_id, @event_type, @now, @now, 'PROCESSED')
@@ -34,7 +35,7 @@ public sealed class InboxEventHandler<TEvent, THandler, TDbContext>(
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var now = clock.UtcNow;
-        await using (var command = new NpgsqlCommand(InsertSql, (NpgsqlConnection)db.Database.GetDbConnection(), (NpgsqlTransaction)transaction.GetDbTransaction()))
+        await using (var command = new NpgsqlCommand(string.Format(System.Globalization.CultureInfo.InvariantCulture, InsertSql, db.Schema), (NpgsqlConnection)db.Database.GetDbConnection(), (NpgsqlTransaction)transaction.GetDbTransaction()))
         {
             command.Parameters.AddWithValue("tenant_id", envelope.TenantId);
             command.Parameters.AddWithValue("id", Guid.CreateVersion7());

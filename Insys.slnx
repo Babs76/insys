@@ -11,12 +11,107 @@
     <Project Path="src/Host/Insys.Api/Insys.Api.csproj" />
   </Folder>
   <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Analytics/">
+    <Project Path="src/Modules/Analytics/Insys.Analytics.Api/Insys.Analytics.Api.csproj" />
+    <Project Path="src/Modules/Analytics/Insys.Analytics.Infrastructure/Insys.Analytics.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Audit/">
+    <Project Path="src/Modules/Audit/Insys.Audit.Api/Insys.Audit.Api.csproj" />
+    <Project Path="src/Modules/Audit/Insys.Audit.Application/Insys.Audit.Application.csproj" />
+    <Project Path="src/Modules/Audit/Insys.Audit.Contracts/Insys.Audit.Contracts.csproj" />
+    <Project Path="src/Modules/Audit/Insys.Audit.Infrastructure/Insys.Audit.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Billing/">
+    <Project Path="src/Modules/Billing/Insys.Billing.Api/Insys.Billing.Api.csproj" />
+    <Project Path="src/Modules/Billing/Insys.Billing.Infrastructure/Insys.Billing.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/ClaimsFramework/">
+    <Project Path="src/Modules/ClaimsFramework/Insys.ClaimsFramework.Api/Insys.ClaimsFramework.Api.csproj" />
+    <Project Path="src/Modules/ClaimsFramework/Insys.ClaimsFramework.Infrastructure/Insys.ClaimsFramework.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Compliance/">
+    <Project Path="src/Modules/Compliance/Insys.Compliance.Api/Insys.Compliance.Api.csproj" />
+    <Project Path="src/Modules/Compliance/Insys.Compliance.Infrastructure/Insys.Compliance.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Distribution/">
+    <Project Path="src/Modules/Distribution/Insys.Distribution.Api/Insys.Distribution.Api.csproj" />
+    <Project Path="src/Modules/Distribution/Insys.Distribution.Infrastructure/Insys.Distribution.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Documents/">
+    <Project Path="src/Modules/Documents/Insys.Documents.Api/Insys.Documents.Api.csproj" />
+    <Project Path="src/Modules/Documents/Insys.Documents.Infrastructure/Insys.Documents.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Finance/">
+    <Project Path="src/Modules/Finance/Insys.Finance.Api/Insys.Finance.Api.csproj" />
+    <Project Path="src/Modules/Finance/Insys.Finance.Infrastructure/Insys.Finance.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/General/">
+    <Project Path="src/Modules/General/Insys.General.Api/Insys.General.Api.csproj" />
+    <Project Path="src/Modules/General/Insys.General.Infrastructure/Insys.General.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Health/">
+    <Project Path="src/Modules/Health/Insys.Health.Api/Insys.Health.Api.csproj" />
+    <Project Path="src/Modules/Health/Insys.Health.Infrastructure/Insys.Health.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Identity/">
+    <Project Path="src/Modules/Identity/Insys.Identity.Api/Insys.Identity.Api.csproj" />
+    <Project Path="src/Modules/Identity/Insys.Identity.Application/Insys.Identity.Application.csproj" />
+    <Project Path="src/Modules/Identity/Insys.Identity.Contracts/Insys.Identity.Contracts.csproj" />
+    <Project Path="src/Modules/Identity/Insys.Identity.Domain/Insys.Identity.Domain.csproj" />
+    <Project Path="src/Modules/Identity/Insys.Identity.Infrastructure/Insys.Identity.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Integration/">
     <Project Path="src/Modules/Integration/Insys.Integration.Api/Insys.Integration.Api.csproj" />
     <Project Path="src/Modules/Integration/Insys.Integration.Application/Insys.Integration.Application.csproj" />
     <Project Path="src/Modules/Integration/Insys.Integration.Contracts/Insys.Integration.Contracts.csproj" />
     <Project Path="src/Modules/Integration/Insys.Integration.Domain/Insys.Integration.Domain.csproj" />
     <Project Path="src/Modules/Integration/Insys.Integration.Infrastructure/Insys.Integration.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Life/">
+    <Project Path="src/Modules/Life/Insys.Life.Api/Insys.Life.Api.csproj" />
+    <Project Path="src/Modules/Life/Insys.Life.Infrastructure/Insys.Life.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Party/">
+    <Project Path="src/Modules/Party/Insys.Party.Api/Insys.Party.Api.csproj" />
+    <Project Path="src/Modules/Party/Insys.Party.Infrastructure/Insys.Party.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Payments/">
+    <Project Path="src/Modules/Payments/Insys.Payments.Api/Insys.Payments.Api.csproj" />
+    <Project Path="src/Modules/Payments/Insys.Payments.Infrastructure/Insys.Payments.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/ProductFactory/">
+    <Project Path="src/Modules/ProductFactory/Insys.ProductFactory.Api/Insys.ProductFactory.Api.csproj" />
+    <Project Path="src/Modules/ProductFactory/Insys.ProductFactory.Infrastructure/Insys.ProductFactory.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Rating/">
+    <Project Path="src/Modules/Rating/Insys.Rating.Api/Insys.Rating.Api.csproj" />
+    <Project Path="src/Modules/Rating/Insys.Rating.Infrastructure/Insys.Rating.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Reinsurance/">
+    <Project Path="src/Modules/Reinsurance/Insys.Reinsurance.Api/Insys.Reinsurance.Api.csproj" />
+    <Project Path="src/Modules/Reinsurance/Insys.Reinsurance.Infrastructure/Insys.Reinsurance.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Rules/">
+    <Project Path="src/Modules/Rules/Insys.Rules.Api/Insys.Rules.Api.csproj" />
+    <Project Path="src/Modules/Rules/Insys.Rules.Infrastructure/Insys.Rules.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/StaticData/">
+    <Project Path="src/Modules/StaticData/Insys.StaticData.Api/Insys.StaticData.Api.csproj" />
+    <Project Path="src/Modules/StaticData/Insys.StaticData.Application/Insys.StaticData.Application.csproj" />
+    <Project Path="src/Modules/StaticData/Insys.StaticData.Contracts/Insys.StaticData.Contracts.csproj" />
+    <Project Path="src/Modules/StaticData/Insys.StaticData.Domain/Insys.StaticData.Domain.csproj" />
+    <Project Path="src/Modules/StaticData/Insys.StaticData.Infrastructure/Insys.StaticData.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Tenancy/">
+    <Project Path="src/Modules/Tenancy/Insys.Tenancy.Api/Insys.Tenancy.Api.csproj" />
+    <Project Path="src/Modules/Tenancy/Insys.Tenancy.Application/Insys.Tenancy.Application.csproj" />
+    <Project Path="src/Modules/Tenancy/Insys.Tenancy.Contracts/Insys.Tenancy.Contracts.csproj" />
+    <Project Path="src/Modules/Tenancy/Insys.Tenancy.Domain/Insys.Tenancy.Domain.csproj" />
+    <Project Path="src/Modules/Tenancy/Insys.Tenancy.Infrastructure/Insys.Tenancy.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Workflow/">
+    <Project Path="src/Modules/Workflow/Insys.Workflow.Api/Insys.Workflow.Api.csproj" />
+    <Project Path="src/Modules/Workflow/Insys.Workflow.Infrastructure/Insys.Workflow.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Insys.ArchitectureTests/Insys.ArchitectureTests.csproj" />
@@ -28,5 +123,6 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Insys.DbMigrator/Insys.DbMigrator.csproj" />
+    <Project Path="tools/Insys.StaticData.Generator/Insys.StaticData.Generator.csproj" />
   </Folder>
 </Solution>

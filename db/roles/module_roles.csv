@@ -1,0 +1,23 @@
+role,schemas,module
+insys_integration,integration channel,Integration
+insys_sdm,sdm refdata ops,StaticData
+insys_party,party,Party
+insys_product,product,ProductFactory
+insys_rating,rating,Rating
+insys_rules,rules,Rules
+insys_workflow,workflow,Workflow
+insys_document,document,Documents
+insys_billing,billing,Billing
+insys_payment,payment,Payments
+insys_claims,claims,ClaimsFramework
+insys_life,life,Life
+insys_general,general,General
+insys_health,health,Health
+insys_finance,finance,Finance
+insys_commission,commission,Distribution
+insys_reinsurance,reinsurance,Reinsurance
+insys_reporting,reporting,Compliance
+insys_analytics,analytics,Analytics
+insys_tenant,tenant,Tenancy
+insys_iam,iam,Identity
+insys_audit,audit,Audit

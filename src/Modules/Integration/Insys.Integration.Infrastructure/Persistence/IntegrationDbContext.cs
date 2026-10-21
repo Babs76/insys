@@ -1,5 +1,6 @@
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.Integration.Domain.DeadLetters;
+using Insys.Integration.Infrastructure.StaticData;
 using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Integration.Infrastructure.Persistence;
@@ -15,10 +16,14 @@ public sealed class IntegrationDbContext(DbContextOptions<IntegrationDbContext> 
 
     public override string Schema => SchemaName;
 
+    /// <summary>The integration schema and the portal and partner channel configuration (channel), which has no module of its own (ADR-002).</summary>
+    public override IReadOnlyCollection<string> OwnedSchemas => [SchemaName, "channel"];
+
     public DbSet<DeadLetter> DeadLetters => Set<DeadLetter>();
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
+        IntegrationStaticData.Configure(modelBuilder);
         modelBuilder.Entity<DeadLetter>(entity =>
         {
             entity.ToTable("dead_letter_message");

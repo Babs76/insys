@@ -9,7 +9,8 @@ internal static class Solution
 
     public static IReadOnlyList<Assembly> Assemblies { get; } = Directory.GetFiles(AppContext.BaseDirectory, "Insys.*.dll")
         .Select(Path.GetFileNameWithoutExtension)
-        .Where(name => name is not null && !name.EndsWith("Tests", StringComparison.Ordinal) && name != "Insys.Testing" && name != "Insys.DbMigrator")
+        .Where(name => name is not null && !name.Contains(' ', StringComparison.Ordinal) && !name.EndsWith("Tests", StringComparison.Ordinal)
+            && name != "Insys.Testing" && name != "Insys.DbMigrator")
         .Select(name => Assembly.Load(name!))
         .ToList();
 

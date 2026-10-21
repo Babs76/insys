@@ -2,6 +2,7 @@ using System.Text.Json;
 using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using NpgsqlTypes;
@@ -15,12 +16,13 @@ public sealed class IdempotencyOptions
 }
 
 /// <summary>
-/// integration.idempotency_key, scoped to the tenant by row-level security. A key is reserved IN_PROGRESS before
+/// integration.idempotency_key, owned by the API building block and used through its own role (insys_api), scoped
+/// to the tenant by row-level security. A key is reserved IN_PROGRESS before
 /// the operation runs and COMPLETED with the response afterwards. The unique (tenant_id, idem_key) constraint
 /// settles races between concurrent requests.
 /// </summary>
 public sealed class PostgresIdempotencyStore(
-    NpgsqlDataSource dataSource,
+    [FromKeyedServices(DataSourceKeys.Api)] NpgsqlDataSource dataSource,
     ITenantContext tenant,
     IExecutionContext execution,
     IClock clock,

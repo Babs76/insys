@@ -7,7 +7,7 @@ namespace Insys.DbMigrator;
 
 public sealed record Migration(int Version, string Name, string Path, string Checksum);
 
-public sealed record MigrationResult(IReadOnlyList<Migration> Applied, IReadOnlyList<Migration> AlreadyApplied);
+public sealed record MigrationResult(IReadOnlyList<Migration> Applied, IReadOnlyList<Migration> AlreadyApplied, IReadOnlyList<string>? RepeatablesApplied = null);
 
 /// <summary>
 /// Applies db/migrations/V####__name.sql in order, each in its own transaction, and records them in
@@ -20,17 +20,18 @@ public sealed partial class MigrationRunner(string connectionString, Action<stri
     private const long AdvisoryLockKey = 0x494E_5359_534D_4947; // "INSYSMIG"
 
     [GeneratedRegex(@"^V(?<version>\d{4})__(?<name>[a-z0-9_]+)\.sql$")]
-    private static partial Regex FileNamePattern();
+    private static partial Regex VersionedPattern();
 
-    [GeneratedRegex(@"^[a-z_][a-z0-9_]*$")]
-    private static partial Regex RoleNamePattern();
+    /// <summary>Repeatable scripts (seed data generated from code) run after the versioned ones whenever their content changes.</summary>
+    [GeneratedRegex(@"^R__(?<name>[a-z0-9_]+)\.sql$")]
+    private static partial Regex RepeatablePattern();
 
     public static IReadOnlyList<Migration> Discover(string directory)
     {
         var migrations = new List<Migration>();
-        foreach (var path in Directory.GetFiles(directory, "*.sql"))
+        foreach (var path in Directory.GetFiles(directory, "*.sql").Where(p => !RepeatablePattern().IsMatch(System.IO.Path.GetFileName(p))))
         {
-            var match = FileNamePattern().Match(System.IO.Path.GetFileName(path));
+            var match = VersionedPattern().Match(System.IO.Path.GetFileName(path));
             if (!match.Success)
             {
                 throw new InvalidOperationException($"Migration file name '{System.IO.Path.GetFileName(path)}' does not match V####__name.sql.");
@@ -102,7 +103,8 @@ public sealed partial class MigrationRunner(string connectionString, Action<stri
                 newlyApplied.Add(migration);
             }
 
-            return new MigrationResult(newlyApplied, alreadyApplied);
+            var repeatables = await ApplyRepeatables(connection, directory, cancellationToken);
+            return new MigrationResult(newlyApplied, alreadyApplied, repeatables);
         }
         finally
         {
@@ -110,32 +112,94 @@ public sealed partial class MigrationRunner(string connectionString, Action<stri
         }
     }
 
-    /// <summary>Runs db/roles/app_role_grants.sql for a non-owner application role, creating the role if needed.</summary>
-    public async Task GrantAppRole(string grantsFile, string role, string? password, CancellationToken cancellationToken = default)
+    private async Task<IReadOnlyList<string>> ApplyRepeatables(NpgsqlConnection connection, string directory, CancellationToken cancellationToken)
     {
-        if (!RoleNamePattern().IsMatch(role))
-        {
-            throw new ArgumentException($"'{role}' is not a valid role name.", nameof(role));
-        }
+        await Execute(connection, """
+            CREATE TABLE IF NOT EXISTS public.schema_repeatable (
+              name       varchar(200) PRIMARY KEY,
+              checksum   char(64) NOT NULL,
+              applied_at timestamptz NOT NULL DEFAULT now()
+            )
+            """, cancellationToken);
 
-        await using var connection = new NpgsqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
-        var exists = await Scalar(connection, "SELECT count(*) FROM pg_roles WHERE rolname = @role", cancellationToken, ("role", role));
-        if (Convert.ToInt64(exists) == 0)
+        var applied = new List<string>();
+        foreach (var path in Directory.GetFiles(directory, "R__*.sql").OrderBy(p => p, StringComparer.Ordinal))
         {
-            if (password is null)
+            var name = System.IO.Path.GetFileName(path);
+            if (!RepeatablePattern().IsMatch(name))
             {
-                throw new InvalidOperationException($"Role {role} does not exist; set INSYS_APP_ROLE_PASSWORD to create it.");
+                throw new InvalidOperationException($"Repeatable script name '{name}' does not match R__name.sql.");
             }
 
-            // CREATE ROLE does not accept parameters; the password is quoted as a literal.
-            var literal = "'" + password.Replace("'", "''", StringComparison.Ordinal) + "'";
-            await Execute(connection, $"CREATE ROLE {role} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD {literal}", cancellationToken);
+            var checksum = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path)));
+            var current = await Scalar(connection, "SELECT checksum FROM public.schema_repeatable WHERE name = @name", cancellationToken, ("name", name));
+            if (current is string existing && existing == checksum)
+            {
+                continue;
+            }
+
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+            await using (var command = new NpgsqlCommand(await File.ReadAllTextAsync(path, cancellationToken), connection, transaction) { CommandTimeout = 0 })
+            {
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await using (var record = new NpgsqlCommand("""
+                INSERT INTO public.schema_repeatable (name, checksum) VALUES (@name, @checksum)
+                ON CONFLICT (name) DO UPDATE SET checksum = EXCLUDED.checksum, applied_at = now()
+                """, connection, transaction))
+            {
+                record.Parameters.AddWithValue("name", name);
+                record.Parameters.AddWithValue("checksum", checksum);
+                await record.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            applied.Add(name);
+            log?.Invoke($"Applied repeatable {name}.");
         }
 
-        var sql = (await File.ReadAllTextAsync(grantsFile, cancellationToken)).Replace("{{APP_ROLE}}", role, StringComparison.Ordinal);
+        return applied;
+    }
+
+    /// <summary>
+    /// Creates the module login roles (local, test and CI only) when a password is given, then applies the module
+    /// grants. Run as the owner after migrating.
+    /// </summary>
+    public async Task ApplyRoles(string rolesDirectory, string? password, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        if (password is not null)
+        {
+            var create = await File.ReadAllTextAsync(System.IO.Path.Combine(rolesDirectory, "create_login_roles.sql"), cancellationToken);
+
+            // The password goes into a quoted literal inside format(%L); single quotes are doubled for the SQL string.
+            await Execute(connection, create.Replace("{{PASSWORD}}", password.Replace("'", "''", StringComparison.Ordinal), StringComparison.Ordinal),
+                cancellationToken);
+        }
+
+        await Execute(connection, await File.ReadAllTextAsync(System.IO.Path.Combine(rolesDirectory, "module_grants.sql"), cancellationToken), cancellationToken);
+        log?.Invoke("Applied module role grants.");
+    }
+
+    /// <summary>Creates the platform operator tenant, its first administrator and the PLATFORM_ADMIN role (db/bootstrap/operator.sql).</summary>
+    public async Task BootstrapOperator(string scriptPath, Guid operatorTenantId, string adminSubject, CancellationToken cancellationToken = default)
+    {
+        if (operatorTenantId == Guid.Empty || string.IsNullOrWhiteSpace(adminSubject) || adminSubject.Contains('\'', StringComparison.Ordinal))
+        {
+            throw new ArgumentException("A non-empty operator tenant ID and an administrator subject without quotes are required.");
+        }
+
+        var adminUserId = Guid.CreateVersion7();
+        var sql = (await File.ReadAllTextAsync(scriptPath, cancellationToken))
+            .Replace("{{OPERATOR_TENANT_ID}}", operatorTenantId.ToString(), StringComparison.Ordinal)
+            .Replace("{{ADMIN_SUBJECT}}", adminSubject, StringComparison.Ordinal)
+            .Replace("{{ADMIN_USER_ID}}", adminUserId.ToString(), StringComparison.Ordinal);
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
         await Execute(connection, sql, cancellationToken);
-        log?.Invoke($"Granted application privileges to {role}.");
+        log?.Invoke($"Bootstrapped operator tenant {operatorTenantId}.");
     }
 
     private async Task Apply(NpgsqlConnection connection, Migration migration, CancellationToken cancellationToken)

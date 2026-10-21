@@ -1,0 +1,48 @@
+-- =====================================================================
+-- GENERATED from the [ErrorCode] constants in the source code; do not edit.
+-- Regenerate with: INSYS_UPDATE_SNAPSHOTS=1 dotnet test --filter-class "*ErrorCodeCatalogueTests"
+-- Repeatable script: the migration runner re-runs it when its content changes.
+-- Missing codes are added as version 1, global (tenant_id NULL) and ACTIVE. Existing rows are not
+-- changed; a changed status or message for an existing code needs a new version (SDM-002).
+-- Runs as the owner; global rows are platform data (V0002 policies).
+-- =====================================================================
+INSERT INTO integration.ref_error_code_catalogue
+  (tenant_id, code, version, effective_from, record_status, description, record_source, record_class, created_by,
+   approved_at, approved_by, change_reason, error_code, http_status, message_key, retryable)
+VALUES
+  (NULL, 'CHANGE_REQUEST_NOT_FOUND', 1, DATE '2026-10-01', 'ACTIVE', 'StaticDataGovernanceErrorCodes.ChangeRequestNotFound', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'CHANGE_REQUEST_NOT_FOUND', 404, 'error.static_data.change_request_not_found', false),
+  (NULL, 'CONCURRENCY_CONFLICT', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.ConcurrencyConflict', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'CONCURRENCY_CONFLICT', 409, 'error.concurrency.conflict', true),
+  (NULL, 'CURRENCY_MISMATCH', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.CurrencyMismatch', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'CURRENCY_MISMATCH', 422, 'error.money.currency_mismatch', false),
+  (NULL, 'DATABASE_RULE_VIOLATED', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.DatabaseRuleViolated', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'DATABASE_RULE_VIOLATED', 409, 'error.data.database_rule_violated', false),
+  (NULL, 'DATA_MIGRATION_REQUIRED', 1, DATE '2026-10-01', 'ACTIVE', 'TenancyErrorCodes.DataMigrationRequired', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'DATA_MIGRATION_REQUIRED', 409, 'error.tenancy.data_migration_required', false),
+  (NULL, 'DUPLICATE_RECORD', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.DuplicateRecord', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'DUPLICATE_RECORD', 409, 'error.data.duplicate_record', false),
+  (NULL, 'FORBIDDEN', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.Forbidden', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'FORBIDDEN', 403, 'error.access.forbidden', false),
+  (NULL, 'IDEMPOTENCY_IN_PROGRESS', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.IdempotencyInProgress', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'IDEMPOTENCY_IN_PROGRESS', 409, 'error.idempotency.in_progress', true),
+  (NULL, 'IDEMPOTENCY_KEY_REQUIRED', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.IdempotencyKeyRequired', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'IDEMPOTENCY_KEY_REQUIRED', 422, 'error.idempotency.key_required', false),
+  (NULL, 'IDEMPOTENCY_KEY_REUSED', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.IdempotencyKeyReused', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'IDEMPOTENCY_KEY_REUSED', 422, 'error.idempotency.key_reused', false),
+  (NULL, 'INTERNAL_ERROR', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.InternalError', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'INTERNAL_ERROR', 500, 'error.internal', true),
+  (NULL, 'INVALID_STATE_TRANSITION', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.InvalidStateTransition', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'INVALID_STATE_TRANSITION', 409, 'error.state.invalid_transition', false),
+  (NULL, 'MAKER_CHECKER_SAME_PERSON', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.MakerCheckerSamePerson', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'MAKER_CHECKER_SAME_PERSON', 403, 'error.approval.maker_is_checker', false),
+  (NULL, 'MFA_REQUIRED', 1, DATE '2026-10-01', 'ACTIVE', 'IdentityErrorCodes.MfaRequired', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'MFA_REQUIRED', 409, 'error.identity.mfa_required', false),
+  (NULL, 'NOT_FOUND', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.NotFound', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'NOT_FOUND', 404, 'error.resource.not_found', false),
+  (NULL, 'ONBOARDING_INCOMPLETE', 1, DATE '2026-10-01', 'ACTIVE', 'TenancyErrorCodes.OnboardingIncomplete', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'ONBOARDING_INCOMPLETE', 409, 'error.tenancy.onboarding_incomplete', false),
+  (NULL, 'ONBOARDING_STEP_OUT_OF_ORDER', 1, DATE '2026-10-01', 'ACTIVE', 'TenancyErrorCodes.OnboardingStepOutOfOrder', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'ONBOARDING_STEP_OUT_OF_ORDER', 409, 'error.tenancy.onboarding_step_order', false),
+  (NULL, 'PRECONDITION_FAILED', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.PreconditionFailed', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'PRECONDITION_FAILED', 412, 'error.concurrency.precondition_failed', false),
+  (NULL, 'PRECONDITION_REQUIRED', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.PreconditionRequired', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'PRECONDITION_REQUIRED', 428, 'error.concurrency.precondition_required', false),
+  (NULL, 'RATE_LIMITED', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.RateLimited', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'RATE_LIMITED', 429, 'error.request.rate_limited', true),
+  (NULL, 'ROLE_ALREADY_ASSIGNED', 1, DATE '2026-10-01', 'ACTIVE', 'IdentityErrorCodes.RoleAlreadyAssigned', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'ROLE_ALREADY_ASSIGNED', 409, 'error.identity.role_already_assigned', false),
+  (NULL, 'ROLE_NOT_ASSIGNED', 1, DATE '2026-10-01', 'ACTIVE', 'IdentityErrorCodes.RoleNotAssigned', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'ROLE_NOT_ASSIGNED', 404, 'error.identity.role_not_assigned', false),
+  (NULL, 'ROLE_NOT_FOUND', 1, DATE '2026-10-01', 'ACTIVE', 'IdentityErrorCodes.RoleNotFound', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'ROLE_NOT_FOUND', 422, 'error.identity.role_not_found', false),
+  (NULL, 'SEGREGATION_OF_DUTIES', 1, DATE '2026-10-01', 'ACTIVE', 'IdentityErrorCodes.SegregationOfDuties', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'SEGREGATION_OF_DUTIES', 409, 'error.identity.segregation_of_duties', false),
+  (NULL, 'STATIC_DRAFT_EXISTS', 1, DATE '2026-10-01', 'ACTIVE', 'StaticDataErrorCodes.DraftExists', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'STATIC_DRAFT_EXISTS', 409, 'error.static_data.draft_exists', false),
+  (NULL, 'STATIC_IMPORT_REJECTED', 1, DATE '2026-10-01', 'ACTIVE', 'StaticDataErrorCodes.ImportRejected', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'STATIC_IMPORT_REJECTED', 422, 'error.static_data.import_rejected', false),
+  (NULL, 'STATIC_MAKER_ONLY', 1, DATE '2026-10-01', 'ACTIVE', 'StaticDataErrorCodes.MakerOnly', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'STATIC_MAKER_ONLY', 403, 'error.static_data.maker_only', false),
+  (NULL, 'STATIC_RETROACTIVE_CHANGE', 1, DATE '2026-10-01', 'ACTIVE', 'StaticDataErrorCodes.RetroactiveChange', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'STATIC_RETROACTIVE_CHANGE', 422, 'error.static_data.retroactive_change', false),
+  (NULL, 'STATIC_SCOPE_NOT_ALLOWED', 1, DATE '2026-10-01', 'ACTIVE', 'StaticDataErrorCodes.ScopeNotAllowed', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'STATIC_SCOPE_NOT_ALLOWED', 422, 'error.static_data.scope_not_allowed', false),
+  (NULL, 'STATIC_USER_REQUIRED', 1, DATE '2026-10-01', 'ACTIVE', 'StaticDataErrorCodes.UserRequired', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'STATIC_USER_REQUIRED', 403, 'error.static_data.user_required', false),
+  (NULL, 'TENANT_CODE_TAKEN', 1, DATE '2026-10-01', 'ACTIVE', 'TenancyErrorCodes.TenantCodeTaken', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'TENANT_CODE_TAKEN', 409, 'error.tenancy.code_taken', false),
+  (NULL, 'TENANT_CONTEXT_MISSING', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.TenantContextMissing', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'TENANT_CONTEXT_MISSING', 403, 'error.access.tenant_context_missing', false),
+  (NULL, 'UNAUTHENTICATED', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.Unauthenticated', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'UNAUTHENTICATED', 401, 'error.access.unauthenticated', false),
+  (NULL, 'USERNAME_TAKEN', 1, DATE '2026-10-01', 'ACTIVE', 'IdentityErrorCodes.UsernameTaken', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'USERNAME_TAKEN', 409, 'error.identity.username_taken', false),
+  (NULL, 'VALIDATION_FAILED', 1, DATE '2026-10-01', 'ACTIVE', 'ErrorCodes.ValidationFailed', 'insys-core', 'PUBLIC', 'migration', now(), 'migration', 'Seeded from code', 'VALIDATION_FAILED', 422, 'error.request.validation_failed', false)
+ON CONFLICT ON CONSTRAINT ref_error_code_catalogue_bkey DO NOTHING;

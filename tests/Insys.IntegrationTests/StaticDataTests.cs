@@ -1,0 +1,266 @@
+using System.Net;
+using System.Text.Json;
+using Insys.BuildingBlocks.Api.StaticData;
+using Insys.BuildingBlocks.Infrastructure.StaticData;
+using Insys.StaticData.Contracts;
+using Insys.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+
+namespace Insys.IntegrationTests;
+
+/// <summary>
+/// Static data through the generated endpoints: maker-checker through sdm.change_request (item 7, SDM-003), the
+/// lifecycle, imports (SDM-012), tenant overlays (SDM-008), and global rows written only by platform administrators
+/// on their own connection (item 6).
+/// </summary>
+public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
+{
+    private const string Roles = "/api/v1/identity/static/roles-and-permission-sets";
+    private const string Policies = "/api/v1/identity/static/authentication-and-session-policies";
+    private const string Permissions = "/api/v1/identity/static/permission-catalogue";
+    private static readonly string[] All =
+        [StaticDataPermissions.Read, StaticDataPermissions.Create, StaticDataPermissions.Update, StaticDataPermissions.Approve, StaticDataGovernancePermissions.ChangeRequestRead];
+
+    private InsysApiFactory _factory = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        _factory = new InsysApiFactory(fixture.Database);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "maker-a", All);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "checker-a", All);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, "op-maker", All);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, "op-checker", All);
+    }
+
+    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+
+    [Fact]
+    public async Task Tier1Change_NeedsADifferentChecker_ThenActivates_SDM003()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var checker = _factory.ClientFor(DatabaseFixture.TenantA, "checker-a");
+        var created = await maker.Send(HttpMethod.Post, Roles, Role("CLAIMS_CLERK"), idempotent: true);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var draft = await created.Json();
+        draft.GetProperty("recordStatus").GetString().ShouldBe("DRAFT");
+        draft.GetProperty("tenantId").GetGuid().ShouldBe(DatabaseFixture.TenantA);
+
+        var submitted = await maker.Send(HttpMethod.Post, $"{Roles}/CLAIMS_CLERK/versions/1/submit", ifMatch: created.ETag());
+        submitted.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await submitted.Json()).GetProperty("recordStatus").GetString().ShouldBe("SUBMITTED");
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM sdm.change_request WHERE record_key = 'CLAIMS_CLERK@1' AND tenant_id = @t",
+            ("t", DatabaseFixture.TenantA))).ShouldBe("PENDING");
+
+        var selfApproval = await maker.Send(HttpMethod.Post, $"{Roles}/CLAIMS_CLERK/versions/1/approve");
+        selfApproval.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await selfApproval.Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
+
+        (await checker.Send(HttpMethod.Post, $"{Roles}/CLAIMS_CLERK/versions/1/approve")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var versions = await (await maker.GetAsync($"{Roles}/CLAIMS_CLERK/versions")).Json();
+        var approved = versions[0];
+        approved.GetProperty("recordStatus").GetString().ShouldBe("APPROVED");
+        approved.GetProperty("approvedBy").GetString().ShouldNotBeNull();
+
+        var activated = await maker.Send(HttpMethod.Post, $"{Roles}/CLAIMS_CLERK/versions/1/activate",
+            ifMatch: $"\"{approved.GetProperty("rowVersion").GetInt64()}\"");
+        activated.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await activated.Json()).GetProperty("recordStatus").GetString().ShouldBe("PUBLISHED");
+
+        var inForce = await maker.GetAsync($"{Roles}/CLAIMS_CLERK");
+        inForce.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await inForce.Json()).GetProperty("permissions")[0].GetString().ShouldBe("claim.read");
+
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM sdm.change_request WHERE record_key = 'CLAIMS_CLERK@1' AND tenant_id = @t",
+            ("t", DatabaseFixture.TenantA))).ShouldBe("ACTIVE");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM sdm.change_request WHERE record_key = 'CLAIMS_CLERK@1' AND checker_id IS NOT NULL AND checker_id <> maker_id"))
+            .ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task RejectedChange_ReturnsToDraft_AndOnlyTheMakerEditsIt_SDM003()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var checker = _factory.ClientFor(DatabaseFixture.TenantA, "checker-a");
+        var created = await maker.Send(HttpMethod.Post, Roles, Role("REJECTED_ROLE"), idempotent: true);
+
+        var edit = await checker.Send(HttpMethod.Put, $"{Roles}/REJECTED_ROLE/versions/1", Role("REJECTED_ROLE"), ifMatch: created.ETag());
+        edit.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await edit.Code()).ShouldBe("STATIC_MAKER_ONLY");
+
+        var submitted = await maker.Send(HttpMethod.Post, $"{Roles}/REJECTED_ROLE/versions/1/submit", ifMatch: created.ETag());
+        await _factory.DrainOutbox();
+        (await checker.Send(HttpMethod.Post, $"{Roles}/REJECTED_ROLE/versions/1/reject", new { reason = "Too broad" })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+
+        var version = (await (await maker.GetAsync($"{Roles}/REJECTED_ROLE/versions")).Json())[0];
+        version.GetProperty("recordStatus").GetString().ShouldBe("DRAFT");
+        (await maker.Send(HttpMethod.Put, $"{Roles}/REJECTED_ROLE/versions/1", Role("REJECTED_ROLE"), ifMatch: $"\"{version.GetProperty("rowVersion").GetInt64()}\""))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        _ = submitted;
+    }
+
+    [Fact]
+    public async Task Tier3Change_IsApprovedOnSubmission_WithNoChecker()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        const string url = "/api/v1/general/static/salvage-disposal-methods";
+        var created = await maker.Send(HttpMethod.Post, url, new { code = "AUCTION", label = "Auction", changeReason = "New method" }, idempotent: true);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        await maker.Send(HttpMethod.Post, $"{url}/AUCTION/versions/1/submit", ifMatch: created.ETag());
+        await _factory.DrainOutbox();
+        await _factory.DrainOutbox();
+
+        (await (await maker.GetAsync($"{url}/AUCTION/versions")).Json())[0].GetProperty("recordStatus").GetString().ShouldBe("APPROVED");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM sdm.change_request WHERE record_key = 'AUCTION@1' AND status = 'APPROVED' AND checker_id IS NULL"))
+            .ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task TenantRequest_CannotWriteGlobalRows_ThroughTheApi_Item6()
+    {
+        var tenantUser = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+
+        var globalEndpoint = await tenantUser.Send(HttpMethod.Post, $"{Policies}/global", Policy("GLOBAL_TRY"), idempotent: true);
+        globalEndpoint.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        // A platform-global (scope G) entity has no tenant write endpoints at all, only /global.
+        var globalOnlyEntity = await tenantUser.Send(HttpMethod.Post, Permissions,
+            new { code = "claim.approve", permissionCode = "claim.approve", resource = "Claim", operation = "APPROVE", changeReason = "try" }, idempotent: true);
+        globalOnlyEntity.StatusCode.ShouldBe(HttpStatusCode.MethodNotAllowed);
+        (await tenantUser.Send(HttpMethod.Post, $"{Permissions}/global",
+            new { code = "claim.approve", permissionCode = "claim.approve", resource = "Claim", operation = "APPROVE", changeReason = "try" }, idempotent: true))
+            .StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        // A tenant_id in the body is not a field: tenant rows always take the caller's tenant.
+        var spoofed = await tenantUser.Send(HttpMethod.Post, Policies, new Dictionary<string, object?>
+        {
+            ["code"] = "SPOOF", ["policyCode"] = "SPOOF", ["mfaRequiredRoles"] = Array.Empty<string>(), ["sessionTimeout"] = "PT30M", ["lockoutAttempts"] = 5,
+            ["changeReason"] = "try", ["tenantId"] = null,
+        }, idempotent: true);
+        spoofed.StatusCode.ShouldBe(HttpStatusCode.Created);
+        (await spoofed.Json()).GetProperty("tenantId").GetGuid().ShouldBe(DatabaseFixture.TenantA);
+    }
+
+    [Theory]
+    [InlineData("insys_iam", "iam.cfg_authentication_and_session_policies")]
+    [InlineData("insys_sdm", "refdata.ref_currencies")]
+    public async Task ModuleRole_CannotWriteGlobalRows_InTheDatabase_Item6(string role, string table)
+    {
+        await using var connection = new NpgsqlConnection(fixture.Database.ConnectionFor(role));
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+        await using (var tenant = new NpgsqlCommand($"SELECT set_config('app.tenant_id', '{DatabaseFixture.TenantA}', true)", connection, transaction))
+        {
+            await tenant.ExecuteScalarAsync();
+        }
+
+        await using var command = new NpgsqlCommand($"UPDATE {table} SET description = 'changed' WHERE tenant_id IS NULL; INSERT INTO {table} (tenant_id, code, created_by) VALUES (NULL, 'X', 'x')",
+            connection, transaction);
+        var error = await Should.ThrowAsync<PostgresException>(() => command.ExecuteNonQueryAsync());
+        error.SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task PlatformAdministrators_MaintainGlobalRows_WithMakerChecker_AndTenantsOverlayThem_SDM008()
+    {
+        var opMaker = _factory.ClientFor(DatabaseFixture.Operator, "op-maker");
+        var opChecker = _factory.ClientFor(DatabaseFixture.Operator, "op-checker");
+        var created = await opMaker.Send(HttpMethod.Post, $"{Policies}/global", Policy("BASELINE"), idempotent: true);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var globalDraft = await created.Json();
+        globalDraft.GetProperty("tenantId").ValueKind.ShouldBe(JsonValueKind.Null);
+        globalDraft.GetProperty("sessionTimeout").GetString().ShouldBe("PT30M");
+
+        await opMaker.Send(HttpMethod.Post, $"{Policies}/global/BASELINE/versions/1/submit", ifMatch: created.ETag());
+        await _factory.DrainOutbox();
+        (await opMaker.Send(HttpMethod.Post, $"{Policies}/global/BASELINE/versions/1/approve")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await opChecker.Send(HttpMethod.Post, $"{Policies}/global/BASELINE/versions/1/approve")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var approved = (await (await opMaker.GetAsync($"{Policies}/global/BASELINE/versions")).Json())[0];
+        approved.GetProperty("recordStatus").GetString().ShouldBe("APPROVED");
+        (await opMaker.Send(HttpMethod.Post, $"{Policies}/global/BASELINE/versions/1/activate", ifMatch: $"\"{approved.GetProperty("rowVersion").GetInt64()}\""))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // Tenants read the global baseline...
+        var tenant = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var baseline = await (await tenant.GetAsync($"{Policies}/BASELINE")).Json();
+        baseline.GetProperty("tenantId").ValueKind.ShouldBe(JsonValueKind.Null);
+        baseline.GetProperty("lockoutAttempts").GetInt32().ShouldBe(5);
+
+        // ...and their own row with the same code overrides it, for them only.
+        var checker = _factory.ClientFor(DatabaseFixture.TenantA, "checker-a");
+        var own = await tenant.Send(HttpMethod.Post, Policies, Policy("BASELINE", lockoutAttempts: 3), idempotent: true);
+        own.StatusCode.ShouldBe(HttpStatusCode.Created);
+        await tenant.Send(HttpMethod.Post, $"{Policies}/BASELINE/versions/1/submit", ifMatch: own.ETag());
+        await _factory.DrainOutbox();
+        await checker.Send(HttpMethod.Post, $"{Policies}/BASELINE/versions/1/approve");
+        await _factory.DrainOutbox();
+        var ownApproved = (await (await tenant.GetAsync($"{Policies}/BASELINE/versions")).Json())[0];
+        await tenant.Send(HttpMethod.Post, $"{Policies}/BASELINE/versions/1/activate", ifMatch: $"\"{ownApproved.GetProperty("rowVersion").GetInt64()}\"");
+
+        (await (await tenant.GetAsync($"{Policies}/BASELINE")).Json()).GetProperty("lockoutAttempts").GetInt32().ShouldBe(3);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantB, "reader-b", StaticDataPermissions.Read);
+        (await (await _factory.ClientFor(DatabaseFixture.TenantB, "reader-b").GetAsync($"{Policies}/BASELINE")).Json()).GetProperty("lockoutAttempts").GetInt32()
+            .ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task Import_IsAllOrNothing_AndReportsEveryRejectedLine_SDM012()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var rejected = await maker.Send(HttpMethod.Post, $"{Roles}/imports", new
+        {
+            fileRef = "roles-bad.csv",
+            lines = new object[] { Role("IMPORT_OK"), new { code = "IMPORT_BAD", changeReason = "import" }, new { code = "", roleCode = "X", permissions = Array.Empty<string>() } },
+        }, idempotent: true);
+
+        rejected.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        var errors = (await rejected.Json()).GetProperty("errors");
+        errors.TryGetProperty("line 2", out _).ShouldBeTrue();
+        errors.TryGetProperty("line 3", out _).ShouldBeTrue();
+        (await (await maker.GetAsync($"{Roles}/IMPORT_OK/versions")).Json()).GetArrayLength().ShouldBe(0);
+
+        var committed = await maker.Send(HttpMethod.Post, $"{Roles}/imports", new { fileRef = "roles-good.csv", lines = new[] { Role("IMPORT_ONE"), Role("IMPORT_TWO") } },
+            idempotent: true);
+        committed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await committed.Json()).GetProperty("imported").GetInt32().ShouldBe(2);
+
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM sdm.import_batch WHERE file_ref = 'roles-bad.csv'")).ShouldBe("REJECTED");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM sdm.import_error e JOIN sdm.import_batch b ON b.id = e.batch_id WHERE b.file_ref = 'roles-bad.csv'"))
+            .ShouldBeGreaterThan(1);
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM sdm.import_batch WHERE file_ref = 'roles-good.csv'")).ShouldBe("COMMITTED");
+    }
+
+    [Fact]
+    public async Task All252StaticDataTables_AreReachableThroughTheGeneratedEndpoints()
+    {
+        var descriptors = _factory.Services.GetServices<ModuleStaticDataTables>().SelectMany(m => m.Descriptors).ToList();
+        descriptors.Count.ShouldBe(252);
+        descriptors.Select(d => $"{d.Schema}.{d.Table}").Distinct().Count().ShouldBe(252);
+
+        var reader = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var failures = new List<string>();
+        foreach (var descriptor in descriptors)
+        {
+            var list = await reader.GetAsync($"/api/v1/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}");
+            var versions = await reader.GetAsync($"/api/v1/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}/any/versions");
+            if (list.StatusCode != HttpStatusCode.OK || versions.StatusCode != HttpStatusCode.OK)
+            {
+                failures.Add($"{descriptor.Schema}.{descriptor.Table}: {(int)list.StatusCode}/{(int)versions.StatusCode}");
+            }
+        }
+
+        failures.ShouldBeEmpty();
+    }
+
+    private static object Role(string code) => new { code, roleCode = code, permissions = new[] { "claim.read" }, changeReason = "Test role" };
+
+    private static object Policy(string code, int lockoutAttempts = 5) =>
+        new { code, policyCode = code, mfaRequiredRoles = Array.Empty<string>(), sessionTimeout = "PT30M", lockoutAttempts, changeReason = "Test policy" };
+}

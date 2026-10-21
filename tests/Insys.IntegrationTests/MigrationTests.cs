@@ -16,13 +16,14 @@ public sealed class MigrationTests(DatabaseFixture fixture) : IClassFixture<Data
     [Fact]
     public async Task Migrations_CreateTheSpecifiedCoreAndStaticTables()
     {
-        // V0001: 154 tables in 22 schemas (outbox per module included); V0002: 252 static data tables. Partitions excluded.
+        // V0001: 154 tables in 22 schemas (outbox per module included); V0002: 252 static data tables;
+        // V0004: an inbox in 21 module schemas, and tenant.outbox_event and analytics.outbox_event (23). Partitions excluded.
         var tables = await fixture.Database.ScalarAsOwner<long>("""
             SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition
               AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'test_mod')
             """);
-        tables.ShouldBe(154 + 252);
+        tables.ShouldBe(154 + 252 + 23);
     }
 
     [Fact]

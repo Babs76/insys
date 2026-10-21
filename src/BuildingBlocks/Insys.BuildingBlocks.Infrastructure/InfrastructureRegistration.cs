@@ -18,9 +18,18 @@ using Npgsql;
 
 namespace Insys.BuildingBlocks.Infrastructure;
 
+/// <summary>Keys of the shared data sources. Module data sources are keyed by the module's primary schema.</summary>
+public static class DataSourceKeys
+{
+    /// <summary>The API building block's role (insys_api): integration.idempotency_key only.</summary>
+    public const string Api = "api";
+
+    /// <summary>A login that is a member of insys_platform_admin, used only to write global static data rows.</summary>
+    public const string PlatformAdmin = "platform-admin";
+}
+
 public static class InfrastructureRegistration
 {
-    public const string ConnectionStringName = "Insys";
 
     /// <summary>
     /// True while Microsoft.Extensions.ApiDescription.Server starts the host at build time to write the OpenAPI
@@ -34,9 +43,9 @@ public static class InfrastructureRegistration
     {
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IClock, SystemClock>();
-        services.AddSingleton(_ => new NpgsqlDataSourceBuilder(
-            configuration.GetConnectionString(ConnectionStringName)
-            ?? throw new InvalidOperationException($"ConnectionStrings:{ConnectionStringName} is not configured.")).Build());
+        services.AddOptions<PlatformOptions>().Bind(configuration.GetSection("Platform"));
+        services.AddDataSource(DataSourceKeys.Api, "Api", "insys_api");
+        services.AddDataSource(DataSourceKeys.PlatformAdmin, "PlatformAdmin", "insys_platform_admin_login");
 
         services.AddScoped<ExecutionScope>();
         services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<ExecutionScope>());
@@ -47,7 +56,8 @@ public static class InfrastructureRegistration
 
         services.AddScoped<AuditTrail>();
         services.AddScoped<IAuditTrail>(sp => sp.GetRequiredService<AuditTrail>());
-        services.AddSingleton<AuditEventWriter>();
+        services.AddScoped<AfterCommitActions>();
+        services.AddScoped<IAfterCommit>(sp => sp.GetRequiredService<AfterCommitActions>());
 
         services.AddOptions<IdempotencyOptions>().Bind(configuration.GetSection("Idempotency"));
         services.AddScoped<IIdempotencyStore, PostgresIdempotencyStore>();
@@ -67,14 +77,42 @@ public static class InfrastructureRegistration
         return services;
     }
 
-    /// <summary>Registers a module DbContext for its schema, with the tenant interceptor, and adds the schema to the outbox relay.</summary>
-    public static IServiceCollection AddModuleDbContext<TDbContext>(this IServiceCollection services, string schema)
+    /// <summary>
+    /// Registers a module DbContext on its own data source (ConnectionStrings:{connectionName}, the module's own
+    /// database role; OQ-004), with the tenant interceptor, and adds the schema to the outbox relay.
+    /// </summary>
+    public static IServiceCollection AddModuleDbContext<TDbContext>(this IServiceCollection services, string schema, string connectionName)
         where TDbContext : ModuleDbContext
     {
+        services.AddDataSource(schema, connectionName, $"insys_{schema}");
         services.AddDbContext<TDbContext>((sp, options) => options
-            .UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>())
+            .UseNpgsql(sp.GetRequiredKeyedService<NpgsqlDataSource>(schema), npgsql => npgsql.UseNodaTime())
             .AddInterceptors(sp.GetRequiredService<TenantTransactionInterceptor>()));
         services.AddSingleton(new OutboxSchema(schema));
+        return services;
+    }
+
+    /// <summary>
+    /// A keyed data source, built on first use so configuration added after registration applies. It uses
+    /// ConnectionStrings:{connectionName}, or else ConnectionStrings:Template with {role} replaced by the role name
+    /// (local development and tests, where every role shares one password). NodaTime is enabled on the data source as well
+    /// as in EF, so interval columns with months read and write as Period.
+    /// </summary>
+    public static IServiceCollection AddDataSource(this IServiceCollection services, string key, string connectionName, string roleName)
+    {
+        services.TryAddKeyedSingleton(key, (sp, _) =>
+        {
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var connectionString = configuration.GetConnectionString(connectionName);
+            if (string.IsNullOrWhiteSpace(connectionString) && configuration.GetConnectionString("Template") is { Length: > 0 } template)
+            {
+                connectionString = template.Replace("{role}", roleName, StringComparison.Ordinal);
+            }
+
+            return string.IsNullOrWhiteSpace(connectionString)
+                ? throw new InvalidOperationException($"Neither ConnectionStrings:{connectionName} nor ConnectionStrings:Template is configured.")
+                : new NpgsqlDataSourceBuilder(connectionString).UseNodaTime().Build();
+        });
         return services;
     }
 
@@ -127,20 +165,23 @@ public static class InfrastructureRegistration
 
     /// <summary>
     /// Subscribes a consuming module's policy to an integration event. The handler runs behind the inbox in the
-    /// consumer module's transaction. The consumer name is "{schema}.{HandlerName}" (max 60 characters).
+    /// consumer module's transaction. The consumer name is "{schema}.{HandlerName}" plus ".{suffix}" when one handler
+    /// class consumes several events (max 60 characters).
     /// </summary>
-    public static IServiceCollection AddIntegrationEventHandler<TEvent, THandler, TDbContext>(this IServiceCollection services, string schema)
+    public static IServiceCollection AddIntegrationEventHandler<TEvent, THandler, TDbContext>(this IServiceCollection services, string schema,
+        string? suffix = null)
         where TEvent : class, IIntegrationEvent
         where THandler : class, IIntegrationEventHandler<TEvent>
         where TDbContext : ModuleDbContext
     {
-        var consumer = $"{schema}.{typeof(THandler).Name}";
+        var handlerName = typeof(THandler).Name;
+        var consumer = $"{schema}.{(handlerName.IndexOf('`') is var tick and > 0 ? handlerName[..tick] : handlerName)}{(suffix is null ? "" : "." + suffix)}";
         if (consumer.Length > 60)
         {
             throw new InvalidOperationException($"Consumer name '{consumer}' is longer than inbox_message.consumer allows (60).");
         }
 
-        services.AddScoped<THandler>();
+        services.TryAddScoped<THandler>();
         services.AddScoped<InboxEventHandler<TEvent, THandler, TDbContext>>();
         services.AddSingleton(new EventSubscription(
             IntegrationEventTypes.Describe(typeof(TEvent)).Type,

@@ -22,8 +22,9 @@ Record conflicts and gaps in `docs/decisions/open-questions.md`. Never invent re
 ## Commands
 ```bash
 docker compose up -d postgres         # local PostgreSQL 18
+INSYS_ROLE_PASSWORD=insys_local dotnet run --project tools/Insys.DbMigrator -- --connection "<owner>" --roles db/roles
 dotnet build -warnaserror
-dotnet test                           # integration tests need Docker (Testcontainers)
+dotnet test                           # integration tests need Docker (Testcontainers), or INSYS_TEST_PG=<admin connection>
 dotnet run --project src/Host/Insys.Api
 dotnet run --project tools/Insys.StaticData.Generator   # regenerates static data code
 ```
@@ -31,7 +32,9 @@ dotnet run --project tools/Insys.StaticData.Generator   # regenerates static dat
 ## Architecture rules
 - One module per bounded context under `src/Modules/<Context>/`, with Domain, Application, Infrastructure, Api and Contracts projects.
 - Modules talk only through Contracts: integration events via the outbox, or public query interfaces. Never reference another module's internals.
-- One DbContext per module, mapped only to that module's schema. No cross-schema joins or foreign keys.
+- One DbContext per module, mapped only to that module's schemas, on that module's own database role (ADR-001). No cross-schema joins or foreign keys.
+- Tokens carry only sub and tenant_id; permissions come from IAM role assignments per request.
+- Static data code is generated; never edit `*.g.cs`. Decisions are in `docs/decisions/` (ADRs and open questions).
 - A command changes one aggregate in one transaction. Rules that span aggregates are made consistent through events.
 
 ## Non-negotiables

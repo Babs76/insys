@@ -31,11 +31,11 @@ public sealed class OutboxOptions
 
 /// <summary>
 /// Publishes unpublished outbox rows with retries and back-off, then sets published_at (§23.2). Works one tenant at
-/// a time, setting app.tenant_id for each, because the relay's role has no BYPASSRLS (DBA-002). Rows that reach the
+/// a time, setting app.tenant_id for each, because no module role has BYPASSRLS (DBA-002). Rows that reach the
 /// attempt limit are dead-lettered and left unpublished.
 /// </summary>
 public sealed class OutboxProcessor(
-    NpgsqlDataSource dataSource,
+    IServiceProvider services,
     IEnumerable<OutboxSchema> schemas,
     ITenantDirectory tenants,
     IEventBus bus,
@@ -64,6 +64,9 @@ public sealed class OutboxProcessor(
     private async Task<int> ProcessBatch(string schema, Guid tenantId, CancellationToken cancellationToken)
     {
         var settings = options.Value;
+
+        // Each schema is drained on its module's own data source, so the relay writes only with the owning role (DBA-004).
+        var dataSource = services.GetRequiredKeyedService<NpgsqlDataSource>(schema);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
@@ -181,8 +184,8 @@ public sealed class OutboxProcessor(
         DateTimeOffset OccurredAt, Guid CorrelationId, Guid? CausationId, short PublishAttempts, DateTimeOffset CreatedAt);
 }
 
-/// <summary>Runs <see cref="OutboxProcessor"/> on a timer.</summary>
-public sealed class OutboxRelayService(OutboxProcessor processor, IOptions<OutboxOptions> options, ILogger<OutboxRelayService> logger) : BackgroundService
+/// <summary>Runs <see cref="OutboxProcessor"/> on a timer. The processor is resolved only when the relay is enabled.</summary>
+public sealed class OutboxRelayService(IServiceProvider services, IOptions<OutboxOptions> options, ILogger<OutboxRelayService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -190,6 +193,8 @@ public sealed class OutboxRelayService(OutboxProcessor processor, IOptions<Outbo
         {
             return;
         }
+
+        var processor = services.GetRequiredService<OutboxProcessor>();
 
         using var timer = new PeriodicTimer(options.Value.PollInterval);
         do

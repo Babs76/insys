@@ -1,0 +1,297 @@
+using Insys.BuildingBlocks.Domain;
+
+namespace Insys.Identity.Domain.Users;
+
+/// <summary>States from domain-model.json (iam › UserAccount), stored upper-case in iam.user_account.status.</summary>
+public enum UserStatus
+{
+    Invited,
+    Active,
+    Locked,
+    Disabled,
+}
+
+public enum UserTrigger
+{
+    FirstSignIn,
+    LockUser,
+    UnlockUser,
+    DisableUser,
+}
+
+/// <summary>Entity RoleAssignment (iam.user_role_assignment). A revoked assignment ends today, so it stops applying at once (IAM-005).</summary>
+public sealed class RoleAssignment : Entity<Guid>, ITenantScoped
+{
+    private RoleAssignment()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid UserId { get; private set; }
+
+    public string RoleCode { get; private set; } = "";
+
+    public string[]? ScopeProducts { get; private set; }
+
+    public string[]? ScopeBranches { get; private set; }
+
+    public DateOnly ValidFrom { get; private set; }
+
+    public DateOnly? ValidTo { get; private set; }
+
+    public Guid AssignedBy { get; private set; }
+
+    public long RowVersion { get; private set; }
+
+    /// <summary>In effect on <paramref name="day"/>: valid_from inclusive, valid_to exclusive.</summary>
+    public bool IsEffectiveOn(DateOnly day) => ValidFrom <= day && (ValidTo is null || ValidTo > day);
+
+    internal static RoleAssignment Create(Guid userId, string roleCode, DateOnly validFrom, DateOnly? validTo, string[]? scopeProducts, string[]? scopeBranches,
+        Guid assignedBy) =>
+        new()
+        {
+            Id = Guid.CreateVersion7(), UserId = userId, RoleCode = roleCode, ValidFrom = validFrom, ValidTo = validTo,
+            ScopeProducts = scopeProducts, ScopeBranches = scopeBranches, AssignedBy = assignedBy,
+        };
+
+    internal void EndOn(DateOnly day) => ValidTo = ValidTo is { } end && end < day ? end : day;
+}
+
+/// <summary>Entity Session (iam.session). Sessions are issued by the identity provider; disabling a user revokes them.</summary>
+public sealed class Session : Entity<Guid>, ITenantScoped
+{
+    private Session()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid UserId { get; private set; }
+
+    public DateTimeOffset IssuedAt { get; private set; }
+
+    public DateTimeOffset ExpiresAt { get; private set; }
+
+    public DateTimeOffset? RevokedAt { get; private set; }
+
+    public long RowVersion { get; private set; }
+
+    internal void Revoke(DateTimeOffset now)
+    {
+        if (RevokedAt is null && ExpiresAt > now)
+        {
+            RevokedAt = now;
+        }
+    }
+}
+
+/// <summary>What the role policy knows about a role, read from static data in force today.</summary>
+/// <param name="Exists">The role has a version in force (iam.cfg_roles_and_permission_sets).</param>
+/// <param name="RequiresMfa">The role is in an authentication policy's mfa_required_roles (IAM-003).</param>
+public sealed record RoleFacts(string RoleCode, bool Exists, IReadOnlySet<string> Permissions, bool RequiresMfa);
+
+/// <summary>A segregation-of-duties rule (iam.cfg_segregation_of_duties_conflict_rules): Block or Warn.</summary>
+public sealed record DutyConflictRule(string PermissionA, string PermissionB, string Conflict);
+
+public sealed record RoleAssigned(Guid UserId, string RoleCode, DateOnly ValidFrom, DateOnly? ValidTo, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record RoleRevoked(Guid UserId, string RoleCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record UserDisabled(Guid UserId, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>
+/// The UserAccount aggregate. Identities and permissions are tenant-scoped (IAM-001); conflicting permissions are
+/// never held together (SRS-002); privileged roles require MFA (IAM-003); revocation takes effect at once (IAM-005).
+/// </summary>
+public sealed class UserAccount : AggregateRoot<Guid>
+{
+    public static readonly StateMachine<UserStatus, UserTrigger> Lifecycle = new StateMachine<UserStatus, UserTrigger>()
+        .Allow(UserStatus.Invited, UserTrigger.FirstSignIn, UserStatus.Active)
+        .Allow(UserStatus.Active, UserTrigger.LockUser, UserStatus.Locked)
+        .Allow(UserStatus.Locked, UserTrigger.UnlockUser, UserStatus.Active)
+        .Allow(UserStatus.Active, UserTrigger.DisableUser, UserStatus.Disabled)
+        .Allow(UserStatus.Locked, UserTrigger.DisableUser, UserStatus.Disabled);
+
+    private readonly List<RoleAssignment> _roleAssignments = [];
+    private readonly List<Session> _sessions = [];
+
+    private UserAccount()
+    {
+    }
+
+    public string Username { get; private set; } = "";
+
+    public string DisplayName { get; private set; } = "";
+
+    /// <summary>The identity provider that authenticates the user. TODO(spec): mapping from token issuer to idp_code (SRS §30).</summary>
+    public string IdpCode { get; private set; } = "";
+
+    /// <summary>The token's sub claim at that identity provider.</summary>
+    public string? ExternalSubject { get; private set; }
+
+    public UserStatus Status { get; private set; }
+
+    public bool MfaEnrolled { get; private set; }
+
+    public DateTimeOffset? LastLoginAt { get; private set; }
+
+    public IReadOnlyList<RoleAssignment> RoleAssignments => _roleAssignments;
+
+    public IReadOnlyList<Session> Sessions => _sessions;
+
+    /// <summary>Command ProvisionUser: the user is Invited until first sign-in.</summary>
+    public static UserAccount ProvisionUser(Guid id, string username, string displayName, string idpCode, string externalSubject, bool mfaEnrolled) =>
+        new()
+        {
+            Id = Guard.NotEmpty(id),
+            Username = Guard.MaxLength(Guard.NotNullOrWhiteSpace(username), 120),
+            DisplayName = Guard.MaxLength(Guard.NotNullOrWhiteSpace(displayName), 120),
+            IdpCode = Guard.MaxLength(Guard.NotNullOrWhiteSpace(idpCode), 15),
+            ExternalSubject = Guard.MaxLength(Guard.NotNullOrWhiteSpace(externalSubject), 120),
+            MfaEnrolled = mfaEnrolled,
+            Status = UserStatus.Invited,
+        };
+
+    public IEnumerable<RoleAssignment> EffectiveAssignments(DateOnly day) => _roleAssignments.Where(a => a.IsEffectiveOn(day));
+
+    /// <summary>
+    /// Command AssignRole. <paramref name="currentRoles"/> are the facts for the roles the user already holds today;
+    /// the assignment is refused if it would combine permissions that a Block rule forbids together (SRS-002).
+    /// </summary>
+    public Result AssignRole(RoleFacts role, IReadOnlyCollection<RoleFacts> currentRoles, IReadOnlyCollection<DutyConflictRule> rules, DateOnly validFrom,
+        DateOnly? validTo, string[]? scopeProducts, string[]? scopeBranches, Guid assignedBy, DateOnly today, DateTimeOffset now)
+    {
+        if (Status == UserStatus.Disabled)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Roles cannot be assigned to a disabled user.");
+        }
+
+        if (!role.Exists)
+        {
+            return Error.Validation(IdentityErrorCodes.RoleNotFound, $"Role {role.RoleCode} has no version in force.");
+        }
+
+        if (validTo is { } end && end <= validFrom)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "validTo must be after validFrom.");
+        }
+
+        if (EffectiveAssignments(today).Any(a => a.RoleCode == role.RoleCode))
+        {
+            return Error.Conflict(IdentityErrorCodes.RoleAlreadyAssigned, $"The user already holds {role.RoleCode}.");
+        }
+
+        if (role.RequiresMfa && !MfaEnrolled)
+        {
+            return Error.Conflict(IdentityErrorCodes.MfaRequired, $"{role.RoleCode} is a privileged role and requires MFA enrolment (IAM-003).");
+        }
+
+        var held = currentRoles.SelectMany(r => r.Permissions).ToHashSet(StringComparer.Ordinal);
+        var conflict = rules.FirstOrDefault(rule => rule.Conflict == "BLOCK"
+            && ((role.Permissions.Contains(rule.PermissionA) && (held.Contains(rule.PermissionB) || role.Permissions.Contains(rule.PermissionB)))
+                || (role.Permissions.Contains(rule.PermissionB) && held.Contains(rule.PermissionA))));
+        if (conflict is not null)
+        {
+            return Error.Conflict(IdentityErrorCodes.SegregationOfDuties,
+                $"The user cannot hold both {conflict.PermissionA} and {conflict.PermissionB} (segregation of duties, SRS-002).");
+        }
+
+        var assignment = RoleAssignment.Create(Id, role.RoleCode, validFrom, validTo, scopeProducts, scopeBranches, assignedBy);
+        _roleAssignments.Add(assignment);
+        Raise(new RoleAssigned(Id, role.RoleCode, validFrom, validTo, now));
+        return Result.Success();
+    }
+
+    /// <summary>Command RevokeRole: the assignment ends today, so the next request is already without it (IAM-005).</summary>
+    public Result RevokeRole(string roleCode, DateOnly today, DateTimeOffset now)
+    {
+        var assignments = _roleAssignments.Where(a => a.RoleCode == roleCode && (a.ValidTo is null || a.ValidTo > today)).ToList();
+        if (assignments.Count == 0)
+        {
+            return Error.NotFound(IdentityErrorCodes.RoleNotAssigned, $"The user does not hold {roleCode}.");
+        }
+
+        foreach (var assignment in assignments)
+        {
+            assignment.EndOn(today);
+        }
+
+        Raise(new RoleRevoked(Id, roleCode, now));
+        return Result.Success();
+    }
+
+    /// <summary>The first request from the identity provider activates an invited user (transition "First sign-in").</summary>
+    public Result RecordSignIn(DateTimeOffset now)
+    {
+        if (Status == UserStatus.Invited)
+        {
+            var next = Lifecycle.Fire(Status, UserTrigger.FirstSignIn);
+            if (next.IsFailure)
+            {
+                return next.Error;
+            }
+
+            Status = next.Value;
+        }
+
+        LastLoginAt = now;
+        MarkChanged();
+        return Result.Success();
+    }
+
+    public Result LockUser() => Transition(UserTrigger.LockUser);
+
+    public Result UnlockUser() => Transition(UserTrigger.UnlockUser);
+
+    /// <summary>Command DisableUser: open sessions are revoked and the user can no longer act (IAM-005).</summary>
+    public Result DisableUser(DateTimeOffset now)
+    {
+        var result = Transition(UserTrigger.DisableUser);
+        if (result.IsSuccess)
+        {
+            foreach (var session in _sessions)
+            {
+                session.Revoke(now);
+            }
+
+            Raise(new UserDisabled(Id, now));
+        }
+
+        return result;
+    }
+
+    private Result Transition(UserTrigger trigger)
+    {
+        var next = Lifecycle.Fire(Status, trigger);
+        if (next.IsFailure)
+        {
+            return next.Error;
+        }
+
+        Status = next.Value;
+        MarkChanged();
+        return Result.Success();
+    }
+}
+
+public static class IdentityErrorCodes
+{
+    [ErrorCode(422, "error.identity.role_not_found")]
+    public const string RoleNotFound = "ROLE_NOT_FOUND";
+
+    [ErrorCode(409, "error.identity.role_already_assigned")]
+    public const string RoleAlreadyAssigned = "ROLE_ALREADY_ASSIGNED";
+
+    [ErrorCode(404, "error.identity.role_not_assigned")]
+    public const string RoleNotAssigned = "ROLE_NOT_ASSIGNED";
+
+    [ErrorCode(409, "error.identity.mfa_required")]
+    public const string MfaRequired = "MFA_REQUIRED";
+
+    [ErrorCode(409, "error.identity.segregation_of_duties")]
+    public const string SegregationOfDuties = "SEGREGATION_OF_DUTIES";
+
+    [ErrorCode(409, "error.identity.username_taken")]
+    public const string UsernameTaken = "USERNAME_TAKEN";
+}

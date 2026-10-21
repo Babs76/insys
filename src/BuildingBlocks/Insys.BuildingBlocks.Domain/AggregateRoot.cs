@@ -9,7 +9,8 @@ public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot, ITenantS
 {
     private readonly List<IDomainEvent> _domainEvents = [];
 
-    public Guid TenantId { get; private set; }
+    /// <summary>Set by the infrastructure on insert; an aggregate that is itself a tenant (the Tenant register) sets it to its own ID.</summary>
+    public Guid TenantId { get; protected set; }
 
     /// <summary>Optimistic concurrency token mapped to <c>row_version</c> (DBA-011).</summary>
     public long RowVersion { get; private set; }

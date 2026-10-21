@@ -1,10 +1,13 @@
 using System.Security.Claims;
+using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Insys.BuildingBlocks.Api;
@@ -14,11 +17,8 @@ public static class InsysClaims
     /// <summary>The tenant claim. The tenant is taken from this claim and nothing else (TEN-002).</summary>
     public const string TenantId = "tenant_id";
 
-    /// <summary>
-    /// Permission codes from the IAM permission catalogue (iam.ref_permission_catalogue), one claim per permission.
-    /// TODO(spec): Phase 1 resolves permissions from role assignments; the IdP claim layout is an SRS §30 decision.
-    /// </summary>
-    public const string Permission = "permission";
+    // Access tokens carry only sub and tenant_id (OQ-014 resolved). Permissions are resolved per request from IAM
+    // role assignments by IPrincipalResolver, so token claims never grant permissions.
 
     public const string Subject = "sub";
 }
@@ -28,6 +28,29 @@ public sealed class TenantRequirement : IAuthorizationRequirement;
 
 /// <summary>The caller must hold the permission (IAM-007: enforced in the back end).</summary>
 public sealed record PermissionRequirement(string Permission) : IAuthorizationRequirement;
+
+/// <summary>The caller must belong to the platform operator tenant (platform administration, TEN-007).</summary>
+public sealed class PlatformOperatorRequirement : IAuthorizationRequirement;
+
+public sealed class PlatformOperatorRequirementHandler(ITenantContext tenant, IOptions<PlatformOptions> platform) : AuthorizationHandler<PlatformOperatorRequirement>
+{
+    public const string FailureReason = "PLATFORM_OPERATOR_REQUIRED";
+
+    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, PlatformOperatorRequirement requirement)
+    {
+        var operatorTenant = platform.Value.OperatorTenantId;
+        if (operatorTenant != Guid.Empty && tenant.TenantId == operatorTenant)
+        {
+            context.Succeed(requirement);
+        }
+        else
+        {
+            context.Fail(new AuthorizationFailureReason(this, FailureReason));
+        }
+
+        return Task.CompletedTask;
+    }
+}
 
 public sealed class TenantRequirementHandler(ITenantContext tenant) : AuthorizationHandler<TenantRequirement>
 {
@@ -59,22 +82,34 @@ public sealed class PermissionRequirementHandler(IExecutionContext execution) : 
     }
 }
 
-/// <summary>Builds "perm:{code}" policies on demand: authenticated, with a tenant, holding the permission.</summary>
+/// <summary>
+/// Builds policies on demand: "perm:{code}" (authenticated, with a tenant, holding the permission) and
+/// "platform:{code}" (the same, and the tenant is the platform operator).
+/// </summary>
 public sealed class PermissionPolicyProvider(IOptions<AuthorizationOptions> options) : DefaultAuthorizationPolicyProvider(options)
 {
     public const string Prefix = "perm:";
+    public const string PlatformPrefix = "platform:";
 
     public override async Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
-        if (!policyName.StartsWith(Prefix, StringComparison.Ordinal))
+        if (policyName.StartsWith(Prefix, StringComparison.Ordinal))
         {
-            return await base.GetPolicyAsync(policyName);
+            return new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new TenantRequirement(), new PermissionRequirement(policyName[Prefix.Length..]))
+                .Build();
         }
 
-        return new AuthorizationPolicyBuilder()
-            .RequireAuthenticatedUser()
-            .AddRequirements(new TenantRequirement(), new PermissionRequirement(policyName[Prefix.Length..]))
-            .Build();
+        if (policyName.StartsWith(PlatformPrefix, StringComparison.Ordinal))
+        {
+            return new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new TenantRequirement(), new PlatformOperatorRequirement(), new PermissionRequirement(policyName[PlatformPrefix.Length..]))
+                .Build();
+        }
+
+        return await base.GetPolicyAsync(policyName);
     }
 }
 
@@ -98,9 +133,35 @@ public sealed class ProblemAuthorizationResultHandler : IAuthorizationMiddleware
         }
 
         var tenantMissing = authorizeResult.AuthorizationFailure?.FailureReasons.Any(r => r.Message == ErrorCodes.TenantContextMissing) == true;
+        await RecordDenial(context, policy);
         await Write(context, StatusCodes.Status403Forbidden,
             tenantMissing ? ErrorCodes.TenantContextMissing : ErrorCodes.Forbidden,
             tenantMissing ? "No tenant is established for the caller." : "The caller does not hold the required permission.");
+    }
+
+    /// <summary>Audits a denied request in the caller's tenant (IAM-006, TEN-005). Never blocks the response.</summary>
+    private static async Task RecordDenial(HttpContext context, AuthorizationPolicy policy)
+    {
+        var execution = context.RequestServices.GetRequiredService<ExecutionScope>();
+        var sink = context.RequestServices.GetService<IAuditSink>();
+        if (sink is null || execution.TenantId is not { } tenantId)
+        {
+            return;
+        }
+
+        var required = string.Join(",", policy.Requirements.OfType<PermissionRequirement>().Select(r => r.Permission));
+        try
+        {
+            await sink.Record(new AuditRecord(tenantId, execution.ActorId, "USER",
+                new AuditEntry("ACCESS", "AccessDenied", "Endpoint", $"{context.Request.Method} {context.Request.Path}",
+                    new Dictionary<string, string?> { ["requiredPermission"] = required }),
+                AuditOutcome.Denied, DateTimeOffset.UtcNow, execution.CorrelationId), context.RequestAborted);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            context.RequestServices.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ProblemAuthorizationResultHandler>>()
+                .LogWarning("Could not audit a denied request: {ExceptionType}", ex.GetType().Name);
+        }
     }
 
     private static Task Write(HttpContext context, int status, string code, string message) =>
@@ -114,30 +175,52 @@ public static class EndpointSecurityExtensions
         where TBuilder : IEndpointConventionBuilder =>
         builder.RequireAuthorization(PermissionPolicyProvider.Prefix + permission)
             .WithMetadata(new RequiredPermissionMetadata(permission));
+
+    /// <summary>A platform administration endpoint: the platform operator tenant only, holding the permission.</summary>
+    public static TBuilder RequirePlatformPermission<TBuilder>(this TBuilder builder, string permission)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.RequireAuthorization(PermissionPolicyProvider.PlatformPrefix + permission)
+            .WithMetadata(new RequiredPermissionMetadata(permission), new PlatformOperatorEndpointMetadata());
 }
 
 /// <summary>Endpoint metadata naming the permission, used by OpenAPI and the tests that check every endpoint has one.</summary>
 public sealed record RequiredPermissionMetadata(string Permission);
 
+/// <summary>Marks a platform administration endpoint.</summary>
+public sealed record PlatformOperatorEndpointMetadata;
+
 /// <summary>
 /// Initialises the request's <see cref="ExecutionScope"/> from the authenticated principal only. Route values,
-/// query strings, headers and bodies never set the tenant (TEN-002, DBA-003).
+/// query strings, headers and bodies never set the tenant (TEN-002, DBA-003). The subject is resolved to an IAM user
+/// and its current permissions on every request (OQ-014, IAM-005); an unknown, locked or disabled user has none.
 /// </summary>
 public sealed class ExecutionScopeMiddleware(RequestDelegate next)
 {
     public const string CorrelationHeader = "X-Correlation-Id";
 
-    public Task InvokeAsync(HttpContext context, ExecutionScope scope)
+    public async Task InvokeAsync(HttpContext context, ExecutionScope scope)
     {
         var user = context.User;
-        Guid? tenantId = user.Identity?.IsAuthenticated == true && Guid.TryParse(user.FindFirstValue(InsysClaims.TenantId), out var parsed) && parsed != Guid.Empty
+        var authenticated = user.Identity?.IsAuthenticated == true;
+        Guid? tenantId = authenticated && Guid.TryParse(user.FindFirstValue(InsysClaims.TenantId), out var parsed) && parsed != Guid.Empty
             ? parsed
             : null;
-        var actor = user.FindFirstValue(InsysClaims.Subject) ?? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
-        var permissions = user.FindAll(InsysClaims.Permission).Select(c => c.Value);
+        var subject = user.FindFirstValue(InsysClaims.Subject) ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+        var actor = subject ?? "anonymous";
+        IEnumerable<string> permissions = [];
+        if (tenantId is not null && subject is not null && context.RequestServices.GetService<IPrincipalResolver>() is { } resolver)
+        {
+            var principal = await resolver.Resolve(tenantId.Value, subject, context.RequestAborted);
+            if (principal is not null)
+            {
+                actor = principal.UserId.ToString();
+                permissions = principal.Permissions;
+            }
+        }
+
         Guid? correlation = Guid.TryParse(context.Request.Headers[CorrelationHeader], out var c) ? c : null;
         scope.InitialiseForUser(tenantId, actor, permissions, correlation);
         context.Response.Headers[CorrelationHeader] = scope.CorrelationId.ToString();
-        return next(context);
+        await next(context);
     }
 }

@@ -11,6 +11,27 @@
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\Insys.BuildingBlocks.Api\Insys.BuildingBlocks.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Integration\Insys.Integration.Api\Insys.Integration.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\StaticData\Insys.StaticData.Api\Insys.StaticData.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Party\Insys.Party.Api\Insys.Party.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\ProductFactory\Insys.ProductFactory.Api\Insys.ProductFactory.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Rating\Insys.Rating.Api\Insys.Rating.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Rules\Insys.Rules.Api\Insys.Rules.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Workflow\Insys.Workflow.Api\Insys.Workflow.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Documents\Insys.Documents.Api\Insys.Documents.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Billing\Insys.Billing.Api\Insys.Billing.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Payments\Insys.Payments.Api\Insys.Payments.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\ClaimsFramework\Insys.ClaimsFramework.Api\Insys.ClaimsFramework.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Life\Insys.Life.Api\Insys.Life.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\General\Insys.General.Api\Insys.General.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Health\Insys.Health.Api\Insys.Health.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Finance\Insys.Finance.Api\Insys.Finance.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Distribution\Insys.Distribution.Api\Insys.Distribution.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Reinsurance\Insys.Reinsurance.Api\Insys.Reinsurance.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Compliance\Insys.Compliance.Api\Insys.Compliance.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Analytics\Insys.Analytics.Api\Insys.Analytics.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Tenancy\Insys.Tenancy.Api\Insys.Tenancy.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Identity\Insys.Identity.Api\Insys.Identity.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Audit\Insys.Audit.Api\Insys.Audit.Api.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">

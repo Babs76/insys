@@ -28,10 +28,8 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
         var id = (await _services.Send(DatabaseFixture.TenantA, new CreateWidget("first"))).Value;
 
         (await Count("test_mod.widget", id, "id")).ShouldBe(1);
-        (await Count("test_mod.outbox_event", id, "aggregate_id")).ShouldBe(1);
-        var eventType = await fixture.Database.ScalarAsOwner<string>("SELECT event_type FROM test_mod.outbox_event WHERE aggregate_id = @id", ("id", id));
-        eventType.ShouldBe("test_mod.WidgetCreated");
-        var tenant = await fixture.Database.ScalarAsOwner<Guid>("SELECT tenant_id FROM test_mod.outbox_event WHERE aggregate_id = @id", ("id", id));
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM test_mod.outbox_event WHERE aggregate_id = @id AND event_type = 'test_mod.WidgetCreated'", ("id", id))).ShouldBe(1);
+        var tenant = await fixture.Database.ScalarAsOwner<Guid>("SELECT tenant_id FROM test_mod.outbox_event WHERE aggregate_id = @id AND event_type = 'test_mod.WidgetCreated'", ("id", id));
         tenant.ShouldBe(DatabaseFixture.TenantA);
     }
 
@@ -40,7 +38,7 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
     {
         var id = (await _services.Send(DatabaseFixture.TenantA, new CreateWidget("secret-name"))).Value;
 
-        var payload = await fixture.Database.ScalarAsOwner<string>("SELECT payload::text FROM test_mod.outbox_event WHERE aggregate_id = @id", ("id", id));
+        var payload = await fixture.Database.ScalarAsOwner<string>("SELECT payload::text FROM test_mod.outbox_event WHERE aggregate_id = @id AND event_type = 'test_mod.WidgetCreated'", ("id", id));
         payload.ShouldNotBeNull();
         payload.ShouldNotContain("secret-name");
         payload.ShouldContain(id.ToString());
@@ -54,16 +52,25 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
 
         result.IsFailure.ShouldBeTrue();
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM test_mod.widget")).ShouldBe(before);
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM test_mod.outbox_event o WHERE NOT EXISTS (SELECT 1 FROM test_mod.widget w WHERE w.id = o.aggregate_id)"))
-            .ShouldBe(0);
+        (await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM test_mod.outbox_event o
+            WHERE o.event_type = 'test_mod.WidgetCreated' AND NOT EXISTS (SELECT 1 FROM test_mod.widget w WHERE w.id = o.aggregate_id)
+            """)).ShouldBe(0);
+
+        // The failure is published through the module's own outbox and recorded by the Audit module.
+        await _services.GetRequiredService<OutboxProcessor>().ProcessOnce(CancellationToken.None);
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'CreateWidget' AND outcome = 'FAILURE'"))
             .ShouldBeGreaterThan(0);
     }
 
     [Fact]
-    public async Task SuccessfulCommand_WritesAuditInTheSameTransaction_WithMaskedDetails_IAM006()
+    public async Task SuccessfulCommand_PublishesAuditInTheSameTransaction_WithMaskedDetails_IAM006()
     {
         var id = (await _services.Send(DatabaseFixture.TenantA, new CreateWidget("audited"), actor: "user-42")).Value;
+        (await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM test_mod.outbox_event WHERE event_type = 'audit.SensitiveOperationRecorded' AND payload->>'targetId' = @id
+            """, ("id", id.ToString()))).ShouldBe(1);
+        await _services.GetRequiredService<OutboxProcessor>().ProcessOnce(CancellationToken.None);
 
         var details = await fixture.Database.ScalarAsOwner<string>("""
             SELECT details::text FROM audit.audit_event
@@ -139,7 +146,7 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
 
         await _services.GetRequiredService<OutboxProcessor>().ProcessOnce(CancellationToken.None);
 
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM test_mod.outbox_event WHERE aggregate_id = @id AND published_at IS NOT NULL", ("id", id)))
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM test_mod.outbox_event WHERE aggregate_id = @id AND published_at IS NOT NULL AND event_type = 'test_mod.WidgetCreated'", ("id", id)))
             .ShouldBe(1);
         var consumedTenant = await fixture.Database.ScalarAsOwner<Guid>("SELECT tenant_id FROM test_mod.consumption WHERE widget_id = @id", ("id", id));
         consumedTenant.ShouldBe(DatabaseFixture.TenantB);
@@ -158,7 +165,7 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
         await _services.GetRequiredService<IEventBus>().Publish(envelope, CancellationToken.None);
 
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM test_mod.consumption WHERE widget_id = @id", ("id", id))).ShouldBe(1);
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM integration.inbox_message WHERE event_id = @e", ("e", envelope.EventId))).ShouldBe(1);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM test_mod.inbox_message WHERE event_id = @e", ("e", envelope.EventId))).ShouldBe(1);
     }
 
     [Fact]
@@ -188,7 +195,7 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
             await relay.ProcessOnce(CancellationToken.None);
         }
 
-        var eventId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM test_mod.outbox_event WHERE aggregate_id = @id", ("id", id));
+        var eventId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM test_mod.outbox_event WHERE aggregate_id = @id AND event_type = 'test_mod.WidgetCreated'", ("id", id));
         (await fixture.Database.ScalarAsOwner<short>("SELECT publish_attempts FROM test_mod.outbox_event WHERE id = @e", ("e", eventId))).ShouldBe((short)3);
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM test_mod.outbox_event WHERE id = @e AND published_at IS NULL", ("e", eventId))).ShouldBe(1);
         (await fixture.Database.ScalarAsOwner<long>("""
@@ -205,7 +212,7 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
 
     private async Task<EventEnvelope> EnvelopeFor(Guid aggregateId)
     {
-        var eventId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM test_mod.outbox_event WHERE aggregate_id = @id", ("id", aggregateId));
+        var eventId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM test_mod.outbox_event WHERE aggregate_id = @id AND event_type = 'test_mod.WidgetCreated'", ("id", aggregateId));
         var tenant = await fixture.Database.ScalarAsOwner<Guid>("SELECT tenant_id FROM test_mod.outbox_event WHERE id = @id", ("id", eventId));
         var payload = await fixture.Database.ScalarAsOwner<string>("SELECT payload::text FROM test_mod.outbox_event WHERE id = @id", ("id", eventId));
         using var document = System.Text.Json.JsonDocument.Parse(payload!);

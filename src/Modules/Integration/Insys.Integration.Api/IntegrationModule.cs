@@ -1,5 +1,6 @@
 using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.Integration.Api.StaticData;
 using Insys.Integration.Application.DeadLetters;
 using Insys.Integration.Contracts;
 using Insys.Integration.Domain.DeadLetters;
@@ -20,6 +21,8 @@ public sealed class IntegrationModule : IModule
 
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
+        IntegrationStaticDataEndpoints.MapStaticData(api);
+
         var deadLetters = api.MapGroup("/integration/dead-letters").WithTags(Name);
 
         deadLetters.MapGet("/", async (string? cursor, int? limit, DeadLetterStatus? status, string? source, IDispatcher dispatcher, CancellationToken ct) =>

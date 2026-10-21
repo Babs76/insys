@@ -6,7 +6,7 @@ public static class RepositoryPaths
 
     public static string Migrations => Path.Combine(Root, "db", "migrations");
 
-    public static string AppRoleGrants => Path.Combine(Root, "db", "roles", "app_role_grants.sql");
+    public static string Roles => Path.Combine(Root, "db", "roles");
 
     public static string Specs => Path.Combine(Root, "docs", "specs");
 

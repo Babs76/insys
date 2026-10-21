@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Application\Insys.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\Insys.StaticData.Domain\Insys.StaticData.Domain.csproj" />
+    <ProjectReference Include="..\Insys.StaticData.Contracts\Insys.StaticData.Contracts.csproj" />
+  </ItemGroup>
+</Project>

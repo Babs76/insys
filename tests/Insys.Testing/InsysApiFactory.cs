@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Testing;
 
@@ -13,13 +14,17 @@ public sealed class InsysApiFactory(TestDatabase database) : WebApplicationFacto
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(TestTokens.HostSettings(Database.AppConnectionString)));
+        builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(TestTokens.HostSettings(Database)));
     }
 
-    public HttpClient ClientFor(Guid? tenantId, string subject, params string[] permissions)
+    /// <summary>A client whose token carries only sub and tenant_id.</summary>
+    public HttpClient ClientFor(Guid? tenantId, string subject)
     {
         var client = CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TestTokens.For(tenantId, subject, permissions));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TestTokens.For(tenantId, subject));
         return client;
     }
+
+    /// <summary>Publishes every pending outbox event to its consumers now (the relay is off in tests).</summary>
+    public Task<int> DrainOutbox() => Services.GetRequiredService<Insys.BuildingBlocks.Infrastructure.Messaging.OutboxProcessor>().ProcessOnce(CancellationToken.None);
 }

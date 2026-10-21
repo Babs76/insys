@@ -1,18 +1,21 @@
 using System.Linq.Expressions;
 using System.Text.Json;
+using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
+using Insys.BuildingBlocks.Contracts.Auditing;
 using Insys.BuildingBlocks.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Insys.BuildingBlocks.Infrastructure.Persistence;
 
 /// <summary>Services every module DbContext needs.</summary>
-public sealed class ModuleDbContextDependencies(ITenantContext tenant, IExecutionContext execution, IClock clock, IServiceProvider services)
+public sealed class ModuleDbContextDependencies(
+    ITenantContext tenant, IExecutionContext execution, IClock clock, IOptions<PlatformOptions> platform, IServiceProvider services)
 {
     public ITenantContext Tenant { get; } = tenant;
 
@@ -20,13 +23,15 @@ public sealed class ModuleDbContextDependencies(ITenantContext tenant, IExecutio
 
     public IClock Clock { get; } = clock;
 
+    public PlatformOptions Platform { get; } = platform.Value;
+
     public IServiceProvider Services { get; } = services;
 }
 
 /// <summary>
-/// Base for a module's DbContext. It maps only the module's own schema (DBA-004), adds the tenant query filter as a
+/// Base for a module's DbContext. It maps only the module's own schemas (DBA-004), adds the tenant query filter as a
 /// second layer behind row-level security, maintains row_version and the audit columns, and writes the aggregates'
-/// events to the module outbox in the same SaveChanges (DBA-006).
+/// events and audit entries to the module outbox in the same SaveChanges (DBA-006).
 /// </summary>
 public abstract class ModuleDbContext(DbContextOptions options, ModuleDbContextDependencies dependencies) : DbContext(options)
 {
@@ -34,27 +39,57 @@ public abstract class ModuleDbContext(DbContextOptions options, ModuleDbContextD
     public const string CreatedBy = "CreatedBy";
     public const string UpdatedAt = "UpdatedAt";
     public const string UpdatedBy = "UpdatedBy";
-
     public const string TenantFilterKey = "tenant";
 
     public static readonly JsonSerializerOptions EventJson = new(JsonSerializerDefaults.Web);
 
-    /// <summary>The module's PostgreSQL schema, for example "integration".</summary>
+    private Guid? _actingTenantId;
+
+    /// <summary>The module's primary PostgreSQL schema, for example "integration". Its outbox and inbox live here.</summary>
     public abstract string Schema { get; }
+
+    /// <summary>Every schema the module owns (db/roles/module_roles.csv). Usually just <see cref="Schema"/>.</summary>
+    public virtual IReadOnlyCollection<string> OwnedSchemas => [Schema];
+
+    /// <summary>True only for contexts whose operators act on behalf of a tenant (the Tenancy module, TEN-007).</summary>
+    protected virtual bool AllowsOperatorActingAsTenant => false;
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
-    internal ITenantContext TenantContext => dependencies.Tenant;
+    internal IExecutionContext Execution => dependencies.Execution;
 
-    /// <summary>Referenced by the global query filter; throws when there is no tenant, so a query never runs unscoped.</summary>
-    protected Guid CurrentTenantId => dependencies.Tenant.RequireTenantId();
+    /// <summary>
+    /// The tenant of this context's transactions: the caller's tenant, or the target tenant of an operator command.
+    /// Referenced by the global query filter; throws when there is no tenant, so a query never runs unscoped.
+    /// </summary>
+    public Guid CurrentTenantId => _actingTenantId ?? dependencies.Tenant.RequireTenantId();
+
+    /// <summary>
+    /// Runs this context's transactions as <paramref name="tenantId"/>. Allowed only in contexts that permit it and
+    /// only for callers from the platform operator tenant (TEN-007).
+    /// </summary>
+    public void ActAsTenant(Guid tenantId)
+    {
+        if (!AllowsOperatorActingAsTenant || dependencies.Tenant.TenantId != dependencies.Platform.OperatorTenantId
+            || dependencies.Platform.OperatorTenantId == Guid.Empty)
+        {
+            throw new TenantMismatchException();
+        }
+
+        if (Database.CurrentTransaction is not null)
+        {
+            throw new InvalidOperationException("Choose the target tenant before the transaction starts.");
+        }
+
+        _actingTenantId = tenantId;
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.Entity<OutboxMessage>(outbox =>
         {
-            outbox.ToTable("outbox_event");
+            outbox.ToTable("outbox_event", Schema);
             outbox.HasKey(o => new { o.TenantId, o.Id });
             outbox.Property(o => o.Payload).HasColumnType("jsonb");
             outbox.Property(o => o.RowVersion).IsConcurrencyToken();
@@ -83,6 +118,39 @@ public abstract class ModuleDbContext(DbContextOptions options, ModuleDbContextD
         return count;
     }
 
+    /// <summary>Adds an integration event to this module's outbox; it is written by the next SaveChanges.</summary>
+    public void Publish(IIntegrationEvent integrationEvent, string aggregateType, Guid aggregateId, DateTimeOffset occurredAt)
+    {
+        var descriptor = IntegrationEventTypes.Describe(integrationEvent.GetType());
+        OutboxMessages.Add(new OutboxMessage
+        {
+            TenantId = CurrentTenantId,
+            Id = Guid.CreateVersion7(),
+            AggregateType = aggregateType.Length <= 60 ? aggregateType : aggregateType[..60],
+            AggregateId = aggregateId,
+            EventType = descriptor.Type,
+            EventVersion = descriptor.Version,
+            Payload = JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType(), EventJson),
+            OccurredAt = occurredAt,
+            CorrelationId = dependencies.Execution.CorrelationId,
+            CausationId = dependencies.Execution.CausationId,
+        });
+    }
+
+    /// <summary>Publishes audit entries as <see cref="SensitiveOperationRecorded"/> events through this module's outbox.</summary>
+    public void PublishAudit(IEnumerable<AuditEntry> entries, AuditOutcome outcome)
+    {
+        var now = dependencies.Clock.UtcNow;
+        var execution = dependencies.Execution;
+        foreach (var entry in entries)
+        {
+            var targetId = Guid.TryParse(entry.TargetId, out var parsed) ? parsed : Guid.Empty;
+            Publish(new SensitiveOperationRecorded(execution.ActorId, execution.ActorType == ActorType.Service ? "SERVICE" : "USER",
+                entry.EventType, entry.Operation, entry.TargetType, entry.TargetId, outcome.ToString().ToUpperInvariant(), now, entry.Details),
+                entry.TargetType, targetId, now);
+        }
+    }
+
     private void ApplyConventions(ModelBuilder modelBuilder)
     {
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().ToList())
@@ -105,19 +173,35 @@ public abstract class ModuleDbContext(DbContextOptions options, ModuleDbContextD
                 }
             }
 
-            if (entityType.FindProperty(nameof(ITenantScoped.TenantId)) is not null && entityType.BaseType is null)
+            var tenantProperty = entityType.FindProperty(nameof(ITenantScoped.TenantId));
+            if (tenantProperty is not null && entityType.BaseType is null)
             {
-                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(TenantFilterKey, BuildTenantFilter(entityType.ClrType));
+                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(TenantFilterKey,
+                    BuildTenantFilter(entityType.ClrType, tenantProperty.ClrType == typeof(Guid?)));
             }
         }
     }
 
-    private LambdaExpression BuildTenantFilter(Type clrType)
+    /// <summary>
+    /// The second layer behind row-level security: own tenant only, or for static data with a nullable tenant_id,
+    /// global rows plus the tenant's own (scopes G and GT).
+    /// </summary>
+    private LambdaExpression BuildTenantFilter(Type clrType, bool includeGlobalRows)
     {
         var entity = Expression.Parameter(clrType, "e");
-        var tenantId = Expression.Call(typeof(EF), nameof(EF.Property), [typeof(Guid)], entity, Expression.Constant(nameof(ITenantScoped.TenantId)));
         var current = Expression.Property(Expression.Constant(this), nameof(CurrentTenantId));
-        return Expression.Lambda(Expression.Equal(tenantId, current), entity);
+        if (!includeGlobalRows)
+        {
+            var tenantId = Expression.Call(typeof(EF), nameof(EF.Property), [typeof(Guid)], entity, Expression.Constant(nameof(ITenantScoped.TenantId)));
+            return Expression.Lambda(Expression.Equal(tenantId, current), entity);
+        }
+
+        var nullableTenant = Expression.Call(typeof(EF), nameof(EF.Property), [typeof(Guid?)], entity, Expression.Constant(nameof(ITenantScoped.TenantId)));
+        return Expression.Lambda(
+            Expression.OrElse(
+                Expression.Equal(nullableTenant, Expression.Constant(null, typeof(Guid?))),
+                Expression.Equal(nullableTenant, Expression.Convert(current, typeof(Guid?)))),
+            entity);
     }
 
     private void WriteOutbox()
@@ -129,7 +213,6 @@ public abstract class ModuleDbContext(DbContextOptions options, ModuleDbContextD
         }
 
         var mappers = dependencies.Services.GetKeyedServices<IDomainEventMapper>(Schema).ToList();
-        var tenantId = CurrentTenantId;
         foreach (var aggregate in aggregates)
         {
             var aggregateId = aggregate.Id as Guid? ?? throw new InvalidOperationException("Aggregate IDs must be GUIDs to be referenced from events.");
@@ -137,20 +220,7 @@ public abstract class ModuleDbContext(DbContextOptions options, ModuleDbContextD
             {
                 var integrationEvent = mappers.Select(m => m.Map(domainEvent)).FirstOrDefault(e => e is not null)
                     ?? throw new InvalidOperationException($"No IDomainEventMapper in the {Schema} module maps {domainEvent.GetType().Name}.");
-                var descriptor = IntegrationEventTypes.Describe(integrationEvent.GetType());
-                OutboxMessages.Add(new OutboxMessage
-                {
-                    TenantId = tenantId,
-                    Id = Guid.CreateVersion7(),
-                    AggregateType = aggregate.GetType().Name,
-                    AggregateId = aggregateId,
-                    EventType = descriptor.Type,
-                    EventVersion = descriptor.Version,
-                    Payload = JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType(), EventJson),
-                    OccurredAt = domainEvent.OccurredAt,
-                    CorrelationId = dependencies.Execution.CorrelationId,
-                    CausationId = dependencies.Execution.CausationId,
-                });
+                Publish(integrationEvent, aggregate.GetType().Name, aggregateId, domainEvent.OccurredAt);
             }
         }
     }
@@ -196,9 +266,11 @@ public abstract class ModuleDbContext(DbContextOptions options, ModuleDbContextD
         }
     }
 
+    /// <summary>Sets tenant_id on new rows. Nullable tenant columns (static data) are set by the static data store.</summary>
     private static void StampTenant(EntityEntry entry, Guid tenantId)
     {
-        if (entry.Metadata.FindProperty(nameof(ITenantScoped.TenantId)) is null)
+        var metadata = entry.Metadata.FindProperty(nameof(ITenantScoped.TenantId));
+        if (metadata is null || metadata.ClrType != typeof(Guid))
         {
             return;
         }
@@ -214,12 +286,19 @@ public abstract class ModuleDbContext(DbContextOptions options, ModuleDbContextD
 
     private static void EnsureSameTenant(EntityEntry entry, Guid tenantId)
     {
-        if (entry.Metadata.FindProperty(nameof(ITenantScoped.TenantId)) is null)
+        var metadata = entry.Metadata.FindProperty(nameof(ITenantScoped.TenantId));
+        if (metadata is null)
         {
             return;
         }
 
         var property = entry.Property(nameof(ITenantScoped.TenantId));
+        if (metadata.ClrType == typeof(Guid?) && property.OriginalValue is null && property.CurrentValue is null)
+        {
+            // A global static data row; row-level security allows the write only to platform administrators.
+            return;
+        }
+
         if (!Equals(property.OriginalValue, tenantId) || !Equals(property.CurrentValue, tenantId))
         {
             throw new TenantMismatchException();

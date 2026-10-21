@@ -25,11 +25,11 @@ public sealed class IdempotencyTests(DatabaseFixture fixture) : IClassFixture<Da
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
-        builder.Configuration.AddInMemoryCollection(TestTokens.HostSettings(fixture.Database.AppConnectionString));
+        builder.Configuration.AddInMemoryCollection(TestTokens.HostSettings(fixture.Database));
         builder.Services.AddInsysInfrastructure(builder.Configuration);
         builder.Services.AddInsysApi();
-        builder.Services.AddSingleton<ITenantDirectory, RegisterTenantDirectory>();
-        builder.Services.AddModuleDbContext<TestDbContext>(TestDbContext.SchemaName);
+        builder.Services.AddSingleton<IPrincipalResolver, WidgetMakers>();
+        builder.Services.AddModuleDbContext<TestDbContext>(TestDbContext.SchemaName, "TestModule");
         builder.Services.AddModuleHandlers<TestDbContext>(typeof(TestDbContext).Assembly);
         builder.Services.AddDomainEventMapper<WidgetEventMapper>(TestDbContext.SchemaName);
 
@@ -125,7 +125,7 @@ public sealed class IdempotencyTests(DatabaseFixture fixture) : IClassFixture<Da
     private HttpClient Client(Guid tenant)
     {
         var client = _app.GetTestClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TestTokens.For(tenant, "user-1", "widget.create"));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TestTokens.For(tenant, "user-1"));
         return client;
     }
 
@@ -137,4 +137,11 @@ public sealed class IdempotencyTests(DatabaseFixture fixture) : IClassFixture<Da
     }
 
     public sealed record WidgetRequest(string Name);
+
+    /// <summary>Grants widget.create to every subject: this host has no Identity module, and these tests are about the filter.</summary>
+    private sealed class WidgetMakers : IPrincipalResolver
+    {
+        public Task<ResolvedPrincipal?> Resolve(Guid tenantId, string subject, CancellationToken cancellationToken) =>
+            Task.FromResult<ResolvedPrincipal?>(new ResolvedPrincipal(Guid.CreateVersion7(), new HashSet<string> { "widget.create" }));
+    }
 }

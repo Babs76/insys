@@ -12,7 +12,8 @@ public static class TestTokens
     public const string Audience = "insys-core-api";
     public const string SigningKey = "insys-test-signing-key-for-automated-tests-only-0123456789abcdef";
 
-    public static string For(Guid? tenantId, string subject, params string[] permissions)
+    /// <summary>A token with only sub and tenant_id (OQ-014); permissions come from IAM role assignments.</summary>
+    public static string For(Guid? tenantId, string subject)
     {
         var claims = new List<Claim> { new("sub", subject) };
         if (tenantId is not null)
@@ -20,7 +21,6 @@ public static class TestTokens
             claims.Add(new Claim("tenant_id", tenantId.Value.ToString()));
         }
 
-        claims.AddRange(permissions.Select(p => new Claim("permission", p)));
         return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {
             Issuer = Issuer,
@@ -32,9 +32,11 @@ public static class TestTokens
     }
 
     /// <summary>Configuration every test host shares.</summary>
-    public static Dictionary<string, string?> HostSettings(string appConnectionString) => new()
+    public static Dictionary<string, string?> HostSettings(TestDatabase database) => new()
     {
-        ["ConnectionStrings:Insys"] = appConnectionString,
+        ["ConnectionStrings:Template"] = database.RoleConnectionTemplate,
+        ["Platform:OperatorTenantId"] = TestTenants.Operator.ToString(),
+        ["Audit:Partitions:Enabled"] = "false",
         ["Authentication:Authority"] = "",
         ["Authentication:Issuer"] = Issuer,
         ["Authentication:Audience"] = Audience,

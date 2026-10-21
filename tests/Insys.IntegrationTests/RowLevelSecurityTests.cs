@@ -3,7 +3,7 @@ using Npgsql;
 
 namespace Insys.IntegrationTests;
 
-/// <summary>The database layer of tenant isolation, as the non-owner application role (DBA-001 to DBA-003, SRS §27.4).</summary>
+/// <summary>The database layer of tenant isolation, as non-owner module roles (DBA-001 to DBA-003, SRS §27.4).</summary>
 public sealed class RowLevelSecurityTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
     private static readonly Guid RowA = Guid.CreateVersion7();
@@ -25,7 +25,7 @@ public sealed class RowLevelSecurityTests(DatabaseFixture fixture) : IClassFixtu
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task AppRole_IsNotOwner_AndCannotBypassRls_DBA002()
+    public async Task ModuleRole_IsNotOwner_AndCannotBypassRls_DBA002()
     {
         await using var connection = await Open();
         await using var command = new NpgsqlCommand("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user", connection);
@@ -107,7 +107,7 @@ public sealed class RowLevelSecurityTests(DatabaseFixture fixture) : IClassFixtu
     [Fact]
     public async Task AuditEvents_AreInsertOnly_DBA016()
     {
-        await using var connection = await Open();
+        await using var connection = await Open("insys_audit");
         await using var transaction = await connection.BeginTransactionAsync();
         await SetTenant(connection, transaction, DatabaseFixture.TenantA);
         await using var command = new NpgsqlCommand("UPDATE audit.audit_event SET outcome = 'SUCCESS'", connection, transaction);
@@ -116,9 +116,9 @@ public sealed class RowLevelSecurityTests(DatabaseFixture fixture) : IClassFixtu
         error.SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
     }
 
-    private async Task<NpgsqlConnection> Open()
+    private async Task<NpgsqlConnection> Open(string role = "insys_integration")
     {
-        var connection = new NpgsqlConnection(fixture.Database.AppConnectionString);
+        var connection = new NpgsqlConnection(fixture.Database.ConnectionFor(role));
         await connection.OpenAsync();
         return connection;
     }

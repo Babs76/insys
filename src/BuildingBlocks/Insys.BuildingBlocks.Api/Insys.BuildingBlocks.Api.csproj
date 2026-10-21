@@ -4,6 +4,9 @@
     <!-- AV0029 suggests Asp.Versioning.OpenApi. We use the API explorer group name ("v1") with the built-in OpenAPI
          document instead; the contract test checks the document lists the versioned paths. -->
     <NoWarn>$(NoWarn);AV0029</NoWarn>
+    <!-- AD0001: ASP.NET Core's RouteHandlerAnalyzer (10.0.13) throws a NullReferenceException on the generic static data
+         endpoints. It is an advisory analyzer crashing, not a finding; remove this once the analyzer is fixed. -->
+    <NoWarn>$(NoWarn);AD0001</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

@@ -1,9 +1,9 @@
 using Insys.DbMigrator;
 
 // Usage: dotnet run --project tools/Insys.DbMigrator -- [--connection <owner connection string>] [--migrations db/migrations]
-//          [--app-role insys_app] [--grants db/roles/app_role_grants.sql]
-// The connection may also come from INSYS_MIGRATION_CONNECTION. The application role's password, needed only to
-// create the role, comes from INSYS_APP_ROLE_PASSWORD so it never appears on the command line.
+//          [--roles db/roles] [--bootstrap-operator <operator tenant id> --admin-subject <sub>]
+// The connection may also come from INSYS_MIGRATION_CONNECTION. With --roles, the module grants are applied; if
+// INSYS_ROLE_PASSWORD is set, the local login roles are created first with that password (never on the command line).
 var options = ParseArguments(args);
 var connection = options.GetValueOrDefault("connection") ?? Environment.GetEnvironmentVariable("INSYS_MIGRATION_CONNECTION");
 if (string.IsNullOrWhiteSpace(connection))
@@ -17,15 +17,20 @@ try
 {
     var result = await runner.Migrate(options.GetValueOrDefault("migrations") ?? "db/migrations");
     Console.WriteLine($"{result.Applied.Count} migration(s) applied, {result.AlreadyApplied.Count} already applied.");
-    if (options.TryGetValue("app-role", out var role))
+    if (options.TryGetValue("roles", out var rolesDirectory))
     {
-        await runner.GrantAppRole(options.GetValueOrDefault("grants") ?? "db/roles/app_role_grants.sql", role,
-            Environment.GetEnvironmentVariable("INSYS_APP_ROLE_PASSWORD"));
+        await runner.ApplyRoles(rolesDirectory, Environment.GetEnvironmentVariable("INSYS_ROLE_PASSWORD"));
+    }
+
+    if (options.TryGetValue("bootstrap-operator", out var operatorTenant))
+    {
+        await runner.BootstrapOperator(options.GetValueOrDefault("bootstrap-script") ?? "db/bootstrap/operator.sql", Guid.Parse(operatorTenant),
+            options.GetValueOrDefault("admin-subject") ?? throw new ArgumentException("--admin-subject is required with --bootstrap-operator."));
     }
 
     return 0;
 }
-catch (Exception ex) when (ex is InvalidOperationException or Npgsql.NpgsqlException)
+catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException or Npgsql.NpgsqlException)
 {
     Console.Error.WriteLine(ex.Message);
     return 1;

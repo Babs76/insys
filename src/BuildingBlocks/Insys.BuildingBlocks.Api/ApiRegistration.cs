@@ -40,6 +40,7 @@ public static class ApiRegistration
             context.ProblemDetails.Extensions.TryAdd("traceId", context.HttpContext.TraceIdentifier);
         });
         services.AddExceptionHandler<InsysExceptionHandler>();
+        services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 
         // Bound when first used, so configuration added after registration (tests, environment overrides) applies.
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
@@ -69,6 +70,7 @@ public static class ApiRegistration
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, TenantRequirementHandler>();
         services.AddScoped<IAuthorizationHandler, PermissionRequirementHandler>();
+        services.AddScoped<IAuthorizationHandler, PlatformOperatorRequirementHandler>();
         services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler, ProblemAuthorizationResultHandler>();
         services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().AddRequirements(new TenantRequirement()).Build());

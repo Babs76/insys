@@ -12,8 +12,11 @@ namespace Insys.Testing;
 /// </summary>
 public sealed class PostgresServer : IAsyncLifetime
 {
-    public const string AppRole = "insys_app_test";
-    public const string AppRolePassword = "insys_app_test_only";
+    /// <summary>The password of every module login role in test databases (db/roles/create_login_roles.sql).</summary>
+    public const string RolePassword = "insys_test_only";
+
+    /// <summary>The role of the test-only module in schema test_mod.</summary>
+    public const string TestModuleRole = "insys_test_mod";
     private readonly SemaphoreSlim _migrationLock = new(1, 1);
     private PostgreSqlContainer? _container;
 
@@ -38,11 +41,11 @@ public sealed class PostgresServer : IAsyncLifetime
         await using var connection = new NpgsqlConnection(AdminConnectionString);
         await connection.OpenAsync();
 
-        // The role is cluster-wide: create it once here, before test classes create their databases in parallel.
+        // Roles are cluster-wide: create the test module's role once here, before test classes run in parallel.
         await using (var role = new NpgsqlCommand($"""
             DO $$ BEGIN
-              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{AppRole}') THEN
-                CREATE ROLE {AppRole} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD '{AppRolePassword}';
+              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{TestModuleRole}') THEN
+                CREATE ROLE {TestModuleRole} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD '{RolePassword}';
               END IF;
             END $$
             """, connection))
@@ -92,27 +95,26 @@ public sealed class PostgresServer : IAsyncLifetime
         try
         {
             result = await runner.Migrate(RepositoryPaths.Migrations);
-            await runner.GrantAppRole(RepositoryPaths.AppRoleGrants, AppRole, AppRolePassword);
+            await runner.ApplyRoles(RepositoryPaths.Roles, RolePassword);
         }
         finally
         {
             _migrationLock.Release();
         }
 
-        var app = new NpgsqlConnectionStringBuilder(AdminConnectionString)
-        {
-            Database = name,
-            Username = AppRole,
-            Password = AppRolePassword,
-        }.ConnectionString;
-        return new TestDatabase(name, owner, app, result);
+        var template = new NpgsqlConnectionStringBuilder(AdminConnectionString) { Database = name, Username = "ROLE", Password = RolePassword }
+            .ConnectionString.Replace("Username=ROLE", "Username={role}", StringComparison.Ordinal);
+        return new TestDatabase(name, owner, template, result);
     }
 }
 
 /// <param name="OwnerConnectionString">The migration owner. Superusers bypass row-level security: use it only to seed and inspect.</param>
-/// <param name="AppConnectionString">The non-owner application role, subject to row-level security.</param>
-public sealed record TestDatabase(string Name, string OwnerConnectionString, string AppConnectionString, MigrationResult Migrations)
+/// <param name="RoleConnectionTemplate">A connection string with {role} for any module login role; all are non-owners subject to row-level security.</param>
+public sealed record TestDatabase(string Name, string OwnerConnectionString, string RoleConnectionTemplate, MigrationResult Migrations)
 {
+    /// <summary>A connection string for a module role, for example insys_integration.</summary>
+    public string ConnectionFor(string role) => RoleConnectionTemplate.Replace("{role}", role, StringComparison.Ordinal);
+
     public async Task ExecuteAsOwner(string sql, params (string Name, object Value)[] parameters)
     {
         await using var connection = new NpgsqlConnection(OwnerConnectionString);

@@ -24,7 +24,7 @@ public sealed class TenantTransactionInterceptor : DbTransactionInterceptor
     {
         var context = eventData.Context as ModuleDbContext
             ?? throw new InvalidOperationException("Tenant transactions are only supported on module DbContexts.");
-        var tenantId = context.TenantContext.RequireTenantId();
+        var tenantId = context.CurrentTenantId;
         await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
     }
 }

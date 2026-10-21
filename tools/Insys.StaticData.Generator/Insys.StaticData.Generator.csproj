@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Insys.StaticData.Generator</RootNamespace>
+  </PropertyGroup>
+</Project>
