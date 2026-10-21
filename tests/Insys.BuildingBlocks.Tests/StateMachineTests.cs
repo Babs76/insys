@@ -1,0 +1,34 @@
+using Insys.BuildingBlocks.Domain;
+
+namespace Insys.BuildingBlocks.Tests;
+
+public sealed class StateMachineTests
+{
+    private enum State { Draft, Active, Closed }
+
+    private enum Trigger { Activate, Close }
+
+    private static readonly StateMachine<State, Trigger> Machine = new StateMachine<State, Trigger>()
+        .Allow(State.Draft, Trigger.Activate, State.Active)
+        .Allow(State.Active, Trigger.Close, State.Closed);
+
+    [Fact]
+    public void StateMachine_AllowedTransition_ReturnsTarget() =>
+        Machine.Fire(State.Draft, Trigger.Activate).Value.ShouldBe(State.Active);
+
+    [Fact]
+    public void StateMachine_OtherTransition_IsInvalidStateTransitionConflict()
+    {
+        var result = Machine.Fire(State.Draft, Trigger.Close);
+
+        result.Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        result.Error.Kind.ShouldBe(ErrorKind.Conflict);
+    }
+
+    [Fact]
+    public void MakerChecker_SamePerson_IsForbidden_SRS002()
+    {
+        MakerChecker.EnsureDifferentPeople("user-1", "USER-1").Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        MakerChecker.EnsureDifferentPeople("user-1", "user-2").IsSuccess.ShouldBeTrue();
+    }
+}

@@ -1,0 +1,5528 @@
+{
+ "note": "INSYS Core domain model. Provenance p: S = stated in SRS, D = derived from an SRS requirement, P = proposed. tr = state transitions [from, to, trigger]. inv = [invariant, requirement IDs]. consumes = [event, reaction]. Relationships are [upstream, downstream, pattern, what flows].",
+ "contexts": [
+  {
+   "id": "life",
+   "name": "Life Insurance",
+   "subdomain": "Core",
+   "srsRef": "§9 · §21.2",
+   "schema": "life",
+   "purpose": "Owns life proposals, underwriting, policies, benefits, beneficiaries, premiums, cash values, loans, maturities, group life and life claims.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "LifeProposal",
+     "provenance": "S",
+     "entities": [
+      "InsuredLife",
+      "RequestedCover",
+      "DisclosureAnswer",
+      "BeneficiaryNomination"
+     ],
+     "valueObjects": [
+      "ProductVersionRef",
+      "SumAssured",
+      "Term",
+      "PremiumFrequency",
+      "Money"
+     ],
+     "invariants": [
+      {
+       "rule": "Product version must be published, effective and available on the proposal's channel and date",
+       "requirements": "PRD-007, §7.1"
+      },
+      {
+       "rule": "Eligibility rules must pass before submission",
+       "requirements": "LIF-001"
+      },
+      {
+       "rule": "Beneficiary nominations total 100%",
+       "requirements": null
+      },
+      {
+       "rule": "Content is frozen after submission; only underwriting can change terms",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "CaptureProposal",
+      "QuotePremium",
+      "SubmitProposal",
+      "WithdrawProposal",
+      "AcceptUnderwritingOutcome"
+     ],
+     "events": [
+      {
+       "name": "LifeProposalSubmitted",
+       "provenance": "S"
+      },
+      {
+       "name": "LifeProposalWithdrawn",
+       "provenance": "P"
+      },
+      {
+       "name": "LifeProposalAccepted",
+       "provenance": "P"
+      },
+      {
+       "name": "LifeProposalDeclined",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Draft",
+       "to": "Quoted",
+       "trigger": "QuotePremium"
+      },
+      {
+       "from": "Quoted",
+       "to": "Submitted",
+       "trigger": "SubmitProposal"
+      },
+      {
+       "from": "Submitted",
+       "to": "In underwriting",
+       "trigger": "Case opened"
+      },
+      {
+       "from": "In underwriting",
+       "to": "Accepted",
+       "trigger": "Decision: accept"
+      },
+      {
+       "from": "In underwriting",
+       "to": "Declined",
+       "trigger": "Decision: decline"
+      },
+      {
+       "from": "In underwriting",
+       "to": "Postponed",
+       "trigger": "Decision: postpone"
+      },
+      {
+       "from": "Quoted",
+       "to": "Withdrawn",
+       "trigger": "WithdrawProposal"
+      },
+      {
+       "from": "Submitted",
+       "to": "Withdrawn",
+       "trigger": "WithdrawProposal"
+      },
+      {
+       "from": "Accepted",
+       "to": "Converted",
+       "trigger": "Policy issued"
+      }
+     ],
+     "tables": [
+      "life.proposal",
+      "life.proposal_insured_life",
+      "life.proposal_cover",
+      "life.disclosure_answer"
+     ],
+     "note": null
+    },
+    {
+     "name": "LifeUnderwritingCase",
+     "provenance": "S",
+     "entities": [
+      "UnderwritingRequirement",
+      "DecisionItem"
+     ],
+     "valueObjects": [
+      "Loading",
+      "ExclusionRef",
+      "Postponement",
+      "AuthorityLevel",
+      "RuleSetVersionRef"
+     ],
+     "invariants": [
+      {
+       "rule": "Decision must be within the decider's authority matrix",
+       "requirements": "§7.4, SRS-002"
+      },
+      {
+       "rule": "All mandatory evidence received, or waived by someone with authority, before a final decision",
+       "requirements": null
+      },
+      {
+       "rule": "Rule set version used is recorded so the decision can be reproduced",
+       "requirements": "LIF-002"
+      }
+     ],
+     "commands": [
+      "OpenCase",
+      "RequestEvidence",
+      "RecordEvidence",
+      "ReferCase",
+      "DecideCase"
+     ],
+     "events": [
+      {
+       "name": "LifeUnderwritingDecided",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Open",
+       "to": "Awaiting evidence",
+       "trigger": "RequestEvidence"
+      },
+      {
+       "from": "Awaiting evidence",
+       "to": "In assessment",
+       "trigger": "Evidence complete"
+      },
+      {
+       "from": "Open",
+       "to": "In assessment",
+       "trigger": "No evidence needed"
+      },
+      {
+       "from": "In assessment",
+       "to": "Referred",
+       "trigger": "ReferCase"
+      },
+      {
+       "from": "Referred",
+       "to": "In assessment",
+       "trigger": "Referral answered"
+      },
+      {
+       "from": "In assessment",
+       "to": "Decided",
+       "trigger": "DecideCase"
+      }
+     ],
+     "tables": [
+      "life.underwriting_case",
+      "life.underwriting_requirement",
+      "life.underwriting_decision_item"
+     ],
+     "note": null
+    },
+    {
+     "name": "LifePolicy",
+     "provenance": "S",
+     "entities": [
+      "InsuredLife",
+      "LifeBenefit",
+      "LifeBeneficiary",
+      "LifePremiumSchedule",
+      "LifeCashValue",
+      "PolicyEvent"
+     ],
+     "valueObjects": [
+      "PolicyNumber",
+      "ProductVersionRef",
+      "RatingVersionRef",
+      "SumAssured",
+      "Premium",
+      "BeneficiaryShare"
+     ],
+     "invariants": [
+      {
+       "rule": "References the approved product and rating versions it was issued under",
+       "requirements": "LIF-003"
+      },
+      {
+       "rule": "Every alteration is checked against policy state, product rules and authority",
+       "requirements": "LIF-004"
+      },
+      {
+       "rule": "Beneficiary shares total 100% at every effective date",
+       "requirements": null
+      },
+      {
+       "rule": "Cash value and loans exist only for products that support them",
+       "requirements": "LIF-007"
+      },
+      {
+       "rule": "Lapse and reinstatement follow the product's grace and reinstatement rules",
+       "requirements": "LIF-005"
+      }
+     ],
+     "commands": [
+      "IssuePolicy",
+      "AlterPolicy",
+      "ChangeBeneficiaries",
+      "RecordMissedPremium",
+      "LapsePolicy",
+      "ReinstatePolicy",
+      "MakePaidUp",
+      "SurrenderPolicy",
+      "MaturePolicy",
+      "CloseOnClaim"
+     ],
+     "events": [
+      {
+       "name": "LifePolicyIssued",
+       "provenance": "S"
+      },
+      {
+       "name": "LifePolicyChanged",
+       "provenance": "S"
+      },
+      {
+       "name": "LifePolicyLapsed",
+       "provenance": "S"
+      },
+      {
+       "name": "LifePolicyReinstated",
+       "provenance": "P"
+      },
+      {
+       "name": "LifePolicySurrendered",
+       "provenance": "P"
+      },
+      {
+       "name": "LifePolicyMatured",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Issued",
+       "to": "In force",
+       "trigger": "Inception date reached"
+      },
+      {
+       "from": "In force",
+       "to": "Lapsed",
+       "trigger": "LapsePolicy"
+      },
+      {
+       "from": "Lapsed",
+       "to": "In force",
+       "trigger": "ReinstatePolicy"
+      },
+      {
+       "from": "Lapsed",
+       "to": "Terminated",
+       "trigger": "Reinstatement window passed"
+      },
+      {
+       "from": "In force",
+       "to": "Paid up",
+       "trigger": "MakePaidUp"
+      },
+      {
+       "from": "In force",
+       "to": "Surrendered",
+       "trigger": "SurrenderPolicy"
+      },
+      {
+       "from": "In force",
+       "to": "Claimed",
+       "trigger": "CloseOnClaim"
+      },
+      {
+       "from": "In force",
+       "to": "Matured",
+       "trigger": "MaturePolicy"
+      }
+     ],
+     "tables": [
+      "life.policy",
+      "life.policy_insured_life",
+      "life.policy_benefit",
+      "life.beneficiary",
+      "life.premium_schedule",
+      "life.cash_value",
+      "life.policy_event",
+      "life.lapse_reinstatement"
+     ],
+     "note": "Design decision: SRS §21.2 lists LifeBenefit, LifeBeneficiary, LifePremiumSchedule and LifeCashValue as separate aggregates. We recommend making them entities inside LifePolicy, because rules such as \"shares total 100%\" and \"alterations depend on policy state\" span them and must hold in one transaction. §21.2 says boundaries are to be validated, so this needs confirming in ADR-003."
+    },
+    {
+     "name": "LifePolicyLoan",
+     "provenance": "S",
+     "entities": [
+      "LoanTransaction"
+     ],
+     "valueObjects": [
+      "LoanNumber",
+      "Principal",
+      "InterestRate",
+      "Balance"
+     ],
+     "invariants": [
+      {
+       "rule": "Principal cannot exceed the product's maximum share of cash value",
+       "requirements": "§9.1 F"
+      },
+      {
+       "rule": "Policy must be in force when the loan is issued",
+       "requirements": null
+      },
+      {
+       "rule": "Balance is the sum of its transactions and is never negative",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "IssueLoan",
+      "AccrueInterest",
+      "RecordRepayment",
+      "OffsetAgainstBenefit"
+     ],
+     "events": [
+      {
+       "name": "PolicyLoanIssued",
+       "provenance": "P"
+      },
+      {
+       "name": "PolicyLoanRepaid",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Active",
+       "to": "Repaid",
+       "trigger": "Balance reaches zero"
+      },
+      {
+       "from": "Active",
+       "to": "Offset",
+       "trigger": "Claim or surrender settles it"
+      }
+     ],
+     "tables": [
+      "life.policy_loan",
+      "life.policy_loan_transaction"
+     ],
+     "note": null
+    },
+    {
+     "name": "LifeClaim",
+     "provenance": "S",
+     "entities": [
+      "ClaimBenefitLine",
+      "ClaimRequirement"
+     ],
+     "valueObjects": [
+      "ClaimNumber",
+      "CauseOfEvent",
+      "ClaimantRef",
+      "Money",
+      "DecisionReason"
+     ],
+     "invariants": [
+      {
+       "rule": "Validates policy status, insured life, benefit eligibility, exclusions and claimant authority",
+       "requirements": "LIF-008"
+      },
+      {
+       "rule": "Approval must be within the approver's authority",
+       "requirements": "SRS-002"
+      },
+      {
+       "rule": "Decision records rationale, evidence, rules and authority",
+       "requirements": "CLM-003"
+      },
+      {
+       "rule": "Only one open claim per benefit and event",
+       "requirements": "CLM-005"
+      }
+     ],
+     "commands": [
+      "NotifyClaim",
+      "RegisterClaim",
+      "AssessClaim",
+      "ApproveClaim",
+      "DeclineClaim",
+      "SettleClaim",
+      "CloseClaim"
+     ],
+     "events": [
+      {
+       "name": "LifeClaimRegistered",
+       "provenance": "S"
+      },
+      {
+       "name": "LifeClaimApproved",
+       "provenance": "P"
+      },
+      {
+       "name": "LifeClaimDeclined",
+       "provenance": "P"
+      },
+      {
+       "name": "LifeClaimSettled",
+       "provenance": "S"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Notified",
+       "to": "Registered",
+       "trigger": "RegisterClaim"
+      },
+      {
+       "from": "Registered",
+       "to": "In assessment",
+       "trigger": "AssessClaim"
+      },
+      {
+       "from": "In assessment",
+       "to": "Approved",
+       "trigger": "ApproveClaim"
+      },
+      {
+       "from": "In assessment",
+       "to": "Declined",
+       "trigger": "DeclineClaim"
+      },
+      {
+       "from": "Approved",
+       "to": "Settled",
+       "trigger": "Payment completed"
+      },
+      {
+       "from": "Settled",
+       "to": "Closed",
+       "trigger": "CloseClaim"
+      },
+      {
+       "from": "Declined",
+       "to": "Closed",
+       "trigger": "CloseClaim"
+      }
+     ],
+     "tables": [
+      "life.claim",
+      "life.claim_benefit_line"
+     ],
+     "note": null
+    },
+    {
+     "name": "MaturityCase",
+     "provenance": "P",
+     "entities": [],
+     "valueObjects": [
+      "MaturityDate",
+      "MaturityOption",
+      "PayeeRef",
+      "Money"
+     ],
+     "invariants": [
+      {
+       "rule": "Payee is validated before approval",
+       "requirements": "§9.1 I"
+      },
+      {
+       "rule": "Amount is calculated from the policy's product version",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "IdentifyMaturity",
+      "NotifyPolicyholder",
+      "ChooseOption",
+      "ApproveMaturity"
+     ],
+     "events": [
+      {
+       "name": "MaturityApproved",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Identified",
+       "to": "Notified",
+       "trigger": "NotifyPolicyholder"
+      },
+      {
+       "from": "Notified",
+       "to": "Option chosen",
+       "trigger": "ChooseOption"
+      },
+      {
+       "from": "Option chosen",
+       "to": "Approved",
+       "trigger": "ApproveMaturity"
+      },
+      {
+       "from": "Approved",
+       "to": "Paid",
+       "trigger": "Payment completed"
+      }
+     ],
+     "tables": [
+      "life.maturity_case"
+     ],
+     "note": "Proposed. §21.2 defines no maturity aggregate."
+    },
+    {
+     "name": "GroupScheme",
+     "provenance": "P",
+     "entities": [
+      "GroupMember",
+      "MemberCategory"
+     ],
+     "valueObjects": [
+      "SchemeNumber",
+      "FreeCoverLimit",
+      "BenefitMultiple"
+     ],
+     "invariants": [
+      {
+       "rule": "A member's cover above the free cover limit needs underwriting evidence",
+       "requirements": null
+      },
+      {
+       "rule": "Each member belongs to exactly one category",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "SetUpScheme",
+      "EnrolMember",
+      "ChangeMember",
+      "RemoveMember",
+      "RenewScheme",
+      "TerminateScheme"
+     ],
+     "events": [
+      {
+       "name": "GroupMemberEnrolled",
+       "provenance": "P"
+      },
+      {
+       "name": "GroupSchemeRenewed",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Set up",
+       "to": "Active",
+       "trigger": "Start date reached"
+      },
+      {
+       "from": "Active",
+       "to": "Active",
+       "trigger": "RenewScheme"
+      },
+      {
+       "from": "Active",
+       "to": "Terminated",
+       "trigger": "TerminateScheme"
+      }
+     ],
+     "tables": [
+      "life.group_scheme",
+      "life.group_member"
+     ],
+     "note": "Proposed. §21.2 defines no group life aggregate."
+    }
+   ],
+   "consumes": [
+    {
+     "event": "ProductVersionPublished",
+     "reaction": "Refresh product availability"
+    },
+    {
+     "event": "PaymentAllocated",
+     "reaction": "Clear missed-premium count"
+    },
+    {
+     "event": "ArrearsDetected",
+     "reaction": "RecordMissedPremium"
+    },
+    {
+     "event": "ClaimPaymentCompleted",
+     "reaction": "Mark claim or maturity settled"
+    },
+    {
+     "event": "RuleDecisionRecorded",
+     "reaction": "Attach eligibility result to proposal"
+    }
+   ]
+  },
+  {
+   "id": "general",
+   "name": "General Insurance",
+   "subdomain": "Core",
+   "srsRef": "§10 · §21.2",
+   "schema": "general",
+   "purpose": "Owns quotes, proposals, risk objects, policies, coverages, endorsements, renewals, cancellations, claims, loss assessment and recoveries for motor, property, marine and commercial lines.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "GeneralQuote",
+     "provenance": "S",
+     "entities": [
+      "QuotedRisk",
+      "QuotedCoverage"
+     ],
+     "valueObjects": [
+      "QuoteNumber",
+      "QuoteVersion",
+      "ValidityPeriod",
+      "Premium",
+      "RatingRequestRef"
+     ],
+     "invariants": [
+      {
+       "rule": "An issued quote version is immutable; changes create a new version",
+       "requirements": null
+      },
+      {
+       "rule": "Can only be accepted within its validity period",
+       "requirements": "GEN-001"
+      },
+      {
+       "rule": "Premium always matches a recorded rating request",
+       "requirements": "PRD-008"
+      }
+     ],
+     "commands": [
+      "CreateQuote",
+      "RateQuote",
+      "ReferQuote",
+      "IssueQuote",
+      "AcceptQuote",
+      "RejectQuote",
+      "ExpireQuote"
+     ],
+     "events": [
+      {
+       "name": "GeneralQuoteIssued",
+       "provenance": "P"
+      },
+      {
+       "name": "GeneralQuoteAccepted",
+       "provenance": "S"
+      },
+      {
+       "name": "GeneralQuoteExpired",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Draft",
+       "to": "Rated",
+       "trigger": "RateQuote"
+      },
+      {
+       "from": "Rated",
+       "to": "Referred",
+       "trigger": "ReferQuote"
+      },
+      {
+       "from": "Referred",
+       "to": "Rated",
+       "trigger": "Referral approved"
+      },
+      {
+       "from": "Rated",
+       "to": "Issued",
+       "trigger": "IssueQuote"
+      },
+      {
+       "from": "Issued",
+       "to": "Accepted",
+       "trigger": "AcceptQuote"
+      },
+      {
+       "from": "Issued",
+       "to": "Rejected",
+       "trigger": "RejectQuote"
+      },
+      {
+       "from": "Issued",
+       "to": "Expired",
+       "trigger": "Validity ends"
+      }
+     ],
+     "tables": [
+      "general.quote",
+      "general.underwriting_referral"
+     ],
+     "note": null
+    },
+    {
+     "name": "GeneralProposal",
+     "provenance": "S",
+     "entities": [],
+     "valueObjects": [
+      "Declaration",
+      "QuoteRef"
+     ],
+     "invariants": [
+      {
+       "rule": "Based on exactly one accepted quote version",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "SubmitProposal",
+      "AcceptProposal"
+     ],
+     "events": [],
+     "stateTransitions": [
+      {
+       "from": "Submitted",
+       "to": "Accepted",
+       "trigger": "AcceptProposal"
+      },
+      {
+       "from": "Accepted",
+       "to": "Converted",
+       "trigger": "Policy issued"
+      }
+     ],
+     "tables": [
+      "general.proposal"
+     ],
+     "note": "Thin aggregate. Consider merging into GeneralQuote in ADR-003 if proposals carry no data beyond declarations."
+    },
+    {
+     "name": "GeneralRiskObject",
+     "provenance": "S",
+     "entities": [],
+     "valueObjects": [
+      "ObjectType",
+      "AttributeSet",
+      "SchemaVersion",
+      "Valuation",
+      "RiskLocation",
+      "RiskZone"
+     ],
+     "invariants": [
+      {
+       "rule": "Attributes conform to the object type's schema version",
+       "requirements": "GEN-005"
+      },
+      {
+       "rule": "Has a valuation basis whenever a value is set",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "RegisterRiskObject",
+      "UpdateAttributes",
+      "RevalueRiskObject"
+     ],
+     "events": [
+      {
+       "name": "GeneralRiskObjectRegistered",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Active",
+       "to": "Inactive",
+       "trigger": "No longer insured"
+      }
+     ],
+     "tables": [
+      "general.risk_object"
+     ],
+     "note": null
+    },
+    {
+     "name": "GeneralPolicy",
+     "provenance": "S",
+     "entities": [
+      "PolicyRisk",
+      "GeneralCoverage",
+      "Cancellation"
+     ],
+     "valueObjects": [
+      "PolicyNumber",
+      "PolicyPeriod",
+      "SumInsured",
+      "ExcessSchedule",
+      "Premium"
+     ],
+     "invariants": [
+      {
+       "rule": "Can insure several risk objects",
+       "requirements": "GEN-002"
+      },
+      {
+       "rule": "Coverages stay within product limits and sublimits",
+       "requirements": "§7.2"
+      },
+      {
+       "rule": "Policy premium equals the sum of its coverage premiums",
+       "requirements": null
+      },
+      {
+       "rule": "Renewal, cancellation and reinstatement follow product rules",
+       "requirements": "GEN-004"
+      }
+     ],
+     "commands": [
+      "IssuePolicy",
+      "ApplyEndorsement",
+      "RenewPolicy",
+      "CancelPolicy",
+      "ReinstatePolicy",
+      "ExpirePolicy"
+     ],
+     "events": [
+      {
+       "name": "GeneralPolicyIssued",
+       "provenance": "S"
+      },
+      {
+       "name": "GeneralPolicyEndorsed",
+       "provenance": "S"
+      },
+      {
+       "name": "GeneralPolicyRenewed",
+       "provenance": "S"
+      },
+      {
+       "name": "GeneralPolicyCancelled",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Issued",
+       "to": "In force",
+       "trigger": "Period starts"
+      },
+      {
+       "from": "In force",
+       "to": "Cancelled",
+       "trigger": "CancelPolicy"
+      },
+      {
+       "from": "Cancelled",
+       "to": "In force",
+       "trigger": "ReinstatePolicy (where permitted)"
+      },
+      {
+       "from": "In force",
+       "to": "Expired",
+       "trigger": "Period ends without renewal"
+      },
+      {
+       "from": "In force",
+       "to": "Renewed",
+       "trigger": "RenewPolicy"
+      }
+     ],
+     "tables": [
+      "general.policy",
+      "general.policy_risk",
+      "general.coverage",
+      "general.cancellation"
+     ],
+     "note": "GeneralCoverage, a separate aggregate in §21.2, is modelled as an entity here because coverage limits and premium totals must be consistent with the policy in one transaction."
+    },
+    {
+     "name": "GeneralEndorsement",
+     "provenance": "S",
+     "entities": [],
+     "valueObjects": [
+      "EndorsementNumber",
+      "EffectiveDate",
+      "ChangeSet",
+      "PremiumDelta"
+     ],
+     "invariants": [
+      {
+       "rule": "Effective date falls within the policy period",
+       "requirements": "GEN-003"
+      },
+      {
+       "rule": "Premium change comes from a rating request",
+       "requirements": null
+      },
+      {
+       "rule": "Changes are applied to the policy only after approval",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "DraftEndorsement",
+      "RateEndorsement",
+      "SubmitEndorsement",
+      "ApproveEndorsement",
+      "ApplyEndorsement",
+      "RejectEndorsement"
+     ],
+     "events": [
+      {
+       "name": "GeneralEndorsementApproved",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Draft",
+       "to": "Rated",
+       "trigger": "RateEndorsement"
+      },
+      {
+       "from": "Rated",
+       "to": "Pending approval",
+       "trigger": "SubmitEndorsement"
+      },
+      {
+       "from": "Pending approval",
+       "to": "Approved",
+       "trigger": "ApproveEndorsement"
+      },
+      {
+       "from": "Pending approval",
+       "to": "Rejected",
+       "trigger": "RejectEndorsement"
+      },
+      {
+       "from": "Approved",
+       "to": "Applied",
+       "trigger": "Policy updated"
+      }
+     ],
+     "tables": [
+      "general.endorsement"
+     ],
+     "note": null
+    },
+    {
+     "name": "GeneralClaim",
+     "provenance": "S",
+     "entities": [
+      "ClaimParty",
+      "LossDetail"
+     ],
+     "valueObjects": [
+      "ClaimNumber",
+      "LossDate",
+      "LossCause",
+      "Peril",
+      "CatastropheEventRef"
+     ],
+     "invariants": [
+      {
+       "rule": "Loss date is within the policy period and the cover is valid",
+       "requirements": "GEN-006"
+      },
+      {
+       "rule": "Settlement applies excess, limits and valuation rules",
+       "requirements": "GEN-008"
+      },
+      {
+       "rule": "Approval is within authority",
+       "requirements": "SRS-002"
+      },
+      {
+       "rule": "Decision records rationale and evidence",
+       "requirements": "CLM-003"
+      }
+     ],
+     "commands": [
+      "NotifyLoss",
+      "RegisterClaim",
+      "AppointAssessor",
+      "SetReserve",
+      "ApproveSettlement",
+      "DeclineClaim",
+      "SettleClaim",
+      "CloseClaim",
+      "ReopenClaim"
+     ],
+     "events": [
+      {
+       "name": "GeneralClaimRegistered",
+       "provenance": "S"
+      },
+      {
+       "name": "GeneralClaimApproved",
+       "provenance": "P"
+      },
+      {
+       "name": "GeneralClaimSettled",
+       "provenance": "S"
+      },
+      {
+       "name": "GeneralClaimClosed",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "First notification",
+       "to": "Registered",
+       "trigger": "RegisterClaim"
+      },
+      {
+       "from": "Registered",
+       "to": "Under assessment",
+       "trigger": "AppointAssessor"
+      },
+      {
+       "from": "Under assessment",
+       "to": "Approved",
+       "trigger": "ApproveSettlement"
+      },
+      {
+       "from": "Under assessment",
+       "to": "Declined",
+       "trigger": "DeclineClaim"
+      },
+      {
+       "from": "Approved",
+       "to": "Settled",
+       "trigger": "Payment completed"
+      },
+      {
+       "from": "Settled",
+       "to": "Closed",
+       "trigger": "CloseClaim"
+      },
+      {
+       "from": "Declined",
+       "to": "Closed",
+       "trigger": "CloseClaim"
+      },
+      {
+       "from": "Closed",
+       "to": "Reopened",
+       "trigger": "ReopenClaim"
+      },
+      {
+       "from": "Reopened",
+       "to": "Under assessment",
+       "trigger": "Assessment resumes"
+      }
+     ],
+     "tables": [
+      "general.claim",
+      "general.claim_party"
+     ],
+     "note": null
+    },
+    {
+     "name": "LossAssessment",
+     "provenance": "S",
+     "entities": [
+      "RepairEstimate"
+     ],
+     "valueObjects": [
+      "AssessorRef",
+      "AssessedAmount",
+      "ExcessApplied",
+      "ReportRef"
+     ],
+     "invariants": [
+      {
+       "rule": "Assessor is on an approved panel for the line",
+       "requirements": "GEN-007"
+      }
+     ],
+     "commands": [
+      "AssignAssessor",
+      "RecordEstimate",
+      "SubmitReport",
+      "AcceptAssessment"
+     ],
+     "events": [
+      {
+       "name": "LossAssessed",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Assigned",
+       "to": "In progress",
+       "trigger": "Assessor starts"
+      },
+      {
+       "from": "In progress",
+       "to": "Reported",
+       "trigger": "SubmitReport"
+      },
+      {
+       "from": "Reported",
+       "to": "Accepted",
+       "trigger": "AcceptAssessment"
+      },
+      {
+       "from": "Reported",
+       "to": "In progress",
+       "trigger": "Further work requested"
+      }
+     ],
+     "tables": [
+      "general.loss_assessment",
+      "general.repair_estimate"
+     ],
+     "note": null
+    },
+    {
+     "name": "RecoveryCase",
+     "provenance": "S",
+     "entities": [
+      "SalvageItem"
+     ],
+     "valueObjects": [
+      "RecoveryType",
+      "CounterpartyRef",
+      "ExpectedAmount",
+      "RecoveredAmount"
+     ],
+     "invariants": [
+      {
+       "rule": "Recovered amounts are recorded as claim financial movements",
+       "requirements": "CLM-004"
+      }
+     ],
+     "commands": [
+      "OpenRecovery",
+      "RecordRecovery",
+      "WriteOff",
+      "CloseRecovery"
+     ],
+     "events": [
+      {
+       "name": "RecoveryRecorded",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Open",
+       "to": "Pursuing",
+       "trigger": "Demand sent"
+      },
+      {
+       "from": "Pursuing",
+       "to": "Recovered",
+       "trigger": "RecordRecovery"
+      },
+      {
+       "from": "Pursuing",
+       "to": "Written off",
+       "trigger": "WriteOff"
+      },
+      {
+       "from": "Recovered",
+       "to": "Closed",
+       "trigger": "CloseRecovery"
+      },
+      {
+       "from": "Written off",
+       "to": "Closed",
+       "trigger": "CloseRecovery"
+      }
+     ],
+     "tables": [
+      "general.recovery_case",
+      "general.salvage_item"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "ProductVersionPublished",
+     "reaction": "Refresh product availability"
+    },
+    {
+     "event": "PremiumCalculated",
+     "reaction": "Attach premium to quote or endorsement"
+    },
+    {
+     "event": "ApprovalGranted",
+     "reaction": "ApplyEndorsement or ApproveSettlement"
+    },
+    {
+     "event": "ClaimPaymentCompleted",
+     "reaction": "SettleClaim"
+    },
+    {
+     "event": "InvoiceSettled",
+     "reaction": "Confirm cover where payment is a condition"
+    }
+   ]
+  },
+  {
+   "id": "health",
+   "name": "Health Insurance",
+   "subdomain": "Core",
+   "srsRef": "§11 · §21.2",
+   "schema": "health",
+   "purpose": "Owns schemes, memberships, dependants, benefit usage, eligibility, preauthorisation, medical claims, utilisation, provider payment runs and fraud cases.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "HealthScheme",
+     "provenance": "S",
+     "entities": [
+      "SchemeMemberCategory"
+     ],
+     "valueObjects": [
+      "SchemeNumber",
+      "SponsorRef",
+      "ContributionRule"
+     ],
+     "invariants": [
+      {
+       "rule": "Every member category maps to a plan",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "RegisterScheme",
+      "ConfigureScheme",
+      "RenewScheme",
+      "TerminateScheme"
+     ],
+     "events": [
+      {
+       "name": "HealthSchemeRenewed",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Registered",
+       "to": "Active",
+       "trigger": "Start date reached"
+      },
+      {
+       "from": "Active",
+       "to": "Active",
+       "trigger": "RenewScheme"
+      },
+      {
+       "from": "Active",
+       "to": "Terminated",
+       "trigger": "TerminateScheme"
+      }
+     ],
+     "tables": [
+      "health.scheme"
+     ],
+     "note": null
+    },
+    {
+     "name": "HealthMembership",
+     "provenance": "S",
+     "entities": [
+      "Dependant",
+      "MembershipEvent"
+     ],
+     "valueObjects": [
+      "MemberNumber",
+      "PlanOption",
+      "CoverPeriod",
+      "WaitingPeriods"
+     ],
+     "invariants": [
+      {
+       "rule": "Supports principal members, dependants and lifecycle changes",
+       "requirements": "HLT-002"
+      },
+      {
+       "rule": "Dependants stay within type and age limits",
+       "requirements": null
+      },
+      {
+       "rule": "One active plan option per member at any date",
+       "requirements": null
+      },
+      {
+       "rule": "Waiting periods are fixed at enrolment",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "EnrolMember",
+      "AddDependant",
+      "RemoveDependant",
+      "ChangePlan",
+      "SuspendMembership",
+      "ReinstateMembership",
+      "TerminateMembership"
+     ],
+     "events": [
+      {
+       "name": "HealthMemberEnrolled",
+       "provenance": "S"
+      },
+      {
+       "name": "HealthMemberStatusChanged",
+       "provenance": "S"
+      },
+      {
+       "name": "DependantAdded",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Pending",
+       "to": "Active",
+       "trigger": "Start date reached"
+      },
+      {
+       "from": "Active",
+       "to": "Suspended",
+       "trigger": "SuspendMembership"
+      },
+      {
+       "from": "Suspended",
+       "to": "Active",
+       "trigger": "ReinstateMembership"
+      },
+      {
+       "from": "Active",
+       "to": "Terminated",
+       "trigger": "TerminateMembership"
+      },
+      {
+       "from": "Suspended",
+       "to": "Terminated",
+       "trigger": "TerminateMembership"
+      }
+     ],
+     "tables": [
+      "health.membership",
+      "health.member_dependant",
+      "health.membership_event"
+     ],
+     "note": null
+    },
+    {
+     "name": "BenefitAccumulator",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [
+      "BenefitCategory",
+      "BenefitPeriod",
+      "Limit",
+      "Used",
+      "Reserved"
+     ],
+     "invariants": [
+      {
+       "rule": "Used plus reserved never exceeds the limit",
+       "requirements": "HLT-007"
+      },
+      {
+       "rule": "Updated only with optimistic locking, because many claims touch it",
+       "requirements": "DBA-011"
+      }
+     ],
+     "commands": [
+      "ReserveBenefit",
+      "ConsumeBenefit",
+      "ReleaseReservation",
+      "OpenNewPeriod"
+     ],
+     "events": [
+      {
+       "name": "BenefitLimitReached",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Open",
+       "to": "Exhausted",
+       "trigger": "Limit reached"
+      },
+      {
+       "from": "Open",
+       "to": "Closed",
+       "trigger": "Period ends"
+      },
+      {
+       "from": "Exhausted",
+       "to": "Closed",
+       "trigger": "Period ends"
+      }
+     ],
+     "tables": [
+      "health.benefit_accumulator"
+     ],
+     "note": "Our model of SRS HealthBenefit usage. Benefit definitions themselves are static configuration. Kept small on purpose: it is the main concurrency hot spot."
+    },
+    {
+     "name": "EligibilityDecision",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [
+      "MemberRef",
+      "ServiceType",
+      "ResponseCode"
+     ],
+     "invariants": [
+      {
+       "rule": "Immutable once recorded",
+       "requirements": "HLT-003"
+      }
+     ],
+     "commands": [
+      "CheckEligibility"
+     ],
+     "events": [
+      {
+       "name": "EligibilityDecisionRecorded",
+       "provenance": "S"
+      }
+     ],
+     "stateTransitions": [],
+     "tables": [
+      "health.eligibility_decision"
+     ],
+     "note": null
+    },
+    {
+     "name": "Preauthorisation",
+     "provenance": "S",
+     "entities": [
+      "PreauthLine"
+     ],
+     "valueObjects": [
+      "AuthNumber",
+      "DiagnosisCodes",
+      "ProcedureCodes",
+      "AuthorisedAmount",
+      "ValidityPeriod"
+     ],
+     "invariants": [
+      {
+       "rule": "Member is eligible on the service dates",
+       "requirements": "HLT-005"
+      },
+      {
+       "rule": "Authorised amount does not exceed available benefit",
+       "requirements": null
+      },
+      {
+       "rule": "Clinical review only by roles with clinical purpose",
+       "requirements": "HLT-008"
+      },
+      {
+       "rule": "Expires automatically at the end of validity",
+       "requirements": "HLT-005"
+      }
+     ],
+     "commands": [
+      "RequestAuthorisation",
+      "ReviewClinically",
+      "ApproveAuthorisation",
+      "ApproveWithConditions",
+      "RejectAuthorisation",
+      "ModifyAuthorisation",
+      "CancelAuthorisation"
+     ],
+     "events": [
+      {
+       "name": "PreauthorisationApproved",
+       "provenance": "S"
+      },
+      {
+       "name": "PreauthorisationRejected",
+       "provenance": "P"
+      },
+      {
+       "name": "PreauthorisationExpired",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Requested",
+       "to": "In review",
+       "trigger": "ReviewClinically"
+      },
+      {
+       "from": "In review",
+       "to": "Approved",
+       "trigger": "ApproveAuthorisation"
+      },
+      {
+       "from": "In review",
+       "to": "Conditionally approved",
+       "trigger": "ApproveWithConditions"
+      },
+      {
+       "from": "In review",
+       "to": "Rejected",
+       "trigger": "RejectAuthorisation"
+      },
+      {
+       "from": "Approved",
+       "to": "Utilised",
+       "trigger": "Matched to a claim"
+      },
+      {
+       "from": "Approved",
+       "to": "Expired",
+       "trigger": "Validity ends"
+      },
+      {
+       "from": "Approved",
+       "to": "Cancelled",
+       "trigger": "CancelAuthorisation"
+      }
+     ],
+     "tables": [
+      "health.preauthorisation",
+      "health.preauth_line"
+     ],
+     "note": null
+    },
+    {
+     "name": "MedicalClaim",
+     "provenance": "S",
+     "entities": [
+      "MedicalClaimLine"
+     ],
+     "valueObjects": [
+      "ClaimNumber",
+      "TariffCode",
+      "DiagnosisCode",
+      "CoPayment",
+      "AdjustmentReason"
+     ],
+     "invariants": [
+      {
+       "rule": "Each line validates membership, cover, limits, tariff, preauthorisation and exclusions",
+       "requirements": "HLT-007"
+      },
+      {
+       "rule": "Duplicates are detected before adjudication",
+       "requirements": "§11.1 H"
+      },
+      {
+       "rule": "Paid amount is at most allowed amount minus co-payment",
+       "requirements": null
+      },
+      {
+       "rule": "Payments are traceable and reconcilable",
+       "requirements": "HLT-009"
+      }
+     ],
+     "commands": [
+      "SubmitClaim",
+      "ValidateClaim",
+      "AdjudicateClaim",
+      "PendClaim",
+      "ApproveForPayment",
+      "RejectClaim",
+      "ReverseClaim"
+     ],
+     "events": [
+      {
+       "name": "MedicalClaimSubmitted",
+       "provenance": "S"
+      },
+      {
+       "name": "MedicalClaimAdjudicated",
+       "provenance": "P"
+      },
+      {
+       "name": "MedicalClaimSettled",
+       "provenance": "S"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Received",
+       "to": "Validated",
+       "trigger": "ValidateClaim"
+      },
+      {
+       "from": "Validated",
+       "to": "Adjudicated",
+       "trigger": "AdjudicateClaim"
+      },
+      {
+       "from": "Adjudicated",
+       "to": "Pended",
+       "trigger": "PendClaim"
+      },
+      {
+       "from": "Pended",
+       "to": "Adjudicated",
+       "trigger": "Information received"
+      },
+      {
+       "from": "Adjudicated",
+       "to": "Approved for payment",
+       "trigger": "ApproveForPayment"
+      },
+      {
+       "from": "Approved for payment",
+       "to": "Paid",
+       "trigger": "Payment run released"
+      },
+      {
+       "from": "Validated",
+       "to": "Rejected",
+       "trigger": "RejectClaim"
+      },
+      {
+       "from": "Paid",
+       "to": "Reversed",
+       "trigger": "ReverseClaim"
+      }
+     ],
+     "tables": [
+      "health.medical_claim",
+      "health.medical_claim_line"
+     ],
+     "note": null
+    },
+    {
+     "name": "UtilisationCase",
+     "provenance": "S",
+     "entities": [],
+     "valueObjects": [
+      "RuleRef",
+      "ReviewOutcome"
+     ],
+     "invariants": [
+      {
+       "rule": "Opened by a utilisation rule or by a person, never closed automatically",
+       "requirements": "§11 K"
+      }
+     ],
+     "commands": [
+      "OpenCase",
+      "ReviewCase",
+      "ConcludeCase"
+     ],
+     "events": [
+      {
+       "name": "UtilisationCaseConcluded",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Open",
+       "to": "In review",
+       "trigger": "ReviewCase"
+      },
+      {
+       "from": "In review",
+       "to": "Concluded",
+       "trigger": "ConcludeCase"
+      }
+     ],
+     "tables": [
+      "health.utilisation_case"
+     ],
+     "note": null
+    },
+    {
+     "name": "ProviderPaymentRun",
+     "provenance": "D",
+     "entities": [
+      "RemittanceAdvice"
+     ],
+     "valueObjects": [
+      "CutOff",
+      "RunTotal"
+     ],
+     "invariants": [
+      {
+       "rule": "Includes only claims approved for payment before the cut-off",
+       "requirements": null
+      },
+      {
+       "rule": "Run total equals the sum of its remittances",
+       "requirements": "HLT-009"
+      }
+     ],
+     "commands": [
+      "OpenRun",
+      "CutOffRun",
+      "CalculateRun",
+      "ApproveRun",
+      "ReleaseRun"
+     ],
+     "events": [
+      {
+       "name": "ProviderPaymentRunReleased",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Open",
+       "to": "Cut off",
+       "trigger": "CutOffRun"
+      },
+      {
+       "from": "Cut off",
+       "to": "Calculated",
+       "trigger": "CalculateRun"
+      },
+      {
+       "from": "Calculated",
+       "to": "Approved",
+       "trigger": "ApproveRun"
+      },
+      {
+       "from": "Approved",
+       "to": "Released",
+       "trigger": "ReleaseRun"
+      },
+      {
+       "from": "Released",
+       "to": "Reconciled",
+       "trigger": "Payments matched"
+      }
+     ],
+     "tables": [
+      "health.provider_payment_run",
+      "health.remittance_advice"
+     ],
+     "note": null
+    },
+    {
+     "name": "HealthFraudCase",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [
+      "SubjectRef",
+      "IndicatorCodes",
+      "OutcomeCode"
+     ],
+     "invariants": [
+      {
+       "rule": "Indicators open a case; only an investigator concludes it",
+       "requirements": "§11 K"
+      }
+     ],
+     "commands": [
+      "OpenCase",
+      "Investigate",
+      "ConcludeCase"
+     ],
+     "events": [
+      {
+       "name": "FraudCaseConcluded",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Opened",
+       "to": "Investigating",
+       "trigger": "Investigate"
+      },
+      {
+       "from": "Investigating",
+       "to": "Concluded",
+       "trigger": "ConcludeCase"
+      }
+     ],
+     "tables": [
+      "health.fraud_case"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "ProductVersionPublished",
+     "reaction": "Refresh plan definitions"
+    },
+    {
+     "event": "PayoutReleased",
+     "reaction": "Mark provider run released"
+    },
+    {
+     "event": "PaymentReceived",
+     "reaction": "Reinstate suspended membership when contributions are paid"
+    },
+    {
+     "event": "ArrearsDetected",
+     "reaction": "SuspendMembership"
+    }
+   ]
+  },
+  {
+   "id": "product",
+   "name": "Product Factory",
+   "subdomain": "Core",
+   "srsRef": "§7",
+   "schema": "product",
+   "purpose": "Owns product definitions and their governed versions: coverages, benefits, limits, exclusions, availability and document templates.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "ProductVersion",
+     "provenance": "S",
+     "entities": [
+      "CoverageConfiguration",
+      "BenefitConfiguration",
+      "LimitSchedule",
+      "ExclusionAssignment",
+      "AvailabilityRule",
+      "TemplateAssignment"
+     ],
+     "valueObjects": [
+      "ProductCode",
+      "VersionNumber",
+      "EffectivePeriod",
+      "Money",
+      "Percentage"
+     ],
+     "invariants": [
+      {
+       "rule": "Published versions are immutable",
+       "requirements": "PRD-002"
+      },
+      {
+       "rule": "Any change to a published product creates a new version",
+       "requirements": "PRD-003"
+      },
+      {
+       "rule": "Validated before publication: no missing parameters, invalid values or incompatible benefits",
+       "requirements": "PRD-004, PRD-009"
+      },
+      {
+       "rule": "Approved test cases pass before publication",
+       "requirements": "PRD-005"
+      },
+      {
+       "rule": "Publication needs maker-checker approval",
+       "requirements": "PRD-006"
+      },
+      {
+       "rule": "Has an effective date",
+       "requirements": "PRD-007"
+      }
+     ],
+     "commands": [
+      "CreateDraftVersion",
+      "EditConfiguration",
+      "ValidateVersion",
+      "RunSimulation",
+      "SubmitForApproval",
+      "ApproveVersion",
+      "PublishVersion",
+      "WithdrawVersion",
+      "RetireVersion"
+     ],
+     "events": [
+      {
+       "name": "ProductVersionValidated",
+       "provenance": "S"
+      },
+      {
+       "name": "ProductVersionApproved",
+       "provenance": "S"
+      },
+      {
+       "name": "ProductVersionPublished",
+       "provenance": "S"
+      },
+      {
+       "name": "ProductVersionWithdrawn",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Draft",
+       "to": "Validated",
+       "trigger": "ValidateVersion"
+      },
+      {
+       "from": "Validated",
+       "to": "Draft",
+       "trigger": "EditConfiguration"
+      },
+      {
+       "from": "Validated",
+       "to": "Submitted",
+       "trigger": "SubmitForApproval"
+      },
+      {
+       "from": "Submitted",
+       "to": "Draft",
+       "trigger": "Approval rejected"
+      },
+      {
+       "from": "Submitted",
+       "to": "Approved",
+       "trigger": "ApproveVersion"
+      },
+      {
+       "from": "Approved",
+       "to": "Published",
+       "trigger": "PublishVersion"
+      },
+      {
+       "from": "Published",
+       "to": "Effective",
+       "trigger": "Effective date reached"
+      },
+      {
+       "from": "Effective",
+       "to": "Withdrawn",
+       "trigger": "WithdrawVersion"
+      },
+      {
+       "from": "Effective",
+       "to": "Retired",
+       "trigger": "RetireVersion"
+      }
+     ],
+     "tables": [
+      "product.cfg_product_definitions_and_versions (static)",
+      "product.simulation_run",
+      "product.simulation_result"
+     ],
+     "note": null
+    },
+    {
+     "name": "ProductDefinition",
+     "provenance": "S",
+     "entities": [],
+     "valueObjects": [
+      "ProductCode",
+      "Domain",
+      "Family",
+      "Classification"
+     ],
+     "invariants": [
+      {
+       "rule": "Product code is unique per tenant and never reused",
+       "requirements": null
+      },
+      {
+       "rule": "Belongs to exactly one domain: Life, General or Health",
+       "requirements": "§1.2"
+      }
+     ],
+     "commands": [
+      "RegisterProduct",
+      "ReclassifyProduct"
+     ],
+     "events": [
+      {
+       "name": "ProductRegistered",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [],
+     "tables": [
+      "product.ref_product_taxonomy (static)"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "StaticDataVersionActivated",
+     "reaction": "Revalidate drafts that depend on changed static data"
+    },
+    {
+     "event": "ApprovalGranted",
+     "reaction": "PublishVersion"
+    }
+   ]
+  },
+  {
+   "id": "rating",
+   "name": "Rating",
+   "subdomain": "Core",
+   "srsRef": "§7.3 · §8.1",
+   "schema": "rating",
+   "purpose": "Calculates premiums from rating factors, tables and parameters, and keeps a reproducible record of every calculation.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "PremiumCalculation",
+     "provenance": "D",
+     "entities": [
+      "ResultLine"
+     ],
+     "valueObjects": [
+      "RatingInput",
+      "VersionReferences",
+      "PremiumBreakdown",
+      "Money"
+     ],
+     "invariants": [
+      {
+       "rule": "Immutable once calculated; a recalculation is a new record",
+       "requirements": null
+      },
+      {
+       "rule": "Records the product, rating and rule versions used",
+       "requirements": "PRD-008"
+      },
+      {
+       "rule": "Recalculating with the same inputs and versions gives the same result",
+       "requirements": "LIF-002"
+      }
+     ],
+     "commands": [
+      "CalculatePremium"
+     ],
+     "events": [
+      {
+       "name": "PremiumCalculated",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [],
+     "tables": [
+      "rating.rating_request",
+      "rating.rating_result_line"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "ProductVersionPublished",
+     "reaction": "Load new rating version into cache"
+    }
+   ]
+  },
+  {
+   "id": "rules",
+   "name": "Rules",
+   "subdomain": "Supporting",
+   "srsRef": "§7.4",
+   "schema": "rules",
+   "purpose": "Evaluates eligibility, underwriting, referral and decline rule sets and records each decision.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "RuleDecision",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [
+      "RuleSetVersionRef",
+      "Inputs",
+      "Outcome",
+      "FiredRules"
+     ],
+     "invariants": [
+      {
+       "rule": "Immutable; records rule set version, inputs and outcome",
+       "requirements": "LIF-002"
+      }
+     ],
+     "commands": [
+      "EvaluateRuleSet"
+     ],
+     "events": [
+      {
+       "name": "RuleDecisionRecorded",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [],
+     "tables": [
+      "rules.decision_log"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": []
+  },
+  {
+   "id": "party",
+   "name": "Party",
+   "subdomain": "Supporting",
+   "srsRef": "§6",
+   "schema": "party",
+   "purpose": "Owns the identity of people and organisations, their contact details, identifiers, relationships, roles and consent.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "Party",
+     "provenance": "S",
+     "entities": [
+      "IndividualDetails",
+      "OrganisationDetails",
+      "Address",
+      "ContactPoint",
+      "PartyIdentifier",
+      "PartyRelationship",
+      "PartyRole"
+     ],
+     "valueObjects": [
+      "PersonName",
+      "PostalAddress",
+      "IdentityNumber (encrypted)",
+      "ContactValue",
+      "EffectivePeriod"
+     ],
+     "invariants": [
+      {
+       "rule": "Kind (individual or organisation) never changes",
+       "requirements": "PTY-001"
+      },
+      {
+       "rule": "A party can hold many roles",
+       "requirements": "PTY-002"
+      },
+      {
+       "rule": "An identity number is unique per document type and country within a tenant",
+       "requirements": null
+      },
+      {
+       "rule": "A merged party is read-only and points to its survivor",
+       "requirements": "PTY-004"
+      },
+      {
+       "rule": "Personal data is used only for authorised purposes",
+       "requirements": "PTY-005"
+      }
+     ],
+     "commands": [
+      "RegisterParty",
+      "UpdateDetails",
+      "AddIdentifier",
+      "VerifyIdentifier",
+      "RecordRelationship",
+      "AssignRole",
+      "MergeParties",
+      "AnonymiseParty"
+     ],
+     "events": [
+      {
+       "name": "PartyRegistered",
+       "provenance": "P"
+      },
+      {
+       "name": "PartyDetailsChanged",
+       "provenance": "P"
+      },
+      {
+       "name": "PartiesMerged",
+       "provenance": "P"
+      },
+      {
+       "name": "PartyAnonymised",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Active",
+       "to": "Dormant",
+       "trigger": "No activity"
+      },
+      {
+       "from": "Dormant",
+       "to": "Active",
+       "trigger": "New activity"
+      },
+      {
+       "from": "Active",
+       "to": "Deceased",
+       "trigger": "Death recorded"
+      },
+      {
+       "from": "Active",
+       "to": "Merged",
+       "trigger": "MergeParties"
+      },
+      {
+       "from": "Dormant",
+       "to": "Merged",
+       "trigger": "MergeParties"
+      },
+      {
+       "from": "Deceased",
+       "to": "Anonymised",
+       "trigger": "Retention ended"
+      },
+      {
+       "from": "Dormant",
+       "to": "Anonymised",
+       "trigger": "Retention ended"
+      }
+     ],
+     "tables": [
+      "party.party",
+      "party.individual",
+      "party.organisation",
+      "party.address",
+      "party.contact_point",
+      "party.party_identifier",
+      "party.party_relationship",
+      "party.party_role",
+      "party.merge_history"
+     ],
+     "note": null
+    },
+    {
+     "name": "ConsentLedger",
+     "provenance": "D",
+     "entities": [
+      "ConsentRecord"
+     ],
+     "valueObjects": [
+      "PurposeCode",
+      "LegalBasis",
+      "CaptureEvidence"
+     ],
+     "invariants": [
+      {
+       "rule": "Append-only; the latest record per purpose is the current consent",
+       "requirements": "PTY-005"
+      }
+     ],
+     "commands": [
+      "GrantConsent",
+      "WithdrawConsent"
+     ],
+     "events": [
+      {
+       "name": "ConsentGranted",
+       "provenance": "P"
+      },
+      {
+       "name": "ConsentWithdrawn",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [],
+     "tables": [
+      "party.consent_record"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "LifeClaimRegistered",
+     "reaction": "Flag a death claim on the insured party for review"
+    }
+   ]
+  },
+  {
+   "id": "claims",
+   "name": "Claims Framework",
+   "subdomain": "Supporting",
+   "srsRef": "§12",
+   "schema": "claims",
+   "purpose": "Provides what all domains share in claims: claim numbers, evidence, communications, fraud indicators, payment instructions and claim financial movements.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "ClaimRegistration",
+     "provenance": "D",
+     "entities": [
+      "EvidenceItem",
+      "Communication",
+      "FraudIndicatorHit"
+     ],
+     "valueObjects": [
+      "ClaimNumber",
+      "Domain",
+      "DomainClaimRef"
+     ],
+     "invariants": [
+      {
+       "rule": "One claim number per domain claim; a repeat registration returns the same number",
+       "requirements": "CLM-005"
+      }
+     ],
+     "commands": [
+      "AllocateClaimNumber",
+      "RequestEvidence",
+      "RecordEvidence",
+      "RecordCommunication",
+      "EvaluateFraudIndicators"
+     ],
+     "events": [
+      {
+       "name": "ClaimNumberAllocated",
+       "provenance": "P"
+      },
+      {
+       "name": "FraudIndicatorRaised",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [],
+     "tables": [
+      "claims.claim_register",
+      "claims.claim_evidence",
+      "claims.claim_communication",
+      "claims.fraud_indicator_hit"
+     ],
+     "note": null
+    },
+    {
+     "name": "ClaimFinancials",
+     "provenance": "D",
+     "entities": [
+      "FinancialMovement"
+     ],
+     "valueObjects": [
+      "ReserveType",
+      "Money",
+      "MovementType"
+     ],
+     "invariants": [
+      {
+       "rule": "Reserves, payments and recoveries are traceable financial movements",
+       "requirements": "CLM-004"
+      },
+      {
+       "rule": "Append-only; a correction is a new movement",
+       "requirements": null
+      },
+      {
+       "rule": "Outstanding reserve never goes below zero",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "SetReserve",
+      "ChangeReserve",
+      "RecordPayment",
+      "RecordRecovery"
+     ],
+     "events": [
+      {
+       "name": "ClaimReserveChanged",
+       "provenance": "P"
+      },
+      {
+       "name": "ClaimRecoveryRecorded",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [],
+     "tables": [
+      "claims.claim_financial_movement"
+     ],
+     "note": null
+    },
+    {
+     "name": "ClaimPaymentInstruction",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [
+      "PayeeRef",
+      "Money",
+      "ApprovalRef"
+     ],
+     "invariants": [
+      {
+       "rule": "Released only after maker-checker approval",
+       "requirements": "SRS-002"
+      },
+      {
+       "rule": "Cannot exceed the domain's approved amount",
+       "requirements": null
+      },
+      {
+       "rule": "Idempotent per claim and instruction",
+       "requirements": "PAY-001"
+      }
+     ],
+     "commands": [
+      "DraftInstruction",
+      "SubmitInstruction",
+      "ReleaseInstruction",
+      "RecordOutcome"
+     ],
+     "events": [
+      {
+       "name": "ClaimPaymentInstructed",
+       "provenance": "P"
+      },
+      {
+       "name": "ClaimPaymentCompleted",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Drafted",
+       "to": "Pending approval",
+       "trigger": "SubmitInstruction"
+      },
+      {
+       "from": "Pending approval",
+       "to": "Approved",
+       "trigger": "Approval granted"
+      },
+      {
+       "from": "Pending approval",
+       "to": "Rejected",
+       "trigger": "Approval rejected"
+      },
+      {
+       "from": "Approved",
+       "to": "Released",
+       "trigger": "ReleaseInstruction"
+      },
+      {
+       "from": "Released",
+       "to": "Paid",
+       "trigger": "Payment succeeded"
+      },
+      {
+       "from": "Released",
+       "to": "Failed",
+       "trigger": "Payment failed"
+      },
+      {
+       "from": "Failed",
+       "to": "Released",
+       "trigger": "Retried with new details"
+      }
+     ],
+     "tables": [
+      "claims.claim_payment_instruction"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "LifeClaimApproved",
+     "reaction": "DraftInstruction"
+    },
+    {
+     "event": "GeneralClaimApproved",
+     "reaction": "DraftInstruction"
+    },
+    {
+     "event": "PaymentReceived",
+     "reaction": "RecordOutcome (inbound recovery)"
+    },
+    {
+     "event": "PaymentFailed",
+     "reaction": "RecordOutcome"
+    },
+    {
+     "event": "PayoutReleased",
+     "reaction": "RecordOutcome"
+    }
+   ]
+  },
+  {
+   "id": "workflow",
+   "name": "Workflow",
+   "subdomain": "Generic",
+   "srsRef": "§19",
+   "schema": "workflow",
+   "purpose": "Runs versioned business processes: tasks, queues, SLA timers, escalation, delegated authority and maker-checker approvals.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "ProcessInstance",
+     "provenance": "D",
+     "entities": [
+      "Task",
+      "Timer",
+      "CaseNote"
+     ],
+     "valueObjects": [
+      "ProcessVersionRef",
+      "SlaDefinition",
+      "Assignment"
+     ],
+     "invariants": [
+      {
+       "rule": "Transitions follow the process definition version it started on",
+       "requirements": "WFL-001"
+      },
+      {
+       "rule": "Each transition calls the owning domain's validation",
+       "requirements": "WFL-002"
+      },
+      {
+       "rule": "Survives restarts and integration failures",
+       "requirements": "WFL-005"
+      }
+     ],
+     "commands": [
+      "StartProcess",
+      "AssignTask",
+      "ReassignTask",
+      "CompleteTask",
+      "EscalateTask",
+      "SuspendProcess",
+      "ResumeProcess",
+      "CancelProcess"
+     ],
+     "events": [
+      {
+       "name": "ProcessStarted",
+       "provenance": "P"
+      },
+      {
+       "name": "TaskAssigned",
+       "provenance": "P"
+      },
+      {
+       "name": "SlaBreached",
+       "provenance": "P"
+      },
+      {
+       "name": "ProcessCompleted",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Running",
+       "to": "Suspended",
+       "trigger": "SuspendProcess"
+      },
+      {
+       "from": "Suspended",
+       "to": "Running",
+       "trigger": "ResumeProcess"
+      },
+      {
+       "from": "Running",
+       "to": "Completed",
+       "trigger": "Final task done"
+      },
+      {
+       "from": "Running",
+       "to": "Cancelled",
+       "trigger": "CancelProcess"
+      }
+     ],
+     "tables": [
+      "workflow.process_instance",
+      "workflow.task",
+      "workflow.timer",
+      "workflow.case_note"
+     ],
+     "note": null
+    },
+    {
+     "name": "Approval",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [
+      "ApprovalType",
+      "MakerRef",
+      "CheckerRef",
+      "AuthorityLimit",
+      "Reason"
+     ],
+     "invariants": [
+      {
+       "rule": "Maker and checker are different people",
+       "requirements": "SRS-002"
+      },
+      {
+       "rule": "Checker's authority covers the amount and type",
+       "requirements": "WFL-004"
+      }
+     ],
+     "commands": [
+      "RequestApproval",
+      "Approve",
+      "Reject",
+      "Expire"
+     ],
+     "events": [
+      {
+       "name": "ApprovalGranted",
+       "provenance": "P"
+      },
+      {
+       "name": "ApprovalRejected",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Requested",
+       "to": "Approved",
+       "trigger": "Approve"
+      },
+      {
+       "from": "Requested",
+       "to": "Rejected",
+       "trigger": "Reject"
+      },
+      {
+       "from": "Requested",
+       "to": "Expired",
+       "trigger": "Time limit reached"
+      }
+     ],
+     "tables": [
+      "workflow.approval"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "SlaBreached",
+     "reaction": "EscalateTask"
+    }
+   ]
+  },
+  {
+   "id": "document",
+   "name": "Documents",
+   "subdomain": "Generic",
+   "srsRef": "§18",
+   "schema": "document",
+   "purpose": "Generates, stores, delivers, retains and disposes of documents, and audits access to sensitive ones.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "Document",
+     "provenance": "S",
+     "entities": [
+      "Delivery",
+      "AccessRecord",
+      "LegalHold"
+     ],
+     "valueObjects": [
+      "StorageLocation",
+      "Checksum",
+      "TemplateVersionRef",
+      "Classification",
+      "RetentionDate"
+     ],
+     "invariants": [
+      {
+       "rule": "Stored in tenant-scoped storage with access control",
+       "requirements": "DOC-001"
+      },
+      {
+       "rule": "Records the template and product versions it was generated from",
+       "requirements": "DOC-002"
+      },
+      {
+       "rule": "Access to sensitive documents is audited",
+       "requirements": "DOC-003"
+      },
+      {
+       "rule": "Not disposed of before its retention date or while on legal hold",
+       "requirements": "§18.1"
+      }
+     ],
+     "commands": [
+      "GenerateDocument",
+      "StoreDocument",
+      "DeliverDocument",
+      "PlaceLegalHold",
+      "ReleaseLegalHold",
+      "DisposeDocument"
+     ],
+     "events": [
+      {
+       "name": "DocumentGenerated",
+       "provenance": "P"
+      },
+      {
+       "name": "DocumentDelivered",
+       "provenance": "P"
+      },
+      {
+       "name": "DocumentDisposed",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Requested",
+       "to": "Generated",
+       "trigger": "Rendered"
+      },
+      {
+       "from": "Generated",
+       "to": "Delivered",
+       "trigger": "DeliverDocument"
+      },
+      {
+       "from": "Generated",
+       "to": "Disposed",
+       "trigger": "Retention ended, no hold"
+      },
+      {
+       "from": "Delivered",
+       "to": "Disposed",
+       "trigger": "Retention ended, no hold"
+      }
+     ],
+     "tables": [
+      "document.document",
+      "document.delivery",
+      "document.document_access_log",
+      "document.legal_hold",
+      "document.generation_request"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "LifePolicyIssued",
+     "reaction": "GenerateDocument (policy schedule)"
+    },
+    {
+     "event": "GeneralPolicyIssued",
+     "reaction": "GenerateDocument (schedule, certificate)"
+    },
+    {
+     "event": "GeneralPolicyEndorsed",
+     "reaction": "GenerateDocument (endorsement)"
+    },
+    {
+     "event": "InvoiceIssued",
+     "reaction": "GenerateDocument (premium notice)"
+    },
+    {
+     "event": "ProviderPaymentRunReleased",
+     "reaction": "GenerateDocument (remittance advice)"
+    }
+   ]
+  },
+  {
+   "id": "sdm",
+   "name": "Static Data",
+   "subdomain": "Supporting",
+   "srsRef": "Proposed",
+   "schema": "sdm",
+   "purpose": "Maintains reference data, configuration and master data through governed change requests and versions.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "StaticDataChange",
+     "provenance": "P",
+     "entities": [],
+     "valueObjects": [
+      "EntityCode",
+      "RecordKey",
+      "Diff",
+      "EffectivePeriod"
+     ],
+     "invariants": [
+      {
+       "rule": "Maker and checker differ for Tier 1",
+       "requirements": "SDM-003"
+      },
+      {
+       "rule": "Tier 1 changes show impact and pass simulation before activation",
+       "requirements": "SDM-010, SDM-011"
+      },
+      {
+       "rule": "Active periods for one code never overlap",
+       "requirements": "SDM-004"
+      },
+      {
+       "rule": "Approved versions are immutable",
+       "requirements": "SDM-002"
+      }
+     ],
+     "commands": [
+      "SubmitChange",
+      "ApproveChange",
+      "RejectChange",
+      "ActivateVersion",
+      "DeprecateCode",
+      "RetireCode"
+     ],
+     "events": [
+      {
+       "name": "StaticDataChangeSubmitted",
+       "provenance": "P"
+      },
+      {
+       "name": "StaticDataChangeApproved",
+       "provenance": "P"
+      },
+      {
+       "name": "StaticDataVersionActivated",
+       "provenance": "P"
+      },
+      {
+       "name": "StaticDataCodeDeprecated",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Draft",
+       "to": "Pending approval",
+       "trigger": "SubmitChange"
+      },
+      {
+       "from": "Pending approval",
+       "to": "Approved",
+       "trigger": "ApproveChange"
+      },
+      {
+       "from": "Pending approval",
+       "to": "Rejected",
+       "trigger": "RejectChange"
+      },
+      {
+       "from": "Approved",
+       "to": "Active",
+       "trigger": "Effective date reached"
+      },
+      {
+       "from": "Active",
+       "to": "Deprecated",
+       "trigger": "DeprecateCode"
+      },
+      {
+       "from": "Deprecated",
+       "to": "Retired",
+       "trigger": "RetireCode"
+      }
+     ],
+     "tables": [
+      "sdm.change_request",
+      "ref_ / cfg_ / mst_ tables in each owning schema"
+     ],
+     "note": null
+    },
+    {
+     "name": "ImportBatch",
+     "provenance": "P",
+     "entities": [
+      "ImportError"
+     ],
+     "valueObjects": [
+      "EntityCode",
+      "FileRef",
+      "RowCount"
+     ],
+     "invariants": [
+      {
+       "rule": "Committed completely or not at all",
+       "requirements": "SDM-012"
+      }
+     ],
+     "commands": [
+      "SubmitImport",
+      "ValidateImport",
+      "CommitImport"
+     ],
+     "events": [
+      {
+       "name": "StaticDataImportCompleted",
+       "provenance": "P"
+      },
+      {
+       "name": "StaticDataImportRejected",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Submitted",
+       "to": "Validating",
+       "trigger": "ValidateImport"
+      },
+      {
+       "from": "Validating",
+       "to": "Rejected",
+       "trigger": "Errors found"
+      },
+      {
+       "from": "Validating",
+       "to": "Committed",
+       "trigger": "CommitImport"
+      }
+     ],
+     "tables": [
+      "sdm.import_batch",
+      "sdm.import_error"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": []
+  },
+  {
+   "id": "billing",
+   "name": "Billing",
+   "subdomain": "Supporting",
+   "srsRef": "§13",
+   "schema": "billing",
+   "purpose": "Turns policy premiums into billing accounts, schedules, invoices, credit notes, arrears and refunds.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "BillingAccount",
+     "provenance": "S",
+     "entities": [
+      "PremiumSchedule",
+      "Instalment",
+      "ArrearsCase"
+     ],
+     "valueObjects": [
+      "AccountNumber",
+      "PayerRef",
+      "CollectionMethod",
+      "MandateRef",
+      "Money"
+     ],
+     "invariants": [
+      {
+       "rule": "Obligations come only from authorised policy and premium transactions",
+       "requirements": "BIL-001"
+      },
+      {
+       "rule": "Arrears buckets follow configured ageing rules",
+       "requirements": "§13.1"
+      }
+     ],
+     "commands": [
+      "OpenAccount",
+      "CreateSchedule",
+      "AmendSchedule",
+      "DetectArrears",
+      "CloseAccount"
+     ],
+     "events": [
+      {
+       "name": "BillingAccountOpened",
+       "provenance": "P"
+      },
+      {
+       "name": "ArrearsDetected",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Active",
+       "to": "In arrears",
+       "trigger": "DetectArrears"
+      },
+      {
+       "from": "In arrears",
+       "to": "Active",
+       "trigger": "Arrears cleared"
+      },
+      {
+       "from": "Active",
+       "to": "Closed",
+       "trigger": "CloseAccount"
+      }
+     ],
+     "tables": [
+      "billing.billing_account",
+      "billing.premium_schedule",
+      "billing.premium_instalment",
+      "billing.arrears_case"
+     ],
+     "note": null
+    },
+    {
+     "name": "Invoice",
+     "provenance": "S",
+     "entities": [
+      "InvoiceLine",
+      "Adjustment"
+     ],
+     "valueObjects": [
+      "InvoiceNumber",
+      "DocumentType",
+      "Money",
+      "DueDate",
+      "SourceRef"
+     ],
+     "invariants": [
+      {
+       "rule": "References source policy, tenant, product, currency and dates",
+       "requirements": "BIL-002"
+      },
+      {
+       "rule": "Never changed once issued; corrections are credit notes",
+       "requirements": "BIL-004"
+      },
+      {
+       "rule": "Settled status reflects allocated payments",
+       "requirements": "BIL-003"
+      }
+     ],
+     "commands": [
+      "IssueInvoice",
+      "RaiseCreditNote",
+      "MarkSettled"
+     ],
+     "events": [
+      {
+       "name": "InvoiceIssued",
+       "provenance": "S"
+      },
+      {
+       "name": "CreditNoteIssued",
+       "provenance": "P"
+      },
+      {
+       "name": "InvoiceSettled",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Draft",
+       "to": "Issued",
+       "trigger": "IssueInvoice"
+      },
+      {
+       "from": "Issued",
+       "to": "Part paid",
+       "trigger": "Partial allocation"
+      },
+      {
+       "from": "Part paid",
+       "to": "Paid",
+       "trigger": "Fully allocated"
+      },
+      {
+       "from": "Issued",
+       "to": "Paid",
+       "trigger": "Fully allocated"
+      },
+      {
+       "from": "Issued",
+       "to": "Overdue",
+       "trigger": "Due date passed"
+      },
+      {
+       "from": "Overdue",
+       "to": "Paid",
+       "trigger": "Fully allocated"
+      },
+      {
+       "from": "Issued",
+       "to": "Credited",
+       "trigger": "RaiseCreditNote"
+      }
+     ],
+     "tables": [
+      "billing.invoice",
+      "billing.invoice_line",
+      "billing.adjustment"
+     ],
+     "note": null
+    },
+    {
+     "name": "RefundRequest",
+     "provenance": "S",
+     "entities": [],
+     "valueObjects": [
+      "Money",
+      "ReasonCode"
+     ],
+     "invariants": [
+      {
+       "rule": "Approved before any payment is instructed",
+       "requirements": "SRS-002"
+      }
+     ],
+     "commands": [
+      "RequestRefund",
+      "ApproveRefund",
+      "RejectRefund"
+     ],
+     "events": [
+      {
+       "name": "RefundApproved",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Requested",
+       "to": "Approved",
+       "trigger": "ApproveRefund"
+      },
+      {
+       "from": "Requested",
+       "to": "Rejected",
+       "trigger": "RejectRefund"
+      },
+      {
+       "from": "Approved",
+       "to": "Paid",
+       "trigger": "Payment succeeded"
+      }
+     ],
+     "tables": [
+      "billing.refund_request"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "LifePolicyIssued",
+     "reaction": "OpenAccount + CreateSchedule"
+    },
+    {
+     "event": "GeneralPolicyIssued",
+     "reaction": "OpenAccount + CreateSchedule"
+    },
+    {
+     "event": "GeneralPolicyEndorsed",
+     "reaction": "AmendSchedule"
+    },
+    {
+     "event": "GeneralPolicyCancelled",
+     "reaction": "RaiseCreditNote"
+    },
+    {
+     "event": "HealthMemberEnrolled",
+     "reaction": "CreateSchedule (contributions)"
+    },
+    {
+     "event": "PaymentAllocated",
+     "reaction": "MarkSettled"
+    },
+    {
+     "event": "PaymentReversed",
+     "reaction": "Reopen invoice"
+    }
+   ]
+  },
+  {
+   "id": "payments",
+   "name": "Payments",
+   "subdomain": "Supporting",
+   "srsRef": "§14",
+   "schema": "payment",
+   "purpose": "Initiates and tracks every inbound and outbound payment, allocates receipts, handles provider callbacks and reconciles against bank records.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "Payment",
+     "provenance": "S",
+     "entities": [
+      "PaymentAllocation",
+      "StatusChange"
+     ],
+     "valueObjects": [
+      "PaymentRef",
+      "Money",
+      "IdempotencyKey",
+      "ExternalRef",
+      "Direction",
+      "Purpose"
+     ],
+     "invariants": [
+      {
+       "rule": "Idempotent: the same key never moves money twice",
+       "requirements": "PAY-001"
+      },
+      {
+       "rule": "Every status change is recorded",
+       "requirements": "PAY-002"
+      },
+      {
+       "rule": "An ambiguous outcome is Unknown and goes to reconciliation, never Succeeded",
+       "requirements": "PAY-005"
+      },
+      {
+       "rule": "Final statuses never change except by an explicit reversal",
+       "requirements": null
+      },
+      {
+       "rule": "Allocations never exceed the amount received",
+       "requirements": "BIL-003"
+      }
+     ],
+     "commands": [
+      "InitiatePayment",
+      "RecordProviderCallback",
+      "AllocatePayment",
+      "ReversePayment",
+      "MarkUnknown",
+      "ResolveUnknown"
+     ],
+     "events": [
+      {
+       "name": "PaymentReceived",
+       "provenance": "S"
+      },
+      {
+       "name": "PaymentAllocated",
+       "provenance": "S"
+      },
+      {
+       "name": "PaymentReversed",
+       "provenance": "S"
+      },
+      {
+       "name": "PaymentFailed",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Initiated",
+       "to": "Pending",
+       "trigger": "Sent to provider"
+      },
+      {
+       "from": "Pending",
+       "to": "Succeeded",
+       "trigger": "Provider confirms"
+      },
+      {
+       "from": "Pending",
+       "to": "Failed",
+       "trigger": "Provider rejects"
+      },
+      {
+       "from": "Pending",
+       "to": "Unknown",
+       "trigger": "No or ambiguous response"
+      },
+      {
+       "from": "Unknown",
+       "to": "Succeeded",
+       "trigger": "ResolveUnknown"
+      },
+      {
+       "from": "Unknown",
+       "to": "Failed",
+       "trigger": "ResolveUnknown"
+      },
+      {
+       "from": "Succeeded",
+       "to": "Reversed",
+       "trigger": "ReversePayment"
+      }
+     ],
+     "tables": [
+      "payment.payment",
+      "payment.payment_status_history",
+      "payment.payment_allocation",
+      "payment.provider_callback"
+     ],
+     "note": null
+    },
+    {
+     "name": "PayoutBatch",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [
+      "BatchRef",
+      "Purpose",
+      "Money"
+     ],
+     "invariants": [
+      {
+       "rule": "Released only after approval",
+       "requirements": "SRS-002"
+      }
+     ],
+     "commands": [
+      "BuildBatch",
+      "ApproveBatch",
+      "ReleaseBatch"
+     ],
+     "events": [
+      {
+       "name": "PayoutReleased",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Built",
+       "to": "Approved",
+       "trigger": "ApproveBatch"
+      },
+      {
+       "from": "Approved",
+       "to": "Released",
+       "trigger": "ReleaseBatch"
+      },
+      {
+       "from": "Released",
+       "to": "Settled",
+       "trigger": "All payments final"
+      }
+     ],
+     "tables": [
+      "payment.payout_batch"
+     ],
+     "note": null
+    },
+    {
+     "name": "ReconciliationException",
+     "provenance": "S",
+     "entities": [],
+     "valueObjects": [
+      "ExceptionType",
+      "StatementLineRef",
+      "Money"
+     ],
+     "invariants": [
+      {
+       "rule": "Every unmatched or ambiguous item is investigated and resolved by a person",
+       "requirements": "PAY-005"
+      }
+     ],
+     "commands": [
+      "RaiseException",
+      "AssignException",
+      "ResolveException"
+     ],
+     "events": [
+      {
+       "name": "ReconciliationExceptionRaised",
+       "provenance": "S"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Open",
+       "to": "Investigating",
+       "trigger": "AssignException"
+      },
+      {
+       "from": "Investigating",
+       "to": "Resolved",
+       "trigger": "ResolveException"
+      }
+     ],
+     "tables": [
+      "payment.reconciliation_exception",
+      "payment.bank_statement_line"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "InvoiceIssued",
+     "reaction": "InitiatePayment (collection)"
+    },
+    {
+     "event": "ClaimPaymentInstructed",
+     "reaction": "Add to payout batch"
+    },
+    {
+     "event": "RefundApproved",
+     "reaction": "InitiatePayment (refund)"
+    },
+    {
+     "event": "ProviderPaymentRunReleased",
+     "reaction": "BuildBatch (provider)"
+    },
+    {
+     "event": "CommissionStatementApproved",
+     "reaction": "BuildBatch (commission)"
+    }
+   ]
+  },
+  {
+   "id": "finance",
+   "name": "Financial Subledger",
+   "subdomain": "Supporting",
+   "srsRef": "§15",
+   "schema": "finance",
+   "purpose": "Turns business events into balanced, traceable journals, controls accounting periods, reconciles and exports to the insurer's general ledger.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "Journal",
+     "provenance": "S",
+     "entities": [
+      "SubledgerEntry"
+     ],
+     "valueObjects": [
+      "JournalNumber",
+      "AccountingDate",
+      "PostingRuleVersionRef",
+      "Money",
+      "SourceEventRef"
+     ],
+     "invariants": [
+      {
+       "rule": "Debits equal credits",
+       "requirements": null
+      },
+      {
+       "rule": "Traceable to its source business transaction",
+       "requirements": "FIN-001"
+      },
+      {
+       "rule": "Never overwritten once posted",
+       "requirements": "FIN-002"
+      },
+      {
+       "rule": "Corrections are reversal journals that reference the original",
+       "requirements": "FIN-003"
+      },
+      {
+       "rule": "Records the posting rule version used",
+       "requirements": "FIN-004"
+      },
+      {
+       "rule": "Posted only into an open accounting period",
+       "requirements": "§15.1"
+      },
+      {
+       "rule": "One journal per source event, enforced by the inbox",
+       "requirements": "DBA-007"
+      }
+     ],
+     "commands": [
+      "PostBusinessEvent",
+      "ReverseJournal"
+     ],
+     "events": [
+      {
+       "name": "SubledgerEntryPosted",
+       "provenance": "S"
+      },
+      {
+       "name": "JournalReversed",
+       "provenance": "P"
+      },
+      {
+       "name": "PostingFailed",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Posted",
+       "to": "Reversed",
+       "trigger": "ReverseJournal"
+      }
+     ],
+     "tables": [
+      "finance.journal",
+      "finance.subledger_entry",
+      "finance.posting_exception"
+     ],
+     "note": null
+    },
+    {
+     "name": "AccountingPeriod",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [
+      "PeriodCode",
+      "DateRange"
+     ],
+     "invariants": [
+      {
+       "rule": "Only one open period per date per tenant",
+       "requirements": null
+      },
+      {
+       "rule": "A closed period accepts no postings",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "OpenPeriod",
+      "SoftClosePeriod",
+      "ClosePeriod"
+     ],
+     "events": [
+      {
+       "name": "AccountingPeriodClosed",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Future",
+       "to": "Open",
+       "trigger": "OpenPeriod"
+      },
+      {
+       "from": "Open",
+       "to": "Soft close",
+       "trigger": "SoftClosePeriod"
+      },
+      {
+       "from": "Soft close",
+       "to": "Open",
+       "trigger": "Reopened with approval"
+      },
+      {
+       "from": "Soft close",
+       "to": "Closed",
+       "trigger": "ClosePeriod"
+      }
+     ],
+     "tables": [
+      "static: finance.cfg_accounting_calendar_periods"
+     ],
+     "note": null
+    },
+    {
+     "name": "ReconciliationRun",
+     "provenance": "D",
+     "entities": [
+      "ReconciliationBreak"
+     ],
+     "valueObjects": [
+      "RuleRef",
+      "AsAtDate"
+     ],
+     "invariants": [
+      {
+       "rule": "Identifies unmatched, duplicated, delayed and inconsistent items",
+       "requirements": "FIN-006"
+      }
+     ],
+     "commands": [
+      "RunReconciliation",
+      "ResolveBreak"
+     ],
+     "events": [
+      {
+       "name": "ReconciliationExceptionRaised",
+       "provenance": "S"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Running",
+       "to": "Completed",
+       "trigger": "Matching finished"
+      }
+     ],
+     "tables": [
+      "finance.reconciliation_run",
+      "finance.reconciliation_break"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "InvoiceIssued",
+     "reaction": "PostBusinessEvent"
+    },
+    {
+     "event": "PaymentReceived",
+     "reaction": "PostBusinessEvent"
+    },
+    {
+     "event": "PaymentReversed",
+     "reaction": "PostBusinessEvent"
+    },
+    {
+     "event": "ClaimReserveChanged",
+     "reaction": "PostBusinessEvent"
+    },
+    {
+     "event": "ClaimPaymentCompleted",
+     "reaction": "PostBusinessEvent"
+    },
+    {
+     "event": "CommissionAccrued",
+     "reaction": "PostBusinessEvent"
+    },
+    {
+     "event": "CessionCalculated",
+     "reaction": "PostBusinessEvent"
+    },
+    {
+     "event": "RecoveryBilled",
+     "reaction": "PostBusinessEvent"
+    }
+   ]
+  },
+  {
+   "id": "commission",
+   "name": "Distribution and Commission",
+   "subdomain": "Supporting",
+   "srsRef": "§16",
+   "schema": "commission",
+   "purpose": "Owns intermediaries, their appointments and product permissions, and calculates, adjusts, states and settles commission.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "Intermediary",
+     "provenance": "D",
+     "entities": [
+      "Appointment",
+      "ProductPermission"
+     ],
+     "valueObjects": [
+      "IntermediaryCode",
+      "LicenceNumber",
+      "HierarchyNode"
+     ],
+     "invariants": [
+      {
+       "rule": "Sells only products it holds a current permission for",
+       "requirements": "DST-001"
+      },
+      {
+       "rule": "A suspended intermediary cannot start new business",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "AppointIntermediary",
+      "GrantProductPermission",
+      "SuspendIntermediary",
+      "TerminateIntermediary"
+     ],
+     "events": [
+      {
+       "name": "IntermediarySuspended",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Appointed",
+       "to": "Suspended",
+       "trigger": "SuspendIntermediary"
+      },
+      {
+       "from": "Suspended",
+       "to": "Appointed",
+       "trigger": "Reinstated"
+      },
+      {
+       "from": "Appointed",
+       "to": "Terminated",
+       "trigger": "TerminateIntermediary"
+      },
+      {
+       "from": "Suspended",
+       "to": "Terminated",
+       "trigger": "TerminateIntermediary"
+      }
+     ],
+     "tables": [
+      "commission (static): mst_intermediary_register, cfg_distribution_hierarchy, cfg_intermediary_product_permissions"
+     ],
+     "note": null
+    },
+    {
+     "name": "CommissionEntitlement",
+     "provenance": "S",
+     "entities": [
+      "Clawback"
+     ],
+     "valueObjects": [
+      "PlanVersionRef",
+      "BasisAmount",
+      "Rate",
+      "Money"
+     ],
+     "invariants": [
+      {
+       "rule": "Records the plan version and source transaction",
+       "requirements": "DST-003"
+      },
+      {
+       "rule": "Effective-dated plan applies at the transaction date",
+       "requirements": "DST-002"
+      },
+      {
+       "rule": "A clawback always references the original entitlement",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "AccrueCommission",
+      "ClawBack",
+      "MarkPayable"
+     ],
+     "events": [
+      {
+       "name": "CommissionAccrued",
+       "provenance": "S"
+      },
+      {
+       "name": "CommissionClawedBack",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Accrued",
+       "to": "Payable",
+       "trigger": "Premium received"
+      },
+      {
+       "from": "Payable",
+       "to": "Paid",
+       "trigger": "Statement settled"
+      },
+      {
+       "from": "Accrued",
+       "to": "Clawed back",
+       "trigger": "ClawBack"
+      },
+      {
+       "from": "Payable",
+       "to": "Clawed back",
+       "trigger": "ClawBack"
+      }
+     ],
+     "tables": [
+      "commission.commission_entitlement",
+      "commission.clawback"
+     ],
+     "note": null
+    },
+    {
+     "name": "CommissionStatement",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [
+      "Period",
+      "Money"
+     ],
+     "invariants": [
+      {
+       "rule": "Approved before payment",
+       "requirements": "DST-004"
+      }
+     ],
+     "commands": [
+      "PrepareStatement",
+      "ApproveStatement"
+     ],
+     "events": [
+      {
+       "name": "CommissionStatementApproved",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Draft",
+       "to": "Approved",
+       "trigger": "ApproveStatement"
+      },
+      {
+       "from": "Approved",
+       "to": "Paid",
+       "trigger": "Payout settled"
+      }
+     ],
+     "tables": [
+      "commission.commission_statement"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "InvoiceIssued",
+     "reaction": "AccrueCommission"
+    },
+    {
+     "event": "PaymentAllocated",
+     "reaction": "MarkPayable"
+    },
+    {
+     "event": "GeneralPolicyCancelled",
+     "reaction": "ClawBack"
+    },
+    {
+     "event": "LifePolicyLapsed",
+     "reaction": "ClawBack"
+    }
+   ]
+  },
+  {
+   "id": "reinsurance",
+   "name": "Reinsurance",
+   "subdomain": "Supporting",
+   "srsRef": "§17",
+   "schema": "reinsurance",
+   "purpose": "Calculates cessions under treaties and facultative arrangements, bills recoveries, and produces bordereaux and statements.",
+   "note": "§21 defines no reinsurance entities, so all aggregates here are proposed.",
+   "aggregates": [
+    {
+     "name": "Cession",
+     "provenance": "P",
+     "entities": [],
+     "valueObjects": [
+      "TreatyRef",
+      "RuleVersionRef",
+      "CededSumInsured",
+      "CededPremium"
+     ],
+     "invariants": [
+      {
+       "rule": "Reproducible from the arrangement and configuration versions",
+       "requirements": "REI-002"
+      },
+      {
+       "rule": "Linked to the underlying policy or risk",
+       "requirements": "REI-001"
+      }
+     ],
+     "commands": [
+      "CalculateCession",
+      "RecalculateCession"
+     ],
+     "events": [
+      {
+       "name": "CessionCalculated",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [],
+     "tables": [
+      "reinsurance.cession"
+     ],
+     "note": null
+    },
+    {
+     "name": "ReinsuranceRecovery",
+     "provenance": "P",
+     "entities": [],
+     "valueObjects": [
+      "ClaimRef",
+      "TreatyRef",
+      "Money"
+     ],
+     "invariants": [
+      {
+       "rule": "Traceable and reconcilable",
+       "requirements": "REI-003"
+      }
+     ],
+     "commands": [
+      "IdentifyRecovery",
+      "BillRecovery",
+      "SettleRecovery"
+     ],
+     "events": [
+      {
+       "name": "RecoveryBilled",
+       "provenance": "P"
+      },
+      {
+       "name": "RecoverySettled",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Identified",
+       "to": "Billed",
+       "trigger": "BillRecovery"
+      },
+      {
+       "from": "Billed",
+       "to": "Settled",
+       "trigger": "SettleRecovery"
+      }
+     ],
+     "tables": [
+      "reinsurance.recovery"
+     ],
+     "note": null
+    },
+    {
+     "name": "Bordereau",
+     "provenance": "P",
+     "entities": [],
+     "valueObjects": [
+      "TreatyRef",
+      "Period",
+      "LayoutRef"
+     ],
+     "invariants": [
+      {
+       "rule": "One bordereau per treaty and period",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "PrepareBordereau",
+      "SendBordereau",
+      "AgreeBordereau"
+     ],
+     "events": [
+      {
+       "name": "BordereauSent",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Prepared",
+       "to": "Sent",
+       "trigger": "SendBordereau"
+      },
+      {
+       "from": "Sent",
+       "to": "Agreed",
+       "trigger": "AgreeBordereau"
+      }
+     ],
+     "tables": [
+      "reinsurance.bordereau"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "GeneralPolicyIssued",
+     "reaction": "CalculateCession"
+    },
+    {
+     "event": "GeneralPolicyEndorsed",
+     "reaction": "RecalculateCession"
+    },
+    {
+     "event": "LifePolicyIssued",
+     "reaction": "CalculateCession"
+    },
+    {
+     "event": "GeneralClaimSettled",
+     "reaction": "IdentifyRecovery"
+    },
+    {
+     "event": "LifeClaimSettled",
+     "reaction": "IdentifyRecovery"
+    },
+    {
+     "event": "MedicalClaimSettled",
+     "reaction": "IdentifyRecovery (where treaty applies)"
+    }
+   ]
+  },
+  {
+   "id": "compliance",
+   "name": "Compliance and Reporting",
+   "subdomain": "Supporting",
+   "srsRef": "§2.1 · §24.2",
+   "schema": "reporting",
+   "purpose": "Prepares, approves and submits regulatory returns, and runs operational reports under tenant-aware access rules.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "RegulatoryReturn",
+     "provenance": "P",
+     "entities": [],
+     "valueObjects": [
+      "ReturnCode",
+      "Period",
+      "DocumentRef"
+     ],
+     "invariants": [
+      {
+       "rule": "Approved by a compliance officer before submission",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "PrepareReturn",
+      "ReviewReturn",
+      "ApproveReturn",
+      "SubmitReturn"
+     ],
+     "events": [
+      {
+       "name": "RegulatoryReturnSubmitted",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Prepared",
+       "to": "Reviewed",
+       "trigger": "ReviewReturn"
+      },
+      {
+       "from": "Reviewed",
+       "to": "Approved",
+       "trigger": "ApproveReturn"
+      },
+      {
+       "from": "Approved",
+       "to": "Submitted",
+       "trigger": "SubmitReturn"
+      },
+      {
+       "from": "Submitted",
+       "to": "Accepted",
+       "trigger": "Regulator accepts"
+      },
+      {
+       "from": "Submitted",
+       "to": "Rejected",
+       "trigger": "Regulator rejects"
+      },
+      {
+       "from": "Rejected",
+       "to": "Prepared",
+       "trigger": "Corrected"
+      }
+     ],
+     "tables": [
+      "reporting.regulatory_return_run",
+      "reporting.report_run"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "AccountingPeriodClosed",
+     "reaction": "PrepareReturn"
+    }
+   ]
+  },
+  {
+   "id": "analytics",
+   "name": "Analytics",
+   "subdomain": "Generic",
+   "srsRef": "§2.1",
+   "schema": "analytics",
+   "purpose": "Builds read-only projections for portfolio, underwriting, claims, financial and operational analysis.",
+   "note": "No aggregates. Projections (for example fact_written_premium and fact_claims_incurred) are rebuilt from events.",
+   "aggregates": [],
+   "consumes": [
+    {
+     "event": "All published domain and financial events",
+     "reaction": "Update projections"
+    }
+   ]
+  },
+  {
+   "id": "integration",
+   "name": "Integration",
+   "subdomain": "Generic",
+   "srsRef": "§20 · §23",
+   "schema": "integration",
+   "purpose": "Exposes the API gateway, translates partner formats through adapters, delivers webhooks, and handles retries, dead letters and idempotency.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "DeadLetter",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [
+      "Source",
+      "MessageRef",
+      "Error"
+     ],
+     "invariants": [
+      {
+       "rule": "Replayed only by an authorised operator",
+       "requirements": "INT-006"
+      }
+     ],
+     "commands": [
+      "DeadLetterMessage",
+      "ReplayMessage",
+      "DiscardMessage"
+     ],
+     "events": [
+      {
+       "name": "MessageDeadLettered",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Dead-lettered",
+       "to": "Replayed",
+       "trigger": "ReplayMessage"
+      },
+      {
+       "from": "Dead-lettered",
+       "to": "Discarded",
+       "trigger": "DiscardMessage"
+      }
+     ],
+     "tables": [
+      "integration.dead_letter_message"
+     ],
+     "note": null
+    },
+    {
+     "name": "WebhookDelivery",
+     "provenance": "D",
+     "entities": [
+      "DeliveryAttempt"
+     ],
+     "valueObjects": [
+      "SubscriptionRef",
+      "EventRef"
+     ],
+     "invariants": [
+      {
+       "rule": "Retried with back-off up to the policy limit",
+       "requirements": "INT-006"
+      }
+     ],
+     "commands": [
+      "DeliverEvent",
+      "RetryDelivery"
+     ],
+     "events": [],
+     "stateTransitions": [
+      {
+       "from": "Pending",
+       "to": "Delivered",
+       "trigger": "2xx response"
+      },
+      {
+       "from": "Pending",
+       "to": "Failed",
+       "trigger": "Retries exhausted"
+      }
+     ],
+     "tables": [
+      "integration.webhook_delivery"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "Subscribed domain events",
+     "reaction": "DeliverEvent to partner webhooks"
+    }
+   ]
+  },
+  {
+   "id": "channels",
+   "name": "Portals and Channels",
+   "subdomain": "Generic",
+   "srsRef": "§8",
+   "schema": null,
+   "purpose": "Insurer, broker, customer and provider portals and partner channels.",
+   "note": "No aggregates. Channels call module APIs through the gateway; authorisation is enforced in backend services (IAM-007).",
+   "aggregates": [],
+   "consumes": []
+  },
+  {
+   "id": "tenant",
+   "name": "Tenancy",
+   "subdomain": "Generic",
+   "srsRef": "§4",
+   "schema": "tenant",
+   "purpose": "Owns tenants, their isolation profile, entitlements, limits and lifecycle.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "Tenant",
+     "provenance": "S",
+     "entities": [
+      "OnboardingCase",
+      "StatusChange"
+     ],
+     "valueObjects": [
+      "TenantId",
+      "IsolationProfile",
+      "FeatureEntitlement",
+      "OperationalLimit"
+     ],
+     "invariants": [
+      {
+       "rule": "Tenant identifier is unique and immutable",
+       "requirements": "TEN-001"
+      },
+      {
+       "rule": "Onboarding, suspension, reactivation and termination follow workflows",
+       "requirements": "TEN-008"
+      },
+      {
+       "rule": "Changing isolation profile requires an approved data migration",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "RegisterTenant",
+      "ActivateTenant",
+      "SuspendTenant",
+      "ReactivateTenant",
+      "TerminateTenant",
+      "ChangeIsolationProfile"
+     ],
+     "events": [
+      {
+       "name": "TenantRegistered",
+       "provenance": "P"
+      },
+      {
+       "name": "TenantActivated",
+       "provenance": "P"
+      },
+      {
+       "name": "TenantSuspended",
+       "provenance": "P"
+      },
+      {
+       "name": "TenantReactivated",
+       "provenance": "P"
+      },
+      {
+       "name": "TenantTerminated",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Onboarding",
+       "to": "Active",
+       "trigger": "ActivateTenant"
+      },
+      {
+       "from": "Active",
+       "to": "Suspended",
+       "trigger": "SuspendTenant"
+      },
+      {
+       "from": "Suspended",
+       "to": "Active",
+       "trigger": "ReactivateTenant"
+      },
+      {
+       "from": "Active",
+       "to": "Terminated",
+       "trigger": "TerminateTenant"
+      },
+      {
+       "from": "Suspended",
+       "to": "Terminated",
+       "trigger": "TerminateTenant"
+      }
+     ],
+     "tables": [
+      "tenant.tenant",
+      "tenant.onboarding_case",
+      "tenant.tenant_status_history"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": []
+  },
+  {
+   "id": "iam",
+   "name": "Identity and Access",
+   "subdomain": "Generic",
+   "srsRef": "§5",
+   "schema": "iam",
+   "purpose": "Owns users, role assignments, sessions, privileged access grants and access reviews.",
+   "note": null,
+   "aggregates": [
+    {
+     "name": "UserAccount",
+     "provenance": "D",
+     "entities": [
+      "RoleAssignment",
+      "Session"
+     ],
+     "valueObjects": [
+      "Username",
+      "ExternalSubject",
+      "Scope",
+      "MfaStatus"
+     ],
+     "invariants": [
+      {
+       "rule": "Identities and permissions are tenant-scoped",
+       "requirements": "IAM-001"
+      },
+      {
+       "rule": "Conflicting permissions cannot be held together",
+       "requirements": "SRS-002"
+      },
+      {
+       "rule": "Privileged roles require MFA",
+       "requirements": "IAM-003"
+      },
+      {
+       "rule": "Revocation takes effect immediately",
+       "requirements": "IAM-005"
+      }
+     ],
+     "commands": [
+      "ProvisionUser",
+      "AssignRole",
+      "RevokeRole",
+      "LockUser",
+      "UnlockUser",
+      "DisableUser"
+     ],
+     "events": [
+      {
+       "name": "UserProvisioned",
+       "provenance": "P"
+      },
+      {
+       "name": "RoleAssigned",
+       "provenance": "P"
+      },
+      {
+       "name": "RoleRevoked",
+       "provenance": "P"
+      },
+      {
+       "name": "UserDisabled",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Invited",
+       "to": "Active",
+       "trigger": "First sign-in"
+      },
+      {
+       "from": "Active",
+       "to": "Locked",
+       "trigger": "LockUser"
+      },
+      {
+       "from": "Locked",
+       "to": "Active",
+       "trigger": "UnlockUser"
+      },
+      {
+       "from": "Active",
+       "to": "Disabled",
+       "trigger": "DisableUser"
+      },
+      {
+       "from": "Locked",
+       "to": "Disabled",
+       "trigger": "DisableUser"
+      }
+     ],
+     "tables": [
+      "iam.user_account",
+      "iam.user_role_assignment",
+      "iam.session"
+     ],
+     "note": null
+    },
+    {
+     "name": "PrivilegedAccessGrant",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [
+      "Purpose",
+      "TimeWindow",
+      "ApproverRef"
+     ],
+     "invariants": [
+      {
+       "rule": "Approved by someone other than the requester",
+       "requirements": "TEN-007"
+      },
+      {
+       "rule": "Time-limited, with purpose recorded",
+       "requirements": "TEN-007"
+      }
+     ],
+     "commands": [
+      "RequestAccess",
+      "ApproveAccess",
+      "RejectAccess",
+      "ExpireAccess"
+     ],
+     "events": [
+      {
+       "name": "PrivilegedAccessGranted",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Requested",
+       "to": "Approved",
+       "trigger": "ApproveAccess"
+      },
+      {
+       "from": "Requested",
+       "to": "Rejected",
+       "trigger": "RejectAccess"
+      },
+      {
+       "from": "Approved",
+       "to": "Expired",
+       "trigger": "Window ends"
+      }
+     ],
+     "tables": [
+      "iam.privileged_access_grant"
+     ],
+     "note": null
+    },
+    {
+     "name": "AccessReview",
+     "provenance": "D",
+     "entities": [
+      "ReviewItem"
+     ],
+     "valueObjects": [
+      "Scope",
+      "DueDate"
+     ],
+     "invariants": [
+      {
+       "rule": "Every item is confirmed or revoked before completion",
+       "requirements": null
+      }
+     ],
+     "commands": [
+      "StartReview",
+      "ConfirmAccess",
+      "RevokeAccess",
+      "CompleteReview"
+     ],
+     "events": [
+      {
+       "name": "AccessReviewCompleted",
+       "provenance": "P"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Open",
+       "to": "Completed",
+       "trigger": "CompleteReview"
+      }
+     ],
+     "tables": [
+      "iam.access_review"
+     ],
+     "note": null
+    }
+   ],
+   "consumes": [
+    {
+     "event": "TenantSuspended",
+     "reaction": "Block sign-in for the tenant"
+    }
+   ]
+  },
+  {
+   "id": "audit",
+   "name": "Audit",
+   "subdomain": "Generic",
+   "srsRef": "IAM-006",
+   "schema": "audit",
+   "purpose": "Keeps an append-only record of every sensitive operation.",
+   "note": "No aggregates. Audit events are append-only records, not a model with behaviour.",
+   "aggregates": [],
+   "consumes": [
+    {
+     "event": "All sensitive operations",
+     "reaction": "Record audit event"
+    }
+   ]
+  }
+ ],
+ "externalSystems": [
+  {
+   "id": "x_pay",
+   "name": "Banks and payment providers"
+  },
+  {
+   "id": "x_dist",
+   "name": "Broker and partner systems"
+  },
+  {
+   "id": "x_hc",
+   "name": "Healthcare providers"
+  },
+  {
+   "id": "x_ri",
+   "name": "Reinsurers"
+  },
+  {
+   "id": "x_gl",
+   "name": "Insurer GL or ERP"
+  },
+  {
+   "id": "x_idp",
+   "name": "Identity providers"
+  },
+  {
+   "id": "x_act",
+   "name": "Actuarial engines"
+  }
+ ],
+ "relationships": [
+  {
+   "upstream": "product",
+   "downstream": "life",
+   "pattern": "Customer–Supplier · Published Language",
+   "flows": "Published product versions"
+  },
+  {
+   "upstream": "product",
+   "downstream": "general",
+   "pattern": "Customer–Supplier · Published Language",
+   "flows": "Published product versions"
+  },
+  {
+   "upstream": "product",
+   "downstream": "health",
+   "pattern": "Customer–Supplier · Published Language",
+   "flows": "Published plan versions"
+  },
+  {
+   "upstream": "product",
+   "downstream": "rating",
+   "pattern": "Customer–Supplier",
+   "flows": "Rating configuration versions"
+  },
+  {
+   "upstream": "rating",
+   "downstream": "life",
+   "pattern": "Open Host Service",
+   "flows": "Premium calculations"
+  },
+  {
+   "upstream": "rating",
+   "downstream": "general",
+   "pattern": "Open Host Service",
+   "flows": "Premium calculations"
+  },
+  {
+   "upstream": "rules",
+   "downstream": "life",
+   "pattern": "Open Host Service",
+   "flows": "Eligibility and underwriting decisions"
+  },
+  {
+   "upstream": "rules",
+   "downstream": "general",
+   "pattern": "Open Host Service",
+   "flows": "Eligibility and referral decisions"
+  },
+  {
+   "upstream": "rules",
+   "downstream": "health",
+   "pattern": "Open Host Service",
+   "flows": "Eligibility decisions"
+  },
+  {
+   "upstream": "party",
+   "downstream": "life",
+   "pattern": "Open Host Service",
+   "flows": "Party identity and roles"
+  },
+  {
+   "upstream": "party",
+   "downstream": "general",
+   "pattern": "Open Host Service",
+   "flows": "Party identity and roles"
+  },
+  {
+   "upstream": "party",
+   "downstream": "health",
+   "pattern": "Open Host Service",
+   "flows": "Party identity and roles"
+  },
+  {
+   "upstream": "sdm",
+   "downstream": "product",
+   "pattern": "Published Language",
+   "flows": "Static data versions (all contexts consume these)"
+  },
+  {
+   "upstream": "claims",
+   "downstream": "life",
+   "pattern": "Open Host Service",
+   "flows": "Claim numbers, evidence, payment instructions"
+  },
+  {
+   "upstream": "claims",
+   "downstream": "general",
+   "pattern": "Open Host Service",
+   "flows": "Claim numbers, evidence, payment instructions"
+  },
+  {
+   "upstream": "claims",
+   "downstream": "health",
+   "pattern": "Open Host Service",
+   "flows": "Claim numbers, evidence"
+  },
+  {
+   "upstream": "workflow",
+   "downstream": "claims",
+   "pattern": "Open Host Service",
+   "flows": "Processes, tasks and approvals (all contexts use this)"
+  },
+  {
+   "upstream": "document",
+   "downstream": "general",
+   "pattern": "Open Host Service",
+   "flows": "Generated documents (all domains use this)"
+  },
+  {
+   "upstream": "life",
+   "downstream": "billing",
+   "pattern": "Customer–Supplier · domain events",
+   "flows": "Policies issued, changed, lapsed"
+  },
+  {
+   "upstream": "general",
+   "downstream": "billing",
+   "pattern": "Customer–Supplier · domain events",
+   "flows": "Policies issued, endorsed, cancelled"
+  },
+  {
+   "upstream": "health",
+   "downstream": "billing",
+   "pattern": "Customer–Supplier · domain events",
+   "flows": "Memberships and contributions"
+  },
+  {
+   "upstream": "billing",
+   "downstream": "payments",
+   "pattern": "Customer–Supplier",
+   "flows": "Collection and refund instructions"
+  },
+  {
+   "upstream": "payments",
+   "downstream": "billing",
+   "pattern": "Published Language",
+   "flows": "Payments received, allocated, reversed"
+  },
+  {
+   "upstream": "claims",
+   "downstream": "payments",
+   "pattern": "Customer–Supplier",
+   "flows": "Claim payment instructions"
+  },
+  {
+   "upstream": "billing",
+   "downstream": "finance",
+   "pattern": "Conformist · ACL (posting rules)",
+   "flows": "Invoices and credit notes"
+  },
+  {
+   "upstream": "payments",
+   "downstream": "finance",
+   "pattern": "Conformist · ACL (posting rules)",
+   "flows": "Receipts, payouts, reversals"
+  },
+  {
+   "upstream": "claims",
+   "downstream": "finance",
+   "pattern": "Conformist · ACL (posting rules)",
+   "flows": "Reserve and payment movements"
+  },
+  {
+   "upstream": "commission",
+   "downstream": "finance",
+   "pattern": "Conformist · ACL (posting rules)",
+   "flows": "Commission accruals"
+  },
+  {
+   "upstream": "reinsurance",
+   "downstream": "finance",
+   "pattern": "Conformist · ACL (posting rules)",
+   "flows": "Cessions and recoveries"
+  },
+  {
+   "upstream": "billing",
+   "downstream": "commission",
+   "pattern": "Customer–Supplier",
+   "flows": "Invoices that earn commission"
+  },
+  {
+   "upstream": "general",
+   "downstream": "reinsurance",
+   "pattern": "Customer–Supplier",
+   "flows": "Exposure and claims"
+  },
+  {
+   "upstream": "life",
+   "downstream": "reinsurance",
+   "pattern": "Customer–Supplier",
+   "flows": "Exposure and claims"
+  },
+  {
+   "upstream": "finance",
+   "downstream": "compliance",
+   "pattern": "Conformist",
+   "flows": "Closed periods and balances"
+  },
+  {
+   "upstream": "finance",
+   "downstream": "analytics",
+   "pattern": "Conformist",
+   "flows": "Financial events (all contexts feed analytics)"
+  },
+  {
+   "upstream": "channels",
+   "downstream": "integration",
+   "pattern": "Open Host Service (API gateway)",
+   "flows": "User and partner requests"
+  },
+  {
+   "upstream": "x_pay",
+   "downstream": "integration",
+   "pattern": "Anti-corruption layer",
+   "flows": "Provider callbacks and statements"
+  },
+  {
+   "upstream": "integration",
+   "downstream": "payments",
+   "pattern": "Published Language",
+   "flows": "Translated payment outcomes"
+  },
+  {
+   "upstream": "x_dist",
+   "downstream": "integration",
+   "pattern": "Anti-corruption layer",
+   "flows": "Broker quotes and submissions"
+  },
+  {
+   "upstream": "x_hc",
+   "downstream": "integration",
+   "pattern": "Anti-corruption layer",
+   "flows": "Provider claims and eligibility queries"
+  },
+  {
+   "upstream": "integration",
+   "downstream": "health",
+   "pattern": "Published Language",
+   "flows": "Translated provider claims"
+  },
+  {
+   "upstream": "x_ri",
+   "downstream": "integration",
+   "pattern": "Anti-corruption layer",
+   "flows": "Treaty statements"
+  },
+  {
+   "upstream": "integration",
+   "downstream": "reinsurance",
+   "pattern": "Published Language",
+   "flows": "Translated reinsurer data"
+  },
+  {
+   "upstream": "finance",
+   "downstream": "x_gl",
+   "pattern": "Published Language (GL export)",
+   "flows": "Summarised journals"
+  },
+  {
+   "upstream": "x_idp",
+   "downstream": "iam",
+   "pattern": "Anti-corruption layer (federation)",
+   "flows": "Authenticated identities"
+  },
+  {
+   "upstream": "life",
+   "downstream": "x_act",
+   "pattern": "Published Language (extracts)",
+   "flows": "Valuation data"
+  },
+  {
+   "upstream": "tenant",
+   "downstream": "iam",
+   "pattern": "Conformist",
+   "flows": "Tenant context (every context conforms to Tenancy)"
+  }
+ ],
+ "processes": [
+  {
+   "name": "General quote to cash",
+   "goal": "From an accepted quote to an issued, billed, paid and accounted policy.",
+   "requirements": "§27.3 scenarios 2–4",
+   "steps": [
+    {
+     "context": "general",
+     "kind": "command",
+     "step": "AcceptQuote on an issued, valid quote",
+     "compensation": null
+    },
+    {
+     "context": "general",
+     "kind": "event",
+     "step": "GeneralQuoteAccepted",
+     "compensation": null
+    },
+    {
+     "context": "general",
+     "kind": "command",
+     "step": "IssuePolicy from the accepted quote version",
+     "compensation": null
+    },
+    {
+     "context": "general",
+     "kind": "event",
+     "step": "GeneralPolicyIssued",
+     "compensation": null
+    },
+    {
+     "context": "document",
+     "kind": "policy",
+     "step": "GenerateDocument: schedule and certificate",
+     "compensation": "Regenerate on failure; the policy is not rolled back"
+    },
+    {
+     "context": "billing",
+     "kind": "policy",
+     "step": "OpenAccount and CreateSchedule, then IssueInvoice",
+     "compensation": null
+    },
+    {
+     "context": "billing",
+     "kind": "event",
+     "step": "InvoiceIssued",
+     "compensation": null
+    },
+    {
+     "context": "commission",
+     "kind": "policy",
+     "step": "AccrueCommission at the plan version in force",
+     "compensation": null
+    },
+    {
+     "context": "reinsurance",
+     "kind": "policy",
+     "step": "CalculateCession under the applicable treaty",
+     "compensation": null
+    },
+    {
+     "context": "payments",
+     "kind": "policy",
+     "step": "InitiatePayment (collection) with an idempotency key",
+     "compensation": null
+    },
+    {
+     "context": "payments",
+     "kind": "event",
+     "step": "PaymentReceived, then PaymentAllocated",
+     "compensation": "If the payment fails or is reversed: PaymentReversed, the invoice reopens and arrears rules apply"
+    },
+    {
+     "context": "billing",
+     "kind": "policy",
+     "step": "MarkSettled on the invoice",
+     "compensation": null
+    },
+    {
+     "context": "finance",
+     "kind": "policy",
+     "step": "PostBusinessEvent for invoice, receipt, commission and cession",
+     "compensation": "On posting failure: PostingFailed goes to an exception queue; nothing is half-posted"
+    },
+    {
+     "context": "finance",
+     "kind": "event",
+     "step": "SubledgerEntryPosted",
+     "compensation": null
+    }
+   ]
+  },
+  {
+   "name": "Life proposal to policy",
+   "goal": "From a captured application to an issued life policy.",
+   "requirements": "LIF-001 to LIF-005",
+   "steps": [
+    {
+     "context": "life",
+     "kind": "command",
+     "step": "CaptureProposal and QuotePremium",
+     "compensation": null
+    },
+    {
+     "context": "rating",
+     "kind": "event",
+     "step": "PremiumCalculated",
+     "compensation": null
+    },
+    {
+     "context": "rules",
+     "kind": "event",
+     "step": "RuleDecisionRecorded (eligibility)",
+     "compensation": "If ineligible, the proposal cannot be submitted"
+    },
+    {
+     "context": "life",
+     "kind": "event",
+     "step": "LifeProposalSubmitted",
+     "compensation": null
+    },
+    {
+     "context": "life",
+     "kind": "command",
+     "step": "OpenCase (underwriting), RequestEvidence as required",
+     "compensation": null
+    },
+    {
+     "context": "life",
+     "kind": "event",
+     "step": "LifeUnderwritingDecided",
+     "compensation": "Decline or postpone ends the process; the proposal moves to Declined or Postponed"
+    },
+    {
+     "context": "life",
+     "kind": "command",
+     "step": "IssuePolicy with the decided terms",
+     "compensation": null
+    },
+    {
+     "context": "life",
+     "kind": "event",
+     "step": "LifePolicyIssued",
+     "compensation": null
+    },
+    {
+     "context": "billing",
+     "kind": "policy",
+     "step": "OpenAccount, CreateSchedule, IssueInvoice",
+     "compensation": null
+    },
+    {
+     "context": "document",
+     "kind": "policy",
+     "step": "GenerateDocument: policy schedule",
+     "compensation": null
+    },
+    {
+     "context": "reinsurance",
+     "kind": "policy",
+     "step": "CalculateCession where cover exceeds retention",
+     "compensation": null
+    }
+   ]
+  },
+  {
+   "name": "General claim to settlement",
+   "goal": "From first notification of loss to payment, accounting and reinsurance recovery.",
+   "requirements": "§27.3 scenario 5 · GEN-006 to GEN-008",
+   "steps": [
+    {
+     "context": "general",
+     "kind": "command",
+     "step": "NotifyLoss, then RegisterClaim",
+     "compensation": null
+    },
+    {
+     "context": "claims",
+     "kind": "policy",
+     "step": "AllocateClaimNumber (idempotent) and EvaluateFraudIndicators",
+     "compensation": null
+    },
+    {
+     "context": "general",
+     "kind": "event",
+     "step": "GeneralClaimRegistered",
+     "compensation": null
+    },
+    {
+     "context": "claims",
+     "kind": "command",
+     "step": "SetReserve",
+     "compensation": null
+    },
+    {
+     "context": "claims",
+     "kind": "event",
+     "step": "ClaimReserveChanged",
+     "compensation": null
+    },
+    {
+     "context": "finance",
+     "kind": "policy",
+     "step": "PostBusinessEvent (reserve)",
+     "compensation": null
+    },
+    {
+     "context": "general",
+     "kind": "command",
+     "step": "AppointAssessor; the LossAssessment is reported and accepted",
+     "compensation": null
+    },
+    {
+     "context": "workflow",
+     "kind": "command",
+     "step": "RequestApproval for the settlement amount",
+     "compensation": null
+    },
+    {
+     "context": "workflow",
+     "kind": "event",
+     "step": "ApprovalGranted (maker and checker differ)",
+     "compensation": "On rejection, the claim stays under assessment"
+    },
+    {
+     "context": "general",
+     "kind": "event",
+     "step": "GeneralClaimApproved",
+     "compensation": null
+    },
+    {
+     "context": "claims",
+     "kind": "policy",
+     "step": "DraftInstruction, then ReleaseInstruction",
+     "compensation": "Instruction amount cannot exceed the approved amount"
+    },
+    {
+     "context": "claims",
+     "kind": "event",
+     "step": "ClaimPaymentInstructed",
+     "compensation": null
+    },
+    {
+     "context": "payments",
+     "kind": "policy",
+     "step": "Add to payout batch, approve and release",
+     "compensation": null
+    },
+    {
+     "context": "claims",
+     "kind": "event",
+     "step": "ClaimPaymentCompleted",
+     "compensation": "On PaymentFailed: instruction returns to Failed, then is re-released with corrected details"
+    },
+    {
+     "context": "general",
+     "kind": "event",
+     "step": "GeneralClaimSettled",
+     "compensation": null
+    },
+    {
+     "context": "reinsurance",
+     "kind": "policy",
+     "step": "IdentifyRecovery and BillRecovery",
+     "compensation": null
+    },
+    {
+     "context": "finance",
+     "kind": "policy",
+     "step": "PostBusinessEvent (payment, recovery)",
+     "compensation": null
+    }
+   ]
+  },
+  {
+   "name": "Health care to provider payment",
+   "goal": "From enrolment through preauthorisation and claim to provider payment.",
+   "requirements": "§27.3 scenarios 6–7 · HLT-002 to HLT-009",
+   "steps": [
+    {
+     "context": "health",
+     "kind": "event",
+     "step": "HealthMemberEnrolled",
+     "compensation": null
+    },
+    {
+     "context": "billing",
+     "kind": "policy",
+     "step": "CreateSchedule for contributions",
+     "compensation": null
+    },
+    {
+     "context": "health",
+     "kind": "command",
+     "step": "CheckEligibility for the provider's request",
+     "compensation": null
+    },
+    {
+     "context": "health",
+     "kind": "event",
+     "step": "EligibilityDecisionRecorded",
+     "compensation": null
+    },
+    {
+     "context": "health",
+     "kind": "command",
+     "step": "RequestAuthorisation; clinical review",
+     "compensation": null
+    },
+    {
+     "context": "health",
+     "kind": "event",
+     "step": "PreauthorisationApproved",
+     "compensation": "On rejection the provider is told; no reservation is made"
+    },
+    {
+     "context": "health",
+     "kind": "policy",
+     "step": "ReserveBenefit on the accumulator",
+     "compensation": "On expiry or cancellation: ReleaseReservation"
+    },
+    {
+     "context": "health",
+     "kind": "event",
+     "step": "MedicalClaimSubmitted",
+     "compensation": null
+    },
+    {
+     "context": "health",
+     "kind": "command",
+     "step": "ValidateClaim, AdjudicateClaim: tariff, limits, co-payment, preauthorisation match",
+     "compensation": null
+    },
+    {
+     "context": "health",
+     "kind": "policy",
+     "step": "ConsumeBenefit on the accumulator",
+     "compensation": "On an optimistic-lock conflict, adjudication retries"
+    },
+    {
+     "context": "health",
+     "kind": "command",
+     "step": "ApproveForPayment, then the ProviderPaymentRun is cut off, approved and released",
+     "compensation": null
+    },
+    {
+     "context": "health",
+     "kind": "event",
+     "step": "ProviderPaymentRunReleased",
+     "compensation": null
+    },
+    {
+     "context": "payments",
+     "kind": "policy",
+     "step": "BuildBatch (provider) and release",
+     "compensation": null
+    },
+    {
+     "context": "health",
+     "kind": "event",
+     "step": "MedicalClaimSettled",
+     "compensation": "On ReverseClaim: ConsumeBenefit is reversed and a recovery is raised"
+    },
+    {
+     "context": "finance",
+     "kind": "policy",
+     "step": "PostBusinessEvent (claims paid)",
+     "compensation": null
+    }
+   ]
+  },
+  {
+   "name": "Product publication",
+   "goal": "From draft configuration to a product version that domains can sell.",
+   "requirements": "§27.3 scenario 1 · PRD-001 to PRD-010",
+   "steps": [
+    {
+     "context": "product",
+     "kind": "command",
+     "step": "CreateDraftVersion and EditConfiguration",
+     "compensation": null
+    },
+    {
+     "context": "product",
+     "kind": "command",
+     "step": "ValidateVersion",
+     "compensation": null
+    },
+    {
+     "context": "product",
+     "kind": "event",
+     "step": "ProductVersionValidated",
+     "compensation": "Validation errors keep the version in Draft"
+    },
+    {
+     "context": "product",
+     "kind": "command",
+     "step": "RunSimulation against approved test cases",
+     "compensation": "Any failed case blocks submission"
+    },
+    {
+     "context": "product",
+     "kind": "command",
+     "step": "SubmitForApproval",
+     "compensation": null
+    },
+    {
+     "context": "workflow",
+     "kind": "event",
+     "step": "ApprovalGranted (maker and checker differ)",
+     "compensation": null
+    },
+    {
+     "context": "product",
+     "kind": "event",
+     "step": "ProductVersionApproved",
+     "compensation": null
+    },
+    {
+     "context": "product",
+     "kind": "command",
+     "step": "PublishVersion",
+     "compensation": null
+    },
+    {
+     "context": "product",
+     "kind": "event",
+     "step": "ProductVersionPublished",
+     "compensation": null
+    },
+    {
+     "context": "rating",
+     "kind": "policy",
+     "step": "Load the new rating version into cache",
+     "compensation": null
+    },
+    {
+     "context": "life",
+     "kind": "policy",
+     "step": "Refresh availability (likewise General and Health)",
+     "compensation": null
+    }
+   ]
+  },
+  {
+   "name": "Missed premium to lapse",
+   "goal": "From an unpaid instalment to lapse, with commission clawback.",
+   "requirements": "LIF-005",
+   "steps": [
+    {
+     "context": "payments",
+     "kind": "event",
+     "step": "PaymentFailed or no payment by the due date",
+     "compensation": null
+    },
+    {
+     "context": "billing",
+     "kind": "policy",
+     "step": "DetectArrears using the ageing buckets",
+     "compensation": null
+    },
+    {
+     "context": "billing",
+     "kind": "event",
+     "step": "ArrearsDetected",
+     "compensation": null
+    },
+    {
+     "context": "life",
+     "kind": "policy",
+     "step": "RecordMissedPremium; the grace period starts",
+     "compensation": "A payment received in grace clears it (PaymentAllocated)"
+    },
+    {
+     "context": "life",
+     "kind": "command",
+     "step": "LapsePolicy when grace ends and missed payments reach the limit",
+     "compensation": null
+    },
+    {
+     "context": "life",
+     "kind": "event",
+     "step": "LifePolicyLapsed",
+     "compensation": null
+    },
+    {
+     "context": "commission",
+     "kind": "policy",
+     "step": "ClawBack commission per plan rules",
+     "compensation": null
+    },
+    {
+     "context": "finance",
+     "kind": "policy",
+     "step": "PostBusinessEvent (clawback)",
+     "compensation": null
+    },
+    {
+     "context": "life",
+     "kind": "command",
+     "step": "ReinstatePolicy within the reinstatement window, if requested and evidence accepted",
+     "compensation": null
+    }
+   ]
+  }
+ ],
+ "glossary": [
+  {
+   "term": "Product",
+   "meaning": "A sellable insurance offering. In Product Factory it has many versions; in a domain, a policy refers to exactly one version.",
+   "contexts": "Product Factory, domains"
+  },
+  {
+   "term": "Product version",
+   "meaning": "An immutable, approved configuration of a product with an effective period. Transactions keep a reference to it.",
+   "contexts": "Product Factory"
+  },
+  {
+   "term": "Policy",
+   "meaning": "Life: a contract on insured lives with benefits and beneficiaries. General: a contract on risk objects for a period of cover. Health uses Membership instead. Billing and Finance see only a policy reference.",
+   "contexts": "Life, General"
+  },
+  {
+   "term": "Membership",
+   "meaning": "A principal member's enrolment in a health plan option, with dependants. The health equivalent of a policy.",
+   "contexts": "Health"
+  },
+  {
+   "term": "Proposal",
+   "meaning": "An application for cover submitted for underwriting.",
+   "contexts": "Life, General"
+  },
+  {
+   "term": "Quote",
+   "meaning": "A priced offer for cover, valid for a period. General quotes are versioned.",
+   "contexts": "General"
+  },
+  {
+   "term": "Insured life",
+   "meaning": "A person whose life or health is covered by a life policy.",
+   "contexts": "Life"
+  },
+  {
+   "term": "Risk object",
+   "meaning": "Something insured under a general policy: a vehicle, building, vessel, cargo, equipment or liability.",
+   "contexts": "General"
+  },
+  {
+   "term": "Benefit",
+   "meaning": "An amount payable on a defined event. Life: death, disability, critical illness, maturity. Health: a category of care with limits.",
+   "contexts": "Life, Health"
+  },
+  {
+   "term": "Coverage",
+   "meaning": "Protection on a risk object against defined perils, with a sum insured, limits and excess.",
+   "contexts": "General"
+  },
+  {
+   "term": "Sum assured",
+   "meaning": "The amount payable under a life benefit.",
+   "contexts": "Life"
+  },
+  {
+   "term": "Sum insured",
+   "meaning": "The maximum amount payable for a risk object or coverage.",
+   "contexts": "General"
+  },
+  {
+   "term": "Excess / deductible",
+   "meaning": "The part of a loss the insured pays before the insurer pays.",
+   "contexts": "General, Health"
+  },
+  {
+   "term": "Co-payment",
+   "meaning": "The member's share of a health claim, as a percentage or amount.",
+   "contexts": "Health"
+  },
+  {
+   "term": "Waiting period",
+   "meaning": "A period after joining during which a benefit cannot be claimed.",
+   "contexts": "Life, Health"
+  },
+  {
+   "term": "Endorsement",
+   "meaning": "A change to a general policy during its period, with any premium adjustment.",
+   "contexts": "General"
+  },
+  {
+   "term": "Alteration",
+   "meaning": "A change to a life policy, checked against its state, product rules and authority.",
+   "contexts": "Life"
+  },
+  {
+   "term": "Lapse",
+   "meaning": "A life policy ending because premiums were not paid within the grace period. It may be reinstated within a window.",
+   "contexts": "Life"
+  },
+  {
+   "term": "Preauthorisation",
+   "meaning": "Approval of health care before it is given, with an authorised amount and validity period.",
+   "contexts": "Health"
+  },
+  {
+   "term": "Eligibility decision",
+   "meaning": "A recorded answer to whether a member can receive a service now.",
+   "contexts": "Health"
+  },
+  {
+   "term": "Adjudication",
+   "meaning": "Deciding a claim against cover, limits, rules and evidence. Each domain does its own.",
+   "contexts": "Life, General, Health"
+  },
+  {
+   "term": "Claim (framework)",
+   "meaning": "The shared registration of a claim: number, evidence, communications and payments. It does not decide the claim.",
+   "contexts": "Claims Framework"
+  },
+  {
+   "term": "Reserve",
+   "meaning": "An amount set aside for the expected cost of an open claim, changed only through financial movements.",
+   "contexts": "Claims Framework, Finance"
+  },
+  {
+   "term": "Recovery",
+   "meaning": "Money recovered after a claim payment: from a third party, from salvage or from a reinsurer.",
+   "contexts": "General, Reinsurance"
+  },
+  {
+   "term": "Cession",
+   "meaning": "The share of a risk and its premium passed to a reinsurer under a treaty or facultative arrangement.",
+   "contexts": "Reinsurance"
+  },
+  {
+   "term": "Bordereau",
+   "meaning": "A periodic listing of ceded risks or claims sent to a reinsurer.",
+   "contexts": "Reinsurance"
+  },
+  {
+   "term": "Billing account",
+   "meaning": "The payer relationship that invoices and collections are raised against.",
+   "contexts": "Billing"
+  },
+  {
+   "term": "Allocation",
+   "meaning": "Applying a received payment to invoices or instalments.",
+   "contexts": "Payments, Billing"
+  },
+  {
+   "term": "Journal",
+   "meaning": "A balanced set of subledger entries for one business event. Posted journals are corrected only by reversal.",
+   "contexts": "Finance"
+  },
+  {
+   "term": "Intermediary",
+   "meaning": "A broker, agent, bancassurer, aggregator or employer that distributes products under a permission.",
+   "contexts": "Distribution"
+  },
+  {
+   "term": "Maker-checker",
+   "meaning": "A control where the person who prepares a sensitive change cannot be the one who approves it.",
+   "contexts": "Workflow, all"
+  },
+  {
+   "term": "Tenant",
+   "meaning": "An insurer or insurance business operating on the platform. Every record belongs to exactly one tenant, except platform-global static data.",
+   "contexts": "Tenancy, all"
+  },
+  {
+   "term": "Static data",
+   "meaning": "Reference, configuration and master data that governs transactions and changes through approved versions.",
+   "contexts": "Static Data"
+  }
+ ]
+}

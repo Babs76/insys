@@ -1,0 +1,1111 @@
+<title>INSYS Core Blueprint</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: navy chrome (rail + control bar) framing an off-white slide canvas; one slide at a time, keyboard + click navigation.
+   Single deliberate look built on the INSYS colour template, so no dark-theme variant. */
+:root{
+  --navy:#1B2A4A; --navy2:#233761; --blue:#2C4A7C;
+  --gold:#D4A843; --white:#FFFFFF; --ink:#3A3F47; --paper:#F4F5F7;
+  --muted:#999999; --muted2:#B0BEC5; --line:#556688; --line2:#8899BB;
+  --gold-soft:rgba(212,168,67,.14); --navy-soft:rgba(44,74,124,.07);
+  --f-display:"Archivo","Arial Narrow",Arial,sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:var(--navy);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5;overflow:hidden}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.app{display:grid;grid-template-columns:270px 1fr;height:100%}
+/* ---------- rail ---------- */
+.rail{background:var(--navy);color:var(--white);display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--navy2)}
+.brand{padding:22px 20px 18px max(20px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--navy2)}
+.brand .mark{font-family:var(--f-display);font-weight:800;font-stretch:115%;font-size:22px;letter-spacing:.02em}
+.brand .mark b{color:var(--gold)}
+.brand .sub{font-size:12px;color:var(--muted2);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+.toc{overflow-y:auto;padding:10px 0 20px;flex:1}
+.toc .grp{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--line2);padding:14px 20px 4px max(20px,env(safe-area-inset-left,0px))}
+.toc button{display:flex;gap:10px;width:100%;text-align:left;background:none;border:0;padding:6px 16px 6px max(20px,env(safe-area-inset-left,0px));color:var(--muted2);font-size:14px;border-left:3px solid transparent}
+.toc button .n{font-family:var(--f-mono);font-size:11px;color:var(--line2);min-width:20px;padding-top:2px}
+.toc button:hover{color:var(--white);background:var(--navy2)}
+.toc button[aria-current="true"]{color:var(--white);border-left-color:var(--gold);background:var(--navy2)}
+.toc button[aria-current="true"] .n{color:var(--gold)}
+
+/* ---------- stage ---------- */
+.stage{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--paper)}
+.topbar{display:flex;align-items:center;gap:14px;background:var(--white);border-bottom:1px solid #E1E4EA;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.menu-btn{display:none;background:var(--navy);color:var(--white);border:0;border-radius:6px;padding:6px 10px;font-size:13px}
+.crumb{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--line);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crumb b{color:var(--navy)}
+.status{font-family:var(--f-mono);font-size:11px;color:var(--ink);background:var(--gold-soft);border:1px solid var(--gold);border-radius:999px;padding:2px 10px;white-space:nowrap}
+.viewport{flex:1;overflow-y:auto;min-height:0}
+.slide{display:none;max-width:1180px;margin:0 auto;padding-block:36px 48px;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px));animation:in .35s ease}
+.slide.on{display:block}
+@keyframes in{from{opacity:.4;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.slide{animation:none}}
+.controls{display:flex;align-items:center;gap:12px;background:var(--navy);color:var(--white);padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.controls button{background:var(--navy2);border:1px solid var(--line);color:var(--white);border-radius:6px;padding:6px 14px;font-size:14px}
+.controls button:hover:not(:disabled){border-color:var(--gold);color:var(--gold)}
+.controls button:disabled{opacity:.35;cursor:default}
+.progress{flex:1;height:4px;background:var(--navy2);border-radius:2px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--gold);width:0;transition:width .3s}
+.count{font-family:var(--f-mono);font-size:12px;color:var(--muted2);font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+.hint{font-size:12px;color:var(--line2)}
+
+/* ---------- type ---------- */
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);font-weight:700;display:flex;gap:10px;align-items:center}
+.eyebrow .ref{font-family:var(--f-mono);font-weight:500;letter-spacing:0;color:var(--line);background:var(--white);border:1px solid #DCE0E8;border-radius:4px;padding:0 6px;text-transform:none}
+h1,h2,h3{font-family:var(--f-display);color:var(--navy);text-wrap:balance;margin:0}
+h2{font-size:clamp(26px,3.4vw,38px);font-weight:750;font-stretch:92%;line-height:1.1;margin:8px 0 10px}
+h3{font-size:18px;font-weight:700;margin:0 0 8px}
+.lede{font-size:18px;max-width:68ch;color:var(--ink);margin:0 0 26px}
+p{margin:0 0 12px;max-width:68ch}
+.small{font-size:13px;color:#6B7280}
+.mono{font-family:var(--f-mono);font-size:12px}
+ul.clean{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+ul.clean li{padding-left:16px;position:relative}
+ul.clean li::before{content:"";position:absolute;left:0;top:.62em;width:6px;height:6px;background:var(--gold);border-radius:1px}
+
+/* ---------- blocks ---------- */
+.grid{display:grid;gap:18px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.panel{background:var(--white);border:1px solid #DCE0E8;border-radius:8px;padding:20px;min-width:0}
+.panel.dark{background:var(--navy);border-color:var(--navy);color:var(--white)}
+.panel.dark h3{color:var(--gold)}
+.callout{border-left:4px solid var(--gold);background:var(--white);padding:14px 18px;border-radius:0 8px 8px 0;margin:20px 0 0;max-width:80ch}
+.callout b{color:var(--navy)}
+.tag{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--navy-soft);color:var(--blue)}
+.tag.gold{background:var(--gold-soft);color:#8A6A1F}
+.tag.navy{background:var(--navy);color:var(--white)}
+.req{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px;margin:0}
+.req dt{font-family:var(--f-mono);font-size:12px;color:var(--blue);padding-top:2px;white-space:nowrap}
+.req dd{margin:0}
+.req dd .must{font-weight:700;color:var(--navy)}
+
+/* ---------- title slide ---------- */
+.cover{background:var(--navy);color:var(--white);border-radius:12px;padding:clamp(28px,5vw,56px);position:relative;overflow:hidden}
+.cover::after{content:"";position:absolute;right:-60px;top:-60px;width:320px;height:320px;border:1px solid var(--line);border-radius:50%;box-shadow:0 0 0 40px rgba(85,102,136,.12),0 0 0 80px rgba(85,102,136,.07)}
+.cover .k{font-family:var(--f-mono);font-size:12px;color:var(--gold);letter-spacing:.08em}
+.cover h1{color:var(--white);font-size:clamp(40px,7vw,84px);font-weight:800;font-stretch:120%;line-height:.95;margin:14px 0 6px;position:relative;z-index:1}
+.cover h1 span{color:var(--gold)}
+.cover .t2{font-family:var(--f-display);font-size:clamp(18px,2.4vw,26px);color:var(--muted2);font-stretch:95%;margin-bottom:28px;position:relative;z-index:1}
+.meta{display:flex;flex-wrap:wrap;gap:10px 28px;font-size:14px;color:var(--muted2);position:relative;z-index:1}
+.meta b{display:block;color:var(--white);font-weight:600}
+.domains{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:22px}
+.dom{background:var(--white);border:1px solid #DCE0E8;border-top:4px solid var(--blue);border-radius:8px;padding:16px 18px}
+.dom:nth-child(2){border-top-color:var(--gold)}
+.dom:nth-child(3){border-top-color:var(--line2)}
+.dom h3{margin:0 0 4px}
+
+/* ---------- explorer ---------- */
+.explorer{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:18px;align-items:start}
+.ex-list{display:flex;flex-direction:column;gap:6px;max-height:560px;overflow-y:auto;padding-right:4px}
+.ex-item{display:flex;align-items:baseline;gap:10px;text-align:left;background:var(--white);border:1px solid #DCE0E8;border-radius:6px;padding:9px 12px;font-size:14.5px;color:var(--ink)}
+.ex-item .k{font-family:var(--f-mono);font-size:11px;color:var(--line2);min-width:18px}
+.ex-item .sub{display:block;font-size:12px;color:var(--muted)}
+.ex-item:hover{border-color:var(--line2)}
+.ex-item[aria-selected="true"]{background:var(--navy);border-color:var(--navy);color:var(--white)}
+.ex-item[aria-selected="true"] .k{color:var(--gold)}
+.ex-item[aria-selected="true"] .sub{color:var(--muted2)}
+.ex-detail{background:var(--white);border:1px solid #DCE0E8;border-radius:8px;padding:22px 24px;min-width:0;min-height:260px}
+.ex-detail h3{font-size:22px;font-family:var(--f-display);font-stretch:95%}
+.ex-detail .sub{color:var(--blue);font-weight:600;margin-bottom:12px}
+.ex-detail .sec{margin-top:16px}
+.ex-detail .sec > .lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--line);font-weight:700;margin-bottom:8px}
+.cols{columns:2;column-gap:28px}
+.cols li{break-inside:avoid}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid #DCE0E8;margin-bottom:18px}
+.tabs button{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;padding:10px 16px;font-family:var(--f-display);font-weight:650;font-size:16px;color:var(--line)}
+.tabs button[aria-selected="true"]{color:var(--navy);border-bottom-color:var(--gold)}
+.tabpane{display:none}.tabpane.on{display:block}
+
+/* ---------- architecture stack ---------- */
+.stack{display:grid;gap:8px}
+.layer{display:grid;grid-template-columns:200px 1fr;gap:16px;align-items:center;text-align:left;background:var(--white);border:1px solid #DCE0E8;border-radius:8px;padding:14px 18px}
+.layer .nm{font-family:var(--f-display);font-weight:700;color:var(--navy);font-size:16px}
+.layer .cp{font-size:13.5px;color:#5B6270}
+.layer:hover{border-color:var(--line2)}
+.layer[aria-expanded="true"]{background:var(--navy);border-color:var(--navy)}
+.layer[aria-expanded="true"] .nm{color:var(--gold)}
+.layer[aria-expanded="true"] .cp{color:var(--muted2)}
+.layer .resp{grid-column:1/-1;display:none;color:var(--white);font-size:14px;border-top:1px solid var(--line);padding-top:10px}
+.layer[aria-expanded="true"] .resp{display:block}
+.layer.domain{border-left:5px solid var(--gold)}
+
+/* ---------- stepper ---------- */
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+.step{display:flex;align-items:center;gap:8px;background:var(--white);border:1px solid #DCE0E8;border-radius:999px;padding:7px 14px;font-size:14px}
+.step .d{width:22px;height:22px;border-radius:50%;background:var(--paper);border:1px solid var(--line2);display:grid;place-items:center;font-family:var(--f-mono);font-size:11px}
+.step.done .d{background:var(--blue);border-color:var(--blue);color:var(--white)}
+.step[aria-selected="true"]{background:var(--navy);color:var(--white);border-color:var(--navy)}
+.step[aria-selected="true"] .d{background:var(--gold);border-color:var(--gold);color:var(--navy)}
+.arrow{color:var(--line2);align-self:center}
+
+/* ---------- profiles ---------- */
+.prof-btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.prof-btns button{background:var(--white);border:1px solid #DCE0E8;border-radius:6px;padding:8px 14px;font-weight:600}
+.prof-btns button[aria-pressed="true"]{background:var(--navy);color:var(--white);border-color:var(--navy)}
+.tenants{display:grid;gap:10px}
+.trow{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center}
+.trow .lbl{font-size:13px;color:var(--line);font-weight:600}
+.cells{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cell{border-radius:6px;padding:10px 8px;font-size:12.5px;text-align:center;font-weight:600;transition:all .25s}
+.cell.shared{grid-column:1/-1;background:var(--navy-soft);border:1px dashed var(--line2);color:var(--blue)}
+.cell.ded{background:var(--navy);color:var(--white)}
+.cell.ded.t2{background:var(--blue)}
+.cell.ded.t3{background:var(--line)}
+
+/* ---------- tables ---------- */
+.tbl-wrap{overflow-x:auto;background:var(--white);border:1px solid #DCE0E8;border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--white);background:var(--navy);padding:10px 14px;font-weight:700}
+td{padding:10px 14px;border-top:1px solid #E6E9EF;vertical-align:top}
+tbody tr:hover td{background:var(--navy-soft)}
+td.id{font-family:var(--f-mono);font-size:12px;color:var(--blue);white-space:nowrap}
+td.tgt{font-variant-numeric:tabular-nums;font-weight:600;color:var(--navy)}
+
+/* ---------- chips & filters ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:var(--white);border:1px solid #DCE0E8;border-radius:999px;padding:6px 13px;font-size:14px}
+.chip[aria-pressed="true"]{background:var(--navy);color:var(--white);border-color:var(--navy)}
+.ev{font-family:var(--f-mono);font-size:12.5px;background:var(--white);border:1px solid #DCE0E8;border-left:3px solid var(--blue);border-radius:4px;padding:6px 10px}
+.ev[data-f="Life"]{border-left-color:var(--blue)}
+.ev[data-f="General"]{border-left-color:var(--gold)}
+.ev[data-f="Health"]{border-left-color:var(--line2)}
+.ev[data-f="Financial"]{border-left-color:var(--navy)}
+.ev[data-f="Product"]{border-left-color:var(--line)}
+.evgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+
+/* config vs dev */
+.cfg{display:grid;gap:6px}
+.cfgrow{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;background:var(--white);border:1px solid #DCE0E8;border-radius:6px;padding:10px 14px}
+.badge{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.b-config{background:var(--gold-soft);color:#7C5E17;border:1px solid var(--gold)}
+.b-cond{background:var(--navy-soft);color:var(--blue);border:1px solid var(--line2)}
+.b-dev{background:var(--navy);color:var(--white)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 12px;font-size:13px;align-items:center}
+
+/* checklist */
+.check{display:flex;gap:10px;align-items:flex-start;background:var(--white);border:1px solid #DCE0E8;border-radius:6px;padding:9px 12px;font-size:14.5px;cursor:pointer}
+.check input{accent-color:var(--navy);margin-top:4px;width:16px;height:16px;flex:none}
+.check:has(input:checked){border-color:var(--gold);background:var(--gold-soft)}
+.meter{height:8px;background:#E1E4EA;border-radius:4px;overflow:hidden;margin:6px 0 14px}
+.meter i{display:block;height:100%;background:var(--gold);width:0;transition:width .25s}
+
+/* party roles visual */
+.party{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center}
+.pnode{background:var(--navy);color:var(--white);border-radius:50%;width:120px;height:120px;display:grid;place-items:center;text-align:center;font-family:var(--f-display);font-weight:700;margin:auto;border:3px solid var(--gold)}
+.pnode small{display:block;font-family:var(--f-body);font-weight:400;font-size:11px;color:var(--muted2)}
+.prole{background:var(--white);border:1px solid #DCE0E8;border-radius:8px;padding:12px 14px}
+.prole .tag{margin-bottom:6px}
+
+.note{background:var(--white);border:1px solid #DCE0E8;border-radius:8px;padding:16px 18px}
+.note .tag{margin-bottom:8px}
+.big5{counter-reset:k;display:grid;gap:10px}
+.big5 > div{display:grid;grid-template-columns:44px 1fr;gap:14px;background:var(--white);border:1px solid #DCE0E8;border-radius:8px;padding:14px 16px}
+.big5 > div::before{counter-increment:k;content:counter(k);font-family:var(--f-display);font-weight:800;font-size:28px;color:var(--gold);line-height:1}
+.big5 h3{margin:0 0 4px;font-size:16px}
+.big5 p{margin:0;font-size:14.5px}
+
+/* ---------- responsive ---------- */
+@media (max-width:1000px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}
+  .rail{position:fixed;inset:0 auto 0 0;width:280px;z-index:20;transform:translateX(-100%);transition:transform .25s;padding-top:env(safe-area-inset-top,0px)}
+  .rail.open{transform:none;box-shadow:0 0 0 100vmax rgba(27,42,74,.45)}
+  .menu-btn{display:inline-block}
+  .explorer{grid-template-columns:1fr}
+  .ex-list{max-height:none;flex-direction:row;flex-wrap:wrap}
+  .ex-item{flex:1 1 auto}
+  .layer{grid-template-columns:1fr}
+  .hint{display:none}
+}
+@media (max-width:620px){
+  .g2,.g3,.g4,.domains{grid-template-columns:1fr}
+  .cols{columns:1}
+  .party{grid-template-columns:1fr}
+  .trow{grid-template-columns:1fr}
+  .slide{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 36px}
+  .status{display:none}
+}
+</style>
+
+<div class="app">
+  <nav class="rail" id="rail" aria-label="Sections">
+    <div class="brand"><div class="mark">INSYS <b>Core</b></div><div class="sub">Unified Insurance Platform</div></div>
+    <div class="toc" id="toc"></div>
+  </nav>
+  <div class="stage">
+    <div class="topbar">
+      <button class="menu-btn" id="menuBtn" aria-controls="rail" aria-expanded="false">Sections</button>
+      <div class="crumb" id="crumb"></div>
+      <span class="status">SRS v1.0 · Proposed baseline</span>
+    </div>
+    <main class="viewport" id="viewport">
+
+<!-- 1 -->
+<section class="slide" data-part="Overview" data-title="INSYS Core">
+  <div class="cover">
+    <div class="k">SOFTWARE REQUIREMENTS SPECIFICATION · FUNCTIONAL ARCHITECTURE BLUEPRINT</div>
+    <h1>INSYS <span>Core</span></h1>
+    <div class="t2">Unified Insurance Platform for Life, General and Health</div>
+    <div class="meta">
+      <div><b>Version 1.0</b>Document version</div>
+      <div><b>21 October 2026</b>Issue date</div>
+      <div><b>Proposed baseline</b>For stakeholder review and engineering elaboration</div>
+      <div><b>Multi-tenant · Cloud-ready</b>Configuration-driven, domain-oriented</div>
+    </div>
+  </div>
+  <div class="domains">
+    <div class="dom"><span class="tag">Domain</span><h3>Life Insurance</h3><p class="small">Proposals, underwriting, policies, benefits, cash values, maturity, life claims.</p></div>
+    <div class="dom"><span class="tag gold">Domain</span><h3>General Insurance</h3><p class="small">Quotes, risk objects, endorsements, renewals, motor, property, marine, commercial claims.</p></div>
+    <div class="dom"><span class="tag">Domain</span><h3>Health Insurance</h3><p class="small">Schemes, members, provider networks, preauthorisation, medical claims.</p></div>
+  </div>
+  <p class="small" style="margin-top:18px">Use the arrow keys, the buttons below, or the section list to move through the blueprint. Most slides are interactive: select an item to see its detail.</p>
+</section>
+
+<!-- 2 -->
+<section class="slide" data-part="Overview" data-title="Purpose and objectives">
+  <div class="eyebrow">Executive summary <span class="ref">§1.1 · §1.3</span></div>
+  <h2>One platform, three insurance businesses</h2>
+  <p class="lede">An enterprise insurance administration platform serving multiple insurers and intermediaries. Domains share common capabilities but keep ownership of their own policies, claims, rules and lifecycles.</p>
+  <div class="grid g2">
+    <div class="panel dark">
+      <h3>The design aim</h3>
+      <p>Platform-level reuse without forcing fundamentally different insurance processes into one generic business model.</p>
+      <div class="sec" style="margin-top:14px">
+        <div class="small" style="color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;font-size:11px;margin-bottom:8px">Shared across domains</div>
+        <div class="chips" style="gap:6px">
+          <span class="tag gold">Customers</span><span class="tag gold">Product configuration</span><span class="tag gold">Pricing</span><span class="tag gold">Workflow</span><span class="tag gold">Billing</span><span class="tag gold">Payments</span><span class="tag gold">Accounting</span><span class="tag gold">Documents</span><span class="tag gold">Integration</span><span class="tag gold">Reporting</span><span class="tag gold">Security</span>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Business objectives</h3>
+      <ul class="clean" style="font-size:14.5px">
+        <li>Reduce time and cost to launch insurance products</li>
+        <li>Let multiple insurers operate securely on one platform</li>
+        <li>Support many products, countries, currencies and channels</li>
+        <li>Reduce duplicated functionality across lines</li>
+        <li>Keep Life, General and Health processes independent</li>
+        <li>Cover the full policy lifecycle, quotation to termination</li>
+        <li>Handle claims through adjudication, settlement and reconciliation</li>
+        <li>Make pricing and underwriting auditable and reproducible</li>
+        <li>Integrate banks, payers, brokers, providers, reinsurers, accounting</li>
+        <li>Add future products without a platform redesign</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="slide" data-part="Overview" data-title="Core architectural decisions">
+  <div class="eyebrow">Baseline requirements <span class="ref">§1.2</span></div>
+  <h2>Eight decisions fixed at the outset</h2>
+  <p class="lede">These are established as baseline requirements. Select one to see what it implies.</p>
+  <div class="explorer" data-src="decisions"></div>
+</section>
+
+<!-- 4 -->
+<section class="slide" data-part="Overview" data-title="Platform scope">
+  <div class="eyebrow">Functional scope <span class="ref">§2</span></div>
+  <h2>Sixteen capability groups</h2>
+  <p class="lede">Select a group to see what it covers. Initial exclusions are listed underneath.</p>
+  <div class="explorer" data-src="capabilities"></div>
+  <div class="panel" style="margin-top:18px">
+    <h3>Initial exclusions <span class="tag" style="margin-left:6px">§2.2 · unless separately approved</span></h3>
+    <div class="grid g3" style="gap:10px 20px;font-size:14.5px">
+      <div>A complete enterprise general ledger</div>
+      <div>External banking and payment networks</div>
+      <div>Hospital clinical information systems</div>
+      <div>Specialised external actuarial modelling</div>
+      <div>All jurisdiction-specific regulatory reporting from day one</div>
+      <div>Every possible product through configuration alone</div>
+    </div>
+    <p class="small" style="margin:12px 0 0">The architecture must still provide extension points for each of these.</p>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="slide" data-part="Platform foundation" data-title="Stakeholders and roles">
+  <div class="eyebrow">Users <span class="ref">§3 · SRS-001 to 003</span></div>
+  <h2>Fifteen roles, scoped by tenant</h2>
+  <p class="lede">Permissions are restricted by tenant, organisation, role and business responsibility.</p>
+  <div class="explorer" data-src="roles"></div>
+  <div class="grid g2" style="margin-top:18px">
+    <div class="panel">
+      <h3>Access requirements</h3>
+      <dl class="req">
+        <dt>SRS-001</dt><dd><span class="must">MUST</span> support configurable role-based access control.</dd>
+        <dt>SRS-002</dt><dd><span class="must">MUST</span> support configurable maker-checker controls for sensitive operations.</dd>
+        <dt>SRS-003</dt><dd>Permissions <span class="must">MUST</span> be restricted to authorised tenants and, where configured, to products, branches, organisations and transaction categories.</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>Maker-checker applies to</h3>
+      <div class="chips"><span class="chip">Product publication</span><span class="chip">Underwriting overrides</span><span class="chip">Claim approval</span><span class="chip">Payment release</span><span class="chip">Financial adjustments</span><span class="chip">Privileged user administration</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="slide" data-part="Platform foundation" data-title="Tenant isolation layers">
+  <div class="eyebrow">Multi-tenancy <span class="ref">§4.1 · §4.2</span></div>
+  <h2>Isolation is enforced at every layer</h2>
+  <p class="lede">Strict tenant isolation is a foundational requirement, not an optional feature. It is implemented through multiple independent controls. Select a layer.</p>
+  <div class="explorer" data-src="layers"></div>
+  <div class="callout"><b>Important.</b> Application-level tenant filtering alone is insufficient. Database controls and other independent safeguards should limit the consequences of application defects.</div>
+  <div class="panel" style="margin-top:18px">
+    <h3>Tenant requirements</h3>
+    <dl class="req">
+      <dt>TEN-001</dt><dd>Every tenant has a unique, immutable identifier.</dd>
+      <dt>TEN-002</dt><dd>Tenant context comes from trusted authentication or service identity, never from an untrusted request parameter alone.</dd>
+      <dt>TEN-003</dt><dd>Every tenant-scoped operation validates the principal is authorised for the resolved tenant.</dd>
+      <dt>TEN-004</dt><dd>Isolation covers data, documents, APIs, caches, events, search, analytics, reporting and background processing.</dd>
+      <dt>TEN-005</dt><dd>Cross-tenant access attempts are rejected and logged.</dd>
+      <dt>TEN-006</dt><dd>Product configurations, permissions, integration credentials and settings stay isolated.</dd>
+      <dt>TEN-007</dt><dd>Administrative access to tenant data is controlled, audited and purpose-restricted.</dd>
+      <dt>TEN-008</dt><dd>Onboarding, suspension, reactivation and termination follow defined workflows.</dd>
+    </dl>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="slide" data-part="Platform foundation" data-title="Deployment profiles">
+  <div class="eyebrow">Tenant isolation profiles <span class="ref">§4.3</span></div>
+  <h2>Three profiles, chosen by risk and tier</h2>
+  <p class="lede">Strict isolation does not require separate physical infrastructure for every tenant. It requires demonstrable enforcement of boundaries, with stronger options where justified.</p>
+  <div class="prof-btns" id="profBtns">
+    <button aria-pressed="true" data-p="A">Profile A · Shared infrastructure</button>
+    <button aria-pressed="false" data-p="B">Profile B · Dedicated database</button>
+    <button aria-pressed="false" data-p="C">Profile C · Dedicated environment</button>
+  </div>
+  <div class="grid g2">
+    <div class="panel">
+      <div class="small" style="margin-bottom:12px">Illustration with three tenants. Dashed = shared, solid = dedicated to one tenant.</div>
+      <div class="tenants" id="profDiagram"></div>
+    </div>
+    <div class="panel" id="profText"></div>
+  </div>
+  <p class="small" style="margin-top:14px">Profile selection factors named in the SRS: risk, regulatory requirements, data residency, performance and commercial service tier. Which customers need B or C is an open decision (§30).</p>
+</section>
+
+<!-- 8 -->
+<section class="slide" data-part="Platform foundation" data-title="Party management">
+  <div class="eyebrow">Shared party and customer management <span class="ref">§6</span></div>
+  <h2>One identity, many roles</h2>
+  <p class="lede">Party Management holds common identities and relationships for all domains. It must not become a universal model that absorbs every domain-specific attribute.</p>
+  <div class="panel">
+    <div class="party">
+      <div class="prole"><span class="tag">Life domain</span><h3>Policyholder</h3><p class="small" style="margin:0">Relationship and permissions held by the Life domain.</p></div>
+      <div class="pnode"><div>Party<small>common identity</small></div></div>
+      <div class="prole"><span class="tag gold">Health domain</span><h3>Dependant</h3><p class="small" style="margin:0">Relationship and permissions held by the Health domain.</p></div>
+    </div>
+    <p class="small" style="text-align:center;margin:14px auto 0">The SRS example: the same individual can be a policyholder on a Life policy and a dependant on a Health policy.</p>
+  </div>
+  <div class="grid g2" style="margin-top:18px">
+    <div class="panel">
+      <h3>Supported party roles</h3>
+      <div class="chips"><span class="chip">Policyholder</span><span class="chip">Insured person</span><span class="chip">Beneficiary</span><span class="chip">Claimant</span><span class="chip">Payer</span><span class="chip">Payee</span><span class="chip">Broker</span><span class="chip">Agent</span><span class="chip">Employer</span><span class="chip">Healthcare provider</span><span class="chip">Reinsurer</span><span class="chip">Corporate customer</span></div>
+    </div>
+    <div class="panel">
+      <h3>Requirements</h3>
+      <dl class="req">
+        <dt>PTY-001</dt><dd><span class="must">MUST</span> support individuals and organisations.</dd>
+        <dt>PTY-002</dt><dd>A party <span class="must">MUST</span> be able to hold multiple roles.</dd>
+        <dt>PTY-003</dt><dd><span class="must">MUST</span> support tenant-scoped access and controlled sharing.</dd>
+        <dt>PTY-004</dt><dd>Duplicate detection and merging SHOULD be supported with auditable history.</dd>
+        <dt>PTY-005</dt><dd>Personal information <span class="must">MUST</span> follow authorised purposes and privacy requirements.</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="slide" data-part="Product Factory" data-title="Product Factory">
+  <div class="eyebrow">Product Factory and configuration management <span class="ref">§7.1 – §7.6</span></div>
+  <h2>Configure products without code changes</h2>
+  <p class="lede">The SRS calls this one of the platform's most strategically important components. Select an area to see its submodules.</p>
+  <div class="explorer" data-src="factory"></div>
+</section>
+
+<!-- 10 -->
+<section class="slide" data-part="Product Factory" data-title="Configuration lifecycle">
+  <div class="eyebrow">Configuration lifecycle <span class="ref">§7.7 · PRD-001 to 010</span></div>
+  <h2>Every product version moves through governed states</h2>
+  <p class="lede">Select a state. The exact workflow may vary by tenant.</p>
+  <div class="steps" id="lifeSteps" role="tablist"></div>
+  <div class="grid g2">
+    <div class="panel" id="lifeText"></div>
+    <div class="panel">
+      <h3>Product governance rules</h3>
+      <dl class="req">
+        <dt>PRD-001</dt><dd>Product definitions are versioned.</dd>
+        <dt>PRD-002</dt><dd>Published versions are immutable.</dd>
+        <dt>PRD-003</dt><dd>Changes to published products create a new version.</dd>
+        <dt>PRD-004</dt><dd>Configuration is validated before publication.</dd>
+        <dt>PRD-005</dt><dd>Simulation and test cases run before publication.</dd>
+        <dt>PRD-006</dt><dd>Publication supports maker-checker approval.</dd>
+        <dt>PRD-007</dt><dd>Product versions carry effective dates.</dd>
+        <dt>PRD-008</dt><dd>Transactions keep references to product, rating and rules versions used.</dd>
+        <dt>PRD-009</dt><dd>Missing parameters, invalid values, incompatible benefits and unresolved dependencies are flagged.</dd>
+        <dt>PRD-010</dt><dd>Configuration changes are auditable.</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- 11 -->
+<section class="slide" data-part="Product Factory" data-title="Configuration versus development">
+  <div class="eyebrow">Change classification <span class="ref">§7.8</span></div>
+  <h2>What is configuration, and what needs engineering</h2>
+  <p class="lede">Configuration must be typed, validated, versioned and governed. Arbitrary scripts should not be the default mechanism for business variation.</p>
+  <div class="legend">
+    <span class="chips" id="cfgFilter">
+      <button class="chip" aria-pressed="true" data-f="all">All changes</button>
+      <button class="chip" aria-pressed="false" data-f="config">Configuration</button>
+      <button class="chip" aria-pressed="false" data-f="cond">Conditional</button>
+      <button class="chip" aria-pressed="false" data-f="dev">Development may be required</button>
+    </span>
+  </div>
+  <div class="cfg" id="cfgList"></div>
+</section>
+
+<!-- 12 -->
+<section class="slide" data-part="Architecture" data-title="Logical architecture">
+  <div class="eyebrow">Functional architecture blueprint <span class="ref">§8</span></div>
+  <h2>Five layers, top to bottom</h2>
+  <p class="lede">Select a layer to see its responsibility.</p>
+  <div class="stack" id="stack"></div>
+  <div class="grid g2" style="margin-top:20px">
+    <div class="panel">
+      <h3>Shared where semantics align</h3>
+      <ul class="clean" style="font-size:14.5px">
+        <li>One document-generation framework for all domains</li>
+        <li>One workflow infrastructure for all domains</li>
+        <li>One common rating execution framework</li>
+      </ul>
+    </div>
+    <div class="panel dark">
+      <h3>Kept separate</h3>
+      <ul class="clean" style="font-size:14.5px">
+        <li>Life and General policies are not one policy aggregate</li>
+        <li>Life, General and Health claims have distinct adjudication engines</li>
+        <li>Domain pricing calculations stay distinct where actuarial or underwriting logic differs</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 13 -->
+<section class="slide" data-part="Architecture" data-title="Insurance domains">
+  <div class="eyebrow">Domain module hierarchies <span class="ref">§9 · §10 · §11</span></div>
+  <h2>Three domains, each owning its business</h2>
+  <p class="lede">Choose a domain, then a module, to see its submodules. Domain requirements sit beneath each explorer.</p>
+  <div class="tabs" role="tablist" id="domTabs">
+    <button role="tab" aria-selected="true" data-t="life">Life</button>
+    <button role="tab" aria-selected="false" data-t="general">General</button>
+    <button role="tab" aria-selected="false" data-t="health">Health</button>
+  </div>
+  <div class="tabpane on" data-t="life"><div class="explorer" data-src="life"></div><div class="panel" style="margin-top:16px"><h3>Life requirements</h3><dl class="req" data-reqs="lifeReq"></dl></div></div>
+  <div class="tabpane" data-t="general"><div class="explorer" data-src="general"></div><div class="panel" style="margin-top:16px"><h3>General requirements</h3><dl class="req" data-reqs="genReq"></dl></div></div>
+  <div class="tabpane" data-t="health"><div class="explorer" data-src="health"></div><div class="panel" style="margin-top:16px"><h3>Health requirements</h3><dl class="req" data-reqs="hltReq"></dl><p class="small" style="margin:12px 0 0">Automated fraud indicators support authorised investigation. They should not make high-impact clinical or claims decisions automatically without governance (§11 K).</p></div></div>
+</section>
+
+<!-- 14 -->
+<section class="slide" data-part="Architecture" data-title="Shared claims framework">
+  <div class="eyebrow">Claims <span class="ref">§12 · CLM-001 to 005</span></div>
+  <h2>Common claims infrastructure, domain-owned adjudication</h2>
+  <p class="lede">Shared capabilities handle registration, cases, evidence and payments. Each domain decides claims with its own engine.</p>
+  <div class="panel" style="margin-bottom:18px">
+    <h3>Shared claims capabilities</h3>
+    <div class="chips"><span class="chip">Registration framework</span><span class="chip">Claim numbering</span><span class="chip">Claimant and beneficiary references</span><span class="chip">Documents and evidence</span><span class="chip">Case assignment</span><span class="chip">Work queues</span><span class="chip">Workflow and escalation</span><span class="chip">Audit history</span><span class="chip">Communications</span><span class="chip">Fraud indicators</span><span class="chip">Financial transaction interfaces</span><span class="chip">Payment instruction framework</span><span class="chip">Claims reporting</span></div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Life engine</th><th>General engine</th><th>Health engine</th></tr></thead>
+      <tbody>
+        <tr><td>Death claims</td><td>Motor claims</td><td>Provider claims</td></tr>
+        <tr><td>Disability claims</td><td>Property claims</td><td>Reimbursement claims</td></tr>
+        <tr><td>Critical illness claims</td><td>Marine claims</td><td>Preauthorisation-linked claims</td></tr>
+        <tr><td>Maturity claims</td><td>Liability claims</td><td>Benefit-limit adjudication</td></tr>
+        <tr><td>Beneficiary verification</td><td>Loss adjustment</td><td>Tariff validation</td></tr>
+        <tr><td>Sum assured validation</td><td>Deductible/excess application</td><td>Co-payment calculation</td></tr>
+        <tr><td>Benefit calculation</td><td>Salvage and recovery</td><td>Member eligibility</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="panel" style="margin-top:18px">
+    <dl class="req">
+      <dt>CLM-001</dt><dd>All domains <span class="must">MUST</span> use shared claims infrastructure where capabilities are genuinely common.</dd>
+      <dt>CLM-002</dt><dd>Each domain <span class="must">MUST</span> own its adjudication logic.</dd>
+      <dt>CLM-003</dt><dd>Claim decisions record policy or coverage references, rationale, evidence, rules, authority and timestamps.</dd>
+      <dt>CLM-004</dt><dd>Reserves, approved amounts, payments and recoveries are traceable financial movements.</dd>
+      <dt>CLM-005</dt><dd>Duplicate submissions and retries are handled safely.</dd>
+    </dl>
+  </div>
+</section>
+
+<!-- 15 -->
+<section class="slide" data-part="Shared services" data-title="Shared enterprise services">
+  <div class="eyebrow">Shared enterprise services <span class="ref">§13 – §20</span></div>
+  <h2>Eight services every domain draws on</h2>
+  <p class="lede">Select a service to see its submodules and requirements.</p>
+  <div class="explorer" data-src="services"></div>
+</section>
+
+<!-- 16 -->
+<section class="slide" data-part="Shared services" data-title="Data model and ownership">
+  <div class="eyebrow">Core data model <span class="ref">§21</span></div>
+  <h2>Shared party model, domain-owned aggregates</h2>
+  <p class="lede">Each domain owns its authoritative transactional data. Aggregate boundaries are still to be validated in detailed domain modelling.</p>
+  <div class="grid g4">
+    <div class="panel dark"><h3>Shared entities</h3><div class="mono" style="line-height:1.9;color:var(--muted2)">Tenant<br>Party · PartyRole<br>ProductDefinition<br>ProductVersion<br>RatingVersion<br>RuleSetVersion<br>WorkflowVersion<br>TemplateVersion<br>DocumentReference<br>ConsentRecord<br>BillingAccount · Invoice<br>Payment<br>PaymentAllocation<br>Commission<br>SubledgerEntry<br>AuditEvent</div></div>
+    <div class="panel"><h3>Life</h3><div class="mono" style="line-height:1.9">LifeProposal<br>LifeUnderwritingCase<br>LifePolicy<br>LifeBenefit<br>LifeBeneficiary<br>LifePremiumSchedule<br>LifeCashValue<br>LifePolicyLoan<br>LifeClaim</div></div>
+    <div class="panel"><h3>General</h3><div class="mono" style="line-height:1.9">GeneralQuote<br>GeneralProposal<br>GeneralRiskObject<br>GeneralPolicy<br>GeneralCoverage<br>GeneralEndorsement<br>GeneralClaim<br>LossAssessment<br>RecoveryCase</div></div>
+    <div class="panel"><h3>Health</h3><div class="mono" style="line-height:1.9">HealthScheme<br>HealthPlan<br>HealthMembership<br>HealthBenefit<br>ProviderContract<br>ProviderTariff<br>Preauthorisation<br>MedicalClaim<br>UtilisationCase</div></div>
+  </div>
+  <div class="panel" style="margin-top:18px">
+    <h3>Data ownership rules</h3>
+    <div class="grid g3" style="gap:10px 20px;font-size:14.5px">
+      <div><span class="tag navy">1</span> Each domain owns its authoritative transactional data.</div>
+      <div><span class="tag navy">2</span> No domain writes directly into another domain's database.</div>
+      <div><span class="tag navy">3</span> Cross-domain interaction uses defined APIs or events.</div>
+      <div><span class="tag navy">4</span> Reporting projections never become the source of transactional truth.</div>
+      <div><span class="tag navy">5</span> Historical transactions keep references to governing product and configuration versions.</div>
+      <div><span class="tag navy">6</span> Data access respects tenant and sensitivity boundaries.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 17 -->
+<section class="slide" data-part="Shared services" data-title="APIs and events">
+  <div class="eyebrow">API and event architecture <span class="ref">§22 · §23</span></div>
+  <h2>Synchronous APIs, asynchronous domain events</h2>
+  <p class="lede">REST/JSON is a reasonable default for synchronous business APIs, subject to the final technology strategy. API groups below are logical, not final endpoint contracts.</p>
+  <div class="grid g2">
+    <div class="panel">
+      <h3>Logical API groups</h3>
+      <div class="tbl-wrap" style="border:0">
+      <table><tbody id="apiRows"></tbody></table>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Domain event catalogue</h3>
+      <div class="chips" id="evFilter" style="margin-bottom:12px">
+        <button class="chip" aria-pressed="true" data-f="all">All</button>
+        <button class="chip" aria-pressed="false" data-f="Product">Product</button>
+        <button class="chip" aria-pressed="false" data-f="Life">Life</button>
+        <button class="chip" aria-pressed="false" data-f="General">General</button>
+        <button class="chip" aria-pressed="false" data-f="Health">Health</button>
+        <button class="chip" aria-pressed="false" data-f="Financial">Financial</button>
+      </div>
+      <div class="evgrid" id="evList"></div>
+      <div class="sec" style="margin-top:16px">
+        <div class="small" style="text-transform:uppercase;letter-spacing:.1em;font-size:11px;font-weight:700;color:var(--line);margin-bottom:6px">Required event metadata</div>
+        <div class="chips" style="gap:6px"><span class="tag">Event ID</span><span class="tag">Tenant ID</span><span class="tag">Type and version</span><span class="tag">Occurred at</span><span class="tag">Aggregate ref</span><span class="tag">Correlation ID</span><span class="tag">Causation ID</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="callout"><b>Reliable publication.</b> Consumers must tolerate duplicate delivery. For important transactions, a transactional outbox or equivalent prevents a committed business transaction being lost between the database and the event broker.</div>
+</section>
+
+<!-- 18 -->
+<section class="slide" data-part="Assurance" data-title="Security, privacy and compliance">
+  <div class="eyebrow">Security by design <span class="ref">§5 · §24</span></div>
+  <h2>Identity, classification and local compliance</h2>
+  <p class="lede">Critical security findings must be fixed before production acceptance, unless covered by a formally approved exception and remediation plan.</p>
+  <div class="grid g3">
+    <div class="panel">
+      <h3>Platform security controls</h3>
+      <ul class="clean" style="font-size:14px">
+        <li>Least-privilege, deny-by-default authorisation</li><li>Secure credential and key management</li><li>Encryption in transit and at rest</li><li>API authentication and rate limiting</li><li>Privileged access controls</li><li>Secure development, dependency and vulnerability scanning</li><li>Security monitoring and incident response</li><li>Backup protection</li><li>Tenant-isolation testing</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Data classification</h3>
+      <div style="display:grid;gap:6px;margin-bottom:12px">
+        <div style="background:#E8EBF0;padding:7px 12px;border-radius:4px;font-size:14px">Public</div>
+        <div style="background:#C9D1DE;padding:7px 12px;border-radius:4px;font-size:14px">Internal</div>
+        <div style="background:var(--line2);color:var(--white);padding:7px 12px;border-radius:4px;font-size:14px">Confidential</div>
+        <div style="background:var(--blue);color:var(--white);padding:7px 12px;border-radius:4px;font-size:14px">Personal</div>
+        <div style="background:var(--navy);color:var(--gold);padding:7px 12px;border-radius:4px;font-size:14px;font-weight:700">Highly sensitive · medical records, health claims evidence</div>
+      </div>
+      <p class="small" style="margin:0">Sensitive data is minimised in logs, events, support tickets and analytics datasets.</p>
+    </div>
+    <div class="panel">
+      <h3>Identity and access</h3>
+      <dl class="req" style="font-size:13.5px">
+        <dt>IAM-001</dt><dd>Tenant-scoped identities and permissions</dd>
+        <dt>IAM-002</dt><dd>Federation via OpenID Connect or SAML where required</dd>
+        <dt>IAM-003</dt><dd>MFA for privileged and sensitive roles</dd>
+        <dt>IAM-004</dt><dd>Scoped, limited service accounts</dd>
+        <dt>IAM-005</dt><dd>Prompt revocation of compromised identities</dd>
+        <dt>IAM-006</dt><dd>Sensitive operations record actor, tenant, operation, target, time, outcome</dd>
+        <dt>IAM-007</dt><dd>Authorisation enforced in backend services, not only the UI</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:18px">
+    <h3>Jurisdiction-specific compliance register <span class="tag" style="margin-left:6px">§24.2</span></h3>
+    <p class="small">Validated per market before launch. The SRS states it does not itself certify compliance with any jurisdiction.</p>
+    <div class="chips"><span class="chip">Licensing and supervision</span><span class="chip">Policy wording and disclosures</span><span class="chip">Claims handling</span><span class="chip">Data protection and privacy</span><span class="chip">Data residency</span><span class="chip">Medical information</span><span class="chip">Taxation</span><span class="chip">Electronic signatures</span><span class="chip">Accounting and financial reporting</span><span class="chip">Outsourcing and cloud hosting</span><span class="chip">Regulatory submissions</span><span class="chip">Record retention</span></div>
+  </div>
+</section>
+
+<!-- 19 -->
+<section class="slide" data-part="Assurance" data-title="Non-functional requirements">
+  <div class="eyebrow">Availability, performance and operations <span class="ref">§25 · §26</span></div>
+  <h2>Proposed starting targets</h2>
+  <p class="lede">These are proposed targets, not confirmed contractual commitments. They must be validated against representative workloads before becoming customer-facing service levels.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Attribute</th><th>Proposed target</th></tr></thead>
+      <tbody id="nfrRows"></tbody>
+    </table>
+  </div>
+  <div class="grid g2" style="margin-top:18px">
+    <div class="panel"><h3>Environments</h3><div class="steps" style="margin:0"><span class="step"><span class="d">D</span>Development</span><span class="arrow">→</span><span class="step"><span class="d">T</span>Test</span><span class="arrow">→</span><span class="step"><span class="d">S</span>Staging</span><span class="arrow">→</span><span class="step done"><span class="d">P</span>Production</span></div></div>
+    <div class="panel"><h3>Deployment</h3><p class="small" style="margin:0">Infrastructure as code, automated pipelines, controlled migrations, versioned releases, secrets management, testing gates, dependency and container scanning, rollback procedures, post-deployment verification.</p></div>
+  </div>
+</section>
+
+<!-- 20 -->
+<section class="slide" data-part="Assurance" data-title="Testing and acceptance">
+  <div class="eyebrow">Testing strategy and production acceptance <span class="ref">§27</span></div>
+  <h2>Production readiness checklist</h2>
+  <p class="lede">The platform is not accepted for production until all of these hold. Tick items to walk through a readiness review; ticks are not saved.</p>
+  <div class="grid g2">
+    <div>
+      <div class="small"><span id="accCount">0</span> of 10 criteria confirmed</div>
+      <div class="meter"><i id="accMeter"></i></div>
+      <div style="display:grid;gap:6px" id="accList"></div>
+    </div>
+    <div style="display:grid;gap:18px;align-content:start">
+      <div class="panel">
+        <h3>Minimum end-to-end scenarios</h3>
+        <ol style="margin:0;padding-left:20px;font-size:14.5px;display:grid;gap:4px">
+          <li>Product configuration to publication</li><li>Quote to policy issuance</li><li>Policy issuance to premium billing</li><li>Payment receipt to allocation and accounting</li><li>Claim registration to settlement</li><li>Health member enrolment to eligibility verification</li><li>Health preauthorisation to medical claim processing</li><li>Financial transaction to subledger and reconciliation</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3>Security test suite</h3>
+        <div class="chips" style="gap:6px"><span class="tag">Cross-tenant access</span><span class="tag">Privilege escalation</span><span class="tag">Unauthorised document retrieval</span><span class="tag">Cross-tenant cache and search</span><span class="tag">Event-consumer tenant validation</span><span class="tag">API authorisation bypass</span><span class="tag">Sensitive-data leakage</span><span class="tag">Secrets exposure</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 21 -->
+<section class="slide" data-part="Delivery" data-title="Delivery roadmap">
+  <div class="eyebrow">Implementation phases <span class="ref">§28</span></div>
+  <h2>Seven phases, each with a demonstrable outcome</h2>
+  <p class="lede">Select a phase to see its scope and exit criteria.</p>
+  <div class="steps" id="phaseSteps" role="tablist"></div>
+  <div class="panel" id="phaseText"></div>
+</section>
+
+<!-- 22 -->
+<section class="slide" data-part="Delivery" data-title="Risk register">
+  <div class="eyebrow">Key risks and mitigations <span class="ref">§29</span></div>
+  <h2>Ten risks named in the blueprint</h2>
+  <p class="lede">Select a risk to see its potential impact and mitigation.</p>
+  <div class="explorer" data-src="risks"></div>
+</section>
+
+<!-- 23 -->
+<section class="slide" data-part="Delivery" data-title="Open design decisions">
+  <div class="eyebrow">Decisions required before detailed design <span class="ref">§30 · §32</span></div>
+  <h2>Thirteen questions for stakeholders</h2>
+  <p class="lede">Not blockers to the conceptual architecture, but needed for implementation designs and delivery estimates. Each maps to an architecture decision record where one is defined.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Decision</th><th>Question to resolve</th><th>Related ADR</th></tr></thead>
+      <tbody id="openRows"></tbody>
+    </table>
+  </div>
+  <p class="small" style="margin-top:12px">ADR mapping is our reading of §30 against the ADR register in §32; the SRS does not state these links explicitly. A dash means no ADR in §32 clearly covers the decision.</p>
+</section>
+
+<!-- 24 -->
+<section class="slide" data-part="Delivery" data-title="Traceability matrix">
+  <div class="eyebrow">Capability-to-acceptance mapping <span class="ref">§31</span></div>
+  <h2>How each capability is proven</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Capability</th><th>Key requirements</th><th>Minimum acceptance evidence</th></tr></thead>
+      <tbody id="traceRows"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 25 -->
+<section class="slide" data-part="Delivery" data-title="Review notes on the source">
+  <div class="eyebrow">Document review <span class="ref">Observations, not SRS content</span></div>
+  <h2>Gaps to resolve in the next revision</h2>
+  <p class="lede">While building this presentation, we found places where the SRS refers to content it does not define. These are flagged as stated, not corrected.</p>
+  <div class="grid g2">
+    <div class="note"><span class="tag gold">Numbering mismatch</span><h3>TEN-009 and TEN-010 are referenced but not defined</h3><p class="small" style="margin:0">§31 cites "TEN-001 to TEN-010". §4.1 defines only TEN-001 to TEN-008.</p></div>
+    <div class="note"><span class="tag gold">Missing requirement set</span><h3>No RAT requirements exist</h3><p class="small" style="margin:0">§31 maps Rating and underwriting to "RAT requirements". No RAT-prefixed requirements appear anywhere in the document.</p></div>
+    <div class="note"><span class="tag gold">Missing identifiers</span><h3>Security, compliance and other IDs</h3><p class="small" style="margin:0">§24 security requirements, NFR deployment items, §22.2 API contract content, and §23.2 event requirements carry no requirement IDs, which weakens traceability in §31.</p></div>
+    <div class="note"><span class="tag">Scope without specification</span><h3>Analytics and Notifications</h3><p class="small" style="margin:0">§2.1 lists Analytics as a capability group, and Phase 2 lists Notifications, but neither has a module section, submodules or requirements.</p></div>
+    <div class="note"><span class="tag">Scope without specification</span><h3>Rating framework and rules engine</h3><p class="small" style="margin:0">Phase 2 delivers both, and the logical architecture names Rating and Rules as shared services. Only configuration aspects (§7.3, §7.4) are specified, not the execution engines.</p></div>
+    <div class="note"><span class="tag">Layer placement</span><h3>Billing and Payments sit in two places</h3><p class="small" style="margin:0">§8 places Billing and Payments in the Shared Insurance Services layer; Part III groups them as Shared Enterprise Services. Worth aligning terminology before ADR-002.</p></div>
+  </div>
+</section>
+
+<!-- 26 -->
+<section class="slide" data-part="Delivery" data-title="Guiding decisions">
+  <div class="eyebrow">Final architectural recommendations <span class="ref">§33 · Conclusion</span></div>
+  <h2>Five decisions that should guide engineering</h2>
+  <div class="grid g2" style="align-items:start">
+    <div class="big5">
+      <div><div><h3>Treat tenant isolation as a platform capability</h3><p>Establish trusted tenant context, authorisation, data-access enforcement and isolation testing in the foundation, not per module.</p></div></div>
+      <div><div><h3>Keep the insurance domains separate</h3><p>Own policy aggregates, state machines and claims adjudication per domain. Avoid a generic policy model that grows with exceptions.</p></div></div>
+      <div><div><h3>Build the Product Factory early</h3><p>Version and govern definitions, rates, benefits, rules, workflows and templates from day one. Retrofitting governance is costly.</p></div></div>
+      <div><div><h3>Establish financial traceability from the beginning</h3><p>Trace every premium, commission, payment, refund and recovery to its source. Use explicit reversals, never silent edits.</p></div></div>
+      <div><div><h3>Deliver one complete journey before expanding</h3><p>Prove a full vertical slice for the first domain, from product configuration to accounting and reporting, then expand.</p></div></div>
+    </div>
+    <div style="display:grid;gap:18px">
+      <div class="panel dark">
+        <h3>The platform in one line</h3>
+        <p style="font-family:var(--f-display);font-size:22px;line-height:1.25;font-stretch:95%;margin:0">A shared insurance technology platform with three independent insurance domains, not three separate systems joined by a common database.</p>
+      </div>
+      <div class="panel">
+        <h3>Next engineering artefacts</h3>
+        <ul class="clean" style="font-size:14.5px">
+          <li>Domain model and entity relationship diagrams</li>
+          <li>Module-level API contracts</li>
+          <li>Workflow and state-transition specifications</li>
+          <li>Database architecture</li>
+          <li>Prioritised implementation backlog</li>
+        </ul>
+      </div>
+      <div class="callout" style="margin:0"><b>Qualification.</b> Requirements and performance targets must be validated against target markets, regulatory obligations, workload assumptions and customer commitments before they become final contractual specifications.</div>
+    </div>
+  </div>
+</section>
+
+    </main>
+    <div class="controls">
+      <button id="prev" aria-label="Previous slide">← Prev</button>
+      <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+      <span class="count" id="count"></span>
+      <button id="next" aria-label="Next slide">Next →</button>
+      <span class="hint">← → keys</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const D = {
+decisions:[
+ {t:"Multi-tenancy",s:"Strict tenant isolation",b:"No tenant may access another tenant's data or unauthorised resources."},
+ {t:"Cloud deployment",s:"Required",b:"The platform must support automated cloud deployment, scaling, monitoring, backup and disaster recovery."},
+ {t:"Policy model",s:"Separate domain-owned policy aggregates",b:"Life, General and Health have distinct policy models and lifecycles."},
+ {t:"Product configuration",s:"Primarily configuration-driven",b:"Routine product variations must not require software development."},
+ {t:"Shared services",s:"Common platform capabilities",b:"Domains reuse shared infrastructure and services where their semantics genuinely align."},
+ {t:"Integration",s:"API-first and event-enabled",b:"The platform supports external integrations and asynchronous processing."},
+ {t:"Security",s:"Security by design",b:"Identity, authorisation, tenant isolation, audit and encryption are foundational."},
+ {t:"Product governance",s:"Versioned and controlled",b:"Product changes require validation, approval and effective-date management."}
+],
+capabilities:[
+ {t:"Platform foundation",b:"Tenant management, identity, access control, audit, configuration governance."},
+ {t:"Party and customer management",b:"Individuals, organisations, customers, insured parties, beneficiaries, intermediaries, providers."},
+ {t:"Product Factory",b:"Product definitions, benefits, coverages, rates, eligibility, underwriting rules, workflows."},
+ {t:"Life Insurance",b:"Proposals, underwriting, policies, benefits, premiums, maturity, surrender, life claims."},
+ {t:"General Insurance",b:"Quotation, risk objects, underwriting, policies, endorsements, renewals, claims."},
+ {t:"Health Insurance",b:"Schemes, members, dependants, benefits, providers, preauthorisation, medical claims."},
+ {t:"Shared claims framework",b:"Claim registration, case management, documents, workflow, audit, settlement integration."},
+ {t:"Billing and receivables",b:"Premium schedules, invoices, collections, allocations, arrears."},
+ {t:"Payments and settlements",b:"Payment initiation, status tracking, refunds, reconciliation, claim payments."},
+ {t:"Distribution",b:"Brokers, agents, bancassurance, digital channels, partner distribution."},
+ {t:"Financial management",b:"Commissions, financial subledger, reconciliation, general ledger integration."},
+ {t:"Reinsurance",b:"Treaties, facultative arrangements, cessions, recoveries."},
+ {t:"Document management",b:"Policy schedules, certificates, endorsements, claim evidence, correspondence."},
+ {t:"Integration",b:"APIs, webhooks, events, external system adapters."},
+ {t:"Compliance and reporting",b:"Audit, regulatory extracts, operational reporting, data governance."},
+ {t:"Analytics",b:"Portfolio, underwriting, claims, financial and operational analytics."}
+],
+roles:[
+ {t:"Platform Administrator",b:"Platform configuration, tenant provisioning, platform operations."},
+ {t:"Tenant Administrator",b:"Insurer-specific users, roles, settings, organisation structures."},
+ {t:"Product Manager",b:"Product configuration, product versioning, publication."},
+ {t:"Product Actuary",b:"Rating assumptions, premium parameters, actuarial validation."},
+ {t:"Underwriter",b:"Risk assessment, referrals, acceptance, loading and rejection."},
+ {t:"Policy Administrator",b:"Policy issuance, servicing, endorsements, renewal and cancellation."},
+ {t:"Claims Assessor",b:"Claims assessment, reserves, adjudication, approval."},
+ {t:"Claims Manager",b:"Delegated authority, escalation, exception approval."},
+ {t:"Finance Officer",b:"Billing, collections, commission, reconciliation, financial posting."},
+ {t:"Broker or Agent",b:"Quotation, proposal submission, permitted policy servicing."},
+ {t:"Healthcare Provider",b:"Eligibility verification, preauthorisation and claim submission."},
+ {t:"Customer or Member",b:"Access to permitted policy, benefit, payment and claim information."},
+ {t:"Compliance Officer",b:"Regulatory reporting, audit review and compliance monitoring."},
+ {t:"Internal or External Auditor",b:"Controlled access to audit evidence and transaction histories."},
+ {t:"Integration Service",b:"Approved machine-to-machine transactions."}
+],
+layers:[
+ {t:"Authentication",b:"Resolve tenant context from trusted identity information."},
+ {t:"Authorisation",b:"Verify tenant and resource-level permissions."},
+ {t:"Application",b:"Enforce tenant scope within domain services."},
+ {t:"Database",b:"Use tenant-aware access controls and an approved isolation strategy."},
+ {t:"Documents",b:"Enforce tenant-specific access to object storage and document metadata."},
+ {t:"Messaging",b:"Validate tenant identity in event producers and consumers."},
+ {t:"Cache",b:"Use tenant-aware cache keys and prevent cross-tenant data reuse."},
+ {t:"Search",b:"Restrict queries and indexed documents by tenant."},
+ {t:"Reporting",b:"Apply tenant-aware data access and export restrictions."},
+ {t:"Audit",b:"Record tenant identity for relevant operations."},
+ {t:"Operations",b:"Control tenant-specific diagnostics, backup, restoration and support access."}
+],
+factory:[
+ {t:"Product Catalogue",s:"§7.1",l:["Product registration","Product classification","Product family management","Product versioning","Product lifecycle management","Product availability by tenant","Market and country applicability","Distribution-channel applicability","Product approval","Product publication","Product withdrawal and retirement"]},
+ {t:"Coverage and benefits",s:"§7.2",l:["Coverage definitions","Benefit definitions","Coverage limits","Benefit limits","Sublimits","Exclusions","Deductibles and excesses","Waiting periods","Optional benefits","Benefit combinations","Benefit dependencies","Eligibility criteria","Coverage effective dates"]},
+ {t:"Pricing and rating",s:"§7.3",l:["Rating factors","Rating tables","Premium parameters","Risk classifications","Discounts","Loadings","Minimum and maximum premiums","Taxes and levies","Commission parameters","Effective-dated pricing","Rating simulation","Rating audit"]},
+ {t:"Underwriting",s:"§7.4",l:["Eligibility rules","Underwriting questionnaires","Risk thresholds","Referral rules","Automatic acceptance rules","Medical evidence requirements","Document requirements","Approval thresholds","Decline conditions","Underwriting authority matrices"]},
+ {t:"Workflow",s:"§7.5",l:["Proposal approval","Underwriting referral","Policy issuance","Policy endorsements","Renewal","Claims assessment","Claims approval","Payment release","Exception handling","Escalation"]},
+ {t:"Product documents",s:"§7.6 · versioned templates",l:["Policy wording","Policy schedules","Certificates","Endorsements","Premium notices","Renewal notices","Claims correspondence","Benefit schedules","Health membership documents"]}
+],
+life:[
+ {t:"Life Proposal Management",k:"A",l:["Proposal capture","Applicant details","Insured-life details","Beneficiary nominations","Product selection","Coverage selection","Premium quotation","Disclosure questionnaires","Supporting documents","Proposal validation","Proposal submission","Proposal status tracking"]},
+ {t:"Life Underwriting",k:"B",l:["Underwriting rules","Risk classification","Medical evidence requirements","Financial underwriting","Occupation and lifestyle assessment","Underwriting referrals","Manual assessment","Acceptance decisions","Premium loadings","Exclusions","Postponement","Decline management"]},
+ {t:"Life Policy Administration",k:"C",l:["Policy issuance","Policy numbering","Policyholder management","Insured-life management","Policy status management","Endorsements and amendments","Premium schedule management","Policy document generation","Policy servicing","Policy history","Lapse and reinstatement","Surrender and termination"]},
+ {t:"Benefits Administration",k:"D",l:["Sum assured","Death benefits","Disability benefits","Critical illness benefits","Income protection benefits","Maturity benefits","Benefit eligibility","Benefit limits","Benefit exclusions","Benefit calculation"]},
+ {t:"Premium Administration",k:"E",l:["Premium frequency","Premium due schedules","Premium adjustments","Premium allocation interfaces","Grace-period processing","Arrears management","Lapse processing","Reinstatement processing","Premium history"]},
+ {t:"Cash Values and Policy Loans",k:"F",s:"Where supported by the product",l:["Cash-value calculation","Surrender-value calculation","Policy-loan eligibility","Loan issuance","Loan balance management","Interest calculation","Repayment processing","Partial withdrawals","Financial reconciliation"]},
+ {t:"Beneficiary Management",k:"G",l:["Beneficiary registration","Beneficiary identification","Beneficiary allocation","Beneficiary changes","Beneficiary validation","Beneficiary history","Verification during claims"]},
+ {t:"Life Claims",k:"H",l:["Claim notification","Claim registration","Claimant verification","Beneficiary verification","Policy and coverage validation","Evidence collection","Medical or death documentation","Claims assessment","Benefit calculation","Approval and escalation","Settlement","Claim closure"]},
+ {t:"Maturity Management",k:"I",l:["Maturity identification","Maturity notifications","Eligibility verification","Maturity calculation","Payee validation","Approval","Payment instruction","Settlement reconciliation"]},
+ {t:"Group Life",k:"J",l:["Group scheme administration","Employer management","Group membership","Eligibility","Member enrolment","Scheme-level benefits","Group premium calculations","Member changes","Group claims"]},
+ {t:"Life Actuarial Interfaces",k:"K",l:["Valuation data extraction","Assumption version references","Cash-flow data preparation","Product and policy data exports","Actuarial calculation integration","Reconciliation","Valuation reporting"]}
+],
+general:[
+ {t:"Quotation and Proposal",k:"A",l:["Proposal capture","Risk information","Product selection","Coverage selection","Premium calculation","Quote versioning","Quote validity","Document generation","Proposal submission","Quote acceptance","Quote rejection or expiry"]},
+ {t:"General Underwriting",k:"B",l:["Risk assessment","Eligibility rules","Risk classification","Underwriting questionnaires","Referral rules","Acceptance and rejection","Deductible/excess selection","Special conditions","Approval authority","Underwriting audit"]},
+ {t:"Risk Object Management",k:"C",s:"Vehicles, properties, vessels, equipment, inventory, liabilities",l:["Insured-object registration","Risk-object classification","Risk attributes","Risk location","Risk valuation","Risk-object coverage","Risk-object history","Risk aggregation","Risk inspection references","Risk-object changes"]},
+ {t:"General Policy Administration",k:"D",l:["Policy issuance","Policy schedules","Coverage attachment","Premium schedule","Endorsements","Mid-term adjustments","Renewals","Cancellation","Reinstatement where permitted","Policy documents","Policy history","Policy servicing"]},
+ {t:"Coverage Management",k:"E",l:["Coverage definitions","Coverage limits","Deductibles and excesses","Exclusions","Extensions","Conditions","Coverage periods","Sublimits","Aggregation limits","Coverage validation"]},
+ {t:"Motor Insurance",k:"F",l:["Vehicle information","Registration and identification","Vehicle valuation","Driver information","Motor risk assessment","Comprehensive coverage","Third-party liability","Theft and accident coverage","Fleet administration","Motor claims","Repair and assessment interfaces","Vehicle-related endorsements"]},
+ {t:"Property Insurance",k:"G",l:["Property registration","Property location","Building valuation","Contents valuation","Property risk assessment","Fire and allied perils","Natural disaster coverage","Business interruption","Property endorsements","Property claims"]},
+ {t:"Marine Insurance",k:"H",l:["Vessel or cargo risk","Voyage information","Transit information","Cargo valuation","Marine coverage","Policy certificates","Voyage endorsements","Marine claims","Salvage and recovery"]},
+ {t:"Commercial Insurance",k:"I",l:["Commercial customer","Business risk profile","Commercial package policies","Liability insurance","Equipment insurance","Business interruption","Grouped risk objects","Commercial underwriting","Commercial claims","Renewal and servicing"]},
+ {t:"General Claims",k:"J",l:["First notification of loss","Claim registration","Policy and coverage validation","Loss details","Claimant and third-party management","Evidence collection","Loss assessment","Surveyor or adjuster assignment","Repair and replacement estimates","Reserve management","Deductible/excess calculation","Settlement approval","Payment instruction","Salvage and recovery","Claim closure"]},
+ {t:"Reinsurance and Actuarial Interfaces",k:"K",l:["Risk exposure extraction","Treaty allocation interfaces","Facultative reinsurance references","Claims recovery interfaces","Actuarial data extraction","Portfolio reporting"]}
+],
+health:[
+ {t:"Health Product and Plan",k:"A",l:["Health product catalogue","Plan definitions","Benefit schedules","Coverage limits","Sublimits","Exclusions","Waiting periods","Co-payments","Deductibles","Provider-network restrictions","Eligibility rules","Product versioning"]},
+ {t:"Scheme and Group Administration",k:"B",l:["Employer and sponsor management","Group scheme registration","Scheme configuration","Group membership","Contribution schedules","Member eligibility","Scheme renewal","Group billing","Employer reporting","Scheme-level administration"]},
+ {t:"Member Administration",k:"C",l:["Principal member registration","Dependant registration","Member enrolment","Member identification","Membership effective dates","Membership changes","Member suspension","Reinstatement","Member termination","Membership history","Membership-card generation","Member portal integration"]},
+ {t:"Eligibility Management",k:"D",l:["Member eligibility verification","Policy and scheme validation","Benefit eligibility","Coverage period validation","Waiting-period validation","Provider-network eligibility","Available benefit limits","Eligibility decision history","Provider-facing eligibility APIs"]},
+ {t:"Benefit Management",k:"E",s:"Exact categories depend on the insurer's portfolio",l:["Inpatient","Outpatient","Specialist","Pharmaceutical","Dental","Optical","Maternity","Chronic-care","Emergency","Annual and lifetime limits","Co-payment rules","Exclusion and waiting-period rules"]},
+ {t:"Provider Network Management",k:"F",l:["Provider registration","Provider verification","Provider classification","Provider specialties","Provider locations","Provider contracts","Network participation","Effective-dated tariffs","Provider suspension","Provider performance","Provider payment details"]},
+ {t:"Preauthorisation Management",k:"G",l:["Preauthorisation request","Member eligibility validation","Service and procedure details","Supporting medical documentation","Benefit validation","Clinical review workflow","Approval and rejection","Conditional approval","Authorised limits","Authorisation expiry","Modification and cancellation","Preauthorisation history"]},
+ {t:"Medical Claims",k:"H",l:["Provider claim submission","Member reimbursement claims","Claim registration","Member verification","Provider verification","Service and tariff validation","Benefit-limit validation","Preauthorisation matching","Duplicate claim detection","Medical coding integration","Claim adjudication","Co-payment calculation","Fraud indicators","Approval and escalation","Payment and reconciliation"]},
+ {t:"Utilisation Management",k:"I",l:["Utilisation rules","High-cost service review","Referral management","Repeat-service checks","Benefit-limit monitoring","Case management","Clinical review workflow","Exception handling","Utilisation reporting"]},
+ {t:"Health Payments",k:"J",l:["Provider payment calculation","Member reimbursement","Payment instruction generation","Payment approval","Settlement processing","Remittance advice","Payment reconciliation","Payment exception handling"]},
+ {t:"Fraud and Abuse Controls",k:"K",l:["Duplicate claim detection","Unusual utilisation indicators","Provider billing anomalies","Repeated-service checks","Suspicious claim patterns","Investigation workflow","Evidence management","Case outcomes and audit"]}
+],
+lifeReq:[["LIF-001","Proposal capture and quotation."],["LIF-002","Underwriting decisions are traceable and reproducible, as far as retained data and methods allow."],["LIF-003","Issued policies reference approved product and configuration versions."],["LIF-004","Servicing changes are validated against policy state, product rules and authority."],["LIF-005","Configured frequencies, grace periods, arrears, lapse and reinstatement."],["LIF-006","Death, disability, critical illness, maturity and other benefit claims."],["LIF-007","Cash-value, surrender-value and loans only for products that support them."],["LIF-008","Claims validate policy status, insured life, eligibility, exclusions and claimant authority."]],
+genReq:[["GEN-001","Quotation, underwriting and policy issuance."],["GEN-002","Multiple insured risk objects per policy where applicable."],["GEN-003","Endorsements with effective dates, coverage and premium changes, documents and audit."],["GEN-004","Renewals, cancellations and reinstatements follow configurable rules."],["GEN-005","Distinct risk attributes and rating logic per product family."],["GEN-006","Claims from registration through assessment, reserves, approval, settlement and closure."],["GEN-007","SHOULD support loss adjusters, surveyors, repairers, salvage and third-party recovery."],["GEN-008","Settlement applies deductibles, excesses, limits and valuation rules."]],
+hltReq:[["HLT-001","Products, plans, benefits, exclusions, waiting periods, co-payments and limits."],["HLT-002","Principal members, dependants, group schemes, enrolment and membership changes."],["HLT-003","Authorised member-eligibility inquiries are exposed."],["HLT-004","Provider contracts and tariffs are effective-dated."],["HLT-005","Preauthorisation requests, decisions, limits, expiry and audit."],["HLT-006","Provider-submitted claims and member reimbursement claims."],["HLT-007","Claims validate membership, coverage, limits, tariffs, preauthorisation and exclusions."],["HLT-008","Medical information restricted by role, purpose and minimum necessary access."],["HLT-009","Provider and member payments are traceable and reconcilable."]],
+services:[
+ {t:"Billing and receivables",s:"§13",l:["Billing-account management","Premium schedule generation","Invoice and debit-note generation","Premium adjustments","Receivables management","Payment allocation","Arrears management","Credit notes","Refund requests","Receivables reconciliation","Collections reporting"],r:[["BIL-001","Billing obligations generated from authorised policy and premium transactions."],["BIL-002","Records reference source policy, tenant, product, currency and business dates."],["BIL-003","Partial payments and rule-based allocation."],["BIL-004","Auditable history of adjustments and reversals."]]},
+ {t:"Payments and settlements",s:"§14",l:["Payment initiation","Payment-provider integration","Bank-transfer integration","Payment status management","Webhook and callback handling","Payment allocation","Refund processing","Reversal processing","Claim settlement","Provider payment","Commission payment","Payment reconciliation","Exception management"],r:[["PAY-001","Idempotency controls prevent duplicate financial effects."],["PAY-002","Payment status changes are traceable."],["PAY-003","Reconciliation against bank and provider records."],["PAY-004","Payment credentials and sensitive data are protected."],["PAY-005","Failed or ambiguous payments go to exception handling, never treated as successful."]]},
+ {t:"Financial subledger",s:"§15",l:["Transaction classification","Posting-rule configuration","Account mapping","Journal generation","Premium accounting","Claims accounting","Commission accounting","Reinsurance accounting interfaces","Reversals and adjustments","Accounting-period controls","Financial reconciliation","General ledger export","Posting exception management"],r:[["FIN-001","Financial transactions trace to originating business transactions."],["FIN-002","Posted entries are never silently overwritten."],["FIN-003","Corrections use explicit reversal or adjustment transactions."],["FIN-004","Posting rules and account mappings are versioned and governed."],["FIN-005","Supports tenant, currency, accounting and transaction dates, source domain, business reference."],["FIN-006","Reconciliation finds unmatched, duplicated, delayed and inconsistent transactions."],["FIN-007","Integration failures are visible to authorised users."]]},
+ {t:"Commission and distribution",s:"§16",d:"Channels: direct, brokers, agents, bancassurance, employer, digital, aggregators, third-party partners.",l:["Intermediary registration","Appointment and licensing records","Distribution hierarchy","Product permissions","Commission-plan configuration","Commission calculation","Commission accrual","Commission adjustment","Commission statement","Commission settlement","Commission reconciliation"],r:[["DST-001","Controlled intermediary records and configurable product permissions."],["DST-002","Commission rules are effective-dated and versioned."],["DST-003","Calculations retain the plan version and source transaction."],["DST-004","Commission payments pass approval and financial controls."]]},
+ {t:"Reinsurance",s:"§17",l:["Reinsurer records","Treaty administration","Facultative arrangement records","Treaty effective dates","Cession rules","Exposure allocation","Premium cessions","Claims recoveries","Reinsurance statements","Bordereaux","Reconciliation","Reinsurance reporting"],r:[["REI-001","Records link to underlying policies, risks, claims and financial transactions."],["REI-002","Cession calculations are reproducible from arrangement and configuration versions."],["REI-003","Recoverables and settlements are traceable and reconcilable."]]},
+ {t:"Document and content",s:"§18",l:["Document generation","Template management","Template versioning","Document storage","Metadata management","Document retrieval","Access control","Evidence management","Document retention","Legal hold","Document delivery","Document audit"],r:[["DOC-001","Documents are tenant-scoped and access-controlled."],["DOC-002","Generated documents reference template and product versions."],["DOC-003","Access to sensitive documents is auditable."],["DOC-004","Medical and highly sensitive documents get extra controls."]]},
+ {t:"Workflow and case management",s:"§19",l:["Workflow definition","Workflow versioning","State and transition management","Task assignment","Work queues","Maker-checker approvals","Delegated authority","SLA timers","Escalation","Exception management","Workflow audit","Case history"],r:[["WFL-001","Workflow definitions are versioned."],["WFL-002","Transitions invoke the owning domain's business validation."],["WFL-003","Assignment, reassignment, escalation and controlled delegation."],["WFL-004","Sensitive transitions enforce approval authority."],["WFL-005","Long-running workflows recover after restarts or integration failures."]]},
+ {t:"Integration and API management",s:"§20",l:["API gateway","API catalogue","API authentication","Rate limiting","Partner registration","Integration credentials","Webhook management","Event messaging","Event schema governance","Retry and dead-letter handling","Integration monitoring","Error handling","Reconciliation and replay"],r:[["INT-001","APIs are documented and versioned."],["INT-002","APIs enforce authentication, authorisation, tenant scope and input validation."],["INT-003","Non-repeatable operations support idempotency where appropriate."],["INT-004","Events have stable identifiers and versioned schemas."],["INT-005","Event consumers tolerate duplicate delivery."],["INT-006","Failed integrations support controlled retry, monitoring and recovery."],["INT-007","Event payloads minimise sensitive data."]]}
+],
+risks:[
+ {t:"Over-generalised policy model",i:"Complex rules and poor domain evolution",m:"Separate Life, General and Health policy aggregates"},
+ {t:"Tenant data leakage",i:"Severe legal and reputational impact",m:"Defence in depth, automated isolation tests, controlled support access"},
+ {t:"Uncontrolled configuration",i:"Incorrect pricing or coverage",m:"Validation, simulation, approvals, versioning, effective dates"},
+ {t:"Premature microservices",i:"Operational complexity and slower delivery",m:"Begin with modular boundaries and split services where justified"},
+ {t:"Unclear regulatory scope",i:"Delayed launch or non-compliance",m:"Jurisdiction-specific compliance analysis before production"},
+ {t:"Financial inconsistencies",i:"Incorrect balances and settlements",m:"Idempotency, reconciliation, controlled reversals, traceable postings"},
+ {t:"External integration failures",i:"Delays and operational backlogs",m:"Retries, timeouts, dead-letter handling, monitoring, runbooks"},
+ {t:"Scope expansion",i:"Long delivery cycles",m:"Deliver one complete vertical slice before broad expansion"},
+ {t:"Unvalidated performance targets",i:"Cost overruns or SLA failures",m:"Benchmark representative workloads before committing to SLAs"},
+ {t:"Insufficient configuration governance",i:"Unauthorised product changes",m:"Maker-checker, immutable versions, simulation, audit"}
+],
+arch:[
+ {n:"Experience",c:"Insurer, broker, customer and provider portals; partner channels",r:"User and partner interaction."},
+ {n:"API and Integration",c:"API gateway, partner adapters, webhooks, event messaging",r:"Secure system interaction."},
+ {n:"Shared Insurance Services",c:"Party, Product Factory, Rating, Rules, Workflow, Documents, Billing, Payments",r:"Reusable business capabilities."},
+ {n:"Insurance Domains",c:"Life · General · Health",r:"Domain-owned insurance operations. Each domain owns its policies, claims, rules and lifecycles.",dom:1},
+ {n:"Enterprise and Platform Foundation",c:"Subledger, Reinsurance, Compliance, Tenant Isolation, IAM, Observability, Infrastructure",r:"Financial control and runtime services."}
+],
+life8:[
+ {s:"Draft",b:"Configuration is authored and edited. Nothing is in force.",r:"PRD-001, PRD-010"},
+ {s:"Validated",b:"The system checks for missing parameters, invalid values, incompatible benefits and unresolved dependencies.",r:"PRD-004, PRD-009"},
+ {s:"Submitted for Approval",b:"Simulation and test cases are run, then the version goes to a checker.",r:"PRD-005"},
+ {s:"Approved",b:"A separate approver accepts the version under maker-checker control.",r:"PRD-006"},
+ {s:"Published",b:"The version becomes immutable. Any later change creates a new version.",r:"PRD-002, PRD-003"},
+ {s:"Effective",b:"The version governs transactions from its effective date. Transactions keep a reference to the product, rating and rules versions used.",r:"PRD-007, PRD-008"},
+ {s:"Withdrawn or Retired",b:"The version stops being offered. Historical transactions keep their references to it.",r:"PRD-008"}
+],
+cfg:[
+ ["Change premium rates","config","Configuration"],
+ ["Add a coverage limit","config","Configuration"],
+ ["Add a product variant","config","Configuration"],
+ ["Change eligibility thresholds","config","Configuration"],
+ ["Add an exclusion","config","Configuration"],
+ ["Change underwriting referral rules","config","Configuration"],
+ ["Change policy wording","config","Template configuration"],
+ ["Introduce a new standard benefit type","cond","Configuration if the domain model supports it"],
+ ["Introduce a fundamentally new actuarial calculation","dev","New calculation component may be required"],
+ ["Introduce a new policy lifecycle","dev","Domain extension may be required"]
+],
+api:[["Tenant","Create, configure, suspend tenant"],["Party","Create, update, search party; manage relationships"],["Product","Create version, validate, simulate, approve, publish"],["Quotation","Create quote, calculate premium, refer to underwriting"],["Life Policy","Issue, change beneficiary, reinstate, surrender"],["General Policy","Issue, endorse, renew, cancel"],["Health Membership","Enrol member, add dependant, verify eligibility"],["Preauthorisation","Submit, assess, approve, reject"],["Claims","Register, assess, approve, settle, close"],["Billing","Generate invoice, retrieve receivables, allocate payment"],["Payments","Initiate, process callback, reconcile"],["Finance","Post subledger entry, reverse, reconcile"],["Reporting","Run report, retrieve result, export authorised data"]],
+events:{Product:["ProductVersionValidated","ProductVersionApproved","ProductVersionPublished"],Life:["LifeProposalSubmitted","LifePolicyIssued","LifePolicyChanged","LifePolicyLapsed","LifeClaimRegistered","LifeClaimSettled"],General:["GeneralQuoteAccepted","GeneralPolicyIssued","GeneralPolicyEndorsed","GeneralPolicyRenewed","GeneralClaimRegistered","GeneralClaimSettled"],Health:["HealthMemberEnrolled","HealthMemberStatusChanged","EligibilityDecisionRecorded","PreauthorisationApproved","MedicalClaimSubmitted","MedicalClaimSettled"],Financial:["InvoiceIssued","PaymentReceived","PaymentAllocated","PaymentReversed","CommissionAccrued","SubledgerEntryPosted","ReconciliationExceptionRaised"]},
+nfr:[["NFR-001","Availability","99.9% monthly availability for core production services"],["NFR-002","Standard API latency","p95 ≤ 2 s for agreed standard operations under benchmark load"],["NFR-003","Standard rating latency","p95 ≤ 3 s for agreed standard rating scenarios"],["NFR-004","Scalability","Horizontal scaling for stateless and high-volume components"],["NFR-005","Recovery Point Objective","RPO ≤ 15 minutes for core transactional data"],["NFR-006","Recovery Time Objective","RTO ≤ 4 hours for a regional disaster scenario"],["NFR-007","Auditability","End-to-end traceability for critical policy, claim, configuration and financial operations"],["NFR-008","Maintainability","Documented interfaces, automated tests, clear ownership"],["NFR-009","Interoperability","Versioned APIs and governed integration contracts"],["NFR-010","Accessibility","WCAG 2.2 AA for web interfaces where applicable"],["NFR-011","Portability","Automated deployment, limited dependence on cloud-specific services"],["NFR-012","Observability","Centralised metrics, logs, traces, dashboards and alerts"],["NFR-013","Data integrity","Domain invariants enforced within authoritative transactional boundaries"],["NFR-014","Backup","Encrypted, monitored, access-controlled, restore-tested backups"],["NFR-015","Capacity","Load tests for peak quotes, issuance, claims, provider submissions, month-end"]],
+acc:["Mandatory tenant-isolation tests pass","Critical policy and financial invariants are tested","Product publication is governed and auditable","Approved financial scenarios reconcile","Integration failures have defined recovery procedures","Monitoring and alerting are operational","Backup restoration has been demonstrated","Disaster-recovery targets have been tested","Regulatory and compliance reviews are complete","Production workload meets approved performance and availability targets"],
+phases:[
+ {n:"Discovery and architecture validation",k:"Deliverables",l:["Market and jurisdiction analysis","Product taxonomy","Initial domain model","Tenant-isolation architecture","Security and compliance register","Target workloads","Architecture decision records","MVP scope","Prioritised requirements backlog"],x:"Product owner, insurance specialists, architecture team and delivery leadership approve scope, architecture and acceptance criteria for the first production release."},
+ {n:"Platform foundation",k:"Modules",l:["Tenant Management","Identity and Access","Party Management","Product Catalogue foundation","Configuration Governance","Audit","API Gateway","Integration foundation","Observability","Document Management foundation","Deployment automation"],x:"A tenant can be provisioned securely, authorised users reach permitted capabilities, and automated tests demonstrate tenant isolation."},
+ {n:"Shared insurance services",k:"Modules",l:["Product Factory","Rating framework","Rules engine","Workflow","Billing","Payments","Commission framework","Financial subledger","Notifications","Shared claims infrastructure"],x:"A configured product progresses through an agreed quotation, policy issuance, billing, payment and accounting workflow."},
+ {n:"First insurance domain",k:"Selection basis",l:["Commercial commitments","Target-market demand","Domain expertise","Ability to deliver a complete production-grade product"],x:"The selected domain supports a complete agreed journey: policy administration, claims, financial processing, reporting and operational controls."},
+ {n:"Remaining insurance domains",k:"Approach",l:["Implement the other two domains","Reuse shared platform services","Preserve domain-specific business logic"],x:"Each domain meets its own functional acceptance suite and remains independently evolvable."},
+ {n:"Enterprise capabilities",k:"Prioritised capabilities",l:["Reinsurance","Advanced actuarial integrations","Regulatory reporting","Fraud analytics","Enterprise data and analytics","Advanced reconciliation","Expanded distribution integrations"],x:"No explicit exit criteria are given in the SRS for this phase."},
+ {n:"Scale and optimisation",k:"Focus",l:["Performance optimisation","Tenant service tiers","Operational automation","Advanced disaster recovery","Security maturity","Product configuration governance","Capacity planning"],x:"No explicit exit criteria are given in the SRS for this phase."}
+],
+open:[["First production domain","Which of Life, General or Health is delivered first?","ADR-010"],["Initial markets","Which countries and regulators are in scope for the first release?","—"],["Cloud providers","Which cloud providers and regions are approved?","ADR-008"],["Tenant service tiers","Which customers need dedicated databases or environments?","ADR-001"],["Service levels","Which availability, latency, throughput, RPO and RTO figures are contractual?","ADR-008"],["Accounting","Which accounting standards, chart-of-account structures and tax rules apply?","ADR-007"],["Currency","Which currencies and multi-currency accounting scenarios are needed?","—"],["Health standards","Which medical coding systems and provider claim formats are needed?","—"],["Actuarial calculations","Which calculations are native and which use external engines?","ADR-004"],["Integrations","Which payment, identity, accounting, distribution and regulatory systems come first?","ADR-006"],["Data retention","What retention, deletion and legal-hold rules apply per jurisdiction?","ADR-009"],["Workload","Target tenants, policies in force, quote and claims volume, concurrency?","—"],["Technology stack","Database decided: PostgreSQL (21 Oct 2026). Still open: languages, frameworks, message brokers and frontend technology.","ADR-002"]],
+trace:[["Tenant isolation","TEN-001 to TEN-010","Automated tests prove unauthorised cross-tenant access is blocked"],["Identity and access","IAM-001 to IAM-007","Role tests, tenant-scoped access tests, privileged-operation audit"],["Product configuration","PRD-001 to PRD-010","Product validates, is approved and published, and stays reproducible"],["Rating and underwriting","RAT requirements","Approved test cases reproduce expected pricing and decisions"],["Life insurance","LIF requirements","Complete Life quote-to-policy-to-claim scenario"],["General insurance","GEN requirements","Complete General quote-to-policy-to-claim scenario"],["Health insurance","HLT requirements","Complete member-to-eligibility-to-claim scenario"],["Billing and payments","BIL and PAY requirements","Premium billing, allocation, reversal and reconciliation tests"],["Financial accounting","FIN requirements","Subledger posting and external accounting reconciliation"],["Integration","INT requirements","API contract, retry, duplicate-event and recovery tests"],["Security and compliance","Security and compliance requirements","Security assessment, audit review, jurisdiction sign-off"],["Operations","NFR and deployment requirements","Load, backup, restore, monitoring and DR evidence"]]
+};
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const reqDL=r=>r.map(([id,t])=>`<dt>${id}</dt><dd>${esc(t)}</dd>`).join("");
+
+/* explorer */
+const detailFor={
+ decisions:x=>`<span class="tag gold">Decision</span><h3 style="margin-top:8px">${esc(x.t)}</h3><div class="sub">${esc(x.s)}</div><div class="sec"><div class="lbl">Implication</div><p>${esc(x.b)}</p></div>`,
+ capabilities:x=>`<span class="tag">Capability group</span><h3 style="margin-top:8px">${esc(x.t)}</h3><div class="sec"><div class="lbl">Scope</div><p>${esc(x.b)}</p></div>`,
+ roles:x=>`<span class="tag">User role</span><h3 style="margin-top:8px">${esc(x.t)}</h3><div class="sec"><div class="lbl">Principal responsibilities</div><p>${esc(x.b)}</p></div><p class="small">All permissions are tenant-scoped (SRS-003).</p>`,
+ layers:x=>`<span class="tag navy">Isolation layer</span><h3 style="margin-top:8px">${esc(x.t)}</h3><div class="sec"><div class="lbl">Required control</div><p>${esc(x.b)}</p></div>`,
+ risks:x=>`<span class="tag gold">Risk</span><h3 style="margin-top:8px">${esc(x.t)}</h3><div class="sec"><div class="lbl">Potential impact</div><p>${esc(x.i)}</p></div><div class="sec"><div class="lbl">Mitigation</div><p>${esc(x.m)}</p></div>`
+};
+const listDetail=(x,tag)=>`<span class="tag">${tag}</span><h3 style="margin-top:8px">${esc(x.t)}</h3>${x.s?`<div class="sub">${esc(x.s)}</div>`:""}${x.d?`<p class="small">${esc(x.d)}</p>`:""}<div class="sec"><div class="lbl">Submodules · ${x.l.length}</div><ul class="clean cols" style="font-size:14.5px">${x.l.map(i=>`<li>${esc(i)}</li>`).join("")}</ul></div>${x.r?`<div class="sec"><div class="lbl">Requirements</div><dl class="req">${reqDL(x.r)}</dl></div>`:""}`;
+["factory","life","general","health","services"].forEach(k=>detailFor[k]=x=>listDetail(x,{factory:"Product Factory",life:"Life module "+x.k,general:"General module "+x.k,health:"Health module "+x.k,services:"Shared service"}[k]));
+
+document.querySelectorAll(".explorer").forEach(ex=>{
+  const key=ex.dataset.src,items=D[key];
+  ex.innerHTML=`<div class="ex-list" role="tablist"></div><div class="ex-detail" aria-live="polite"></div>`;
+  const list=ex.firstChild,det=ex.lastChild;
+  items.forEach((x,i)=>{
+    const b=document.createElement("button");b.className="ex-item";b.setAttribute("role","tab");
+    b.innerHTML=`<span class="k">${x.k||String(i+1).padStart(2,"0")}</span><span>${esc(x.t)}</span>`;
+    b.onclick=()=>{list.querySelectorAll(".ex-item").forEach(e=>e.setAttribute("aria-selected","false"));b.setAttribute("aria-selected","true");det.innerHTML=detailFor[key](x)};
+    list.appendChild(b);
+  });
+  list.firstChild.click();
+});
+document.querySelectorAll("[data-reqs]").forEach(dl=>dl.innerHTML=reqDL(D[dl.dataset.reqs]));
+
+/* domain tabs */
+const tabs=document.querySelectorAll("#domTabs button");
+tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.setAttribute("aria-selected",x===t));document.querySelectorAll(".tabpane").forEach(p=>p.classList.toggle("on",p.dataset.t===t.dataset.t))});
+
+/* architecture stack */
+const stack=document.getElementById("stack");
+D.arch.forEach((a,i)=>{const b=document.createElement("button");b.className="layer"+(a.dom?" domain":"");b.setAttribute("aria-expanded",i===3);
+ b.innerHTML=`<span class="nm">${esc(a.n)}</span><span class="cp">${esc(a.c)}</span><span class="resp"><b style="color:var(--gold)">Responsibility.</b> ${esc(a.r)}</span>`;
+ b.onclick=()=>b.setAttribute("aria-expanded",b.getAttribute("aria-expanded")!=="true");stack.appendChild(b)});
+
+/* lifecycle stepper */
+function stepper(boxId,textId,items,label,render){
+  const box=document.getElementById(boxId),txt=document.getElementById(textId);
+  items.forEach((x,i)=>{
+    if(i) {const a=document.createElement("span");a.className="arrow";a.textContent="→";box.appendChild(a)}
+    const b=document.createElement("button");b.className="step";b.setAttribute("role","tab");
+    b.innerHTML=`<span class="d">${label(i)}</span>${esc(x.s||x.n)}`;
+    b.onclick=()=>{box.querySelectorAll(".step").forEach((s,j)=>{s.setAttribute("aria-selected",j===i);s.classList.toggle("done",j<i)});txt.innerHTML=render(x,i)};
+    box.appendChild(b);
+  });
+  box.querySelector(".step").click();
+}
+stepper("lifeSteps","lifeText",D.life8,i=>i+1,(x,i)=>`<span class="tag gold">State ${i+1} of 7</span><h3 style="margin-top:8px;font-size:22px">${esc(x.s)}</h3><p>${esc(x.b)}</p><p class="small" style="margin:0">Governing requirements: <span class="mono">${x.r}</span></p>`);
+stepper("phaseSteps","phaseText",D.phases,i=>i,(x,i)=>`<span class="tag navy">Phase ${i}</span><h3 style="margin-top:8px;font-size:22px">${esc(x.n)}</h3><div class="grid g2" style="margin-top:12px"><div><div class="small" style="text-transform:uppercase;letter-spacing:.1em;font-size:11px;font-weight:700;color:var(--line);margin-bottom:8px">${x.k}</div><ul class="clean" style="font-size:14.5px">${x.l.map(l=>`<li>${esc(l)}</li>`).join("")}</ul></div><div class="callout" style="margin:0;align-self:start"><b>Exit criteria.</b> ${esc(x.x)}</div></div>`);
+
+/* profiles */
+const P={
+ A:{h:"Profile A · Shared infrastructure",b:"Multiple tenants share application infrastructure and database services, with strict logical separation.",f:"Tenants whose security, regulatory and contractual requirements permit this model.",rows:[["Application services","s"],["Database","s"],["Environment","s"]]},
+ B:{h:"Profile B · Dedicated tenant database",b:"A tenant receives a dedicated database or equivalent isolated data service while sharing selected application services.",f:"Customers requiring stronger data separation.",rows:[["Application services","s"],["Database","d"],["Environment","s"]]},
+ C:{h:"Profile C · Dedicated tenant environment",b:"A tenant receives a dedicated application and data environment.",f:"Customers requiring stronger infrastructure separation, specific hosting arrangements or specialised operational controls.",rows:[["Application services","d"],["Database","d"],["Environment","d"]]}
+};
+function prof(k){
+  const p=P[k];
+  document.querySelectorAll("#profBtns button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===k));
+  document.getElementById("profDiagram").innerHTML=p.rows.map(([l,m])=>`<div class="trow"><div class="lbl">${l}</div><div class="cells">${m==="s"?`<div class="cell shared">Shared by Tenant 1, 2, 3 · logically separated</div>`:`<div class="cell ded">Tenant 1</div><div class="cell ded t2">Tenant 2</div><div class="cell ded t3">Tenant 3</div>`}</div></div>`).join("");
+  document.getElementById("profText").innerHTML=`<span class="tag gold">Selected profile</span><h3 style="margin-top:8px;font-size:21px">${p.h}</h3><p>${p.b}</p><div class="small" style="text-transform:uppercase;letter-spacing:.1em;font-size:11px;font-weight:700;color:var(--line);margin:14px 0 6px">Suitable for</div><p>${p.f}</p>`;
+}
+document.querySelectorAll("#profBtns button").forEach(b=>b.onclick=()=>prof(b.dataset.p));prof("A");
+
+/* config vs dev */
+const cls={config:"b-config",cond:"b-cond",dev:"b-dev"};
+function cfg(f){
+  document.querySelectorAll("#cfgFilter .chip").forEach(c=>c.setAttribute("aria-pressed",c.dataset.f===f));
+  document.getElementById("cfgList").innerHTML=D.cfg.filter(r=>f==="all"||r[1]===f).map(r=>`<div class="cfgrow"><span>${esc(r[0])}</span><span class="badge ${cls[r[1]]}">${esc(r[2])}</span></div>`).join("");
+}
+document.querySelectorAll("#cfgFilter .chip").forEach(c=>c.onclick=()=>cfg(c.dataset.f));cfg("all");
+
+/* api + events */
+document.getElementById("apiRows").innerHTML=D.api.map(a=>`<tr><td style="font-weight:600;color:var(--navy);white-space:nowrap">${a[0]}</td><td>${a[1]}</td></tr>`).join("");
+function ev(f){
+  document.querySelectorAll("#evFilter .chip").forEach(c=>c.setAttribute("aria-pressed",c.dataset.f===f));
+  document.getElementById("evList").innerHTML=Object.entries(D.events).filter(([k])=>f==="all"||k===f).flatMap(([k,v])=>v.map(e=>`<div class="ev" data-f="${k}">${e}</div>`)).join("");
+}
+document.querySelectorAll("#evFilter .chip").forEach(c=>c.onclick=()=>ev(c.dataset.f));ev("all");
+
+/* tables */
+document.getElementById("nfrRows").innerHTML=D.nfr.map(r=>`<tr><td class="id">${r[0]}</td><td>${r[1]}</td><td class="tgt">${esc(r[2])}</td></tr>`).join("");
+document.getElementById("openRows").innerHTML=D.open.map(r=>`<tr><td style="font-weight:600;color:var(--navy)">${r[0]}</td><td>${r[1]}</td><td class="id">${r[2]}</td></tr>`).join("");
+document.getElementById("traceRows").innerHTML=D.trace.map(r=>{const flag=r[1].startsWith("TEN")||r[1].startsWith("RAT");return `<tr><td style="font-weight:600;color:var(--navy)">${r[0]}</td><td class="id">${r[1]}${flag?' <span class="tag gold" style="font-family:var(--f-body)">see review notes</span>':""}</td><td>${r[2]}</td></tr>`}).join("");
+
+/* acceptance checklist */
+const acc=document.getElementById("accList");
+acc.innerHTML=D.acc.map((a,i)=>`<label class="check"><input type="checkbox" id="acc${i}"><span>${a}</span></label>`).join("");
+acc.addEventListener("change",()=>{const n=acc.querySelectorAll("input:checked").length;document.getElementById("accCount").textContent=n;document.getElementById("accMeter").style.width=(n*10)+"%"});
+
+/* navigation */
+const slides=[...document.querySelectorAll(".slide")],toc=document.getElementById("toc");
+let cur=0,lastPart="";
+slides.forEach((s,i)=>{
+  if(s.dataset.part!==lastPart){lastPart=s.dataset.part;const g=document.createElement("div");g.className="grp";g.textContent=lastPart;toc.appendChild(g)}
+  const b=document.createElement("button");b.innerHTML=`<span class="n">${String(i+1).padStart(2,"0")}</span><span>${esc(s.dataset.title)}</span>`;
+  b.onclick=()=>{go(i);closeRail()};toc.appendChild(b);s._btn=b;
+});
+function go(i){
+  cur=Math.max(0,Math.min(slides.length-1,i));
+  slides.forEach((s,j)=>{s.classList.toggle("on",j===cur);s._btn.setAttribute("aria-current",j===cur)});
+  const s=slides[cur];
+  document.getElementById("crumb").innerHTML=`${esc(s.dataset.part)} · <b>${esc(s.dataset.title)}</b>`;
+  document.getElementById("count").textContent=`${cur+1} / ${slides.length}`;
+  document.getElementById("bar").style.width=((cur+1)/slides.length*100)+"%";
+  document.getElementById("prev").disabled=cur===0;document.getElementById("next").disabled=cur===slides.length-1;
+  document.getElementById("viewport").scrollTop=0;
+  s._btn.scrollIntoView({block:"nearest"});
+  try{history.replaceState(null,"","#s"+(cur+1))}catch(e){}
+}
+document.getElementById("prev").onclick=()=>go(cur-1);
+document.getElementById("next").onclick=()=>go(cur+1);
+document.addEventListener("keydown",e=>{
+  if(e.target.closest("input,textarea"))return;
+  if(e.key==="ArrowRight"||e.key==="PageDown"){e.preventDefault();go(cur+1)}
+  if(e.key==="ArrowLeft"||e.key==="PageUp"){e.preventDefault();go(cur-1)}
+  if(e.key==="Home")go(0);if(e.key==="End")go(slides.length-1);
+});
+const rail=document.getElementById("rail"),mb=document.getElementById("menuBtn");
+function closeRail(){rail.classList.remove("open");mb.setAttribute("aria-expanded","false")}
+mb.onclick=()=>{const o=rail.classList.toggle("open");mb.setAttribute("aria-expanded",o)};
+const m=/^#s(\d+)$/.exec(location.hash);go(m?parseInt(m[1],10)-1:0);
+</script>

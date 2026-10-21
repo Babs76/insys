@@ -1,0 +1,27 @@
+# Local development database: PostgreSQL 18.
+#   docker compose up -d postgres
+#   INSYS_APP_ROLE_PASSWORD=insys_app_local dotnet run --project tools/Insys.DbMigrator -- \
+#     --connection "Host=localhost;Port=5432;Database=insys;Username=insys_owner;Password=insys_owner_local" --app-role insys_app
+#   dotnet run --project src/Host/Insys.Api
+# The owner role runs migrations; the API connects as insys_app, a non-owner without BYPASSRLS (DBA-002).
+# Local-only credentials. Never reuse them anywhere else.
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: insys
+      POSTGRES_USER: insys_owner
+      POSTGRES_PASSWORD: insys_owner_local
+    ports:
+      - "5432:5432"
+    volumes:
+      # PostgreSQL 18 images keep data under /var/lib/postgresql/<major>/docker.
+      - insys-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U insys_owner -d insys"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  insys-pgdata:

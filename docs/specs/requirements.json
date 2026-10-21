@@ -1,0 +1,300 @@
+{
+ "note": "SRS requirements are from INSYS Core SRS v1.0 (21 Oct 2026). SDM and DBA requirements are proposed in the companion specifications, not SRS requirements.",
+ "srs": {
+  "BIL-001": "The platform MUST generate billing obligations from authorised policy and premium transactions.",
+  "BIL-002": "Billing records MUST reference the source policy, tenant, product, currency, and relevant business dates.",
+  "BIL-003": "The system MUST support partial payments and payment allocation according to configured rules.",
+  "BIL-004": "The platform MUST maintain an auditable history of billing adjustments and reversals.",
+  "CLM-001": "All domains MUST use shared claims infrastructure where the capabilities are genuinely common.",
+  "CLM-002": "Each domain MUST own its claims adjudication logic.",
+  "CLM-003": "Claim decisions MUST record the relevant policy or coverage references, decision rationale, evidence references, applicable rules, authority, and timestamps.",
+  "CLM-004": "Claims reserves, approved amounts, payments, and recoveries MUST be represented as traceable financial movements.",
+  "CLM-005": "Claims processing MUST safely handle duplicate submissions and retry scenarios.",
+  "DOC-001": "Documents MUST be tenant-scoped and access-controlled.",
+  "DOC-002": "Generated documents MUST retain references to the applicable template and product versions.",
+  "DOC-003": "Access to sensitive documents MUST be auditable.",
+  "DOC-004": "Medical and other highly sensitive documents MUST receive additional access controls appropriate to their classification.",
+  "DST-001": "Intermediaries MUST have controlled records and configurable product permissions.",
+  "DST-002": "Commission rules MUST support effective dating and versioning.",
+  "DST-003": "Commission calculations MUST retain the applicable plan version and source transaction.",
+  "DST-004": "Commission payments MUST be subject to appropriate approval and financial controls.",
+  "FIN-001": "Financial transactions MUST be traceable to their originating business transactions.",
+  "FIN-002": "Posted entries MUST NOT be silently overwritten.",
+  "FIN-003": "Corrections MUST use explicit reversal or adjustment transactions.",
+  "FIN-004": "Posting rules and account mappings MUST be versioned and governed.",
+  "FIN-005": "The subledger MUST support tenant, currency, accounting date, transaction date, source domain, and business reference as applicable.",
+  "FIN-006": "Financial reconciliation MUST identify unmatched, duplicated, delayed, and inconsistent transactions.",
+  "FIN-007": "Integration failures MUST be visible to authorised operational users.",
+  "GEN-001": "The domain MUST support quotation, underwriting, and policy issuance.",
+  "GEN-002": "Policies MUST support multiple insured risk objects where applicable.",
+  "GEN-003": "Endorsements MUST support effective dates, coverage changes, premium adjustments, document generation, and audit history.",
+  "GEN-004": "Renewals, cancellations, and reinstatements MUST follow configurable product rules.",
+  "GEN-005": "Different product families MUST be able to use distinct risk attributes and rating logic.",
+  "GEN-006": "Claims MUST support registration, coverage validation, assessment, reserves, approval, settlement, and closure.",
+  "GEN-007": "The system SHOULD support loss adjusters, surveyors, repairers, salvage, and third-party recovery.",
+  "GEN-008": "Claim settlement MUST account for deductibles, excesses, limits, and applicable valuation rules.",
+  "HLT-001": "The domain MUST support health products, plans, benefits, exclusions, waiting periods, co-payments, and limits.",
+  "HLT-002": "The domain MUST support principal members, dependants, group schemes, enrolment, and membership lifecycle changes.",
+  "HLT-003": "The platform MUST expose authorised member-eligibility inquiries.",
+  "HLT-004": "Provider contracts and tariffs MUST support effective dating.",
+  "HLT-005": "The platform MUST support preauthorisation requests, decisions, limits, expiry, and audit.",
+  "HLT-006": "The domain MUST support provider-submitted claims and member reimbursement claims.",
+  "HLT-007": "Medical claims MUST validate membership, coverage, benefit limits, applicable tariffs, preauthorisation, and configured exclusions.",
+  "HLT-008": "Medical information MUST be restricted according to role, purpose, and minimum necessary access.",
+  "HLT-009": "Provider and member payments MUST be traceable and reconcilable.",
+  "IAM-001": "The platform MUST support tenant-scoped user identities and permissions.",
+  "IAM-002": "It MUST support federation with approved identity providers using standard protocols such as OpenID Connect or SAML where required.",
+  "IAM-003": "Multi-factor authentication MUST be supported for privileged and sensitive roles.",
+  "IAM-004": "Service accounts MUST have explicit scopes, limited permissions, and controlled credentials.",
+  "IAM-005": "The system MUST support prompt revocation of compromised or deactivated identities.",
+  "IAM-006": "Sensitive operations MUST record the acting user or service identity, tenant, operation, target resource, timestamp, and outcome.",
+  "IAM-007": "Authorisation MUST be enforced by backend services and MUST NOT rely exclusively on user-interface restrictions.",
+  "INT-001": "APIs MUST be documented and versioned.",
+  "INT-002": "APIs MUST enforce authentication, authorisation, tenant scope, and input validation.",
+  "INT-003": "Non-repeatable business operations MUST support idempotency where appropriate.",
+  "INT-004": "Events MUST have stable identifiers and versioned schemas.",
+  "INT-005": "Event consumers MUST tolerate duplicate delivery.",
+  "INT-006": "Failed integrations MUST support controlled retry, monitoring, and recovery.",
+  "INT-007": "Event payloads MUST minimise sensitive data.",
+  "LIF-001": "The domain MUST support proposal capture and quotation.",
+  "LIF-002": "Underwriting decisions MUST be traceable and reproducible to the extent permitted by retained data and calculation methods.",
+  "LIF-003": "Issued policies MUST reference approved product and configuration versions.",
+  "LIF-004": "Policy servicing MUST validate each requested change against policy state, product rules, and applicable authority.",
+  "LIF-005": "Premium processing MUST support configured payment frequencies, grace periods, arrears, lapse, and reinstatement.",
+  "LIF-006": "The domain MUST support product-appropriate death, disability, critical illness, maturity, and other benefit claims.",
+  "LIF-007": "Cash-value, surrender-value, and loan capabilities MUST be enabled only for products that support them.",
+  "LIF-008": "Life claims MUST validate policy status, insured-life details, benefit eligibility, exclusions, and claimant authority.",
+  "NFR-001": "Availability: 99.9% monthly availability for core production services (proposed starting target, not a contractual commitment)",
+  "NFR-002": "Standard API latency: p95 ≤ 2 s for agreed standard operations under benchmark load (proposed starting target, not a contractual commitment)",
+  "NFR-003": "Standard rating latency: p95 ≤ 3 s for agreed standard rating scenarios (proposed starting target, not a contractual commitment)",
+  "NFR-004": "Scalability: Horizontal scaling for stateless and high-volume components (proposed starting target, not a contractual commitment)",
+  "NFR-005": "Recovery Point Objective: RPO ≤ 15 minutes for core transactional data (proposed starting target, not a contractual commitment)",
+  "NFR-006": "Recovery Time Objective: RTO ≤ 4 hours for a regional disaster scenario (proposed starting target, not a contractual commitment)",
+  "NFR-007": "Auditability: End-to-end traceability for critical policy, claim, configuration and financial operations (proposed starting target, not a contractual commitment)",
+  "NFR-008": "Maintainability: Documented interfaces, automated tests, clear ownership (proposed starting target, not a contractual commitment)",
+  "NFR-009": "Interoperability: Versioned APIs and governed integration contracts (proposed starting target, not a contractual commitment)",
+  "NFR-010": "Accessibility: WCAG 2.2 AA for web interfaces where applicable (proposed starting target, not a contractual commitment)",
+  "NFR-011": "Portability: Automated deployment, limited dependence on cloud-specific services (proposed starting target, not a contractual commitment)",
+  "NFR-012": "Observability: Centralised metrics, logs, traces, dashboards and alerts (proposed starting target, not a contractual commitment)",
+  "NFR-013": "Data integrity: Domain invariants enforced within authoritative transactional boundaries (proposed starting target, not a contractual commitment)",
+  "NFR-014": "Backup: Encrypted, monitored, access-controlled, restore-tested backups (proposed starting target, not a contractual commitment)",
+  "NFR-015": "Capacity: Load tests for peak quotes, issuance, claims, provider submissions, month-end (proposed starting target, not a contractual commitment)",
+  "PAY-001": "Payment operations MUST use idempotency controls to prevent duplicate financial effects.",
+  "PAY-002": "Payment status changes MUST be traceable.",
+  "PAY-003": "The system MUST support reconciliation between internal transactions and external bank or payment-provider records.",
+  "PAY-004": "Payment credentials and sensitive payment data MUST be protected.",
+  "PAY-005": "Failed or ambiguous payments MUST enter a controlled exception or reconciliation process rather than being silently treated as successful.",
+  "PRD-001": "Product definitions MUST be versioned.",
+  "PRD-002": "Published product versions MUST be immutable.",
+  "PRD-003": "Changes to published products MUST create a new version.",
+  "PRD-004": "The system MUST validate product configuration before publication.",
+  "PRD-005": "The platform MUST support simulation and test cases before publication.",
+  "PRD-006": "Publication MUST support maker-checker approval.",
+  "PRD-007": "Product versions MUST support effective dates.",
+  "PRD-008": "Transactions MUST retain references to the product, rating, and rules versions used.",
+  "PRD-009": "The system MUST identify missing parameters, invalid values, incompatible benefits, and unresolved dependencies.",
+  "PRD-010": "Configuration changes MUST be auditable.",
+  "PTY-001": "The system MUST support individuals and organisations.",
+  "PTY-002": "A party MUST be capable of holding multiple roles.",
+  "PTY-003": "The system MUST support tenant-scoped party access and controlled sharing of information.",
+  "PTY-004": "Duplicate detection and record merging SHOULD be supported with an auditable history.",
+  "PTY-005": "Personal information MUST be collected and exposed according to authorised business purposes and applicable privacy requirements.",
+  "REI-001": "Reinsurance records MUST retain links to the underlying policies, risks, claims, and financial transactions.",
+  "REI-002": "Cession calculations MUST be reproducible using the applicable arrangement and configuration versions.",
+  "REI-003": "Reinsurance recoverables and settlements MUST be traceable and reconcilable.",
+  "SRS-001": "The platform MUST support configurable role-based access control.",
+  "SRS-002": "The platform MUST support configurable maker-checker controls for sensitive operations, including product publication, underwriting overrides, claim approval, payment release, financial adjustments and privileged user administration.",
+  "SRS-003": "Permissions MUST be restricted to authorised tenants and, where configured, to specific products, branches, organisations, and transaction categories.",
+  "TEN-001": "Every tenant MUST have a unique, immutable identifier.",
+  "TEN-002": "Tenant context MUST be derived from a trusted authentication or service identity mechanism. An untrusted request parameter alone MUST NOT determine the tenant.",
+  "TEN-003": "Every tenant-scoped operation MUST validate that the authenticated principal is authorised for the resolved tenant.",
+  "TEN-004": "The platform MUST enforce tenant isolation across transactional data, documents, APIs, caches, events, search, analytics, reporting, and background processing.",
+  "TEN-005": "Cross-tenant access attempts MUST be rejected and logged.",
+  "TEN-006": "Tenant-specific product configurations, user permissions, integration credentials, and operational settings MUST remain isolated.",
+  "TEN-007": "Administrative access to tenant data MUST be controlled, auditable, and restricted to an approved operational purpose.",
+  "TEN-008": "Tenant onboarding, suspension, reactivation, and termination MUST be governed by defined workflows.",
+  "WFL-001": "Workflow definitions MUST be versioned.",
+  "WFL-002": "A workflow transition MUST invoke the owning domain’s business validation.",
+  "WFL-003": "Workflows MUST support assignment, reassignment, escalation, and controlled delegation.",
+  "WFL-004": "Sensitive transitions MUST enforce approval authority.",
+  "WFL-005": "Long-running workflows MUST support recovery after service restarts or temporary integration failures."
+ },
+ "proposed": {
+  "SDM": {
+   "SDM-001": {
+    "text": "Every static data entity is registered in a catalogue with owner role, class, scope, tier and data classification.",
+    "extends": null
+   },
+   "SDM-002": {
+    "text": "Business codes are immutable after first activation. A change in meaning creates a new code or a new version.",
+    "extends": "PRD-002"
+   },
+   "SDM-003": {
+    "text": "Tier 1 changes require maker-checker approval by a different user. Tier 2 changes require it unless the tenant switches it off.",
+    "extends": "SRS-002"
+   },
+   "SDM-004": {
+    "text": "All Tier 1 and Tier 2 items are effective-dated. Future-dated changes are allowed. Effective periods for one code must not overlap.",
+    "extends": "PRD-007"
+   },
+   "SDM-005": {
+    "text": "Retroactive changes to active Tier 1 data are prohibited except through an approved correction workflow with an impact report.",
+    "extends": null
+   },
+   "SDM-006": {
+    "text": "Transactions keep the version of every Tier 1 item that governed them, so results can be reproduced.",
+    "extends": "PRD-008, LIF-002, REI-002"
+   },
+   "SDM-007": {
+    "text": "A referenced code cannot be deleted. It can only be deprecated or retired, with a replacement mapping where needed.",
+    "extends": null
+   },
+   "SDM-008": {
+    "text": "Tenant data is isolated. A tenant overlay never changes a platform-global baseline.",
+    "extends": "TEN-006"
+   },
+   "SDM-009": {
+    "text": "Each activated change publishes a versioned event carrying the tenant ID. Consumers invalidate tenant-aware caches on receipt.",
+    "extends": "TEN-004, INT-004, INT-005"
+   },
+   "SDM-010": {
+    "text": "Before activation, Tier 1 changes show their impact: affected products, policies in force, open claims and scheduled runs.",
+    "extends": null
+   },
+   "SDM-011": {
+    "text": "Rating, rules, posting and cession changes are simulated against approved test cases before activation.",
+    "extends": "PRD-005, FIN-004, REI-002"
+   },
+   "SDM-012": {
+    "text": "Bulk imports are fully validated before commit. Each batch commits completely or not at all, and rejected lines are reported individually.",
+    "extends": null
+   },
+   "SDM-013": {
+    "text": "Data quality rules (mandatory fields, ranges, cross-references, overlapping periods) are enforced on save and again on approval.",
+    "extends": "PRD-009"
+   },
+   "SDM-014": {
+    "text": "Every change is audited with actor, tenant, before and after values, reason, time and outcome.",
+    "extends": "IAM-006, PRD-010"
+   },
+   "SDM-015": {
+    "text": "Any static data set can be queried and exported as at a past date for audit and dispute resolution.",
+    "extends": null
+   },
+   "SDM-016": {
+    "text": "Secret values are never stored as static data. Records hold only references to the secrets manager.",
+    "extends": "PAY-004, IAM-004"
+   },
+   "SDM-017": {
+    "text": "Confidential master data such as bank details is masked by default, and each unmasked view is audited.",
+    "extends": "PAY-004, DOC-003"
+   },
+   "SDM-018": {
+    "text": "External standard lists record their source, edition and load date. Updates pass through the same approval as internal changes.",
+    "extends": null
+   },
+   "SDM-019": {
+    "text": "Labels support multiple languages, with a tenant-level fallback language.",
+    "extends": null
+   },
+   "SDM-020": {
+    "text": "Static data moves between environments only through an approved, audited configuration package.",
+    "extends": "§26.2"
+   }
+  },
+  "DBA": {
+   "DBA-001": {
+    "text": "Every tenant-scoped table has tenant_id NOT NULL as the first primary key column.",
+    "implements": "TEN-004"
+   },
+   "DBA-002": {
+    "text": "Row-level security is enabled and forced on every tenant-scoped table. Application roles never own tables and never hold BYPASSRLS.",
+    "implements": "§4.2"
+   },
+   "DBA-003": {
+    "text": "The tenant for a transaction is set only from the authenticated principal, never from request input. If it is missing, queries fail.",
+    "implements": "TEN-002"
+   },
+   "DBA-004": {
+    "text": "Each module owns one schema. Only its service role has write privileges on it.",
+    "implements": "§21.3"
+   },
+   "DBA-005": {
+    "text": "No foreign keys cross module schemas. Cross-module references are plain IDs, checked through APIs or events.",
+    "implements": "§21.3"
+   },
+   "DBA-006": {
+    "text": "Each module writes domain events to its own outbox table in the same transaction as the business change.",
+    "implements": "§23.2"
+   },
+   "DBA-007": {
+    "text": "Each consumer records processed event IDs under a unique key and ignores duplicates.",
+    "implements": "INT-005, CLM-005"
+   },
+   "DBA-008": {
+    "text": "Non-repeatable operations store an idempotency key, request hash and original response.",
+    "implements": "INT-003, PAY-001"
+   },
+   "DBA-009": {
+    "text": "Posted financial records are insert-only. Service roles have no UPDATE or DELETE on them, and corrections are reversal rows.",
+    "implements": "FIN-002, FIN-003"
+   },
+   "DBA-010": {
+    "text": "Transactions store the version of each configuration item that governed them.",
+    "implements": "PRD-008, DST-003, REI-002"
+   },
+   "DBA-011": {
+    "text": "Mutable rows use optimistic concurrency through row_version.",
+    "implements": null
+   },
+   "DBA-012": {
+    "text": "Money is stored as numeric with an explicit currency column. Floating-point types are not used for money or rates.",
+    "implements": null
+   },
+   "DBA-013": {
+    "text": "Timestamps are timestamptz in UTC. Business dates such as accounting and effective dates are plain dates.",
+    "implements": "FIN-005"
+   },
+   "DBA-014": {
+    "text": "Highly sensitive identifiers are encrypted by the application, with a keyed hash for exact-match lookup.",
+    "implements": "§24.1"
+   },
+   "DBA-015": {
+    "text": "Medical columns are reachable only through column-level grants and purpose-specific views.",
+    "implements": "HLT-008"
+   },
+   "DBA-016": {
+    "text": "The audit table is insert-only, partitioned by month and retained per the audit retention policy.",
+    "implements": "IAM-006"
+   },
+   "DBA-017": {
+    "text": "Schema changes are versioned, forward-only migrations applied by the pipeline. Manual DDL in production is not allowed.",
+    "implements": "§26.2"
+   },
+   "DBA-018": {
+    "text": "High-volume append-only tables are partitioned by time, with the partition key in the primary key.",
+    "implements": "NFR-004"
+   },
+   "DBA-019": {
+    "text": "Reporting and analytics read from replicas or projections, never from transactional primaries.",
+    "implements": "§21.3"
+   },
+   "DBA-020": {
+    "text": "Backups are encrypted, monitored and restore-tested. Profiles B and C support per-tenant restore.",
+    "implements": "NFR-014"
+   },
+   "DBA-021": {
+    "text": "Transactional records are never soft-deleted. They change status, and history is kept in log or event tables.",
+    "implements": null
+   },
+   "DBA-022": {
+    "text": "When retention ends, personal data is anonymised in place so financial totals and audit evidence stay intact.",
+    "implements": "§30 data retention"
+   },
+   "DBA-023": {
+    "text": "Every partition carries the same row-level security policy as its parent, and partitions are created ahead of need. A row with no matching partition is rejected.",
+    "implements": "TEN-004"
+   }
+  }
+ }
+}

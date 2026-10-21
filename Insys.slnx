@@ -1,0 +1,32 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/Insys.BuildingBlocks.Api/Insys.BuildingBlocks.Api.csproj" />
+    <Project Path="src/BuildingBlocks/Insys.BuildingBlocks.Application/Insys.BuildingBlocks.Application.csproj" />
+    <Project Path="src/BuildingBlocks/Insys.BuildingBlocks.Contracts/Insys.BuildingBlocks.Contracts.csproj" />
+    <Project Path="src/BuildingBlocks/Insys.BuildingBlocks.Domain/Insys.BuildingBlocks.Domain.csproj" />
+    <Project Path="src/BuildingBlocks/Insys.BuildingBlocks.Infrastructure/Insys.BuildingBlocks.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Host/">
+    <Project Path="src/Host/Insys.Api/Insys.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Integration/">
+    <Project Path="src/Modules/Integration/Insys.Integration.Api/Insys.Integration.Api.csproj" />
+    <Project Path="src/Modules/Integration/Insys.Integration.Application/Insys.Integration.Application.csproj" />
+    <Project Path="src/Modules/Integration/Insys.Integration.Contracts/Insys.Integration.Contracts.csproj" />
+    <Project Path="src/Modules/Integration/Insys.Integration.Domain/Insys.Integration.Domain.csproj" />
+    <Project Path="src/Modules/Integration/Insys.Integration.Infrastructure/Insys.Integration.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Insys.ArchitectureTests/Insys.ArchitectureTests.csproj" />
+    <Project Path="tests/Insys.BuildingBlocks.Tests/Insys.BuildingBlocks.Tests.csproj" />
+    <Project Path="tests/Insys.EndToEndTests/Insys.EndToEndTests.csproj" />
+    <Project Path="tests/Insys.Integration.Tests/Insys.Integration.Tests.csproj" />
+    <Project Path="tests/Insys.IntegrationTests/Insys.IntegrationTests.csproj" />
+    <Project Path="tests/Insys.Testing/Insys.Testing.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Insys.DbMigrator/Insys.DbMigrator.csproj" />
+  </Folder>
+</Solution>

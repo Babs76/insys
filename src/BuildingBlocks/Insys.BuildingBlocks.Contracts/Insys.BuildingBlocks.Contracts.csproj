@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Insys.BuildingBlocks.Contracts</RootNamespace>
+  </PropertyGroup>
+</Project>
