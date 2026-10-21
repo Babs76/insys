@@ -14,6 +14,7 @@ public sealed class PostgresServer : IAsyncLifetime
 {
     public const string AppRole = "insys_app_test";
     public const string AppRolePassword = "insys_app_test_only";
+    private readonly SemaphoreSlim _migrationLock = new(1, 1);
     private PostgreSqlContainer? _container;
 
     public string AdminConnectionString { get; private set; } = "";
@@ -59,6 +60,8 @@ public sealed class PostgresServer : IAsyncLifetime
         {
             await _container.DisposeAsync();
         }
+
+        _migrationLock.Dispose();
     }
 
     /// <summary>Creates an empty database and returns its owner connection string.</summary>
@@ -81,8 +84,20 @@ public sealed class PostgresServer : IAsyncLifetime
         var owner = await CreateEmptyDatabase();
         var name = new NpgsqlConnectionStringBuilder(owner).Database!;
         var runner = new MigrationRunner(owner);
-        var result = await runner.Migrate(RepositoryPaths.Migrations);
-        await runner.GrantAppRole(RepositoryPaths.AppRoleGrants, AppRole, AppRolePassword);
+
+        // Migrations create cluster-wide roles (V0002 creates insys_platform_admin). Test classes run in parallel,
+        // so apply them one database at a time; concurrent CREATE ROLE races even behind IF NOT EXISTS.
+        MigrationResult result;
+        await _migrationLock.WaitAsync();
+        try
+        {
+            result = await runner.Migrate(RepositoryPaths.Migrations);
+            await runner.GrantAppRole(RepositoryPaths.AppRoleGrants, AppRole, AppRolePassword);
+        }
+        finally
+        {
+            _migrationLock.Release();
+        }
 
         var app = new NpgsqlConnectionStringBuilder(AdminConnectionString)
         {
