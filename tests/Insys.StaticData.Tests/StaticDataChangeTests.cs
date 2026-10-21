@@ -10,7 +10,7 @@ public sealed class StaticDataChangeTests
     private static readonly Guid Maker = Guid.CreateVersion7();
 
     private static StaticDataChange Submitted(bool requiresChecker = true) =>
-        StaticDataChange.SubmitChange(Guid.CreateVersion7(), "ref_currencies", "ZAR@1", "CREATE", "{}", Maker, new DateOnly(2026, 11, 1), "New", requiresChecker, Now);
+        StaticDataChange.SubmitChange(Guid.CreateVersion7(), "ref_currencies", "ZAR@1", "CREATE", "{}", Maker, new DateOnly(2026, 11, 1), "New", requiresChecker, "STATIC_DATA_T1", Now);
 
     [Fact]
     public void StaticDataChange_Lifecycle_MatchesDomainModel()

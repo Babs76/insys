@@ -121,7 +121,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) UI label and translation bundles version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeIntegrationUILabelAndTranslationBundlesLifecycleGlobal",
         "parameters": [
           {
@@ -313,7 +313,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) API catalogue entries version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeIntegrationAPICatalogueEntriesLifecycleGlobal",
         "parameters": [
           {
@@ -505,7 +505,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Event schema versions version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeIntegrationEventSchemaVersionsLifecycleGlobal",
         "parameters": [
           {
@@ -697,7 +697,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Rate limit policies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeIntegrationRateLimitPoliciesLifecycleGlobal",
         "parameters": [
           {
@@ -889,7 +889,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Retry and dead-letter policies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeIntegrationRetryAndDeadLetterPoliciesLifecycleGlobal",
         "parameters": [
           {
@@ -1081,7 +1081,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Error code catalogue version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeIntegrationErrorCodeCatalogueLifecycleGlobal",
         "parameters": [
           {
@@ -1273,7 +1273,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Alert rules and thresholds version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataAlertRulesAndThresholdsLifecycleGlobal",
         "parameters": [
           {
@@ -1465,7 +1465,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Backup and recovery policies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataBackupAndRecoveryPoliciesLifecycleGlobal",
         "parameters": [
           {
@@ -1657,7 +1657,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Dashboard definitions version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataDashboardDefinitionsLifecycleGlobal",
         "parameters": [
           {
@@ -1849,7 +1849,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Environment configuration baselines version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataEnvironmentConfigurationBaselinesLifecycleGlobal",
         "parameters": [
           {
@@ -2041,7 +2041,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Countries version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataCountriesLifecycleGlobal",
         "parameters": [
           {
@@ -2233,7 +2233,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Country subdivisions version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataCountrySubdivisionsLifecycleGlobal",
         "parameters": [
           {
@@ -2425,7 +2425,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Currencies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataCurrenciesLifecycleGlobal",
         "parameters": [
           {
@@ -2617,7 +2617,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Languages version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataLanguagesLifecycleGlobal",
         "parameters": [
           {
@@ -2809,7 +2809,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Public holiday calendars version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataPublicHolidayCalendarsLifecycleGlobal",
         "parameters": [
           {
@@ -3001,7 +3001,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Time zones version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataTimeZonesLifecycleGlobal",
         "parameters": [
           {
@@ -3193,7 +3193,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Units of measure version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataUnitsOfMeasureLifecycleGlobal",
         "parameters": [
           {
@@ -3385,7 +3385,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Static data entity register version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataStaticDataEntityRegisterLifecycleGlobal",
         "parameters": [
           {
@@ -3577,7 +3577,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Validation rule sets version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataValidationRuleSetsLifecycleGlobal",
         "parameters": [
           {
@@ -3769,7 +3769,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) External source register version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeStaticDataExternalSourceRegisterLifecycleGlobal",
         "parameters": [
           {
@@ -3844,119 +3844,6 @@
           }
         },
         "x-permission": "static_data.create"
-      }
-    },
-    "/api/v1/{module}/static/{entity}/global/{code}/versions/{versionNumber}/approve": {
-      "post": {
-        "tags": [
-          "StaticData governance"
-        ],
-        "summary": "Approve the pending change of a static data version",
-        "description": "The checker must not be the maker for Tier 1 and Tier 2 data (SDM-003). The owning module then marks the version approved.",
-        "operationId": "ApproveStaticDataChangeGlobal",
-        "parameters": [
-          {
-            "name": "module",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "entity",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "code",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "versionNumber",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "x-permission": "static_data.approve"
-      }
-    },
-    "/api/v1/{module}/static/{entity}/global/{code}/versions/{versionNumber}/reject": {
-      "post": {
-        "tags": [
-          "StaticData governance"
-        ],
-        "summary": "Reject the pending change of a static data version; it returns to draft",
-        "operationId": "RejectStaticDataChangeGlobal",
-        "parameters": [
-          {
-            "name": "module",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "entity",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "code",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "versionNumber",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RejectChangeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "x-permission": "static_data.approve"
       }
     },
     "/api/v1/party/static/address-formats-and-administrative-regions/global/{code}/versions": {
@@ -4074,7 +3961,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Address formats and administrative regions version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangePartyAddressFormatsAndAdministrativeRegionsLifecycleGlobal",
         "parameters": [
           {
@@ -4266,7 +4153,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Contact channel types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangePartyContactChannelTypesLifecycleGlobal",
         "parameters": [
           {
@@ -4458,7 +4345,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Customer status codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangePartyCustomerStatusCodesLifecycleGlobal",
         "parameters": [
           {
@@ -4650,7 +4537,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Identity document types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangePartyIdentityDocumentTypesLifecycleGlobal",
         "parameters": [
           {
@@ -4842,7 +4729,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Party role types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangePartyPartyRoleTypesLifecycleGlobal",
         "parameters": [
           {
@@ -5034,7 +4921,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Party types and legal forms version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangePartyPartyTypesAndLegalFormsLifecycleGlobal",
         "parameters": [
           {
@@ -5226,7 +5113,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Personal attribute code lists version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangePartyPersonalAttributeCodeListsLifecycleGlobal",
         "parameters": [
           {
@@ -5418,7 +5305,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Relationship types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangePartyRelationshipTypesLifecycleGlobal",
         "parameters": [
           {
@@ -5610,7 +5497,7 @@
           "ProductFactory static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Product approval workflow settings version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeProductFactoryProductApprovalWorkflowSettingsLifecycleGlobal",
         "parameters": [
           {
@@ -5802,7 +5689,7 @@
           "Rating static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Rounding and currency precision rules version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeRatingRoundingAndCurrencyPrecisionRulesLifecycleGlobal",
         "parameters": [
           {
@@ -5994,7 +5881,7 @@
           "Workflow static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Business calendars version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeWorkflowBusinessCalendarsLifecycleGlobal",
         "parameters": [
           {
@@ -6069,6 +5956,119 @@
           }
         },
         "x-permission": "static_data.create"
+      }
+    },
+    "/api/v1/{module}/static/{entity}/global/{code}/versions/{versionNumber}/approve": {
+      "post": {
+        "tags": [
+          "StaticData governance"
+        ],
+        "summary": "Approve the pending change of a static data version",
+        "description": "The checker must not be the maker for Tier 1 and Tier 2 data (SDM-003). Workflow records the approval; the owning module then marks the version approved.",
+        "operationId": "ApproveStaticDataChangeGlobal",
+        "parameters": [
+          {
+            "name": "module",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.approve"
+      }
+    },
+    "/api/v1/{module}/static/{entity}/global/{code}/versions/{versionNumber}/reject": {
+      "post": {
+        "tags": [
+          "StaticData governance"
+        ],
+        "summary": "Reject the pending change of a static data version; it returns to draft",
+        "operationId": "RejectStaticDataChangeGlobal",
+        "parameters": [
+          {
+            "name": "module",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.approve"
       }
     },
     "/api/v1/documents/static/document-categories/global/{code}/versions": {
@@ -6186,7 +6186,7 @@
           "Documents static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Document categories version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeDocumentsDocumentCategoriesLifecycleGlobal",
         "parameters": [
           {
@@ -6378,7 +6378,7 @@
           "Documents static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Merge field dictionary version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeDocumentsMergeFieldDictionaryLifecycleGlobal",
         "parameters": [
           {
@@ -6570,7 +6570,7 @@
           "Billing static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Billing frequencies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeBillingBillingFrequenciesLifecycleGlobal",
         "parameters": [
           {
@@ -6762,7 +6762,7 @@
           "Billing static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Collection methods version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeBillingCollectionMethodsLifecycleGlobal",
         "parameters": [
           {
@@ -6954,7 +6954,7 @@
           "Payments static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Bank and branch directory version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangePaymentsBankAndBranchDirectoryLifecycleGlobal",
         "parameters": [
           {
@@ -7146,7 +7146,7 @@
           "Payments static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Payment methods version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangePaymentsPaymentMethodsLifecycleGlobal",
         "parameters": [
           {
@@ -7338,7 +7338,7 @@
           "ClaimsFramework static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Claim status model version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeClaimsFrameworkClaimStatusModelLifecycleGlobal",
         "parameters": [
           {
@@ -7530,7 +7530,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Beneficiary relationship types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeLifeBeneficiaryRelationshipTypesLifecycleGlobal",
         "parameters": [
           {
@@ -7722,7 +7722,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Cause of event codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeLifeCauseOfEventCodesLifecycleGlobal",
         "parameters": [
           {
@@ -7914,7 +7914,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Life benefit types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeLifeLifeBenefitTypesLifecycleGlobal",
         "parameters": [
           {
@@ -8106,7 +8106,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Life claim types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeLifeLifeClaimTypesLifecycleGlobal",
         "parameters": [
           {
@@ -8298,7 +8298,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Policy status model version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeLifePolicyStatusModelLifecycleGlobal",
         "parameters": [
           {
@@ -8490,7 +8490,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Proposal status codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeLifeProposalStatusCodesLifecycleGlobal",
         "parameters": [
           {
@@ -8682,7 +8682,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Underwriting decision codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeLifeUnderwritingDecisionCodesLifecycleGlobal",
         "parameters": [
           {
@@ -8874,7 +8874,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Construction types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeGeneralConstructionTypesLifecycleGlobal",
         "parameters": [
           {
@@ -9066,7 +9066,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Driver licence categories version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeGeneralDriverLicenceCategoriesLifecycleGlobal",
         "parameters": [
           {
@@ -9258,7 +9258,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Industry classification codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeGeneralIndustryClassificationCodesLifecycleGlobal",
         "parameters": [
           {
@@ -9450,7 +9450,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Ports and places version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeGeneralPortsAndPlacesLifecycleGlobal",
         "parameters": [
           {
@@ -9642,7 +9642,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Quote status codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeGeneralQuoteStatusCodesLifecycleGlobal",
         "parameters": [
           {
@@ -9834,7 +9834,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Underwriting decision codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeGeneralUnderwritingDecisionCodesLifecycleGlobal",
         "parameters": [
           {
@@ -10026,7 +10026,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Vehicle make, model and variant directory version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeGeneralVehicleMakeModelAndVariantDirectoryLifecycleGlobal",
         "parameters": [
           {
@@ -10218,7 +10218,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Vehicle valuation guide reference version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeGeneralVehicleValuationGuideReferenceLifecycleGlobal",
         "parameters": [
           {
@@ -10410,7 +10410,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Vessel types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeGeneralVesselTypesLifecycleGlobal",
         "parameters": [
           {
@@ -10602,7 +10602,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Claim format definitions version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeHealthClaimFormatDefinitionsLifecycleGlobal",
         "parameters": [
           {
@@ -10794,7 +10794,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Claim adjustment reason codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeHealthClaimAdjustmentReasonCodesLifecycleGlobal",
         "parameters": [
           {
@@ -10986,7 +10986,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Diagnosis codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeHealthDiagnosisCodesLifecycleGlobal",
         "parameters": [
           {
@@ -11178,7 +11178,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Eligibility response codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeHealthEligibilityResponseCodesLifecycleGlobal",
         "parameters": [
           {
@@ -11370,7 +11370,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Membership status codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeHealthMembershipStatusCodesLifecycleGlobal",
         "parameters": [
           {
@@ -11562,7 +11562,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Procedure and service codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeHealthProcedureAndServiceCodesLifecycleGlobal",
         "parameters": [
           {
@@ -11754,7 +11754,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Provider types and specialties version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeHealthProviderTypesAndSpecialtiesLifecycleGlobal",
         "parameters": [
           {
@@ -11946,7 +11946,7 @@
           "Finance static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Exchange rates and rate types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeFinanceExchangeRatesAndRateTypesLifecycleGlobal",
         "parameters": [
           {
@@ -12138,7 +12138,7 @@
           "Finance static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Transaction types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeFinanceTransactionTypesLifecycleGlobal",
         "parameters": [
           {
@@ -12330,7 +12330,7 @@
           "Compliance static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Compliance register entries version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeComplianceComplianceRegisterEntriesLifecycleGlobal",
         "parameters": [
           {
@@ -12522,7 +12522,7 @@
           "Compliance static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Data classification scheme version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeComplianceDataClassificationSchemeLifecycleGlobal",
         "parameters": [
           {
@@ -12714,7 +12714,7 @@
           "Tenancy static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Feature entitlements version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeTenancyFeatureEntitlementsLifecycleGlobal",
         "parameters": [
           {
@@ -12906,7 +12906,7 @@
           "Tenancy static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Isolation profile assignment version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeTenancyIsolationProfileAssignmentLifecycleGlobal",
         "parameters": [
           {
@@ -13098,7 +13098,7 @@
           "Tenancy static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Operational limits version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeTenancyOperationalLimitsLifecycleGlobal",
         "parameters": [
           {
@@ -13617,7 +13617,7 @@
           "Identity static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Authentication and session policies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeIdentityAuthenticationAndSessionPoliciesLifecycleGlobal",
         "parameters": [
           {
@@ -13809,7 +13809,7 @@
           "Identity static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Permission catalogue version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeIdentityPermissionCatalogueLifecycleGlobal",
         "parameters": [
           {
@@ -14001,7 +14001,7 @@
           "Audit static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Audit retention policies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeAuditAuditRetentionPoliciesLifecycleGlobal",
         "parameters": [
           {
@@ -14193,7 +14193,7 @@
           "Audit static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Audit event type catalogue version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
         "operationId": "ChangeAuditAuditEventTypeCatalogueLifecycleGlobal",
         "parameters": [
           {
@@ -23590,9 +23590,6 @@
       "name": "StaticData static data"
     },
     {
-      "name": "StaticData governance"
-    },
-    {
       "name": "Party static data"
     },
     {
@@ -23603,6 +23600,9 @@
     },
     {
       "name": "Workflow static data"
+    },
+    {
+      "name": "StaticData governance"
     },
     {
       "name": "Documents static data"

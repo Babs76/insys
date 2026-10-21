@@ -25,6 +25,9 @@ public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot, ITenantS
         HasChanges = true;
     }
 
+    /// <summary>For an aggregate a repository rebuilds from a row it does not map directly (a static data row, for example).</summary>
+    protected void RestoreRowVersion(long rowVersion) => RowVersion = rowVersion;
+
     /// <summary>Records that state changed without an event, so the version still moves.</summary>
     protected void MarkChanged() => HasChanges = true;
 

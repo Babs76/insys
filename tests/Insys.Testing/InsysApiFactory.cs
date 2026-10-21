@@ -26,5 +26,22 @@ public sealed class InsysApiFactory(TestDatabase database) : WebApplicationFacto
     }
 
     /// <summary>Publishes every pending outbox event to its consumers now (the relay is off in tests).</summary>
-    public Task<int> DrainOutbox() => Services.GetRequiredService<Insys.BuildingBlocks.Infrastructure.Messaging.OutboxProcessor>().ProcessOnce(CancellationToken.None);
+    /// <summary>Relays outbox events until none are left, so chains of events (a consumer publishing in turn) complete.</summary>
+    public async Task<int> DrainOutbox()
+    {
+        var processor = Services.GetRequiredService<Insys.BuildingBlocks.Infrastructure.Messaging.OutboxProcessor>();
+        var total = 0;
+        for (var pass = 0; pass < 10; pass++)
+        {
+            var relayed = await processor.ProcessOnce(CancellationToken.None);
+            if (relayed == 0)
+            {
+                break;
+            }
+
+            total += relayed;
+        }
+
+        return total;
+    }
 }

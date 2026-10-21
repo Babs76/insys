@@ -39,6 +39,9 @@
   </Folder>
   <Folder Name="/src/Modules/Documents/">
     <Project Path="src/Modules/Documents/Insys.Documents.Api/Insys.Documents.Api.csproj" />
+    <Project Path="src/Modules/Documents/Insys.Documents.Application/Insys.Documents.Application.csproj" />
+    <Project Path="src/Modules/Documents/Insys.Documents.Contracts/Insys.Documents.Contracts.csproj" />
+    <Project Path="src/Modules/Documents/Insys.Documents.Domain/Insys.Documents.Domain.csproj" />
     <Project Path="src/Modules/Documents/Insys.Documents.Infrastructure/Insys.Documents.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Finance/">
@@ -73,6 +76,9 @@
   </Folder>
   <Folder Name="/src/Modules/Party/">
     <Project Path="src/Modules/Party/Insys.Party.Api/Insys.Party.Api.csproj" />
+    <Project Path="src/Modules/Party/Insys.Party.Application/Insys.Party.Application.csproj" />
+    <Project Path="src/Modules/Party/Insys.Party.Contracts/Insys.Party.Contracts.csproj" />
+    <Project Path="src/Modules/Party/Insys.Party.Domain/Insys.Party.Domain.csproj" />
     <Project Path="src/Modules/Party/Insys.Party.Infrastructure/Insys.Party.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Payments/">
@@ -81,10 +87,16 @@
   </Folder>
   <Folder Name="/src/Modules/ProductFactory/">
     <Project Path="src/Modules/ProductFactory/Insys.ProductFactory.Api/Insys.ProductFactory.Api.csproj" />
+    <Project Path="src/Modules/ProductFactory/Insys.ProductFactory.Application/Insys.ProductFactory.Application.csproj" />
+    <Project Path="src/Modules/ProductFactory/Insys.ProductFactory.Contracts/Insys.ProductFactory.Contracts.csproj" />
+    <Project Path="src/Modules/ProductFactory/Insys.ProductFactory.Domain/Insys.ProductFactory.Domain.csproj" />
     <Project Path="src/Modules/ProductFactory/Insys.ProductFactory.Infrastructure/Insys.ProductFactory.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Rating/">
     <Project Path="src/Modules/Rating/Insys.Rating.Api/Insys.Rating.Api.csproj" />
+    <Project Path="src/Modules/Rating/Insys.Rating.Application/Insys.Rating.Application.csproj" />
+    <Project Path="src/Modules/Rating/Insys.Rating.Contracts/Insys.Rating.Contracts.csproj" />
+    <Project Path="src/Modules/Rating/Insys.Rating.Domain/Insys.Rating.Domain.csproj" />
     <Project Path="src/Modules/Rating/Insys.Rating.Infrastructure/Insys.Rating.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Reinsurance/">
@@ -93,6 +105,9 @@
   </Folder>
   <Folder Name="/src/Modules/Rules/">
     <Project Path="src/Modules/Rules/Insys.Rules.Api/Insys.Rules.Api.csproj" />
+    <Project Path="src/Modules/Rules/Insys.Rules.Application/Insys.Rules.Application.csproj" />
+    <Project Path="src/Modules/Rules/Insys.Rules.Contracts/Insys.Rules.Contracts.csproj" />
+    <Project Path="src/Modules/Rules/Insys.Rules.Domain/Insys.Rules.Domain.csproj" />
     <Project Path="src/Modules/Rules/Insys.Rules.Infrastructure/Insys.Rules.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/StaticData/">
@@ -111,6 +126,9 @@
   </Folder>
   <Folder Name="/src/Modules/Workflow/">
     <Project Path="src/Modules/Workflow/Insys.Workflow.Api/Insys.Workflow.Api.csproj" />
+    <Project Path="src/Modules/Workflow/Insys.Workflow.Application/Insys.Workflow.Application.csproj" />
+    <Project Path="src/Modules/Workflow/Insys.Workflow.Contracts/Insys.Workflow.Contracts.csproj" />
+    <Project Path="src/Modules/Workflow/Insys.Workflow.Domain/Insys.Workflow.Domain.csproj" />
     <Project Path="src/Modules/Workflow/Insys.Workflow.Infrastructure/Insys.Workflow.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -121,6 +139,12 @@
     <Project Path="tests/Insys.Integration.Tests/Insys.Integration.Tests.csproj" />
     <Project Path="tests/Insys.IntegrationTests/Insys.IntegrationTests.csproj" />
     <Project Path="tests/Insys.StaticData.Tests/Insys.StaticData.Tests.csproj" />
+    <Project Path="tests/Insys.Documents.Tests/Insys.Documents.Tests.csproj" />
+    <Project Path="tests/Insys.Party.Tests/Insys.Party.Tests.csproj" />
+    <Project Path="tests/Insys.ProductFactory.Tests/Insys.ProductFactory.Tests.csproj" />
+    <Project Path="tests/Insys.Rating.Tests/Insys.Rating.Tests.csproj" />
+    <Project Path="tests/Insys.Rules.Tests/Insys.Rules.Tests.csproj" />
+    <Project Path="tests/Insys.Workflow.Tests/Insys.Workflow.Tests.csproj" />
     <Project Path="tests/Insys.Tenancy.Tests/Insys.Tenancy.Tests.csproj" />
     <Project Path="tests/Insys.Testing/Insys.Testing.csproj" />
   </Folder>

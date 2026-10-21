@@ -26,13 +26,14 @@ public sealed record StaticDataImportResult(int Imported);
 /// The generated endpoints for one static data table, under /api/v1/{module}/static/{entity}. The version segment is
 /// named versionNumber because {version} is the API version in /api/v{version}:
 /// tenant rows on the module's connection, and global rows under /global for platform administrators only (scopes G
-/// and GT). Approve and reject are mapped once, by the Static Data module.
+/// and GT). Approve and reject are mapped once, by the Workflow module (ADR-009).
 /// </summary>
 public static class StaticDataEndpoints
 {
     private const string Actions = "regex(^(submit|activate|deprecate|retire)$)";
 
-    public static void MapStaticEntity<TDbContext, TEntity, TInput>(this IEndpointRouteBuilder api, StaticDataDescriptor descriptor, string tag)
+    /// <param name="readOnly">The table is an aggregate's state (for example product versions): only the read endpoints are mapped.</param>
+    public static void MapStaticEntity<TDbContext, TEntity, TInput>(this IEndpointRouteBuilder api, StaticDataDescriptor descriptor, string tag, bool readOnly = false)
         where TDbContext : ModuleDbContext
         where TEntity : StaticRecord<TInput>, new()
         where TInput : StaticRecordInput
@@ -72,14 +73,14 @@ public static class StaticDataEndpoints
             .WithSummary($"Get the {name} version in force")
             .RequirePermission(StaticDataPermissions.Read);
 
-        MapScope<TDbContext, TEntity, TInput>(group, descriptor, global: false, name);
+        MapScope<TDbContext, TEntity, TInput>(group, descriptor, global: false, name, readOnly);
         if (descriptor.AllowsGlobalRows)
         {
-            MapScope<TDbContext, TEntity, TInput>(group.MapGroup("/global"), descriptor, global: true, name);
+            MapScope<TDbContext, TEntity, TInput>(group.MapGroup("/global"), descriptor, global: true, name, readOnly);
         }
     }
 
-    private static void MapScope<TDbContext, TEntity, TInput>(RouteGroupBuilder scope, StaticDataDescriptor d, bool global, string entityName)
+    private static void MapScope<TDbContext, TEntity, TInput>(RouteGroupBuilder scope, StaticDataDescriptor d, bool global, string entityName, bool readOnly)
         where TDbContext : ModuleDbContext
         where TEntity : StaticRecord<TInput>, new()
         where TInput : StaticRecordInput
@@ -94,7 +95,7 @@ public static class StaticDataEndpoints
                 .WithSummary($"List every {owner} version of a {entityName} code")
                 .Secure(global, StaticDataPermissions.Read);
 
-            if (global ? !d.AllowsGlobalRows : !d.AllowsTenantRows)
+            if (readOnly || (global ? !d.AllowsGlobalRows : !d.AllowsTenantRows))
             {
                 return;
             }
@@ -144,7 +145,7 @@ public static class StaticDataEndpoints
                 })
                 .WithName($"Change{Pascal(d)}Lifecycle{suffix}")
                 .WithSummary($"Submit, activate, deprecate or retire a {owner} {entityName} version")
-                .WithDescription("submit sends the draft for approval (approve and reject are on the same path, handled by Static Data); "
+                .WithDescription("submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); "
                     + "activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).")
                 .Secure(global, StaticDataPermissions.Update);
 

@@ -42,6 +42,7 @@ public static class TestTokens
         ["Authentication:Audience"] = Audience,
         ["Authentication:DevelopmentSigningKey"] = SigningKey,
         ["Outbox:RelayEnabled"] = "false",
+        ["Workflow:TimersEnabled"] = "false",
         ["FieldProtection:ActiveKeyId"] = "test1",
         ["FieldProtection:Keys:test1"] = Convert.ToBase64String(Enumerable.Range(0, 32).Select(i => (byte)i).ToArray()),
         ["FieldProtection:HashKey"] = Convert.ToBase64String(Enumerable.Range(32, 32).Select(i => (byte)i).ToArray()),

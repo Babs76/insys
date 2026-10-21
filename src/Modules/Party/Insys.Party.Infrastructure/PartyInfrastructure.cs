@@ -1,5 +1,6 @@
 using Insys.BuildingBlocks.Infrastructure;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
+using Insys.Party.Application;
 using Insys.Party.Infrastructure.Persistence;
 using Insys.Party.Infrastructure.StaticData;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,10 @@ public static class PartyInfrastructure
     {
         services.AddModuleDbContext<PartyDbContext>(PartyDbContext.SchemaName, "Party");
         services.AddStaticData<PartyDbContext>(PartyDbContext.SchemaName, PartyStaticData.Descriptors);
+        services.AddModuleHandlers<PartyDbContext>(typeof(RegisterParty).Assembly);
+        services.AddDomainEventMapper<PartyEventMapper>(PartyDbContext.SchemaName);
+        services.AddScoped<IPartyRepository, PartyRepository>();
+        services.AddScoped<IPartyCodes, PartyCodes>();
         return services;
     }
 }

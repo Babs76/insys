@@ -252,6 +252,2086 @@
         "x-permission": "dead_letter.update"
       }
     },
+    "/api/v1/party/parties": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Register an individual or an organisation",
+        "description": "Give exactly one of individual and organisation; the kind never changes (PTY-001).",
+        "operationId": "PartyRegisterParty",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPartyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.create"
+      }
+    },
+    "/api/v1/party/parties/{id}": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Get a party with its addresses, contact points, identifiers (without numbers), roles and relationships",
+        "operationId": "PartyGetParty",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.read"
+      }
+    },
+    "/api/v1/party/parties/{id}/individual": {
+      "put": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Update an individual\u0027s details",
+        "operationId": "PartyUpdateIndividual",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IndividualData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.update"
+      }
+    },
+    "/api/v1/party/parties/{id}/organisation": {
+      "put": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Update an organisation\u0027s details",
+        "operationId": "PartyUpdateOrganisation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganisationData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.update"
+      }
+    },
+    "/api/v1/party/parties/{id}/addresses": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Add an address; it ends the current address of the same type",
+        "operationId": "PartyAddAddress",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddressData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.update"
+      }
+    },
+    "/api/v1/party/parties/{id}/contact-points": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Add a contact point",
+        "operationId": "PartyAddContactPoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactPointRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.update"
+      }
+    },
+    "/api/v1/party/parties/{id}/identifiers": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Add an identity document number, unique per type and country in the tenant",
+        "description": "The number is checked against the document type\u0027s format, stored encrypted with a keyed hash, and never returned.",
+        "operationId": "PartyAddIdentifier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentifierRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.update"
+      }
+    },
+    "/api/v1/party/parties/{id}/identifiers/{identifierId}/verify": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Record that an identifier was verified",
+        "operationId": "PartyVerifyIdentifier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "identifierId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyIdentifierRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.update"
+      }
+    },
+    "/api/v1/party/parties/{id}/relationships": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Record a relationship from this party to another",
+        "operationId": "PartyRecordRelationship",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelationshipRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.update"
+      }
+    },
+    "/api/v1/party/parties/{id}/roles": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Assign a role in a context; a party holds many roles (PTY-002)",
+        "operationId": "PartyAssignRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.update"
+      }
+    },
+    "/api/v1/party/parties/{id}/death": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Record an individual\u0027s death",
+        "operationId": "PartyRecordDeath",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeathRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.update"
+      }
+    },
+    "/api/v1/party/parties/{id}/anonymise": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Anonymise a deceased or dormant party whose retention has ended",
+        "operationId": "PartyAnonymise",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.anonymise"
+      }
+    },
+    "/api/v1/party/parties/{id}/consents": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "The party\u0027s current consent per purpose",
+        "operationId": "PartyGetConsents",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "consent.read"
+      }
+    },
+    "/api/v1/party/parties/{id}/consents/grant": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Record a consent; the ledger is append-only (PTY-005)",
+        "operationId": "PartyGrantConsent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "consent.update"
+      }
+    },
+    "/api/v1/party/parties/{id}/consents/withdraw": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Record a withdrawal of consent",
+        "operationId": "PartyWithdrawConsent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "consent.update"
+      }
+    },
+    "/api/v1/party/merges": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Merge a duplicate party into its survivor",
+        "description": "The merged party becomes read-only and points to the survivor; the merge is kept in an auditable history (PTY-004).",
+        "operationId": "PartyMergeParties",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergePartiesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "party.merge"
+      }
+    },
+    "/api/v1/product-factory/products": {
+      "post": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "Register a product: version 1, in Draft",
+        "description": "The code is unique in the tenant and never reused; the family must be in the product taxonomy for the domain.",
+        "operationId": "ProductRegisterProduct",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterProductRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "product.create"
+      }
+    },
+    "/api/v1/product-factory/products/{productCode}/versions": {
+      "post": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "Create the next version of a product as a draft copy of its latest version",
+        "description": "A change to a published product is always a new version (PRD-003). Only one version of a product is in progress at a time.",
+        "operationId": "ProductCreateDraftVersion",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDraftVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "product.create"
+      },
+      "get": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "List a product\u0027s versions, newest first",
+        "operationId": "ProductListVersions",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "product.read"
+      }
+    },
+    "/api/v1/product-factory/products/{productCode}/versions/{versionNumber}": {
+      "get": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "Get a product version",
+        "operationId": "ProductGetVersion",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "product.read"
+      },
+      "put": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "Edit a draft or validated version (a validated version returns to draft)",
+        "description": "Submitted, approved and published versions are immutable (PRD-002).",
+        "operationId": "ProductEditConfiguration",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditConfigurationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "product.update"
+      }
+    },
+    "/api/v1/product-factory/products/{productCode}/versions/{versionNumber}/validate": {
+      "post": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "Validate a draft: coverages in the library and of the product\u0027s domain, benefit dependencies, effective date (PRD-004, PRD-009)",
+        "operationId": "ProductValidateVersion",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "product.update"
+      }
+    },
+    "/api/v1/product-factory/products/{productCode}/versions/{versionNumber}/simulations": {
+      "post": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "Run the rating test case library against a validated version (PRD-005)",
+        "description": "Each case is rated as a dry run as at the version\u0027s effective date and compared with its expected premium and tolerance.",
+        "operationId": "ProductRunSimulation",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "product.update"
+      },
+      "get": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "List a version\u0027s simulation runs, newest first",
+        "operationId": "ProductListSimulations",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "product.read"
+      }
+    },
+    "/api/v1/product-factory/products/{productCode}/versions/{versionNumber}/submit": {
+      "post": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "Submit a validated version for publication approval",
+        "description": "Needs a passed simulation of this configuration unless the tenant\u0027s approval settings say otherwise. Workflow then asks a checker other than the submitter, with PRODUCT_PUBLICATION authority (PRD-006); approval publishes the version, rejection returns it to draft.",
+        "operationId": "ProductSubmitForApproval",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitForApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "product.publish"
+      }
+    },
+    "/api/v1/product-factory/products/{productCode}/versions/{versionNumber}/withdraw": {
+      "post": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "Withdraw an effective version from a date",
+        "operationId": "ProductWithdrawVersion",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "product.publish"
+      }
+    },
+    "/api/v1/product-factory/products/{productCode}/versions/{versionNumber}/retire": {
+      "post": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "Retire an effective version",
+        "operationId": "ProductRetireVersion",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "product.publish"
+      }
+    },
+    "/api/v1/rating/calculations": {
+      "post": {
+        "tags": [
+          "Rating"
+        ],
+        "summary": "Calculate a premium and record it with its breakdown",
+        "description": "Uses the rating configuration in force on the rating date (today by default). The record keeps the inputs, the product version and the rating version, so recalculating as at the same date gives the same premium (PRD-008, LIF-002).",
+        "operationId": "RatingCalculatePremium",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalculatePremiumRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "premium_calculation.create"
+      },
+      "get": {
+        "tags": [
+          "Rating"
+        ],
+        "summary": "List a subject\u0027s calculations, newest first",
+        "operationId": "RatingListCalculations",
+        "parameters": [
+          {
+            "name": "subjectType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subjectId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "premium_calculation.read"
+      }
+    },
+    "/api/v1/rating/calculations/simulate": {
+      "post": {
+        "tags": [
+          "Rating"
+        ],
+        "summary": "Rate without recording anything",
+        "operationId": "RatingSimulatePremium",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulatePremiumRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "premium_calculation.simulate"
+      }
+    },
+    "/api/v1/rating/calculations/{id}": {
+      "get": {
+        "tags": [
+          "Rating"
+        ],
+        "summary": "Get a recorded calculation with its breakdown",
+        "operationId": "RatingGetCalculation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "premium_calculation.read"
+      }
+    },
+    "/api/v1/rules/decisions": {
+      "post": {
+        "tags": [
+          "Rules"
+        ],
+        "summary": "Evaluate a rule set and record the decision",
+        "description": "The most severe outcome among the rules that fire is the decision. A rule that cannot be evaluated, for example because an input it reads is missing, fails the evaluation and nothing is recorded.",
+        "operationId": "RulesEvaluateRuleSet",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateRuleSetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "rule_decision.create"
+      },
+      "get": {
+        "tags": [
+          "Rules"
+        ],
+        "summary": "List a subject\u0027s rule decisions, newest first",
+        "operationId": "RulesListDecisions",
+        "parameters": [
+          {
+            "name": "subjectType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subjectId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "rule_decision.read"
+      }
+    },
+    "/api/v1/rules/decisions/{id}": {
+      "get": {
+        "tags": [
+          "Rules"
+        ],
+        "summary": "Get a recorded rule decision with its inputs",
+        "operationId": "RulesGetDecision",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "rule_decision.read"
+      }
+    },
+    "/api/v1/workflow/approvals": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "List approvals",
+        "operationId": "WorkflowListApprovals",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "businessRefType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "businessRefId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "approval.read"
+      }
+    },
+    "/api/v1/workflow/approvals/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Get an approval",
+        "operationId": "WorkflowGetApproval",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "approval.read"
+      }
+    },
+    "/api/v1/workflow/approvals/{id}/approve": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Approve (not by the maker, within the checker\u0027s authority)",
+        "description": "The checker needs a role with authority for the approval type and, where there is an amount, a limit at least that amount (WFL-004).",
+        "operationId": "WorkflowApprove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "approval.approve"
+      }
+    },
+    "/api/v1/workflow/approvals/{id}/reject": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Reject, with a reason",
+        "operationId": "WorkflowReject",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "approval.approve"
+      }
+    },
+    "/api/v1/workflow/processes": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Start a process from the workflow definition in force",
+        "operationId": "WorkflowStartProcess",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartProcessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "process.create"
+      },
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "List process instances",
+        "operationId": "WorkflowListProcesses",
+        "parameters": [
+          {
+            "name": "businessRefType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "businessRefId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "process.read"
+      }
+    },
+    "/api/v1/workflow/processes/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Get a process instance with its tasks and case notes",
+        "operationId": "WorkflowGetProcess",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "process.read"
+      }
+    },
+    "/api/v1/workflow/processes/{id}/suspend": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Suspend a process",
+        "operationId": "WorkflowSuspendProcess",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "process.update"
+      }
+    },
+    "/api/v1/workflow/processes/{id}/resume": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Resume a process",
+        "operationId": "WorkflowResumeProcess",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "process.update"
+      }
+    },
+    "/api/v1/workflow/processes/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Cancel a process",
+        "operationId": "WorkflowCancelProcess",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "process.update"
+      }
+    },
+    "/api/v1/workflow/processes/{id}/notes": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Add a case note",
+        "operationId": "WorkflowAddCaseNote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "process.update"
+      }
+    },
+    "/api/v1/workflow/processes/{id}/tasks/{taskId}/assign": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Assign or reassign a task; without an assignee the caller takes it",
+        "operationId": "WorkflowAssignTask",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "process.update"
+      }
+    },
+    "/api/v1/workflow/processes/{id}/tasks/{taskId}/complete": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Complete a task and move the process along a defined transition",
+        "description": "The transition guard is evaluated on the variables, then the owning module\u0027s validation (by DomainValidation code) runs; either can refuse.",
+        "operationId": "WorkflowCompleteTask",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "process.update"
+      }
+    },
+    "/api/v1/workflow/processes/{id}/tasks/{taskId}/escalate": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Escalate a task to the next escalation level",
+        "operationId": "WorkflowEscalateTask",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "process.update"
+      }
+    },
+    "/api/v1/workflow/tasks": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "List open tasks by queue or assignee, earliest due first",
+        "operationId": "WorkflowListOpenTasks",
+        "parameters": [
+          {
+            "name": "queueCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assigneeId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "process.read"
+      }
+    },
+    "/api/v1/documents/documents/generate": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Generate a document from the template version in force",
+        "description": "Records the template version and product version it was generated from (DOC-002). Every merge field of the template must be supplied.",
+        "operationId": "DocumentsGenerate",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "document.create"
+      }
+    },
+    "/api/v1/documents/documents": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Store an uploaded document in tenant-scoped storage (DOC-001)",
+        "operationId": "DocumentsStore",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoreDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "document.create"
+      },
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "List the documents of a business reference",
+        "operationId": "DocumentsList",
+        "parameters": [
+          {
+            "name": "businessRefType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "businessRefId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "document.read"
+      }
+    },
+    "/api/v1/documents/documents/{id}": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Get a document\u0027s record (not its content)",
+        "operationId": "DocumentsGet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "document.read"
+      }
+    },
+    "/api/v1/documents/documents/{id}/content": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Read a document\u0027s content",
+        "description": "Reading a confidential, personal or highly sensitive document needs a purpose and is recorded (DOC-003); a highly sensitive one also needs one of its category\u0027s allowed roles (DOC-004).",
+        "operationId": "DocumentsReadContent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "document.read"
+      }
+    },
+    "/api/v1/documents/documents/{id}/deliveries": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Deliver a document by a configured channel; every attempt is recorded",
+        "operationId": "DocumentsDeliver",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliverDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "document.deliver"
+      }
+    },
+    "/api/v1/documents/documents/{id}/legal-holds": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Place a legal hold; the document cannot be disposed of while it holds",
+        "operationId": "DocumentsPlaceLegalHold",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegalHoldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "legal_hold.manage"
+      }
+    },
+    "/api/v1/documents/documents/{id}/legal-holds/{holdId}/release": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Release a legal hold",
+        "operationId": "DocumentsReleaseLegalHold",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "holdId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "legal_hold.manage"
+      }
+    },
+    "/api/v1/documents/documents/{id}/dispose": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Dispose of a document after its retention date, when no legal hold applies",
+        "operationId": "DocumentsDispose",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "document.dispose"
+      }
+    },
     "/api/v1/identity/users": {
       "post": {
         "tags": [
@@ -933,6 +3013,55 @@
   },
   "components": {
     "schemas": {
+      "AddressData": {
+        "required": [
+          "addressType",
+          "line1",
+          "line2",
+          "city",
+          "subdivision",
+          "postalCode",
+          "country",
+          "validFrom"
+        ],
+        "type": "object",
+        "properties": {
+          "addressType": {
+            "type": "string"
+          },
+          "line1": {
+            "type": "string"
+          },
+          "line2": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "city": {
+            "type": "string"
+          },
+          "subdivision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "postalCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "country": {
+            "type": "string"
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "AssignRoleRequest": {
         "required": [
           "roleCode",
@@ -977,6 +3106,21 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "AssignTaskRequest": {
+        "required": [
+          "assigneeId"
+        ],
+        "type": "object",
+        "properties": {
+          "assigneeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -1038,6 +3182,149 @@
                 "$ref": "#/components/schemas/JsonElement"
               }
             ]
+          }
+        }
+      },
+      "CalculatePremiumRequest": {
+        "required": [
+          "requestRef",
+          "sourceDomain",
+          "subjectType",
+          "subjectId",
+          "productCode",
+          "productVersion",
+          "currency",
+          "frequency",
+          "ratingDate",
+          "values"
+        ],
+        "type": "object",
+        "properties": {
+          "requestRef": {
+            "type": "string"
+          },
+          "sourceDomain": {
+            "type": "string"
+          },
+          "subjectType": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "productVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "frequency": {
+            "type": "string"
+          },
+          "ratingDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "values": {
+            "$ref": "#/components/schemas/JsonElement"
+          }
+        }
+      },
+      "CaseNoteRequest": {
+        "required": [
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "CompleteTaskRequest": {
+        "required": [
+          "toState",
+          "variables"
+        ],
+        "type": "object",
+        "properties": {
+          "toState": {
+            "type": "string"
+          },
+          "variables": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          }
+        }
+      },
+      "ConsentRequest": {
+        "required": [
+          "purposeCode",
+          "captureChannel",
+          "evidenceRef"
+        ],
+        "type": "object",
+        "properties": {
+          "purposeCode": {
+            "type": "string"
+          },
+          "captureChannel": {
+            "type": "string"
+          },
+          "evidenceRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ContactPointRequest": {
+        "required": [
+          "channelType",
+          "value",
+          "isPrimary"
+        ],
+        "type": "object",
+        "properties": {
+          "channelType": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "isPrimary": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateDraftVersionRequest": {
+        "required": [
+          "effectiveFrom"
+        ],
+        "type": "object",
+        "properties": {
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
           }
         }
       },
@@ -1192,7 +3479,302 @@
           }
         }
       },
+      "DeathRequest": {
+        "required": [
+          "deceasedDate"
+        ],
+        "type": "object",
+        "properties": {
+          "deceasedDate": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "DeliverDocumentRequest": {
+        "required": [
+          "channel",
+          "recipient"
+        ],
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": "string"
+          }
+        }
+      },
+      "EditConfigurationRequest": {
+        "required": [
+          "name",
+          "coverages",
+          "effectiveFrom"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coverages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "EvaluateRuleSetRequest": {
+        "required": [
+          "kind",
+          "code",
+          "subjectType",
+          "subjectId",
+          "inputs"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/RuleSetKind"
+          },
+          "code": {
+            "type": "string"
+          },
+          "subjectType": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/JsonElement"
+          }
+        }
+      },
+      "GenerateDocumentRequest": {
+        "required": [
+          "templateCode",
+          "language",
+          "categoryCode",
+          "businessRefType",
+          "businessRefId",
+          "productVersionRef",
+          "jurisdiction",
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "templateCode": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "categoryCode": {
+            "type": "string"
+          },
+          "businessRefType": {
+            "type": "string"
+          },
+          "businessRefId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productVersionRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "jurisdiction": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/JsonElement"
+          }
+        }
+      },
+      "IdentifierRequest": {
+        "required": [
+          "docType",
+          "country",
+          "number"
+        ],
+        "type": "object",
+        "properties": {
+          "docType": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          }
+        }
+      },
+      "IndividualData": {
+        "required": [
+          "titleCode",
+          "firstNames",
+          "surname",
+          "birthDate",
+          "genderCode",
+          "maritalStatusCode",
+          "nationality",
+          "preferredLanguage"
+        ],
+        "type": "object",
+        "properties": {
+          "titleCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "firstNames": {
+            "type": "string"
+          },
+          "surname": {
+            "type": "string"
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "genderCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "maritalStatusCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nationality": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "preferredLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "JsonElement": {},
+      "LegalHoldRequest": {
+        "required": [
+          "reasonCode"
+        ],
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string"
+          }
+        }
+      },
+      "MergePartiesRequest": {
+        "required": [
+          "survivorId",
+          "mergedId",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "survivorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mergedId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "OrganisationData": {
+        "required": [
+          "legalName",
+          "tradingName",
+          "legalFormCode",
+          "registrationNumber",
+          "industryCode"
+        ],
+        "type": "object",
+        "properties": {
+          "legalName": {
+            "type": "string"
+          },
+          "tradingName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "legalFormCode": {
+            "type": "string"
+          },
+          "registrationNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "industryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PartyRoleRequest": {
+        "required": [
+          "roleCode",
+          "domain",
+          "contextType",
+          "contextId",
+          "validFrom"
+        ],
+        "type": "object",
+        "properties": {
+          "roleCode": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "contextType": {
+            "type": "string"
+          },
+          "contextId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "ProblemDetails": {
         "type": "object",
         "properties": {
@@ -1231,6 +3813,13 @@
           }
         }
       },
+      "ProductDomain": {
+        "enum": [
+          "Life",
+          "General",
+          "Health"
+        ]
+      },
       "ProvisionUserRequest": {
         "required": [
           "username",
@@ -1258,6 +3847,77 @@
           }
         }
       },
+      "RegisterPartyRequest": {
+        "required": [
+          "individual",
+          "organisation"
+        ],
+        "type": "object",
+        "properties": {
+          "individual": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IndividualData"
+              }
+            ]
+          },
+          "organisation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OrganisationData"
+              }
+            ]
+          }
+        }
+      },
+      "RegisterProductRequest": {
+        "required": [
+          "productCode",
+          "domain",
+          "familyCode",
+          "classCode",
+          "name",
+          "coverages",
+          "effectiveFrom"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "domain": {
+            "$ref": "#/components/schemas/ProductDomain"
+          },
+          "familyCode": {
+            "type": "string"
+          },
+          "classCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "coverages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "RejectAccessRequest": {
         "required": [
           "reason"
@@ -1266,6 +3926,38 @@
         "properties": {
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "RejectApprovalRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "RelationshipRequest": {
+        "required": [
+          "toPartyId",
+          "relationshipCode",
+          "validFrom"
+        ],
+        "type": "object",
+        "properties": {
+          "toPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "relationshipCode": {
+            "type": "string"
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date"
           }
         }
       },
@@ -1313,6 +4005,72 @@
           }
         }
       },
+      "RuleSetKind": {
+        "enum": [
+          "Eligibility",
+          "Underwriting"
+        ]
+      },
+      "SimulatePremiumRequest": {
+        "required": [
+          "productCode",
+          "productVersion",
+          "currency",
+          "frequency",
+          "ratingDate",
+          "values"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "productVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "frequency": {
+            "type": "string"
+          },
+          "ratingDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "values": {
+            "$ref": "#/components/schemas/JsonElement"
+          }
+        }
+      },
+      "StartProcessRequest": {
+        "required": [
+          "processCode",
+          "businessRefType",
+          "businessRefId"
+        ],
+        "type": "object",
+        "properties": {
+          "processCode": {
+            "type": "string"
+          },
+          "businessRefType": {
+            "type": "string"
+          },
+          "businessRefId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "StartReviewRequest": {
         "required": [
           "scope",
@@ -1329,6 +4087,85 @@
             "format": "uuid"
           },
           "dueDate": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "StoreDocumentRequest": {
+        "required": [
+          "categoryCode",
+          "businessRefType",
+          "businessRefId",
+          "mimeType",
+          "contentBase64",
+          "productVersionRef",
+          "jurisdiction"
+        ],
+        "type": "object",
+        "properties": {
+          "categoryCode": {
+            "type": "string"
+          },
+          "businessRefType": {
+            "type": "string"
+          },
+          "businessRefId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "contentBase64": {
+            "type": "string"
+          },
+          "productVersionRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "jurisdiction": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SubmitForApprovalRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "VerifyIdentifierRequest": {
+        "required": [
+          "verificationRef"
+        ],
+        "type": "object",
+        "properties": {
+          "verificationRef": {
+            "type": "string"
+          }
+        }
+      },
+      "WithdrawVersionRequest": {
+        "required": [
+          "effectiveTo"
+        ],
+        "type": "object",
+        "properties": {
+          "effectiveTo": {
             "type": "string",
             "format": "date"
           }
@@ -1352,6 +4189,24 @@
   "tags": [
     {
       "name": "Integration"
+    },
+    {
+      "name": "Party"
+    },
+    {
+      "name": "ProductFactory"
+    },
+    {
+      "name": "Rating"
+    },
+    {
+      "name": "Rules"
+    },
+    {
+      "name": "Workflow"
+    },
+    {
+      "name": "Documents"
     },
     {
       "name": "Identity"

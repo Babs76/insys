@@ -1,4 +1,5 @@
 using Insys.BuildingBlocks.Infrastructure.Persistence;
+using Insys.Documents.Domain.Documents;
 using Insys.Documents.Infrastructure.StaticData;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,5 +13,74 @@ public sealed class DocumentsDbContext(DbContextOptions<DocumentsDbContext> opti
 
     public override string Schema => SchemaName;
 
-    protected override void ConfigureModel(ModelBuilder modelBuilder) => DocumentsStaticData.Configure(modelBuilder);
+    public DbSet<Document> Documents => Set<Document>();
+
+    protected override void ConfigureModel(ModelBuilder modelBuilder)
+    {
+        DocumentsStaticData.Configure(modelBuilder);
+
+        modelBuilder.Entity<Document>(document =>
+        {
+            document.ToTable("document");
+            document.HasKey(d => new { d.TenantId, d.Id });
+            document.HasAuditColumns();
+            document.Ignore(d => d.DomainEvents);
+            document.Ignore(d => d.HasChanges);
+            document.Property(d => d.CategoryCode).HasMaxLength(20);
+            document.Property(d => d.Classification).HasMaxLength(20);
+            document.Property(d => d.StorageUri).HasMaxLength(300);
+            document.Property(d => d.MimeType).HasMaxLength(80);
+            document.Property(d => d.Sha256).HasColumnName("sha256").HasColumnType("char(64)");
+            document.Property(d => d.TemplateCode).HasMaxLength(20);
+            document.Property(d => d.ProductVersionRef).HasMaxLength(30);
+            document.Property(d => d.BusinessRefType).HasMaxLength(30);
+            document.Property(d => d.Status).HasConversion(new UpperCaseEnumConverter<DocumentStatus>()).HasMaxLength(12);
+            document.HasMany(d => d.Deliveries).WithOne().HasForeignKey(x => new { x.TenantId, x.DocumentId });
+            document.Navigation(d => d.Deliveries).UsePropertyAccessMode(PropertyAccessMode.Field);
+            document.HasMany(d => d.Holds).WithOne().HasForeignKey(h => new { h.TenantId, h.ScopeId });
+            document.Navigation(d => d.Holds).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<Delivery>(delivery =>
+        {
+            delivery.ToTable("delivery");
+            delivery.HasKey(d => new { d.TenantId, d.Id });
+            delivery.HasAuditColumns();
+            delivery.Property(d => d.Channel).HasMaxLength(10);
+            delivery.Property(d => d.Recipient).HasMaxLength(200);
+            delivery.Property(d => d.Status).HasMaxLength(12);
+            delivery.Property(d => d.ProviderRef).HasMaxLength(80);
+        });
+
+        modelBuilder.Entity<LegalHold>(hold =>
+        {
+            hold.ToTable("legal_hold");
+            hold.HasKey(h => new { h.TenantId, h.Id });
+            hold.HasAuditColumns();
+            hold.Ignore(h => h.IsActive);
+            hold.Property(h => h.ScopeType).HasMaxLength(30);
+            hold.Property(h => h.ReasonCode).HasMaxLength(15);
+        });
+
+        // document_access_log is partitioned by accessed_at, which is part of its key; rows are never updated.
+        modelBuilder.Entity<AccessRecord>(access =>
+        {
+            access.ToTable("document_access_log");
+            access.HasKey(a => new { a.TenantId, a.Id, a.AccessedAt });
+            access.HasAuditColumns(updatable: false);
+            access.Property(a => a.Action).HasMaxLength(10);
+            access.Property(a => a.Purpose).HasMaxLength(60);
+        });
+
+        modelBuilder.Entity<GenerationRequest>(request =>
+        {
+            request.ToTable("generation_request");
+            request.HasKey(r => new { r.TenantId, r.Id });
+            request.HasAuditColumns();
+            request.Property(r => r.TemplateCode).HasMaxLength(20);
+            request.Property(r => r.Language).HasColumnType("char(2)");
+            request.Property(r => r.DataRef).HasColumnType("jsonb");
+            request.Property(r => r.Status).HasMaxLength(12);
+        });
+    }
 }

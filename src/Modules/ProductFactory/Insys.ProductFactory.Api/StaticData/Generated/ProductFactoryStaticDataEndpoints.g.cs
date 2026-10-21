@@ -22,7 +22,7 @@ public static class ProductFactoryStaticDataEndpoints
         api.MapStaticEntity<ProductFactoryDbContext, LimitAndDeductibleSchedules, LimitAndDeductibleSchedulesInput>(ProductFactoryStaticData.Descriptors[3], Tag);
         api.MapStaticEntity<ProductFactoryDbContext, ProductApprovalWorkflowSettings, ProductApprovalWorkflowSettingsInput>(ProductFactoryStaticData.Descriptors[4], Tag);
         api.MapStaticEntity<ProductFactoryDbContext, ProductAvailabilityRules, ProductAvailabilityRulesInput>(ProductFactoryStaticData.Descriptors[5], Tag);
-        api.MapStaticEntity<ProductFactoryDbContext, ProductDefinitionsAndVersions, ProductDefinitionsAndVersionsInput>(ProductFactoryStaticData.Descriptors[6], Tag);
+        api.MapStaticEntity<ProductFactoryDbContext, ProductDefinitionsAndVersions, ProductDefinitionsAndVersionsInput>(ProductFactoryStaticData.Descriptors[6], Tag, readOnly: true);
         api.MapStaticEntity<ProductFactoryDbContext, ProductEligibilityCriteria, ProductEligibilityCriteriaInput>(ProductFactoryStaticData.Descriptors[7], Tag);
         api.MapStaticEntity<ProductFactoryDbContext, ProductTemplateAssignments, ProductTemplateAssignmentsInput>(ProductFactoryStaticData.Descriptors[8], Tag);
         api.MapStaticEntity<ProductFactoryDbContext, WaitingPeriodRules, WaitingPeriodRulesInput>(ProductFactoryStaticData.Descriptors[9], Tag);

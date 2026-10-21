@@ -283,13 +283,18 @@ internal static class Emit
         s.AppendLine("    {");
         for (var i = 0; i < entities.Count; i++)
         {
-            s.AppendLine($"        api.MapStaticEntity<{module}DbContext, {entities[i].ClassName}, {entities[i].ClassName}Input>({module}StaticData.Descriptors[{i}], Tag);");
+            // Tables whose rows an aggregate manages (its own lifecycle and approval) get the read endpoints only.
+            var readOnly = AggregateManagedTables.Contains(entities[i].Table.FullName) ? ", readOnly: true" : "";
+            s.AppendLine($"        api.MapStaticEntity<{module}DbContext, {entities[i].ClassName}, {entities[i].ClassName}Input>({module}StaticData.Descriptors[{i}], Tag{readOnly});");
         }
 
         s.AppendLine("    }");
         s.AppendLine("}");
         return s.ToString();
     }
+
+    /// <summary>Static tables that are an aggregate's state: ProductVersion manages product versions (domain-model.json, PRD-002 to PRD-007).</summary>
+    private static readonly HashSet<string> AggregateManagedTables = ["product.cfg_product_definitions_and_versions"];
 
     private static string InputName(Field field) => field.Column.Name.EndsWith("_enc", StringComparison.Ordinal)
         ? Names.Pascal(field.Column.Name[..^4])

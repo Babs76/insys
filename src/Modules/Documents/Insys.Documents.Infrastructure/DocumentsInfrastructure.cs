@@ -1,5 +1,6 @@
 using Insys.BuildingBlocks.Infrastructure;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
+using Insys.Documents.Application;
 using Insys.Documents.Infrastructure.Persistence;
 using Insys.Documents.Infrastructure.StaticData;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,14 @@ public static class DocumentsInfrastructure
     {
         services.AddModuleDbContext<DocumentsDbContext>(DocumentsDbContext.SchemaName, "Documents");
         services.AddStaticData<DocumentsDbContext>(DocumentsDbContext.SchemaName, DocumentsStaticData.Descriptors);
+        services.AddModuleHandlers<DocumentsDbContext>(typeof(GenerateDocument).Assembly);
+        services.AddDomainEventMapper<DocumentsEventMapper>(DocumentsDbContext.SchemaName);
+        services.AddScoped<IDocumentRepository, DocumentRepository>();
+        services.AddScoped<IDocumentCatalogue, DocumentCatalogue>();
+        services.AddOptions<DocumentStorageOptions>().BindConfiguration("Documents:Storage");
+        services.AddSingleton<IDocumentStorage, FileSystemDocumentStorage>();
+        services.AddSingleton<IDocumentRenderer, PlainTextDocumentRenderer>();
+        services.AddSingleton<IDocumentDelivery, StubDocumentDelivery>();
         return services;
     }
 }

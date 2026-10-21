@@ -28,12 +28,17 @@ public enum ChangeTrigger
 /// <param name="RecordRef">The JSON reference to the record version, as stored in change_request.after.</param>
 public sealed record StaticDataChangeApproved(Guid ChangeRequestId, string RecordRef, Guid CheckerId, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>The change needs a checker: Workflow is asked for an approval of this type (ADR-009).</summary>
+public sealed record StaticDataApprovalNeeded(Guid ChangeRequestId, string ApprovalType, Guid MakerId, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record StaticDataChangeRejected(Guid ChangeRequestId, string RecordRef, Guid CheckerId, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>
 /// The StaticDataChange aggregate (sdm.change_request). Maker and checker differ for Tier 1 always, and for Tier 2
 /// unless the tenant has switched it off (SDM-003); the database also refuses a checker equal to the maker. Changes
-/// that need no checker (Tier 3, or Tier 2 with the setting off) are approved on submission with no checker.
+/// that need no checker (Tier 3, or Tier 2 with the setting off) are approved on submission with no checker. A change
+/// that needs one is decided in Workflow: the approval is requested here and its outcome applied by ApproveChange or
+/// RejectChange (ADR-009).
 /// </summary>
 public sealed class StaticDataChange : AggregateRoot<Guid>
 {
@@ -77,7 +82,7 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
 
     /// <summary>Command SubmitChange, from the owning module's StaticDataChangeSubmitted.</summary>
     public static StaticDataChange SubmitChange(Guid id, string entityCode, string recordKey, string action, string after, Guid makerId, DateOnly effectiveFrom,
-        string reason, bool requiresChecker, DateTimeOffset now)
+        string reason, bool requiresChecker, string approvalType, DateTimeOffset now)
     {
         var change = new StaticDataChange
         {
@@ -100,12 +105,16 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
             change.Status = ChangeStatus.Approved;
             change.Raise(new StaticDataChangeApproved(id, after, makerId, now));
         }
+        else
+        {
+            change.Raise(new StaticDataApprovalNeeded(id, approvalType, makerId, change.Reason, now));
+        }
 
         change.MarkChanged();
         return change;
     }
 
-    /// <summary>Command ApproveChange (SDM-003).</summary>
+    /// <summary>Command ApproveChange (SDM-003), from Workflow's ApprovalGranted.</summary>
     public Result ApproveChange(Guid checkerId, bool requiresDifferentChecker, DateTimeOffset now)
     {
         if (checkerId == Guid.Empty)
@@ -128,7 +137,7 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
         return result;
     }
 
-    /// <summary>Command RejectChange: the owning module returns the version to draft.</summary>
+    /// <summary>Command RejectChange, from Workflow's ApprovalRejected: the owning module returns the version to draft.</summary>
     public Result RejectChange(Guid checkerId, string reason, DateTimeOffset now)
     {
         if (checkerId == Guid.Empty || checkerId == MakerId)

@@ -6,7 +6,9 @@ using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Contracts.StaticData;
 using Insys.BuildingBlocks.Domain;
+using Insys.StaticData.Contracts;
 using Insys.StaticData.Domain.Changes;
+using Insys.Workflow.Contracts;
 
 namespace Insys.StaticData.Application.Changes;
 
@@ -95,85 +97,18 @@ public interface IChangeRequestQueries
     Task<IReadOnlyList<ImportBatchView>> Imports(Guid? afterId, int limit, CancellationToken cancellationToken);
 }
 
-/// <summary>Command ApproveChange for the pending change of one static data version.</summary>
-public sealed record ApproveChange(string EntityCode, string Code, int Version, bool Global) : ICommand<Guid>;
-
-/// <summary>Command RejectChange: the version returns to draft for the maker.</summary>
-public sealed record RejectChange(string EntityCode, string Code, int Version, bool Global, string Reason) : ICommand<Guid>;
-
 public sealed record ListChangeRequests(string? Status, string? EntityCode, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ChangeRequestView>>;
 
 public sealed record GetChangeRequest(Guid Id) : IQuery<ChangeRequestView>;
 
 public sealed record ListImportBatches(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ImportBatchView>>;
 
-public sealed class RejectChangeValidator : AbstractValidator<RejectChange>
-{
-    public RejectChangeValidator() => RuleFor(c => c.Reason).NotEmpty().MaximumLength(2000);
-}
-
-public static class StaticDataGovernanceErrorCodes
-{
-    [ErrorCode(404, "error.static_data.change_request_not_found")]
-    public const string ChangeRequestNotFound = "CHANGE_REQUEST_NOT_FOUND";
-}
-
 internal static class Checker
 {
     public static Result<Guid> Require(IExecutionContext execution) =>
         execution.ActorType == ActorType.User && Guid.TryParse(execution.ActorId, out var id)
             ? id
-            : Error.Forbidden(ErrorCodes.Forbidden, "Changes are approved and rejected by identified users (SDM-003).");
-}
-
-internal sealed class ApproveChangeHandler(IChangeRequestRepository changes, IExecutionContext execution, IClock clock, IAuditTrail audit)
-    : ICommandHandler<ApproveChange, Guid>
-{
-    public async Task<Result<Guid>> Handle(ApproveChange command, CancellationToken cancellationToken)
-    {
-        var checker = Checker.Require(execution);
-        if (checker.IsFailure)
-        {
-            return checker.Error;
-        }
-
-        var change = await changes.FindPending(command.EntityCode, StaticDataChange.KeyFor(command.Code, command.Version, command.Global), cancellationToken);
-        if (change is null)
-        {
-            return Error.NotFound(StaticDataGovernanceErrorCodes.ChangeRequestNotFound,
-                "No change request is pending for this version. Submit it first; a just-submitted change appears within seconds.");
-        }
-
-        audit.Record(new AuditEntry("STATIC_DATA", "ApproveChange", command.EntityCode, change.Id.ToString(),
-            new Dictionary<string, string?> { ["recordKey"] = change.RecordKey, ["maker"] = change.MakerId.ToString() }));
-        // A change that needed no checker was already approved on submission; any pending change needs a different checker.
-        var result = change.ApproveChange(checker.Value, requiresDifferentChecker: true, clock.UtcNow);
-        return result.IsFailure ? result.Error : change.Id;
-    }
-}
-
-internal sealed class RejectChangeHandler(IChangeRequestRepository changes, IExecutionContext execution, IClock clock, IAuditTrail audit)
-    : ICommandHandler<RejectChange, Guid>
-{
-    public async Task<Result<Guid>> Handle(RejectChange command, CancellationToken cancellationToken)
-    {
-        var checker = Checker.Require(execution);
-        if (checker.IsFailure)
-        {
-            return checker.Error;
-        }
-
-        var change = await changes.FindPending(command.EntityCode, StaticDataChange.KeyFor(command.Code, command.Version, command.Global), cancellationToken);
-        if (change is null)
-        {
-            return Error.NotFound(StaticDataGovernanceErrorCodes.ChangeRequestNotFound, "No change request is pending for this version.");
-        }
-
-        audit.Record(new AuditEntry("STATIC_DATA", "RejectChange", command.EntityCode, change.Id.ToString(),
-            new Dictionary<string, string?> { ["recordKey"] = change.RecordKey }));
-        var result = change.RejectChange(checker.Value, command.Reason, clock.UtcNow);
-        return result.IsFailure ? result.Error : change.Id;
-    }
+            : Error.Forbidden(ErrorCodes.Forbidden, "Governance settings are changed by identified users.");
 }
 
 internal sealed class ListChangeRequestsHandler(IChangeRequestQueries queries) : IQueryHandler<ListChangeRequests, IReadOnlyList<ChangeRequestView>>
@@ -200,6 +135,8 @@ internal sealed class ListImportBatchesHandler(IChangeRequestQueries queries) : 
 /// </summary>
 public sealed class StaticDataGovernancePolicies(IChangeRequestRepository changes, IClock clock) :
     IIntegrationEventHandler<StaticDataChangeSubmitted>,
+    IIntegrationEventHandler<ApprovalGranted>,
+    IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<StaticDataVersionActivated>,
     IIntegrationEventHandler<StaticDataCodeDeprecated>,
     IIntegrationEventHandler<StaticDataImportCompleted>,
@@ -213,7 +150,25 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
         var tier2MakerChecker = (await changes.Settings(cancellationToken))?.Tier2MakerChecker ?? true;
         changes.Add(StaticDataChange.SubmitChange(submitted.ChangeRequestId, record.EntityCode, StaticDataChange.KeyFor(record.Code, record.Version, record.Global),
             submitted.Action, JsonSerializer.Serialize(record, Json), submitted.MakerId, submitted.EffectiveFrom, submitted.Reason,
-            MakerCheckerPolicy.RequiresChecker(submitted.Tier, tier2MakerChecker), clock.UtcNow));
+            MakerCheckerPolicy.RequiresChecker(submitted.Tier, tier2MakerChecker), StaticDataApprovals.ApprovalType(submitted.Tier), clock.UtcNow));
+    }
+
+    /// <summary>Workflow approved the change (checker other than the maker, within authority): ApproveChange.</summary>
+    public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (granted.BusinessRefType == StaticDataApprovals.BusinessRefType && await changes.Get(granted.BusinessRefId, cancellationToken) is { } change)
+        {
+            change.ApproveChange(granted.CheckerId, requiresDifferentChecker: true, clock.UtcNow);
+        }
+    }
+
+    /// <summary>Workflow rejected the change: RejectChange, and the owning module returns the version to draft.</summary>
+    public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (rejected.BusinessRefType == StaticDataApprovals.BusinessRefType && await changes.Get(rejected.BusinessRefId, cancellationToken) is { } change)
+        {
+            change.RejectChange(rejected.CheckerId, rejected.Reason, clock.UtcNow);
+        }
     }
 
     public async Task Handle(StaticDataVersionActivated activated, EventEnvelope envelope, CancellationToken cancellationToken)

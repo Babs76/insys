@@ -32,3 +32,9 @@ public sealed record RoleRevoked(Guid UserId, string RoleCode) : IIntegrationEve
 
 [IntegrationEvent("iam.UserDisabled")]
 public sealed record UserDisabled(Guid UserId) : IIntegrationEvent;
+
+/// <summary>Public query interface: the roles a user holds today, for approval authority (WFL-004). Read on Identity's own connection.</summary>
+public interface IUserRoleQuery
+{
+    Task<IReadOnlyList<string>> EffectiveRoles(Guid tenantId, Guid userId, CancellationToken cancellationToken);
+}

@@ -27,6 +27,7 @@ public static class IdentityInfrastructure
         services.AddSingleton<PermissionCache>();
         services.AddSingleton<IPermissionCache>(sp => sp.GetRequiredService<PermissionCache>());
         services.AddSingleton<IPrincipalResolver, PrincipalResolver>();
+        services.AddSingleton<Contracts.IUserRoleQuery, UserRoleQuery>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {
             // Registered first among Identity's hosted services, so a refused instance stops before any background work starts.

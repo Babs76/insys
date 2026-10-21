@@ -27,6 +27,54 @@
 5. **Tier 2 maker-checker:** a per-tenant setting (V0008), on by default and audited. Tier 1 is always on.
 6. **Outbox relay lag:** reported on `/health` and `/health/ready` through `integration.outbox_lag` (V0009). Degraded after `Outbox:Lag:Warning` (1 minute); Unhealthy and not ready after `Outbox:Lag:Failure` (5 minutes).
 
+## Phase 2: what exists
+
+**Building blocks**
+- **Expression language (ADR-008):** governed conditions for rules and workflow guards. A missing variable is an error.
+- **`ApprovalRequested` (ADR-009):** how any module asks Workflow for an approval.
+- **Static data:** the generator can map read-only endpoints for tables an aggregate manages.
+- **Tests:** `DrainOutbox` now relays until nothing is left, so chains of events complete.
+
+**Modules**
+- **Workflow:**
+  - **Approval:** maker-checker plus authority by role, type and amount (SRS-002, WFL-004), with expiry, using V0010.
+  - **ProcessInstance:** versioned definitions (WFL-001) and transition guards. The owning module's validation is called and fails closed (WFL-002). Tasks can be assigned, reassigned and escalated, with SLA timers (WFL-003). State is stored, so processes survive restarts (WFL-005).
+  - Case notes, and a background job for expiry and timers.
+- **Static Data approvals moved to Workflow:** the same approve and reject paths are now decided as Workflow approvals (Phase 0 item 7).
+- **Rules:** EvaluateRuleSet for eligibility and underwriting. Each decision is recorded in `rules.decision_log` with its rule set version and inputs (LIF-002).
+- **Rating:**
+  - The reference engine (ADR-007). Each calculation is recorded with its breakdown, product version and rating version (PRD-008).
+  - Dry-run simulation through `IPremiumSimulator`.
+  - A configuration cache, dropped on ProductVersionPublished.
+- **Product Factory:**
+  - ProductDefinition's RegisterProduct.
+  - The ProductVersion lifecycle: Draft → Validated → Submitted → Approved → Published → Effective → Withdrawn or Retired.
+  - Validation against the coverage library and benefit dependencies (PRD-004, PRD-009), and simulation of the rating test cases (PRD-005).
+  - Approval through Workflow (PRD-006), immutability after publication (PRD-002), new versions (PRD-003), effective dates (PRD-007).
+  - Revalidation when product static data changes.
+- **Party:**
+  - Individuals and organisations (PTY-001); addresses, contact points, encrypted identifiers that are unique per type and country, relationships, and many roles (PTY-002).
+  - Death, merge with history (PTY-004), and anonymisation.
+  - ConsentLedger (PTY-005). Events carry no personal data.
+- **Documents:**
+  - Generation from template versions, with the template and product versions recorded (DOC-002), and upload.
+  - Tenant-scoped storage (DOC-001); storage, rendering and delivery are stubs (OQ-056).
+  - Delivery, legal holds, and disposal after retention.
+  - Audited access to sensitive documents (DOC-003), with role checks for highly sensitive ones (DOC-004). Uses V0011.
+
+**New migrations:**
+- V0010: approval lifecycle columns.
+- V0011: document status.
+
+**Decisions:** ADR-007, ADR-008 and ADR-009; OQ-047 to OQ-056.
+
+**End to end:** the "Product publication" process passes with its three compensations:
+- validation errors keep Draft;
+- a failed simulation case blocks submission;
+- a rejected approval returns the version to Draft.
+
+**Tests (21 Oct 2026):** 509 in total: 504 passed, 5 skipped (the end-to-end processes of later phases), 0 failed.
+
 ## Phase 1: what exists
 
 **Phase 0 review items**

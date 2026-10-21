@@ -1,9 +1,10 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 
-namespace Insys.IntegrationTests;
+namespace Insys.Testing;
 
-internal static class Http
+/// <summary>Request helpers for API tests.</summary>
+public static class Http
 {
     public static async Task<HttpResponseMessage> Send(this HttpClient client, HttpMethod method, string url, object? body = null, string? ifMatch = null,
         bool idempotent = false)

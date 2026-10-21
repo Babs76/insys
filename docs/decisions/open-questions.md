@@ -52,6 +52,16 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-044 | 1 | When access review revocations take effect | Resolved (proposal) |
 | OQ-045 | 1 | Who decides access review items | Resolved (proposal) |
 | OQ-046 | 1 | Maker-checker for the Tier 2 setting itself | Open |
+| OQ-047 | 2 | `workflow.approval` could not hold a pending approval | Resolved: V0010 |
+| OQ-048 | 2 | Process state and SLA timer encoding | Resolved (proposal) |
+| OQ-049 | 2 | SLA business calendars and escalation targets | Open |
+| OQ-050 | 2 | Approval authority for static data changes | Resolved (proposal): ADR-009 |
+| OQ-051 | 2 | Rule set outcomes and scope | Resolved (proposal) |
+| OQ-052 | 2 | Rating algorithm details | Resolved (proposal): ADR-007 |
+| OQ-053 | 2 | Product versions kept in a static data table | Resolved (proposal) |
+| OQ-054 | 2 | Party lifecycle triggers, retention and merge | Open |
+| OQ-055 | 2 | Consent withdrawal records | Resolved (proposal) |
+| OQ-056 | 2 | Document state, storage, rendering and retention | Resolved (proposal): V0011; stubs |
 
 ---
 
@@ -194,13 +204,15 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 
 ### OQ-036 Configuration items: Published to Effective
 - **Gap:** nothing yet moves a Published configuration item to Effective on its effective date. The resolver treats both as in force.
+- **Phase 2:** product versions now do: the Product Factory job makes a Published version Effective on its effective date. Generic configuration items are still open.
 
 ### OQ-037 Identity provider to idp_code mapping
 - **Gap:** users are matched by `external_subject` only. A subject present in two identity providers is refused until a mapping from token issuer to `idp_code` exists (SRS §30).
 
 ### OQ-038 Maker-checker for privileged user administration
 - **Sources:** SRS-002.
-- **Gap:** role assignment is not yet maker-checker. It moves to Workflow Approval in Phase 2, with static data approvals.
+- **Gap:** role assignment is not yet maker-checker.
+- **Phase 2:** Workflow Approval now exists (ADR-009) and static data approvals use it; role assignment does not yet. Routing AssignRole through `ApprovalRequested` needs a pending-assignment state, which the IAM tables do not have.
 
 ### OQ-039 Repository inside iCloud Drive
 - **Resolved:** the repository moved to `~/Development`. A clean build and the full test suite pass there, and no conflict copies remain.
@@ -231,3 +243,80 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 ### OQ-046 Maker-checker for the Tier 2 setting itself
 - **Gap:** switching Tier 2 maker-checker off is audited but needs no second person. SRS-002 lists sensitive operations; whether this setting is one is not stated.
 - **Proposal:** once Workflow Approval exists (Phase 2), route the switch-off through it.
+- **Phase 2:** Workflow Approval exists; the switch-off is not routed through it yet. It needs a pending state for the setting.
+
+### OQ-047 `workflow.approval` could not hold a pending approval
+- **Sources:** V0001 made `checker_id`, `decision` and `decided_at` NOT NULL, so only decided approvals could be stored. domain-model.json gives Approval the states Requested, Approved, Rejected and Expired.
+- **Resolved (user decision):** V0010, the same approach as V0007, adds:
+  - `status`, `requested_at`, `expires_at`, `currency` and `decision_reason`;
+  - the concurrency columns;
+  - a CHECK that a decided approval has a checker and a decision time.
+
+### OQ-048 Process state and SLA timer encoding
+- **Gap:** `process_instance.state` (varchar(30)) holds both the definition state and the process status (Running, Suspended, Completed, Cancelled), and the model gives no separate column. `timer.timer_type` (varchar(20)) cannot reference the task it times.
+- **Proposal:**
+  - The state is the definition state while Running. Otherwise it is prefixed `SUSPENDED:`, `COMPLETED:` or `CANCELLED:`. Definition states are therefore limited to 20 characters.
+  - An SLA timer has type `SLA` and shares its task's id.
+
+### OQ-049 SLA business calendars and escalation targets
+- **Gaps:**
+  - SLA durations run on the clock: the `calendar` of `cfg_sla_definitions` is not applied, because `cfg_business_calendars` defines no working-time rules the engine could use.
+  - Escalation rules name a `target_role`, and tasks have a `queue_code`. The role code is used as the queue, and must be at most 20 characters.
+  - Rules with triggers `AMOUNT_ABOVE` and `MANUAL` are not used yet.
+
+### OQ-050 Approval authority for static data changes
+- **Gap:** WFL-004 says authority covers every approval. But `workflow.cfg_delegation_and_approval_authority` is itself Tier 1 static data, so its first rows could never be approved.
+- **Proposal (ADR-009):** static data approvals are governed by `static_data.approve`, with maker and checker different (SDM-003), until the tenant has authority configured for `STATIC_DATA_T{n}`. From then on that authority applies.
+
+### OQ-051 Rule set outcomes and scope
+- **Gaps:** the catalogue defines rule rows with a condition and an outcome, but not how a set of them decides.
+- **Proposal:**
+  - The most severe outcome among the rules that fire is the decision: INELIGIBLE > REFER > ELIGIBLE, and DECLINE > REFER > ACCEPT.
+  - Eligibility is not assumed: when no eligibility rule fires, the outcome is INELIGIBLE. Underwriting defaults to ACCEPT.
+  - Acceptance and referral rules have no product column, so all of the tenant's rules apply to every product. Their `threshold` is available to the condition as `threshold`.
+  - Decline conditions apply when their product is empty or matches.
+  - The decision log's `ruleset_code` is the eligibility rule set code, or `UW:{product}` for underwriting.
+
+### OQ-052 Rating algorithm details
+- **Proposal:** ADR-007.
+- **Still to confirm:**
+  - the step order and the cap rule;
+  - PERCENT parameters as loadings;
+  - test case inputs that carry `currency` and `frequency`;
+  - the `"{code} v{n}"` product version reference;
+  - levies on commission, which are refused.
+- **Preloading:** the rating cache is not preloaded on publication, because a product version does not list its currencies. It is dropped, and the next calculation loads it.
+
+### OQ-053 Product versions kept in a static data table
+- **Sources:** domain-model.json maps ProductVersion to `product.cfg_product_definitions_and_versions` (static).
+- **Proposal:**
+  - **Lifecycle:** the ProductVersion aggregate owns the rows. The generator maps only the read endpoints for this table, and the ProductVersion lifecycle replaces the generic static lifecycle.
+  - **The `status` column** duplicates `record_status`. It is kept equal until approval; after that `sdm.guard_static_version` allows only `record_status` and `effective_to` to change (SDM-002), so `status` keeps the state the version was published in.
+  - **Family and class** have no column; they are kept in `labels`. ReclassifyProduct is not built: its effect on published versions, which are immutable, is not defined.
+  - **Superseded versions:** on approval, the version being replaced is closed at the new version's effective date, as static data approvals do.
+  - **Approval settings:** from `cfg_product_approval_workflow_settings`, `simulation_required` is used and defaults to true. Approver roles and minimum approvers are not used: one checker with PRODUCT_PUBLICATION authority approves.
+  - **Simulation:** a run with no test cases does not count as passed. Runs go stale when the configuration changes.
+
+### OQ-054 Party lifecycle triggers, retention and merge
+- **Gaps:**
+  - **Dormancy:** "No activity" and "New activity" (Active ↔ Dormant) are not defined, so nothing makes a party dormant.
+  - **Retention:** no retention period is defined for parties. AnonymiseParty is a permissioned command for a Deceased or Dormant party.
+  - **Merge:** the merged party points to the survivor and keeps a history snapshot without identifier numbers. Moving its roles and relationships to the survivor is not specified.
+  - **Duplicate candidates:** `party.duplicate_candidate` and the matching rules are not used yet.
+  - **Death claims:** consuming `LifeClaimRegistered` comes with the Life domain.
+
+### OQ-055 Consent withdrawal records
+- **Gap:** the ledger is append-only, but `consent_record` has `withdrawn_at`.
+- **Proposal:** a withdrawal is a new record with `granted = false` and `withdrawn_at` set; earlier records are never changed. The latest record per purpose is the current consent.
+
+### OQ-056 Document state, storage, rendering and retention
+- **Gap:** `document.document` had no column for the Document states.
+- **Resolved:** V0011 adds `status` (GENERATED, DELIVERED, DISPOSED) and `disposed_at`, with CHECKs that a disposed document has a disposal time and no legal hold.
+- **Stubs until decided:**
+  - storage on the local file system, one folder per tenant (`Documents:Storage:Root`);
+  - a plain-text renderer that lists the template's merge fields;
+  - a delivery stub that records a provider reference without sending.
+- **Retention:** the date is set only for schedules triggered at CREATION. Policy end and claim closure set it when those events exist (Phase 4/5). A document without a retention date is never disposed of, and every disposal method deletes the content.
+- **Not yet:**
+  - the legal hold reason's authority role is not checked;
+  - consumers for LifePolicyIssued, InvoiceIssued and the other generation events come with their modules.
