@@ -38,19 +38,19 @@ public sealed record AssessorAppointed(Guid ClaimId, Guid AssessorPartyId, DateT
 public sealed record SettlementRequested(Guid ClaimId, string ClaimNumber, Guid RequestedBy, decimal Amount, string Currency, string SubjectHash, DateTimeOffset OccurredAt)
     : IDomainEvent;
 
-public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid PayeePartyId, string? PayeeBankHash, decimal Amount, string Currency, string ReserveType,
-    Guid ApprovalId, Guid CheckerId, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid PayeePartyId, Guid BankAccountId, string PayeeBankHash, decimal Amount, string Currency,
+    string ReserveType, Guid ApprovalId, Guid CheckerId, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateOnly PaidOn, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record GeneralClaimClosed(Guid ClaimId, string ClaimNumber, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>
-/// What the settlement is: the accepted assessment, the coverage, the payee and the hash of their bank details, the
-/// reserve, and the maker's decision and rationale (CLM-003).
+/// What the settlement is: the accepted assessment, the coverage, the payee and their verified bank account (with the
+/// keyed hash of its number), the reserve, and the maker's decision and rationale (CLM-003).
 /// </summary>
-public sealed record SettlementRequest(decimal AssessedAmount, decimal ExcessApplied, Guid PayeePartyId, string? PayeeBankHash, string ReserveType, string DecisionCode,
-    string Rationale);
+public sealed record SettlementRequest(decimal AssessedAmount, decimal ExcessApplied, Guid PayeePartyId, Guid BankAccountId, string PayeeBankHash, string ReserveType,
+    string DecisionCode, string Rationale);
 
 /// <summary>
 /// The excess or deductible of a coverage's schedule (product.cfg_limit_and_deductible_schedules, GEN-008): a fixed
@@ -165,12 +165,16 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
 
     public Guid? SettlementPayeePartyId { get; private set; }
 
-    /// <summary>The hash of the payee's bank details the settlement approval covers; the details are never stored.</summary>
+    /// <summary>The payee's bank account (party.bank_account) the settlement is paid to.</summary>
+    public Guid? SettlementBankAccountId { get; private set; }
+
+    /// <summary>The keyed hash of that account's number, as approved; the number itself is held only by the Party module.</summary>
     public string? SettlementPayeeBankHash { get; private set; }
 
-    /// <summary>What the settlement approval covers: payee, bank details, amount, currency and reserve.</summary>
+    /// <summary>What the settlement approval covers: payee, bank account, amount, currency and reserve.</summary>
     public string? SettlementSubjectHash => SettlementAmount is null ? null
-        : ApprovalSubject.Hash("GENERAL_SETTLEMENT", Id, SettlementPayeePartyId, SettlementPayeeBankHash, SettlementAmount, SettlementCurrency, SettlementReserveType);
+        : ApprovalSubject.Hash("GENERAL_SETTLEMENT", Id, SettlementPayeePartyId, SettlementBankAccountId, SettlementPayeeBankHash, SettlementAmount, SettlementCurrency,
+            SettlementReserveType);
 
     public string? SettlementReserveType { get; private set; }
 
@@ -281,6 +285,7 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
         SettlementAmount = amount;
         SettlementCurrency = currency;
         SettlementPayeePartyId = Guard.NotEmpty(request.PayeePartyId);
+        SettlementBankAccountId = request.BankAccountId;
         SettlementPayeeBankHash = request.PayeeBankHash;
         SettlementReserveType = Guard.MaxLength(request.ReserveType, 15);
         SettlementRequestedBy = requestedBy;
@@ -317,6 +322,7 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             SettlementAmount = null;
             SettlementCurrency = null;
             SettlementPayeePartyId = null;
+            SettlementBankAccountId = null;
             SettlementPayeeBankHash = null;
             SettlementReserveType = null;
             SettlementRequestedBy = null;
@@ -332,8 +338,8 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             SettlementApprovalId = approvalId;
             DecidedBy = checkerId;
             DecidedAt = now;
-            Raise(new GeneralClaimApproved(Id, ClaimNumber!, SettlementPayeePartyId!.Value, SettlementPayeeBankHash, SettlementAmount!.Value, SettlementCurrency!,
-                SettlementReserveType!, approvalId, checkerId, now));
+            Raise(new GeneralClaimApproved(Id, ClaimNumber!, SettlementPayeePartyId!.Value, SettlementBankAccountId!.Value, SettlementPayeeBankHash!, SettlementAmount!.Value,
+                SettlementCurrency!, SettlementReserveType!, approvalId, checkerId, now));
         }
 
         return result;

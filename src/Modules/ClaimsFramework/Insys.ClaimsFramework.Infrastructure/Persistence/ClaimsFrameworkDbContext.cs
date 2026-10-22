@@ -106,6 +106,7 @@ public sealed class ClaimsFrameworkDbContext(DbContextOptions<ClaimsFrameworkDbC
             instruction.Property(i => i.PendingPayeeBankHash).HasMaxLength(64);
             instruction.Ignore(i => i.SubjectHash);
             instruction.Ignore(i => i.PendingSubjectHash);
+            instruction.Ignore(i => i.Payee);
         });
     }
 }

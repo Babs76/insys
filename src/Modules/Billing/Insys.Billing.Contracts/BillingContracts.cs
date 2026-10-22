@@ -44,7 +44,8 @@ public sealed record ArrearsDetected(Guid AccountId, string BucketCode, int Days
 
 /// <summary>A refund was approved by a second person (SRS-002): Payments pays it.</summary>
 [IntegrationEvent("billing.RefundApproved")]
-public sealed record RefundApproved(Guid RefundId, Guid BillingAccountId, decimal Amount, string Currency) : IIntegrationEvent;
+/// <summary>A refund was approved, to the payer's bank account (party.bank_account) by id; never the account's details.</summary>
+public sealed record RefundApproved(Guid RefundId, Guid BillingAccountId, Guid PayerPartyId, Guid BankAccountId, decimal Amount, string Currency) : IIntegrationEvent;
 
 public sealed record PlannedAllocation(Guid InvoiceId, decimal Amount);
 

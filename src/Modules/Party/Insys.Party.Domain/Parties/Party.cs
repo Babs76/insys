@@ -46,6 +46,87 @@ public sealed record PartiesMerged(Guid SurvivorId, Guid MergedId, DateTimeOffse
 
 public sealed record PartyAnonymised(Guid PartyId, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>A party's bank account was added (superseding <paramref name="SupersededId"/>) or verified. Ids only, never account details.</summary>
+public sealed record PartyBankAccountChanged(Guid PartyId, Guid BankAccountId, Guid? SupersededId, string Status, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public enum BankAccountStatus
+{
+    PendingVerification,
+    Active,
+    Superseded,
+}
+
+/// <summary>
+/// Entity BankAccount (party.bank_account, V0018; a gap in the original specification): the account number is
+/// encrypted, with a keyed hash and its last four digits. A change is a new account; the previous one is superseded,
+/// never changed.
+/// </summary>
+public sealed class BankAccount : Entity<Guid>, ITenantScoped
+{
+    private BankAccount()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid PartyId { get; private set; }
+
+    public byte[] AccountNumberEnc { get; private set; } = [];
+
+    public string AccountNumberHash { get; private set; } = "";
+
+    public string AccountNumberLast4 { get; private set; } = "";
+
+    public string BankCode { get; private set; } = "";
+
+    public string? BranchCode { get; private set; }
+
+    public string AccountHolderName { get; private set; } = "";
+
+    /// <summary>CURRENT, SAVINGS, TRANSMISSION or OTHER.</summary>
+    public string AccountType { get; private set; } = "";
+
+    public string Currency { get; private set; } = "";
+
+    public DateTimeOffset? VerifiedAt { get; private set; }
+
+    public string? VerificationRef { get; private set; }
+
+    public Guid? VerifiedBy { get; private set; }
+
+    public BankAccountStatus Status { get; private set; }
+
+    public Guid? SupersededById { get; private set; }
+
+    public long RowVersion { get; private set; }
+
+    internal static BankAccount Create(Guid partyId, BankAccountData data) => new()
+    {
+        Id = Guid.CreateVersion7(), PartyId = partyId, AccountNumberEnc = data.Encrypted, AccountNumberHash = data.Hash, AccountNumberLast4 = data.Last4,
+        BankCode = Guard.MaxLength(Guard.NotNullOrWhiteSpace(data.BankCode), 20), BranchCode = data.BranchCode,
+        AccountHolderName = Guard.MaxLength(Guard.NotNullOrWhiteSpace(data.AccountHolderName), 140), AccountType = data.AccountType,
+        Currency = Guard.MaxLength(data.Currency, 3), Status = BankAccountStatus.PendingVerification,
+    };
+
+    internal void Verify(string reference, Guid verifiedBy, DateTimeOffset now)
+    {
+        VerifiedAt = now;
+        VerificationRef = Guard.MaxLength(Guard.NotNullOrWhiteSpace(reference), 60);
+        VerifiedBy = verifiedBy;
+        Status = BankAccountStatus.Active;
+    }
+
+    internal void Supersede(Guid by)
+    {
+        Status = BankAccountStatus.Superseded;
+        SupersededById = by;
+    }
+}
+
+/// <summary>A bank account as protected by the application: the encrypted number, its keyed hash and last four digits, and the rest.</summary>
+public sealed record BankAccountData(byte[] Encrypted, string Hash, string Last4, string BankCode, string? BranchCode, string AccountHolderName, string AccountType,
+    string Currency);
+
 public sealed class Individual : Entity<Guid>, ITenantScoped
 {
     private Individual()
@@ -342,6 +423,7 @@ public sealed class Party : AggregateRoot<Guid>
     private readonly List<Address> _addresses = [];
     private readonly List<ContactPoint> _contactPoints = [];
     private readonly List<PartyIdentifier> _identifiers = [];
+    private readonly List<BankAccount> _bankAccounts = [];
     private readonly List<PartyRelationship> _relationships = [];
     private readonly List<PartyRole> _roles = [];
     private readonly List<MergeHistory> _merges = [];
@@ -367,6 +449,43 @@ public sealed class Party : AggregateRoot<Guid>
     public IReadOnlyList<ContactPoint> ContactPoints => _contactPoints;
 
     public IReadOnlyList<PartyIdentifier> Identifiers => _identifiers;
+
+    public IReadOnlyList<BankAccount> BankAccounts => _bankAccounts;
+
+    /// <summary>
+    /// Command AddBankAccount: a new account, pending verification. The party's current account in the same currency is
+    /// superseded (kept, never changed), so any payment approved against it needs a fresh approval.
+    /// </summary>
+    public Result<Guid> AddBankAccount(BankAccountData data, DateTimeOffset now)
+    {
+        var allowed = Changeable(null);
+        if (allowed.IsFailure)
+        {
+            return allowed.Error;
+        }
+
+        var account = BankAccount.Create(Id, data);
+        var current = _bankAccounts.SingleOrDefault(a => a.Currency == data.Currency && a.Status != BankAccountStatus.Superseded);
+        current?.Supersede(account.Id);
+        _bankAccounts.Add(account);
+        Raise(new PartyBankAccountChanged(Id, account.Id, current?.Id, "PENDING_VERIFICATION", now));
+        MarkChanged();
+        return account.Id;
+    }
+
+    /// <summary>Command VerifyBankAccount: with the verification's reference (an account verification service, for example), the account becomes active.</summary>
+    public Result VerifyBankAccount(Guid bankAccountId, string reference, Guid verifiedBy, DateTimeOffset now)
+    {
+        if (_bankAccounts.SingleOrDefault(a => a.Id == bankAccountId) is not { Status: BankAccountStatus.PendingVerification } account)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only an account pending verification is verified.");
+        }
+
+        account.Verify(reference, verifiedBy, now);
+        Raise(new PartyBankAccountChanged(Id, account.Id, null, "ACTIVE", now));
+        MarkChanged();
+        return Result.Success();
+    }
 
     public IReadOnlyList<PartyRelationship> Relationships => _relationships;
 

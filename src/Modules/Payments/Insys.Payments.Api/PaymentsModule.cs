@@ -14,8 +14,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Payments.Api;
 
+/// <param name="BankAccountId">For a payout: the payee's verified bank account (party.bank_account); account numbers are never sent here.</param>
 public sealed record InitiatePaymentRequest(Direction Direction, string Purpose, string MethodCode, decimal Amount, string Currency, Guid? CounterpartyPartyId,
-    string? BusinessRefType, Guid? BusinessRefId);
+    string? BusinessRefType, Guid? BusinessRefId, Guid? BankAccountId);
 
 public sealed record ResolveUnknownRequest(bool Succeeded, string Evidence);
 
@@ -47,7 +48,7 @@ public sealed class PaymentsModule : IModule
 
         payments.MapPost("/payments", async (InitiatePaymentRequest r, HttpContext http, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new InitiatePayment($"API:{http.Request.Headers["Idempotency-Key"]}", r.Direction, r.Purpose, r.MethodCode, r.Amount, r.Currency,
-                    r.CounterpartyPartyId, r.BusinessRefType, r.BusinessRefId), ct)).ToHttp(view => Results.Created($"/api/v1/payments/payments/{view.Id}", view)))
+                    r.CounterpartyPartyId, r.BusinessRefType, r.BusinessRefId, r.BankAccountId), ct)).ToHttp(view => Results.Created($"/api/v1/payments/payments/{view.Id}", view)))
             .WithName("PaymentsInitiate")
             .WithSummary("Start a payment; its Idempotency-Key is also the payment's own key, so it never moves money twice (PAY-001)")
             .WithDescription("An inbound payment is sent to its provider at once; an outbound one waits for a payout batch.")

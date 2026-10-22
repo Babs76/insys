@@ -3,6 +3,7 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Application\Insys.BuildingBlocks.Application.csproj" />
     <ProjectReference Include="..\Insys.Billing.Domain\Insys.Billing.Domain.csproj" />
     <ProjectReference Include="..\Insys.Billing.Contracts\Insys.Billing.Contracts.csproj" />
+    <ProjectReference Include="..\..\Party\Insys.Party.Contracts\Insys.Party.Contracts.csproj" />
     <ProjectReference Include="..\..\Payments\Insys.Payments.Contracts\Insys.Payments.Contracts.csproj" />
     <ProjectReference Include="..\..\Workflow\Insys.Workflow.Contracts\Insys.Workflow.Contracts.csproj" />
     <ProjectReference Include="..\..\General\Insys.General.Contracts\Insys.General.Contracts.csproj" />

@@ -6,5 +6,6 @@
     <ProjectReference Include="..\..\Billing\Insys.Billing.Contracts\Insys.Billing.Contracts.csproj" />
     <ProjectReference Include="..\..\ClaimsFramework\Insys.ClaimsFramework.Contracts\Insys.ClaimsFramework.Contracts.csproj" />
     <ProjectReference Include="..\..\Workflow\Insys.Workflow.Contracts\Insys.Workflow.Contracts.csproj" />
+    <ProjectReference Include="..\..\Party\Insys.Party.Contracts\Insys.Party.Contracts.csproj" />
   </ItemGroup>
 </Project>

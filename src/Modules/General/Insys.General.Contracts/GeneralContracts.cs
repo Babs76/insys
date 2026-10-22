@@ -102,9 +102,10 @@ public sealed record AssessorAppointed(Guid ClaimId, Guid AssessorPartyId) : IIn
 
 /// <summary>The settlement was approved by a second person: the Claims Framework drafts and releases the payment instruction.</summary>
 [IntegrationEvent("general.GeneralClaimApproved")]
-/// <param name="PayeeBankHash">The hash of the payee's bank details the approval covered.</param>
-public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid PayeePartyId, string? PayeeBankHash, decimal Amount, string Currency, string ReserveType,
-    Guid ApprovalId, Guid CheckerId) : IIntegrationEvent;
+/// <param name="BankAccountId">The payee's bank account (party.bank_account) the approval covered.</param>
+/// <param name="PayeeBankHash">The keyed hash of that account's number, as approved.</param>
+public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid PayeePartyId, Guid BankAccountId, string PayeeBankHash, decimal Amount, string Currency,
+    string ReserveType, Guid ApprovalId, Guid CheckerId) : IIntegrationEvent;
 
 [IntegrationEvent("general.GeneralClaimSettled")]
 public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateOnly PaidOn) : IIntegrationEvent;

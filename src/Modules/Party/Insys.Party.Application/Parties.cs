@@ -81,6 +81,102 @@ public sealed record AddContactPoint(Guid PartyId, string ChannelType, string Va
 /// <summary>Command AddIdentifier: the number is checked against the document type's format, encrypted, and hashed for lookup.</summary>
 public sealed record AddIdentifier(Guid PartyId, string DocType, string Country, string Number, long ExpectedVersion) : ICommand<Guid>, IVersionedCommand;
 
+/// <summary>Command AddBankAccount: the number is encrypted at once and never returned; the party's current account in the currency is superseded.</summary>
+public sealed record AddBankAccount(Guid PartyId, string AccountNumber, string BankCode, string? BranchCode, string AccountHolderName, string AccountType, string Currency)
+    : ICommand<BankAccountView>;
+
+/// <summary>Command VerifyBankAccount: the account becomes payable.</summary>
+public sealed record VerifyBankAccount(Guid PartyId, Guid BankAccountId, string VerificationRef) : ICommand<BankAccountView>;
+
+public sealed record ListBankAccounts(Guid PartyId) : IQuery<IReadOnlyList<BankAccountView>>;
+
+/// <summary>A bank account without its number: the last four digits only.</summary>
+public sealed record BankAccountView(Guid Id, Guid PartyId, string Last4, string BankCode, string? BranchCode, string AccountType, string Currency, string Status,
+    DateTimeOffset? VerifiedAt, Guid? SupersededById)
+{
+    public static BankAccountView From(BankAccount a) => new(a.Id, a.PartyId, a.AccountNumberLast4, a.BankCode, a.BranchCode, a.AccountType, a.Currency,
+        UpperCase(a.Status), a.VerifiedAt, a.SupersededById);
+
+    private static string UpperCase(BankAccountStatus status) => status switch
+    {
+        BankAccountStatus.PendingVerification => "PENDING_VERIFICATION",
+        BankAccountStatus.Active => "ACTIVE",
+        _ => "SUPERSEDED",
+    };
+}
+
+public sealed class AddBankAccountValidator : AbstractValidator<AddBankAccount>
+{
+    public AddBankAccountValidator()
+    {
+        RuleFor(c => c.AccountNumber).NotEmpty().Must(n => n.Count(char.IsAsciiDigit) is >= 6 and <= 34 && n.All(c => char.IsAsciiLetterOrDigit(c) || c is ' ' or '-'))
+            .WithMessage("An account number has 6 to 34 digits.");
+        RuleFor(c => c.BankCode).NotEmpty().MaximumLength(20);
+        RuleFor(c => c.BranchCode).MaximumLength(20);
+        RuleFor(c => c.AccountHolderName).NotEmpty().MaximumLength(140);
+        RuleFor(c => c.AccountType).Must(t => t is "CURRENT" or "SAVINGS" or "TRANSMISSION" or "OTHER").WithMessage("CURRENT, SAVINGS, TRANSMISSION or OTHER.");
+        RuleFor(c => c.Currency).Length(3);
+    }
+}
+
+internal sealed class AddBankAccountHandler(IPartyRepository parties, IFieldProtector protector, IClock clock, IAuditTrail audit) : ICommandHandler<AddBankAccount, BankAccountView>
+{
+    public async Task<Result<BankAccountView>> Handle(AddBankAccount command, CancellationToken cancellationToken)
+    {
+        if (await parties.Get(command.PartyId, cancellationToken) is not { } party)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The party was not found.");
+        }
+
+        var number = new string(command.AccountNumber.Where(char.IsAsciiLetterOrDigit).ToArray()).ToUpperInvariant();
+        var protectedValue = protector.Protect(number);
+        var added = party.AddBankAccount(new BankAccountData(protectedValue.Encrypted, protectedValue.Hash, protectedValue.Last4, command.BankCode.Trim(),
+            command.BranchCode?.Trim(), command.AccountHolderName.Trim(), command.AccountType, command.Currency), clock.UtcNow);
+        if (added.IsFailure)
+        {
+            return added.Error;
+        }
+
+        audit.Record(new AuditEntry("PARTY", "AddBankAccount", nameof(BankAccount), added.Value.ToString(),
+            new Dictionary<string, string?> { ["party"] = party.Id.ToString(), ["last4"] = protectedValue.Last4 }));
+        return BankAccountView.From(party.BankAccounts.Single(a => a.Id == added.Value));
+    }
+}
+
+internal sealed class VerifyBankAccountHandler(IPartyRepository parties, IExecutionContext execution, IClock clock, IAuditTrail audit)
+    : ICommandHandler<VerifyBankAccount, BankAccountView>
+{
+    public async Task<Result<BankAccountView>> Handle(VerifyBankAccount command, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(execution.ActorId, out var user) || execution.ActorType != ActorType.User)
+        {
+            return Error.Forbidden(ErrorCodes.Forbidden, "This is done by an identified user.");
+        }
+
+        if (await parties.Get(command.PartyId, cancellationToken) is not { } party)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The party was not found.");
+        }
+
+        var verified = party.VerifyBankAccount(command.BankAccountId, command.VerificationRef, user, clock.UtcNow);
+        if (verified.IsFailure)
+        {
+            return verified.Error;
+        }
+
+        audit.Record(new AuditEntry("PARTY", "VerifyBankAccount", nameof(BankAccount), command.BankAccountId.ToString()));
+        return BankAccountView.From(party.BankAccounts.Single(a => a.Id == command.BankAccountId));
+    }
+}
+
+internal sealed class ListBankAccountsHandler(IPartyRepository parties) : IQueryHandler<ListBankAccounts, IReadOnlyList<BankAccountView>>
+{
+    public async Task<Result<IReadOnlyList<BankAccountView>>> Handle(ListBankAccounts query, CancellationToken cancellationToken) =>
+        await parties.Get(query.PartyId, cancellationToken) is { } party
+            ? party.BankAccounts.OrderBy(a => a.Id).Select(BankAccountView.From).ToList()
+            : Error.NotFound(ErrorCodes.NotFound, "The party was not found.");
+}
+
 public sealed record VerifyIdentifier(Guid PartyId, Guid IdentifierId, string VerificationRef, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 public sealed record RecordRelationship(Guid PartyId, Guid ToPartyId, string RelationshipCode, DateOnly ValidFrom, long ExpectedVersion) : ICommand<long>, IVersionedCommand;

@@ -6,6 +6,7 @@ using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
+using Insys.Party.Contracts;
 using Insys.Payments.Contracts;
 using Insys.Workflow.Contracts;
 
@@ -83,7 +84,7 @@ public sealed record InvoiceView(Guid Id, string InvoiceNumber, string DocumentT
 }
 
 public sealed record RefundView(Guid Id, Guid BillingAccountId, decimal Amount, string Currency, string ReasonCode, string Status, Guid? PaymentId, Guid? RequestedBy,
-    Guid? DecidedBy);
+    Guid? DecidedBy, Guid? BankAccountId);
 
 public sealed record OpenAccount(Guid PayerPartyId, string Currency, string CollectionMethod, string? MandateRef) : ICommand<AccountView>;
 
@@ -103,7 +104,8 @@ public sealed record AgeAccount(Guid AccountId, DateOnly Today) : ICommand<Accou
 
 public sealed record CloseAccount(Guid AccountId) : ICommand<AccountView>;
 
-public sealed record RequestRefund(Guid AccountId, decimal Amount, string ReasonCode) : ICommand<RefundView>;
+/// <param name="BankAccountId">The payer's verified bank account (party.bank_account) the refund is paid to; the approval covers it.</param>
+public sealed record RequestRefund(Guid AccountId, decimal Amount, string ReasonCode, Guid BankAccountId) : ICommand<RefundView>;
 
 public sealed record GetAccount(Guid AccountId) : IQuery<AccountView>;
 
@@ -358,7 +360,8 @@ internal sealed class CloseAccountHandler(IBillingRepository billing, IAuditTrai
     }
 }
 
-internal sealed class RequestRefundHandler(IBillingRepository billing, IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<RequestRefund, RefundView>
+internal sealed class RequestRefundHandler(IBillingRepository billing, IBankAccounts bankAccounts, ITenantContext tenant, IExecutionContext execution, IClock clock,
+    IAuditTrail audit) : ICommandHandler<RequestRefund, RefundView>
 {
     public async Task<Result<RefundView>> Handle(RequestRefund command, CancellationToken cancellationToken)
     {
@@ -369,7 +372,15 @@ internal sealed class RequestRefundHandler(IBillingRepository billing, IExecutio
             return user.IsFailure ? user.Error : account.Error!;
         }
 
-        var refund = RefundRequest.RequestRefund(Guid.CreateVersion7(), account.Value, command.Amount, command.ReasonCode, user.Value, clock.UtcNow);
+        // Refunded only to the payer's own verified, current account in the account's currency.
+        if (await bankAccounts.Get(tenant.RequireTenantId(), command.BankAccountId, cancellationToken) is not { IsPayable: true } bank
+            || bank.PartyId != account.Value.PayerPartyId || bank.Currency != account.Value.Currency)
+        {
+            return Error.Validation(BillingErrorCodes.BankAccountNotPayable, "The bank account is not the payer's verified, current account in the account's currency.");
+        }
+
+        var refund = RefundRequest.RequestRefund(Guid.CreateVersion7(), account.Value, command.Amount, command.ReasonCode, bank.Id, bank.AccountNumberHash, user.Value,
+            clock.UtcNow);
         if (refund.IsFailure)
         {
             return refund.Error;
@@ -416,7 +427,7 @@ internal sealed class AccountsDueHandler(IBillingRepository billing) : IQueryHan
 internal static class Views
 {
     public static RefundView From(RefundRequest r) => new(r.Id, r.BillingAccountId, r.Amount, r.Currency, r.ReasonCode, r.Status.ToString(), r.PaymentId, r.RequestedBy,
-        r.DecidedBy);
+        r.DecidedBy, r.BankAccountId);
 }
 
 /// <summary>
@@ -460,16 +471,16 @@ public sealed class BillingPolicies(IBillingRepository billing, IClock clock) :
     }
 
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        DecideRefund(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, cancellationToken);
+        DecideRefund(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, granted.SubjectHash, cancellationToken);
 
     public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        DecideRefund(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.CheckerId, cancellationToken);
+        DecideRefund(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.CheckerId, rejected.SubjectHash, cancellationToken);
 
-    private async Task DecideRefund(string businessRefType, Guid refundId, bool approved, Guid checkerId, CancellationToken cancellationToken)
+    private async Task DecideRefund(string businessRefType, Guid refundId, bool approved, Guid checkerId, string? subjectHash, CancellationToken cancellationToken)
     {
         if (businessRefType == BillingApprovals.RefundBusinessRefType && await billing.Refund(refundId, cancellationToken) is { } refund)
         {
-            refund.Decide(approved, checkerId, clock.UtcNow);
+            refund.Decide(approved, checkerId, subjectHash, clock.UtcNow);
         }
     }
 }

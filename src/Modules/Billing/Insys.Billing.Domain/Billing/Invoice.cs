@@ -285,9 +285,11 @@ public enum RefundTrigger
 }
 
 /// <summary>Asks Workflow for a second person's approval of the refund (SRS-002).</summary>
-public sealed record RefundRequested(Guid RefundId, Guid RequestedBy, decimal Amount, string Currency, string ReasonCode, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record RefundRequested(Guid RefundId, Guid RequestedBy, decimal Amount, string Currency, string ReasonCode, string SubjectHash, DateTimeOffset OccurredAt)
+    : IDomainEvent;
 
-public sealed record RefundApproved(Guid RefundId, Guid BillingAccountId, decimal Amount, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record RefundApproved(Guid RefundId, Guid BillingAccountId, Guid PayerPartyId, Guid BankAccountId, decimal Amount, string Currency, DateTimeOffset OccurredAt)
+    : IDomainEvent;
 
 /// <summary>The RefundRequest aggregate (billing.refund_request): approved by a second person before any payment is instructed (SRS-002).</summary>
 public sealed class RefundRequest : AggregateRoot<Guid>
@@ -317,7 +319,19 @@ public sealed class RefundRequest : AggregateRoot<Guid>
 
     public Guid? DecidedBy { get; private set; }
 
-    public static Result<RefundRequest> RequestRefund(Guid id, BillingAccount account, decimal amount, string reasonCode, Guid requestedBy, DateTimeOffset now)
+    public Guid PayerPartyId { get; private set; }
+
+    /// <summary>The payer's bank account (party.bank_account) the refund is paid to, and the keyed hash of its number, as approved.</summary>
+    public Guid? BankAccountId { get; private set; }
+
+    public string? PayeeBankHash { get; private set; }
+
+    /// <summary>What the refund's approval covers: payer, bank account, amount and currency.</summary>
+    public string SubjectHash => ApprovalSubject.Hash("REFUND", Id, PayerPartyId, BankAccountId, PayeeBankHash, Amount, Currency);
+
+    /// <summary>Command RequestRefund, to the payer's verified bank account.</summary>
+    public static Result<RefundRequest> RequestRefund(Guid id, BillingAccount account, decimal amount, string reasonCode, Guid bankAccountId, string bankHash,
+        Guid requestedBy, DateTimeOffset now)
     {
         if (amount <= 0 || decimal.Round(amount, 2) != amount)
         {
@@ -327,16 +341,22 @@ public sealed class RefundRequest : AggregateRoot<Guid>
         var refund = new RefundRequest
         {
             Id = Guard.NotEmpty(id), BillingAccountId = account.Id, Amount = amount, Currency = account.Currency, ReasonCode = reasonCode,
-            Status = RefundStatus.Requested, RequestedBy = requestedBy,
+            Status = RefundStatus.Requested, RequestedBy = requestedBy, PayerPartyId = account.PayerPartyId, BankAccountId = Guard.NotEmpty(bankAccountId),
+            PayeeBankHash = bankHash,
         };
-        refund.Raise(new RefundRequested(id, requestedBy, amount, account.Currency, reasonCode, now));
+        refund.Raise(new RefundRequested(id, requestedBy, amount, account.Currency, reasonCode, refund.SubjectHash, now));
         refund.MarkChanged();
         return refund;
     }
 
     /// <summary>Workflow's decision (ApproveRefund or RejectRefund). The checker is never the requester.</summary>
-    public Result Decide(bool approved, Guid checkerId, DateTimeOffset now)
+    public Result Decide(bool approved, Guid checkerId, string? subjectHash, DateTimeOffset now)
     {
+        if (subjectHash != SubjectHash)
+        {
+            return Error.Conflict(BillingErrorCodes.ApprovalSubjectChanged, "The approval was for another payee account or amount.");
+        }
+
         if (checkerId == RequestedBy)
         {
             return MakerChecker.EnsureDifferentPeople(RequestedBy.ToString()!, checkerId.ToString());
@@ -348,7 +368,7 @@ public sealed class RefundRequest : AggregateRoot<Guid>
             DecidedBy = checkerId;
             if (approved)
             {
-                Raise(new RefundApproved(Id, BillingAccountId, Amount, Currency, now));
+                Raise(new RefundApproved(Id, BillingAccountId, PayerPartyId, BankAccountId!.Value, Amount, Currency, now));
             }
         }
 

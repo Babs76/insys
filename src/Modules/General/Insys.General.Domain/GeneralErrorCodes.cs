@@ -58,6 +58,9 @@ public static class GeneralErrorCodes
     [ErrorCode(422, "error.general.renewal_needs_rating")]
     public const string RenewalNeedsRating = "RENEWAL_NEEDS_RATING";
 
+    [ErrorCode(422, "error.general.bank_account_not_payable")]
+    public const string BankAccountNotPayable = "BANK_ACCOUNT_NOT_PAYABLE";
+
     [ErrorCode(409, "error.general.approval_subject_changed")]
     public const string ApprovalSubjectChanged = "SETTLEMENT_SUBJECT_CHANGED";
 

@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Application.Messaging;
-using Insys.BuildingBlocks.Domain;
 using Insys.General.Api.StaticData;
 using Insys.General.Application;
 using Insys.General.Contracts;
@@ -32,7 +31,7 @@ public sealed record PartyRequest(Guid PartyId, string Role, string? InsurerRef)
 
 public sealed record AssessorRequest(Guid AssessorPartyId);
 
-public sealed record SettlementRequestBody(Guid PayeePartyId, PayeeBankDetails BankDetails, string ReserveType, string DecisionCode, string Rationale);
+public sealed record SettlementRequestBody(Guid PayeePartyId, Guid BankAccountId, string ReserveType, string DecisionCode, string Rationale);
 
 public sealed record DeclineRequest(string DecisionCode, string Rationale);
 
@@ -171,7 +170,7 @@ public sealed class GeneralModule : IModule
                 (await d.Send(new AppointAssessor(id, r.AssessorPartyId), ct)).ToHttp(Results.Ok))
             .WithName("GeneralAppointAssessor").WithSummary("Appoint an assessor on an approved panel (GEN-007)").RequirePermission(GeneralPermissions.ClaimUpdate);
         general.MapPost("/claims/{id:guid}/settlement", async (Guid id, SettlementRequestBody r, IDispatcher d, CancellationToken ct) =>
-                (await d.Send(new RequestSettlement(id, r.PayeePartyId, r.BankDetails, r.ReserveType, r.DecisionCode, r.Rationale), ct)).ToHttp(Results.Ok))
+                (await d.Send(new RequestSettlement(id, r.PayeePartyId, r.BankAccountId, r.ReserveType, r.DecisionCode, r.Rationale), ct)).ToHttp(Results.Ok))
             .WithName("GeneralRequestSettlement").WithSummary("Approve a settlement: excess and limits are applied (GEN-008); a second person approves it in Workflow (SRS-002)")
             .RequirePermission(GeneralPermissions.ClaimDecide);
         general.MapPost("/claims/{id:guid}/decline", async (Guid id, DeclineRequest r, IDispatcher d, CancellationToken ct) =>

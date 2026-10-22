@@ -23,7 +23,7 @@ public sealed record IssueInvoicesRequest(DateOnly AsOf);
 
 public sealed record CreditNoteRequest(decimal Amount, string ReasonCode);
 
-public sealed record RefundRequestBody(decimal Amount, string ReasonCode);
+public sealed record RefundRequestBody(decimal Amount, string ReasonCode, Guid BankAccountId);
 
 /// <summary>The Billing module: accounts, premium schedules, invoices and credit notes, arrears and refunds (BIL-001 to BIL-004).</summary>
 public sealed class BillingModule : IModule
@@ -91,7 +91,7 @@ public sealed class BillingModule : IModule
             .RequirePermission(BillingPermissions.AccountUpdate);
 
         accounts.MapPost("/{id:guid}/refunds", async (Guid id, RefundRequestBody r, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new RequestRefund(id, r.Amount, r.ReasonCode), ct)).ToHttp(view => Results.Created($"/api/v1/billing/refunds/{view.Id}", view)))
+                (await dispatcher.Send(new RequestRefund(id, r.Amount, r.ReasonCode, r.BankAccountId), ct)).ToHttp(view => Results.Created($"/api/v1/billing/refunds/{view.Id}", view)))
             .WithName("BillingRequestRefund")
             .WithSummary("Request a refund; a second person approves it in Workflow before any payment (SRS-002)")
             .RequirePermission(BillingPermissions.RefundCreate)

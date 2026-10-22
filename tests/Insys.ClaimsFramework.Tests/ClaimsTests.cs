@@ -16,7 +16,9 @@ public sealed class ClaimsTests
     private static ClaimFinancials Financials(ClaimRegistration claim) => new(claim.ClaimNumber, claim.Domain, "ZAR", []);
 
     private static ClaimPaymentInstruction Draft(ClaimRegistration claim, Guid maker, decimal amount = 400m) =>
-        ClaimPaymentInstruction.DraftInstruction(Guid.CreateVersion7(), claim, "PAY-1", Guid.CreateVersion7(), amount, 500m, "ZAR", "INDEMNITY", maker).Value;
+        ClaimPaymentInstruction.DraftInstruction(Guid.CreateVersion7(), claim, "PAY-1", Account(Guid.CreateVersion7()), amount, 500m, "ZAR", "INDEMNITY", maker).Value;
+
+    private static PayeeAccount Account(Guid party, string hash = "a1") => new(party, Guid.CreateVersion7(), hash.PadRight(64, '0'));
 
     [Fact]
     public void Instruction_Lifecycle_MatchesDomainModel()
@@ -67,7 +69,7 @@ public sealed class ClaimsTests
 
     [Fact]
     public void Instruction_AboveTheApprovedAmount_IsRefused() =>
-        ClaimPaymentInstruction.DraftInstruction(Guid.CreateVersion7(), Claim(), "PAY-1", Guid.CreateVersion7(), 500.01m, 500m, "ZAR", "INDEMNITY", Guid.CreateVersion7())
+        ClaimPaymentInstruction.DraftInstruction(Guid.CreateVersion7(), Claim(), "PAY-1", Account(Guid.CreateVersion7()), 500.01m, 500m, "ZAR", "INDEMNITY", Guid.CreateVersion7())
             .Error!.Code.ShouldBe(ClaimsErrorCodes.AboveApprovedAmount);
 
     [Fact]
@@ -103,12 +105,9 @@ public sealed class ClaimsTests
         instruction.ReleaseInstruction(Guid.CreateVersion7(), claim.Domain, 1000m, Now).IsFailure.ShouldBeTrue();
     }
 
-    private static readonly PayeeBankDetails Bank = new("632005", null, "62 0001 2345", "T Nkosi");
-
-    private static ClaimPaymentInstruction FailedPayment(ClaimRegistration claim, Guid payee)
+    private static ClaimPaymentInstruction FailedPayment(ClaimRegistration claim, PayeeAccount payee)
     {
-        var instruction = ClaimPaymentInstruction.DraftInstruction(Guid.CreateVersion7(), claim, "PAY-1", payee, 400m, 500m, "ZAR", "INDEMNITY", Guid.CreateVersion7(),
-            Bank.Hash()).Value;
+        var instruction = ClaimPaymentInstruction.DraftInstruction(Guid.CreateVersion7(), claim, "PAY-1", payee, 400m, 500m, "ZAR", "INDEMNITY", Guid.CreateVersion7()).Value;
         instruction.SubmitInstruction(Guid.CreateVersion7(), Now);
         instruction.Decide(true, Guid.CreateVersion7(), instruction.SubjectHash, claim.Domain, Now);
         instruction.ReleaseInstruction(Guid.CreateVersion7(), claim.Domain, 400m, Now);
@@ -118,73 +117,83 @@ public sealed class ClaimsTests
     }
 
     [Fact]
-    public void FailedPayment_RetriedToTheApprovedDetails_IsReleasedAtOnce_AsANewAttempt()
+    public void FailedPayment_RetriedToTheApprovedAccount_IsReleasedAtOnce_AsANewAttempt()
     {
         var claim = Claim();
-        var payee = Guid.CreateVersion7();
+        var payee = Account(Guid.CreateVersion7());
         var instruction = FailedPayment(claim, payee);
 
-        instruction.Retry(payee, new PayeeBankDetails("632005", null, "6200012345", " t nkosi ").Hash(), claim.Domain, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        instruction.Retry(payee, claim.Domain, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
 
         instruction.Status.ShouldBe(InstructionStatus.Released);
         instruction.DomainEvents.OfType<InstructionRetryRequested>().ShouldBeEmpty();
-        instruction.DomainEvents.OfType<ClaimPaymentInstructed>().Last().Attempt.ShouldBe(2);
+        instruction.DomainEvents.OfType<ClaimPaymentInstructed>().Last().ShouldSatisfyAllConditions(e => e.Attempt.ShouldBe(2), e => e.BankAccountId.ShouldBe(payee.BankAccountId));
         instruction.RecordOutcome(true, Guid.CreateVersion7(), claim.Domain, Today, Now);
         instruction.Status.ShouldBe(InstructionStatus.Paid);
         instruction.DomainEvents.OfType<ClaimPaymentCompleted>().Single().Amount.ShouldBe(400m);
     }
 
     [Fact]
-    public void NewPayeeOrBankDetails_AfterApproval_NeedANewApproval_SRS002()
+    public void NewPayeeOrBankAccount_AfterApproval_NeedsANewApproval_SRS002()
     {
         var claim = Claim();
-        var payee = Guid.CreateVersion7();
+        var payee = Account(Guid.CreateVersion7());
         var instruction = FailedPayment(claim, payee);
         var clerk = Guid.CreateVersion7();
-        var newBank = new PayeeBankDetails("250655", null, "1234567890", "T Nkosi").Hash();
+        var newAccount = payee with { BankAccountId = Guid.CreateVersion7(), AccountHash = "b2".PadRight(64, '0') };
 
-        instruction.Retry(payee, newBank, claim.Domain, clerk, Now).IsSuccess.ShouldBeTrue();
+        instruction.Retry(newAccount, claim.Domain, clerk, Now).IsSuccess.ShouldBeTrue();
 
         instruction.Status.ShouldBe(InstructionStatus.Failed);
-        instruction.PendingPayeeBankHash.ShouldBe(newBank);
+        instruction.PendingBankAccountId.ShouldBe(newAccount.BankAccountId);
         var requested = instruction.DomainEvents.OfType<InstructionRetryRequested>().Single();
         requested.RequestedBy.ShouldBe(clerk);
         requested.SubjectHash.ShouldBe(instruction.PendingSubjectHash);
         instruction.DomainEvents.OfType<ClaimPaymentInstructed>().Count().ShouldBe(1);
-        instruction.Retry(Guid.CreateVersion7(), null, claim.Domain, clerk, Now).Error!.Code.ShouldBe(ClaimsErrorCodes.RetryPending);
+        instruction.Retry(Account(Guid.CreateVersion7()), claim.Domain, clerk, Now).Error!.Code.ShouldBe(ClaimsErrorCodes.RetryPending);
 
-        // The earlier approval (for the old details) does not cover the new ones.
+        // The earlier approval (for the old account) does not cover the new one.
         instruction.Decide(true, Guid.CreateVersion7(), instruction.SubjectHash, claim.Domain, Now).Error!.Code.ShouldBe(ClaimsErrorCodes.ApprovalSubjectChanged);
         instruction.Status.ShouldBe(InstructionStatus.Failed);
 
         instruction.Decide(true, Guid.CreateVersion7(), instruction.PendingSubjectHash, claim.Domain, Now).IsSuccess.ShouldBeTrue();
         instruction.Status.ShouldBe(InstructionStatus.Released);
-        instruction.PayeeBankHash.ShouldBe(newBank);
-        instruction.DomainEvents.OfType<ClaimPaymentInstructed>().Last().Attempt.ShouldBe(2);
+        instruction.Payee.ShouldBe(newAccount);
+        instruction.DomainEvents.OfType<ClaimPaymentInstructed>().Last().ShouldSatisfyAllConditions(e => e.Attempt.ShouldBe(2),
+            e => e.BankAccountId.ShouldBe(newAccount.BankAccountId));
     }
 
     [Fact]
-    public void RejectedNewDetails_LeaveThePaymentFailed()
+    public void ApprovedInstruction_RedirectedToANewAccount_StaysApprovedUntilTheNewApproval()
     {
         var claim = Claim();
-        var payee = Guid.CreateVersion7();
+        var instruction = Draft(claim, Guid.CreateVersion7());
+        instruction.SubmitInstruction(Guid.CreateVersion7(), Now);
+        instruction.Decide(true, Guid.CreateVersion7(), instruction.SubjectHash, claim.Domain, Now);
+        var newAccount = instruction.Payee! with { BankAccountId = Guid.CreateVersion7() };
+
+        instruction.Redirect(newAccount, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        instruction.Status.ShouldBe(InstructionStatus.Approved);
+        instruction.Decide(true, Guid.CreateVersion7(), instruction.PendingSubjectHash, claim.Domain, Now).IsSuccess.ShouldBeTrue();
+
+        instruction.Status.ShouldBe(InstructionStatus.Approved);
+        instruction.BankAccountId.ShouldBe(newAccount.BankAccountId);
+        instruction.ReleaseInstruction(Guid.CreateVersion7(), claim.Domain, 1000m, Now).IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void RejectedNewAccount_LeavesThePaymentFailed()
+    {
+        var claim = Claim();
+        var payee = Account(Guid.CreateVersion7());
         var instruction = FailedPayment(claim, payee);
-        var other = Guid.CreateVersion7();
-        instruction.Retry(other, Bank.Hash(), claim.Domain, Guid.CreateVersion7(), Now);
+        instruction.Retry(Account(Guid.CreateVersion7()), claim.Domain, Guid.CreateVersion7(), Now);
 
         instruction.Decide(false, Guid.CreateVersion7(), instruction.PendingSubjectHash, claim.Domain, Now).IsSuccess.ShouldBeTrue();
 
         instruction.Status.ShouldBe(InstructionStatus.Failed);
-        instruction.PayeePartyId.ShouldBe(payee);
+        instruction.Payee.ShouldBe(payee);
         instruction.PendingPayeePartyId.ShouldBeNull();
-    }
-
-    [Fact]
-    public void BankDetails_AreNeverShown()
-    {
-        Bank.ToString().ShouldNotContain("2345");
-        Bank.Hash().Length.ShouldBe(64);
-        Bank.Hash().ShouldNotBe(new PayeeBankDetails("632005", null, "6200012346", "T Nkosi").Hash());
     }
 
     [Fact]

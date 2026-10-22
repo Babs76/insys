@@ -62,11 +62,9 @@ internal sealed class ProductVersionRepository(ProductFactoryDbContext db, ITena
             return null;
         }
 
-        var labels = row.Labels;
         var version = ProductVersion.Rehydrate(new ProductVersionState(row.Id, row.Code, row.Version, Enum.Parse<ProductDomain>(row.Domain, ignoreCase: true), row.Name,
             row.Coverages, UpperCaseEnumConverter<ProductVersionStatus>.FromCode(row.RecordStatus), row.EffectiveFrom, row.EffectiveTo, row.SupersedesId,
-            Label(labels, "family"), Label(labels, "class"), row.ApprovedBy, row.ApprovedAt, row.RowVersion,
-            Label(labels, "cover_starts_on") is { } start ? UpperCaseEnumConverter<CoverStart>.FromCode(start) : CoverStart.Issue));
+            row.FamilyCode, row.ClassCode, row.ApprovedBy, row.ApprovedAt, row.RowVersion, UpperCaseEnumConverter<CoverStart>.FromCode(row.CoverStartsOn)));
         Remember(version, row);
         return version;
     }
@@ -108,10 +106,9 @@ internal sealed class ProductVersionRepository(ProductFactoryDbContext db, ITena
             row.SupersedesId = version.SupersedesId;
             row.ApprovedBy = version.ApprovedBy;
             row.ApprovedAt = version.ApprovedAt;
-            row.Labels = JsonSerializer.SerializeToElement(new Dictionary<string, string?>
-            {
-                ["family"] = version.FamilyCode, ["class"] = version.ClassCode, ["cover_starts_on"] = UpperCaseEnumConverter<CoverStart>.ToCode(version.CoverStartsOn),
-            });
+            row.FamilyCode = version.FamilyCode;
+            row.ClassCode = version.ClassCode;
+            row.CoverStartsOn = UpperCaseEnumConverter<CoverStart>.ToCode(version.CoverStartsOn);
             Publish(version);
         }
     }
@@ -129,8 +126,6 @@ internal sealed class ProductVersionRepository(ProductFactoryDbContext db, ITena
         ((IAggregateRoot)version).AcceptChanges();
     }
 
-    private static string? Label(JsonElement? labels, string name) =>
-        labels is { ValueKind: JsonValueKind.Object } l && l.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 }
 
 internal sealed class SimulationRunStore(ProductFactoryDbContext db) : ISimulationRuns

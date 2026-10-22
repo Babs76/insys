@@ -4,6 +4,7 @@ using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
+using Insys.Party.Contracts;
 using Insys.Payments.Application;
 using Insys.Payments.Domain.Payments;
 using Insys.Payments.Infrastructure.StaticData;
@@ -113,7 +114,8 @@ internal sealed class SimulatorGateway(IConfiguration configuration) : IPaymentG
 
     public bool Handles(string providerCode) => providerCode == Code;
 
-    public Task<(ProviderOutcome Outcome, string? ExternalRef, string? Reason)> Send(Payment payment, CancellationToken cancellationToken)
+    /// <summary>The simulator does not use the payee's account details; a real adapter would send them to its provider, and nowhere else.</summary>
+    public Task<(ProviderOutcome Outcome, string? ExternalRef, string? Reason)> Send(Payment payment, PayeeAccountDetails? payee, CancellationToken cancellationToken)
     {
         var cents = (int)((payment.Amount * 100) % 100);
         return Task.FromResult(cents switch

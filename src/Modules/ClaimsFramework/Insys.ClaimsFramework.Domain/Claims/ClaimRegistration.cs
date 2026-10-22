@@ -235,6 +235,9 @@ public static class ClaimsErrorCodes
     [ErrorCode(409, "error.claims.approval_subject_changed")]
     public const string ApprovalSubjectChanged = "APPROVAL_SUBJECT_CHANGED";
 
+    [ErrorCode(409, "error.claims.bank_account_changed")]
+    public const string BankAccountChanged = "PAYEE_BANK_ACCOUNT_CHANGED";
+
     [ErrorCode(409, "error.claims.retry_pending")]
     public const string RetryPending = "PAYMENT_RETRY_PENDING";
 

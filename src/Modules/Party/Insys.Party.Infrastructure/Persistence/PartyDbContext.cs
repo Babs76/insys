@@ -36,6 +36,7 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             Children(party, p => p.Addresses, nameof(Domain.Parties.Party.Addresses));
             Children(party, p => p.ContactPoints, nameof(Domain.Parties.Party.ContactPoints));
             Children(party, p => p.Identifiers, nameof(Domain.Parties.Party.Identifiers));
+            Children(party, p => p.BankAccounts, nameof(Domain.Parties.Party.BankAccounts));
             Children(party, p => p.Roles, nameof(Domain.Parties.Party.Roles));
             party.HasMany(p => p.Relationships).WithOne().HasForeignKey(r => new { r.TenantId, r.FromPartyId }).OnDelete(DeleteBehavior.Cascade);
             party.Navigation(p => p.Relationships).UsePropertyAccessMode(PropertyAccessMode.Field);
@@ -84,6 +85,24 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             contact.ToTable("contact_point");
             contact.HasKey(c => new { c.TenantId, c.Id });
             contact.HasAuditColumns();
+        });
+
+        // A change is a new row (V0018); the account number is encrypted, its hash keyed.
+        modelBuilder.Entity<BankAccount>(account =>
+        {
+            account.ToTable("bank_account");
+            account.HasKey(a => new { a.TenantId, a.Id });
+            account.HasAuditColumns();
+            account.Property(a => a.AccountNumberHash).HasColumnType("char(64)");
+            account.Property(a => a.AccountNumberLast4).HasColumnType("char(4)");
+            account.Property(a => a.BankCode).HasMaxLength(20);
+            account.Property(a => a.BranchCode).HasMaxLength(20);
+            account.Property(a => a.AccountHolderName).HasMaxLength(140);
+            account.Property(a => a.AccountType).HasMaxLength(15);
+            account.Property(a => a.Currency).HasColumnType("char(3)");
+            account.Property(a => a.VerificationRef).HasMaxLength(60);
+            account.Property(a => a.Status).HasConversion(new UpperCaseEnumConverter<BankAccountStatus>()).HasMaxLength(25);
+            account.HasOne<BankAccount>().WithMany().HasForeignKey(a => new { a.TenantId, a.SupersededById });
         });
 
         modelBuilder.Entity<PartyIdentifier>(identifier =>

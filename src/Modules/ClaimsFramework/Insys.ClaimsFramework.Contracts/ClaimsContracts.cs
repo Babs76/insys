@@ -37,8 +37,9 @@ public sealed record ClaimRecoveryRecorded(Guid MovementId, string ClaimNumber, 
 
 /// <summary>An approved instruction was released: Payments adds it to a payout batch. A retry is a new attempt, and a new payment (PAY-001).</summary>
 [IntegrationEvent("claims.ClaimPaymentInstructed")]
-public sealed record ClaimPaymentInstructed(Guid InstructionId, string ClaimNumber, string Domain, Guid PayeePartyId, decimal Amount, string Currency, int Attempt)
-    : IIntegrationEvent;
+/// <param name="BankAccountId">The payee's bank account (party.bank_account) the payment was approved to; never the account's details.</param>
+public sealed record ClaimPaymentInstructed(Guid InstructionId, string ClaimNumber, string Domain, Guid PayeePartyId, Guid BankAccountId, decimal Amount, string Currency,
+    int Attempt) : IIntegrationEvent;
 
 [IntegrationEvent("claims.ClaimPaymentCompleted")]
 public sealed record ClaimPaymentCompleted(Guid InstructionId, Guid MovementId, string ClaimNumber, string Domain, string ReserveType, decimal Amount, string Currency,

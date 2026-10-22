@@ -34,7 +34,11 @@ public sealed record InstructionRetryRequested(Guid InstructionId, string ClaimN
     DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>Released: Payments adds it to a payout batch.</summary>
-public sealed record ClaimPaymentInstructed(Guid InstructionId, string ClaimNumber, string Domain, Guid PayeePartyId, decimal Amount, string Currency, int Attempt,
+/// <summary>Who is paid, to which of their bank accounts (party.bank_account), and the keyed hash of its number as approved.</summary>
+public sealed record PayeeAccount(Guid PartyId, Guid BankAccountId, string AccountHash);
+
+public sealed record ClaimPaymentInstructed(Guid InstructionId, string ClaimNumber, string Domain, Guid PayeePartyId, Guid BankAccountId, decimal Amount, string Currency,
+    int Attempt,
     DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record ClaimPaymentCompleted(Guid InstructionId, Guid MovementId, string ClaimNumber, string Domain, string ReserveType, decimal Amount, string Currency,
@@ -86,24 +90,35 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
 
     public Guid? ReleasedBy { get; private set; }
 
-    /// <summary>The hash of the payee's bank details the approval covers; the details themselves are never stored.</summary>
+    /// <summary>The payee's bank account (party.bank_account) the approval covers.</summary>
+    public Guid? BankAccountId { get; private set; }
+
+    /// <summary>The keyed hash of that account's number, as approved; the number is held only by the Party module.</summary>
     public string? PayeeBankHash { get; private set; }
 
-    /// <summary>New payee details waiting for approval after a failed payment.</summary>
+    /// <summary>A new payee or bank account waiting for approval.</summary>
     public Guid? PendingPayeePartyId { get; private set; }
+
+    public Guid? PendingBankAccountId { get; private set; }
 
     public string? PendingPayeeBankHash { get; private set; }
 
     public Guid? RetryRequestedBy { get; private set; }
 
-    /// <summary>What an approval of this instruction covers: the payee, their bank details and the amount.</summary>
-    public string SubjectHash => Subject(PayeePartyId, PayeeBankHash);
+    /// <summary>What an approval of this instruction covers: the payee, their bank account and the amount.</summary>
+    public string SubjectHash => Subject(PayeePartyId, BankAccountId, PayeeBankHash);
 
-    private string Subject(Guid payee, string? bankHash) => ApprovalSubject.Hash("CLAIM_PAYMENT", Id, ClaimNumber, payee, bankHash, Amount, Currency);
+    /// <summary>What the approval of the waiting new payee or account covers.</summary>
+    public string? PendingSubjectHash => PendingPayeePartyId is { } payee ? Subject(payee, PendingBankAccountId, PendingPayeeBankHash) : null;
 
-    /// <summary>Command DraftInstruction for an amount within the domain's approved amount.</summary>
-    public static Result<ClaimPaymentInstruction> DraftInstruction(Guid id, ClaimRegistration claim, string instructionRef, Guid payee, decimal amount, decimal approvedAmount,
-        string currency, string reserveType, Guid draftedBy, string? payeeBankHash = null)
+    public PayeeAccount? Payee => BankAccountId is { } account ? new PayeeAccount(PayeePartyId, account, PayeeBankHash!) : null;
+
+    private string Subject(Guid payee, Guid? bankAccountId, string? bankHash) =>
+        ApprovalSubject.Hash("CLAIM_PAYMENT", Id, ClaimNumber, payee, bankAccountId, bankHash, Amount, Currency);
+
+    /// <summary>Command DraftInstruction for an amount within the domain's approved amount, to the payee's bank account.</summary>
+    public static Result<ClaimPaymentInstruction> DraftInstruction(Guid id, ClaimRegistration claim, string instructionRef, PayeeAccount payee, decimal amount,
+        decimal approvedAmount, string currency, string reserveType, Guid draftedBy)
     {
         if (amount <= 0 || decimal.Round(amount, 2) != amount)
         {
@@ -118,21 +133,22 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
         var instruction = new ClaimPaymentInstruction
         {
             Id = Guard.NotEmpty(id), ClaimNumber = claim.ClaimNumber, InstructionRef = Guard.MaxLength(Guard.NotNullOrWhiteSpace(instructionRef), 60),
-            PayeePartyId = Guard.NotEmpty(payee), Amount = amount, ApprovedAmount = approvedAmount, Currency = currency, ReserveType = reserveType,
-            Status = InstructionStatus.Drafted, DraftedBy = draftedBy, PayeeBankHash = payeeBankHash,
+            PayeePartyId = Guard.NotEmpty(payee.PartyId), BankAccountId = Guard.NotEmpty(payee.BankAccountId), PayeeBankHash = payee.AccountHash, Amount = amount,
+            ApprovedAmount = approvedAmount, Currency = currency, ReserveType = reserveType, Status = InstructionStatus.Drafted, DraftedBy = draftedBy,
         };
         instruction.MarkChanged();
         return instruction;
     }
 
     /// <summary>
-    /// An instruction for a settlement a domain has already had approved in Workflow by a second person (process
-    /// "General claim to settlement": the settlement approval is the instruction's approval, so it is not asked again).
+    /// An instruction for a settlement a domain has already had approved in Workflow by a second person, for this payee
+    /// and bank account (process "General claim to settlement"): the settlement approval is the instruction's approval,
+    /// so it is not asked again (ADR-009).
     /// </summary>
-    public static Result<ClaimPaymentInstruction> FromApprovedSettlement(Guid id, ClaimRegistration claim, string instructionRef, Guid payee, string? payeeBankHash,
-        decimal amount, string currency, string reserveType, Guid approvalId)
+    public static Result<ClaimPaymentInstruction> FromApprovedSettlement(Guid id, ClaimRegistration claim, string instructionRef, PayeeAccount payee, decimal amount,
+        string currency, string reserveType, Guid approvalId)
     {
-        var instruction = DraftInstruction(id, claim, instructionRef, payee, amount, amount, currency, reserveType, Guid.Empty, payeeBankHash);
+        var instruction = DraftInstruction(id, claim, instructionRef, payee, amount, amount, currency, reserveType, Guid.Empty);
         if (instruction.IsFailure)
         {
             return instruction;
@@ -158,18 +174,18 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
 
     /// <summary>
     /// Workflow's decision. The checker was never the maker (Workflow refuses that). It applies only to the subject it
-    /// was asked for: the payee, bank details and amount as they were when approval was requested.
+    /// was asked for: the payee, bank account and amount as they were when approval was requested.
     /// </summary>
     public Result Decide(bool approved, Guid approvalId, string? subjectHash, string domain, DateTimeOffset now)
     {
-        if (Status == InstructionStatus.Failed && PendingPayeePartyId is { } pendingPayee)
+        if (PendingPayeePartyId is { } pendingPayee)
         {
-            return DecideRetry(approved, pendingPayee, subjectHash, domain, now);
+            return DecidePayeeChange(approved, pendingPayee, subjectHash, domain, now);
         }
 
         if (subjectHash != SubjectHash)
         {
-            return Error.Conflict(ClaimsErrorCodes.ApprovalSubjectChanged, "The approval was for other payee details or another amount.");
+            return Error.Conflict(ClaimsErrorCodes.ApprovalSubjectChanged, "The approval was for another payee, bank account or amount.");
         }
 
         var result = Fire(approved ? InstructionTrigger.ApprovalGranted : InstructionTrigger.ApprovalRejected);
@@ -193,7 +209,7 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
         if (result.IsSuccess)
         {
             ReleasedBy = releasedBy;
-            Raise(new ClaimPaymentInstructed(Id, ClaimNumber, domain, PayeePartyId, Amount, Currency, Attempt, now));
+            Raise(new ClaimPaymentInstructed(Id, ClaimNumber, domain, PayeePartyId, BankAccountId!.Value, Amount, Currency, Attempt, now));
         }
 
         return result;
@@ -221,39 +237,46 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Transition "Retried with new details": a failed payment is released again, as a new payment. With the approved
-    /// payee and bank details it is released at once; with a different payee or bank details it waits, Failed, for a
-    /// second person to approve them in Workflow (SRS-002), and is released when they do.
+    /// Transition "Retried with new details": a failed payment is released again, as a new payment. To the approved
+    /// payee and bank account it is released at once; to a different payee or account it waits, Failed, for a second
+    /// person to approve them in Workflow (SRS-002), and is released when they do.
     /// </summary>
-    public Result Retry(Guid payee, string? payeeBankHash, string domain, Guid requestedBy, DateTimeOffset now)
+    public Result Retry(PayeeAccount payee, string domain, Guid requestedBy, DateTimeOffset now)
     {
         if (Status != InstructionStatus.Failed)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Only a failed payment is retried; the instruction is {Status}.");
         }
 
+        return payee == Payee ? Rerelease(requestedBy, domain, now) : RequestPayeeChange(payee, requestedBy, now);
+    }
+
+    /// <summary>
+    /// An approved instruction not yet released, redirected to another payee or bank account (after the payee's account
+    /// was superseded, say): a second person approves the new details before it can be released.
+    /// </summary>
+    public Result Redirect(PayeeAccount payee, Guid requestedBy, DateTimeOffset now) =>
+        Status != InstructionStatus.Approved
+            ? Error.Conflict(ErrorCodes.InvalidStateTransition, $"Only an approved instruction is redirected; it is {Status}. Retry a failed payment instead.")
+            : payee == Payee ? Result.Success() : RequestPayeeChange(payee, requestedBy, now);
+
+    private Result RequestPayeeChange(PayeeAccount payee, Guid requestedBy, DateTimeOffset now)
+    {
         if (PendingPayeePartyId is not null)
         {
             return Error.Conflict(ClaimsErrorCodes.RetryPending, "New payee details are already waiting for approval.");
         }
 
-        if (payee == PayeePartyId && payeeBankHash == PayeeBankHash)
-        {
-            return Rerelease(requestedBy, domain, now);
-        }
-
-        PendingPayeePartyId = Guard.NotEmpty(payee);
-        PendingPayeeBankHash = payeeBankHash;
+        PendingPayeePartyId = Guard.NotEmpty(payee.PartyId);
+        PendingBankAccountId = Guard.NotEmpty(payee.BankAccountId);
+        PendingPayeeBankHash = payee.AccountHash;
         RetryRequestedBy = requestedBy;
-        Raise(new InstructionRetryRequested(Id, ClaimNumber, requestedBy, Amount, Currency, Subject(payee, payeeBankHash), now));
+        Raise(new InstructionRetryRequested(Id, ClaimNumber, requestedBy, Amount, Currency, PendingSubjectHash!, now));
         MarkChanged();
         return Result.Success();
     }
 
-    /// <summary>What the approval of the waiting new details covers.</summary>
-    public string? PendingSubjectHash => PendingPayeePartyId is { } payee ? Subject(payee, PendingPayeeBankHash) : null;
-
-    private Result DecideRetry(bool approved, Guid pendingPayee, string? subjectHash, string domain, DateTimeOffset now)
+    private Result DecidePayeeChange(bool approved, Guid pendingPayee, string? subjectHash, string domain, DateTimeOffset now)
     {
         if (subjectHash != PendingSubjectHash)
         {
@@ -261,8 +284,9 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
         }
 
         var requestedBy = RetryRequestedBy!.Value;
-        var bankHash = PendingPayeeBankHash;
+        var (account, hash) = (PendingBankAccountId, PendingPayeeBankHash);
         PendingPayeePartyId = null;
+        PendingBankAccountId = null;
         PendingPayeeBankHash = null;
         RetryRequestedBy = null;
         MarkChanged();
@@ -272,8 +296,9 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
         }
 
         PayeePartyId = pendingPayee;
-        PayeeBankHash = bankHash;
-        return Rerelease(requestedBy, domain, now);
+        BankAccountId = account;
+        PayeeBankHash = hash;
+        return Status == InstructionStatus.Failed ? Rerelease(requestedBy, domain, now) : Result.Success();
     }
 
     private Result Rerelease(Guid releasedBy, string domain, DateTimeOffset now)
@@ -284,7 +309,7 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
             Attempt++;
             PaymentId = null;
             ReleasedBy = releasedBy;
-            Raise(new ClaimPaymentInstructed(Id, ClaimNumber, domain, PayeePartyId, Amount, Currency, Attempt, now));
+            Raise(new ClaimPaymentInstructed(Id, ClaimNumber, domain, PayeePartyId, BankAccountId!.Value, Amount, Currency, Attempt, now));
         }
 
         return result;

@@ -24,6 +24,8 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
 
     private static readonly string[] Permissions =
     [
+        Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.BankAccountCreate,
+        Insys.Party.Contracts.PartyPermissions.BankAccountVerify,
         BillingPermissions.AccountRead, BillingPermissions.AccountCreate, BillingPermissions.AccountUpdate, BillingPermissions.InvoiceRead,
         BillingPermissions.InvoiceCreate, BillingPermissions.RefundRead, BillingPermissions.RefundCreate, PaymentPermissions.PaymentRead, PaymentPermissions.PaymentResolve,
         PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.ReconciliationRead,
@@ -163,11 +165,17 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
     [Fact]
     public async Task Refund_AndItsPayoutBatch_EachNeedASecondPerson_SRS002()
     {
-        var (account, _) = await IssueInvoice(80m);
+        var payer = await _maker.RegisterPerson("Refundee");
+        var bankAccount = await _maker.AddVerifiedBankAccount(payer, "62000555501");
+        var (account, _) = await IssueInvoice(80m, payer);
         await _factory.DrainOutbox();
 
-        var refund = (await (await _maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/refunds", new { amount = 25m, reasonCode = "OVERPAID" }, idempotent: true))
-            .Json()).GetProperty("id").GetGuid();
+        // A refund goes only to the payer's own verified account, by id; no account number is sent.
+        var other = await _maker.AddVerifiedBankAccount(await _maker.RegisterPerson("Stranger"), "62000555502");
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/refunds", new { amount = 25m, reasonCode = "OVERPAID", bankAccountId = other },
+            idempotent: true)).Code()).ShouldBe("REFUND_ACCOUNT_NOT_PAYABLE");
+        var refund = (await (await _maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/refunds",
+            new { amount = 25m, reasonCode = "OVERPAID", bankAccountId = bankAccount }, idempotent: true)).Json()).GetProperty("id").GetGuid();
         await _factory.DrainOutbox();
         await Approve(BillingApprovals.RefundBusinessRefType, refund);
         (await (await _maker.GetAsync($"/api/v1/billing/refunds/{refund}")).Json()).GetProperty("status").GetString().ShouldBe("Approved");
@@ -198,8 +206,10 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 1000m, currency = "ZAR" }))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
 
+        var payee = await _maker.RegisterPerson("Claimant");
+        var bankAccount = await _maker.AddVerifiedBankAccount(payee, "62000777701");
         var drafted = await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/payment-instructions",
-            new { instructionRef = "SETTLE-1", payeePartyId = Guid.CreateVersion7(), amount = 400m, approvedAmount = 400m, currency = "ZAR", reserveType = "INDEMNITY" });
+            new { instructionRef = "SETTLE-1", payeePartyId = payee, bankAccountId = bankAccount, amount = 400m, approvedAmount = 400m, currency = "ZAR", reserveType = "INDEMNITY" });
         drafted.StatusCode.ShouldBe(HttpStatusCode.Created);
         var instruction = (await drafted.Json()).GetProperty("id").GetGuid();
         (await _maker.PostAsync($"/api/v1/claims/payment-instructions/{instruction}/submit", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -227,10 +237,10 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
             .ShouldBe("PR-CLM-PAID");
     }
 
-    private async Task<(Guid Account, Guid Invoice)> IssueInvoice(decimal instalment)
+    private async Task<(Guid Account, Guid Invoice)> IssueInvoice(decimal instalment, Guid? payer = null)
     {
         var account = (await (await _maker.Send(HttpMethod.Post, "/api/v1/billing/accounts/",
-            new { payerPartyId = Guid.CreateVersion7(), currency = "ZAR", collectionMethod = "DEBIT_ORDER" }, idempotent: true)).Json()).GetProperty("id").GetGuid();
+            new { payerPartyId = payer ?? Guid.CreateVersion7(), currency = "ZAR", collectionMethod = "DEBIT_ORDER" }, idempotent: true)).Json()).GetProperty("id").GetGuid();
         (await _maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/schedules",
             new
             {

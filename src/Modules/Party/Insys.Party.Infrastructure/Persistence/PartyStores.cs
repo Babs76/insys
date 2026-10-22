@@ -12,7 +12,7 @@ namespace Insys.Party.Infrastructure.Persistence;
 internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
 {
     public Task<Domain.Parties.Party?> Get(Guid id, CancellationToken cancellationToken) =>
-        db.Parties.Include(p => p.Individual).Include(p => p.Organisation).Include(p => p.Addresses).Include(p => p.ContactPoints).Include(p => p.Identifiers)
+        db.Parties.Include(p => p.Individual).Include(p => p.Organisation).Include(p => p.Addresses).Include(p => p.ContactPoints).Include(p => p.Identifiers).Include(p => p.BankAccounts)
             .Include(p => p.Relationships).Include(p => p.Roles).AsSplitQuery().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
     public Task<bool> IdentifierExists(string docType, string country, string hash, CancellationToken cancellationToken) =>
@@ -62,6 +62,7 @@ internal sealed class PartyEventMapper : IDomainEventMapper
         PartyAnonymised e => new Contracts.PartyAnonymised(e.PartyId),
         ConsentGranted e => new Contracts.ConsentGranted(e.PartyId, e.PurposeCode),
         ConsentWithdrawn e => new Contracts.ConsentWithdrawn(e.PartyId, e.PurposeCode),
+        PartyBankAccountChanged e => new Contracts.PartyBankAccountChanged(e.PartyId, e.BankAccountId, e.SupersededId, e.Status),
         _ => null,
     };
 }

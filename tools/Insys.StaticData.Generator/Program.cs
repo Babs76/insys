@@ -4,21 +4,25 @@ using System.Text;
 using System.Text.Json;
 using Insys.StaticData.Generator;
 
-// Generates the static data entities, inputs, EF mappings, descriptors and endpoints for all V0002 tables.
+// Generates the static data entities, inputs, EF mappings, descriptors and endpoints for every static data table: those
+// of V0002, and those later migrations create or extend (Schema.ReadAll). Each needs an entry in the catalogue, or in
+// docs/specs/static-data-catalogue-additions.json for tables added after the original specification.
 // Usage: dotnet run --project tools/Insys.StaticData.Generator [-- <repository root>]
 // Output is deterministic and committed. Never edit the generated files; change the generator or the inputs.
 var root = args.Length > 0 ? args[0] : FindRoot();
-var tables = Schema.Read(Path.Combine(root, "db", "migrations", "V0002__static_data_schema.sql")).ToDictionary(t => t.FullName);
+var tables = Schema.ReadAll(Path.Combine(root, "db", "migrations"));
 using var catalogue = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs", "specs", "static-data-catalogue.json")));
+var additionsPath = Path.Combine(root, "docs", "specs", "static-data-catalogue-additions.json");
+using var additions = JsonDocument.Parse(File.Exists(additionsPath) ? File.ReadAllText(additionsPath) : """{"entities":[]}""");
 
 var entities = new List<Entity>();
-foreach (var item in catalogue.RootElement.GetProperty("entities").EnumerateArray())
+foreach (var item in catalogue.RootElement.GetProperty("entities").EnumerateArray().Concat(additions.RootElement.GetProperty("entities").EnumerateArray()))
 {
     var tableName = item.GetProperty("table").GetString()!;
     if (!tables.TryGetValue(tableName, out var table))
     {
         // "tenant.tenant (core)" is the tenant register in V0001, owned by the Tenancy module's own code.
-        Console.WriteLine($"skip {tableName}: not a V0002 table");
+        Console.WriteLine($"skip {tableName}: not a static data table in the migrations");
         continue;
     }
 

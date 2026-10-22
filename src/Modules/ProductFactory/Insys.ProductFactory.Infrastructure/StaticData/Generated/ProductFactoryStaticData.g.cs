@@ -97,6 +97,9 @@ public static class ProductFactoryStaticData
             entity.Property(x => x.Domain).HasColumnName("domain").HasMaxLength(40);
             entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(100);
             entity.Property(x => x.Coverages).HasColumnName("coverages");
+            entity.Property(x => x.FamilyCode).HasColumnName("family_code").HasMaxLength(15);
+            entity.Property(x => x.ClassCode).HasColumnName("class_code").HasMaxLength(15);
+            entity.Property(x => x.CoverStartsOn).HasColumnName("cover_starts_on").HasMaxLength(15);
         });
         modelBuilder.Entity<ProductEligibilityCriteria>(entity =>
         {

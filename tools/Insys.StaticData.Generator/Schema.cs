@@ -20,7 +20,12 @@ internal sealed record Table(string Schema, string Name, List<Column> Columns, s
     public string FullName => $"{Schema}.{Name}";
 }
 
-/// <summary>Reads the CREATE TABLE statements in V0002. The SQL is authoritative for names and types (PROMPT §7).</summary>
+/// <summary>
+/// Reads the static data tables from the migrations, in order: the CREATE TABLE statements of V0002, static tables
+/// created by later migrations in the same form (a table is static data when it has the record_status CHECK), and
+/// single-line <c>ALTER TABLE … ADD COLUMN</c> and <c>ADD CONSTRAINT …_ckN CHECK</c> statements on them. The SQL is
+/// authoritative for names and types (PROMPT §7).
+/// </summary>
 internal static partial class Schema
 {
     public static readonly HashSet<string> CommonColumns =
@@ -53,6 +58,45 @@ internal static partial class Schema
 
     [GeneratedRegex(@"'([^']*)'")]
     private static partial Regex Quoted();
+
+    [GeneratedRegex(@"^ALTER TABLE (?<schema>[a-z_]+)\.(?<table>[a-z0-9_]+) ADD COLUMN (?<name>[a-z0-9_]+)\s+(?<type>[a-z0-9_]+(?:\([0-9, ]+\))?(?:\[\])?)(?<rest>[^,]*);$")]
+    private static partial Regex AddColumn();
+
+    [GeneratedRegex(@"^ALTER TABLE (?<schema>[a-z_]+)\.(?<table>[a-z0-9_]+) ADD (?<constraint>CONSTRAINT [a-z0-9_]+_ck\d+ CHECK .*);$")]
+    private static partial Regex AddCheck();
+
+    [GeneratedRegex(@"^V(?<number>\d+)__.*\.sql$")]
+    private static partial Regex MigrationFile();
+
+    /// <summary>The static data tables after every versioned migration in <paramref name="directory"/>.</summary>
+    public static Dictionary<string, Table> ReadAll(string directory)
+    {
+        var tables = new Dictionary<string, Table>();
+        var files = Directory.GetFiles(directory, "V*.sql").Select(f => (Path: f, Match: MigrationFile().Match(Path.GetFileName(f))))
+            .Where(f => f.Match.Success).OrderBy(f => int.Parse(f.Match.Groups["number"].Value)).Select(f => f.Path);
+        foreach (var file in files)
+        {
+            foreach (var table in Read(file).Where(t => t.Statuses.Length > 0))
+            {
+                tables[table.FullName] = table;
+            }
+
+            foreach (var line in File.ReadLines(file))
+            {
+                if (AddColumn().Match(line) is { Success: true } add && tables.TryGetValue($"{add.Groups["schema"].Value}.{add.Groups["table"].Value}", out var table))
+                {
+                    table.Columns.Add(new Column(add.Groups["name"].Value, add.Groups["type"].Value, add.Groups["rest"].Value.Contains("NOT NULL")));
+                }
+                else if (AddCheck().Match(line) is { Success: true } check && tables.TryGetValue($"{check.Groups["schema"].Value}.{check.Groups["table"].Value}", out var checkedTable))
+                {
+                    Table? ignored = checkedTable;
+                    ReadConstraint(checkedTable, ref ignored, "  " + check.Groups["constraint"].Value);
+                }
+            }
+        }
+
+        return tables;
+    }
 
     public static List<Table> Read(string path)
     {

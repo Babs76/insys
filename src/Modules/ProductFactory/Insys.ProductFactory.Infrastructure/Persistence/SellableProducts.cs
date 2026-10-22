@@ -52,7 +52,7 @@ internal sealed class SellableProducts([FromKeyedServices(ProductFactoryDbContex
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT p.version, p.domain, coalesce(p.labels ->> 'class', p.labels ->> 'family', p.domain), p.coverages, coalesce(p.labels ->> 'cover_starts_on', 'ISSUE')
+            SELECT p.version, p.domain, coalesce(p.class_code, p.family_code, p.domain), p.coverages, p.cover_starts_on
             FROM product.cfg_product_definitions_and_versions p
             WHERE p.tenant_id = @t AND p.code = @c AND p.record_status = ANY(@statuses) AND (@version::int IS NULL OR p.version = @version)
               AND (NOT @sold OR (p.effective_from <= @day AND (p.effective_to IS NULL OR p.effective_to > @day)))

@@ -6,6 +6,7 @@ using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.ClaimsFramework.Contracts;
+using Insys.Party.Contracts;
 using Insys.Payments.Contracts;
 using Insys.Payments.Domain.Payments;
 using Insys.Workflow.Contracts;
@@ -71,7 +72,8 @@ public interface IPaymentGateway
 {
     bool Handles(string providerCode);
 
-    Task<(ProviderOutcome Outcome, string? ExternalRef, string? Reason)> Send(Payment payment, CancellationToken cancellationToken);
+    /// <summary>Sends the payment. <paramref name="payee"/> is the payee's bank account, decrypted, for a payout to one; the gateway never logs or stores it.</summary>
+    Task<(ProviderOutcome Outcome, string? ExternalRef, string? Reason)> Send(Payment payment, PayeeAccountDetails? payee, CancellationToken cancellationToken);
 
     /// <summary>Whether a callback body carries the provider's valid signature. Credentials stay in configuration, never in the database (PAY-004).</summary>
     bool SignatureValid(string providerCode, string body, string? signature);
@@ -111,8 +113,9 @@ public sealed record StatementResult(int Matched, int Exceptions);
 /// Command InitiatePayment. A key already used returns the payment made with it (PAY-001). An inbound payment with a
 /// provider is sent at once; an outbound one waits for a payout batch.
 /// </summary>
+/// <param name="BankAccountId">For a payout: the payee's verified bank account (party.bank_account), by id; never its details.</param>
 public sealed record InitiatePayment(string IdempotencyKey, Direction Direction, string Purpose, string MethodCode, decimal Amount, string Currency,
-    Guid? CounterpartyPartyId, string? BusinessRefType, Guid? BusinessRefId) : ICommand<PaymentView>;
+    Guid? CounterpartyPartyId, string? BusinessRefType, Guid? BusinessRefId, Guid? BankAccountId = null) : ICommand<PaymentView>;
 
 /// <summary>Command RecordProviderCallback: a provider reports a payment's status, with a signature over the body.</summary>
 public sealed record RecordProviderCallback(string ProviderCode, string ExternalRef, string ProviderStatus, string Body, string? Signature) : ICommand<PaymentView>;
@@ -190,7 +193,8 @@ internal static class Users
 }
 
 /// <summary>Starts payments: one per idempotency key (PAY-001); inbound collections are sent at once, payouts wait for a batch.</summary>
-public sealed class PaymentStarter(IPaymentRepository payments, IPaymentCodes codes, IEnumerable<IPaymentGateway> gateways, IClock clock)
+public sealed class PaymentStarter(IPaymentRepository payments, IPaymentCodes codes, IEnumerable<IPaymentGateway> gateways, IBankAccounts bankAccounts,
+    IBankAccountDetails bankAccountDetails, ITenantContext tenant, IAuditTrail audit, IClock clock)
 {
     public async Task<Result<Payment>> Start(InitiatePayment command, CancellationToken cancellationToken)
     {
@@ -211,7 +215,7 @@ public sealed class PaymentStarter(IPaymentRepository payments, IPaymentCodes co
         }
 
         var payment = Payment.InitiatePayment(Guid.CreateVersion7(), command.IdempotencyKey, command.Direction, command.Purpose, command.MethodCode, provider,
-            command.Amount, command.Currency, command.CounterpartyPartyId, command.BusinessRefType, command.BusinessRefId, clock.UtcNow);
+            command.Amount, command.Currency, command.CounterpartyPartyId, command.BusinessRefType, command.BusinessRefId, clock.UtcNow, command.BankAccountId);
         if (payment.IsFailure)
         {
             return payment.Error;
@@ -232,11 +236,28 @@ public sealed class PaymentStarter(IPaymentRepository payments, IPaymentCodes co
     /// </summary>
     public async Task Send(Payment payment, CancellationToken cancellationToken)
     {
+        // A payout goes to the bank account it was approved for, and only while that account is the payee's current,
+        // verified one; a superseded account fails the payment, and paying again needs a fresh approval (ADR-009).
+        PayeeAccountDetails? payee = null;
+        if (payment.Direction == Direction.Out && payment.BankAccountId is { } accountId)
+        {
+            var tenantId = tenant.RequireTenantId();
+            if (await bankAccounts.Get(tenantId, accountId, cancellationToken) is not { IsPayable: true }
+                || (payee = await bankAccountDetails.ForPayment(tenantId, accountId, cancellationToken)) is null)
+            {
+                payment.Sent(ProviderOutcome.Failed, null, "The payee's bank account changed after approval", clock.UtcToday, clock.UtcNow);
+                return;
+            }
+
+            audit.Record(new AuditEntry("PAYMENT", "ReadBankAccountForPayment", "BankAccount", accountId.ToString(),
+                new Dictionary<string, string?> { ["payment"] = payment.Id.ToString() }));
+        }
+
         var gateway = gateways.FirstOrDefault(g => g.Handles(payment.ProviderCode));
         (ProviderOutcome Outcome, string? ExternalRef, string? Reason) answer;
         try
         {
-            answer = gateway is null ? (ProviderOutcome.Unknown, null, "No gateway for the provider") : await gateway.Send(payment, cancellationToken);
+            answer = gateway is null ? (ProviderOutcome.Unknown, null, "No gateway for the provider") : await gateway.Send(payment, payee, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -578,12 +599,12 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     }
 
     public Task Handle(RefundApproved approved, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Payout($"REFUND:{approved.RefundId:N}", PaymentPurposes.Refund, approved.Amount, approved.Currency, null, BillingApprovals.RefundBusinessRefType, approved.RefundId,
-            cancellationToken);
+        Payout($"REFUND:{approved.RefundId:N}", PaymentPurposes.Refund, approved.Amount, approved.Currency, approved.PayerPartyId, BillingApprovals.RefundBusinessRefType,
+            approved.RefundId, approved.BankAccountId, cancellationToken);
 
     public Task Handle(ClaimPaymentInstructed instructed, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Payout($"CLAIM_PAYMENT:{instructed.InstructionId:N}:{instructed.Attempt}", PaymentPurposes.ClaimPayout, instructed.Amount, instructed.Currency, instructed.PayeePartyId,
-            ClaimsApprovals.InstructionBusinessRefType, instructed.InstructionId, cancellationToken);
+            ClaimsApprovals.InstructionBusinessRefType, instructed.InstructionId, instructed.BankAccountId, cancellationToken);
 
     public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -612,13 +633,14 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
         return Task.CompletedTask;
     }
 
-    private async Task Payout(string key, string purpose, decimal amount, string currency, Guid? payee, string businessRefType, Guid businessRefId,
+    private async Task Payout(string key, string purpose, decimal amount, string currency, Guid? payee, string businessRefType, Guid businessRefId, Guid bankAccountId,
         CancellationToken cancellationToken)
     {
         if (await codes.PayoutMethod(currency, clock.UtcToday, cancellationToken) is { } method)
         {
             // TODO(spec): a payout with no method or provider for its currency is not started; it needs an exception queue (OQ-058).
-            await starter.Start(new InitiatePayment(key, Direction.Out, purpose, method, amount, currency, payee, businessRefType, businessRefId), cancellationToken);
+            await starter.Start(new InitiatePayment(key, Direction.Out, purpose, method, amount, currency, payee, businessRefType, businessRefId, bankAccountId),
+                cancellationToken);
         }
     }
 

@@ -21,12 +21,21 @@ public sealed class ProductDefinitionsAndVersions : StaticRecord<ProductDefiniti
 
     public string[] Coverages { get; set; } = [];
 
+    public string? FamilyCode { get; set; }
+
+    public string? ClassCode { get; set; }
+
+    public string CoverStartsOn { get; set; } = "";
+
     public override void ApplyFields(ProductDefinitionsAndVersionsInput input, IFieldProtector protector)
     {
         ProductCode = input.ProductCode!;
         Domain = input.Domain!;
         Name = input.Name!;
         Coverages = input.Coverages!;
+        FamilyCode = input.FamilyCode;
+        ClassCode = input.ClassCode;
+        CoverStartsOn = input.CoverStartsOn!;
     }
 }
 
@@ -41,6 +50,12 @@ public sealed record ProductDefinitionsAndVersionsInput : StaticRecordInput
 
     public string[]? Coverages { get; init; }
 
+    public string? FamilyCode { get; init; }
+
+    public string? ClassCode { get; init; }
+
+    public string? CoverStartsOn { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("productCode", ProductCode);
@@ -51,5 +66,10 @@ public sealed record ProductDefinitionsAndVersionsInput : StaticRecordInput
         errors.Required("name", Name);
         errors.MaxLength("name", Name, 100);
         errors.Required("coverages", Coverages);
+        errors.MaxLength("familyCode", FamilyCode, 15);
+        errors.MaxLength("classCode", ClassCode, 15);
+        errors.Required("coverStartsOn", CoverStartsOn);
+        errors.MaxLength("coverStartsOn", CoverStartsOn, 15);
+        errors.OneOf("coverStartsOn", CoverStartsOn, ["ISSUE", "FIRST_PAYMENT"]);
     }
 }

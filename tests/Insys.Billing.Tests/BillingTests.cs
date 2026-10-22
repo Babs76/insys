@@ -95,14 +95,17 @@ public sealed class BillingTests
     {
         var (account, _) = Issued();
         var maker = Guid.CreateVersion7();
-        var refund = RefundRequest.RequestRefund(Guid.CreateVersion7(), account, 50m, "OVERPAID", maker, Now).Value;
+        var bankAccount = Guid.CreateVersion7();
+        var refund = RefundRequest.RequestRefund(Guid.CreateVersion7(), account, 50m, "OVERPAID", bankAccount, new string('a', 64), maker, Now).Value;
+        refund.DomainEvents.OfType<RefundRequested>().Single().SubjectHash.ShouldBe(refund.SubjectHash);
 
-        refund.Decide(true, maker, Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        refund.Decide(true, maker, refund.SubjectHash, Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        refund.Decide(true, Guid.CreateVersion7(), "another subject", Now).Error!.Code.ShouldBe(BillingErrorCodes.ApprovalSubjectChanged);
         refund.Status.ShouldBe(RefundStatus.Requested);
         refund.MarkPaid(Guid.CreateVersion7()).IsFailure.ShouldBeTrue();
 
-        refund.Decide(true, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
-        refund.DomainEvents.OfType<RefundApproved>().ShouldHaveSingleItem();
+        refund.Decide(true, Guid.CreateVersion7(), refund.SubjectHash, Now).IsSuccess.ShouldBeTrue();
+        refund.DomainEvents.OfType<RefundApproved>().Single().BankAccountId.ShouldBe(bankAccount);
         refund.MarkPaid(Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
     }
 }

@@ -40,7 +40,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         PaymentPermissions.CallbackCreate, ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate,
         ClaimsPermissions.InstructionRead, ClaimsPermissions.InstructionRelease, ClaimsPermissions.InstructionCreate, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate,
         WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove, IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate,
-        DocumentPermissions.DocumentRead,
+        DocumentPermissions.DocumentRead, Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.BankAccountCreate,
+        Insys.Party.Contracts.PartyPermissions.BankAccountRead, Insys.Party.Contracts.PartyPermissions.BankAccountVerify,
     ];
 
     private TestDatabase _db = null!;
@@ -66,9 +67,9 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         // A published General motor product: coverages, a limit and an excess schedule, and its document templates.
         await _db.ExecuteAsOwner("""
-            INSERT INTO product.cfg_product_definitions_and_versions (tenant_id, id, code, version, effective_from, record_status, created_by, change_reason, labels,
-                                                                     product_code, domain, name, coverages)
-            VALUES (@t, gen_random_uuid(), @p, 1, @from, 'PUBLISHED', 'seed', 'published', '{"family":"GEN-MOTOR","class":"MOTOR"}', @p, 'GENERAL', 'Motor', @coverages)
+            INSERT INTO product.cfg_product_definitions_and_versions (tenant_id, id, code, version, effective_from, record_status, created_by, change_reason,
+                                                                     product_code, domain, name, coverages, family_code, class_code, cover_starts_on)
+            VALUES (@t, gen_random_uuid(), @p, 1, @from, 'PUBLISHED', 'seed', 'published', @p, 'GENERAL', 'Motor', @coverages, 'GEN-MOTOR', 'MOTOR', 'ISSUE')
             """, ("t", Tenant), ("p", Product), ("from", from), ("coverages", new[] { "OWN_DAMAGE", "THEFT" }));
         await Seed("product.cfg_limit_and_deductible_schedules", "EFFECTIVE", "MOT-LIM", ("schedule_code", "MOT-LIM"), ("coverage", "OWN_DAMAGE"), ("limit_type", "LIMIT"),
             ("amount", 500_000m), ("rule", "FIXED"), ("currency", "ZAR"));
@@ -257,9 +258,10 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // RequestApproval for the settlement. Compensation: rejected, the claim stays under assessment.
-        var payee = Guid.CreateVersion7();
-        var bank = new { bankCode = "632005", accountNumber = "62 0001 2345", accountHolder = "Repairs Ltd" };
-        var settlement = new { payeePartyId = payee, bankDetails = bank, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Repair estimate within the assessed amount" };
+        // The payee and their verified bank account (party.bank_account): the settlement names the account by id only.
+        var payee = await _maker.RegisterPerson("Repairs");
+        var firstAccount = await _maker.AddVerifiedBankAccount(payee, "62 0001 2345");
+        var settlement = new { payeePartyId = payee, bankAccountId = firstAccount, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Repair estimate within the assessed amount" };
         (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/settlement", settlement)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         await Decide(GeneralApprovals.SettlementBusinessRefType, claim, approve: false);
@@ -275,30 +277,46 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         instructed.GetProperty("status").GetString().ShouldBe("Released");
         instructed.GetProperty("amount").GetDecimal().ShouldBe(35_000m);
 
-        // The settlement approval covered this payee and these bank details, so it stands in for the instruction's
-        // approval: the instruction keeps the approved bank-details hash, and the details themselves are stored nowhere.
-        var approvedHash = instructed.GetProperty("payeeBankHash").GetString()!;
-        approvedHash.ShouldBe(await _db.ScalarAsOwner<string>("SELECT settlement_payee_bank_hash FROM general.claim WHERE id = @c", ("c", claim)));
-        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM general.claim WHERE id = @c AND settlement_payee_bank_hash LIKE '%2345%'", ("c", claim))).ShouldBe(0L);
+        // The settlement approval covered this payee and account, so it stands in for the instruction's approval
+        // (ADR-009). The account number appears in no event, approval or claim, only its keyed hash and id.
+        instructed.GetProperty("bankAccountId").GetGuid().ShouldBe(firstAccount);
+        (await _db.ScalarAsOwner<long>("""
+            SELECT (SELECT count(*) FROM general.outbox_event WHERE payload::text LIKE '%00012345%')
+                 + (SELECT count(*) FROM claims.outbox_event WHERE payload::text LIKE '%00012345%')
+                 + (SELECT count(*) FROM workflow.approval WHERE reason LIKE '%00012345%')
+            """)).ShouldBe(0L);
 
-        // Payout batch, approved and released. Compensation: the payment fails; the instruction returns to Failed and is
-        // re-released with corrected details, as a new payment.
+        // Payout batch, approved and released. Compensation: the provider rejects the payment; the instruction returns to
+        // Failed and is re-released to the same approved account at once, as a new payment.
         var first = await PayOut(instruction, "BOUNCED");
         (await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).Json()).GetProperty("status").GetString().ShouldBe("Failed");
         (await Claim(claim)).GetProperty("status").GetString().ShouldBe("Approved");
-        // New bank details after the approval need a new approval in Workflow before the payment is released again.
-        var corrected = new { bankCode = "250655", accountNumber = "1234567890", accountHolder = "Repairs Ltd" };
-        var retried = await (await _maker.PostAsJsonAsync($"/api/v1/claims/payment-instructions/{instruction}/retry", new { payeePartyId = payee, bankDetails = corrected })).Json();
-        retried.GetProperty("status").GetString().ShouldBe("Failed");
-        retried.GetProperty("pendingPayeePartyId").GetGuid().ShouldBe(payee);
+        (await (await _maker.PostAsJsonAsync($"/api/v1/claims/payment-instructions/{instruction}/retry", new { payeePartyId = payee, bankAccountId = firstAccount })).Json())
+            .GetProperty("status").GetString().ShouldBe("Released");
         await _factory.DrainOutbox();
-        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM payment.payment WHERE business_ref_id = @i", ("i", instruction))).ShouldBe(1L);
+
+        // The payee changes bank account before the batch is released: the account the payment was approved for is
+        // superseded, so the payment fails without reaching the provider, and the new account needs a fresh approval.
+        var second = await PayOut(instruction, null, beforeRelease: async () => await _maker.AddVerifiedBankAccount(payee, "1234567890"));
+        (await _db.ScalarAsOwner<string>("SELECT status FROM payment.payment WHERE id = @p", ("p", second))).ShouldBe("FAILED");
+        (await _db.ScalarAsOwner<string>("SELECT external_ref FROM payment.payment WHERE id = @p", ("p", second))).ShouldBeNull();
+        (await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).Json()).GetProperty("status").GetString().ShouldBe("Failed");
+        var newAccount = (await (await _maker.GetAsync($"/api/v1/party/parties/{payee}/bank-accounts")).Json()).EnumerateArray()
+            .Single(a => a.GetProperty("status").GetString() == "ACTIVE").GetProperty("id").GetGuid();
+        (await (await _maker.PostAsJsonAsync($"/api/v1/claims/payment-instructions/{instruction}/retry", new { payeePartyId = payee, bankAccountId = firstAccount }))
+            .Code()).ShouldBe("PAYEE_BANK_ACCOUNT_CHANGED");
+        var retried = await (await _maker.PostAsJsonAsync($"/api/v1/claims/payment-instructions/{instruction}/retry", new { payeePartyId = payee, bankAccountId = newAccount }))
+            .Json();
+        retried.GetProperty("status").GetString().ShouldBe("Failed");
+        retried.GetProperty("pendingBankAccountId").GetGuid().ShouldBe(newAccount);
+        await _factory.DrainOutbox();
         await Decide(ClaimsApprovals.InstructionBusinessRefType, instruction, approve: true);
         var released = await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).Json();
         released.GetProperty("status").GetString().ShouldBe("Released");
-        released.GetProperty("payeeBankHash").GetString().ShouldNotBe(approvedHash);
-        var second = await PayOut(instruction, "PAID");
-        second.ShouldNotBe(first);
+        released.GetProperty("bankAccountId").GetGuid().ShouldBe(newAccount);
+        var third = await PayOut(instruction, "PAID");
+        new[] { first, second, third }.Distinct().Count().ShouldBe(3);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadBankAccountForPayment'")).ShouldBeGreaterThanOrEqualTo(2L);
 
         // ClaimPaymentCompleted → GeneralClaimSettled; the payment draws down the reserve and is posted.
         (await Claim(claim)).GetProperty("status").GetString().ShouldBe("Settled");
@@ -391,10 +409,9 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         const string firstPayment = "E2E-GFP";
         var from = Today.AddDays(-30);
         await _db.ExecuteAsOwner("""
-            INSERT INTO product.cfg_product_definitions_and_versions (tenant_id, id, code, version, effective_from, record_status, created_by, change_reason, labels,
-                                                                     product_code, domain, name, coverages)
-            VALUES (@t, gen_random_uuid(), @p, 1, @from, 'PUBLISHED', 'seed', 'published', '{"class":"MOTOR","cover_starts_on":"FIRST_PAYMENT"}', @p, 'GENERAL', 'Motor',
-                    @coverages)
+            INSERT INTO product.cfg_product_definitions_and_versions (tenant_id, id, code, version, effective_from, record_status, created_by, change_reason,
+                                                                     product_code, domain, name, coverages, class_code, cover_starts_on)
+            VALUES (@t, gen_random_uuid(), @p, 1, @from, 'PUBLISHED', 'seed', 'published', @p, 'GENERAL', 'Motor', @coverages, 'MOTOR', 'FIRST_PAYMENT')
             """, ("t", Tenant), ("p", firstPayment), ("from", from), ("coverages", new[] { "OWN_DAMAGE", "THEFT" }));
         await Seed("rating.cfg_premium_parameters", "EFFECTIVE", "GFP-P1", ("parameter_code", "GMOT-BASE"), ("product_version", $"{firstPayment} v1"), ("value", 1m), ("unit", "FACTOR"));
         await Seed("rating.cfg_premium_parameters", "EFFECTIVE", "GFP-P2", ("parameter_code", "POLICY_FEE"), ("product_version", $"{firstPayment} v1"), ("value", 50m), ("unit", "AMOUNT"));
@@ -476,7 +493,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>Batches the instruction's payout, approves it as the checker, releases it, and answers it with the provider's status.</summary>
-    private async Task<Guid> PayOut(Guid instruction, string providerStatus)
+    /// <summary>Batches the payout, approves and releases it, and answers it with the provider's status (none when the payment never reaches the provider).</summary>
+    private async Task<Guid> PayOut(Guid instruction, string? providerStatus, Func<Task>? beforeRelease = null)
     {
         var built = await _maker.Send(HttpMethod.Post, "/api/v1/payments/payout-batches", new { purpose = PaymentPurposes.ClaimPayout, currency = "ZAR" }, idempotent: true);
         built.StatusCode.ShouldBe(HttpStatusCode.Created, await built.Content.ReadAsStringAsync());
@@ -486,9 +504,18 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // The payout batch keeps its own release approval, whatever approved the payments in it (SRS-002).
         (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.Conflict);
         await Decide(PaymentApprovals.PayoutBusinessRefType, batch, approve: true);
+        if (beforeRelease is not null)
+        {
+            await beforeRelease();
+        }
+
         (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var payment = await _db.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @i AND payout_batch_id = @b", ("i", instruction), ("b", batch));
-        (await Callback(payment, providerStatus)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        if (providerStatus is not null)
+        {
+            (await Callback(payment, providerStatus)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
         await _factory.DrainOutbox();
         return payment;
     }

@@ -8,6 +8,7 @@ using Insys.BuildingBlocks.Domain;
 using Insys.ClaimsFramework.Contracts;
 using Insys.ClaimsFramework.Domain.Claims;
 using Insys.General.Contracts;
+using Insys.Party.Contracts;
 using Insys.Payments.Contracts;
 using Insys.Workflow.Contracts;
 using Microsoft.Extensions.Logging;
@@ -68,10 +69,11 @@ public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementVi
 }
 
 public sealed record InstructionView(Guid Id, string ClaimNumber, string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency,
-    string ReserveType, string Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, string? PayeeBankHash, Guid? PendingPayeePartyId)
+    string ReserveType, string Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId, string? PayeeBankHash, Guid? PendingPayeePartyId,
+    Guid? PendingBankAccountId)
 {
     public static InstructionView From(ClaimPaymentInstruction i) => new(i.Id, i.ClaimNumber, i.InstructionRef, i.PayeePartyId, i.Amount, i.ApprovedAmount, i.Currency,
-        i.ReserveType, i.Status.ToString(), i.ApprovalId, i.PaymentId, i.Attempt, i.PayeeBankHash, i.PendingPayeePartyId);
+        i.ReserveType, i.Status.ToString(), i.ApprovalId, i.PaymentId, i.Attempt, i.BankAccountId, i.PayeeBankHash, i.PendingPayeePartyId, i.PendingBankAccountId);
 }
 
 /// <summary>Command AllocateClaimNumber; a repeat for the same domain claim returns the same number (CLM-005).</summary>
@@ -96,9 +98,9 @@ public enum ReserveAction
 public sealed record MoveReserve(string ClaimNumber, ReserveAction Action, string ReserveType, decimal Amount, string Currency) : ICommand<FinancialsView>;
 
 /// <summary>Command DraftInstruction; a repeat for the same claim and reference returns the same instruction (PAY-001).</summary>
-/// <param name="BankDetails">The payee's bank details: only their hash is kept, and the approval covers it.</param>
-public sealed record DraftInstruction(string ClaimNumber, string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency,
-    string ReserveType, PayeeBankDetails? BankDetails = null) : ICommand<InstructionView>;
+/// <param name="BankAccountId">The payee's verified bank account (party.bank_account); the approval covers it.</param>
+public sealed record DraftInstruction(string ClaimNumber, string InstructionRef, Guid PayeePartyId, Guid BankAccountId, decimal Amount, decimal ApprovedAmount,
+    string Currency, string ReserveType) : ICommand<InstructionView>;
 
 public enum InstructionAction
 {
@@ -108,8 +110,11 @@ public enum InstructionAction
 
 public sealed record ChangeInstruction(Guid InstructionId, InstructionAction Action) : ICommand<InstructionView>;
 
-/// <summary>Releases a failed payment again; a different payee or bank details wait for a second person's approval first.</summary>
-public sealed record RetryInstruction(Guid InstructionId, Guid PayeePartyId, PayeeBankDetails? BankDetails = null) : ICommand<InstructionView>;
+/// <summary>Releases a failed payment again; a different payee or bank account waits for a second person's approval first.</summary>
+public sealed record RetryInstruction(Guid InstructionId, Guid PayeePartyId, Guid BankAccountId) : ICommand<InstructionView>;
+
+/// <summary>Redirects an approved instruction, not yet released, to another payee or bank account; a second person approves it first.</summary>
+public sealed record RedirectInstruction(Guid InstructionId, Guid PayeePartyId, Guid BankAccountId) : ICommand<InstructionView>;
 
 public sealed record GetClaim(string ClaimNumber) : IQuery<ClaimView>;
 
@@ -305,7 +310,24 @@ internal sealed class MoveReserveHandler(IClaimsRepository claims, IClaimsCodes 
     }
 }
 
-internal sealed class DraftInstructionHandler(IClaimsRepository claims, IClaimsCodes codes, IExecutionContext execution, IClock clock, IAuditTrail audit)
+/// <summary>The payee's verified, current bank account in the currency, as an approval covers it.</summary>
+internal static class Payees
+{
+    public static async Task<Result<PayeeAccount>> Account(IBankAccounts bankAccounts, ITenantContext tenant, Guid payee, Guid bankAccountId, string currency,
+        CancellationToken cancellationToken) =>
+        await bankAccounts.Get(tenant.RequireTenantId(), bankAccountId, cancellationToken) is { IsPayable: true } account && account.PartyId == payee
+            && account.Currency == currency
+            ? new PayeeAccount(payee, account.Id, account.AccountNumberHash)
+            : Error.Validation(ClaimsErrorCodes.BankAccountChanged, "The bank account is not the payee's verified, current account in the payment's currency.");
+
+    /// <summary>The approved account is still the payee's current one, with the same number: nothing changed since the approval.</summary>
+    public static async Task<bool> Unchanged(IBankAccounts bankAccounts, ITenantContext tenant, PayeeAccount? approved, CancellationToken cancellationToken) =>
+        approved is not null && await bankAccounts.Get(tenant.RequireTenantId(), approved.BankAccountId, cancellationToken) is { IsPayable: true } account
+        && account.AccountNumberHash == approved.AccountHash;
+}
+
+internal sealed class DraftInstructionHandler(IClaimsRepository claims, IClaimsCodes codes, IBankAccounts bankAccounts, ITenantContext tenant, IExecutionContext execution,
+    IClock clock, IAuditTrail audit)
     : ICommandHandler<DraftInstruction, InstructionView>
 {
     public async Task<Result<InstructionView>> Handle(DraftInstruction command, CancellationToken cancellationToken)
@@ -327,8 +349,14 @@ internal sealed class DraftInstructionHandler(IClaimsRepository claims, IClaimsC
             return Error.Validation(ClaimsErrorCodes.CodeNotInForce, $"{command.ReserveType} is not a reserve type in force.");
         }
 
-        var instruction = ClaimPaymentInstruction.DraftInstruction(Guid.CreateVersion7(), claim.Value, command.InstructionRef, command.PayeePartyId, command.Amount,
-            command.ApprovedAmount, command.Currency, command.ReserveType, user.Value, command.BankDetails?.Hash());
+        var payee = await Payees.Account(bankAccounts, tenant, command.PayeePartyId, command.BankAccountId, command.Currency, cancellationToken);
+        if (payee.IsFailure)
+        {
+            return payee.Error;
+        }
+
+        var instruction = ClaimPaymentInstruction.DraftInstruction(Guid.CreateVersion7(), claim.Value, command.InstructionRef, payee.Value, command.Amount,
+            command.ApprovedAmount, command.Currency, command.ReserveType, user.Value);
         if (instruction.IsFailure)
         {
             return instruction.Error;
@@ -340,7 +368,8 @@ internal sealed class DraftInstructionHandler(IClaimsRepository claims, IClaimsC
     }
 }
 
-internal sealed class ChangeInstructionHandler(IClaimsRepository claims, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class ChangeInstructionHandler(IClaimsRepository claims, IBankAccounts bankAccounts, ITenantContext tenant, IExecutionContext execution, IClock clock,
+    IAuditTrail audit)
     : ICommandHandler<ChangeInstruction, InstructionView>
 {
     public async Task<Result<InstructionView>> Handle(ChangeInstruction command, CancellationToken cancellationToken)
@@ -370,6 +399,12 @@ internal sealed class ChangeInstructionHandler(IClaimsRepository claims, IExecut
                 return claim.Error;
             }
 
+            // A payee account superseded or changed since the approval needs a fresh approval (redirect the instruction).
+            if (!await Payees.Unchanged(bankAccounts, tenant, instruction.Payee, cancellationToken))
+            {
+                return Error.Conflict(ClaimsErrorCodes.BankAccountChanged, "The payee's bank account changed after approval; redirect the instruction for a fresh approval.");
+            }
+
             var financials = await Loaded.Financials(claims, claim.Value, instruction.Currency, cancellationToken);
             result = instruction.ReleaseInstruction(user.Value, claim.Value.Domain, financials.Outstanding(instruction.ReserveType), clock.UtcNow);
         }
@@ -378,7 +413,8 @@ internal sealed class ChangeInstructionHandler(IClaimsRepository claims, IExecut
     }
 }
 
-internal sealed class RetryInstructionHandler(IClaimsRepository claims, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class RetryInstructionHandler(IClaimsRepository claims, IBankAccounts bankAccounts, ITenantContext tenant, IExecutionContext execution, IClock clock,
+    IAuditTrail audit)
     : ICommandHandler<RetryInstruction, InstructionView>
 {
     public async Task<Result<InstructionView>> Handle(RetryInstruction command, CancellationToken cancellationToken)
@@ -401,7 +437,41 @@ internal sealed class RetryInstructionHandler(IClaimsRepository claims, IExecuti
         }
 
         audit.Record(new AuditEntry("CLAIMS", "RetryInstruction", nameof(ClaimPaymentInstruction), instruction.Id.ToString()));
-        var result = instruction.Retry(command.PayeePartyId, command.BankDetails?.Hash(), claim.Value.Domain, user.Value, clock.UtcNow);
+        var payee = await Payees.Account(bankAccounts, tenant, command.PayeePartyId, command.BankAccountId, instruction.Currency, cancellationToken);
+        if (payee.IsFailure)
+        {
+            return payee.Error;
+        }
+
+        var result = instruction.Retry(payee.Value, claim.Value.Domain, user.Value, clock.UtcNow);
+        return result.IsFailure ? result.Error : InstructionView.From(instruction);
+    }
+}
+
+internal sealed class RedirectInstructionHandler(IClaimsRepository claims, IBankAccounts bankAccounts, ITenantContext tenant, IExecutionContext execution, IClock clock,
+    IAuditTrail audit) : ICommandHandler<RedirectInstruction, InstructionView>
+{
+    public async Task<Result<InstructionView>> Handle(RedirectInstruction command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await claims.Instruction(command.InstructionId, cancellationToken) is not { } instruction)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The payment instruction was not found.");
+        }
+
+        var payee = await Payees.Account(bankAccounts, tenant, command.PayeePartyId, command.BankAccountId, instruction.Currency, cancellationToken);
+        if (payee.IsFailure)
+        {
+            return payee.Error;
+        }
+
+        audit.Record(new AuditEntry("CLAIMS", "RedirectInstruction", nameof(ClaimPaymentInstruction), instruction.Id.ToString()));
+        var result = instruction.Redirect(payee.Value, user.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : InstructionView.From(instruction);
     }
 }
@@ -440,7 +510,7 @@ internal sealed class GetInstructionHandler(IClaimsRepository claims) : IQueryHa
 /// Claims' policies (domain-model.json: claims consumes): Workflow's decision on an instruction; the payout's outcome
 /// (RecordOutcome); and its own ClaimPaymentCompleted, which records the payment movement against the reserve (CLM-004).
 /// </summary>
-public sealed class ClaimsPolicies(IClaimsRepository claims, IClock clock, ILogger<ClaimsPolicies> logger) :
+public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankAccounts, ITenantContext tenant, IClock clock, ILogger<ClaimsPolicies> logger) :
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<PaymentSucceeded>,
@@ -492,14 +562,21 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IClock clock, ILogg
             return;
         }
 
-        var instruction = ClaimPaymentInstruction.FromApprovedSettlement(Guid.CreateVersion7(), claim, reference, approved.PayeePartyId, approved.PayeeBankHash,
-            approved.Amount, approved.Currency, approved.ReserveType, approved.ApprovalId);
+        var instruction = ClaimPaymentInstruction.FromApprovedSettlement(Guid.CreateVersion7(), claim, reference,
+            new PayeeAccount(approved.PayeePartyId, approved.BankAccountId, approved.PayeeBankHash), approved.Amount, approved.Currency, approved.ReserveType,
+            approved.ApprovalId);
         if (instruction.IsFailure)
         {
             throw new InvalidOperationException($"Settlement of {approved.ClaimNumber} could not be instructed: {instruction.Error.Message}");
         }
 
         claims.Add(instruction.Value);
+        if (!await Payees.Unchanged(bankAccounts, tenant, instruction.Value.Payee, cancellationToken))
+        {
+            logger.LogWarning("Settlement of {ClaimNumber} not released: the payee's bank account changed after approval", approved.ClaimNumber);
+            return;
+        }
+
         var financials = new ClaimFinancials(claim.ClaimNumber, claim.Domain, approved.Currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
         instruction.Value.ReleaseInstruction(approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType), clock.UtcNow);
     }

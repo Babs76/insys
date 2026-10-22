@@ -407,6 +407,12 @@ public sealed class BillingAccount : AggregateRoot<Guid>
 
 public static class BillingErrorCodes
 {
+    [ErrorCode(409, "error.billing.approval_subject_changed")]
+    public const string ApprovalSubjectChanged = "REFUND_SUBJECT_CHANGED";
+
+    [ErrorCode(422, "error.billing.bank_account_not_payable")]
+    public const string BankAccountNotPayable = "REFUND_ACCOUNT_NOT_PAYABLE";
+
     [ErrorCode(409, "error.billing.schedule_exists")]
     public const string ScheduleExists = "PREMIUM_SCHEDULE_EXISTS";
 

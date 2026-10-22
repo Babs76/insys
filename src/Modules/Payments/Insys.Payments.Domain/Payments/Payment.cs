@@ -168,6 +168,9 @@ public sealed class Payment : AggregateRoot<Guid>
 
     public Guid? PayoutBatchId { get; private set; }
 
+    /// <summary>For a payout: the payee's bank account (party.bank_account), by id. Its details are read from the Party module only to send it.</summary>
+    public Guid? BankAccountId { get; private set; }
+
     public IReadOnlyList<StatusChange> History => _history;
 
     public IReadOnlyList<PaymentAllocation> Allocations => _allocations;
@@ -181,7 +184,7 @@ public sealed class Payment : AggregateRoot<Guid>
 
     /// <summary>Command InitiatePayment. The caller checks the idempotency key first; the database refuses a second payment with it.</summary>
     public static Result<Payment> InitiatePayment(Guid id, string idempotencyKey, Direction direction, string purpose, string methodCode, string providerCode,
-        decimal amount, string currency, Guid? counterparty, string? businessRefType, Guid? businessRefId, DateTimeOffset now)
+        decimal amount, string currency, Guid? counterparty, string? businessRefType, Guid? businessRefId, DateTimeOffset now, Guid? bankAccountId = null)
     {
         if (amount <= 0 || decimal.Round(amount, 2) != amount)
         {
@@ -202,6 +205,7 @@ public sealed class Payment : AggregateRoot<Guid>
             CounterpartyPartyId = counterparty,
             BusinessRefType = businessRefType,
             BusinessRefId = businessRefId,
+            BankAccountId = bankAccountId,
             InitiatedAt = now,
             Status = PaymentStatus.Initiated,
         };

@@ -135,6 +135,8 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options,
             refund.Property(r => r.Amount).HasPrecision(18, 2);
             refund.Property(r => r.Currency).HasColumnType("char(3)");
             refund.Property(r => r.ReasonCode).HasMaxLength(15);
+            refund.Property(r => r.PayeeBankHash).HasMaxLength(64);
+            refund.Ignore(r => r.SubjectHash);
             refund.Property(r => r.Status).HasConversion(new UpperCaseEnumConverter<RefundStatus>()).HasMaxLength(12);
         });
     }

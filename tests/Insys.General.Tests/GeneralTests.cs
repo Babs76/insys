@@ -304,11 +304,11 @@ public sealed class GeneralTests
         var coverage = policy.Coverage(Vehicle, "OWN_DAMAGE")!;
         var maker = Guid.CreateVersion7();
 
-        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", " "), coverage, [], "ZAR", maker, Now).Error!.Code
+        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", " "), coverage, [], "ZAR", maker, Now).Error!.Code
             .ShouldBe(GeneralErrorCodes.RationaleRequired);
-        claim.RequestSettlement(new SettlementRequest(4_000m, 5_000m, Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Excess exceeds loss"), coverage, [], "ZAR", maker, Now)
+        claim.RequestSettlement(new SettlementRequest(4_000m, 5_000m, Guid.CreateVersion7(), Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Excess exceeds loss"), coverage, [], "ZAR", maker, Now)
             .Error!.Code.ShouldBe(GeneralErrorCodes.NothingToSettle);
-        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Repair quote accepted"), coverage, [], "ZAR", maker, Now)
+        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Repair quote accepted"), coverage, [], "ZAR", maker, Now)
             .IsSuccess.ShouldBeTrue();
         claim.SettlementAmount.ShouldBe(35_000m);
         claim.Status.ShouldBe(ClaimStatus.UnderAssessment);
@@ -319,7 +319,7 @@ public sealed class GeneralTests
         claim.Status.ShouldBe(ClaimStatus.UnderAssessment);
         claim.SettlementAmount.ShouldBeNull();
 
-        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Repair quote accepted"), coverage, [], "ZAR", maker, Now);
+        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Repair quote accepted"), coverage, [], "ZAR", maker, Now);
         claim.DecideSettlement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), claim.SettlementSubjectHash, Now).IsSuccess.ShouldBeTrue();
         claim.Status.ShouldBe(ClaimStatus.Approved);
         claim.DomainEvents.OfType<GeneralClaimApproved>().Single().ShouldSatisfyAllConditions(e => e.Amount.ShouldBe(35_000m), e => e.PayeeBankHash.ShouldBe("bank-hash"));
