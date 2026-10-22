@@ -30,23 +30,27 @@ public interface IChangeRequestRepository
     void Add(TenantGovernanceSettings settings);
 }
 
-public sealed record GovernanceSettingsView(bool Tier2MakerChecker, bool Tier1MakerChecker, long RowVersion);
+/// <param name="PendingTier2MakerChecker">False while a switch-off waits for a second person's approval; otherwise null.</param>
+public sealed record GovernanceSettingsView(bool Tier2MakerChecker, bool Tier1MakerChecker, bool? PendingTier2MakerChecker, Guid? PendingRequestedBy, long RowVersion);
 
 /// <summary>Reads the tenant's static data governance settings (defaults when never changed).</summary>
 public sealed record GetGovernanceSettings : IQuery<GovernanceSettingsView>;
 
-/// <summary>Switches Tier 2 maker-checker on or off for the tenant (SDM-003). Every change is audited.</summary>
+/// <summary>
+/// Switches Tier 2 maker-checker on (at once) or off (after a second person approves it in Workflow) for the tenant
+/// (SDM-003, OQ-046). Every request is audited.
+/// </summary>
 public sealed record ChangeTier2MakerChecker(bool Enabled, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 internal sealed class GetGovernanceSettingsHandler(IChangeRequestRepository repository) : IQueryHandler<GetGovernanceSettings, GovernanceSettingsView>
 {
     public async Task<Result<GovernanceSettingsView>> Handle(GetGovernanceSettings query, CancellationToken cancellationToken) =>
         await repository.Settings(cancellationToken) is { } settings
-            ? new GovernanceSettingsView(settings.Tier2MakerChecker, true, settings.RowVersion)
-            : new GovernanceSettingsView(true, true, 0);
+            ? new GovernanceSettingsView(settings.Tier2MakerChecker, true, settings.PendingTier2MakerChecker, settings.PendingRequestedBy, settings.RowVersion)
+            : new GovernanceSettingsView(true, true, null, null, 0);
 }
 
-internal sealed class ChangeTier2MakerCheckerHandler(IChangeRequestRepository repository, IExecutionContext execution, IAuditTrail audit)
+internal sealed class ChangeTier2MakerCheckerHandler(IChangeRequestRepository repository, IExecutionContext execution, IClock clock, IAuditTrail audit)
     : ICommandHandler<ChangeTier2MakerChecker, long>
 {
     public async Task<Result<long>> Handle(ChangeTier2MakerChecker command, CancellationToken cancellationToken)
@@ -70,13 +74,30 @@ internal sealed class ChangeTier2MakerCheckerHandler(IChangeRequestRepository re
         }
 
         var before = settings.Tier2MakerChecker;
-        if (!settings.ChangeTier2MakerChecker(command.Enabled) && settings.RowVersion > 0)
+        bool changed;
+        if (command.Enabled)
+        {
+            changed = settings.SwitchTier2On();
+        }
+        else
+        {
+            var requested = settings.RequestTier2Off(actor.Value, StaticDataApprovals.ApprovalType(1), clock.UtcNow);
+            if (requested.IsFailure)
+            {
+                return requested.Error;
+            }
+
+            changed = requested.Value;
+        }
+
+        if (!changed && settings.RowVersion > 0)
         {
             return settings.RowVersion;
         }
 
-        audit.Record(new AuditEntry("STATIC_DATA_GOVERNANCE", "ChangeTier2MakerChecker", nameof(TenantGovernanceSettings), settings.Id.ToString(),
-            new Dictionary<string, string?> { ["before"] = before.ToString(), ["after"] = command.Enabled.ToString() }));
+        audit.Record(new AuditEntry("STATIC_DATA_GOVERNANCE", command.Enabled ? "ChangeTier2MakerChecker" : "RequestTier2MakerCheckerOff",
+            nameof(TenantGovernanceSettings), settings.Id.ToString(),
+            new Dictionary<string, string?> { ["before"] = before.ToString(), ["after"] = command.Enabled.ToString(), ["pending"] = (!command.Enabled).ToString() }));
         return settings.RowVersion + 1;
     }
 }
@@ -160,6 +181,8 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
         {
             change.ApproveChange(granted.CheckerId, requiresDifferentChecker: true, clock.UtcNow);
         }
+
+        await DecideGovernance(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, cancellationToken);
     }
 
     /// <summary>Workflow rejected the change: RejectChange, and the owning module returns the version to draft.</summary>
@@ -168,6 +191,17 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
         if (rejected.BusinessRefType == StaticDataApprovals.BusinessRefType && await changes.Get(rejected.BusinessRefId, cancellationToken) is { } change)
         {
             change.RejectChange(rejected.CheckerId, rejected.Reason, clock.UtcNow);
+        }
+
+        await DecideGovernance(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.CheckerId, cancellationToken);
+    }
+
+    /// <summary>Workflow's decision on a pending switch-off of Tier 2 maker-checker (OQ-046).</summary>
+    private async Task DecideGovernance(string businessRefType, Guid settingsId, bool approved, Guid checkerId, CancellationToken cancellationToken)
+    {
+        if (businessRefType == StaticDataApprovals.GovernanceBusinessRefType && await changes.Settings(cancellationToken) is { } settings && settings.Id == settingsId)
+        {
+            settings.DecidePending(approved, checkerId);
         }
     }
 

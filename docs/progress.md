@@ -3,10 +3,11 @@
 | Phase | Scope | Status |
 |---|---|---|
 | 0 Foundation | Solution, building blocks, migration runner, compose, tests, CI | Done, accepted |
-| 0 review items 1–8 | CI on postgres:18, partitions, inboxes, module roles, permissions, global static data, maker-checker, error codes | **Done, awaiting review** |
+| 0 review items 1–8 | CI on postgres:18, partitions, inboxes, module roles, permissions, global static data, maker-checker, error codes | Done, accepted |
 | 1 Platform | Tenancy, Identity, Audit, Static Data and generator | Done, accepted |
-| 1 review items 1–6 | Repository move, V0007 to V0009, access aggregates, cache guard, OpenAPI split, Tier 2 setting, outbox lag | **Done, awaiting review** |
-| 2 Shared services | Party, Product Factory, Rating, Rules, Workflow, Documents | In progress |
+| 1 review items 1–6 | Repository move, V0007 to V0009, access aggregates, cache guard, OpenAPI split, Tier 2 setting, outbox lag | Done, accepted |
+| 2 Shared services | Party, Product Factory, Rating, Rules, Workflow, Documents | Done, accepted with conditions (CI green: 979e207) |
+| 2 review items 1–6 | CI fix, maker-checker gaps (V0013), schema gaps (V0012, ADR-010), SLA calendars, rating step order, expression limits | **Done, awaiting review** (22 Oct 2026) |
 | 3 Money | Billing, Payments, Finance, Claims Framework | Not started |
 | 4 First domain | `FIRST_DOMAIN` (ask first: OQ-001) | Not started |
 | 5 Other domains | The remaining two domains | Not started |
@@ -26,6 +27,25 @@
 4. **OpenAPI documents:** split into core, static-data and platform-operator. Each has its own snapshot in `docs/api`, and every endpoint is in exactly one.
 5. **Tier 2 maker-checker:** a per-tenant setting (V0008), on by default and audited. Tier 1 is always on.
 6. **Outbox relay lag:** reported on `/health` and `/health/ready` through `integration.outbox_lag` (V0009). Degraded after `Outbox:Lag:Warning` (1 minute); Unhealthy and not ready after `Outbox:Lag:Failure` (5 minutes).
+
+## Phase 2 review: what changed
+
+1. **CI:** 5b7ee26 failed 3 of 509 tests. The OpenAPI contract tests timed out after HttpClient's default 100 seconds while the 1 400-path static data document was built on the GitHub runner. The tests now allow 10 minutes; 979e207 is green.
+2. **Maker-checker (SRS-002), V0013:**
+   - **Privileged roles:** a privileged role assignment is pending until a second person approves it in Workflow (OQ-038).
+   - **Tier 2 switch-off:** switching Tier 2 maker-checker off is a Tier 1 change, approved the same way (OQ-046).
+   - **Tests:** one person alone cannot complete either.
+3. **V0012:**
+   - status columns widened to varchar(30), with CHECKs from domain-model.json;
+   - the loss assessment lifecycle;
+   - `finance.accounting_period`, with one OPEN period per date. Its aggregate, including reopening with approval, comes in Phase 3;
+   - the duplicate `status` columns are deprecated (ADR-010).
+4. **SLA timers:** they run on business calendars, with public holidays (OQ-049).
+5. **Rating and rules:**
+   - the rating step order is configurable per product version (`STEP_*` parameters);
+   - the cases so far are marked as engineering cases (`docs/rating/test-cases.md`);
+   - OQ-051 and OQ-052 stay open for underwriting and actuarial decisions.
+6. **Expressions:** limits of 4 000 characters, 32 levels of nesting and 10 000 evaluation steps, plus a seeded fuzz test. Two crash paths were fixed (a truncated list; a malformed or oversized number).
 
 ## Phase 2: what exists
 

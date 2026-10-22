@@ -17,10 +17,21 @@ namespace Insys.BuildingBlocks.Domain.Expressions;
 ///   list        := item ("," item)*      items are numbers, 'text' or bare words such as ZA
 /// </code>
 /// Keywords are case-insensitive. Identifiers name variables (a-z, 0-9, _ and dots). Numbers are decimal; a missing
-/// variable is an error, never a silent false.
+/// variable is an error, never a silent false. Limits keep evaluation cheap and safe: <see cref="MaxLength"/>
+/// characters, <see cref="MaxDepth"/> levels of nesting, and <see cref="MaxSteps"/> evaluation steps. Any malformed
+/// input fails with EXPRESSION_INVALID or EXPRESSION_EVALUATION_FAILED, never with another exception.
 /// </summary>
 public sealed class Expression
 {
+    /// <summary>The longest expression accepted, in characters.</summary>
+    public const int MaxLength = 4000;
+
+    /// <summary>The deepest nesting of brackets and NOTs accepted.</summary>
+    public const int MaxDepth = 32;
+
+    /// <summary>The most nodes and list comparisons one evaluation may visit.</summary>
+    public const int MaxSteps = 10_000;
+
     private readonly Node _root;
 
     private Expression(string text, Node root)
@@ -42,6 +53,11 @@ public sealed class Expression
             return ExpressionErrors.Invalid("An expression is required.");
         }
 
+        if (text.Length > MaxLength)
+        {
+            return ExpressionErrors.Invalid($"An expression is at most {MaxLength} characters.");
+        }
+
         try
         {
             var parser = new Parser(Tokenizer.Tokenize(text));
@@ -53,36 +69,70 @@ public sealed class Expression
         {
             return ExpressionErrors.Invalid(ex.Message);
         }
+        catch (Exception ex) when (ex is FormatException or OverflowException or InsufficientExecutionStackException)
+        {
+            return ExpressionErrors.Invalid("The expression is not well formed.");
+        }
     }
 
     /// <summary>Evaluates to true or false. Values may be decimal (or any number), string, bool or null.</summary>
-    public Result<bool> Evaluate(IReadOnlyDictionary<string, object?> variables)
+    /// <param name="maxSteps">At most <see cref="MaxSteps"/>; a lower limit can be set for a caller's own budget.</param>
+    public Result<bool> Evaluate(IReadOnlyDictionary<string, object?> variables, int maxSteps = MaxSteps)
     {
         try
         {
-            return Eval(_root, variables) is bool b ? b : throw new ExpressionException("The expression does not evaluate to true or false.");
+            var steps = new StepCounter(Math.Min(maxSteps, MaxSteps));
+            return Eval(_root, variables, steps) is bool b ? b : throw new ExpressionException("The expression does not evaluate to true or false.");
         }
         catch (ExpressionException ex)
         {
             return ExpressionErrors.Evaluation(ex.Message);
         }
+        catch (Exception ex) when (ex is FormatException or OverflowException or InvalidOperationException or InsufficientExecutionStackException)
+        {
+            return ExpressionErrors.Evaluation("A value could not be compared.");
+        }
     }
 
-    private static object? Eval(Node node, IReadOnlyDictionary<string, object?> variables) => node switch
+    private static object? Eval(Node node, IReadOnlyDictionary<string, object?> variables, StepCounter steps)
     {
-        Literal l => l.Value,
-        Variable v => variables.TryGetValue(v.Name, out var value)
-            ? Normalise(value)
-            : throw new ExpressionException($"No value for '{v.Name}'."),
-        Not n => !AsBool(Eval(n.Operand, variables)),
-        And a => AsBool(Eval(a.Left, variables)) && AsBool(Eval(a.Right, variables)),
-        Or o => AsBool(Eval(o.Left, variables)) || AsBool(Eval(o.Right, variables)),
-        Compare c => Comparison(c.Op, Eval(c.Left, variables), Eval(c.Right, variables)),
-        In i => i.Items.Any(item => Equal(Eval(i.Operand, variables), item)) != i.Negated,
-        Between b => Comparison(">=", Eval(b.Operand, variables), Eval(b.Low, variables))
-                     && Comparison("<=", Eval(b.Operand, variables), Eval(b.High, variables)),
-        _ => throw new ExpressionException("Unknown expression."),
-    };
+        steps.Take(1);
+        return node switch
+        {
+            Literal l => l.Value,
+            Variable v => variables.TryGetValue(v.Name, out var value)
+                ? Normalise(value)
+                : throw new ExpressionException($"No value for '{v.Name}'."),
+            Not n => !AsBool(Eval(n.Operand, variables, steps)),
+            And a => AsBool(Eval(a.Left, variables, steps)) && AsBool(Eval(a.Right, variables, steps)),
+            Or o => AsBool(Eval(o.Left, variables, steps)) || AsBool(Eval(o.Right, variables, steps)),
+            Compare c => Comparison(c.Op, Eval(c.Left, variables, steps), Eval(c.Right, variables, steps)),
+            In i => InList(i, Eval(i.Operand, variables, steps), steps),
+            Between b => Comparison(">=", Eval(b.Operand, variables, steps), Eval(b.Low, variables, steps))
+                         && Comparison("<=", Eval(b.Operand, variables, steps), Eval(b.High, variables, steps)),
+            _ => throw new ExpressionException("Unknown expression."),
+        };
+    }
+
+    private static bool InList(In list, object? value, StepCounter steps)
+    {
+        steps.Take(list.Items.Count);
+        return list.Items.Any(item => Equal(value, item)) != list.Negated;
+    }
+
+    private sealed class StepCounter(int limit)
+    {
+        private int _steps;
+
+        public void Take(int count)
+        {
+            _steps += count;
+            if (_steps > limit)
+            {
+                throw new ExpressionException($"The expression needs more than {limit} evaluation steps.");
+            }
+        }
+    }
 
     private static bool AsBool(object? value) => value as bool? ?? throw new ExpressionException("AND, OR and NOT need true or false operands.");
 
@@ -299,8 +349,11 @@ public sealed class Expression
     private sealed class Parser(List<Token> tokens)
     {
         private int _position;
+        private int _depth;
 
-        private Token Current => tokens[_position];
+        private Token Current => tokens[Math.Min(_position, tokens.Count - 1)];
+
+        private Token Next() => tokens[Math.Min(_position++, tokens.Count - 1)];
 
         public Node ParseExpression() => ParseOr();
 
@@ -334,14 +387,33 @@ public sealed class Expression
             return left;
         }
 
-        private Node ParseNot() => Keyword("NOT") ? new Not(ParseNot()) : ParseComparison();
+        private Node ParseNot()
+        {
+            if (!Keyword("NOT"))
+            {
+                return ParseComparison();
+            }
+
+            Enter();
+            var operand = new Not(ParseNot());
+            _depth--;
+            return operand;
+        }
+
+        private void Enter()
+        {
+            if (++_depth > MaxDepth)
+            {
+                throw new ExpressionException($"The expression is nested more than {MaxDepth} levels deep.");
+            }
+        }
 
         private Node ParseComparison()
         {
             var left = ParseOperand();
             if (Current.Kind == Kind.Op)
             {
-                var op = tokens[_position++].Value;
+                var op = Next().Value;
                 return new Compare(op, left, ParseOperand());
             }
 
@@ -356,7 +428,8 @@ public sealed class Expression
                 return new Between(left, low, ParseOperand());
             }
 
-            var negated = IsKeyword("NOT") && tokens[_position + 1] is { Kind: Kind.Word } next && next.Value.Equals("IN", StringComparison.OrdinalIgnoreCase);
+            var negated = IsKeyword("NOT") && _position + 1 < tokens.Count && tokens[_position + 1] is { Kind: Kind.Word } next
+                && next.Value.Equals("IN", StringComparison.OrdinalIgnoreCase);
             if (negated)
             {
                 _position++;
@@ -381,10 +454,10 @@ public sealed class Expression
 
         private object? ListItem()
         {
-            var token = tokens[_position++];
+            var token = Next();
             return token.Kind switch
             {
-                Kind.Number => decimal.Parse(token.Value, NumberStyles.Number, CultureInfo.InvariantCulture),
+                Kind.Number => Number(token),
                 Kind.Text or Kind.Word => token.Value,
                 _ => throw new ExpressionException($"Expected a list value at position {token.Position}."),
             };
@@ -392,16 +465,18 @@ public sealed class Expression
 
         private Node ParseOperand()
         {
-            var token = tokens[_position++];
+            var token = Next();
             switch (token.Kind)
             {
                 case Kind.Number:
-                    return new Literal(decimal.Parse(token.Value, NumberStyles.Number, CultureInfo.InvariantCulture));
+                    return new Literal(Number(token));
                 case Kind.Text:
                     return new Literal(token.Value);
                 case Kind.Open:
+                    Enter();
                     var inner = ParseOr();
                     Expect(Kind.Close, ")");
+                    _depth--;
                     return inner;
                 case Kind.Word:
                     return token.Value.ToUpperInvariant() switch
@@ -417,6 +492,11 @@ public sealed class Expression
                     throw new ExpressionException(token.Kind == Kind.End ? "The expression ends too early." : $"Unexpected '{token.Value}' at position {token.Position}.");
             }
         }
+
+        private static decimal Number(Token token) =>
+            decimal.TryParse(token.Value, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var number)
+                ? number
+                : throw new ExpressionException($"'{token.Value}' at position {token.Position} is not a number.");
 
         private static bool IsIdentifier(string word) => (char.IsAsciiLetter(word[0]) || word[0] == '_') && word.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '.');
 

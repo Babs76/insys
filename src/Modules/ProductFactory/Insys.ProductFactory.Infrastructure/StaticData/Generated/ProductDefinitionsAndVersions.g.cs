@@ -21,15 +21,12 @@ public sealed class ProductDefinitionsAndVersions : StaticRecord<ProductDefiniti
 
     public string[] Coverages { get; set; } = [];
 
-    public string Status { get; set; } = "";
-
     public override void ApplyFields(ProductDefinitionsAndVersionsInput input, IFieldProtector protector)
     {
         ProductCode = input.ProductCode!;
         Domain = input.Domain!;
         Name = input.Name!;
         Coverages = input.Coverages!;
-        Status = input.Status!;
     }
 }
 
@@ -44,8 +41,6 @@ public sealed record ProductDefinitionsAndVersionsInput : StaticRecordInput
 
     public string[]? Coverages { get; init; }
 
-    public string? Status { get; init; }
-
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("productCode", ProductCode);
@@ -56,7 +51,5 @@ public sealed record ProductDefinitionsAndVersionsInput : StaticRecordInput
         errors.Required("name", Name);
         errors.MaxLength("name", Name, 100);
         errors.Required("coverages", Coverages);
-        errors.Required("status", Status);
-        errors.MaxLength("status", Status, 40);
     }
 }

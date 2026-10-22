@@ -15,8 +15,6 @@ public sealed class APICatalogueEntries : StaticRecord<APICatalogueEntriesInput>
 {
     public string ApiGroup { get; set; } = "";
 
-    public string Status { get; set; } = "";
-
     public DateOnly? DeprecationDate { get; set; }
 
     public string Sensitivity { get; set; } = "";
@@ -26,7 +24,6 @@ public sealed class APICatalogueEntries : StaticRecord<APICatalogueEntriesInput>
     public override void ApplyFields(APICatalogueEntriesInput input, IFieldProtector protector)
     {
         ApiGroup = input.ApiGroup!;
-        Status = input.Status!;
         DeprecationDate = input.DeprecationDate;
         Sensitivity = input.Sensitivity!;
         SpecRef = input.SpecRef;
@@ -38,8 +35,6 @@ public sealed record APICatalogueEntriesInput : StaticRecordInput
 {
     public string? ApiGroup { get; init; }
 
-    public string? Status { get; init; }
-
     public DateOnly? DeprecationDate { get; init; }
 
     public string? Sensitivity { get; init; }
@@ -50,9 +45,6 @@ public sealed record APICatalogueEntriesInput : StaticRecordInput
     {
         errors.Required("apiGroup", ApiGroup);
         errors.MaxLength("apiGroup", ApiGroup, 30);
-        errors.Required("status", Status);
-        errors.MaxLength("status", Status, 40);
-        errors.OneOf("status", Status, ["DRAFT", "ACTIVE", "DEPRECATED", "RETIRED"]);
         errors.Required("sensitivity", Sensitivity);
         errors.MaxLength("sensitivity", Sensitivity, 80);
         errors.MaxLength("specRef", SpecRef, 300);

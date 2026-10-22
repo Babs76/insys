@@ -14282,12 +14282,6 @@
               "string"
             ]
           },
-          "status": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "deprecationDate": {
             "type": [
               "null",
@@ -17711,12 +17705,6 @@
             ]
           },
           "compatibility": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "status": {
             "type": [
               "null",
               "string"

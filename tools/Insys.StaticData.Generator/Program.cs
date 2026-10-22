@@ -296,6 +296,15 @@ internal static class Emit
     /// <summary>Static tables that are an aggregate's state: ProductVersion manages product versions (domain-model.json, PRD-002 to PRD-007).</summary>
     private static readonly HashSet<string> AggregateManagedTables = ["product.cfg_product_definitions_and_versions"];
 
+    /// <summary>Columns V0012 made nullable and deprecated (ADR-010): record_status, or an aggregate, holds the state instead.</summary>
+    private static readonly HashSet<string> DeprecatedColumns =
+    [
+        "product.cfg_product_definitions_and_versions.status",
+        "integration.cfg_api_catalogue_entries.status",
+        "integration.cfg_event_schema_versions.status",
+        "finance.cfg_accounting_calendar_and_periods.status",
+    ];
+
     private static string InputName(Field field) => field.Column.Name.EndsWith("_enc", StringComparison.Ordinal)
         ? Names.Pascal(field.Column.Name[..^4])
         : field.Property;
@@ -303,7 +312,7 @@ internal static class Emit
     private static List<Field> Fields(Entity entity)
     {
         var fields = new List<Field>();
-        var columns = entity.Table.Columns.Where(c => !Schema.CommonColumns.Contains(c.Name)).ToList();
+        var columns = entity.Table.Columns.Where(c => !Schema.CommonColumns.Contains(c.Name) && !DeprecatedColumns.Contains($"{entity.Table.FullName}.{c.Name}")).ToList();
         foreach (var column in columns)
         {
             var property = Names.Pascal(column.Name);

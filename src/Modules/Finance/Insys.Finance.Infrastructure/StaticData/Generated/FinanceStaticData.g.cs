@@ -32,7 +32,6 @@ public static class FinanceStaticData
             entity.Property(x => x.PeriodCode).HasColumnName("period_code").HasMaxLength(7);
             entity.Property(x => x.StartDate).HasColumnName("start_date");
             entity.Property(x => x.EndDate).HasColumnName("end_date");
-            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(40);
             entity.Property(x => x.CloseDate).HasColumnName("close_date");
         });
         modelBuilder.Entity<GLExportLayouts>(entity =>

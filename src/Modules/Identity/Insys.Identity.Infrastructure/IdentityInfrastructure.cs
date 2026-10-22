@@ -38,6 +38,9 @@ public static class IdentityInfrastructure
         services.AddIntegrationEventHandler<Contracts.UserDisabled, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "UserDisabled");
         services.AddIntegrationEventHandler<TenantSuspended, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "TenantSuspended");
 
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, PrivilegedRoleApprovalPolicy, IdentityDbContext>(IdentityDbContext.SchemaName, "ApprovalGranted");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, PrivilegedRoleApprovalPolicy, IdentityDbContext>(IdentityDbContext.SchemaName, "ApprovalRejected");
+
         services.AddScoped<IAccessRepository, AccessRepository>();
         services.AddScoped<IAccessQueries, AccessQueries>();
         services.AddIntegrationEventHandler<Contracts.AccessReviewCompleted, RevokeReviewedAccess, IdentityDbContext>(IdentityDbContext.SchemaName);

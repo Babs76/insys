@@ -89,7 +89,6 @@ public static class IntegrationStaticData
             entity.ToTable("cfg_api_catalogue_entries", "integration");
             StaticModel.ConfigureCommon(entity);
             entity.Property(x => x.ApiGroup).HasColumnName("api_group").HasMaxLength(30);
-            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(40);
             entity.Property(x => x.DeprecationDate).HasColumnName("deprecation_date");
             entity.Property(x => x.Sensitivity).HasColumnName("sensitivity").HasMaxLength(80);
             entity.Property(x => x.SpecRef).HasColumnName("spec_ref").HasMaxLength(300);
@@ -111,7 +110,6 @@ public static class IntegrationStaticData
             entity.Property(x => x.EventType).HasColumnName("event_type").HasMaxLength(60);
             entity.Property(x => x.Schema).HasColumnName("schema").HasColumnType("jsonb");
             entity.Property(x => x.Compatibility).HasColumnName("compatibility").HasMaxLength(40);
-            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(40);
         });
         modelBuilder.Entity<RateLimitPolicies>(entity =>
         {

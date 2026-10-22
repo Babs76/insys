@@ -29,10 +29,12 @@ VALUES ('{{OPERATOR_TENANT_ID}}', 'PLATFORM_ADMIN', 1, current_date, 'EFFECTIVE'
               'change_request.read', 'audit_event.read', 'dead_letter.read', 'dead_letter.update'])
 ON CONFLICT DO NOTHING;
 
+-- The first platform administrator is the one assignment made without a second person: there is no one else yet
+-- (OQ-031). Every later privileged assignment waits for approval in Workflow (OQ-038).
 INSERT INTO iam.user_role_assignment (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by,
-                                      user_id, role_code, valid_from, assigned_by)
+                                      user_id, role_code, valid_from, assigned_by, status)
 SELECT '{{OPERATOR_TENANT_ID}}', gen_random_uuid(), 1, now(), 'bootstrap', now(), 'bootstrap',
-       '{{ADMIN_USER_ID}}', 'PLATFORM_ADMIN', current_date, '{{ADMIN_USER_ID}}'
+       '{{ADMIN_USER_ID}}', 'PLATFORM_ADMIN', current_date, '{{ADMIN_USER_ID}}', 'ACTIVE'
 WHERE NOT EXISTS (SELECT 1 FROM iam.user_role_assignment
                   WHERE tenant_id = '{{OPERATOR_TENANT_ID}}' AND user_id = '{{ADMIN_USER_ID}}' AND role_code = 'PLATFORM_ADMIN');
 COMMIT;

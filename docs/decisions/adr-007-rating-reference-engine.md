@@ -40,6 +40,8 @@ One documented, deterministic algorithm, `RatingEngine` in `Insys.Rating.Domain`
 
 **Cache:** configuration is cached per instance (ADR-006) for 10 minutes, keyed by tenant, product version, currency and day. The tenant's entries are dropped on `ProductVersionPublished` and on any rating static data activation.
 
+**Step order (Phase 2 review, item 5):** steps 4 to 6 can be put in another order per product version, with `STEP_*` premium parameters (OQ-052). Tables always come first, rounding and tax last.
+
 ## Consequences
 - The algorithm is a proposal. Actuaries must confirm the step order, the cap rule and the treatment of PERCENT parameters (OQ-052).
 - Product-specific rating can replace the reference engine behind `IRatingConfigurationReader` and `RatingEngine` without changing the records.

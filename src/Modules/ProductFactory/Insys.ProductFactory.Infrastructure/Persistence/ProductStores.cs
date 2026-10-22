@@ -88,8 +88,7 @@ internal sealed class ProductVersionRepository(ProductFactoryDbContext db, ITena
             var stored = db.Entry(row).State == EntityState.Added ? null : db.Entry(row).Property(r => r.RecordStatus).OriginalValue;
             if (stored is not null && LockedStatuses.Contains(stored))
             {
-                // sdm.guard_static_version: an approved row changes only its record_status and effective_to (SDM-002). The
-                // status column keeps the state the version was published in (OQ-053).
+                // sdm.guard_static_version: an approved row changes only its record_status and effective_to (SDM-002).
                 row.RecordStatus = status;
                 row.EffectiveTo = version.EffectiveTo;
                 Publish(version);
@@ -103,7 +102,6 @@ internal sealed class ProductVersionRepository(ProductFactoryDbContext db, ITena
             row.Name = version.Name;
             row.Coverages = version.Coverages.ToArray();
             row.RecordStatus = status;
-            row.Status = status;
             row.EffectiveFrom = version.EffectiveFrom;
             row.EffectiveTo = version.EffectiveTo;
             row.SupersedesId = version.SupersedesId;

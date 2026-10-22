@@ -16,6 +16,9 @@ internal sealed class UserRepository(IdentityDbContext db) : IUserRepository
 
     public Task<bool> UsernameExists(string username, CancellationToken cancellationToken) => db.Users.AnyAsync(u => u.Username == username, cancellationToken);
 
+    public Task<UserAccount?> ByAssignment(Guid assignmentId, CancellationToken cancellationToken) =>
+        db.Users.Include(u => u.RoleAssignments).Include(u => u.Sessions).SingleOrDefaultAsync(u => u.RoleAssignments.Any(a => a.Id == assignmentId), cancellationToken);
+
     public void Add(UserAccount user) => db.Users.Add(user);
 }
 
@@ -38,7 +41,8 @@ internal sealed class UserQueries(IdentityDbContext db) : IUserQueries
     private static UserView View(UserAccount u) =>
         new(u.Id, u.Username, u.DisplayName, u.IdpCode, u.ExternalSubject, u.Status.ToString(), u.MfaEnrolled, u.LastLoginAt,
             u.RoleAssignments.OrderBy(a => a.ValidFrom)
-                .Select(a => new RoleAssignmentView(a.RoleCode, a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, a.AssignedBy)).ToList(),
+                .Select(a => new RoleAssignmentView(a.Id, a.RoleCode, a.Status.ToString(), a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, a.AssignedBy,
+                    a.ApprovedBy)).ToList(),
             u.RowVersion);
 }
 
@@ -53,11 +57,16 @@ internal sealed class RolePolicyReader(IdentityDbContext db) : IRolePolicyReader
         var policies = await db.Set<AuthenticationAndSessionPolicies>().AsNoTracking().InForce(Descriptor<AuthenticationAndSessionPolicies>().Lifecycle, day)
             .ToListAsync(cancellationToken);
         var mfaRoles = policies.SelectMany(p => p.MfaRequiredRoles).ToHashSet(StringComparer.Ordinal);
+        var mfaRoleCodes = mfaRoles.ToArray();
+        var mfaPermissions = (await db.Set<RolesAndPermissionSets>().AsNoTracking().InForce(Descriptor<RolesAndPermissionSets>().Lifecycle, day)
+                .Where(r => mfaRoleCodes.Contains(r.RoleCode)).Select(r => r.Permissions).ToListAsync(cancellationToken))
+            .SelectMany(p => p).ToHashSet(StringComparer.Ordinal);
 
         // A tenant's own role definition overrides a global one with the same code.
         return codes.Select(code => roles.Where(r => r.RoleCode == code).OrderBy(r => r.TenantId is null).FirstOrDefault() is { } role
-                ? new RoleFacts(code, true, role.Permissions.ToHashSet(StringComparer.Ordinal), mfaRoles.Contains(code))
-                : new RoleFacts(code, false, new HashSet<string>(), mfaRoles.Contains(code)))
+                ? new RoleFacts(code, true, role.Permissions.ToHashSet(StringComparer.Ordinal), mfaRoles.Contains(code),
+                    mfaRoles.Contains(code) || role.Permissions.Any(mfaPermissions.Contains))
+                : new RoleFacts(code, false, new HashSet<string>(), mfaRoles.Contains(code), mfaRoles.Contains(code)))
             .ToList();
     }
 
@@ -81,6 +90,8 @@ internal sealed class IdentityEventMapper : IDomainEventMapper
     {
         Domain.Users.RoleAssigned e => new Contracts.RoleAssigned(e.UserId, e.RoleCode, e.ValidFrom, e.ValidTo),
         Domain.Users.RoleRevoked e => new Contracts.RoleRevoked(e.UserId, e.RoleCode),
+        Domain.Users.PrivilegedRoleRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.IdentityApprovals.BusinessRefType, e.AssignmentId,
+            Contracts.IdentityApprovals.ApprovalType, e.AssignedBy, null, null, $"Assign {e.RoleCode} to user {e.UserId}"),
         Domain.Users.UserDisabled e => new Contracts.UserDisabled(e.UserId),
         Domain.Access.AccessReviewCompleted e => new Contracts.AccessReviewCompleted(e.ReviewId,
             e.Revoked.Select(r => new Contracts.RevokedAccess(r.UserId, r.RoleCode)).ToList()),
@@ -104,7 +115,7 @@ internal sealed class AccessRepository(IdentityDbContext db) : Application.Acces
 
     public async Task<IReadOnlyList<(Guid UserId, string RoleCode)>> EffectiveAssignments(DateOnly today, CancellationToken cancellationToken) =>
         (await db.Set<RoleAssignment>().AsNoTracking()
-            .Where(a => a.ValidFrom <= today && (a.ValidTo == null || a.ValidTo > today))
+            .Where(a => a.Status == AssignmentStatus.Active && a.ValidFrom <= today && (a.ValidTo == null || a.ValidTo > today))
             .Select(a => new { a.UserId, a.RoleCode }).Distinct().ToListAsync(cancellationToken))
         .Select(a => (a.UserId, a.RoleCode)).ToList();
 

@@ -8,7 +8,10 @@ using Insys.Workflow.Application;
 using Insys.Workflow.Domain.Approvals;
 using Insys.Workflow.Domain.Processes;
 using Insys.Workflow.Infrastructure.StaticData;
+using Insys.BuildingBlocks.Application.Context;
+using Insys.StaticData.Contracts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NodaTime;
 using NodaTime.Text;
@@ -153,7 +156,8 @@ public sealed class WorkflowOptions
 }
 
 /// <summary>Reads workflow configuration from the Workflow module's static data in force.</summary>
-internal sealed class WorkflowConfiguration(WorkflowDbContext db, IOptions<WorkflowOptions> options) : IWorkflowConfiguration, IAuthorityReader
+internal sealed class WorkflowConfiguration(WorkflowDbContext db, IOptions<WorkflowOptions> options, IHolidayCalendar holidayCalendar, ITenantContext tenant,
+    ILogger<WorkflowConfiguration> logger) : IWorkflowConfiguration, IAuthorityReader
 {
     public async Task<Result<ProcessDefinition>> Definition(string processCode, int? version, DateOnly day, CancellationToken cancellationToken)
     {
@@ -191,16 +195,48 @@ internal sealed class WorkflowConfiguration(WorkflowDbContext db, IOptions<Workf
     {
         var queues = await db.Set<TaskTypesAndWorkQueues>().AsNoTracking().InForce(Descriptor<TaskTypesAndWorkQueues>().Lifecycle, day).ToListAsync(cancellationToken);
         var slas = await db.Set<SLADefinitions>().AsNoTracking().InForce(Descriptor<SLADefinitions>().Lifecycle, day).ToListAsync(cancellationToken);
+        var calendars = await Calendars(slas.Select(s => s.Calendar).Distinct().ToArray(), day, cancellationToken);
         var settings = options.Value;
         return taskType =>
         {
             var queue = queues.FirstOrDefault(q => q.TaskTypes.Contains(taskType))?.QueueCode ?? settings.DefaultQueue;
             var sla = slas.FirstOrDefault(s => s.TaskType == taskType);
-
-            // TODO(spec): SLA business calendars are not applied yet; the duration runs on the clock (OQ-049).
-            var due = sla is null ? now + settings.DefaultTaskDue : Add(now, sla.Duration);
+            var due = sla is null ? now + settings.DefaultTaskDue : Due(now, sla.Duration, calendars.GetValueOrDefault(sla.Calendar));
             return new TaskRouting(queue, sla?.SlaCode, due);
         };
+    }
+
+    /// <summary>
+    /// The business calendars the SLAs name, with their public holidays for the next 400 days (OQ-049). An SLA whose
+    /// calendar is not in force runs on the clock, and the gap is logged.
+    /// </summary>
+    private async Task<Dictionary<string, BusinessCalendar>> Calendars(string[] codes, DateOnly day, CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<string, BusinessCalendar>(StringComparer.Ordinal);
+        var rows = await db.Set<BusinessCalendars>().AsNoTracking().InForce(Descriptor<BusinessCalendars>().Lifecycle, day)
+            .Where(c => codes.Contains(c.CalendarCode)).ToListAsync(cancellationToken);
+        foreach (var row in rows.GroupBy(r => r.CalendarCode).Select(g => g.OrderByDescending(r => r.TenantId != null).First()))
+        {
+            var holidays = string.IsNullOrWhiteSpace(row.HolidayCalendar)
+                ? []
+                : await holidayCalendar.Holidays(tenant.RequireTenantId(), row.HolidayCalendar, day, day.AddDays(400), cancellationToken);
+            var calendar = BusinessCalendar.Create(row.CalendarCode, row.WorkingDays, row.Hours, row.TimeZone, holidays);
+            if (calendar.IsSuccess)
+            {
+                result[row.CalendarCode] = calendar.Value;
+            }
+            else
+            {
+                logger.LogWarning("Business calendar {Calendar} cannot be used: {Message}", row.CalendarCode, calendar.Error.Message);
+            }
+        }
+
+        foreach (var missing in codes.Where(c => !result.ContainsKey(c)))
+        {
+            logger.LogWarning("SLA calendar {Calendar} is not in force; its SLAs run on the clock", missing);
+        }
+
+        return result;
     }
 
     public async Task<(int Level, string TargetRole)?> NextEscalation(int currentLevel, DateOnly day, CancellationToken cancellationToken)
@@ -257,11 +293,19 @@ internal sealed class WorkflowConfiguration(WorkflowDbContext db, IOptions<Workf
         return guard.IsFailure ? guard.Error : new TransitionDefinition(from, to, guard.Value);
     }
 
-    private static DateTimeOffset Add(DateTimeOffset now, string isoDuration)
+    /// <summary>The SLA due time: on its business calendar when there is one (days are working days), otherwise on the clock.</summary>
+    private static DateTimeOffset Due(DateTimeOffset now, string isoDuration, BusinessCalendar? calendar)
     {
         var period = PeriodPattern.NormalizingIso.Parse(isoDuration).GetValueOrThrow();
-        var local = LocalDateTime.FromDateTime(now.UtcDateTime).Plus(period);
-        return new DateTimeOffset(local.ToDateTimeUnspecified(), TimeSpan.Zero);
+        if (calendar is null)
+        {
+            var local = LocalDateTime.FromDateTime(now.UtcDateTime).Plus(period);
+            return new DateTimeOffset(local.ToDateTimeUnspecified(), TimeSpan.Zero);
+        }
+
+        var days = (int)((period.Years * 365) + (period.Months * 30) + (period.Weeks * 7) + period.Days);
+        var time = TimeSpan.FromHours(period.Hours) + TimeSpan.FromMinutes(period.Minutes) + TimeSpan.FromSeconds(period.Seconds);
+        return calendar.Add(now, days, time);
     }
 
     private static StaticDataDescriptor Descriptor<T>() => WorkflowStaticData.Descriptors.Single(d => d.EntityType == typeof(T));

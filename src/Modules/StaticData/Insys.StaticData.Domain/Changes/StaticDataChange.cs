@@ -281,9 +281,14 @@ public static class MakerCheckerPolicy
     };
 }
 
+/// <summary>Switching Tier 2 maker-checker off waits for a second person: Workflow is asked for a Tier 1 approval (OQ-046).</summary>
+public sealed record GovernanceChangeRequested(Guid SettingsId, Guid RequestedBy, string ApprovalType, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>
 /// The tenant's static data governance settings (sdm.tenant_governance_setting). Proposed aggregate for SDM-003's
 /// "unless the tenant switches it off": Tier 2 maker-checker is on by default, and Tier 1 cannot be switched off.
+/// Switching Tier 2 off weakens control, so it is itself a Tier 1 change: it is held as pending until a second person
+/// approves it in Workflow (OQ-046, V0013). Switching it on takes effect at once.
 /// </summary>
 public sealed class TenantGovernanceSettings : AggregateRoot<Guid>
 {
@@ -293,18 +298,83 @@ public sealed class TenantGovernanceSettings : AggregateRoot<Guid>
 
     public bool Tier2MakerChecker { get; private set; } = true;
 
+    /// <summary>False while a switch-off waits for approval; null when nothing is pending.</summary>
+    public bool? PendingTier2MakerChecker { get; private set; }
+
+    public Guid? PendingRequestedBy { get; private set; }
+
+    public DateTimeOffset? PendingRequestedAt { get; private set; }
+
     public static TenantGovernanceSettings Defaults(Guid id) => new() { Id = id };
 
-    /// <summary>Switches Tier 2 maker-checker on or off. Returns false when nothing changed.</summary>
-    public bool ChangeTier2MakerChecker(bool enabled)
+    /// <summary>Switches Tier 2 maker-checker on at once, cancelling any pending switch-off. Returns false when nothing changed.</summary>
+    public bool SwitchTier2On()
     {
-        if (enabled == Tier2MakerChecker)
+        if (Tier2MakerChecker && PendingTier2MakerChecker is null)
         {
             return false;
         }
 
-        Tier2MakerChecker = enabled;
+        Tier2MakerChecker = true;
+        ClearPending();
         MarkChanged();
         return true;
     }
+
+    /// <summary>Asks for Tier 2 maker-checker to be switched off. Nothing changes until the approval is granted.</summary>
+    public Result<bool> RequestTier2Off(Guid requestedBy, string approvalType, DateTimeOffset now)
+    {
+        if (!Tier2MakerChecker)
+        {
+            return false;
+        }
+
+        if (PendingTier2MakerChecker is not null)
+        {
+            return Error.Conflict(StaticDataGovernanceCodes.ChangePending, "Switching Tier 2 maker-checker off is already waiting for approval.");
+        }
+
+        PendingTier2MakerChecker = false;
+        PendingRequestedBy = requestedBy;
+        PendingRequestedAt = now;
+        Raise(new GovernanceChangeRequested(Id, requestedBy, approvalType, now));
+        MarkChanged();
+        return true;
+    }
+
+    /// <summary>Workflow's decision on the pending switch-off. The checker is never the requester (SRS-002).</summary>
+    public Result DecidePending(bool approved, Guid checkerId)
+    {
+        if (PendingTier2MakerChecker is not { } pending || PendingRequestedBy is not { } requester)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "No governance change is waiting for approval.");
+        }
+
+        if (checkerId == requester)
+        {
+            return MakerChecker.EnsureDifferentPeople(requester.ToString(), checkerId.ToString());
+        }
+
+        if (approved)
+        {
+            Tier2MakerChecker = pending;
+        }
+
+        ClearPending();
+        MarkChanged();
+        return Result.Success();
+    }
+
+    private void ClearPending()
+    {
+        PendingTier2MakerChecker = null;
+        PendingRequestedBy = null;
+        PendingRequestedAt = null;
+    }
+}
+
+public static class StaticDataGovernanceCodes
+{
+    [ErrorCode(409, "error.static_data.governance_change_pending")]
+    public const string ChangePending = "GOVERNANCE_CHANGE_PENDING";
 }

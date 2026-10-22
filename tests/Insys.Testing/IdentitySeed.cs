@@ -40,7 +40,7 @@ public static class IdentitySeed
     public static Task AssignRole(this TestDatabase database, Guid tenantId, Guid userId, string role) =>
         database.ExecuteAsOwner("""
             INSERT INTO iam.user_role_assignment (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by,
-                                                  user_id, role_code, valid_from, assigned_by)
-            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, @role, current_date - 1, @u)
+                                                  user_id, role_code, valid_from, assigned_by, status)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, @role, current_date - 1, @u, 'ACTIVE')
             """, ("t", tenantId), ("u", userId), ("role", role));
 }

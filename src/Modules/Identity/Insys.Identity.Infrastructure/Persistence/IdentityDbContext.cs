@@ -48,6 +48,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             assignment.HasKey(a => new { a.TenantId, a.Id });
             assignment.HasAuditColumns();
             assignment.Property(a => a.RoleCode).HasMaxLength(30);
+            assignment.Property(a => a.Status).HasConversion(new UpperCaseEnumConverter<AssignmentStatus>()).HasMaxLength(20);
         });
 
         modelBuilder.Entity<PrivilegedAccessGrant>(grant =>

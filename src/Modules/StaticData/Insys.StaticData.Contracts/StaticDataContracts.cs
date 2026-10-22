@@ -13,6 +13,9 @@ public static class StaticDataApprovals
 {
     public const string BusinessRefType = "STATIC_DATA_CHANGE";
 
+    /// <summary>A pending change to the tenant's governance settings (switching Tier 2 maker-checker off).</summary>
+    public const string GovernanceBusinessRefType = "GOVERNANCE_SETTING";
+
     public const string ApprovalTypePrefix = "STATIC_DATA_T";
 
     public static string ApprovalType(int tier) => ApprovalTypePrefix + tier;
@@ -22,4 +25,11 @@ public static class StaticDataApprovals
 public interface IStaticDataChangeLookup
 {
     Task<Guid?> PendingChange(Guid tenantId, string entityCode, string code, int version, bool global, CancellationToken cancellationToken);
+}
+
+/// <summary>Public query interface: the public holidays of a holiday calendar (refdata.ref_public_holiday_calendars), as observed.</summary>
+public interface IHolidayCalendar
+{
+    /// <summary>Holidays in force between the two dates, inclusive; a Sunday holiday with the rule "Next Monday if Sunday" is observed on the Monday.</summary>
+    Task<IReadOnlyList<DateOnly>> Holidays(Guid tenantId, string calendarCode, DateOnly from, DateOnly to, CancellationToken cancellationToken);
 }

@@ -61957,12 +61957,6 @@
             ],
             "format": "date"
           },
-          "status": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "closeDate": {
             "type": [
               "null",

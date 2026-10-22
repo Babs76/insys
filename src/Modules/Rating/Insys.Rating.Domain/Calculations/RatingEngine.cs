@@ -21,9 +21,10 @@ public sealed record RatingInput(string Currency, string Frequency, IReadOnlyDic
 /// <list type="number">
 /// <item>Exposure: sum_insured, sum_assured or exposure from the inputs, when the product version uses any table.</item>
 /// <item>Tables: the exposure times the value each table holds for the factor values (banded where the factor has bands).</item>
-/// <item>FACTOR parameters multiply; PERCENT parameters load by that percentage.</item>
-/// <item>Discounts and loadings named in the input "adjustments", by stacking order, each type capped at its cap percentage.</item>
-/// <item>AMOUNT parameters (fees) are added, then the premium bounds for the frequency apply.</item>
+/// <item>Then, in the product version's step order (<see cref="StepOrder"/>; by default the order listed here): FACTOR
+/// parameters multiply; PERCENT parameters load by that percentage; discounts and loadings named in the input
+/// "adjustments" apply by stacking order, each type capped at its cap percentage; AMOUNT parameters (fees) are added;
+/// the premium bounds for the frequency apply.</item>
 /// <item>Rounding at stage FINAL_PREMIUM, then taxes and levies for the input "jurisdiction", each rounded by its own rule.</item>
 /// </list>
 /// </summary>
@@ -78,35 +79,51 @@ public static class RatingEngine
         }
 
         var schedules = config.Adjustments.Select(a => a.Code).ToHashSet(StringComparer.Ordinal);
-        foreach (var parameter in config.Parameters.Where(p => !tables.Any(t => t.TableCode == p.Code) && !schedules.Contains(p.Code)).OrderBy(p => p.Code, StringComparer.Ordinal))
+        var parameters = config.Parameters
+            .Where(p => !tables.Any(t => t.TableCode == p.Code) && !schedules.Contains(p.Code) && !p.Code.StartsWith(StepOrder.Prefix, StringComparison.Ordinal))
+            .OrderBy(p => p.Code, StringComparer.Ordinal).ToList();
+        foreach (var step in StepOrder.For(config.Parameters))
         {
-            switch (parameter.Unit)
+            switch (step)
             {
-                case "FACTOR":
-                    Line("FACTOR", parameter.Code, Text(parameter.Value), premium * parameter.Value);
+                case RatingStep.Factors:
+                    foreach (var factor in parameters.Where(p => p.Unit == "FACTOR"))
+                    {
+                        Line("FACTOR", factor.Code, Text(factor.Value), premium * factor.Value);
+                    }
+
                     break;
-                case "PERCENT":
-                    Line("PERCENT", parameter.Code, Text(parameter.Value), premium * (1 + (parameter.Value / 100m)));
+                case RatingStep.Percent:
+                    foreach (var loading in parameters.Where(p => p.Unit == "PERCENT"))
+                    {
+                        Line("PERCENT", loading.Code, Text(loading.Value), premium * (1 + (loading.Value / 100m)));
+                    }
+
                     break;
-            }
-        }
+                case RatingStep.Adjustments:
+                    ApplyAdjustments(config, input.Values, premium, Line);
+                    break;
+                case RatingStep.Fees:
+                    foreach (var fee in parameters.Where(p => p.Unit == "AMOUNT"))
+                    {
+                        Line("FEE", fee.Code, Text(fee.Value), premium + fee.Value);
+                    }
 
-        ApplyAdjustments(config, input.Values, premium, Line);
+                    break;
+                case RatingStep.Bounds:
+                    if (config.BoundsByFrequency.TryGetValue(input.Frequency, out var bounds))
+                    {
+                        if (premium < bounds.Minimum)
+                        {
+                            Line("MINIMUM", null, Text(bounds.Minimum), bounds.Minimum);
+                        }
+                        else if (bounds.Maximum is { } maximum && premium > maximum)
+                        {
+                            Line("MAXIMUM", null, Text(maximum), maximum);
+                        }
+                    }
 
-        foreach (var fee in config.Parameters.Where(p => p.Unit == "AMOUNT" && !schedules.Contains(p.Code)).OrderBy(p => p.Code, StringComparer.Ordinal))
-        {
-            Line("FEE", fee.Code, Text(fee.Value), premium + fee.Value);
-        }
-
-        if (config.BoundsByFrequency.TryGetValue(input.Frequency, out var bounds))
-        {
-            if (premium < bounds.Minimum)
-            {
-                Line("MINIMUM", null, Text(bounds.Minimum), bounds.Minimum);
-            }
-            else if (bounds.Maximum is { } maximum && premium > maximum)
-            {
-                Line("MAXIMUM", null, Text(maximum), maximum);
+                    break;
             }
         }
 
@@ -221,8 +238,53 @@ public static class RatingEngine
 
     private static string Text(decimal value) => value.ToString(CultureInfo.InvariantCulture);
 
-    private sealed class RatingException(string code, string message) : Exception(message)
+    internal sealed class RatingException(string code, string message) : Exception(message)
     {
         public string Code { get; } = code;
+    }
+}
+
+/// <summary>The steps whose order a product version can configure. Tables (which need the exposure) come first, rounding and tax last.</summary>
+public enum RatingStep
+{
+    Factors,
+    Percent,
+    Adjustments,
+    Fees,
+    Bounds,
+}
+
+/// <summary>
+/// The step order of a product version (Phase 2 review item 5; OQ-052): premium parameters STEP_FACTORS,
+/// STEP_PERCENT, STEP_ADJUSTMENTS, STEP_FEES and STEP_BOUNDS give each step's position. A step without one keeps its
+/// default position (1 to 5, the reference order). Two steps in the same position are a configuration error.
+/// </summary>
+public static class StepOrder
+{
+    public const string Prefix = "STEP_";
+
+    public static IReadOnlyList<RatingStep> Default { get; } = Enum.GetValues<RatingStep>();
+
+    public static IReadOnlyList<RatingStep> For(IReadOnlyList<PremiumParameter> parameters)
+    {
+        var positions = Default.ToDictionary(step => step, step => (decimal)((int)step + 1));
+        foreach (var parameter in parameters.Where(p => p.Code.StartsWith(Prefix, StringComparison.Ordinal)))
+        {
+            var name = parameter.Code[Prefix.Length..];
+            if (!Enum.TryParse<RatingStep>(name, ignoreCase: true, out var step) || !string.Equals(step.ToString(), name, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new RatingEngine.RatingException(RatingErrorCodes.ConfigurationIncomplete,
+                    $"{parameter.Code} is not a rating step; the steps are {string.Join(", ", Default.Select(d => Prefix + d.ToString().ToUpperInvariant()))}.");
+            }
+
+            positions[step] = parameter.Value;
+        }
+
+        if (positions.Values.Distinct().Count() != positions.Count)
+        {
+            throw new RatingEngine.RatingException(RatingErrorCodes.ConfigurationIncomplete, "Two rating steps have the same position.");
+        }
+
+        return positions.OrderBy(p => p.Value).Select(p => p.Key).ToList();
     }
 }

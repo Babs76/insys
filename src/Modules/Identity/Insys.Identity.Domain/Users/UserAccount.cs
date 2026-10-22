@@ -19,7 +19,18 @@ public enum UserTrigger
     DisableUser,
 }
 
-/// <summary>Entity RoleAssignment (iam.user_role_assignment). A revoked assignment ends today, so it stops applying at once (IAM-005).</summary>
+/// <summary>iam.user_role_assignment.status (V0013). Only an Active assignment gives permissions.</summary>
+public enum AssignmentStatus
+{
+    PendingApproval,
+    Active,
+    Rejected,
+}
+
+/// <summary>
+/// Entity RoleAssignment (iam.user_role_assignment). A revoked assignment ends today, so it stops applying at once
+/// (IAM-005). A privileged assignment is pending until a second person approves it in Workflow (SRS-002, ADR-009).
+/// </summary>
 public sealed class RoleAssignment : Entity<Guid>, ITenantScoped
 {
     private RoleAssignment()
@@ -42,18 +53,33 @@ public sealed class RoleAssignment : Entity<Guid>, ITenantScoped
 
     public Guid AssignedBy { get; private set; }
 
+    public AssignmentStatus Status { get; private set; }
+
+    /// <summary>The checker of a privileged assignment.</summary>
+    public Guid? ApprovedBy { get; private set; }
+
+    public DateTimeOffset? DecidedAt { get; private set; }
+
     public long RowVersion { get; private set; }
 
-    /// <summary>In effect on <paramref name="day"/>: valid_from inclusive, valid_to exclusive.</summary>
-    public bool IsEffectiveOn(DateOnly day) => ValidFrom <= day && (ValidTo is null || ValidTo > day);
+    /// <summary>In effect on <paramref name="day"/>: active, valid_from inclusive, valid_to exclusive.</summary>
+    public bool IsEffectiveOn(DateOnly day) => Status == AssignmentStatus.Active && ValidFrom <= day && (ValidTo is null || ValidTo > day);
 
     internal static RoleAssignment Create(Guid userId, string roleCode, DateOnly validFrom, DateOnly? validTo, string[]? scopeProducts, string[]? scopeBranches,
-        Guid assignedBy) =>
+        Guid assignedBy, bool pending) =>
         new()
         {
             Id = Guid.CreateVersion7(), UserId = userId, RoleCode = roleCode, ValidFrom = validFrom, ValidTo = validTo,
             ScopeProducts = scopeProducts, ScopeBranches = scopeBranches, AssignedBy = assignedBy,
+            Status = pending ? AssignmentStatus.PendingApproval : AssignmentStatus.Active,
         };
+
+    internal void Decide(bool approved, Guid checkerId, DateTimeOffset now)
+    {
+        Status = approved ? AssignmentStatus.Active : AssignmentStatus.Rejected;
+        ApprovedBy = approved ? checkerId : null;
+        DecidedAt = now;
+    }
 
     internal void EndOn(DateOnly day) => ValidTo = ValidTo is { } end && end < day ? end : day;
 }
@@ -89,7 +115,11 @@ public sealed class Session : Entity<Guid>, ITenantScoped
 /// <summary>What the role policy knows about a role, read from static data in force today.</summary>
 /// <param name="Exists">The role has a version in force (iam.cfg_roles_and_permission_sets).</param>
 /// <param name="RequiresMfa">The role is in an authentication policy's mfa_required_roles (IAM-003).</param>
-public sealed record RoleFacts(string RoleCode, bool Exists, IReadOnlySet<string> Permissions, bool RequiresMfa);
+/// <param name="Privileged">
+/// The role requires MFA, or holds a permission that an MFA-required role holds: assigning it needs a second person
+/// (SRS-002, OQ-038). Copying a privileged role's permissions into a new role does not avoid the approval.
+/// </param>
+public sealed record RoleFacts(string RoleCode, bool Exists, IReadOnlySet<string> Permissions, bool RequiresMfa, bool Privileged = false);
 
 /// <summary>A segregation-of-duties rule (iam.cfg_segregation_of_duties_conflict_rules): Block or Warn.</summary>
 public sealed record DutyConflictRule(string PermissionA, string PermissionB, string Conflict);
@@ -97,6 +127,9 @@ public sealed record DutyConflictRule(string PermissionA, string PermissionB, st
 public sealed record RoleAssigned(Guid UserId, string RoleCode, DateOnly ValidFrom, DateOnly? ValidTo, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record RoleRevoked(Guid UserId, string RoleCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>A privileged assignment waits for approval: Workflow is asked for a PRIVILEGED_ROLE approval (ADR-009).</summary>
+public sealed record PrivilegedRoleRequested(Guid UserId, Guid AssignmentId, string RoleCode, Guid AssignedBy, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record UserDisabled(Guid UserId, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -182,6 +215,11 @@ public sealed class UserAccount : AggregateRoot<Guid>
             return Error.Conflict(IdentityErrorCodes.RoleAlreadyAssigned, $"The user already holds {role.RoleCode}.");
         }
 
+        if (_roleAssignments.Any(a => a.RoleCode == role.RoleCode && a.Status == AssignmentStatus.PendingApproval))
+        {
+            return Error.Conflict(IdentityErrorCodes.RoleAlreadyAssigned, $"An assignment of {role.RoleCode} to the user is waiting for approval.");
+        }
+
         if (role.RequiresMfa && !MfaEnrolled)
         {
             return Error.Conflict(IdentityErrorCodes.MfaRequired, $"{role.RoleCode} is a privileged role and requires MFA enrolment (IAM-003).");
@@ -197,16 +235,45 @@ public sealed class UserAccount : AggregateRoot<Guid>
                 $"The user cannot hold both {conflict.PermissionA} and {conflict.PermissionB} (segregation of duties, SRS-002).");
         }
 
-        var assignment = RoleAssignment.Create(Id, role.RoleCode, validFrom, validTo, scopeProducts, scopeBranches, assignedBy);
+        var assignment = RoleAssignment.Create(Id, role.RoleCode, validFrom, validTo, scopeProducts, scopeBranches, assignedBy, pending: role.Privileged);
         _roleAssignments.Add(assignment);
-        Raise(new RoleAssigned(Id, role.RoleCode, validFrom, validTo, now));
+        Raise(role.Privileged
+            ? new PrivilegedRoleRequested(Id, assignment.Id, role.RoleCode, assignedBy, now)
+            : new RoleAssigned(Id, role.RoleCode, validFrom, validTo, now));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Workflow's decision on a pending privileged assignment: approved, it becomes active (and gives its permissions);
+    /// rejected, it never applies. The checker is never the administrator who requested it (SRS-002).
+    /// </summary>
+    public Result DecideAssignment(Guid assignmentId, bool approved, Guid checkerId, DateTimeOffset now)
+    {
+        var assignment = _roleAssignments.SingleOrDefault(a => a.Id == assignmentId && a.Status == AssignmentStatus.PendingApproval);
+        if (assignment is null)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "No assignment with that ID is waiting for approval.");
+        }
+
+        if (checkerId == assignment.AssignedBy)
+        {
+            return MakerChecker.EnsureDifferentPeople(assignment.AssignedBy.ToString(), checkerId.ToString());
+        }
+
+        assignment.Decide(approved, checkerId, now);
+        if (approved)
+        {
+            Raise(new RoleAssigned(Id, assignment.RoleCode, assignment.ValidFrom, assignment.ValidTo, now));
+        }
+
+        MarkChanged();
         return Result.Success();
     }
 
     /// <summary>Command RevokeRole: the assignment ends today, so the next request is already without it (IAM-005).</summary>
     public Result RevokeRole(string roleCode, DateOnly today, DateTimeOffset now)
     {
-        var assignments = _roleAssignments.Where(a => a.RoleCode == roleCode && (a.ValidTo is null || a.ValidTo > today)).ToList();
+        var assignments = _roleAssignments.Where(a => a.RoleCode == roleCode && a.Status == AssignmentStatus.Active && (a.ValidTo is null || a.ValidTo > today)).ToList();
         if (assignments.Count == 0)
         {
             return Error.NotFound(IdentityErrorCodes.RoleNotAssigned, $"The user does not hold {roleCode}.");

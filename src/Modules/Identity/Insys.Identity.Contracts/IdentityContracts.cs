@@ -38,3 +38,11 @@ public interface IUserRoleQuery
 {
     Task<IReadOnlyList<string>> EffectiveRoles(Guid tenantId, Guid userId, CancellationToken cancellationToken);
 }
+
+/// <summary>A privileged role assignment is approved in Workflow (SRS-002, ADR-009): one approval per assignment.</summary>
+public static class IdentityApprovals
+{
+    public const string BusinessRefType = "ROLE_ASSIGNMENT";
+
+    public const string ApprovalType = "PRIVILEGED_ROLE";
+}

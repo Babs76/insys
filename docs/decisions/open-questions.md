@@ -43,7 +43,7 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-035 | 1 | Static data business keys | Open |
 | OQ-036 | 1 | Configuration items: Published to Effective | Open |
 | OQ-037 | 1 | Identity provider to idp_code mapping | Open |
-| OQ-038 | 1 | Maker-checker for privileged user administration | Open |
+| OQ-038 | 1 | Maker-checker for privileged user administration | Resolved: pending assignments approved in Workflow (V0013) |
 | OQ-039 | 1 | Repository inside iCloud Drive | Resolved: moved; CI refuses conflict copies |
 | OQ-040 | 1 | The privileged access grant table had no concurrency columns | Resolved (proposal): V0007 |
 | OQ-041 | 1 | REVOKED status for privileged access grants | Open |
@@ -51,14 +51,14 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-043 | 1 | What a privileged access grant permits | Open |
 | OQ-044 | 1 | When access review revocations take effect | Resolved (proposal) |
 | OQ-045 | 1 | Who decides access review items | Resolved (proposal) |
-| OQ-046 | 1 | Maker-checker for the Tier 2 setting itself | Open |
+| OQ-046 | 1 | Maker-checker for the Tier 2 setting itself | Resolved: switch-off approved in Workflow (V0013) |
 | OQ-047 | 2 | `workflow.approval` could not hold a pending approval | Resolved: V0010 |
 | OQ-048 | 2 | Process state and SLA timer encoding | Resolved (proposal) |
-| OQ-049 | 2 | SLA business calendars and escalation targets | Open |
+| OQ-049 | 2 | SLA business calendars and escalation targets | Calendars resolved; escalation targets open |
 | OQ-050 | 2 | Approval authority for static data changes | Resolved (proposal): ADR-009 |
-| OQ-051 | 2 | Rule set outcomes and scope | Resolved (proposal) |
-| OQ-052 | 2 | Rating algorithm details | Resolved (proposal): ADR-007 |
-| OQ-053 | 2 | Product versions kept in a static data table | Resolved (proposal) |
+| OQ-051 | 2 | Rule set outcomes and scope | Open: underwriting decision pending |
+| OQ-052 | 2 | Rating algorithm details | Open: actuarial decision pending; step order configurable |
+| OQ-053 | 2 | Product versions kept in a static data table | Resolved: ADR-010, V0012 |
 | OQ-054 | 2 | Party lifecycle triggers, retention and merge | Open |
 | OQ-055 | 2 | Consent withdrawal records | Resolved (proposal) |
 | OQ-056 | 2 | Document state, storage, rendering and retention | Resolved (proposal): V0011; stubs |
@@ -212,7 +212,11 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 ### OQ-038 Maker-checker for privileged user administration
 - **Sources:** SRS-002.
 - **Gap:** role assignment is not yet maker-checker.
-- **Phase 2:** Workflow Approval now exists (ADR-009) and static data approvals use it; role assignment does not yet. Routing AssignRole through `ApprovalRequested` needs a pending-assignment state, which the IAM tables do not have.
+- **Resolved (Phase 2 review, item 2a):**
+  - **Which roles are privileged:** a role in any authentication policy's `mfa_required_roles`, or one holding a permission that such a role holds. Copying a privileged role's permissions into a new role does not avoid the approval.
+  - **Pending until approved:** assigning a privileged role creates a pending assignment (V0013: `status`, `approved_by`, `decided_at`) and a Workflow approval of type `PRIVILEGED_ROLE`. The assignment gives no permission until ApprovalGranted.
+  - **The checker:** never the requesting administrator (also a database CHECK), and must hold `PRIVILEGED_ROLE` authority (ADR-009).
+  - **Bootstrap:** the first platform administrator is the one assignment made without a second person (OQ-031).
 
 ### OQ-039 Repository inside iCloud Drive
 - **Resolved:** the repository moved to `~/Development`. A clean build and the full test suite pass there, and no conflict copies remain.
@@ -243,7 +247,9 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 ### OQ-046 Maker-checker for the Tier 2 setting itself
 - **Gap:** switching Tier 2 maker-checker off is audited but needs no second person. SRS-002 lists sensitive operations; whether this setting is one is not stated.
 - **Proposal:** once Workflow Approval exists (Phase 2), route the switch-off through it.
-- **Phase 2:** Workflow Approval exists; the switch-off is not routed through it yet. It needs a pending state for the setting.
+- **Resolved (Phase 2 review, item 2b):**
+  - Switching Tier 2 maker-checker off is a Tier 1 change. It is held as pending (V0013) and asks Workflow for a `STATIC_DATA_T1` approval from a second person.
+  - Switching it on takes effect at once, and cancels a pending switch-off.
 
 ### OQ-047 `workflow.approval` could not hold a pending approval
 - **Sources:** V0001 made `checker_id`, `decision` and `decided_at` NOT NULL, so only decided approvals could be stored. domain-model.json gives Approval the states Requested, Approved, Rejected and Expired.
@@ -259,8 +265,12 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
   - An SLA timer has type `SLA` and shares its task's id.
 
 ### OQ-049 SLA business calendars and escalation targets
-- **Gaps:**
-  - SLA durations run on the clock: the `calendar` of `cfg_sla_definitions` is not applied, because `cfg_business_calendars` defines no working-time rules the engine could use.
+- **Calendars resolved (Phase 2 review, item 4):** an SLA runs on its business calendar (`workflow.ref_business_calendars`):
+  - working days and hours, in the calendar's time zone;
+  - the public holidays of its holiday calendar (`refdata.ref_public_holiday_calendars`, through Static Data's `IHolidayCalendar`), with "Next Monday if Sunday" observed;
+  - whole days in an SLA duration are working days;
+  - an SLA whose calendar is not in force runs on the clock, and a warning is logged.
+- **Still open:**
   - Escalation rules name a `target_role`, and tasks have a `queue_code`. The role code is used as the queue, and must be at most 20 characters.
   - Rules with triggers `AMOUNT_ABOVE` and `MANUAL` are not used yet.
 
@@ -270,6 +280,7 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 
 ### OQ-051 Rule set outcomes and scope
 - **Gaps:** the catalogue defines rule rows with a condition and an outcome, but not how a set of them decides.
+- **Status:** open, pending a decision by underwriting (Phase 2 review, item 5). The code follows the proposal below until then.
 - **Proposal:**
   - The most severe outcome among the rules that fire is the decision: INELIGIBLE > REFER > ELIGIBLE, and DECLINE > REFER > ACCEPT.
   - Eligibility is not assumed: when no eligibility rule fires, the outcome is INELIGIBLE. Underwriting defaults to ACCEPT.
@@ -278,7 +289,10 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
   - The decision log's `ruleset_code` is the eligibility rule set code, or `UW:{product}` for underwriting.
 
 ### OQ-052 Rating algorithm details
+- **Status:** open, pending actuarial decisions (Phase 2 review, item 5).
 - **Proposal:** ADR-007.
+- **Step order is configurable per product version:** premium parameters `STEP_FACTORS`, `STEP_PERCENT`, `STEP_ADJUSTMENTS`, `STEP_FEES` and `STEP_BOUNDS` give each step's position. Tables (with the exposure) always come first, rounding and tax last.
+- **Test cases:** the cases written so far are engineering cases. Actuary-supplied cases are still needed (`docs/rating/test-cases.md`).
 - **Still to confirm:**
   - the step order and the cap rule;
   - PERCENT parameters as loadings;
@@ -288,6 +302,7 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 - **Preloading:** the rating cache is not preloaded on publication, because a product version does not list its currencies. It is dropped, and the next calculation loads it.
 
 ### OQ-053 Product versions kept in a static data table
+- **Resolved (Phase 2 review, item 3d):** ADR-010. `record_status` is the single lifecycle; V0012 makes the duplicate `status` columns nullable and deprecated, and nothing writes them.
 - **Sources:** domain-model.json maps ProductVersion to `product.cfg_product_definitions_and_versions` (static).
 - **Proposal:**
   - **Lifecycle:** the ProductVersion aggregate owns the rows. The generator maps only the read endpoints for this table, and the ProductVersion lifecycle replaces the generic static lifecycle.

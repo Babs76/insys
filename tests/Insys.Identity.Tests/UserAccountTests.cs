@@ -96,4 +96,45 @@ public sealed class UserAccountTests
         user.DomainEvents.OfType<UserDisabled>().ShouldHaveSingleItem();
         user.UnlockUser().Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
     }
+
+    [Fact]
+    public void PrivilegedAssignment_IsPending_UntilASecondPersonApproves_SRS002()
+    {
+        var user = User();
+        var privileged = new RoleFacts("TENANT_ADMIN", true, new HashSet<string> { "user.create" }, RequiresMfa: true, Privileged: true);
+        user.AssignRole(privileged, [], [], Today, null, null, null, Admin, Today, Now).IsSuccess.ShouldBeTrue();
+
+        var assignment = user.RoleAssignments.Single();
+        assignment.Status.ShouldBe(AssignmentStatus.PendingApproval);
+        user.EffectiveAssignments(Today).ShouldBeEmpty();
+        user.DomainEvents.OfType<RoleAssigned>().ShouldBeEmpty();
+        user.DomainEvents.OfType<PrivilegedRoleRequested>().Single().AssignedBy.ShouldBe(Admin);
+        user.AssignRole(privileged, [], [], Today, null, null, null, Admin, Today, Now).Error!.Code.ShouldBe("ROLE_ALREADY_ASSIGNED");
+
+        user.DecideAssignment(assignment.Id, approved: true, Admin, Now).Error!.Code.ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        user.EffectiveAssignments(Today).ShouldBeEmpty();
+
+        var checker = Guid.CreateVersion7();
+        user.DecideAssignment(assignment.Id, approved: true, checker, Now).IsSuccess.ShouldBeTrue();
+        assignment.Status.ShouldBe(AssignmentStatus.Active);
+        assignment.ApprovedBy.ShouldBe(checker);
+        user.EffectiveAssignments(Today).Single().RoleCode.ShouldBe("TENANT_ADMIN");
+        user.DomainEvents.OfType<RoleAssigned>().ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void RejectedPrivilegedAssignment_NeverApplies()
+    {
+        var user = User();
+        user.AssignRole(new RoleFacts("FINANCE_OFFICER", true, new HashSet<string>(), false, Privileged: true), [], [], Today, null, null, null, Admin, Today, Now);
+        var assignment = user.RoleAssignments.Single();
+        user.DecideAssignment(assignment.Id, approved: false, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        assignment.Status.ShouldBe(AssignmentStatus.Rejected);
+        user.EffectiveAssignments(Today).ShouldBeEmpty();
+        user.DecideAssignment(assignment.Id, approved: true, Guid.CreateVersion7(), Now).IsFailure.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void OrdinaryAssignment_IsActiveAtOnce() =>
+        User().AssignRole(Role("CLERK"), [], [], Today, null, null, null, Admin, Today, Now).IsSuccess.ShouldBeTrue();
 }

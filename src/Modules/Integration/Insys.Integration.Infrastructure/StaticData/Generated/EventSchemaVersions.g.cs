@@ -19,14 +19,11 @@ public sealed class EventSchemaVersions : StaticRecord<EventSchemaVersionsInput>
 
     public string Compatibility { get; set; } = "";
 
-    public string Status { get; set; } = "";
-
     public override void ApplyFields(EventSchemaVersionsInput input, IFieldProtector protector)
     {
         EventType = input.EventType!;
         Schema = input.Schema.GetValueOrDefault();
         Compatibility = input.Compatibility!;
-        Status = input.Status!;
     }
 }
 
@@ -39,8 +36,6 @@ public sealed record EventSchemaVersionsInput : StaticRecordInput
 
     public string? Compatibility { get; init; }
 
-    public string? Status { get; init; }
-
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("eventType", EventType);
@@ -49,8 +44,5 @@ public sealed record EventSchemaVersionsInput : StaticRecordInput
         errors.Required("compatibility", Compatibility);
         errors.MaxLength("compatibility", Compatibility, 40);
         errors.OneOf("compatibility", Compatibility, ["BACKWARD", "FORWARD", "FULL", "NONE"]);
-        errors.Required("status", Status);
-        errors.MaxLength("status", Status, 40);
-        errors.OneOf("status", Status, ["DRAFT", "ACTIVE", "DEPRECATED"]);
     }
 }

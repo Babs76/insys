@@ -77,7 +77,9 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
         (await fixture.Database.ScalarAsOwner<string>("SELECT inputs->>'age_next' FROM rules.decision_log WHERE subject_id = @s", ("s", subject))).ShouldBe("62");
     }
 
+    /// <summary>An engineering case: the premium is worked from the engine's rules, not supplied by an actuary (docs/rating/test-cases.md).</summary>
     [Fact]
+    [Trait("Category", "EngineeringCase")]
     public async Task PremiumCalculation_IsRecordedWithItsBreakdown_AndIsTenantScoped_PRD008()
     {
         var client = _factory.ClientFor(TenantA, "shared-user");

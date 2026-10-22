@@ -19,8 +19,6 @@ public sealed class AccountingCalendarAndPeriods : StaticRecord<AccountingCalend
 
     public DateOnly EndDate { get; set; }
 
-    public string Status { get; set; } = "";
-
     public DateOnly? CloseDate { get; set; }
 
     public override void ApplyFields(AccountingCalendarAndPeriodsInput input, IFieldProtector protector)
@@ -28,7 +26,6 @@ public sealed class AccountingCalendarAndPeriods : StaticRecord<AccountingCalend
         PeriodCode = input.PeriodCode!;
         StartDate = input.StartDate.GetValueOrDefault();
         EndDate = input.EndDate.GetValueOrDefault();
-        Status = input.Status!;
         CloseDate = input.CloseDate;
     }
 }
@@ -42,8 +39,6 @@ public sealed record AccountingCalendarAndPeriodsInput : StaticRecordInput
 
     public DateOnly? EndDate { get; init; }
 
-    public string? Status { get; init; }
-
     public DateOnly? CloseDate { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
@@ -52,8 +47,5 @@ public sealed record AccountingCalendarAndPeriodsInput : StaticRecordInput
         errors.MaxLength("periodCode", PeriodCode, 7);
         errors.Required("startDate", StartDate);
         errors.Required("endDate", EndDate);
-        errors.Required("status", Status);
-        errors.MaxLength("status", Status, 40);
-        errors.OneOf("status", Status, ["FUTURE", "OPEN", "SOFT_CLOSE", "CLOSED"]);
     }
 }

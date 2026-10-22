@@ -140,7 +140,7 @@ public sealed class PrincipalResolver(
               ON r.role_code = a.role_code AND r.tenant_id = a.tenant_id
              AND r.record_status = ANY(@statuses) AND r.effective_from <= @today AND (r.effective_to IS NULL OR r.effective_to > @today)
             CROSS JOIN LATERAL unnest(r.permissions) AS p(permission)
-            WHERE a.tenant_id = @t AND a.user_id = @id AND a.valid_from <= @today AND (a.valid_to IS NULL OR a.valid_to > @today)
+            WHERE a.tenant_id = @t AND a.user_id = @id AND a.status = 'ACTIVE' AND a.valid_from <= @today AND (a.valid_to IS NULL OR a.valid_to > @today)
             """, connection, transaction))
         {
             load.Parameters.AddWithValue("statuses", RoleStatuses);

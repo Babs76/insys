@@ -70,13 +70,38 @@ public sealed class StaticDataChangeTests
     }
 
     [Fact]
-    public void Settings_DefaultToTier2On_AndReportWhetherTheyChanged()
+    public void Settings_DefaultToTier2On_AndSwitchingOnNeedsNoApproval()
     {
         var settings = TenantGovernanceSettings.Defaults(Guid.CreateVersion7());
         settings.Tier2MakerChecker.ShouldBeTrue();
+        settings.SwitchTier2On().ShouldBeFalse();
+    }
 
-        settings.ChangeTier2MakerChecker(true).ShouldBeFalse();
-        settings.ChangeTier2MakerChecker(false).ShouldBeTrue();
+    [Fact]
+    public void SwitchingTier2Off_WaitsForASecondPerson_OQ046()
+    {
+        var settings = TenantGovernanceSettings.Defaults(Guid.CreateVersion7());
+        settings.RequestTier2Off(Maker, "STATIC_DATA_T1", Now).Value.ShouldBeTrue();
+        settings.Tier2MakerChecker.ShouldBeTrue();
+        settings.PendingTier2MakerChecker.ShouldBe(false);
+        settings.DomainEvents.OfType<GovernanceChangeRequested>().Single().RequestedBy.ShouldBe(Maker);
+        settings.RequestTier2Off(Maker, "STATIC_DATA_T1", Now).Error!.Code.ShouldBe(StaticDataGovernanceCodes.ChangePending);
+
+        settings.DecidePending(approved: true, Maker).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        settings.Tier2MakerChecker.ShouldBeTrue();
+
+        settings.DecidePending(approved: true, Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
         settings.Tier2MakerChecker.ShouldBeFalse();
+        settings.PendingTier2MakerChecker.ShouldBeNull();
+    }
+
+    [Fact]
+    public void RejectedSwitchOff_LeavesTier2On()
+    {
+        var settings = TenantGovernanceSettings.Defaults(Guid.CreateVersion7());
+        settings.RequestTier2Off(Maker, "STATIC_DATA_T1", Now);
+        settings.DecidePending(approved: false, Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
+        settings.Tier2MakerChecker.ShouldBeTrue();
+        settings.PendingTier2MakerChecker.ShouldBeNull();
     }
 }

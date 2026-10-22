@@ -20,7 +20,7 @@ internal sealed class UserRoleQuery([FromKeyedServices(IdentityDbContext.SchemaN
             SELECT DISTINCT a.role_code
             FROM iam.user_role_assignment a
             JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id AND u.status = @active
-            WHERE a.tenant_id = @t AND a.user_id = @id AND a.valid_from <= @today AND (a.valid_to IS NULL OR a.valid_to > @today)
+            WHERE a.tenant_id = @t AND a.user_id = @id AND a.status = 'ACTIVE' AND a.valid_from <= @today AND (a.valid_to IS NULL OR a.valid_to > @today)
             ORDER BY a.role_code
             """, connection, transaction);
         command.Parameters.AddWithValue("active", UpperCaseEnumConverter<UserStatus>.ToCode(UserStatus.Active));

@@ -23,6 +23,13 @@ A small, typed condition language in `Insys.BuildingBlocks.Domain.Expressions`. 
 - **A missing variable is an error** (`EXPRESSION_EVALUATION_FAILED`), never a silent false. A rule that cannot be evaluated fails the evaluation, and nothing is recorded.
 - **Parse errors** are `EXPRESSION_INVALID`. Rule sets and workflow definitions are parsed when they are read, so an invalid condition is refused.
 
+**Limits (Phase 2 review, item 6):**
+- an expression is at most 4 000 characters;
+- brackets and NOTs nest at most 32 deep;
+- one evaluation visits at most 10 000 nodes and list comparisons. A caller can set a lower budget.
+
+Malformed input of any kind fails with `EXPRESSION_INVALID` or `EXPRESSION_EVALUATION_FAILED`, never with another exception. A seeded fuzz test checks this.
+
 ## Consequences
 - Anything beyond conditions, such as arithmetic or date functions, needs a decision first.
 - Expressions are evaluated in memory against the inputs. The inputs are recorded with each rule decision (LIF-002).

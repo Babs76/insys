@@ -33,7 +33,9 @@ public sealed class PostgresServer : IAsyncLifetime
         }
         else
         {
-            _container = new PostgreSqlBuilder("postgres:18").Build();
+            // Each test host opens a pool per module role (22 modules), and test classes run in parallel: the default
+            // 100 connections ran out once Phase 2 added modules.
+            _container = new PostgreSqlBuilder("postgres:18").WithCommand("-c", "max_connections=1000").Build();
             await _container.StartAsync();
             AdminConnectionString = _container.GetConnectionString();
         }
@@ -102,7 +104,11 @@ public sealed class PostgresServer : IAsyncLifetime
             _migrationLock.Release();
         }
 
-        var template = new NpgsqlConnectionStringBuilder(AdminConnectionString) { Database = name, Username = "ROLE", Password = RolePassword }
+        // Small pools that release idle connections quickly keep many short-lived test hosts within the server's limit.
+        var template = new NpgsqlConnectionStringBuilder(AdminConnectionString)
+            {
+                Database = name, Username = "ROLE", Password = RolePassword, MaxPoolSize = 10, ConnectionIdleLifetime = 5, ConnectionPruningInterval = 1,
+            }
             .ConnectionString.Replace("Username=ROLE", "Username={role}", StringComparison.Ordinal);
         return new TestDatabase(name, owner, template, result);
     }

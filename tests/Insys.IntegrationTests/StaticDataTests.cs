@@ -1,3 +1,4 @@
+using Insys.Workflow.Contracts;
 using System.Net;
 using System.Text.Json;
 using Insys.BuildingBlocks.Api.StaticData;
@@ -277,13 +278,20 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
         await _factory.DrainOutbox();
         (await (await admin.GetAsync($"{schedules}/QUARTERLY/versions")).Json())[0].GetProperty("recordStatus").GetString().ShouldBe("SUBMITTED");
 
+        // Switching it off is itself a Tier 1 change, approved by a second person in Workflow (OQ-046; see MakerCheckerTests).
         var switchedOff = await admin.Send(HttpMethod.Put, "/api/v1/static-data/settings/tier2-maker-checker", new { tier2MakerChecker = false }, ifMatch: "\"0\"");
         switchedOff.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         await _factory.DrainOutbox();
         (await fixture.Database.ScalarAsOwner<long>("""
             SELECT count(*) FROM audit.audit_event
-            WHERE tenant_id = @t AND operation = 'ChangeTier2MakerChecker' AND details->>'before' = 'True' AND details->>'after' = 'False'
+            WHERE tenant_id = @t AND operation = 'RequestTier2MakerCheckerOff' AND details->>'before' = 'True' AND details->>'after' = 'False'
             """, ("t", DatabaseFixture.TenantB))).ShouldBe(1);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantB, "admin-b2", [WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove]);
+        var approvalId = await fixture.Database.ScalarAsOwner<Guid>(
+            "SELECT id FROM workflow.approval WHERE tenant_id = @t AND business_ref_type = 'GOVERNANCE_SETTING' AND status = 'REQUESTED'", ("t", DatabaseFixture.TenantB));
+        (await _factory.ClientFor(DatabaseFixture.TenantB, "admin-b2").Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approvalId}/approve", ifMatch: "\"1\""))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
 
         // Off: the next Tier 2 change is approved on submission, with no checker.
         var direct = await admin.Send(HttpMethod.Post, schedules, Schedule("MONTHLY"), idempotent: true);

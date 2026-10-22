@@ -2,7 +2,12 @@ using Insys.Rating.Domain.Calculations;
 
 namespace Insys.Rating.Tests;
 
-/// <summary>The reference rating engine (ADR-007), against a premium worked by hand.</summary>
+/// <summary>
+/// The reference rating engine (ADR-007). These are ENGINEERING CASES: premiums worked by hand from the engine's own
+/// rules, to show it does what ADR-007 says. They are not actuarial validation. Actuary-supplied cases, with
+/// expected premiums from the actuaries' own models, are still needed (OQ-052; docs/rating/test-cases.md).
+/// </summary>
+[Trait("Category", "EngineeringCase")]
 public sealed class RatingEngineTests
 {
     private static readonly RatingConfiguration Motor = new(
@@ -33,7 +38,7 @@ public sealed class RatingEngineTests
     [Fact]
     public void Premium_FollowsTheReferenceSteps()
     {
-        // 250 000 × 0.0285 = 7 125; × 1.1 (COMM_LOAD 10 %) × 1.1 (FLEET_FACTOR) = 8 621.25.
+        // 250 000 × 0.0285 = 7 125; × 1.1 (FLEET_FACTOR) × 1.1 (COMM_LOAD 10 %) = 8 621.25.
         // NCB-3Y: 15 % = 1 293.1875 → 7 328.0625. NCB-5Y: 30 % = 2 198.41875, capped at 40 % of 8 621.25 less 1 293.1875 = 2 155.3125 → 5 172.75.
         // + 75 fee = 5 247.75. Levy 0.5 % = 26.24 (rounded) → 5 273.99.
         var result = RatingEngine.Calculate(Motor, Input(Risk(250_000)));
@@ -45,8 +50,8 @@ public sealed class RatingEngineTests
         [
             ("EXPOSURE", null, 250_000m),
             ("TABLE", "MOT-BASE", 7125m),
-            ("PERCENT", "COMM_LOAD", 7837.5m),
-            ("FACTOR", "FLEET_FACTOR", 8621.25m),
+            ("FACTOR", "FLEET_FACTOR", 7837.5m),
+            ("PERCENT", "COMM_LOAD", 8621.25m),
             ("DISCOUNT", "NCB-3Y", 7328.0625m),
             ("DISCOUNT", "NCB-5Y", 5172.75m),
             ("FEE", "POLICY_FEE", 5247.75m),
@@ -114,4 +119,29 @@ public sealed class RatingEngineTests
     [InlineData("DOWN", 2.349, 2.34)]
     public void Rounding_FollowsItsMethodAndStep(string method, double value, double expected) =>
         new Rounding("R", 0.01m, method, "FINAL_PREMIUM").Apply((decimal)value).ShouldBe((decimal)expected);
+
+    [Fact]
+    public void StepOrder_IsConfiguredPerProductVersion()
+    {
+        // Fees before discounts: 7 125 × 1.1 × 1.1 = 8 621.25; + 75 = 8 696.25; NCB-3Y 15 % = 1 304.4375 → 7 391.8125.
+        var feesFirst = Motor with
+        {
+            Parameters = [.. Motor.Parameters, new PremiumParameter("STEP_FEES", 2.5m, "FACTOR")],
+            Taxes = [],
+        };
+        var result = RatingEngine.Calculate(feesFirst, Input(Risk(250_000, adjustments: ["NCB-3Y"]))).Value;
+        result.Lines.Select(l => l.Component).ShouldBe(["EXPOSURE", "TABLE", "FACTOR", "PERCENT", "FEE", "DISCOUNT", "ROUNDING"]);
+        result.Lines.Single(l => l.Component == "DISCOUNT").Amount.ShouldBe(7391.8125m);
+    }
+
+    [Fact]
+    public void DefaultStepOrder_IsTheReferenceOrder() =>
+        StepOrder.For([]).ShouldBe([RatingStep.Factors, RatingStep.Percent, RatingStep.Adjustments, RatingStep.Fees, RatingStep.Bounds]);
+
+    [Theory]
+    [InlineData("STEP_TAX", 1)]
+    [InlineData("STEP_FEES", 1)]
+    public void StepOrder_ThatIsUnknownOrAmbiguous_IsIncompleteConfiguration(string code, decimal position) =>
+        RatingEngine.Calculate(Motor with { Parameters = [.. Motor.Parameters, new PremiumParameter(code, position, "FACTOR")] }, Input(Risk(100_000)))
+            .Error!.Code.ShouldBe(RatingErrorCodes.ConfigurationIncomplete);
 }

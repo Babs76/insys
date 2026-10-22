@@ -2,8 +2,11 @@ using FluentValidation;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
+using Insys.Identity.Contracts;
 using Insys.Identity.Domain.Users;
+using Insys.Workflow.Contracts;
 
 namespace Insys.Identity.Application.Users;
 
@@ -12,6 +15,9 @@ public interface IUserRepository
     Task<UserAccount?> Get(Guid userId, CancellationToken cancellationToken);
 
     Task<bool> UsernameExists(string username, CancellationToken cancellationToken);
+
+    /// <summary>The user holding the role assignment with this ID.</summary>
+    Task<UserAccount?> ByAssignment(Guid assignmentId, CancellationToken cancellationToken);
 
     void Add(UserAccount user);
 }
@@ -33,7 +39,9 @@ public interface IPermissionCache
     void EvictTenant(Guid tenantId);
 }
 
-public sealed record RoleAssignmentView(string RoleCode, DateOnly ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches, Guid AssignedBy);
+/// <param name="Status">PendingApproval for a privileged assignment waiting for a second person; only Active gives permissions.</param>
+public sealed record RoleAssignmentView(Guid Id, string RoleCode, string Status, DateOnly ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches,
+    Guid AssignedBy, Guid? ApprovedBy);
 
 public sealed record UserView(
     Guid Id, string Username, string DisplayName, string IdpCode, string? ExternalSubject, string Status, bool MfaEnrolled, DateTimeOffset? LastLoginAt,
@@ -253,4 +261,27 @@ internal sealed class GetUserHandler(IUserQueries queries) : IQueryHandler<GetUs
 {
     public async Task<Result<UserView>> Handle(GetUser query, CancellationToken cancellationToken) =>
         await queries.Get(query.UserId, cancellationToken) is { } user ? user : Error.NotFound(ErrorCodes.NotFound, "The user was not found.");
+}
+
+/// <summary>
+/// Identity's policy for Workflow's decision on a privileged role assignment (OQ-038): granted, the assignment becomes
+/// active and RoleAssigned evicts the permission cache; rejected, it never applies.
+/// </summary>
+public sealed class PrivilegedRoleApprovalPolicy(IUserRepository users, IClock clock) :
+    IIntegrationEventHandler<ApprovalGranted>,
+    IIntegrationEventHandler<ApprovalRejected>
+{
+    public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, cancellationToken);
+
+    public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.CheckerId, cancellationToken);
+
+    private async Task Decide(string businessRefType, Guid assignmentId, bool approved, Guid checkerId, CancellationToken cancellationToken)
+    {
+        if (businessRefType == IdentityApprovals.BusinessRefType && await users.ByAssignment(assignmentId, cancellationToken) is { } user)
+        {
+            user.DecideAssignment(assignmentId, approved, checkerId, clock.UtcNow);
+        }
+    }
 }
