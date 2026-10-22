@@ -28,3 +28,8 @@ Maker-checker is needed in several modules: static data changes, product publica
 ## Consequences
 - The decision is asynchronous. A just-submitted change can be approved once the request has been relayed, within seconds.
 - Approval types are strings agreed between the requesting module and the authority configuration.
+
+## Addendum: Phase 5 review (22 October 2026)
+- **Withdrawn:** a requester whose subject changes while its approval is pending publishes `ApprovalWithdrawn`; Workflow moves the approval to Withdrawn ("Withdrawn by requester", domain-model.json) and it can no longer be decided. The requester then asks again for the changed subject (bank accounts, ADR-013).
+- **Required permission:** `ApprovalRequested.RequiredPermission` names a permission the checker must also hold to approve or reject (`bank_account.verify`).
+- **Authority kept by a module:** for an approval type a module's `IApprovalAuthoritySource` decides (Life claims: `life.cfg_claims_authority_limits` by claim type), Workflow uses that authority instead of the delegation table. Maker and checker still differ.

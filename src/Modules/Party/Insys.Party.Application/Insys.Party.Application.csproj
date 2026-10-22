@@ -3,5 +3,6 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Application\Insys.BuildingBlocks.Application.csproj" />
     <ProjectReference Include="..\Insys.Party.Domain\Insys.Party.Domain.csproj" />
     <ProjectReference Include="..\Insys.Party.Contracts\Insys.Party.Contracts.csproj" />
+    <ProjectReference Include="..\..\Workflow\Insys.Workflow.Contracts\Insys.Workflow.Contracts.csproj" />
   </ItemGroup>
 </Project>

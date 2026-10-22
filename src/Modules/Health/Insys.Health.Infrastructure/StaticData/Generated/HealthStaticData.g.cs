@@ -66,6 +66,7 @@ public static class HealthStaticData
             entity.Property(x => x.Condition).HasColumnName("condition");
             entity.Property(x => x.Outcome).HasColumnName("outcome").HasMaxLength(40);
             entity.Property(x => x.ReasonCode).HasColumnName("reason_code").HasMaxLength(80);
+            entity.Property(x => x.WindowDays).HasColumnName("window_days");
         });
         modelBuilder.Entity<AuthorisationValidityPeriods>(entity =>
         {
@@ -241,6 +242,7 @@ public static class HealthStaticData
             entity.Property(x => x.Network).HasColumnName("network").HasMaxLength(80);
             entity.Property(x => x.ReferenceTariffScheduleCode).HasColumnName("reference_tariff_schedule_code").HasMaxLength(15);
             entity.Property(x => x.BenefitYear).HasColumnName("benefit_year").HasMaxLength(15);
+            entity.Property(x => x.MemberClaimBasis).HasColumnName("member_claim_basis").HasMaxLength(20);
         });
         modelBuilder.Entity<PreauthorisationRequiredLists>(entity =>
         {
@@ -379,6 +381,7 @@ public static class HealthStaticData
             StaticModel.ConfigureCommon(entity);
             entity.Property(x => x.Meaning).HasColumnName("meaning").HasMaxLength(100);
             entity.Property(x => x.ProviderAction).HasColumnName("provider_action").HasMaxLength(100);
+            entity.Property(x => x.Outcome).HasColumnName("outcome").HasMaxLength(15);
         });
         modelBuilder.Entity<InvestigationOutcomeCodes>(entity =>
         {

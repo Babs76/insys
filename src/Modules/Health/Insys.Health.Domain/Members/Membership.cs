@@ -39,7 +39,19 @@ public enum MembershipTrigger
 public sealed record PlanOption(string PlanCode, string OptionCode, int PlanVersion);
 
 /// <summary>How contributions are billed: the payer, the account and the monthly contribution (health.cfg_contribution_rules), when known.</summary>
-public sealed record ContributionBilling(Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, decimal? MonthlyContribution);
+public sealed record ContributionBilling(Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, ContributionRate? Rate);
+
+/// <summary>
+/// A scheme category's monthly contribution per member (health.cfg_contribution_rules): the employer's share (a
+/// percentage, billed to the scheme's sponsor) and the rest (billed to the payer). The employer's part per member is
+/// rounded half away from zero to cents; the member's part is the remainder (Phase 5 review, item 5).
+/// </summary>
+public sealed record ContributionRate(decimal PerMember, decimal EmployerSharePct, Guid? SponsorPartyId)
+{
+    public decimal EmployerPerMember => Math.Round(PerMember * EmployerSharePct / 100m, 2, MidpointRounding.AwayFromZero);
+
+    public decimal MemberPerMember => PerMember - EmployerPerMember;
+}
 
 /// <summary>A dependant type's age limit (health.cfg_dependant_types_and_age_limits).</summary>
 public sealed record DependantRule(string TypeCode, int MaxAge, int? StudentExtensionAge);
@@ -47,15 +59,16 @@ public sealed record DependantRule(string TypeCode, int MaxAge, int? StudentExte
 public sealed record HealthSchemeRenewed(Guid SchemeId, string SchemeNumber, DateOnly RenewalDate, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record HealthMemberEnrolled(Guid MembershipId, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode,
-    DateOnly StartDate, Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, string Currency, decimal? MonthlyContribution, DateTimeOffset OccurredAt)
+    DateOnly StartDate, Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, string Currency, decimal? MonthlyContribution, decimal? EmployerContribution,
+    Guid? SponsorPartyId, DateTimeOffset OccurredAt)
     : IDomainEvent;
 
 /// <summary>The membership's status or its members changed; <paramref name="MonthlyContribution"/> is the contribution from <paramref name="EffectiveDate"/>.</summary>
 public sealed record HealthMemberStatusChanged(Guid MembershipId, string MemberNumber, string Status, DateOnly EffectiveDate, decimal? MonthlyContribution,
-    DateTimeOffset OccurredAt) : IDomainEvent;
+    decimal? EmployerContribution, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record DependantAdded(Guid MembershipId, string MemberNumber, Guid DependantId, Guid PartyId, string Suffix, DateOnly StartDate, decimal? MonthlyContribution,
-    DateTimeOffset OccurredAt) : IDomainEvent;
+    decimal? EmployerContribution, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>
 /// The HealthScheme aggregate (health.scheme): a sponsor's scheme. Its member categories, each mapped to a plan, are
@@ -207,8 +220,8 @@ public sealed class MembershipEvent : Entity<Guid>, ITenantScoped
 /// <summary>
 /// The HealthMembership aggregate (health.membership, member_dependant, membership_event): a principal and dependants
 /// on one plan option at a time (HLT-002). Dependants stay within their type's age limit; waiting periods are fixed at
-/// enrolment. TODO(spec): contributions split between employer and member (employer_share) are not specified; the
-/// whole contribution is billed to the payer named at enrolment (OQ-061).
+/// enrolment. A scheme member's contribution is split by the category's employer share: the employer's part is billed
+/// to the scheme's sponsor, the rest to the payer named at enrolment.
 /// </summary>
 public sealed class HealthMembership : AggregateRoot<Guid>
 {
@@ -285,7 +298,8 @@ public sealed class HealthMembership : AggregateRoot<Guid>
         };
         membership._events.Add(MembershipEvent.Create(id, "ENROL", startDate, "ENROLMENT"));
         membership.Raise(new HealthMemberEnrolled(id, membership.MemberNumber, principalPartyId, schemeId, plan.PlanCode, plan.OptionCode, startDate,
-            billing.PayerPartyId, billing.BillingAccountRef, billing.CollectionMethod, currency, billing.MonthlyContribution, now));
+            billing.PayerPartyId, billing.BillingAccountRef, billing.CollectionMethod, currency, billing.Rate?.MemberPerMember, billing.Rate?.EmployerPerMember,
+            billing.Rate?.SponsorPartyId, now));
         if (startDate <= today)
         {
             membership.Fire(MembershipTrigger.StartDateReached);
@@ -299,7 +313,7 @@ public sealed class HealthMembership : AggregateRoot<Guid>
             : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Membership {MemberNumber} is {Status}, from {StartDate:yyyy-MM-dd}.");
 
     /// <summary>Command AddDependant: within the type's age limit on the start date (the student extension where it applies).</summary>
-    public Result<Dependant> AddDependant(Guid partyId, DependantRule rule, DateOnly birthDate, bool student, DateOnly startDate, decimal? contributionPerMember,
+    public Result<Dependant> AddDependant(Guid partyId, DependantRule rule, DateOnly birthDate, bool student, DateOnly startDate, ContributionRate? rate,
         DateTimeOffset now)
     {
         if (Status is MembershipStatus.Terminated || startDate < StartDate)
@@ -328,11 +342,12 @@ public sealed class HealthMembership : AggregateRoot<Guid>
         var dependant = Dependant.Create(Id, partyId, rule.TypeCode, next.ToString("D2", System.Globalization.CultureInfo.InvariantCulture), startDate);
         _dependants.Add(dependant);
         _events.Add(MembershipEvent.Create(Id, "ADD_DEPENDANT", startDate, dependant.Suffix));
-        Raise(new DependantAdded(Id, MemberNumber, dependant.Id, partyId, dependant.Suffix, startDate, Contribution(contributionPerMember, startDate), now));
+        Raise(new DependantAdded(Id, MemberNumber, dependant.Id, partyId, dependant.Suffix, startDate, rate?.MemberPerMember * MembersOn(startDate),
+            rate?.EmployerPerMember * MembersOn(startDate), now));
         return dependant;
     }
 
-    public Result RemoveDependant(Guid dependantId, DateOnly lastDay, decimal? contributionPerMember, DateTimeOffset now)
+    public Result RemoveDependant(Guid dependantId, DateOnly lastDay, ContributionRate? rate, DateTimeOffset now)
     {
         if (_dependants.SingleOrDefault(d => d.Id == dependantId) is not { Status: Dependant.ActiveStatus } dependant || lastDay < dependant.StartDate)
         {
@@ -341,7 +356,8 @@ public sealed class HealthMembership : AggregateRoot<Guid>
 
         dependant.Remove(lastDay);
         _events.Add(MembershipEvent.Create(Id, "REMOVE_DEPENDANT", lastDay, dependant.Suffix));
-        Raise(new HealthMemberStatusChanged(Id, MemberNumber, Status.ToString(), lastDay.AddDays(1), Contribution(contributionPerMember, lastDay.AddDays(1)), now));
+        var from = lastDay.AddDays(1);
+        Raise(new HealthMemberStatusChanged(Id, MemberNumber, Status.ToString(), from, rate?.MemberPerMember * MembersOn(from), rate?.EmployerPerMember * MembersOn(from), now));
         return Result.Success();
     }
 
@@ -377,15 +393,13 @@ public sealed class HealthMembership : AggregateRoot<Guid>
         return result;
     }
 
-    private decimal? Contribution(decimal? perMember, DateOnly day) => perMember is { } rate ? rate * MembersOn(day) : null;
-
     private Result Change(MembershipTrigger trigger, string eventType, DateOnly effectiveDate, string reason, DateTimeOffset now)
     {
         var result = Fire(trigger);
         if (result.IsSuccess)
         {
             _events.Add(MembershipEvent.Create(Id, eventType, effectiveDate, reason));
-            Raise(new HealthMemberStatusChanged(Id, MemberNumber, Status.ToString(), effectiveDate, null, now));
+            Raise(new HealthMemberStatusChanged(Id, MemberNumber, Status.ToString(), effectiveDate, null, null, now));
         }
 
         return result;

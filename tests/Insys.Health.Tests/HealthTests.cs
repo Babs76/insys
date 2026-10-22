@@ -24,14 +24,15 @@ public sealed class HealthTests
 
     private static HealthMembership Membership(DateOnly? start = null, IReadOnlyList<WaitingPeriod>? waiting = null) =>
         HealthMembership.EnrolMember(Guid.CreateVersion7(), "HM0001", Principal, null, null, new PlanOption("HLT-CORE", "A", 1), start ?? Today.AddMonths(-6), waiting ?? [],
-            new ContributionBilling(Principal, Guid.CreateVersion7(), "DEBIT_ORDER", 1_850m), "ZAR", Today, Now).Value;
+            new ContributionBilling(Principal, Guid.CreateVersion7(), "DEBIT_ORDER", new ContributionRate(1_850m, 0m, null)), "ZAR", Today, Now).Value;
 
     [Fact]
     public void Lifecycles_MatchDomainModel()
     {
         Model(HealthScheme.Lifecycle).ShouldBe(Spec("HealthScheme", ("Start date reached", "StartDateReached")));
         Model(HealthMembership.Lifecycle).ShouldBe(Spec("HealthMembership", ("Start date reached", "StartDateReached")));
-        Model(Preauthorisation.Lifecycle).ShouldBe(Spec("Preauthorisation", ("Matched to a claim", "MatchedToClaim"), ("Validity ends", "ValidityEnds")));
+        Model(Preauthorisation.Lifecycle).ShouldBe(Spec("Preauthorisation", ("Matched to a claim", "MatchedToClaim"), ("Validity ends", "ValidityEnds"),
+            ("Conditions met", "ConditionsMet")));
         Model(MedicalClaim.Lifecycle).ShouldBe(Spec("MedicalClaim", ("Information received", "InformationReceived"), ("Payment run released", "PaymentRunReleased")));
         Model(UtilisationCase.Lifecycle).ShouldBe(Spec("UtilisationCase"));
         Model(HealthFraudCase.Lifecycle).ShouldBe(Spec("HealthFraudCase"));
@@ -43,14 +44,31 @@ public sealed class HealthTests
     {
         var membership = Membership();
         var child = new DependantRule("CHILD", 21, 26);
-        membership.AddDependant(Guid.CreateVersion7(), child, Today.AddYears(-23), false, Today, 1_850m, Now).Error!.Code.ShouldBe(HealthErrorCodes.DependantNotEligible);
-        var student = membership.AddDependant(Guid.CreateVersion7(), child, Today.AddYears(-23), true, Today, 1_850m, Now).Value;
-        var second = membership.AddDependant(Guid.CreateVersion7(), child, Today.AddYears(-5), false, Today, 1_850m, Now).Value;
+        var rate = new ContributionRate(1_850m, 0m, null);
+        membership.AddDependant(Guid.CreateVersion7(), child, Today.AddYears(-23), false, Today, rate, Now).Error!.Code.ShouldBe(HealthErrorCodes.DependantNotEligible);
+        var student = membership.AddDependant(Guid.CreateVersion7(), child, Today.AddYears(-23), true, Today, rate, Now).Value;
+        var second = membership.AddDependant(Guid.CreateVersion7(), child, Today.AddYears(-5), false, Today, rate, Now).Value;
 
         (student.Suffix, second.Suffix).ShouldBe(("01", "02"));
         membership.DomainEvents.OfType<Domain.Members.DependantAdded>().Last().MonthlyContribution.ShouldBe(1_850m * 3);
         membership.Covers(student.PartyId, Today).ShouldBeTrue();
         membership.PartyFor("02").ShouldBe(second.PartyId);
+    }
+
+    [Fact]
+    public void SchemeContributions_AreSplitByTheEmployerShare_TheEmployersPartBilledToTheSponsor()
+    {
+        var sponsor = Guid.CreateVersion7();
+        var rate = new ContributionRate(1_850.55m, 33.33m, sponsor);
+        (rate.EmployerPerMember, rate.MemberPerMember).ShouldBe((616.79m, 1_233.76m));
+
+        var membership = HealthMembership.EnrolMember(Guid.CreateVersion7(), "HM0002", Principal, Guid.CreateVersion7(), "ALL_STAFF", new PlanOption("HLT-CORE", "A", 1),
+            Today, [], new ContributionBilling(Principal, Guid.CreateVersion7(), "DEBIT_ORDER", rate), "ZAR", Today, Now).Value;
+        var enrolled = membership.DomainEvents.OfType<Domain.Members.HealthMemberEnrolled>().Single();
+        (enrolled.MonthlyContribution, enrolled.EmployerContribution, enrolled.SponsorPartyId).ShouldBe((1_233.76m, 616.79m, (Guid?)sponsor));
+        membership.AddDependant(Guid.CreateVersion7(), new DependantRule("SPOUSE", 120, null), Today.AddYears(-40), false, Today, rate, Now).IsSuccess.ShouldBeTrue();
+        var added = membership.DomainEvents.OfType<Domain.Members.DependantAdded>().Single();
+        (added.MonthlyContribution, added.EmployerContribution).ShouldBe((2_467.52m, 1_233.58m));
     }
 
     [Fact]
@@ -98,6 +116,35 @@ public sealed class HealthTests
         preauth.Expire(Today.AddDays(30), Now).IsSuccess.ShouldBeTrue();
         preauth.DomainEvents.OfType<Domain.Care.PreauthorisationReservationsChanged>().Single().Changes.Single().Amount.ShouldBe(-1_000m);
         preauth.DomainEvents.OfType<Domain.Care.PreauthorisationExpired>().ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void AConditionalApproval_ReservesAndCanBeUsed_OrBecomesApprovedWhenItsConditionsAreMet()
+    {
+        Preauthorisation Conditional()
+        {
+            var preauth = Preauthorisation.RequestAuthorisation(Guid.CreateVersion7(), "PA2", Guid.CreateVersion7(), Principal, "PR-1", [], "PROCEDURE",
+                [new PreauthLineRequest("0300", 1, 1_000m)]).Value;
+            preauth.ReviewClinically(Principal);
+            preauth.Approve([new LineAuthorisation(preauth.Lines[0].Id, 800m, "SPECIALIST")], Today, 30, "Pre-operative tests first", Principal, Now).IsSuccess.ShouldBeTrue();
+            return preauth;
+        }
+
+        var used = Conditional();
+        (used.Status, used.Lines[0].ReservedAmount).ShouldBe((PreauthStatus.ConditionallyApproved, 800m));
+        used.DomainEvents.OfType<Domain.Care.PreauthorisationApproved>().ShouldHaveSingleItem();
+        used.ValidOn(Today).ShouldBeTrue();
+        used.RecordUse(used.Lines[0].Id, 800m, 800m, Now).IsSuccess.ShouldBeTrue();
+        used.Status.ShouldBe(PreauthStatus.Utilised);
+
+        var met = Conditional();
+        met.ConfirmConditionsMet(Principal).IsSuccess.ShouldBeTrue();
+        met.Status.ShouldBe(PreauthStatus.Approved);
+
+        var expiring = Conditional();
+        expiring.Expire(Today.AddDays(30), Now).IsSuccess.ShouldBeTrue();
+        expiring.Status.ShouldBe(PreauthStatus.Expired);
+        Conditional().CancelAuthorisation(Now).IsSuccess.ShouldBeTrue();
     }
 
     [Fact]
@@ -152,7 +199,7 @@ public sealed class HealthTests
 
         run.DecideApproval(true, Guid.CreateVersion7(), Guid.CreateVersion7(), "stale").Error!.Code.ShouldBe(HealthErrorCodes.ApprovalSubjectChanged);
         run.DecideApproval(true, Guid.CreateVersion7(), Guid.CreateVersion7(), run.SubjectHash).IsSuccess.ShouldBeTrue();
-        run.ReleaseRun(Today, Now).IsSuccess.ShouldBeTrue();
+        run.ReleaseRun(Today, "TPL-RA", Now).IsSuccess.ShouldBeTrue();
         run.RecordPayment(run.Remittances[0].Id, Guid.CreateVersion7(), Today);
         run.Status.ShouldBe(RunStatus.Released);
         run.RecordPayment(run.Remittances[1].Id, Guid.CreateVersion7(), Today);

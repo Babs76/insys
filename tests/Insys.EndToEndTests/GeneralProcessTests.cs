@@ -57,6 +57,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var checker = await _db.UserWithPermissions(Tenant, "senior-underwriter", Permissions);
         var approverRole = await _db.RoleWithPermissions(Tenant);
         await _db.AssignRole(Tenant, checker, approverRole);
+        await _db.AllowBankAccountVerification(Tenant, approverRole, Today.AddYears(-1));
         var from = Today.AddDays(-30);
 
         foreach (var type in new[] { GeneralApprovals.EndorsementApprovalType, GeneralApprovals.SettlementApprovalType, PaymentApprovals.PayoutApprovalType, ClaimsApprovals.InstructionApprovalType })
@@ -260,7 +261,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // RequestApproval for the settlement. Compensation: rejected, the claim stays under assessment.
         // The payee and their verified bank account (party.bank_account): the settlement names the account by id only.
         var payee = await _maker.RegisterPerson("Repairs");
-        var firstAccount = await _maker.AddVerifiedBankAccount(payee, "62 0001 2345");
+        var firstAccount = await _maker.AddVerifiedBankAccount(_checker, _factory, payee, "62 0001 2345");
         var settlement = new { payeePartyId = payee, bankAccountId = firstAccount, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Repair estimate within the assessed amount" };
         (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/settlement", settlement)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
@@ -297,7 +298,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         // The payee changes bank account before the batch is released: the account the payment was approved for is
         // superseded, so the payment fails without reaching the provider, and the new account needs a fresh approval.
-        var second = await PayOut(instruction, null, beforeRelease: async () => await _maker.AddVerifiedBankAccount(payee, "1234567890"));
+        var second = await PayOut(instruction, null, beforeRelease: async () => await _maker.AddVerifiedBankAccount(_checker, _factory, payee, "1234567890"));
         (await _db.ScalarAsOwner<string>("SELECT status FROM payment.payment WHERE id = @p", ("p", second))).ShouldBe("FAILED");
         (await _db.ScalarAsOwner<string>("SELECT external_ref FROM payment.payment WHERE id = @p", ("p", second))).ShouldBeNull();
         (await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).Json()).GetProperty("status").GetString().ShouldBe("Failed");

@@ -53,7 +53,15 @@ public static class AccumulatorScope
 }
 
 /// <summary>The plan option the member is on (health.cfg_plans_and_options).</summary>
-public sealed record PlanTerms(string PlanCode, string OptionCode, string BenefitScheduleCode, string NetworkCode, string? ReferenceTariffSchedule, string BenefitYear);
+/// <param name="MemberClaimBasis">How member reimbursement claims are adjudicated (health.cfg_plans_and_options.member_claim_basis): REFERENCE_TARIFF or PEND.</param>
+public sealed record PlanTerms(string PlanCode, string OptionCode, string BenefitScheduleCode, string NetworkCode, string? ReferenceTariffSchedule, string BenefitYear,
+    string MemberClaimBasis = MemberClaimBases.ReferenceTariff);
+
+public static class MemberClaimBases
+{
+    public const string ReferenceTariff = "REFERENCE_TARIFF";
+    public const string Pend = "PEND";
+}
 
 /// <summary>The provider: its type (for the category fallback), whether it is in the plan's network, and the schedules of its contract and the network.</summary>
 public sealed record ProviderTerms(string? ProviderId, string? ProviderType, bool InNetwork, string? ContractTariffSchedule, string? NetworkTariffSchedule);
@@ -97,8 +105,13 @@ public sealed record RepeatRule(string Service, string MinInterval);
 /// <summary>A high-cost threshold (health.cfg_high_cost_thresholds): a tariff code or benefit category above which a utilisation review opens.</summary>
 public sealed record HighCostRule(string Code, string Service, decimal Amount);
 
-/// <summary>An adjudication edit rule whose condition reads the line's own facts (OQ-060 item 10).</summary>
-public sealed record EditRule(string Code, Expression Condition, string Outcome, string ReasonCode);
+/// <summary>
+/// An adjudication edit rule. Its condition reads the line's own facts; a rule with a window (window_days) also reads
+/// the person's claim history within that many days before the service date (Phase 5 review, item 5; EDIT-DUP-30):
+/// <c>prior_same_code</c>, <c>prior_same_code_provider</c> and <c>prior_same_category</c> (counts of services on other
+/// claims not rejected or reversed) and <c>days_since_same_code</c> (absent when there is none).
+/// </summary>
+public sealed record EditRule(string Code, Expression Condition, string Outcome, string ReasonCode, int? WindowDays = null);
 
 public sealed record AccumulatorKey(string Scope, Guid BeneficiaryPartyId, string Category, DateOnly PeriodStart, DateOnly PeriodEnd);
 
@@ -279,6 +292,26 @@ public static class Limits
 /// <summary>The adjudication of a claim's lines in ADR-012's order (proposed, pending business sign-off).</summary>
 public static class AdjudicationEngine
 {
+    /// <summary>The line's facts with the person's history within the window (days before the service date, other claims only).</summary>
+    private static Dictionary<string, object?> WithHistory(Dictionary<string, object?> facts, AdjudicationContext context, string tariffCode, string? category, int window)
+    {
+        var prior = context.Prior.Where(p => p.ClaimId != context.ClaimId && p.ServiceDate <= context.ServiceDate && p.ServiceDate >= context.ServiceDate.AddDays(-window))
+            .ToList();
+        var sameCode = prior.Where(p => p.TariffCode == tariffCode).ToList();
+        var scope = new Dictionary<string, object?>(facts, StringComparer.Ordinal)
+        {
+            ["prior_same_code"] = (decimal)sameCode.Count,
+            ["prior_same_code_provider"] = (decimal)sameCode.Count(p => p.ProviderId == context.Provider.ProviderId),
+            ["prior_same_category"] = (decimal)prior.Count(p => category is not null && p.Category == category),
+        };
+        if (sameCode.Count > 0)
+        {
+            scope["days_since_same_code"] = (decimal)(context.ServiceDate.DayNumber - sameCode.Max(p => p.ServiceDate).DayNumber);
+        }
+
+        return scope;
+    }
+
     public static AdjudicationResult Adjudicate(AdjudicationContext context, IReadOnlyList<ClaimLineInput> lines)
     {
         var state = context.Accumulators.ToDictionary(a => a.Key, a => a.Value);
@@ -311,8 +344,10 @@ public static class AdjudicationEngine
             return Stop(LineOutcome.Reject, AdjudicationReasons.Reviewer);
         }
 
-        // OQ-060 item 11: a member reimbursement claim is adjudicated by a person.
-        if (context.MemberClaim && !accepted)
+        // A member reimbursement claim (Phase 5 review, item 5): on the plan's REFERENCE_TARIFF basis it is priced at the
+        // plan's reference tariff and covered at tariff, like any line (exceptions pend on their own reasons); on PEND a person adjudicates it.
+        var memberPriced = context.MemberClaim && context.Plan.MemberClaimBasis == MemberClaimBases.ReferenceTariff;
+        if (context.MemberClaim && !memberPriced && !accepted)
         {
             return Stop(LineOutcome.Pend, AdjudicationReasons.MemberClaim);
         }
@@ -326,8 +361,8 @@ public static class AdjudicationEngine
         }
 
         // Network status, and (b) the tariff: contract, then network, then the plan's reference schedule; out of network, the reference schedule.
-        var network = context.Provider.InNetwork ? NetworkStatus.InNetwork : NetworkStatus.OutOfNetwork;
-        if (network == NetworkStatus.OutOfNetwork)
+        var network = context.Provider.InNetwork && !memberPriced ? NetworkStatus.InNetwork : NetworkStatus.OutOfNetwork;
+        if (network == NetworkStatus.OutOfNetwork && !memberPriced)
         {
             switch (context.OutOfNetworkTreatment)
             {
@@ -405,15 +440,21 @@ public static class AdjudicationEngine
             return Stop(LineOutcome.Pend, AdjudicationReasons.RepeatService, category, network, tariff, allowed);
         }
 
-        // Edit rules on the line's own facts.
+        // Edit rules on the line's own facts, and on the claim history within a rule's window.
         var facts = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["claimed"] = line.Claimed, ["allowed"] = allowed, ["tariff"] = tariff, ["quantity"] = (decimal)line.Quantity, ["tariff_code"] = line.TariffCode,
             ["benefit_category"] = category, ["diagnosis_code"] = line.DiagnosisCode, ["network_status"] = network == NetworkStatus.InNetwork ? "IN_NETWORK" : "OUT_OF_NETWORK",
         };
-        foreach (var edit in context.Edits.Where(e => e.Condition.Variables.All(facts.ContainsKey)))
+        foreach (var edit in context.Edits)
         {
-            var fired = edit.Condition.Evaluate(facts);
+            var scope = edit.WindowDays is { } window ? WithHistory(facts, context, line.TariffCode, category, window) : facts;
+            if (!edit.Condition.Variables.All(scope.ContainsKey))
+            {
+                continue;
+            }
+
+            var fired = edit.Condition.Evaluate(scope);
             if (fired.IsSuccess && fired.Value && edit.Outcome != "PAY" && !accepted)
             {
                 return Stop(edit.Outcome == "REJECT" ? LineOutcome.Reject : LineOutcome.Pend, edit.ReasonCode, category, network, tariff, allowed);
@@ -441,7 +482,7 @@ public static class AdjudicationEngine
         var year = Current(state, memberYear, keys[memberYear]);
         var deductibleRule = Rule(context, "DEDUCTIBLE", category, networkCode);
         var deductible = deductibleRule is null ? 0 : Math.Min(allowed, Math.Max(0, deductibleRule.Value - year.DeductibleMet));
-        var copayRule = Rule(context, "CO_PAYMENT", category, context.OutOfNetworkTreatment == "COVERED_AT_TARIFF" ? "IN_NETWORK" : networkCode);
+        var copayRule = Rule(context, "CO_PAYMENT", category, memberPriced || context.OutOfNetworkTreatment == "COVERED_AT_TARIFF" ? "IN_NETWORK" : networkCode);
         var copayBase = allowed - deductible;
         var copay = 0m;
         if (copayRule is not null)

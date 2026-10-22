@@ -65,8 +65,8 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-057 | 3 | Journal reversal and posted-record immutability | Resolved (proposal): V0014, ADR-011 |
 | OQ-058 | 3 | Money gaps: numbering, tolerances, taxes, providers, timeouts | Open |
 | OQ-059 | 4 | General domain: schema gaps (V0016) and unspecified rules | Partly resolved by the Phase 4 review (V0017) |
-| OQ-060 | 5 | Health adjudication rules the specs do not define (tariffs, networks, co-payments) | Resolved (proposal): ADR-012, pending business sign-off; items 10 and 11 open |
-| OQ-061 | 5 | Life and Health: smaller gaps found while building | Open (proposals in code) |
+| OQ-060 | 5 | Health adjudication rules the specs do not define (tariffs, networks, co-payments) | Resolved (proposal): ADR-012, pending business sign-off; item 11 a configurable business decision |
+| OQ-061 | 5 | Life and Health: smaller gaps found while building | Resolved by the Phase 5 review, item 5, from existing static data; two business decisions configurable |
 
 ---
 
@@ -482,6 +482,10 @@ Adjudication, and the steps of "Health care to provider payment" that need it, w
 
 **Resolved (proposal, Phase 4 follow-ups item 3):** items 1 to 9 and 12 take the product owner's defaults, recorded in ADR-012 as proposed, pending business sign-off, each configurable (V0019: two new static tables and new columns). Worked examples per step are in `AdjudicationWorkedExamples`, labelled as engineering cases pending actuarial confirmation. Items 10 (edit rules read the line's own facts only; duplicates pend) and 11 (member reimbursement claims pend for a person, and are not paid by provider runs) stay open.
 
+**Phase 5 review, item 5:**
+- **Item 10, resolved:** edit rules may read the person's claim history within the rule's `window_days` (V0020), which supports EDIT-DUP-30 (ADR-012).
+- **Item 11, kept open as a business decision, now configurable:** the plan's `member_claim_basis` (V0020). The default, REFERENCE_TARIFF, prices member claims at the reference tariff and pays the principal member's verified account through payment runs; exceptions pend. PEND sends them all to a person.
+
 ### OQ-061 Life and Health: smaller gaps found while building (Phase 5)
 Each is built as shown and marked `TODO(spec)` in code; none changes an amount the specs define.
 - **Life**
@@ -498,3 +502,19 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - **Conditionally approved authorisations** have no transitions in domain-model.json, so they are not matched to claims.
   - **Utilisation rules** have free-text measures and are not evaluated; reviews open on high-cost thresholds and by people.
   - **Remittance advice documents** are not generated yet; **claim reversal recoveries** are raised as an event only.
+
+**Resolved by the Phase 5 review, item 5 (22 October 2026), from existing static data:**
+- **Life claim authority:** Workflow approves Life claims within `life.cfg_claims_authority_limits` for the claim's type, by the checker's roles (an `IApprovalAuthoritySource` for LIFE_CLAIM), instead of the delegation table. Maker and checker still differ.
+- **Alteration authority:** an alteration is applied only by a user holding the alteration type's `authority_role` (`LIFE_AUTHORITY_MISSING` otherwise).
+- **Health contribution split:** `employer_share` on the contribution rule. The employer's part per member (rounded to cents) is billed to the scheme sponsor's party (`mst_sponsor_register.party`) on its own schedule (source domain HEALTH_ER); the rest to the payer. A share without a sponsor party refuses the enrolment.
+- **Eligibility responses:** each internal outcome (ELIGIBLE, NOT_ELIGIBLE, NOT_FOUND, WAITING_PERIOD) maps to the tenant's response code through `ref_eligibility_response_codes.outcome` (V0020); an outcome without a code refuses the enquiry. WAITING_PERIOD is a covered person in a general waiting period.
+- **Product eligibility rule set:** `eligibility_ruleset_code` on product versions (V0020). A proposal records eligibility only from that rule set; a product version without one accepts none.
+- **Edit rules with claim history:** see OQ-060 item 10.
+- **Preauthorisation:** a conditional approval reserves benefit, can be matched to a claim (Utilised), expires or is cancelled, and becomes Approved when its conditions are met (ConfirmConditionsMet; domain-model.json updated).
+- **Remittance advice:** Documents generates one per remittance on ProviderPaymentRunReleased, from the template of the remittance advice format in force (first by sort order, then code); Health attaches the document to the remittance. Releasing a run needs a format in force.
+
+**Kept open as business decisions, now configurable:**
+- **Arrears on reinstatement:** the product version's `reinstatement_arrears` (V0020): NONE (default) reinstates without them; REQUIRED refuses reinstatement while instalments are overdue (Billing's arrears).
+- **Member reimbursement:** see OQ-060 item 11.
+
+**Still open:** utilisation rule measures, claim reversal recoveries, alterations that change cover or premium (OQ-052), loan disbursement, group scheme renewal term, the monthly billing frequency code and individual members' contributions.

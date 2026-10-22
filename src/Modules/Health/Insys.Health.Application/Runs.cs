@@ -62,8 +62,9 @@ internal sealed class OpenPaymentRunHandler(IHealthRepository health, IHealthCod
 /// <summary>
 /// Commands CutOffRun, CalculateRun and ReleaseRun. Calculation takes the claims approved for payment before the
 /// cut-off and not in another run, one remittance per provider into the provider party's verified account (ADR-013),
-/// and assigns the claims to the run in the same transaction so no claim is paid twice (ADR-012). TODO(spec): member
-/// reimbursement claims are not paid by provider runs (OQ-060 item 11).
+/// and assigns the claims to the run in the same transaction so no claim is paid twice (ADR-012). Member reimbursement
+/// claims are paid in the same run, one remittance per membership (its member number as the payee reference) into the
+/// principal member's verified account (Phase 5 review, item 5).
 /// </summary>
 internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes codes, IBankAccounts bankAccounts, ITenantContext tenant, IExecutionContext execution,
     IClock clock, IAuditTrail audit) :
@@ -83,9 +84,21 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
                 return user.Error;
             }
 
-            var claims = (await health.ClaimsForRun(run.CutOff, run.Currency, cancellationToken)).Where(c => c.ProviderId is not null && (c.TotalPaid ?? 0) > 0).ToList();
+            var claims = (await health.ClaimsForRun(run.CutOff, run.Currency, cancellationToken))
+                .Where(c => (c.Source == ClaimSources.Member || c.ProviderId is not null) && (c.TotalPaid ?? 0) > 0).ToList();
             var remittances = new List<RemittanceRequest>();
-            foreach (var group in claims.GroupBy(c => c.ProviderId!))
+            foreach (var group in claims.Where(c => c.Source == ClaimSources.Member).GroupBy(c => c.MembershipId))
+            {
+                if (await health.Membership(group.Key, cancellationToken) is not { } membership
+                    || await bankAccounts.Current(tenant.RequireTenantId(), membership.PrincipalPartyId, run.Currency, cancellationToken) is not { IsPayable: true } account)
+                {
+                    return Error.Validation(HealthErrorCodes.ProviderNotPayable, $"The principal member of membership {group.Key} has no verified bank account in {run.Currency}.");
+                }
+
+                remittances.Add(new RemittanceRequest(membership.MemberNumber, membership.PrincipalPartyId, account.Id, group.Sum(c => c.TotalPaid!.Value), group.Count()));
+            }
+
+            foreach (var group in claims.Where(c => c.Source != ClaimSources.Member).GroupBy(c => c.ProviderId!))
             {
                 if (await codes.Provider(group.Key, clock.UtcToday, cancellationToken) is not { PartyId: { } partyId }
                     || await bankAccounts.Current(tenant.RequireTenantId(), partyId, run.Currency, cancellationToken) is not { IsPayable: true } account)
@@ -114,8 +127,11 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
             return Result.Success();
         }, cancellationToken);
 
+    /// <summary>Releasing needs a remittance advice format in force, whose template Documents generates each advice from.</summary>
     public Task<Result<PaymentRunView>> Handle(ReleasePaymentRun command, CancellationToken cancellationToken) =>
-        Apply(command.RunId, "ReleaseRun", run => Task.FromResult(run.ReleaseRun(clock.UtcToday, clock.UtcNow)), cancellationToken);
+        Apply(command.RunId, "ReleaseRun", async run => await codes.RemittanceTemplate(clock.UtcToday, cancellationToken) is { } template
+            ? run.ReleaseRun(clock.UtcToday, template, clock.UtcNow)
+            : Error.Validation(HealthErrorCodes.CodeNotInForce, "No remittance advice format is in force."), cancellationToken);
 
     private async Task<Result<PaymentRunView>> Apply(Guid id, string operation, Func<ProviderPaymentRun, Task<Result>> change, CancellationToken cancellationToken)
     {

@@ -4,7 +4,9 @@ using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Domain;
 using Insys.Life.Domain;
+using Insys.Identity.Contracts;
 using Insys.Life.Domain.Underwriting;
+using Insys.Rules.Contracts;
 
 namespace Insys.Life.Application;
 
@@ -155,7 +157,13 @@ internal sealed class ReferUnderwritingCaseHandler(ILifeRepository life) : IComm
     }
 }
 
-internal sealed class DecideUnderwritingCaseHandler(ILifeRepository life, ILifeCodes codes, IExecutionContext execution, IClock clock, IAuditTrail audit)
+/// <summary>
+/// Command DecideCase. Single-person when the decision matches the underwriting rule outcome and the underwriter's
+/// roles hold authority for the product, the total sum assured and every decision code (rules.cfg_authority_matrices);
+/// otherwise it is requested in Workflow for a second person (an override, or above authority). Audited either way.
+/// </summary>
+internal sealed class DecideUnderwritingCaseHandler(ILifeRepository life, ILifeCodes codes, IUserRoleQuery roles, IUnderwritingAuthorities authorities, ITenantContext tenant,
+    IExecutionContext execution, IClock clock, IAuditTrail audit)
     : ICommandHandler<DecideUnderwritingCase, CaseView>
 {
     public async Task<Result<CaseView>> Handle(DecideUnderwritingCase command, CancellationToken cancellationToken)
@@ -185,10 +193,22 @@ internal sealed class DecideUnderwritingCaseHandler(ILifeRepository life, ILifeC
             return Error.Validation(LifeErrorCodes.BenefitNotInProduct, $"{stray.BenefitCode} is not a cover on the proposal.");
         }
 
-        audit.Record(new AuditEntry("LIFE", "DecideCase", nameof(LifeUnderwritingCase), underwritingCase.Id.ToString(),
-            new Dictionary<string, string?> { ["outcome"] = command.Outcome.ToString(), ["decision"] = command.DecisionCode }));
-        var result = underwritingCase.RequestDecision(command.Outcome, command.DecisionCode, command.Reason, items,
-            decisionCodes.Where(c => c.Value).Select(c => c.Key).ToHashSet(), proposal.TotalSumAssured, proposal.Currency, user.Value, clock.UtcNow);
+        var codesRequiringTerms = decisionCodes.Where(c => c.Value).Select(c => c.Key).ToHashSet();
+        var tenantId = tenant.RequireTenantId();
+        var userRoles = await roles.EffectiveRoles(tenantId, user.Value, cancellationToken);
+        var codesUsed = items.Select(i => i.DecisionCode).Append(command.DecisionCode).Distinct().ToList();
+        var authority = (await authorities.For(tenantId, userRoles, proposal.ProductCode, clock.UtcToday, cancellationToken))
+            .FirstOrDefault(a => a.MaxSumAssured >= proposal.TotalSumAssured && codesUsed.All(a.DecisionTypes.Contains));
+        var single = authority is not null && underwritingCase.MatchesRuleOutcome(command.Outcome);
+        audit.Record(new AuditEntry("LIFE", "DecideCase", nameof(LifeUnderwritingCase), underwritingCase.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["outcome"] = command.Outcome.ToString(), ["decision"] = command.DecisionCode, ["ruleOutcome"] = underwritingCase.RuleOutcome,
+            ["authority"] = authority?.RoleCode, ["secondPerson"] = (!single).ToString(),
+        }));
+        var result = single
+            ? underwritingCase.DecideCase(command.Outcome, command.DecisionCode, command.Reason, items, codesRequiringTerms, user.Value, authority!.RoleCode, clock.UtcNow)
+            : underwritingCase.RequestDecision(command.Outcome, command.DecisionCode, command.Reason, items, codesRequiringTerms, proposal.TotalSumAssured,
+                proposal.Currency, user.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : CaseView.From(underwritingCase);
     }
 }

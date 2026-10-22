@@ -25,6 +25,8 @@ public sealed class PlansAndOptions : StaticRecord<PlansAndOptionsInput>
 
     public string BenefitYear { get; set; } = "";
 
+    public string MemberClaimBasis { get; set; } = "";
+
     public override void ApplyFields(PlansAndOptionsInput input, IFieldProtector protector)
     {
         PlanCode = input.PlanCode!;
@@ -33,6 +35,7 @@ public sealed class PlansAndOptions : StaticRecord<PlansAndOptionsInput>
         Network = input.Network!;
         ReferenceTariffScheduleCode = input.ReferenceTariffScheduleCode;
         BenefitYear = input.BenefitYear!;
+        MemberClaimBasis = input.MemberClaimBasis!;
     }
 }
 
@@ -51,6 +54,8 @@ public sealed record PlansAndOptionsInput : StaticRecordInput
 
     public string? BenefitYear { get; init; }
 
+    public string? MemberClaimBasis { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("planCode", PlanCode);
@@ -65,5 +70,8 @@ public sealed record PlansAndOptionsInput : StaticRecordInput
         errors.Required("benefitYear", BenefitYear);
         errors.MaxLength("benefitYear", BenefitYear, 15);
         errors.OneOf("benefitYear", BenefitYear, ["CALENDAR", "MEMBERSHIP_YEAR"]);
+        errors.Required("memberClaimBasis", MemberClaimBasis);
+        errors.MaxLength("memberClaimBasis", MemberClaimBasis, 20);
+        errors.OneOf("memberClaimBasis", MemberClaimBasis, ["REFERENCE_TARIFF", "PEND"]);
     }
 }

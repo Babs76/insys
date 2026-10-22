@@ -51,6 +51,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         // The checker holds approval authority for refunds, payout batches and claim payments (WFL-004).
         var approverRole = await db.RoleWithPermissions(Tenant);
         await db.AssignRole(Tenant, checker, approverRole);
+        await db.AllowBankAccountVerification(Tenant, approverRole, Today.AddDays(-90));
         foreach (var type in new[] { BillingApprovals.RefundApprovalType, PaymentApprovals.PayoutApprovalType, ClaimsApprovals.InstructionApprovalType })
         {
             await Seed("workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", 1, Today.AddDays(-90), null,
@@ -166,12 +167,12 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
     public async Task Refund_AndItsPayoutBatch_EachNeedASecondPerson_SRS002()
     {
         var payer = await _maker.RegisterPerson("Refundee");
-        var bankAccount = await _maker.AddVerifiedBankAccount(payer, "62000555501");
+        var bankAccount = await _maker.AddVerifiedBankAccount(_checker, _factory, payer, "62000555501");
         var (account, _) = await IssueInvoice(80m, payer);
         await _factory.DrainOutbox();
 
         // A refund goes only to the payer's own verified account, by id; no account number is sent.
-        var other = await _maker.AddVerifiedBankAccount(await _maker.RegisterPerson("Stranger"), "62000555502");
+        var other = await _maker.AddVerifiedBankAccount(_checker, _factory, await _maker.RegisterPerson("Stranger"), "62000555502");
         (await (await _maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/refunds", new { amount = 25m, reasonCode = "OVERPAID", bankAccountId = other },
             idempotent: true)).Code()).ShouldBe("REFUND_ACCOUNT_NOT_PAYABLE");
         var refund = (await (await _maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/refunds",
@@ -207,7 +208,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
             .StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var payee = await _maker.RegisterPerson("Claimant");
-        var bankAccount = await _maker.AddVerifiedBankAccount(payee, "62000777701");
+        var bankAccount = await _maker.AddVerifiedBankAccount(_checker, _factory, payee, "62000777701");
         var drafted = await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/payment-instructions",
             new { instructionRef = "SETTLE-1", payeePartyId = payee, bankAccountId = bankAccount, amount = 400m, approvedAmount = 400m, currency = "ZAR", reserveType = "INDEMNITY" });
         drafted.StatusCode.ShouldBe(HttpStatusCode.Created);

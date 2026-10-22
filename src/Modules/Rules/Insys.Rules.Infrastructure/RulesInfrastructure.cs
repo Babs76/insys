@@ -18,6 +18,7 @@ public static class RulesInfrastructure
         services.AddScoped<IRuleSetReader, RuleSetReader>();
         services.AddScoped<IRuleDecisionRepository, RuleDecisionRepository>();
         services.AddScoped<IRuleDecisionQueries, RuleDecisionQueries>();
+        services.AddSingleton<Contracts.IUnderwritingAuthorities, UnderwritingAuthorities>();
         return services;
     }
 }

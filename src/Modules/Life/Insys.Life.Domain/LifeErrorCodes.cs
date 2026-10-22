@@ -86,4 +86,7 @@ public static class LifeErrorCodes
 
     [ErrorCode(422, "error.life.rule_not_evaluable")]
     public const string RuleNotEvaluable = "LIFE_RULE_NOT_EVALUABLE";
+
+    [ErrorCode(403, "error.life.authority_missing")]
+    public const string AuthorityMissing = "LIFE_AUTHORITY_MISSING";
 }

@@ -24,6 +24,7 @@ public enum PreauthTrigger
     MatchedToClaim,
     ValidityEnds,
     CancelAuthorisation,
+    ConditionsMet,
 }
 
 public sealed record PreauthLineRequest(string ProcedureCode, int Quantity, decimal RequestedAmount);
@@ -101,9 +102,9 @@ public sealed class PreauthLine : Entity<Guid>, ITenantScoped
 /// <summary>
 /// The Preauthorisation aggregate (health.preauthorisation, preauth_line): requested by a provider for an eligible member
 /// (HLT-005), reviewed clinically by roles with that purpose (HLT-008), approved within the available benefit, and
-/// expiring at the end of its validity. While approved it holds a reservation on the benefit (ADR-012, h).
-/// TODO(spec): domain-model.json gives a conditionally approved authorisation no further transitions, so it is not
-/// matched to claims (OQ-061).
+/// expiring at the end of its validity. While approved, with or without conditions, it holds a reservation on the
+/// benefit (ADR-012, h) and can be matched to a claim; a conditional approval becomes Approved once its conditions are
+/// met (Phase 5 review, item 5).
 /// </summary>
 public sealed class Preauthorisation : AggregateRoot<Guid>
 {
@@ -114,7 +115,11 @@ public sealed class Preauthorisation : AggregateRoot<Guid>
         .Allow(PreauthStatus.InReview, PreauthTrigger.RejectAuthorisation, PreauthStatus.Rejected)
         .Allow(PreauthStatus.Approved, PreauthTrigger.MatchedToClaim, PreauthStatus.Utilised)
         .Allow(PreauthStatus.Approved, PreauthTrigger.ValidityEnds, PreauthStatus.Expired)
-        .Allow(PreauthStatus.Approved, PreauthTrigger.CancelAuthorisation, PreauthStatus.Cancelled);
+        .Allow(PreauthStatus.Approved, PreauthTrigger.CancelAuthorisation, PreauthStatus.Cancelled)
+        .Allow(PreauthStatus.ConditionallyApproved, PreauthTrigger.ConditionsMet, PreauthStatus.Approved)
+        .Allow(PreauthStatus.ConditionallyApproved, PreauthTrigger.MatchedToClaim, PreauthStatus.Utilised)
+        .Allow(PreauthStatus.ConditionallyApproved, PreauthTrigger.ValidityEnds, PreauthStatus.Expired)
+        .Allow(PreauthStatus.ConditionallyApproved, PreauthTrigger.CancelAuthorisation, PreauthStatus.Cancelled);
 
     private readonly List<PreauthLine> _lines = [];
 
@@ -154,7 +159,9 @@ public sealed class Preauthorisation : AggregateRoot<Guid>
 
     public IReadOnlyList<PreauthLine> Lines => _lines;
 
-    public bool ValidOn(DateOnly day) => Status == PreauthStatus.Approved && ValidFrom <= day && day <= ValidTo;
+    public bool Active => Status is PreauthStatus.Approved or PreauthStatus.ConditionallyApproved;
+
+    public bool ValidOn(DateOnly day) => Active && ValidFrom <= day && day <= ValidTo;
 
     /// <summary>Command RequestAuthorisation: the application checks the member is covered on the service date.</summary>
     public static Result<Preauthorisation> RequestAuthorisation(Guid id, string authNumber, Guid membershipId, Guid patientPartyId, string providerId,
@@ -209,10 +216,7 @@ public sealed class Preauthorisation : AggregateRoot<Guid>
         {
             var line = _lines.Single(l => l.Id == authorisation.LineId);
             line.Authorise(authorisation.AuthorisedAmount, authorisation.Category);
-            if (Status == PreauthStatus.Approved)
-            {
-                line.Reserve(authorisation.AuthorisedAmount);
-            }
+            line.Reserve(authorisation.AuthorisedAmount);
         }
 
         AuthorisedAmount = authorisations.Sum(a => a.AuthorisedAmount);
@@ -220,13 +224,21 @@ public sealed class Preauthorisation : AggregateRoot<Guid>
         ValidTo = validFrom.AddDays(daysValid - 1);
         Conditions = conditions;
         DecidedBy = by;
-        if (Status == PreauthStatus.Approved)
+        Raise(new PreauthorisationApproved(Id, AuthNumber, MembershipId, PatientPartyId, validFrom, ValidTo.Value,
+            _lines.Select(l => new ReservationChange(l.Id, l.BenefitCategory!, l.ReservedAmount)).ToList(), now));
+        return Result.Success();
+    }
+
+    /// <summary>Command ConfirmConditionsMet (transition "Conditions met"): a conditional approval becomes Approved.</summary>
+    public Result ConfirmConditionsMet(Guid by)
+    {
+        var result = Fire(PreauthTrigger.ConditionsMet);
+        if (result.IsSuccess)
         {
-            Raise(new PreauthorisationApproved(Id, AuthNumber, MembershipId, PatientPartyId, validFrom, ValidTo.Value,
-                _lines.Select(l => new ReservationChange(l.Id, l.BenefitCategory!, l.ReservedAmount)).ToList(), now));
+            DecidedBy = by;
         }
 
-        return Result.Success();
+        return result;
     }
 
     public Result RejectAuthorisation(string reason, Guid by, DateTimeOffset now)
@@ -245,7 +257,7 @@ public sealed class Preauthorisation : AggregateRoot<Guid>
     /// <summary>Command ModifyAuthorisation: an approved line's amount changes, and its reservation with it.</summary>
     public Result ModifyAuthorisation(Guid lineId, decimal authorisedAmount, DateTimeOffset now)
     {
-        if (Status != PreauthStatus.Approved || _lines.SingleOrDefault(l => l.Id == lineId) is not { } line || authorisedAmount < line.ConsumedAmount)
+        if (!Active || _lines.SingleOrDefault(l => l.Id == lineId) is not { } line || authorisedAmount < line.ConsumedAmount)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only an approved line is modified, to at least what claims have used.");
         }
@@ -263,7 +275,7 @@ public sealed class Preauthorisation : AggregateRoot<Guid>
 
     /// <summary>Transition "Validity ends".</summary>
     public Result Expire(DateOnly today, DateTimeOffset now) =>
-        Status == PreauthStatus.Approved && ValidTo < today ? End(PreauthTrigger.ValidityEnds, "EXPIRED", now)
+        Active && ValidTo < today ? End(PreauthTrigger.ValidityEnds, "EXPIRED", now)
             : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Authorisation {AuthNumber} is {Status}, valid to {ValidTo:yyyy-MM-dd}.");
 
     /// <summary>Transition "Matched to a claim": the claim released and used part of a line; what the authorisation still holds is released.</summary>

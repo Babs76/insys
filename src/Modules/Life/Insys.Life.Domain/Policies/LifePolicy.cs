@@ -528,9 +528,10 @@ public sealed class LifePolicy : AggregateRoot<Guid>
 
     /// <summary>
     /// Command ReinstatePolicy within the product's reinstatement window, with evidence where the rule requires it.
-    /// Premiums restart from the reinstatement date. TODO(spec): whether arrears must be paid first is not specified.
+    /// Premiums restart from the reinstatement date. Where the product version requires arrears to be paid first
+    /// (reinstatement_arrears REQUIRED), <paramref name="unpaidArrears"/> is the instalments still overdue, and any refuses it.
     /// </summary>
-    public Result ReinstatePolicy(LapseRule rule, DateOnly today, Guid? evidenceRef, Guid by, DateTimeOffset now)
+    public Result ReinstatePolicy(LapseRule rule, DateOnly today, Guid? evidenceRef, int unpaidArrears, Guid by, DateTimeOffset now)
     {
         if (Status != LifePolicyStatus.Lapsed || LapsedOn is not { } lapsedOn)
         {
@@ -545,6 +546,11 @@ public sealed class LifePolicy : AggregateRoot<Guid>
         if (rule.EvidenceRequired != "NONE" && evidenceRef is null)
         {
             return Error.Validation(LifeErrorCodes.ReinstatementNotPermitted, $"Reinstatement needs evidence ({rule.EvidenceRequired}).");
+        }
+
+        if (unpaidArrears > 0)
+        {
+            return Error.Conflict(LifeErrorCodes.ReinstatementNotPermitted, $"{unpaidArrears} overdue instalment(s) must be paid before reinstatement.");
         }
 
         var result = Fire(LifePolicyTrigger.ReinstatePolicy);

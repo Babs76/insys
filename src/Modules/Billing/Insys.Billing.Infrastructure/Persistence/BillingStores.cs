@@ -32,6 +32,10 @@ internal sealed class BillingRepository(BillingDbContext db) : IBillingRepositor
         await db.Set<PremiumSchedule>().AsNoTracking().Where(s => s.SourceDomain == sourceDomain && s.PolicyRef == policyRef).Select(s => (Guid?)s.BillingAccountId)
             .FirstOrDefaultAsync(cancellationToken) is { } id ? await Account(id, cancellationToken) : null;
 
+    public async Task<BillingAccount?> OpenAccountOf(Guid payerPartyId, string currency, CancellationToken cancellationToken) =>
+        await db.Set<BillingAccount>().AsNoTracking().Where(a => a.PayerPartyId == payerPartyId && a.Currency == currency && a.Status != AccountStatus.Closed)
+            .OrderBy(a => a.Id).Select(a => (Guid?)a.Id).FirstOrDefaultAsync(cancellationToken) is { } id ? await Account(id, cancellationToken) : null;
+
     public async Task<IReadOnlyList<Guid>> AccountsWithDueInstalments(DateOnly day, int limit, CancellationToken cancellationToken) =>
         await db.Set<Instalment>().AsNoTracking().Where(i => i.Status == InstalmentStatus.Scheduled && i.DueDate <= day)
             .Join(db.Set<PremiumSchedule>(), i => i.ScheduleId, s => s.Id, (i, s) => s.BillingAccountId).Distinct().Take(limit).ToListAsync(cancellationToken);

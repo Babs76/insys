@@ -7,6 +7,7 @@ using Insys.BuildingBlocks.Contracts.Approvals;
 using Insys.BuildingBlocks.Domain;
 using Insys.Identity.Contracts;
 using Insys.StaticData.Contracts;
+using Insys.Workflow.Contracts;
 using Insys.Workflow.Domain.Approvals;
 using Microsoft.Extensions.Options;
 
@@ -83,7 +84,8 @@ internal static class Checker
 /// table is itself Tier 1 static data, so its first rows could never be approved. Until then the static_data.approve
 /// permission on the route is the authority, with maker and checker still different (SDM-003; OQ-050).
 /// </summary>
-public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader authority, ITenantContext tenant, IClock clock, IAuditTrail audit)
+public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader authority, IEnumerable<IApprovalAuthoritySource> sources, ITenantContext tenant,
+    IExecutionContext execution, IClock clock, IAuditTrail audit)
 {
     private const string PermissionAuthority = "(static_data.approve)";
 
@@ -91,13 +93,23 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
     {
         audit.Record(new AuditEntry("APPROVAL", approve ? "Approve" : "Reject", nameof(Approval), approval.Id.ToString(),
             new Dictionary<string, string?> { ["type"] = approval.ApprovalType, ["businessRef"] = $"{approval.BusinessRefType}:{approval.BusinessRefId}" }));
+        // The checker also holds the permission the requester named (bank_account.verify, say), for approving and rejecting alike.
+        if (approval.RequiredPermission is { } permission && !execution.HasPermission(permission))
+        {
+            return Error.Forbidden(ErrorCodes.Forbidden, $"Deciding this approval needs the {permission} permission.");
+        }
+
         if (!approve)
         {
             return approval.Reject(checkerId, reason ?? "", clock.UtcNow);
         }
 
         var checkerRoles = await roles.EffectiveRoles(tenant.RequireTenantId(), checkerId, cancellationToken);
-        var grants = await authority.For(checkerRoles, clock.UtcToday, cancellationToken);
+        // A module that keeps the authority for this approval type in its own static data decides it (Life claims).
+        var grants = sources.FirstOrDefault(s => s.Decides(approval.ApprovalType)) is { } source
+            ? (await source.For(tenant.RequireTenantId(), approval.BusinessRefType, approval.BusinessRefId, checkerRoles, clock.UtcToday, cancellationToken))
+                .Select(a => new AuthorityGrant(a.RoleCode, approval.ApprovalType, a.Limit)).ToList()
+            : await authority.For(checkerRoles, clock.UtcToday, cancellationToken);
         if (approval.ApprovalType.StartsWith(StaticDataApprovals.ApprovalTypePrefix, StringComparison.Ordinal)
             && !await authority.IsConfigured(approval.ApprovalType, clock.UtcToday, cancellationToken))
         {
@@ -221,6 +233,18 @@ public sealed class RequestApprovalPolicy(IApprovalRepository approvals, IClock 
 
         var now = clock.UtcNow;
         approvals.Add(Approval.RequestApproval(Guid.CreateVersion7(), requested.BusinessRefType, requested.BusinessRefId, requested.ApprovalType, requested.MakerId,
-            requested.Amount, requested.Currency, requested.Reason, now, now + options.Value.DefaultExpiry, requested.SubjectHash));
+            requested.Amount, requested.Currency, requested.Reason, now, now + options.Value.DefaultExpiry, requested.SubjectHash, requested.RequiredPermission));
+    }
+}
+
+/// <summary>Workflow's policy for workflow.ApprovalWithdrawn: the business reference's waiting approval is withdrawn.</summary>
+public sealed class WithdrawApprovalPolicy(IApprovalRepository approvals) : IIntegrationEventHandler<ApprovalWithdrawn>
+{
+    public async Task Handle(ApprovalWithdrawn withdrawn, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await approvals.FindRequested(withdrawn.BusinessRefType, withdrawn.BusinessRefId, cancellationToken) is { } approval)
+        {
+            approval.Withdraw();
+        }
     }
 }

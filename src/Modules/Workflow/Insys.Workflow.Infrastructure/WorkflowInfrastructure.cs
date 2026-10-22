@@ -31,6 +31,7 @@ public static class WorkflowInfrastructure
         services.AddScoped<TaskEscalation>();
 
         services.AddIntegrationEventHandler<ApprovalRequested, RequestApprovalPolicy, WorkflowDbContext>(schema);
+        services.AddIntegrationEventHandler<ApprovalWithdrawn, WithdrawApprovalPolicy, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Contracts.SlaBreached, EscalateOnSlaBreach, WorkflowDbContext>(schema);
 
         services.AddSingleton<WorkflowJobs>();

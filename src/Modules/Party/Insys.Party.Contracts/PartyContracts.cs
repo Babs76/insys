@@ -2,6 +2,13 @@ using Insys.BuildingBlocks.Contracts;
 
 namespace Insys.Party.Contracts;
 
+/// <summary>What Party asks Workflow to approve (ADR-009, ADR-013).</summary>
+public static class PartyApprovals
+{
+    public const string BankAccountBusinessRefType = "BANK_ACCOUNT";
+    public const string BankAccountVerificationType = "BANK_ACCOUNT_VERIFICATION";
+}
+
 public static class PartyPermissions
 {
     public const string PartyRead = "party.read";
@@ -15,7 +22,7 @@ public static class PartyPermissions
     public const string BankAccountRead = "bank_account.read";
     public const string BankAccountCreate = "bank_account.create";
 
-    /// <summary>Verifying makes an account payable; it is a separate permission.</summary>
+    /// <summary>The checker of a bank account's verification approval needs it (BANK_ACCOUNT_VERIFICATION in Workflow).</summary>
     public const string BankAccountVerify = "bank_account.verify";
 
     public const string ConsentRead = "consent.read";

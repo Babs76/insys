@@ -2,7 +2,10 @@ using FluentValidation;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.Billing.Contracts;
 using Insys.BuildingBlocks.Domain;
+using Insys.Identity.Contracts;
+using Insys.Life.Contracts;
 using Insys.Life.Domain;
 using Insys.Life.Domain.Policies;
 using Insys.Life.Domain.Proposals;
@@ -159,7 +162,9 @@ internal sealed class ChangeBeneficiariesHandler(ILifeRepository life, ILifeCode
     }
 }
 
-internal sealed class AlterLifePolicyHandler(ILifeRepository life, ILifeCodes codes, IExecutionContext execution, IClock clock, IAuditTrail audit)
+/// <summary>An alteration is applied only by a user holding the alteration type's authority role (life.cfg_alteration_types.authority_role).</summary>
+internal sealed class AlterLifePolicyHandler(ILifeRepository life, ILifeCodes codes, IUserRoleQuery roles, ITenantContext tenant, IExecutionContext execution,
+    IClock clock, IAuditTrail audit)
     : ICommandHandler<AlterLifePolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(AlterLifePolicy command, CancellationToken cancellationToken)
@@ -176,6 +181,12 @@ internal sealed class AlterLifePolicyHandler(ILifeRepository life, ILifeCodes co
             return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{command.AlterationCode} is not an alteration type in force.");
         }
 
+        if (!string.IsNullOrEmpty(alteration.AuthorityRole)
+            && !(await roles.EffectiveRoles(tenant.RequireTenantId(), user.Value, cancellationToken)).Contains(alteration.AuthorityRole))
+        {
+            return Error.Forbidden(LifeErrorCodes.AuthorityMissing, $"{alteration.Code} is applied by a user holding the {alteration.AuthorityRole} role.");
+        }
+
         audit.Record(new AuditEntry("LIFE", "AlterPolicy", nameof(LifePolicy), policy.Value.Id.ToString(),
             new Dictionary<string, string?> { ["alteration"] = alteration.Code }));
         var result = policy.Value.AlterPolicy(alteration, command.IntermediaryCode, command.EffectiveDate, user.Value, clock.UtcNow);
@@ -183,7 +194,9 @@ internal sealed class AlterLifePolicyHandler(ILifeRepository life, ILifeCodes co
     }
 }
 
-internal sealed class ReinstateLifePolicyHandler(ILifeRepository life, ILifeCodes codes, IExecutionContext execution, IClock clock, IAuditTrail audit)
+/// <summary>Arrears are checked only when the product version requires them to be paid first (reinstatement_arrears REQUIRED).</summary>
+internal sealed class ReinstateLifePolicyHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, IPolicyArrears arrears, ITenantContext tenant,
+    IExecutionContext execution, IClock clock, IAuditTrail audit)
     : ICommandHandler<ReinstateLifePolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(ReinstateLifePolicy command, CancellationToken cancellationToken)
@@ -200,8 +213,13 @@ internal sealed class ReinstateLifePolicyHandler(ILifeRepository life, ILifeCode
             return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{policy.Value.ProductCode} has no lapse and reinstatement rule in force.");
         }
 
+        var tenantId = tenant.RequireTenantId();
+        var product = await products.Version(tenantId, policy.Value.ProductCode, policy.Value.ProductVersion, clock.UtcToday, cancellationToken);
+        var unpaid = product?.ReinstatementArrears == "REQUIRED"
+            ? (await arrears.For(tenantId, LifeSubjects.SourceDomain, policy.Value.Id, clock.UtcToday, cancellationToken)).OverdueInstalments
+            : 0;
         audit.Record(new AuditEntry("LIFE", "ReinstatePolicy", nameof(LifePolicy), policy.Value.Id.ToString()));
-        var result = policy.Value.ReinstatePolicy(rule, clock.UtcToday, command.EvidenceRef, user.Value, clock.UtcNow);
+        var result = policy.Value.ReinstatePolicy(rule, clock.UtcToday, command.EvidenceRef, unpaid, user.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : PolicyView.From(policy.Value);
     }
 }

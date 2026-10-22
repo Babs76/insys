@@ -30,6 +30,9 @@ public sealed record ModifyAuthorisation(Guid PreauthorisationId, Guid LineId, d
 
 public sealed record CancelAuthorisation(Guid PreauthorisationId) : ICommand<PreauthorisationView>;
 
+/// <summary>Command ConfirmConditionsMet: a conditional approval's conditions are met; it becomes Approved.</summary>
+public sealed record ConfirmConditionsMet(Guid PreauthorisationId) : ICommand<PreauthorisationView>;
+
 public sealed record GetAuthorisation(Guid PreauthorisationId) : IQuery<PreauthorisationView>;
 
 public sealed record SubmitMedicalClaim(string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate, string FormatCode, string Currency,
@@ -37,13 +40,13 @@ public sealed record SubmitMedicalClaim(string Source, string? ProviderId, Guid 
 
 public sealed record ValidateMedicalClaim(Guid ClaimId) : ICommand<MedicalClaimView>;
 
-/// <summary>Command AdjudicateClaim. On an accumulator conflict it returns CONCURRENCY_CONFLICT and is safe to send again (ADR-012).</summary>
-public sealed record AdjudicateMedicalClaim(Guid ClaimId) : ICommand<MedicalClaimView>;
+/// <summary>Command AdjudicateClaim. It is safe to repeat: on a concurrent change the server runs it again, up to a configured limit (ADR-012).</summary>
+public sealed record AdjudicateMedicalClaim(Guid ClaimId) : ICommand<MedicalClaimView>, IRetryOnConflict;
 
 public sealed record LineReview(int LineNo, ReviewDecision Decision);
 
 /// <summary>"Information received": a reviewer accepts or rejects the pended lines, and the claim is adjudicated again.</summary>
-public sealed record ReviewPendedClaim(Guid ClaimId, IReadOnlyList<LineReview> Reviews) : ICommand<MedicalClaimView>;
+public sealed record ReviewPendedClaim(Guid ClaimId, IReadOnlyList<LineReview> Reviews) : ICommand<MedicalClaimView>, IRetryOnConflict;
 
 public sealed record ApproveMedicalClaim(Guid ClaimId) : ICommand<MedicalClaimView>;
 
@@ -91,6 +94,13 @@ public sealed class SubmitMedicalClaimValidator : AbstractValidator<SubmitMedica
 /// <summary>Builds the adjudication context from the membership, the plan's static data and the accumulators (ADR-012).</summary>
 public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes, IExclusionCodes exclusions, ITenantContext tenant)
 {
+    /// <summary>Claim history is read two years back (repeat services), or further when an edit rule's window needs it.</summary>
+    private static DateOnly PriorFrom(DateOnly serviceDate, IReadOnlyList<EditRule> edits)
+    {
+        var from = serviceDate.AddYears(-2);
+        return edits.Max(e => e.WindowDays) is { } window && serviceDate.AddDays(-window) < from ? serviceDate.AddDays(-window) : from;
+    }
+
     /// <summary>The context for a claim's lines (or, without lines, for reserving an authorisation's categories).</summary>
     public async Task<Result<AdjudicationContext>> For(HealthMembership membership, Guid patientPartyId, string? providerId, DateOnly serviceDate, Guid claimId,
         IReadOnlyList<ClaimLineInput> lines, IReadOnlyCollection<string>? categories, bool memberClaim, IReadOnlyDictionary<int, ReviewDecision>? reviews,
@@ -117,7 +127,7 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
                 .Select(e => new ExclusionRule(e.Code, e.DiagnosisCodes, e.ProcedureCodes)).ToList(),
             WaitingPeriods = membership.WaitingPeriods, PreauthRequired = rules.PreauthRequired, Repeats = rules.Repeats, HighCost = rules.HighCost,
             Edits = rules.Edits.Select(e => (e, Expression.Parse(e.Condition))).Where(x => x.Item2.IsSuccess)
-                .Select(x => new EditRule(x.e.Code, x.Item2.Value, x.e.Outcome, x.e.ReasonCode)).ToList(),
+                .Select(x => new EditRule(x.e.Code, x.Item2.Value, x.e.Outcome, x.e.ReasonCode, x.e.WindowDays)).ToList(),
             Reviews = reviews ?? new Dictionary<int, ReviewDecision>(),
         };
 
@@ -130,7 +140,7 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
                     l.BenefitCategory)));
             }
 
-            context = context with { Authorised = authorised, Prior = await health.PriorServices(patientPartyId, serviceDate.AddYears(-2), claimId, cancellationToken) };
+            context = context with { Authorised = authorised, Prior = await health.PriorServices(patientPartyId, PriorFrom(serviceDate, context.Edits), claimId, cancellationToken) };
         }
 
         // The accumulators of every category the lines (or the authorisation) fall in.
@@ -202,8 +212,12 @@ internal sealed class AuthorisationHandlers(IHealthRepository health, IHealthCod
     ICommandHandler<ApproveAuthorisation, PreauthorisationView>,
     ICommandHandler<RejectAuthorisation, PreauthorisationView>,
     ICommandHandler<ModifyAuthorisation, PreauthorisationView>,
-    ICommandHandler<CancelAuthorisation, PreauthorisationView>
+    ICommandHandler<CancelAuthorisation, PreauthorisationView>,
+    ICommandHandler<ConfirmConditionsMet, PreauthorisationView>
 {
+    public Task<Result<PreauthorisationView>> Handle(ConfirmConditionsMet command, CancellationToken cancellationToken) =>
+        Apply(command.PreauthorisationId, "ConfirmConditionsMet", (p, user) => Task.FromResult(p.ConfirmConditionsMet(user)), cancellationToken);
+
     public Task<Result<PreauthorisationView>> Handle(ReviewAuthorisation command, CancellationToken cancellationToken) =>
         Apply(command.PreauthorisationId, "ReviewClinically", (p, user) => Task.FromResult(p.ReviewClinically(user)), cancellationToken);
 
@@ -413,6 +427,9 @@ internal sealed class AdjudicateMedicalClaimHandler(IHealthRepository health, Be
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Claim {claim.ClaimNumber} is {claim.Status}.");
         }
 
+        // The membership, then its accumulators by id, are locked for this transaction: concurrent claims on the same
+        // benefits (a family pool, say) wait in one order, so they never deadlock and never read a stale balance (ADR-012).
+        await health.LockBenefits(claim.MembershipId, cancellationToken);
         if (await health.Membership(claim.MembershipId, cancellationToken) is not { } membership)
         {
             return Error.NotFound(ErrorCodes.NotFound, "The membership was not found.");
@@ -457,6 +474,7 @@ internal sealed class MedicalClaimDecisions(IHealthRepository health, IExecution
     public Task<Result<MedicalClaimView>> Handle(ReverseMedicalClaim command, CancellationToken cancellationToken) =>
         Apply(command.ClaimId, "ReverseClaim", async (claim, _) =>
         {
+            await health.LockBenefits(claim.MembershipId, cancellationToken);
             var reversed = claim.ReverseClaim(command.Reason, clock.UtcNow);
             if (reversed.IsFailure)
             {

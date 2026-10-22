@@ -116,6 +116,7 @@ public sealed class LifeDbContext(DbContextOptions<LifeDbContext> options, Modul
             underwriting.Property(c => c.DecisionReason).HasMaxLength(20);
             underwriting.Property(c => c.AuthorityRole).HasMaxLength(30);
             underwriting.Property(c => c.ReferredTo).HasMaxLength(30);
+            underwriting.Property(c => c.RuleOutcome).HasMaxLength(10);
             Children(underwriting, c => c.Requirements, "CaseId");
             Children(underwriting, c => c.Items, "CaseId");
         });

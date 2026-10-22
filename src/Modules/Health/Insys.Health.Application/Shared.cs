@@ -16,6 +16,9 @@ public interface IHealthRepository
 
     Task<HealthMembership?> MembershipByNumber(string memberNumber, CancellationToken cancellationToken);
 
+    /// <summary>Locks the membership row, then its accumulators in id order, for the current transaction (SELECT … FOR UPDATE).</summary>
+    Task LockBenefits(Guid membershipId, CancellationToken cancellationToken);
+
     /// <summary>The accumulators with these keys that exist, tracked for change.</summary>
     Task<IReadOnlyList<BenefitAccumulator>> Accumulators(Guid membershipId, IReadOnlyCollection<AccumulatorKey> keys, CancellationToken cancellationToken);
 
@@ -91,9 +94,11 @@ public sealed record FraudIndicator(string Code, string Logic, int Score, int Th
 /// <summary>The plan's benefit rules in force: everything the adjudication reads that does not depend on the claim's codes.</summary>
 public sealed record BenefitRules(IReadOnlyList<ScheduleLimit> ScheduleLimits, IReadOnlyList<LimitDefinition> LimitDefinitions, IReadOnlyList<CostShareRule> CostShares,
     IReadOnlyList<CategoryMapping> Mappings, IReadOnlyList<ModifierRule> Modifiers, IReadOnlyList<PreauthRequirement> PreauthRequired, IReadOnlyList<RepeatRule> Repeats,
-    IReadOnlyList<HighCostRule> HighCost, IReadOnlyList<(string Code, string Condition, string Outcome, string ReasonCode)> Edits, string? OutOfNetworkTreatment);
+    IReadOnlyList<HighCostRule> HighCost, IReadOnlyList<(string Code, string Condition, string Outcome, string ReasonCode, int? WindowDays)> Edits, string? OutOfNetworkTreatment);
 
 /// <summary>The Health module's static data in force.</summary>
+public sealed record ContributionRule(decimal Rate, decimal EmployerSharePct);
+
 public interface IHealthCodes
 {
     Task<string?> MemberNumberPrefix(DateOnly day, CancellationToken cancellationToken);
@@ -102,8 +107,17 @@ public interface IHealthCodes
 
     Task<SchemeCategory?> SchemeCategory(string categoryCode, DateOnly day, CancellationToken cancellationToken);
 
-    /// <summary>The monthly contribution per member for a scheme's category (health.cfg_contribution_rules).</summary>
-    Task<decimal?> ContributionPerMember(string schemeNumber, string categoryCode, DateOnly day, CancellationToken cancellationToken);
+    /// <summary>The monthly contribution per member for a scheme's category, and the employer's share (health.cfg_contribution_rules).</summary>
+    Task<ContributionRule?> Contribution(string schemeNumber, string categoryCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The sponsor's party (health.mst_sponsor_register.party), when it holds a party id.</summary>
+    Task<Guid?> SponsorParty(string sponsorCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The remittance advice template: the format in force first by sort order, then code (health.cfg_remittance_advice_formats).</summary>
+    Task<string?> RemittanceTemplate(DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The tenant's eligibility response code for an internal outcome (health.ref_eligibility_response_codes.outcome).</summary>
+    Task<string?> EligibilityResponseCode(string outcome, DateOnly day, CancellationToken cancellationToken);
 
     Task<bool> SponsorExists(string sponsorCode, DateOnly day, CancellationToken cancellationToken);
 
@@ -172,7 +186,7 @@ public sealed record AccumulatorView(Guid Id, Guid BeneficiaryPartyId, string Be
 }
 
 public sealed record EligibilityView(Guid Id, string MemberNumber, string DependantSuffix, string? ProviderId, string ServiceType, string ResponseCode,
-    DateTimeOffset DecidedAt);
+    string Outcome, DateTimeOffset DecidedAt);
 
 public sealed record PreauthLineView(Guid Id, string ProcedureCode, int Quantity, decimal AuthorisedAmount, string? BenefitCategory, decimal ReservedAmount,
     decimal ConsumedAmount);

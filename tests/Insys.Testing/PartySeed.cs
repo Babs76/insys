@@ -15,18 +15,44 @@ public static class PartySeed
         return (await Expect(response, HttpStatusCode.Created)).GetProperty("id").GetGuid();
     }
 
-    /// <summary>Adds a bank account and verifies it; the user needs bank_account.create and bank_account.verify. Returns the account's id.</summary>
-    public static async Task<Guid> AddVerifiedBankAccount(this HttpClient client, Guid partyId, string accountNumber, string currency = "ZAR")
+    /// <summary>
+    /// Adds a bank account and has it verified through Workflow (ADR-013): the maker adds it, and the checker (another
+    /// user with bank_account.verify, approval.approve and BANK_ACCOUNT_VERIFICATION authority) approves it. Returns the account's id.
+    /// </summary>
+    public static async Task<Guid> AddVerifiedBankAccount(this HttpClient maker, HttpClient checker, InsysApiFactory factory, Guid partyId, string accountNumber,
+        string currency = "ZAR")
     {
-        var added = await client.Send(HttpMethod.Post, $"/api/v1/party/parties/{partyId}/bank-accounts", new
+        var added = await maker.Send(HttpMethod.Post, $"/api/v1/party/parties/{partyId}/bank-accounts", new
         {
             accountNumber, bankCode = "632005", accountHolderName = "Test account holder", accountType = "CURRENT", currency,
         }, idempotent: true);
         var accountId = (await Expect(added, HttpStatusCode.Created)).GetProperty("id").GetGuid();
-        await Expect(await client.Send(HttpMethod.Post, $"/api/v1/party/parties/{partyId}/bank-accounts/{accountId}/verify", new { verificationRef = "AVS-OK-" + accountNumber[^4..] }),
-            HttpStatusCode.OK);
+        await factory.DrainOutbox();
+        await checker.DecideBankAccount(factory, accountId, approve: true);
         return accountId;
     }
+
+    /// <summary>The checker approves (or rejects) the account's waiting verification approval in Workflow.</summary>
+    public static async Task DecideBankAccount(this HttpClient checker, InsysApiFactory factory, Guid accountId, bool approve)
+    {
+        var page = await Expect(await checker.GetAsync($"/api/v1/workflow/approvals?status=Requested&businessRefType=BANK_ACCOUNT&businessRefId={accountId}"),
+            HttpStatusCode.OK);
+        var approval = page.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        var decided = approve
+            ? await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")
+            : await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/reject", new { reason = "Account holder does not match" }, ifMatch: "\"1\"");
+        if (decided.StatusCode != HttpStatusCode.NoContent)
+        {
+            throw new InvalidOperationException($"Bank account verification was not decided: {decided.StatusCode} {await decided.Content.ReadAsStringAsync()}");
+        }
+
+        await factory.DrainOutbox();
+    }
+
+    /// <summary>Gives a role BANK_ACCOUNT_VERIFICATION authority in Workflow (workflow.cfg_delegation_and_approval_authority).</summary>
+    public static Task AllowBankAccountVerification(this TestDatabase database, Guid tenantId, string roleCode, DateOnly from) =>
+        database.SeedStatic(tenantId, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-BAV-{roleCode}", from, ("role_code", roleCode),
+            ("transaction_type", "BANK_ACCOUNT_VERIFICATION"), ("limit_value", 0m), ("delegation_allowed", false));
 
     private static async Task<System.Text.Json.JsonElement> Expect(HttpResponseMessage response, HttpStatusCode status) =>
         response.StatusCode == status

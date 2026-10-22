@@ -9,6 +9,7 @@ public enum ApprovalStatus
     Approved,
     Rejected,
     Expired,
+    Withdrawn,
 }
 
 public enum ApprovalTrigger
@@ -16,6 +17,7 @@ public enum ApprovalTrigger
     Approve,
     Reject,
     Expire,
+    WithdrawnByRequester,
 }
 
 /// <summary>One row of workflow.cfg_delegation_and_approval_authority in force: a role may approve a type up to a limit.</summary>
@@ -36,7 +38,8 @@ public sealed class Approval : AggregateRoot<Guid>
     public static readonly StateMachine<ApprovalStatus, ApprovalTrigger> Lifecycle = new StateMachine<ApprovalStatus, ApprovalTrigger>()
         .Allow(ApprovalStatus.Requested, ApprovalTrigger.Approve, ApprovalStatus.Approved)
         .Allow(ApprovalStatus.Requested, ApprovalTrigger.Reject, ApprovalStatus.Rejected)
-        .Allow(ApprovalStatus.Requested, ApprovalTrigger.Expire, ApprovalStatus.Expired);
+        .Allow(ApprovalStatus.Requested, ApprovalTrigger.Expire, ApprovalStatus.Expired)
+        .Allow(ApprovalStatus.Requested, ApprovalTrigger.WithdrawnByRequester, ApprovalStatus.Withdrawn);
 
     private Approval()
     {
@@ -79,9 +82,12 @@ public sealed class Approval : AggregateRoot<Guid>
     /// </summary>
     public string? SubjectHash { get; private set; }
 
+    /// <summary>A permission the checker must hold, besides authority for the type.</summary>
+    public string? RequiredPermission { get; private set; }
+
     /// <summary>Command RequestApproval.</summary>
     public static Approval RequestApproval(Guid id, string businessRefType, Guid businessRefId, string approvalType, Guid makerId, decimal? amount, string? currency,
-        string? reason, DateTimeOffset now, DateTimeOffset? expiresAt, string? subjectHash = null)
+        string? reason, DateTimeOffset now, DateTimeOffset? expiresAt, string? subjectHash = null, string? requiredPermission = null)
     {
         var approval = new Approval
         {
@@ -94,6 +100,7 @@ public sealed class Approval : AggregateRoot<Guid>
             Currency = currency,
             Reason = reason,
             SubjectHash = subjectHash is null ? null : Guard.MaxLength(subjectHash, 64),
+            RequiredPermission = requiredPermission is null ? null : Guard.MaxLength(requiredPermission, 80),
             RequestedAt = now,
             ExpiresAt = expiresAt,
             Status = ApprovalStatus.Requested,
@@ -164,6 +171,9 @@ public sealed class Approval : AggregateRoot<Guid>
 
         return result;
     }
+
+    /// <summary>Transition "Withdrawn by requester": what it was for changed, so it can no longer be decided.</summary>
+    public Result Withdraw() => Fire(ApprovalTrigger.WithdrawnByRequester);
 
     /// <summary>Command Expire: transition "Time limit reached".</summary>
     public Result Expire(DateTimeOffset now) =>

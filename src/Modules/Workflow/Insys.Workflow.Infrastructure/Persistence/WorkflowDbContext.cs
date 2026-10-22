@@ -52,6 +52,7 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
             approval.Property(a => a.Amount).HasColumnName("authority_limit").HasPrecision(18, 2);
             approval.Property(a => a.Currency).HasColumnType("char(3)");
             approval.Property(a => a.SubjectHash).HasMaxLength(64);
+            approval.Property(a => a.RequiredPermission).HasMaxLength(80);
         });
 
         modelBuilder.Entity<ProcessInstance>(process =>

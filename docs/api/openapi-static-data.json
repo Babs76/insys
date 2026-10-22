@@ -62612,6 +62612,15 @@
               "string"
             ]
           },
+          "windowDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "code": {
             "type": "string"
           },
@@ -69724,6 +69733,12 @@
             ]
           },
           "providerAction": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outcome": {
             "type": [
               "null",
               "string"
@@ -77519,6 +77534,12 @@
             ]
           },
           "benefitYear": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "memberClaimBasis": {
             "type": [
               "null",
               "string"

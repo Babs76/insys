@@ -49,11 +49,19 @@ public sealed record PartyAnonymised(Guid PartyId, DateTimeOffset OccurredAt) : 
 /// <summary>A party's bank account was added (superseding <paramref name="SupersededId"/>) or verified. Ids only, never account details.</summary>
 public sealed record PartyBankAccountChanged(Guid PartyId, Guid BankAccountId, Guid? SupersededId, string Status, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>Asks Workflow for a second person's verification of the account (BANK_ACCOUNT_VERIFICATION): its party, id and keyed hash only.</summary>
+public sealed record BankAccountVerificationRequested(Guid PartyId, Guid BankAccountId, Guid RequestedBy, string Last4, string SubjectHash, DateTimeOffset OccurredAt)
+    : IDomainEvent;
+
+/// <summary>The account changed while its verification was pending: that approval is withdrawn.</summary>
+public sealed record BankAccountVerificationWithdrawn(Guid PartyId, Guid BankAccountId, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public enum BankAccountStatus
 {
     PendingVerification,
     Active,
     Superseded,
+    Rejected,
 }
 
 /// <summary>
@@ -98,22 +106,39 @@ public sealed class BankAccount : Entity<Guid>, ITenantScoped
 
     public Guid? SupersededById { get; private set; }
 
+    /// <summary>The user who added the account: the maker of its verification.</summary>
+    public Guid? RequestedBy { get; private set; }
+
+    /// <summary>The Workflow approval that decided the verification.</summary>
+    public Guid? ApprovalId { get; private set; }
+
     public long RowVersion { get; private set; }
 
-    internal static BankAccount Create(Guid partyId, BankAccountData data) => new()
+    /// <summary>What the verification approves: the party, the account and its keyed hash; never the number.</summary>
+    public string SubjectHash => ApprovalSubject.Hash("BANK_ACCOUNT", PartyId, Id, AccountNumberHash);
+
+    internal static BankAccount Create(Guid partyId, BankAccountData data, Guid requestedBy) => new()
     {
+        RequestedBy = requestedBy,
         Id = Guid.CreateVersion7(), PartyId = partyId, AccountNumberEnc = data.Encrypted, AccountNumberHash = data.Hash, AccountNumberLast4 = data.Last4,
         BankCode = Guard.MaxLength(Guard.NotNullOrWhiteSpace(data.BankCode), 20), BranchCode = data.BranchCode,
         AccountHolderName = Guard.MaxLength(Guard.NotNullOrWhiteSpace(data.AccountHolderName), 140), AccountType = data.AccountType,
         Currency = Guard.MaxLength(data.Currency, 3), Status = BankAccountStatus.PendingVerification,
     };
 
-    internal void Verify(string reference, Guid verifiedBy, DateTimeOffset now)
+    internal void Verify(Guid approvalId, Guid verifiedBy, DateTimeOffset now)
     {
         VerifiedAt = now;
-        VerificationRef = Guard.MaxLength(Guard.NotNullOrWhiteSpace(reference), 60);
+        VerificationRef = Guard.MaxLength("WF-" + approvalId.ToString("N"), 60);
         VerifiedBy = verifiedBy;
+        ApprovalId = approvalId;
         Status = BankAccountStatus.Active;
+    }
+
+    internal void Reject(Guid approvalId)
+    {
+        ApprovalId = approvalId;
+        Status = BankAccountStatus.Rejected;
     }
 
     internal void Supersede(Guid by)
@@ -453,10 +478,11 @@ public sealed class Party : AggregateRoot<Guid>
     public IReadOnlyList<BankAccount> BankAccounts => _bankAccounts;
 
     /// <summary>
-    /// Command AddBankAccount: a new account, pending verification. The party's current account in the same currency is
-    /// superseded (kept, never changed), so any payment approved against it needs a fresh approval.
+    /// Command AddBankAccount: a new account, pending verification by a second person in Workflow (ADR-013). The party's
+    /// current account in the same currency is superseded (kept, never changed), so any payment approved against it needs
+    /// a fresh approval; if that account was itself still pending, its verification is withdrawn.
     /// </summary>
-    public Result<Guid> AddBankAccount(BankAccountData data, DateTimeOffset now)
+    public Result<Guid> AddBankAccount(BankAccountData data, Guid requestedBy, DateTimeOffset now)
     {
         var allowed = Changeable(null);
         if (allowed.IsFailure)
@@ -464,26 +490,51 @@ public sealed class Party : AggregateRoot<Guid>
             return allowed.Error;
         }
 
-        var account = BankAccount.Create(Id, data);
-        var current = _bankAccounts.SingleOrDefault(a => a.Currency == data.Currency && a.Status != BankAccountStatus.Superseded);
+        var account = BankAccount.Create(Id, data, Guard.NotEmpty(requestedBy));
+        var current = _bankAccounts.SingleOrDefault(a => a.Currency == data.Currency && a.Status is BankAccountStatus.PendingVerification or BankAccountStatus.Active);
+        if (current is { Status: BankAccountStatus.PendingVerification })
+        {
+            Raise(new BankAccountVerificationWithdrawn(Id, current.Id, now));
+        }
+
         current?.Supersede(account.Id);
         _bankAccounts.Add(account);
         Raise(new PartyBankAccountChanged(Id, account.Id, current?.Id, "PENDING_VERIFICATION", now));
-        MarkChanged();
+        Raise(new BankAccountVerificationRequested(Id, account.Id, requestedBy, account.AccountNumberLast4, account.SubjectHash, now));
         return account.Id;
     }
 
-    /// <summary>Command VerifyBankAccount: with the verification's reference (an account verification service, for example), the account becomes active.</summary>
-    public Result VerifyBankAccount(Guid bankAccountId, string reference, Guid verifiedBy, DateTimeOffset now)
+    /// <summary>
+    /// Workflow's decision on the verification: approved by a second person, the account is active and payable;
+    /// rejected, it is never activated. A decision for another subject (an account since superseded) does not apply.
+    /// </summary>
+    public Result DecideBankAccountVerification(Guid bankAccountId, bool approved, Guid approvalId, Guid checkerId, string? subjectHash, DateTimeOffset now)
     {
         if (_bankAccounts.SingleOrDefault(a => a.Id == bankAccountId) is not { Status: BankAccountStatus.PendingVerification } account)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only an account pending verification is verified.");
         }
 
-        account.Verify(reference, verifiedBy, now);
-        Raise(new PartyBankAccountChanged(Id, account.Id, null, "ACTIVE", now));
-        MarkChanged();
+        if (subjectHash != account.SubjectHash)
+        {
+            return Error.Conflict(PartyErrorCodes.BankAccountSubjectChanged, "The approval was for another account.");
+        }
+
+        if (checkerId == account.RequestedBy)
+        {
+            return MakerChecker.EnsureDifferentPeople(account.RequestedBy.ToString()!, checkerId.ToString());
+        }
+
+        if (approved)
+        {
+            account.Verify(approvalId, checkerId, now);
+        }
+        else
+        {
+            account.Reject(approvalId);
+        }
+
+        Raise(new PartyBankAccountChanged(Id, account.Id, null, approved ? "ACTIVE" : "REJECTED", now));
         return Result.Success();
     }
 
@@ -752,6 +803,9 @@ public sealed class Party : AggregateRoot<Guid>
 
 public static class PartyErrorCodes
 {
+    [ErrorCode(409, "error.party.bank_account_subject_changed")]
+    public const string BankAccountSubjectChanged = "BANK_ACCOUNT_SUBJECT_CHANGED";
+
     [ErrorCode(409, "error.party.read_only")]
     public const string PartyReadOnly = "PARTY_READ_ONLY";
 

@@ -43,6 +43,9 @@ public static class LifeSubjects
 {
     public const string SourceDomain = "LIFE";
     public const string Proposal = "LIFE_PROPOSAL";
+
+    /// <summary>The subject an underwriting rule set (UW:{product}) is evaluated for.</summary>
+    public const string UnderwritingCase = "LIFE_UNDERWRITING_CASE";
 }
 
 /// <summary>Document business references for Life (DocumentGenerated.BusinessRefType).</summary>

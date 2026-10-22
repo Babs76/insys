@@ -465,7 +465,7 @@
         "tags": [
           "Party"
         ],
-        "summary": "Add a bank account; the party\u0027s current account in the currency is superseded, and payments to it need a fresh approval",
+        "summary": "Add a bank account, pending a second person\u0027s verification in Workflow; the party\u0027s current account in the currency is superseded",
         "description": "The account number is encrypted at once and never returned: responses show its last four digits.",
         "operationId": "PartyAddBankAccount",
         "parameters": [
@@ -529,51 +529,6 @@
           }
         },
         "x-permission": "bank_account.read"
-      }
-    },
-    "/api/v1/party/parties/{id}/bank-accounts/{accountId}/verify": {
-      "post": {
-        "tags": [
-          "Party"
-        ],
-        "summary": "Verify a bank account, with the verification\u0027s reference; it becomes payable",
-        "operationId": "PartyVerifyBankAccount",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "accountId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyBankAccountRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "x-permission": "bank_account.verify"
       }
     },
     "/api/v1/party/parties/{id}/identifiers": {
@@ -7169,6 +7124,32 @@
         "x-permission": "health_preauthorisation.review"
       }
     },
+    "/api/v1/health/preauthorisations/{id}/conditions-met": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A conditional approval\u0027s conditions are met; it becomes Approved",
+        "operationId": "HealthConfirmConditionsMet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_preauthorisation.review"
+      }
+    },
     "/api/v1/health/preauthorisations/{id}/cancel": {
       "post": {
         "tags": [
@@ -10296,6 +10277,22 @@
                 "$ref": "#/components/schemas/CoverStart"
               }
             ]
+          },
+          "eligibilityRulesetCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reinstatementArrears": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReinstatementArrears"
+              }
+            ]
           }
         }
       },
@@ -11763,6 +11760,13 @@
           }
         }
       },
+      "ReinstatementArrears": {
+        "enum": [
+          "None",
+          "Required",
+          null
+        ]
+      },
       "ReinstatementRequest": {
         "required": [
           "evidenceRef"
@@ -12448,17 +12452,6 @@
           "Decline",
           "Postpone"
         ]
-      },
-      "VerifyBankAccountRequest": {
-        "required": [
-          "verificationRef"
-        ],
-        "type": "object",
-        "properties": {
-          "verificationRef": {
-            "type": "string"
-          }
-        }
       },
       "VerifyIdentifierRequest": {
         "required": [

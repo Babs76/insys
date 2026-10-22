@@ -119,6 +119,9 @@ public sealed class HealthModule : IModule
         health.MapPost("/preauthorisations/{id:guid}/modify", async (Guid id, AuthorisationChangeRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ModifyAuthorisation(id, r.LineId, r.AuthorisedAmount), ct)).ToHttp(Results.Ok))
             .WithName("HealthModifyAuthorisation").WithSummary("Change an approved line's amount and its reservation").RequirePermission(HealthPermissions.PreauthReview);
+        health.MapPost("/preauthorisations/{id:guid}/conditions-met", async (Guid id, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new ConfirmConditionsMet(id), ct)).ToHttp(Results.Ok))
+            .WithName("HealthConfirmConditionsMet").WithSummary("A conditional approval's conditions are met; it becomes Approved").RequirePermission(HealthPermissions.PreauthReview);
         health.MapPost("/preauthorisations/{id:guid}/cancel", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new CancelAuthorisation(id), ct)).ToHttp(Results.Ok))
             .WithName("HealthCancelAuthorisation").WithSummary("Cancel; the reservation is released").RequirePermission(HealthPermissions.PreauthReview);

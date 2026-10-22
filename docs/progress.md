@@ -11,7 +11,8 @@
 | 3 Money | Billing, Payments, Finance, Claims Framework | Done (CI green: 7f86c0e) |
 | 4 First domain | General (OQ-001) | Done, accepted with follow-ups (CI green: 8f2eda7) |
 | 4 review items 1–5 | Approval subjects, payee details, inclusive periods, quote decline, arithmetic, cover start | Done, accepted |
-| 5 Other domains | Payee bank accounts (ADR-013), product columns, Health defaults (ADR-012), Life and Health | **Done, awaiting review** (22 Oct 2026) |
+| 5 Other domains | Payee bank accounts (ADR-013), product columns, Health defaults (ADR-012), Life and Health | Done, accepted with follow-ups |
+| 5 review items 1–5 | Bank account verification in Workflow, skipped tests, underwriting authority, Health concurrency, OQ-061 | **Done, awaiting review** (22 Oct 2026) |
 | 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration; General auto-renewal and the exposure snapshot job | Not started |
 | 7 Hardening | Security suite, OpenAPI review, performance, runbooks | Not started |
 
@@ -28,6 +29,14 @@
 4. **OpenAPI documents:** split into core, static-data and platform-operator. Each has its own snapshot in `docs/api`, and every endpoint is in exactly one.
 5. **Tier 2 maker-checker:** a per-tenant setting (V0008), on by default and audited. Tier 1 is always on.
 6. **Outbox relay lag:** reported on `/health` and `/health/ready` through `integration.outbox_lag` (V0009). Degraded after `Outbox:Lag:Warning` (1 minute); Unhealthy and not ready after `Outbox:Lag:Failure` (5 minutes).
+
+## Phase 5 review: what changed
+
+1. **Bank account verification (ADR-013) through Workflow:** adding or changing an account requests a BANK_ACCOUNT_VERIFICATION approval (subject: party, account and hash only; `bank_account.verify` required of the checker). The account is ACTIVE only on ApprovalGranted, REJECTED on ApprovalRejected; a further change withdraws the pending approval (new Workflow state Withdrawn) and requests a new one. The separate verify endpoint is gone.
+2. **Skipped tests:** the three Phase 0 process placeholders are deleted; the eight OQ-051/052 Life tests remain skipped.
+3. **Life underwriting:** one underwriter decides alone when the decision matches the rule outcome and is within their authority matrix (`rules.cfg_authority_matrices`); overrides and decisions above authority go to a second person in Workflow. All are audited.
+4. **Health concurrency (ADR-012):** membership then accumulators locked by id; one payment run per claim enforced in the database (V0020); server-side retry of adjudication on conflicts (`Commands:ConflictRetry:MaxAttempts`, 3).
+5. **OQ-061 from existing static data (V0020):** Life claim authority by claim type, alteration authority roles, the Health employer share, eligibility response mapping, product eligibility rule sets, edit rules with history, conditional preauthorisations, remittance advice documents; arrears on reinstatement and member reimbursement made configurable.
 
 ## Phase 5: what exists (Life and Health)
 

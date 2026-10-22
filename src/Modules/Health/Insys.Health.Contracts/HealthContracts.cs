@@ -42,6 +42,9 @@ public static class HealthApprovals
 public static class HealthReferences
 {
     public const string SourceDomain = "HEALTH";
+
+    /// <summary>The employer's share of a scheme member's contribution is billed to the sponsor under this source domain.</summary>
+    public const string EmployerSourceDomain = "HEALTH_ER";
     public const string RemittanceRefType = "HEALTH_REMITTANCE";
 }
 
@@ -50,20 +53,22 @@ public sealed record HealthSchemeRenewed(Guid SchemeId, string SchemeNumber, Dat
 
 /// <summary>
 /// A member was enrolled: Billing opens the payer's account (if new) and a monthly contribution schedule from the
-/// start date when the contribution is known (scheme members; health.cfg_contribution_rules).
+/// start date when the contribution is known (scheme members; health.cfg_contribution_rules). The employer's share is
+/// billed to the sponsor's party on a schedule of its own.
 /// </summary>
 [IntegrationEvent("health.HealthMemberEnrolled")]
 public sealed record HealthMemberEnrolled(Guid MembershipId, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode,
-    DateOnly StartDate, Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, string Currency, decimal? MonthlyContribution) : IIntegrationEvent;
+    DateOnly StartDate, Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, string Currency, decimal? MonthlyContribution,
+    decimal? EmployerContribution = null, Guid? SponsorPartyId = null) : IIntegrationEvent;
 
 /// <summary>The membership's status or its members changed; a new monthly contribution applies from <paramref name="EffectiveDate"/> when given.</summary>
 [IntegrationEvent("health.HealthMemberStatusChanged")]
-public sealed record HealthMemberStatusChanged(Guid MembershipId, string MemberNumber, string Status, DateOnly EffectiveDate, decimal? MonthlyContribution)
-    : IIntegrationEvent;
+public sealed record HealthMemberStatusChanged(Guid MembershipId, string MemberNumber, string Status, DateOnly EffectiveDate, decimal? MonthlyContribution,
+    decimal? EmployerContribution = null) : IIntegrationEvent;
 
 [IntegrationEvent("health.DependantAdded")]
-public sealed record DependantAdded(Guid MembershipId, string MemberNumber, Guid DependantId, Guid PartyId, string Suffix, DateOnly StartDate, decimal? MonthlyContribution)
-    : IIntegrationEvent;
+public sealed record DependantAdded(Guid MembershipId, string MemberNumber, Guid DependantId, Guid PartyId, string Suffix, DateOnly StartDate, decimal? MonthlyContribution,
+    decimal? EmployerContribution = null) : IIntegrationEvent;
 
 /// <summary>An eligibility enquiry's answer. Identifiers and codes only; no medical data (HLT-008).</summary>
 [IntegrationEvent("health.EligibilityDecisionRecorded")]
@@ -124,7 +129,10 @@ public sealed record FraudCaseConcluded(Guid CaseId, string SubjectType, string 
 /// <param name="BankAccountId">The provider's verified bank account (party.bank_account) the run was approved with; never its details.</param>
 public sealed record RemittanceReleased(Guid RemittanceId, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount);
 
-/// <summary>An approved run was released: Payments pays each remittance in a payout batch; the run's claims are paid.</summary>
+/// <summary>
+/// An approved run was released: Payments pays each remittance in a payout batch; the run's claims are paid; Documents
+/// generates each remittance's advice from <paramref name="RemittanceTemplate"/> (health.cfg_remittance_advice_formats).
+/// </summary>
 [IntegrationEvent("health.ProviderPaymentRunReleased")]
-public sealed record ProviderPaymentRunReleased(Guid RunId, string RunCode, decimal Total, string Currency, IReadOnlyList<RemittanceReleased> Remittances, DateOnly ReleasedOn)
-    : IIntegrationEvent;
+public sealed record ProviderPaymentRunReleased(Guid RunId, string RunCode, decimal Total, string Currency, IReadOnlyList<RemittanceReleased> Remittances, DateOnly ReleasedOn,
+    string? RemittanceTemplate = null) : IIntegrationEvent;

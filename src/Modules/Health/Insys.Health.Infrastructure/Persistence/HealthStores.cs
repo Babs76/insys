@@ -24,6 +24,13 @@ internal sealed class HealthRepository(HealthDbContext db) : IHealthRepository
     public Task<HealthMembership?> MembershipByNumber(string memberNumber, CancellationToken cancellationToken) =>
         Memberships().SingleOrDefaultAsync(m => m.MemberNumber == memberNumber, cancellationToken);
 
+    public async Task LockBenefits(Guid membershipId, CancellationToken cancellationToken)
+    {
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM health.membership WHERE id = {membershipId} FOR UPDATE", cancellationToken);
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM health.benefit_accumulator WHERE membership_id = {membershipId} ORDER BY id FOR UPDATE",
+            cancellationToken);
+    }
+
     public async Task<IReadOnlyList<BenefitAccumulator>> Accumulators(Guid membershipId, IReadOnlyCollection<AccumulatorKey> keys, CancellationToken cancellationToken)
     {
         var categories = keys.Select(k => k.Category).Distinct().ToList();
@@ -46,7 +53,8 @@ internal sealed class HealthRepository(HealthDbContext db) : IHealthRepository
     public async Task<IReadOnlyList<Preauthorisation>> MatchingPreauthorisations(Guid membershipId, Guid patientPartyId, string providerId, DateOnly serviceDate,
         CancellationToken cancellationToken) =>
         await db.Preauthorisations.Include(p => p.Lines)
-            .Where(p => p.MembershipId == membershipId && p.PatientPartyId == patientPartyId && p.ProviderId == providerId && p.Status == PreauthStatus.Approved
+            .Where(p => p.MembershipId == membershipId && p.PatientPartyId == patientPartyId && p.ProviderId == providerId
+                        && (p.Status == PreauthStatus.Approved || p.Status == PreauthStatus.ConditionallyApproved)
                         && p.ValidFrom <= serviceDate && p.ValidTo >= serviceDate)
             .OrderBy(p => p.Id).ToListAsync(cancellationToken);
 
@@ -78,7 +86,7 @@ internal sealed class HealthRepository(HealthDbContext db) : IHealthRepository
         db.Runs.Include(r => r.Remittances).SingleOrDefaultAsync(r => r.Remittances.Any(x => x.Id == remittanceId), cancellationToken);
 
     public async Task<IReadOnlyList<Guid>> PreauthorisationsToExpire(DateOnly day, int limit, CancellationToken cancellationToken) =>
-        await db.Preauthorisations.AsNoTracking().Where(p => p.Status == PreauthStatus.Approved && p.ValidTo < day).OrderBy(p => p.Id).Select(p => p.Id).Take(limit)
+        await db.Preauthorisations.AsNoTracking().Where(p => (p.Status == PreauthStatus.Approved || p.Status == PreauthStatus.ConditionallyApproved) && p.ValidTo < day).OrderBy(p => p.Id).Select(p => p.Id).Take(limit)
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<Guid>> MembershipsToActivate(DateOnly day, int limit, CancellationToken cancellationToken) =>
@@ -117,16 +125,27 @@ internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
 
     public async Task<PlanDefinition?> Plan(string planCode, string optionCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<PlansAndOptions>(day).Where(p => p.PlanCode == planCode && p.OptionCode == optionCode).OrderByDescending(p => p.Version)
-            .Select(p => new PlanDefinition(new PlanTerms(p.PlanCode, p.OptionCode, p.BenefitSchedule, p.Network, p.ReferenceTariffScheduleCode, p.BenefitYear), p.Version))
+            .Select(p => new PlanDefinition(new PlanTerms(p.PlanCode, p.OptionCode, p.BenefitSchedule, p.Network, p.ReferenceTariffScheduleCode, p.BenefitYear, p.MemberClaimBasis), p.Version))
             .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<SchemeCategory?> SchemeCategory(string categoryCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<SchemeMemberCategories>(day).Where(c => c.CategoryCode == categoryCode).Select(c => new SchemeCategory(c.CategoryCode, c.Plan, c.EligibilityRule))
             .FirstOrDefaultAsync(cancellationToken);
 
-    public async Task<decimal?> ContributionPerMember(string schemeNumber, string categoryCode, DateOnly day, CancellationToken cancellationToken) =>
-        await InForce<ContributionRules>(day).Where(r => r.Scheme == schemeNumber && r.MemberCategory == categoryCode).Select(r => (decimal?)r.Rate)
+    public async Task<ContributionRule?> Contribution(string schemeNumber, string categoryCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<ContributionRules>(day).Where(r => r.Scheme == schemeNumber && r.MemberCategory == categoryCode)
+            .Select(r => new ContributionRule(r.Rate, r.EmployerShare)).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<string?> EligibilityResponseCode(string outcome, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<EligibilityResponseCodes>(day).Where(c => c.Outcome == outcome).OrderBy(c => c.TenantId == null).ThenBy(c => c.Code).Select(c => c.Code)
             .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<string?> RemittanceTemplate(DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<RemittanceAdviceFormats>(day).OrderBy(f => f.SortOrder ?? int.MaxValue).ThenBy(f => f.FormatCode).Select(f => f.Template).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<Guid?> SponsorParty(string sponsorCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<SponsorRegister>(day).Where(s => s.SponsorCode == sponsorCode).Select(s => s.Party).FirstOrDefaultAsync(cancellationToken) is { } party
+        && Guid.TryParse(party, out var id) ? id : null;
 
     public Task<bool> SponsorExists(string sponsorCode, DateOnly day, CancellationToken cancellationToken) =>
         InForce<SponsorRegister>(day).AnyAsync(s => s.SponsorCode == sponsorCode, cancellationToken);
@@ -162,7 +181,7 @@ internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
             .Select(p => new PreauthRequirement(p.Service, p.Threshold)).ToList();
         var repeats = (await InForce<RepeatServiceIntervals>(day).ToListAsync(cancellationToken)).Select(r => new RepeatRule(r.Service, r.MinInterval)).ToList();
         var highCost = (await InForce<HighCostThresholds>(day).ToListAsync(cancellationToken)).Select(h => new HighCostRule(h.Code, h.Service, h.Amount)).ToList();
-        var edits = (await InForce<AdjudicationEditRules>(day).ToListAsync(cancellationToken)).Select(e => (e.EditCode, e.Condition, e.Outcome, e.ReasonCode)).ToList();
+        var edits = (await InForce<AdjudicationEditRules>(day).ToListAsync(cancellationToken)).Select(e => (e.EditCode, e.Condition, e.Outcome, e.ReasonCode, e.WindowDays)).ToList();
         var treatment = await InForce<NetworkRestrictionRules>(day).Where(r => r.Plan == plan.PlanCode && r.Network == plan.NetworkCode).Select(r => r.OutOfNetworkTreatment)
             .FirstOrDefaultAsync(cancellationToken);
         return new BenefitRules(schedule, limits, costShares, mappings, modifiers, preauth, repeats, highCost, edits, treatment);
@@ -214,10 +233,11 @@ internal sealed class HealthEventMapper : IDomainEventMapper
     {
         Domain.Members.HealthSchemeRenewed e => new Contracts.HealthSchemeRenewed(e.SchemeId, e.SchemeNumber, e.RenewalDate),
         Domain.Members.HealthMemberEnrolled e => new Contracts.HealthMemberEnrolled(e.MembershipId, e.MemberNumber, e.PrincipalPartyId, e.SchemeId, e.PlanCode, e.OptionCode,
-            e.StartDate, e.PayerPartyId, e.BillingAccountRef, e.CollectionMethod, e.Currency, e.MonthlyContribution),
+            e.StartDate, e.PayerPartyId, e.BillingAccountRef, e.CollectionMethod, e.Currency, e.MonthlyContribution, e.EmployerContribution, e.SponsorPartyId),
         Domain.Members.HealthMemberStatusChanged e => new Contracts.HealthMemberStatusChanged(e.MembershipId, e.MemberNumber, e.Status, e.EffectiveDate,
-            e.MonthlyContribution),
-        Domain.Members.DependantAdded e => new Contracts.DependantAdded(e.MembershipId, e.MemberNumber, e.DependantId, e.PartyId, e.Suffix, e.StartDate, e.MonthlyContribution),
+            e.MonthlyContribution, e.EmployerContribution),
+        Domain.Members.DependantAdded e => new Contracts.DependantAdded(e.MembershipId, e.MemberNumber, e.DependantId, e.PartyId, e.Suffix, e.StartDate, e.MonthlyContribution,
+            e.EmployerContribution),
         Domain.Benefits.EligibilityDecisionRecorded e => new Contracts.EligibilityDecisionRecorded(e.DecisionId, e.MemberNumber, e.DependantSuffix, e.ProviderId,
             e.ServiceType, e.ResponseCode),
         Domain.Benefits.BenefitLimitReached e => new Contracts.BenefitLimitReached(e.AccumulatorId, e.MembershipId, e.BenefitCategory, e.PeriodEnd),
@@ -239,7 +259,8 @@ internal sealed class HealthEventMapper : IDomainEventMapper
         PaymentRunCalculated e => new ApprovalRequested(HealthApprovals.RunBusinessRefType, e.RunId, HealthApprovals.RunApprovalType, e.RequestedBy, e.Total, e.Currency,
             $"Provider payment run {e.RunCode}", e.SubjectHash),
         Domain.Payments.ProviderPaymentRunReleased e => new Contracts.ProviderPaymentRunReleased(e.RunId, e.RunCode, e.Total, e.Currency,
-            e.Remittances.Select(r => new Contracts.RemittanceReleased(r.RemittanceId, r.ProviderId, r.ProviderPartyId, r.BankAccountId, r.Amount)).ToList(), e.ReleasedOn),
+            e.Remittances.Select(r => new Contracts.RemittanceReleased(r.RemittanceId, r.ProviderId, r.ProviderPartyId, r.BankAccountId, r.Amount)).ToList(), e.ReleasedOn,
+            e.RemittanceTemplate),
         _ => null,
     };
 }

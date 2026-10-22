@@ -15,6 +15,11 @@ internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
         db.Parties.Include(p => p.Individual).Include(p => p.Organisation).Include(p => p.Addresses).Include(p => p.ContactPoints).Include(p => p.Identifiers).Include(p => p.BankAccounts)
             .Include(p => p.Relationships).Include(p => p.Roles).AsSplitQuery().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
+    public async Task<Domain.Parties.Party?> WithBankAccount(Guid bankAccountId, CancellationToken cancellationToken) =>
+        await db.Parties.AsNoTracking().Where(p => p.BankAccounts.Any(a => a.Id == bankAccountId)).Select(p => (Guid?)p.Id).FirstOrDefaultAsync(cancellationToken) is { } id
+            ? await Get(id, cancellationToken)
+            : null;
+
     public Task<bool> IdentifierExists(string docType, string country, string hash, CancellationToken cancellationToken) =>
         db.Set<PartyIdentifier>().AnyAsync(i => i.DocType == docType && i.Country == country && i.NumberHash == hash, cancellationToken);
 
@@ -63,6 +68,11 @@ internal sealed class PartyEventMapper : IDomainEventMapper
         ConsentGranted e => new Contracts.ConsentGranted(e.PartyId, e.PurposeCode),
         ConsentWithdrawn e => new Contracts.ConsentWithdrawn(e.PartyId, e.PurposeCode),
         PartyBankAccountChanged e => new Contracts.PartyBankAccountChanged(e.PartyId, e.BankAccountId, e.SupersededId, e.Status),
+        BankAccountVerificationRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.PartyApprovals.BankAccountBusinessRefType, e.BankAccountId,
+            Contracts.PartyApprovals.BankAccountVerificationType, e.RequestedBy, null, null, $"Verify bank account ending {e.Last4}", e.SubjectHash,
+            Contracts.PartyPermissions.BankAccountVerify),
+        BankAccountVerificationWithdrawn e => new BuildingBlocks.Contracts.Approvals.ApprovalWithdrawn(Contracts.PartyApprovals.BankAccountBusinessRefType, e.BankAccountId,
+            "The account was changed before it was verified."),
         _ => null,
     };
 }

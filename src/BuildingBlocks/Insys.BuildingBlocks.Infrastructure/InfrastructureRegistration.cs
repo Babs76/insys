@@ -57,6 +57,7 @@ public static class InfrastructureRegistration
         services.AddScoped<AuditTrail>();
         services.AddScoped<IAuditTrail>(sp => sp.GetRequiredService<AuditTrail>());
         services.AddScoped<AfterCommitActions>();
+        services.AddOptions<ConflictRetryOptions>().BindConfiguration("Commands:ConflictRetry");
         services.AddScoped<IAfterCommit>(sp => sp.GetRequiredService<AfterCommitActions>());
 
         services.AddOptions<IdempotencyOptions>().Bind(configuration.GetSection("Idempotency"));

@@ -52,7 +52,7 @@ internal sealed class SellableProducts([FromKeyedServices(ProductFactoryDbContex
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT p.version, p.domain, coalesce(p.class_code, p.family_code, p.domain), p.coverages, p.cover_starts_on
+            SELECT p.version, p.domain, coalesce(p.class_code, p.family_code, p.domain), p.coverages, p.cover_starts_on, p.eligibility_ruleset_code, p.reinstatement_arrears
             FROM product.cfg_product_definitions_and_versions p
             WHERE p.tenant_id = @t AND p.code = @c AND p.record_status = ANY(@statuses) AND (@version::int IS NULL OR p.version = @version)
               AND (NOT @sold OR (p.effective_from <= @day AND (p.effective_to IS NULL OR p.effective_to > @day)))
@@ -72,12 +72,13 @@ internal sealed class SellableProducts([FromKeyedServices(ProductFactoryDbContex
         command.Parameters.Add(new NpgsqlParameter<int?>("version", NpgsqlTypes.NpgsqlDbType.Integer) { TypedValue = version });
         command.Parameters.AddWithValue("sold", checkSaleWindow);
         command.Parameters.AddWithValue("day", day);
-        (int Version, string Domain, string Line, string[] Coverages, string CoverStartsOn)? product = null;
+        (int Version, string Domain, string Line, string[] Coverages, string CoverStartsOn, string? Ruleset, string ReinstatementArrears)? product = null;
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
             if (await reader.ReadAsync(cancellationToken))
             {
-                product = (reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<string[]>(3), reader.GetString(4));
+                product = (reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<string[]>(3), reader.GetString(4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5), reader.GetString(6));
             }
         }
 
@@ -108,6 +109,6 @@ internal sealed class SellableProducts([FromKeyedServices(ProductFactoryDbContex
         }
 
         await transaction.CommitAsync(cancellationToken);
-        return new SellableProduct(productCode, found.Version, found.Domain, found.Line, found.Coverages, limits, found.CoverStartsOn);
+        return new SellableProduct(productCode, found.Version, found.Domain, found.Line, found.Coverages, limits, found.CoverStartsOn, found.Ruleset, found.ReinstatementArrears);
     }
 }

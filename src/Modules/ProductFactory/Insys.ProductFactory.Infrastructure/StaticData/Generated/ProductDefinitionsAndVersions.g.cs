@@ -27,6 +27,10 @@ public sealed class ProductDefinitionsAndVersions : StaticRecord<ProductDefiniti
 
     public string CoverStartsOn { get; set; } = "";
 
+    public string? EligibilityRulesetCode { get; set; }
+
+    public string ReinstatementArrears { get; set; } = "";
+
     public override void ApplyFields(ProductDefinitionsAndVersionsInput input, IFieldProtector protector)
     {
         ProductCode = input.ProductCode!;
@@ -36,6 +40,8 @@ public sealed class ProductDefinitionsAndVersions : StaticRecord<ProductDefiniti
         FamilyCode = input.FamilyCode;
         ClassCode = input.ClassCode;
         CoverStartsOn = input.CoverStartsOn!;
+        EligibilityRulesetCode = input.EligibilityRulesetCode;
+        ReinstatementArrears = input.ReinstatementArrears!;
     }
 }
 
@@ -56,6 +62,10 @@ public sealed record ProductDefinitionsAndVersionsInput : StaticRecordInput
 
     public string? CoverStartsOn { get; init; }
 
+    public string? EligibilityRulesetCode { get; init; }
+
+    public string? ReinstatementArrears { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("productCode", ProductCode);
@@ -71,5 +81,9 @@ public sealed record ProductDefinitionsAndVersionsInput : StaticRecordInput
         errors.Required("coverStartsOn", CoverStartsOn);
         errors.MaxLength("coverStartsOn", CoverStartsOn, 15);
         errors.OneOf("coverStartsOn", CoverStartsOn, ["ISSUE", "FIRST_PAYMENT"]);
+        errors.MaxLength("eligibilityRulesetCode", EligibilityRulesetCode, 30);
+        errors.Required("reinstatementArrears", ReinstatementArrears);
+        errors.MaxLength("reinstatementArrears", ReinstatementArrears, 15);
+        errors.OneOf("reinstatementArrears", ReinstatementArrears, ["NONE", "REQUIRED"]);
     }
 }

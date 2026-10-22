@@ -5,14 +5,20 @@ using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Application.Security;
+using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
+using Insys.Party.Contracts;
 using Insys.Party.Domain.Parties;
+using Microsoft.Extensions.Logging;
 
 namespace Insys.Party.Application;
 
 public interface IPartyRepository
 {
     Task<Domain.Parties.Party?> Get(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>The party that holds the bank account.</summary>
+    Task<Domain.Parties.Party?> WithBankAccount(Guid bankAccountId, CancellationToken cancellationToken);
 
     Task<bool> IdentifierExists(string docType, string country, string hash, CancellationToken cancellationToken);
 
@@ -85,9 +91,6 @@ public sealed record AddIdentifier(Guid PartyId, string DocType, string Country,
 public sealed record AddBankAccount(Guid PartyId, string AccountNumber, string BankCode, string? BranchCode, string AccountHolderName, string AccountType, string Currency)
     : ICommand<BankAccountView>;
 
-/// <summary>Command VerifyBankAccount: the account becomes payable.</summary>
-public sealed record VerifyBankAccount(Guid PartyId, Guid BankAccountId, string VerificationRef) : ICommand<BankAccountView>;
-
 public sealed record ListBankAccounts(Guid PartyId) : IQuery<IReadOnlyList<BankAccountView>>;
 
 /// <summary>A bank account without its number: the last four digits only.</summary>
@@ -101,6 +104,7 @@ public sealed record BankAccountView(Guid Id, Guid PartyId, string Last4, string
     {
         BankAccountStatus.PendingVerification => "PENDING_VERIFICATION",
         BankAccountStatus.Active => "ACTIVE",
+        BankAccountStatus.Rejected => "REJECTED",
         _ => "SUPERSEDED",
     };
 }
@@ -119,34 +123,10 @@ public sealed class AddBankAccountValidator : AbstractValidator<AddBankAccount>
     }
 }
 
-internal sealed class AddBankAccountHandler(IPartyRepository parties, IFieldProtector protector, IClock clock, IAuditTrail audit) : ICommandHandler<AddBankAccount, BankAccountView>
+internal sealed class AddBankAccountHandler(IPartyRepository parties, IFieldProtector protector, IExecutionContext execution, IClock clock, IAuditTrail audit)
+    : ICommandHandler<AddBankAccount, BankAccountView>
 {
     public async Task<Result<BankAccountView>> Handle(AddBankAccount command, CancellationToken cancellationToken)
-    {
-        if (await parties.Get(command.PartyId, cancellationToken) is not { } party)
-        {
-            return Error.NotFound(ErrorCodes.NotFound, "The party was not found.");
-        }
-
-        var number = new string(command.AccountNumber.Where(char.IsAsciiLetterOrDigit).ToArray()).ToUpperInvariant();
-        var protectedValue = protector.Protect(number);
-        var added = party.AddBankAccount(new BankAccountData(protectedValue.Encrypted, protectedValue.Hash, protectedValue.Last4, command.BankCode.Trim(),
-            command.BranchCode?.Trim(), command.AccountHolderName.Trim(), command.AccountType, command.Currency), clock.UtcNow);
-        if (added.IsFailure)
-        {
-            return added.Error;
-        }
-
-        audit.Record(new AuditEntry("PARTY", "AddBankAccount", nameof(BankAccount), added.Value.ToString(),
-            new Dictionary<string, string?> { ["party"] = party.Id.ToString(), ["last4"] = protectedValue.Last4 }));
-        return BankAccountView.From(party.BankAccounts.Single(a => a.Id == added.Value));
-    }
-}
-
-internal sealed class VerifyBankAccountHandler(IPartyRepository parties, IExecutionContext execution, IClock clock, IAuditTrail audit)
-    : ICommandHandler<VerifyBankAccount, BankAccountView>
-{
-    public async Task<Result<BankAccountView>> Handle(VerifyBankAccount command, CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(execution.ActorId, out var user) || execution.ActorType != ActorType.User)
         {
@@ -158,14 +138,53 @@ internal sealed class VerifyBankAccountHandler(IPartyRepository parties, IExecut
             return Error.NotFound(ErrorCodes.NotFound, "The party was not found.");
         }
 
-        var verified = party.VerifyBankAccount(command.BankAccountId, command.VerificationRef, user, clock.UtcNow);
-        if (verified.IsFailure)
+        var number = new string(command.AccountNumber.Where(char.IsAsciiLetterOrDigit).ToArray()).ToUpperInvariant();
+        var protectedValue = protector.Protect(number);
+        var added = party.AddBankAccount(new BankAccountData(protectedValue.Encrypted, protectedValue.Hash, protectedValue.Last4, command.BankCode.Trim(),
+            command.BranchCode?.Trim(), command.AccountHolderName.Trim(), command.AccountType, command.Currency), user, clock.UtcNow);
+        if (added.IsFailure)
         {
-            return verified.Error;
+            return added.Error;
         }
 
-        audit.Record(new AuditEntry("PARTY", "VerifyBankAccount", nameof(BankAccount), command.BankAccountId.ToString()));
-        return BankAccountView.From(party.BankAccounts.Single(a => a.Id == command.BankAccountId));
+        audit.Record(new AuditEntry("PARTY", "AddBankAccount", nameof(BankAccount), added.Value.ToString(),
+            new Dictionary<string, string?> { ["party"] = party.Id.ToString(), ["last4"] = protectedValue.Last4 }));
+        return BankAccountView.From(party.BankAccounts.Single(a => a.Id == added.Value));
+    }
+}
+
+/// <summary>
+/// Workflow's decision on a bank account's verification (BANK_ACCOUNT_VERIFICATION): approved, the account becomes
+/// active; rejected, it is never activated (ADR-013). Workflow has checked maker ≠ checker, authority and the
+/// bank_account.verify permission; the subject hash binds the decision to the account as it was.
+/// </summary>
+public sealed class BankAccountVerificationPolicy(IPartyRepository parties, IClock clock, IAuditTrail audit, ILogger<BankAccountVerificationPolicy> logger) :
+    IIntegrationEventHandler<Workflow.Contracts.ApprovalGranted>,
+    IIntegrationEventHandler<Workflow.Contracts.ApprovalRejected>
+{
+    public Task Handle(Workflow.Contracts.ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Decide(granted.BusinessRefType, granted.BusinessRefId, true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash, cancellationToken);
+
+    public Task Handle(Workflow.Contracts.ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Decide(rejected.BusinessRefType, rejected.BusinessRefId, false, rejected.ApprovalId, rejected.CheckerId, rejected.SubjectHash, cancellationToken);
+
+    private async Task Decide(string businessRefType, Guid accountId, bool approved, Guid approvalId, Guid checkerId, string? subjectHash,
+        CancellationToken cancellationToken)
+    {
+        if (businessRefType != PartyApprovals.BankAccountBusinessRefType || await parties.WithBankAccount(accountId, cancellationToken) is not { } party)
+        {
+            return;
+        }
+
+        var decided = party.DecideBankAccountVerification(accountId, approved, approvalId, checkerId, subjectHash, clock.UtcNow);
+        if (decided.IsFailure)
+        {
+            logger.LogWarning("Approval {ApprovalId} not applied to bank account {AccountId}: {Code}", approvalId, accountId, decided.Error.Code);
+            return;
+        }
+
+        audit.Record(new AuditEntry("PARTY", approved ? "VerifyBankAccount" : "RejectBankAccount", nameof(BankAccount), accountId.ToString(),
+            new Dictionary<string, string?> { ["approval"] = approvalId.ToString() }));
     }
 }
 

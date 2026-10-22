@@ -170,6 +170,27 @@ public sealed class LifeTests
     }
 
     [Fact]
+    public void OneUnderwriter_DecidesAlone_OnlyWhenTheDecisionMatchesTheRuleOutcome()
+    {
+        var proposal = Quoted();
+        proposal.SubmitProposal(Now);
+        var underwriting = LifeUnderwritingCase.OpenCase(Guid.CreateVersion7(), proposal, Now).Value;
+        underwriting.StartAssessment();
+
+        underwriting.DecideCase(UnderwritingOutcome.Accept, "STD", "STANDARD", [], new HashSet<string>(), Maker, "UW_SENIOR", Now).Error!.Code
+            .ShouldBe(LifeErrorCodes.DecisionPending);
+        underwriting.RecordRuleOutcome(Guid.CreateVersion7(), "REFER").IsSuccess.ShouldBeTrue();
+        underwriting.MatchesRuleOutcome(UnderwritingOutcome.Accept).ShouldBeFalse();
+        underwriting.RecordRuleOutcome(Guid.CreateVersion7(), "ACCEPT").IsSuccess.ShouldBeTrue();
+        underwriting.DecideCase(UnderwritingOutcome.Decline, "DECL", "MEDICAL", [], new HashSet<string>(), Maker, "UW_SENIOR", Now).IsFailure.ShouldBeTrue();
+        underwriting.DecideCase(UnderwritingOutcome.Accept, "STD", "STANDARD", [], new HashSet<string>(), Maker, "UW_SENIOR", Now).IsSuccess.ShouldBeTrue();
+
+        (underwriting.Status, underwriting.DecidedBy, underwriting.AuthorityRole).ShouldBe((CaseStatus.Decided, (Guid?)Maker, "UW_SENIOR"));
+        underwriting.DomainEvents.OfType<UnderwritingDecisionRequested>().ShouldBeEmpty();
+        underwriting.DomainEvents.OfType<Domain.Underwriting.LifeUnderwritingDecided>().ShouldHaveSingleItem();
+    }
+
+    [Fact]
     public void IssuePolicy_ReferencesTheProductAndRatingVersions_CarriesExclusions_AndBeneficiaries_LIF003()
     {
         var (proposal, underwriting) = Decided(items: [new DecisionItemRequest("DEATH", "EXCL", null, null, "EXC-AVIATION", null)]);
@@ -254,10 +275,13 @@ public sealed class LifeTests
         policy.LapsePolicy(Lapse, Today, Now);
         var lapsedOn = policy.LapsedOn!.Value;
 
-        policy.ReinstatePolicy(Lapse, Today, null, Maker, Now).Error!.Code.ShouldBe(LifeErrorCodes.ReinstatementNotPermitted);
-        policy.ReinstatePolicy(Lapse, lapsedOn.AddMonths(7), Guid.CreateVersion7(), Maker, Now).Error!.Code.ShouldBe(LifeErrorCodes.ReinstatementNotPermitted);
+        policy.ReinstatePolicy(Lapse, Today, null, 0, Maker, Now).Error!.Code.ShouldBe(LifeErrorCodes.ReinstatementNotPermitted);
+        policy.ReinstatePolicy(Lapse, lapsedOn.AddMonths(7), Guid.CreateVersion7(), 0, Maker, Now).Error!.Code.ShouldBe(LifeErrorCodes.ReinstatementNotPermitted);
         policy.TerminateLapsed(Lapse, Today, Now).IsFailure.ShouldBeTrue();
-        policy.ReinstatePolicy(Lapse, Today, Guid.CreateVersion7(), Maker, Now).IsSuccess.ShouldBeTrue();
+
+        // Where the product requires arrears to be paid first, overdue instalments refuse it.
+        policy.ReinstatePolicy(Lapse, Today, Guid.CreateVersion7(), 2, Maker, Now).Error!.Code.ShouldBe(LifeErrorCodes.ReinstatementNotPermitted);
+        policy.ReinstatePolicy(Lapse, Today, Guid.CreateVersion7(), 0, Maker, Now).IsSuccess.ShouldBeTrue();
         (policy.Status, policy.Schedule.MissedCount).ShouldBe((LifePolicyStatus.InForce, 0));
 
         var other = Policy(Today.AddMonths(-3));

@@ -1532,7 +1532,8 @@
       "ApproveWithConditions",
       "RejectAuthorisation",
       "ModifyAuthorisation",
-      "CancelAuthorisation"
+      "CancelAuthorisation",
+      "ConfirmConditionsMet"
      ],
      "events": [
       {
@@ -1581,6 +1582,26 @@
       },
       {
        "from": "Approved",
+       "to": "Cancelled",
+       "trigger": "CancelAuthorisation"
+      },
+      {
+       "from": "Conditionally approved",
+       "to": "Approved",
+       "trigger": "Conditions met"
+      },
+      {
+       "from": "Conditionally approved",
+       "to": "Utilised",
+       "trigger": "Matched to a claim"
+      },
+      {
+       "from": "Conditionally approved",
+       "to": "Expired",
+       "trigger": "Validity ends"
+      },
+      {
+       "from": "Conditionally approved",
        "to": "Cancelled",
        "trigger": "CancelAuthorisation"
       }
@@ -2675,6 +2696,11 @@
        "from": "Requested",
        "to": "Expired",
        "trigger": "Time limit reached"
+      },
+      {
+       "from": "Requested",
+       "to": "Withdrawn",
+       "trigger": "Withdrawn by requester"
       }
      ],
      "tables": [

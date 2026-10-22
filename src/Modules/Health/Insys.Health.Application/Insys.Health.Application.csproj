@@ -7,5 +7,6 @@
     <ProjectReference Include="..\..\Payments\Insys.Payments.Contracts\Insys.Payments.Contracts.csproj" />
     <ProjectReference Include="..\..\ProductFactory\Insys.ProductFactory.Contracts\Insys.ProductFactory.Contracts.csproj" />
     <ProjectReference Include="..\..\Workflow\Insys.Workflow.Contracts\Insys.Workflow.Contracts.csproj" />
+    <ProjectReference Include="..\..\Documents\Insys.Documents.Contracts\Insys.Documents.Contracts.csproj" />
   </ItemGroup>
 </Project>

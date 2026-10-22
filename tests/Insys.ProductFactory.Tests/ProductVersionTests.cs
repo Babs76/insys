@@ -45,6 +45,24 @@ public sealed class ProductVersionTests
     }
 
     [Fact]
+    public void EligibilityRuleSetAndReinstatementArrears_AreEditedInDraft_AndCarriedToTheNextVersion()
+    {
+        var draft = Draft();
+        draft.ReinstatementArrears.ShouldBe(ReinstatementArrears.None);
+        draft.EditConfiguration(draft.Name, draft.Coverages, draft.EffectiveFrom, eligibilityRulesetCode: "LTERM-ELIG",
+            reinstatementArrears: ReinstatementArrears.Required).IsSuccess.ShouldBeTrue();
+        draft.ValidateVersion(Library, Now).IsSuccess.ShouldBeTrue();
+        draft.SubmitForApproval(Guid.CreateVersion7(), simulationPassed: true, "Launch", Now).IsSuccess.ShouldBeTrue();
+        draft.ApproveVersion(Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        draft.PublishVersion(Now).IsSuccess.ShouldBeTrue();
+
+        var next = ProductVersion.CreateDraftVersion(Guid.CreateVersion7(), draft, Today.AddDays(60));
+        (next.EligibilityRulesetCode, next.ReinstatementArrears).ShouldBe(("LTERM-ELIG", ReinstatementArrears.Required));
+        next.EditConfiguration(next.Name, next.Coverages, next.EffectiveFrom, eligibilityRulesetCode: "").IsSuccess.ShouldBeTrue();
+        next.EligibilityRulesetCode.ShouldBeNull();
+    }
+
+    [Fact]
     public void Validation_RefusesUnknownWrongDomainAndIncompatibleBenefits_PRD004_PRD009()
     {
         var unknown = Draft("OWN_DAMAGE", "GLASS").ValidateVersion(Library, Now);

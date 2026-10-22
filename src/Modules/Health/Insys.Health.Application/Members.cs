@@ -128,7 +128,7 @@ internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealth
             return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.PlanCode}/{command.OptionCode} is not a plan option in force.");
         }
 
-        decimal? perMember = null;
+        ContributionRate? rate = null;
         if (command.SchemeId is { } schemeId)
         {
             if (await health.Scheme(schemeId, cancellationToken) is not { Status: not SchemeStatus.Terminated } scheme)
@@ -148,7 +148,13 @@ internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealth
                 return eligible.Error;
             }
 
-            perMember = await codes.ContributionPerMember(scheme.SchemeNumber, category.CategoryCode, day, cancellationToken);
+            var contribution = await Contributions.Rate(codes, scheme, category.CategoryCode, day, cancellationToken);
+            if (contribution.IsFailure)
+            {
+                return contribution.Error;
+            }
+
+            rate = contribution.Value;
         }
 
         // Waiting periods in force now are fixed for the membership (domain-model.json invariant).
@@ -169,7 +175,7 @@ internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealth
         var id = Guid.CreateVersion7();
         var membership = HealthMembership.EnrolMember(id, Numbers.Of(prefix, id, 12), command.PrincipalPartyId, command.SchemeId, command.MemberCategory,
             new PlanOption(plan.Terms.PlanCode, plan.Terms.OptionCode, plan.Version), command.StartDate, waiting,
-            new ContributionBilling(command.PayerPartyId ?? command.PrincipalPartyId, command.BillingAccountId ?? Guid.CreateVersion7(), command.CollectionMethod, perMember), command.Currency, day,
+            new ContributionBilling(command.PayerPartyId ?? command.PrincipalPartyId, command.BillingAccountId ?? Guid.CreateVersion7(), command.CollectionMethod, rate), command.Currency, day,
             clock.UtcNow);
         if (membership.IsFailure)
         {
@@ -236,19 +242,40 @@ internal sealed class AddHealthDependantHandler(IHealthRepository health, IHealt
             return Error.Validation(ErrorCodes.ValidationFailed, "The dependant is not a person with a date of birth.");
         }
 
+        var rate = await Contributions.Rate(health, codes, membership, clock.UtcToday, cancellationToken);
+        if (rate.IsFailure)
+        {
+            return rate.Error;
+        }
+
         audit.Record(new AuditEntry("HEALTH", "AddDependant", nameof(HealthMembership), membership.Id.ToString()));
-        var result = membership.AddDependant(command.PartyId, rule, birthDate, command.Student, command.StartDate,
-            await Contributions.PerMember(health, codes, membership, clock.UtcToday, cancellationToken), clock.UtcNow);
+        var result = membership.AddDependant(command.PartyId, rule, birthDate, command.Student, command.StartDate, rate.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : MembershipView.From(membership);
     }
 }
 
 internal static class Contributions
 {
-    public static async Task<decimal?> PerMember(IHealthRepository health, IHealthCodes codes, HealthMembership membership, DateOnly day, CancellationToken cancellationToken) =>
+    /// <summary>A scheme member's contribution rate; none for other members, or when the category has no contribution rule.</summary>
+    public static async Task<Result<ContributionRate?>> Rate(IHealthRepository health, IHealthCodes codes, HealthMembership membership, DateOnly day,
+        CancellationToken cancellationToken) =>
         membership.SchemeId is { } schemeId && membership.MemberCategory is { } category && await health.Scheme(schemeId, cancellationToken) is { } scheme
-            ? await codes.ContributionPerMember(scheme.SchemeNumber, category, day, cancellationToken)
-            : null;
+            ? await Rate(codes, scheme, category, day, cancellationToken)
+            : Result.Success<ContributionRate?>(null);
+
+    /// <summary>The employer's share is billed to the scheme's sponsor, so a share needs the sponsor's party.</summary>
+    public static async Task<Result<ContributionRate?>> Rate(IHealthCodes codes, HealthScheme scheme, string category, DateOnly day, CancellationToken cancellationToken)
+    {
+        if (await codes.Contribution(scheme.SchemeNumber, category, day, cancellationToken) is not { } rule)
+        {
+            return Result.Success<ContributionRate?>(null);
+        }
+
+        var sponsor = rule.EmployerSharePct > 0 ? await codes.SponsorParty(scheme.SponsorCode, day, cancellationToken) : null;
+        return rule.EmployerSharePct > 0 && sponsor is null
+            ? Error.Validation(HealthErrorCodes.CodeNotInForce, $"Sponsor {scheme.SponsorCode} has no party to bill the employer's share to.")
+            : new ContributionRate(rule.Rate, rule.EmployerSharePct, sponsor);
+    }
 }
 
 internal sealed class RemoveHealthDependantHandler(IHealthRepository health, IHealthCodes codes, IClock clock) : ICommandHandler<RemoveHealthDependant, MembershipView>
@@ -260,8 +287,13 @@ internal sealed class RemoveHealthDependantHandler(IHealthRepository health, IHe
             return Error.NotFound(ErrorCodes.NotFound, "The membership was not found.");
         }
 
-        var result = membership.RemoveDependant(command.DependantId, command.LastDay, await Contributions.PerMember(health, codes, membership, clock.UtcToday, cancellationToken),
-            clock.UtcNow);
+        var rate = await Contributions.Rate(health, codes, membership, clock.UtcToday, cancellationToken);
+        if (rate.IsFailure)
+        {
+            return rate.Error;
+        }
+
+        var result = membership.RemoveDependant(command.DependantId, command.LastDay, rate.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : MembershipView.From(membership);
     }
 }
@@ -321,23 +353,31 @@ internal sealed class GetAccumulatorsHandler(IHealthRepository health) : IQueryH
 }
 
 /// <summary>
-/// Command CheckEligibility (HLT-003): ELIGIBLE when the membership covers the person on the day, NOT_ELIGIBLE when it
-/// does not, NOT_FOUND when there is no such member. TODO(spec): mapping outcomes to the tenant's response codes
-/// (health.ref_eligibility_response_codes) is not specified; the outcomes are recorded as the codes (OQ-061).
+/// Command CheckEligibility (HLT-003): the outcome is ELIGIBLE when the membership covers the person on the day,
+/// WAITING_PERIOD when it does but a general waiting period has not ended, NOT_ELIGIBLE when it does not cover them,
+/// and NOT_FOUND when there is no such member. The answer is the tenant's response code configured for that outcome
+/// (health.ref_eligibility_response_codes.outcome); an outcome without one is refused (Phase 5 review, item 5).
 /// </summary>
-internal sealed class CheckEligibilityHandler(IHealthRepository health, IClock clock, IAuditTrail audit) : ICommandHandler<CheckEligibility, EligibilityView>
+internal sealed class CheckEligibilityHandler(IHealthRepository health, IHealthCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<CheckEligibility, EligibilityView>
 {
     public async Task<Result<EligibilityView>> Handle(CheckEligibility command, CancellationToken cancellationToken)
     {
         var day = command.ServiceDate ?? clock.UtcToday;
         var membership = await health.MembershipByNumber(command.MemberNumber, cancellationToken);
-        var code = membership is null || membership.PartyFor(command.DependantSuffix) is not { } party ? "NOT_FOUND"
-            : membership.Covers(party, day) ? "ELIGIBLE" : "NOT_ELIGIBLE";
+        var outcome = membership is null || membership.PartyFor(command.DependantSuffix) is not { } party ? "NOT_FOUND"
+            : !membership.Covers(party, day) ? "NOT_ELIGIBLE"
+            : membership.WaitingPeriods.Any(w => w.Type == "GENERAL" && w.EndsOn > day) ? "WAITING_PERIOD"
+            : "ELIGIBLE";
+        if (await codes.EligibilityResponseCode(outcome, clock.UtcToday, cancellationToken) is not { } code)
+        {
+            return Error.Validation(HealthErrorCodes.CodeNotInForce, $"No eligibility response code is configured for the outcome {outcome}.");
+        }
+
         var decision = EligibilityDecision.Record(Guid.CreateVersion7(), command.MemberNumber, command.DependantSuffix, command.ProviderId, command.ServiceType, code,
             clock.UtcNow);
         health.Add(decision);
         audit.Record(new AuditEntry("HEALTH", "CheckEligibility", nameof(EligibilityDecision), decision.Id.ToString()));
-        return new EligibilityView(decision.Id, decision.MemberNumber, decision.DependantSuffix, decision.ProviderId, decision.ServiceType, decision.ResponseCode,
+        return new EligibilityView(decision.Id, decision.MemberNumber, decision.DependantSuffix, decision.ProviderId, decision.ServiceType, decision.ResponseCode, outcome,
             decision.DecidedAt);
     }
 }

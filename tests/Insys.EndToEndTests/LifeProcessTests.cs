@@ -45,18 +45,30 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
     private InsysApiFactory _factory = null!;
     private HttpClient _maker = null!;
     private HttpClient _checker = null!;
+    private string _approverRole = "";
 
     public async ValueTask InitializeAsync()
     {
         _db = await server.CreateMigratedDatabase();
         await _db.SeedTenant(Tenant, "TENA");
-        await _db.UserWithPermissions(Tenant, "life-underwriter", Permissions);
+        var underwriter = await _db.UserWithPermissions(Tenant, "life-underwriter", Permissions);
         var checker = await _db.UserWithPermissions(Tenant, "senior-life-underwriter", Permissions);
-        var approverRole = await _db.RoleWithPermissions(Tenant);
+        var approverRole = _approverRole = await _db.RoleWithPermissions(Tenant);
         await _db.AssignRole(Tenant, checker, approverRole);
+
+        // The underwriter may decide standard terms alone up to 2 000 000 sum assured, when the rules agree (rules.cfg_authority_matrices).
+        var underwritingRole = await _db.RoleWithPermissions(Tenant);
+        await _db.AssignRole(Tenant, underwriter, underwritingRole);
+        await Seed("rules.cfg_authority_matrices", "EFFECTIVE", "AM-UW", ("role_code", underwritingRole), ("product_code", Product), ("max_sum_assured", 2_000_000m),
+            ("decision_types", new[] { "STD" }));
+        await Seed("rules.cfg_acceptance_and_referral_rules", "EFFECTIVE", "UW-SA-LIMIT", ("rule_code", "UW-SA-LIMIT"), ("condition", "sum_assured > threshold"),
+            ("threshold", 5_000_000m), ("outcome", "REFER"));
+        await _db.AllowBankAccountVerification(Tenant, approverRole, Today.AddYears(-1));
         var from = Today.AddYears(-1);
 
-        foreach (var type in new[] { LifeApprovals.UnderwritingApprovalType, LifeApprovals.ClaimApprovalType, PaymentApprovals.PayoutApprovalType, ClaimsApprovals.InstructionApprovalType })
+        // Life claims are approved within the claims authority limits by claim type (life.cfg_claims_authority_limits), not the delegation table.
+        await Seed("life.cfg_claims_authority_limits", "EFFECTIVE", "CAL-DEATH", ("role", approverRole), ("claim_type", "DEATH"), ("limit_value", 500_000m));
+        foreach (var type in new[] { LifeApprovals.UnderwritingApprovalType, PaymentApprovals.PayoutApprovalType, ClaimsApprovals.InstructionApprovalType })
         {
             await Seed("workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", ("role_code", approverRole), ("transaction_type", type),
                 ("limit_value", 5_000_000m), ("delegation_allowed", false));
@@ -65,8 +77,9 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         // A published Life term product with death and disability benefits, and its policy schedule template.
         await _db.ExecuteAsOwner("""
             INSERT INTO product.cfg_product_definitions_and_versions (tenant_id, id, code, version, effective_from, record_status, created_by, change_reason,
-                                                                     product_code, domain, name, coverages, family_code, class_code, cover_starts_on)
-            VALUES (@t, gen_random_uuid(), @p, 1, @from, 'PUBLISHED', 'seed', 'published', @p, 'LIFE', 'Term life', @coverages, 'LIFE-RISK', 'TERM', 'ISSUE')
+                                                                     product_code, domain, name, coverages, family_code, class_code, cover_starts_on,
+                                                                     eligibility_ruleset_code)
+            VALUES (@t, gen_random_uuid(), @p, 1, @from, 'PUBLISHED', 'seed', 'published', @p, 'LIFE', 'Term life', @coverages, 'LIFE-RISK', 'TERM', 'ISSUE', 'LTERM-ELIG')
             """, ("t", Tenant), ("p", Product), ("from", from), ("coverages", new[] { "DEATH", "DISABILITY" }));
         await Seed("document.ref_document_categories", "ACTIVE", "POLICY_SCHEDULE", ("category_code", "POLICY_SCHEDULE"), ("label", "Policy schedule"),
             ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
@@ -88,6 +101,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         // Rules: eligible from 18 to 65 next birthday (when no rule fires, the outcome is INELIGIBLE: OQ-051's proposal).
         await Seed("rules.cfg_eligibility_rule_sets", "EFFECTIVE", "LTERM-ADULT", ("ruleset_code", "LTERM-ELIG"), ("conditions", "age_next >= 18 AND age_next <= 65"),
             ("outcome", "ELIGIBLE"));
+        await Seed("rules.cfg_eligibility_rule_sets", "EFFECTIVE", "ANY-ADULT", ("ruleset_code", "ANY-ELIG"), ("conditions", "age_next >= 18"), ("outcome", "ELIGIBLE"));
 
         // Life: numbering, nominations, grace, lapse and reinstatement, decision codes, claim types and causes.
         await Seed("life.cfg_policy_numbering_schemes", "EFFECTIVE", "LIFE", ("product_line", "LIFE"), ("prefix", "LP"), ("sequence_length", 9));
@@ -104,6 +118,9 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         await Seed("life.ref_underwriting_decision_codes", "ACTIVE", "STD", ("label", "Standard terms"), ("requires_terms", false));
         await Seed("life.ref_underwriting_decision_codes", "ACTIVE", "EXCL", ("label", "Accepted with an exclusion"), ("requires_terms", true));
         await Seed("life.ref_underwriting_decision_codes", "ACTIVE", "DECL", ("label", "Declined"), ("requires_terms", false));
+        // A change of servicing intermediary is applied by a holder of the approver's role (life.cfg_alteration_types.authority_role).
+        await Seed("life.cfg_alteration_types", "EFFECTIVE", "ALT-INT", ("alteration_code", "INTERMEDIARY"), ("allowed_states", new[] { "IN_FORCE" }),
+            ("re_underwriting", false), ("authority_role", approverRole), ("document_type", "ENDORSEMENT"));
         await Seed("life.ref_life_claim_types", "ACTIVE", "DEATH", ("label", "Death"), ("benefit_type", "DEATH"));
         await _db.SeedGlobalStatic("life.ref_cause_of_event_codes", "ACTIVE", "I21", Today.AddYears(-1), ("code_system", "ICD-10"), ("accidental", false));
 
@@ -169,6 +186,9 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         await Rate(proposal, 1_500_000m);
         var quoted = await Get($"/api/v1/life/proposals/{proposal}");
         (quoted.GetProperty("status").GetString(), quoted.GetProperty("quotedPremium").GetDecimal()).ShouldBe(("Quoted", 675m));
+        // Only the product version's eligibility rule set (eligibility_ruleset_code) counts; another rule set's result is not attached.
+        await Eligibility(proposal, Ages(Today), "ANY-ELIG");
+        (await Get($"/api/v1/life/proposals/{proposal}")).GetProperty("eligibilityOutcome").ValueKind.ShouldBe(JsonValueKind.Null);
         await Eligibility(proposal, Ages(Today));
         (await _maker.PostAsync($"/api/v1/life/proposals/{proposal}/submit", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
@@ -291,6 +311,12 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         var applicant = await _maker.RegisterPerson("Insured");
         var spouse = await _maker.RegisterPerson("Widow");
         var policy = await IssuedPolicy(applicant, spouse, Today.AddMonths(-1));
+
+        // Only a user holding the alteration type's authority role applies it.
+        var alteration = new { alterationCode = "INTERMEDIARY", effectiveDate = Today, intermediaryCode = "BRK-2" };
+        (await (await _maker.PostAsJsonAsync($"/api/v1/life/policies/{policy}/alterations", alteration)).Code()).ShouldBe("LIFE_AUTHORITY_MISSING");
+        var altered = await _checker.PostAsJsonAsync($"/api/v1/life/policies/{policy}/alterations", alteration);
+        altered.StatusCode.ShouldBe(HttpStatusCode.OK, await altered.Content.ReadAsStringAsync());
         var view = await Get($"/api/v1/life/policies/{policy}");
         var life = view.GetProperty("lives")[0].GetProperty("id").GetGuid();
 
@@ -309,13 +335,18 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsJsonAsync($"/api/v1/life/claims/{claim}/assessment",
             new { lines = new[] { new { policyBenefitId = death.GetProperty("id").GetGuid(), amount = 1_000_000m } } })).StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        var account = await _maker.AddVerifiedBankAccount(spouse, "4400112233");
+        var account = await _maker.AddVerifiedBankAccount(_checker, _factory, spouse, "4400112233");
         (await _maker.PostAsJsonAsync($"/api/v1/life/claims/{claim}/approval", new
         {
             payees = new[] { new { partyId = spouse, bankAccountId = account, sharePct = 100m } }, reserveType = "INDEMNITY", decisionReason = "DEATH_PROVEN",
             rationale = "Death certificate verified; cause not excluded.",
         })).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
+        // The checker's claims authority for DEATH (500 000) does not cover 1 000 000; with a higher limit for the role, it does.
+        var pending = (await (await _maker.GetAsync($"/api/v1/workflow/approvals?status=Requested&businessRefType={LifeApprovals.ClaimBusinessRefType}&businessRefId={claim}"))
+            .Json()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        (await (await _checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{pending}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("APPROVAL_AUTHORITY_EXCEEDED");
+        await Seed("life.cfg_claims_authority_limits", "EFFECTIVE", "CAL-DEATH-SNR", ("role", _approverRole), ("claim_type", "DEATH"), ("limit_value", 1_000_000m));
         await Decide(LifeApprovals.ClaimBusinessRefType, claim);
         (await Get($"/api/v1/life/claims/{claim}")).GetProperty("status").GetString().ShouldBe("Approved");
 
@@ -357,10 +388,20 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
         var caseId = (await Get($"/api/v1/life/proposals/{proposal}/underwriting-case")).GetProperty("id").GetGuid();
         (await _maker.PostAsync($"/api/v1/life/underwriting-cases/{caseId}/start-assessment", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await _maker.PostAsJsonAsync($"/api/v1/life/underwriting-cases/{caseId}/decision", new { outcome = "Accept", decisionCode = "STD", reason = "STANDARD" }))
-            .StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // The underwriting rule set accepts, and standard terms are within the underwriter's authority: one person decides, audited, with no Workflow approval.
+        var ruled = await _maker.Send(HttpMethod.Post, "/api/v1/rules/decisions",
+            new { kind = "Underwriting", code = Product, subjectType = LifeSubjects.UnderwritingCase, subjectId = caseId, inputs = new { sum_assured = 1_500_000m } },
+            idempotent: true);
+        ruled.StatusCode.ShouldBe(HttpStatusCode.Created, await ruled.Content.ReadAsStringAsync());
         await _factory.DrainOutbox();
-        await Decide(LifeApprovals.UnderwritingBusinessRefType, caseId);
+        var decided = await (await _maker.PostAsJsonAsync($"/api/v1/life/underwriting-cases/{caseId}/decision", new { outcome = "Accept", decisionCode = "STD", reason = "STANDARD" }))
+            .Json();
+        (decided.GetProperty("status").GetString(), decided.GetProperty("ruleOutcome").GetString(), decided.GetProperty("decisionPending").GetBoolean())
+            .ShouldBe(("Decided", "ACCEPT", false));
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM workflow.approval WHERE business_ref_id = @c", ("c", caseId))).ShouldBe(0L);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'DecideCase' AND target_id = @c", ("c", caseId.ToString()))).ShouldBe(1L);
         var policy = await Created("/api/v1/life/policies", new { proposalId = proposal });
         await _factory.DrainOutbox();
         return policy;
@@ -377,10 +418,10 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
     }
 
-    private async Task Eligibility(Guid proposal, int ageNext)
+    private async Task Eligibility(Guid proposal, int ageNext, string ruleset = "LTERM-ELIG")
     {
         var decided = await _maker.Send(HttpMethod.Post, "/api/v1/rules/decisions",
-            new { kind = "Eligibility", code = "LTERM-ELIG", subjectType = LifeSubjects.Proposal, subjectId = proposal, inputs = new { age_next = ageNext } }, idempotent: true);
+            new { kind = "Eligibility", code = ruleset, subjectType = LifeSubjects.Proposal, subjectId = proposal, inputs = new { age_next = ageNext } }, idempotent: true);
         decided.StatusCode.ShouldBe(HttpStatusCode.Created, await decided.Content.ReadAsStringAsync());
         await _factory.DrainOutbox();
     }

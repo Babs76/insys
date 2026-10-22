@@ -17,10 +17,13 @@ public sealed class EligibilityResponseCodes : StaticRecord<EligibilityResponseC
 
     public string ProviderAction { get; set; } = "";
 
+    public string? Outcome { get; set; }
+
     public override void ApplyFields(EligibilityResponseCodesInput input, IFieldProtector protector)
     {
         Meaning = input.Meaning!;
         ProviderAction = input.ProviderAction!;
+        Outcome = input.Outcome;
     }
 }
 
@@ -31,11 +34,15 @@ public sealed record EligibilityResponseCodesInput : StaticRecordInput
 
     public string? ProviderAction { get; init; }
 
+    public string? Outcome { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("meaning", Meaning);
         errors.MaxLength("meaning", Meaning, 100);
         errors.Required("providerAction", ProviderAction);
         errors.MaxLength("providerAction", ProviderAction, 100);
+        errors.MaxLength("outcome", Outcome, 15);
+        errors.OneOf("outcome", Outcome, ["ELIGIBLE", "NOT_ELIGIBLE", "NOT_FOUND", "WAITING_PERIOD"]);
     }
 }

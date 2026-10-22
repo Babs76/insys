@@ -22,8 +22,6 @@ public sealed record IdentifierRequest(string DocType, string Country, string Nu
 
 public sealed record BankAccountRequest(string AccountNumber, string BankCode, string? BranchCode, string AccountHolderName, string AccountType, string Currency);
 
-public sealed record VerifyBankAccountRequest(string VerificationRef);
-
 public sealed record VerifyIdentifierRequest(string VerificationRef);
 
 public sealed record RelationshipRequest(Guid ToPartyId, string RelationshipCode, DateOnly ValidFrom);
@@ -98,7 +96,7 @@ public sealed class PartyModule : IModule
                 (await dispatcher.Send(new AddBankAccount(id, r.AccountNumber, r.BankCode, r.BranchCode, r.AccountHolderName, r.AccountType, r.Currency), ct))
                 .ToHttp(v => Results.Created($"/api/v1/party/parties/{id}/bank-accounts", v)))
             .WithName("PartyAddBankAccount")
-            .WithSummary("Add a bank account; the party's current account in the currency is superseded, and payments to it need a fresh approval")
+            .WithSummary("Add a bank account, pending a second person's verification in Workflow; the party's current account in the currency is superseded")
             .WithDescription("The account number is encrypted at once and never returned: responses show its last four digits.")
             .RequirePermission(PartyPermissions.BankAccountCreate)
             .RequireIdempotencyKey();
@@ -108,12 +106,6 @@ public sealed class PartyModule : IModule
             .WithName("PartyListBankAccounts")
             .WithSummary("List a party's bank accounts, current and superseded, without their numbers")
             .RequirePermission(PartyPermissions.BankAccountRead);
-
-        parties.MapPost("/{id:guid}/bank-accounts/{accountId:guid}/verify", async (Guid id, Guid accountId, VerifyBankAccountRequest r, IDispatcher dispatcher,
-                CancellationToken ct) => (await dispatcher.Send(new VerifyBankAccount(id, accountId, r.VerificationRef), ct)).ToHttp(Results.Ok))
-            .WithName("PartyVerifyBankAccount")
-            .WithSummary("Verify a bank account, with the verification's reference; it becomes payable")
-            .RequirePermission(PartyPermissions.BankAccountVerify);
 
         parties.MapPost("/{id:guid}/identifiers", async (Guid id, IdentifierRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
             {

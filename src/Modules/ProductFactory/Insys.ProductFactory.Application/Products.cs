@@ -53,10 +53,11 @@ public interface ISimulationRuns
 
 public sealed record ProductVersionView(Guid Id, string ProductCode, int Version, string Domain, string Name, IReadOnlyList<string> Coverages, string Status,
     DateOnly EffectiveFrom, DateOnly? EffectiveTo, string? FamilyCode, string? ClassCode, string CoverStartsOn, string? ApprovedBy, DateTimeOffset? ApprovedAt,
-    long RowVersion)
+    long RowVersion, string? EligibilityRulesetCode, string ReinstatementArrears)
 {
     public static ProductVersionView From(ProductVersion v) => new(v.Id, v.ProductCode, v.Version, v.Domain.ToString().ToUpperInvariant(), v.Name, v.Coverages,
-        v.Status.ToString(), v.EffectiveFrom, v.EffectiveTo, v.FamilyCode, v.ClassCode, v.CoverStartsOn.ToString(), v.ApprovedBy, v.ApprovedAt, v.RowVersion);
+        v.Status.ToString(), v.EffectiveFrom, v.EffectiveTo, v.FamilyCode, v.ClassCode, v.CoverStartsOn.ToString(), v.ApprovedBy, v.ApprovedAt, v.RowVersion,
+        v.EligibilityRulesetCode, v.ReinstatementArrears.ToString());
 }
 
 public sealed record SimulationResultView(string CaseId, JsonElement Expected, JsonElement Actual, bool Passed);
@@ -82,8 +83,10 @@ public sealed record RegisterProduct(string ProductCode, ProductDomain Domain, s
 public sealed record CreateDraftVersion(string ProductCode, DateOnly EffectiveFrom) : ICommand<ProductVersionView>;
 
 /// <param name="CoverStartsOn">When cover starts on the version's policies; unchanged when omitted.</param>
+/// <param name="EligibilityRulesetCode">The eligibility rule set proposals must pass; unchanged when omitted, cleared when empty.</param>
+/// <param name="ReinstatementArrears">Whether arrears must be paid before reinstatement; unchanged when omitted.</param>
 public sealed record EditConfiguration(string ProductCode, int Version, string Name, IReadOnlyList<string> Coverages, DateOnly EffectiveFrom, long ExpectedVersion,
-    CoverStart? CoverStartsOn = null) : ICommand<long>, IVersionedCommand;
+    CoverStart? CoverStartsOn = null, string? EligibilityRulesetCode = null, ReinstatementArrears? ReinstatementArrears = null) : ICommand<long>, IVersionedCommand;
 
 public sealed record ValidateVersion(string ProductCode, int Version, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
@@ -209,7 +212,8 @@ internal sealed class EditConfigurationHandler(IProductVersionRepository version
             return version.Error;
         }
 
-        var result = version.Value.EditConfiguration(command.Name, command.Coverages, command.EffectiveFrom, command.CoverStartsOn);
+        var result = version.Value.EditConfiguration(command.Name, command.Coverages, command.EffectiveFrom, command.CoverStartsOn,
+            command.EligibilityRulesetCode, command.ReinstatementArrears);
         if (result.IsFailure)
         {
             return result.Error;

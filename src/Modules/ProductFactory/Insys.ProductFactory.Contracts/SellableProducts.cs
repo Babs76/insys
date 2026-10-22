@@ -8,7 +8,7 @@ public sealed record ProductLimit(string ScheduleCode, string CoverageCode, stri
 /// and when cover starts (ISSUE or FIRST_PAYMENT).
 /// </summary>
 public sealed record SellableProduct(string ProductCode, int Version, string Domain, string Line, IReadOnlyList<string> Coverages, IReadOnlyList<ProductLimit> Limits,
-    string CoverStartsOn = "ISSUE");
+    string CoverStartsOn = "ISSUE", string? EligibilityRulesetCode = null, string ReinstatementArrears = "NONE");
 
 /// <summary>A document template assigned to a product (product.cfg_product_template_assignments).</summary>
 public sealed record ProductTemplate(string DocumentType, string TemplateCode, string Language);

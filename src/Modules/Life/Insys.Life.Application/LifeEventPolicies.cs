@@ -6,6 +6,7 @@ using Insys.BuildingBlocks.Domain;
 using Insys.ClaimsFramework.Contracts;
 using Insys.Life.Contracts;
 using Insys.Life.Domain.Underwriting;
+using Insys.ProductFactory.Contracts;
 using Insys.Rating.Contracts;
 using Insys.Rules.Contracts;
 using Insys.Workflow.Contracts;
@@ -19,7 +20,7 @@ namespace Insys.Life.Application;
 /// consistent through its events. PaymentAllocated carries no policy, so a payment in grace is seen through Billing's
 /// InvoiceSettled, which does.
 /// </summary>
-public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IPolicyArrears arrears, ITenantContext tenant, IClock clock,
+public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IPolicyArrears arrears, ISellableProducts products, ITenantContext tenant, IClock clock,
     ILogger<LifeEventPolicies> logger) :
     IIntegrationEventHandler<PremiumCalculated>,
     IIntegrationEventHandler<RuleDecisionRecorded>,
@@ -52,11 +53,34 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
         }
     }
 
-    /// <summary>RuleDecisionRecorded → attach the eligibility result to the proposal (LIF-001, LIF-002).</summary>
+    /// <summary>
+    /// RuleDecisionRecorded → attach the eligibility result to the proposal (LIF-001, LIF-002), only from the rule set its
+    /// product version names (eligibility_ruleset_code); a product version without one accepts no eligibility result.
+    /// </summary>
     public async Task Handle(RuleDecisionRecorded decided, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        // The underwriting rule set's outcome for a case decides whether one underwriter may decide alone.
+        if (decided.SubjectType == LifeSubjects.UnderwritingCase && await life.Case(decided.SubjectId, cancellationToken) is { } underwritingCase)
+        {
+            var recorded = underwritingCase.RecordRuleOutcome(decided.DecisionId, decided.Outcome);
+            if (recorded.IsFailure)
+            {
+                logger.LogWarning("Rule decision {DecisionId} not attached to case {CaseId}: {Code}", decided.DecisionId, underwritingCase.Id, recorded.Error.Code);
+            }
+
+            return;
+        }
+
         if (decided.SubjectType == LifeSubjects.Proposal && await life.Proposal(decided.SubjectId, cancellationToken) is { } proposal)
         {
+            var product = await products.Version(tenant.RequireTenantId(), proposal.ProductCode, proposal.ProductVersion, clock.UtcToday, cancellationToken);
+            if (product?.EligibilityRulesetCode is not { } ruleset || ruleset != decided.RulesetCode)
+            {
+                logger.LogWarning("Rule decision {DecisionId} not attached to proposal {ProposalId}: rule set {RulesetCode} is not the product's eligibility rule set {Expected}",
+                    decided.DecisionId, proposal.Id, decided.RulesetCode, product?.EligibilityRulesetCode);
+                return;
+            }
+
             var result = proposal.RecordEligibility(decided.DecisionId, decided.RulesetCode, decided.RulesetVersion, decided.Outcome);
             if (result.IsFailure)
             {

@@ -17385,6 +17385,12 @@
               "string"
             ]
           },
+          "outcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "code": {
             "type": "string"
           },

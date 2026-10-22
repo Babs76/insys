@@ -19,7 +19,7 @@ public sealed class ApprovalTests
     [Fact]
     public void Approval_Lifecycle_MatchesDomainModel()
     {
-        var specified = DomainModelSpec.Transitions("workflow", "Approval").Select(t => t.Replace("Time limit reached", "Expire", StringComparison.Ordinal))
+        var specified = DomainModelSpec.Transitions("workflow", "Approval").Select(t => t.Replace("Time limit reached", "Expire", StringComparison.Ordinal).Replace("Withdrawn by requester", "WithdrawnByRequester", StringComparison.Ordinal))
             .OrderBy(t => t, StringComparer.Ordinal).ToList();
         Approval.Lifecycle.Transitions.Select(t => $"{t.From}-{t.Trigger}->{t.To}").OrderBy(t => t, StringComparer.Ordinal).ToList().ShouldBe(specified);
     }

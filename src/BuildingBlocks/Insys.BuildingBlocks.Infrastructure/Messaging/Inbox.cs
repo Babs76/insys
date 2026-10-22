@@ -1,3 +1,4 @@
+using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
@@ -17,7 +18,8 @@ namespace Insys.BuildingBlocks.Infrastructure.Messaging;
 public sealed class InboxEventHandler<TEvent, THandler, TDbContext>(
     THandler inner,
     TDbContext db,
-    IClock clock)
+    IClock clock,
+    Auditing.AuditTrail auditTrail)
     where TEvent : IIntegrationEvent
     where THandler : IIntegrationEventHandler<TEvent>
     where TDbContext : ModuleDbContext
@@ -51,6 +53,9 @@ public sealed class InboxEventHandler<TEvent, THandler, TDbContext>(
         }
 
         await inner.Handle(integrationEvent, envelope, cancellationToken);
+
+        // Sensitive operations a policy performs are audited like a command's (IAM-006), in the same transaction.
+        db.PublishAudit(auditTrail.TakeAll(), AuditOutcome.Success);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;

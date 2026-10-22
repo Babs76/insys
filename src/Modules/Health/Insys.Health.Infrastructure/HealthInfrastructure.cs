@@ -34,6 +34,7 @@ public static class HealthInfrastructure
         services.AddIntegrationEventHandler<ApprovalRejected, HealthEventPolicies, HealthDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<ProviderPaymentRunReleased, HealthEventPolicies, HealthDbContext>(schema, "ProviderPaymentRunReleased");
         services.AddIntegrationEventHandler<PaymentSucceeded, HealthEventPolicies, HealthDbContext>(schema, "PaymentSucceeded");
+        services.AddIntegrationEventHandler<Documents.Contracts.DocumentGenerated, HealthEventPolicies, HealthDbContext>(schema, "DocumentGenerated");
         services.AddOptions<HealthJobOptions>().BindConfiguration("Health:Jobs");
         services.AddSingleton<HealthJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)

@@ -64,7 +64,8 @@ internal sealed class ProductVersionRepository(ProductFactoryDbContext db, ITena
 
         var version = ProductVersion.Rehydrate(new ProductVersionState(row.Id, row.Code, row.Version, Enum.Parse<ProductDomain>(row.Domain, ignoreCase: true), row.Name,
             row.Coverages, UpperCaseEnumConverter<ProductVersionStatus>.FromCode(row.RecordStatus), row.EffectiveFrom, row.EffectiveTo, row.SupersedesId,
-            row.FamilyCode, row.ClassCode, row.ApprovedBy, row.ApprovedAt, row.RowVersion, UpperCaseEnumConverter<CoverStart>.FromCode(row.CoverStartsOn)));
+            row.FamilyCode, row.ClassCode, row.ApprovedBy, row.ApprovedAt, row.RowVersion, UpperCaseEnumConverter<CoverStart>.FromCode(row.CoverStartsOn),
+            row.EligibilityRulesetCode, UpperCaseEnumConverter<ReinstatementArrears>.FromCode(row.ReinstatementArrears)));
         Remember(version, row);
         return version;
     }
@@ -109,6 +110,8 @@ internal sealed class ProductVersionRepository(ProductFactoryDbContext db, ITena
             row.FamilyCode = version.FamilyCode;
             row.ClassCode = version.ClassCode;
             row.CoverStartsOn = UpperCaseEnumConverter<CoverStart>.ToCode(version.CoverStartsOn);
+            row.EligibilityRulesetCode = version.EligibilityRulesetCode;
+            row.ReinstatementArrears = UpperCaseEnumConverter<ReinstatementArrears>.ToCode(version.ReinstatementArrears);
             Publish(version);
         }
     }

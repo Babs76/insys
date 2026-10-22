@@ -333,4 +333,36 @@ public sealed class AdjudicationWorkedExamples
         One(context, Line("0195", 200m, 4)).Reason.ShouldBe("QTY_LIMIT");
         One(context with { Prior = [] }, Line("0300", 1_000m)).HighCostRule.ShouldBe("HC-SPEC");
     }
+
+    [Fact]
+    public void MemberClaims_ArePricedAtTheReferenceTariff_AndCoveredAtTariff_OrPendWhenThePlanSaysSo()
+    {
+        var context = Context(treatment: "NOT_COVERED") with
+        {
+            MemberClaim = true,
+            CostShares = [new("CO_PAYMENT", "GP_CONSULT", "PERCENT", 10m, "IN_NETWORK", null, "PER_LINE", null)],
+        };
+
+        // Reference tariff 400 (not the contract's 500), the in-network co-payment, and not refused as out of network.
+        var priced = One(context, Line("0190", 650m));
+        (priced.Outcome, priced.Tariff, priced.Allowed, priced.CoPayment, priced.NetworkStatus).ShouldBe((LineOutcome.Pay, (decimal?)400m, 400m, 40m, (NetworkStatus?)NetworkStatus.OutOfNetwork));
+
+        One(context with { Plan = context.Plan with { MemberClaimBasis = MemberClaimBases.Pend } }, Line("0190", 650m)).Reason.ShouldBe(AdjudicationReasons.MemberClaim);
+        One(context, Line("0191", 650m)).Reason.ShouldBe(AdjudicationReasons.NoTariff);
+    }
+
+    [Fact]
+    public void EditRules_ReadTheClaimHistory_OnlyWithinTheirWindow_EDIT_DUP_30()
+    {
+        var dup30 = new EditRule("EDIT-DUP-30", Expression.Parse("prior_same_code > 0 AND days_since_same_code <= 30").Value, "PEND", "DUP_30", WindowDays: 30);
+        var earlier = new PriorService(Guid.CreateVersion7(), "0300", "SPECIALIST", ServiceDate.AddDays(-20), "PR-2");
+        var context = Context() with { Prior = [earlier], Edits = [dup30] };
+
+        One(context, Line("0300", 1_000m)).Reason.ShouldBe("DUP_30");
+        One(context with { Prior = [earlier with { ServiceDate = ServiceDate.AddDays(-40) }] }, Line("0300", 1_000m)).Outcome.ShouldBe(LineOutcome.Pay);
+        One(context, Line("0190", 400m)).Outcome.ShouldBe(LineOutcome.Pay);
+
+        // Without a window, a rule cannot read history, so it does not apply.
+        One(context with { Edits = [dup30 with { WindowDays = null }] }, Line("0300", 1_000m)).Outcome.ShouldBe(LineOutcome.Pay);
+    }
 }

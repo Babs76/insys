@@ -2,6 +2,7 @@ using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
+using Insys.Documents.Contracts;
 using Insys.Health.Contracts;
 using Insys.Health.Domain.Adjudication;
 using Insys.Payments.Contracts;
@@ -22,8 +23,18 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<ProviderPaymentRunReleased>,
-    IIntegrationEventHandler<PaymentSucceeded>
+    IIntegrationEventHandler<PaymentSucceeded>,
+    IIntegrationEventHandler<DocumentGenerated>
 {
+    /// <summary>A remittance advice was generated: it is attached to its remittance.</summary>
+    public async Task Handle(DocumentGenerated generated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (generated.BusinessRefType == HealthReferences.RemittanceRefType && await health.RunForRemittance(generated.BusinessRefId, cancellationToken) is { } run)
+        {
+            run.AttachRemittanceDocument(generated.BusinessRefId, generated.DocumentId);
+        }
+    }
+
     /// <summary>ReserveBenefit: each line's authorised amount on its category's accumulators.</summary>
     public Task Handle(PreauthorisationApproved approved, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Reserve(approved.MembershipId, approved.PatientPartyId, approved.ValidFrom, approved.Reservations, approved.AuthNumber, cancellationToken);
@@ -87,6 +98,7 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
     private async Task Reserve(Guid membershipId, Guid patientPartyId, DateOnly validFrom, IReadOnlyList<ReservationChange> changes, string authNumber,
         CancellationToken cancellationToken)
     {
+        await health.LockBenefits(membershipId, cancellationToken);
         if (await health.Membership(membershipId, cancellationToken) is not { } membership)
         {
             return;

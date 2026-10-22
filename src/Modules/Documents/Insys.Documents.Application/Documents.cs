@@ -41,6 +41,9 @@ public interface IDocumentCatalogue
 
     Task<TemplateDefinition?> Template(string templateCode, string language, DateOnly day, CancellationToken cancellationToken);
 
+    /// <summary>A template's version in force in any language: the tenant's own first, then by language.</summary>
+    Task<TemplateDefinition?> AnyTemplate(string templateCode, DateOnly day, CancellationToken cancellationToken);
+
     /// <summary>The retention date from the schedule for the category and jurisdiction, when its trigger is creation; otherwise null.</summary>
     Task<DateOnly?> RetentionUntil(string categoryCode, string? jurisdiction, DateOnly created, CancellationToken cancellationToken);
 

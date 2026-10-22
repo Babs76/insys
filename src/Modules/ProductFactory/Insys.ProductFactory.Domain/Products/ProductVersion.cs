@@ -66,10 +66,18 @@ public enum CoverStart
     FirstPayment,
 }
 
+/// <summary>Whether arrears from before a lapse must be paid before reinstatement (a business decision, configurable per version).</summary>
+public enum ReinstatementArrears
+{
+    None,
+    Required,
+}
+
 /// <summary>The stored state of a version, as the repository reads it from product.cfg_product_definitions_and_versions.</summary>
 public sealed record ProductVersionState(Guid Id, string ProductCode, int Version, ProductDomain Domain, string Name, IReadOnlyList<string> Coverages,
     ProductVersionStatus Status, DateOnly EffectiveFrom, DateOnly? EffectiveTo, Guid? SupersedesId, string? FamilyCode, string? ClassCode, string? ApprovedBy,
-    DateTimeOffset? ApprovedAt, long RowVersion, CoverStart CoverStartsOn = CoverStart.Issue);
+    DateTimeOffset? ApprovedAt, long RowVersion, CoverStart CoverStartsOn = CoverStart.Issue, string? EligibilityRulesetCode = null,
+    ReinstatementArrears ReinstatementArrears = ReinstatementArrears.None);
 
 /// <summary>
 /// The ProductVersion aggregate: one governed version of a product (§7.7). Published versions are immutable (PRD-002);
@@ -122,6 +130,11 @@ public sealed class ProductVersion : AggregateRoot<Guid>
     /// <summary>When cover starts on policies of this version (Phase 4 review, OQ-059).</summary>
     public CoverStart CoverStartsOn { get; private set; }
 
+    /// <summary>The eligibility rule set a proposal on this version must pass (Phase 5 review, item 5).</summary>
+    public string? EligibilityRulesetCode { get; private set; }
+
+    public ReinstatementArrears ReinstatementArrears { get; private set; }
+
     public string? ApprovedBy { get; private set; }
 
     public DateTimeOffset? ApprovedAt { get; private set; }
@@ -152,6 +165,8 @@ public sealed class ProductVersion : AggregateRoot<Guid>
             FamilyCode = state.FamilyCode,
             ClassCode = state.ClassCode,
             CoverStartsOn = state.CoverStartsOn,
+            EligibilityRulesetCode = state.EligibilityRulesetCode,
+            ReinstatementArrears = state.ReinstatementArrears,
             ApprovedBy = state.ApprovedBy,
             ApprovedAt = state.ApprovedAt,
         };
@@ -177,11 +192,15 @@ public sealed class ProductVersion : AggregateRoot<Guid>
         var version = New(id, latest.ProductCode, latest.Version + 1, latest.Domain, latest.Name, latest.Coverages, effectiveFrom,
             latest.Status is ProductVersionStatus.Published or ProductVersionStatus.Effective ? latest.Id : latest.SupersedesId, latest.FamilyCode, latest.ClassCode);
         version.CoverStartsOn = latest.CoverStartsOn;
+        version.EligibilityRulesetCode = latest.EligibilityRulesetCode;
+        version.ReinstatementArrears = latest.ReinstatementArrears;
         return version;
     }
 
     /// <summary>Command EditConfiguration. A Validated version returns to Draft; anything submitted or later is immutable (PRD-002).</summary>
-    public Result EditConfiguration(string name, IReadOnlyList<string> coverages, DateOnly effectiveFrom, CoverStart? coverStartsOn = null)
+    /// <param name="eligibilityRulesetCode">Unchanged when null; an empty string clears it.</param>
+    public Result EditConfiguration(string name, IReadOnlyList<string> coverages, DateOnly effectiveFrom, CoverStart? coverStartsOn = null,
+        string? eligibilityRulesetCode = null, ReinstatementArrears? reinstatementArrears = null)
     {
         if (!IsEditable)
         {
@@ -202,6 +221,12 @@ public sealed class ProductVersion : AggregateRoot<Guid>
         Coverages = coverages.ToArray();
         EffectiveFrom = effectiveFrom;
         CoverStartsOn = coverStartsOn ?? CoverStartsOn;
+        if (eligibilityRulesetCode is not null)
+        {
+            EligibilityRulesetCode = eligibilityRulesetCode.Length == 0 ? null : Guard.MaxLength(eligibilityRulesetCode, 30);
+        }
+
+        ReinstatementArrears = reinstatementArrears ?? ReinstatementArrears;
         MarkChanged();
         return Result.Success();
     }

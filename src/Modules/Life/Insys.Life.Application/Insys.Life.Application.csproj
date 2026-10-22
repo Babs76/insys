@@ -9,6 +9,7 @@
     <ProjectReference Include="..\..\ProductFactory\Insys.ProductFactory.Contracts\Insys.ProductFactory.Contracts.csproj" />
     <ProjectReference Include="..\..\Rating\Insys.Rating.Contracts\Insys.Rating.Contracts.csproj" />
     <ProjectReference Include="..\..\Rules\Insys.Rules.Contracts\Insys.Rules.Contracts.csproj" />
+    <ProjectReference Include="..\..\Identity\Insys.Identity.Contracts\Insys.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\Workflow\Insys.Workflow.Contracts\Insys.Workflow.Contracts.csproj" />
   </ItemGroup>
 </Project>

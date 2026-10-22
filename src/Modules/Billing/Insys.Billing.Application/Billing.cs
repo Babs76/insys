@@ -25,6 +25,9 @@ public interface IBillingRepository
     /// <summary>The account billing a domain's policy, through its premium schedule.</summary>
     Task<BillingAccount?> AccountForPolicy(string sourceDomain, Guid policyRef, CancellationToken cancellationToken);
 
+    /// <summary>A payer's open account in a currency, the oldest first (a scheme sponsor's account for employer contributions).</summary>
+    Task<BillingAccount?> OpenAccountOf(Guid payerPartyId, string currency, CancellationToken cancellationToken);
+
     /// <summary>Accounts with instalments due on or before the day that are not invoiced yet.</summary>
     Task<IReadOnlyList<Guid>> AccountsWithDueInstalments(DateOnly day, int limit, CancellationToken cancellationToken);
 

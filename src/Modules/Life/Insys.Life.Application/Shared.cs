@@ -166,12 +166,12 @@ public sealed record ProposalView(Guid Id, string ProposalNumber, string Product
 
 public sealed record RequirementView(Guid Id, string EvidenceType, string Status, bool Mandatory, Guid? DocumentId, Guid? WaivedBy, string? WaiverReason);
 
-public sealed record CaseView(Guid Id, Guid ProposalId, string Status, string? RulesetCode, int? RulesetVersion, string? Outcome, string? DecisionCode,
-    string? DecisionReason, bool DecisionPending, Guid? DecidedBy, string? ReferredTo, IReadOnlyList<RequirementView> Requirements, IReadOnlyList<DecisionItemRequest> Items,
-    long RowVersion)
+public sealed record CaseView(Guid Id, Guid ProposalId, string Status, string? RulesetCode, int? RulesetVersion, string? RuleOutcome, string? Outcome, string? DecisionCode,
+    string? DecisionReason, bool DecisionPending, Guid? DecidedBy, string? AuthorityRole, string? ReferredTo, IReadOnlyList<RequirementView> Requirements,
+    IReadOnlyList<DecisionItemRequest> Items, long RowVersion)
 {
-    public static CaseView From(LifeUnderwritingCase c) => new(c.Id, c.ProposalId, c.Status.ToString(), c.RulesetCode, c.RulesetVersion, c.Outcome?.ToString(), c.DecisionCode,
-        c.DecisionReason, c.DecisionPending, c.DecidedBy, c.ReferredTo,
+    public static CaseView From(LifeUnderwritingCase c) => new(c.Id, c.ProposalId, c.Status.ToString(), c.RulesetCode, c.RulesetVersion, c.RuleOutcome, c.Outcome?.ToString(),
+        c.DecisionCode, c.DecisionReason, c.DecisionPending, c.DecidedBy, c.AuthorityRole, c.ReferredTo,
         c.Requirements.Select(r => new RequirementView(r.Id, r.EvidenceType, r.Status, r.Mandatory, r.DocumentId, r.WaivedBy, r.WaiverReason)).ToList(),
         c.Items.Select(i => i.ToRequest()).ToList(), c.RowVersion);
 }

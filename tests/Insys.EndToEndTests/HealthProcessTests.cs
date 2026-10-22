@@ -22,6 +22,7 @@ namespace Insys.EndToEndTests;
 public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
 {
     private static readonly Guid Tenant = TestTenants.A;
+    private static readonly Guid SponsorParty = Guid.CreateVersion7();
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
 
     private static readonly string[] Permissions =
@@ -49,6 +50,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var checker = await _db.UserWithPermissions(Tenant, "health-manager", Permissions);
         var approverRole = await _db.RoleWithPermissions(Tenant);
         await _db.AssignRole(Tenant, checker, approverRole);
+        await _db.AllowBankAccountVerification(Tenant, approverRole, Today.AddYears(-1));
         var from = Today.AddYears(-2);
 
         foreach (var type in new[] { HealthApprovals.RunApprovalType, PaymentApprovals.PayoutApprovalType })
@@ -58,7 +60,20 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         }
 
         // Scheme, members and plan.
-        await Seed("health.mst_sponsor_register", "ACTIVE", "S-ACME", ("sponsor_code", "S-ACME"), ("party", "ACME"), ("schemes", Array.Empty<string>()));
+        await Seed("health.mst_sponsor_register", "ACTIVE", "S-ACME", ("sponsor_code", "S-ACME"), ("party", SponsorParty.ToString()), ("schemes", Array.Empty<string>()));
+        // Remittance advices are generated from the format's template when a run is released.
+        await Seed("document.ref_document_categories", "ACTIVE", "REMITTANCE_ADVICE", ("category_code", "REMITTANCE_ADVICE"), ("label", "Remittance advice"),
+            ("classification", "CONFIDENTIAL"), ("domain", "HEALTH"), ("allowed_roles", Array.Empty<string>()));
+        await Seed("document.cfg_document_templates", "EFFECTIVE", "TPL-RA", ("template_code", "TPL-RA"), ("language", "en"), ("document_type", "REMITTANCE_ADVICE"),
+            ("body_ref", "doc://templates/remittance/v1"), ("merge_fields", new[] { "run_code", "provider_id", "amount" }));
+        await Seed("health.cfg_remittance_advice_formats", "EFFECTIVE", "RA-STD", ("format_code", "RA-STD"), ("channel", "PORTAL"), ("template", "TPL-RA v1"));
+
+        // The tenant's eligibility response codes, each mapped from an internal outcome.
+        foreach (var (code, outcome) in new[] { ("E00", "ELIGIBLE"), ("E01", "NOT_ELIGIBLE"), ("E02", "NOT_FOUND"), ("E03", "WAITING_PERIOD") })
+        {
+            await Seed("health.ref_eligibility_response_codes", "ACTIVE", code, ("meaning", outcome), ("provider_action", "NONE"), ("outcome", outcome));
+        }
+
         await Seed("health.cfg_scheme_member_categories", "EFFECTIVE", "ALL_STAFF", ("category_code", "ALL_STAFF"), ("eligibility_rule", "employment_type = 'PERMANENT'"),
             ("plan", "HLT-CORE"));
         await Seed("health.cfg_member_numbering_schemes", "EFFECTIVE", "HM", ("prefix", "HM"), ("sequence_length", 9), ("dependant_suffix", "-01"));
@@ -100,6 +115,13 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         await Seed("health.cfg_network_restriction_rules", "EFFECTIVE", "NR-CORE", ("plan", "HLT-CORE"), ("network", "NET-A"), ("out_of_network_treatment", "COVERED_AT_TARIFF"));
         await Seed("health.cfg_tariff_schedules", "EFFECTIVE", "CON-1-0300", ("tariff_code", "0300"), ("price", 1_000m), ("schedule_code", "CON-1"));
         await Seed("health.cfg_tariff_schedules", "EFFECTIVE", "REF-0300", ("tariff_code", "0300"), ("price", 800m), ("schedule_code", "REF"));
+
+        // GP visits: no preauthorisation, a family pool of 2 000 a year (for the concurrency test).
+        await Seed("health.cfg_benefit_category_mappings", "EFFECTIVE", "M-GP", ("code_system", "NRPL"), ("code_from", "0190"), ("code_to", "0199"),
+            ("benefit_category", "GP_VISITS"));
+        await Seed("health.cfg_limit_definitions", "EFFECTIVE", "LIM-GP-FAM", ("benefit", "GP_VISITS"), ("period", "ANNUAL"), ("amount", 2_000m), ("basis", "PER_FAMILY"));
+        await Seed("health.cfg_tariff_schedules", "EFFECTIVE", "CON-1-0190", ("tariff_code", "0190"), ("price", 500m), ("schedule_code", "CON-1"));
+        await _db.SeedGlobalStatic("health.ref_procedure_and_service_codes", "ACTIVE", "0190", from, ("code_system", "NRPL"), ("active", true));
 
         // Billing, Payments and Finance.
         await _db.SeedBillingAndPayments(Tenant, from);
@@ -146,7 +168,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     {
         // The provider is a party with a verified bank account (ADR-013).
         var providerParty = await _maker.RegisterPerson("Specialist");
-        var providerAccount = await _maker.AddVerifiedBankAccount(providerParty, "7700889911");
+        var providerAccount = await _maker.AddVerifiedBankAccount(_checker, _factory, providerParty, "7700889911");
         await _db.ExecuteAsOwner("""
             INSERT INTO health.mst_provider_register (tenant_id, code, version, effective_from, record_status, created_by, change_reason, provider_id, name,
                                                       registration_numbers, locations, status, provider_type, party_id)
@@ -170,8 +192,8 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var member = await Get($"/api/v1/health/memberships/{membership}");
         member.GetProperty("status").GetString().ShouldBe("Active");
         member.GetProperty("waitingPeriods")[0].GetProperty("endsOn").GetString().ShouldBe(Today.AddMonths(-6).AddDays(90).ToString("yyyy-MM-dd"));
-        (await _db.ScalarAsOwner<decimal>("SELECT instalment_amount FROM billing.premium_schedule WHERE source_domain = 'HEALTH' AND policy_ref = @m", ("m", membership)))
-            .ShouldBe(1_850m);
+        // Half the contribution is the employer's, billed to the sponsor's account; the member's half to the payer's.
+        (await Schedules(membership)).ShouldBe([("HEALTH", principal, 925m), ("HEALTH_ER", SponsorParty, 925m)]);
 
         // Dependants stay within their type's age limit; a spouse joins, and the contribution is amended for two members.
         var spouse = await _maker.RegisterPerson("Spouse");
@@ -180,14 +202,15 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{membership}/dependants",
             new { partyId = spouse, dependantType = "SPOUSE", student = false, startDate = Today }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
-        (await _db.ScalarAsOwner<decimal>("SELECT instalment_amount FROM billing.premium_schedule WHERE source_domain = 'HEALTH' AND policy_ref = @m", ("m", membership)))
-            .ShouldBe(3_700m);
+        (await Schedules(membership)).ShouldBe([("HEALTH", principal, 1_850m), ("HEALTH_ER", SponsorParty, 1_850m)]);
 
         // CheckEligibility → EligibilityDecisionRecorded (HLT-003).
         var number = member.GetProperty("memberNumber").GetString()!;
-        (await Eligibility(number, "00")).ShouldBe("ELIGIBLE");
-        (await Eligibility(number, "01")).ShouldBe("ELIGIBLE");
-        (await Eligibility(number, "07")).ShouldBe("NOT_FOUND");
+        (await Eligibility(number, "00")).ShouldBe("E00");
+        (await Eligibility(number, "01")).ShouldBe("E00");
+        (await Eligibility(number, "07")).ShouldBe("E02");
+        (await Eligibility(number, "00", Today.AddMonths(-6).AddDays(10))).ShouldBe("E03");
+        (await Eligibility(number, "00", Today.AddMonths(-7))).ShouldBe("E01");
 
         // Compensation: a rejected authorisation reserves nothing.
         var rejected = await Authorisation(membership, principal);
@@ -247,6 +270,9 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
 
         // ProviderPaymentRunReleased → the claim is paid (MedicalClaimSettled → Finance posts claims paid) and Payments pays the remittance in a batch.
         (await Get($"/api/v1/health/claims/{claim}")).GetProperty("status").GetString().ShouldBe("Paid");
+        await _factory.DrainOutbox();
+        var advice = await _db.ScalarAsOwner<Guid>("SELECT document_id FROM health.remittance_advice WHERE run_id = @r", ("r", run));
+        (await _db.ScalarAsOwner<string>("SELECT category_code FROM document.document WHERE id = @d", ("d", advice))).ShouldBe("REMITTANCE_ADVICE");
         (await _db.ScalarAsOwner<long>("""
             SELECT count(*) FROM finance.journal
             WHERE source_event_id IN (SELECT id FROM health.outbox_event WHERE event_type = 'health.MedicalClaimSettled' AND aggregate_id = @c)
@@ -285,9 +311,102 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.dead_letter_message")).ShouldBe(0L);
     }
 
-    private async Task<string> Eligibility(string memberNumber, string suffix)
+    /// <summary>ADR-012: accumulators are locked in one order and adjudication is retried on a conflict, so concurrent claims never overspend a shared pool.</summary>
+    [Fact]
+    public async Task ConcurrentClaims_AgainstOneFamilyLimit_NeverExceedIt_AndNeverDeadlock()
     {
-        var response = await _maker.PostAsJsonAsync("/api/v1/health/eligibility", new { memberNumber, dependantSuffix = suffix, providerId = "PR-1", serviceType = "CONSULTATION" });
+        await Provider();
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("Pool");
+        var spouse = await _maker.RegisterPerson("PoolSpouse");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{membership}/dependants",
+            new { partyId = spouse, dependantType = "SPOUSE", student = false, startDate = Today.AddMonths(-6) }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+
+        // Eight GP visits of 500 for two people, on different days: the family pool of 2 000 pays four of them.
+        var claims = new List<Guid>();
+        for (var i = 0; i < 8; i++)
+        {
+            var claim = await Created("/api/v1/health/claims", new
+            {
+                source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = i % 2 == 0 ? principal : spouse, serviceDate = Today.AddDays(-1 - i),
+                formatCode = "API", currency = "ZAR", lines = new[] { new { tariffCode = "0190", quantity = 1, claimedAmount = 500m } },
+            });
+            (await _maker.PostAsync($"/api/v1/health/claims/{claim}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+            claims.Add(claim);
+        }
+
+        var responses = await Task.WhenAll(claims.Select(claim => _factory.ClientFor(Tenant, "health-administrator").PostAsync($"/api/v1/health/claims/{claim}/adjudicate", null)));
+        foreach (var response in responses)
+        {
+            response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        }
+
+        (await _db.ScalarAsOwner<decimal>("SELECT coalesce(sum(total_paid), 0) FROM health.medical_claim WHERE membership_id = @m", ("m", membership))).ShouldBe(2_000m);
+        (await _db.ScalarAsOwner<decimal>(
+            "SELECT used_amount FROM health.benefit_accumulator WHERE membership_id = @m AND benefit_category = 'GP_VISITS' AND scope = 'FAMILY'", ("m", membership)))
+            .ShouldBe(2_000m);
+        (await _db.ScalarAsOwner<long>(
+            "SELECT count(*) FROM health.benefit_accumulator WHERE membership_id = @m AND limit_amount IS NOT NULL AND used_amount + reserved_amount > limit_amount",
+            ("m", membership))).ShouldBe(0L);
+    }
+
+    /// <summary>Phase 5 review, item 5: member reimbursement on the plan's REFERENCE_TARIFF basis, paid to the principal's verified account through a run.</summary>
+    [Fact]
+    public async Task MemberClaim_IsPricedAtTheReferenceTariff_AndPaidToThePrincipalsVerifiedAccountInARun()
+    {
+        await Seed("health.cfg_tariff_schedules", "EFFECTIVE", "REF-0190", ("tariff_code", "0190"), ("price", 400m), ("schedule_code", "REF"));
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("Claimant");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        var account = await _maker.AddVerifiedBankAccount(_checker, _factory, principal, "5500112233");
+
+        var claim = await Created("/api/v1/health/claims", new
+        {
+            source = "MEMBER", membershipId = membership, patientPartyId = principal, serviceDate = Today.AddDays(-3), formatCode = "API", currency = "ZAR",
+            lines = new[] { new { tariffCode = "0190", quantity = 1, claimedAmount = 650m } },
+        });
+        (await _maker.PostAsync($"/api/v1/health/claims/{claim}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var adjudicated = await (await _maker.PostAsync($"/api/v1/health/claims/{claim}/adjudicate", null)).Json();
+        adjudicated.GetProperty("status").GetString().ShouldBe("Adjudicated", adjudicated.ToString());
+        var line = adjudicated.GetProperty("lines")[0];
+        (line.GetProperty("tariffAmount").GetDecimal(), line.GetProperty("allowedAmount").GetDecimal()).ShouldBe((400m, 400m));
+        var paid = adjudicated.GetProperty("totalPaid").GetDecimal();
+        paid.ShouldBeGreaterThan(0m);
+
+        (await _maker.PostAsync($"/api/v1/health/claims/{claim}/approve", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var run = await Created("/api/v1/health/payment-runs", new { runCode = "PRV-WEEKLY", currency = "ZAR" });
+        (await _maker.PostAsync($"/api/v1/health/payment-runs/{run}/cut-off", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var calculated = await (await _maker.PostAsync($"/api/v1/health/payment-runs/{run}/calculate", null)).Json();
+        var remittance = calculated.GetProperty("remittances").EnumerateArray().Single();
+        var memberNumber = (await Get($"/api/v1/health/memberships/{membership}")).GetProperty("memberNumber").GetString();
+        (remittance.GetProperty("providerId").GetString(), remittance.GetProperty("bankAccountId").GetGuid(), remittance.GetProperty("amount").GetDecimal())
+            .ShouldBe((memberNumber, account, paid));
+    }
+
+    private async Task Provider()
+    {
+        var providerParty = await _maker.RegisterPerson("Doctor");
+        await _db.ExecuteAsOwner("""
+            INSERT INTO health.mst_provider_register (tenant_id, code, version, effective_from, record_status, created_by, change_reason, provider_id, name,
+                                                      registration_numbers, locations, status, provider_type, party_id)
+            VALUES (@t, 'PR-1', 1, @from, 'ACTIVE', 'seed', 'seed', 'PR-1', 'Dr Specialist', '{"practice":"PR1"}', '[]', 'ACTIVE', 'SPEC', @party)
+            """, ("t", Tenant), ("from", Today.AddYears(-2)), ("party", providerParty));
+    }
+
+    private async Task<string> Eligibility(string memberNumber, string suffix, DateOnly? serviceDate = null)
+    {
+        var response = await _maker.PostAsJsonAsync("/api/v1/health/eligibility",
+            new { memberNumber, dependantSuffix = suffix, providerId = "PR-1", serviceType = "CONSULTATION", serviceDate });
         response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         return (await response.Json()).GetProperty("responseCode").GetString()!;
     }
@@ -321,6 +440,23 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var decided = await _checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"");
         decided.StatusCode.ShouldBe(HttpStatusCode.NoContent, await decided.Content.ReadAsStringAsync());
         await _factory.DrainOutbox();
+    }
+
+    private async Task<List<(string, Guid, decimal)>> Schedules(Guid membership)
+    {
+        var rows = new List<(string, Guid, decimal)>();
+        foreach (var domain in new[] { "HEALTH", "HEALTH_ER" })
+        {
+            var payer = await _db.ScalarAsOwner<Guid>("""
+                SELECT a.payer_party_id FROM billing.premium_schedule s JOIN billing.billing_account a ON a.tenant_id = s.tenant_id AND a.id = s.billing_account_id
+                WHERE s.source_domain = @d AND s.policy_ref = @m
+                """, ("d", domain), ("m", membership));
+            var amount = await _db.ScalarAsOwner<decimal>("SELECT instalment_amount FROM billing.premium_schedule WHERE source_domain = @d AND policy_ref = @m",
+                ("d", domain), ("m", membership));
+            rows.Add((domain, payer, amount));
+        }
+
+        return rows;
     }
 
     private async Task<Guid> Created(string url, object body)

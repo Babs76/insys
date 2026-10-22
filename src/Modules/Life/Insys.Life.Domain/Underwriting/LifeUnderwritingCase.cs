@@ -143,10 +143,11 @@ public sealed class UnderwritingDecisionItem : Entity<Guid>, ITenantScoped
 
 /// <summary>
 /// The LifeUnderwritingCase aggregate (life.underwriting_case, underwriting_requirement, underwriting_decision_item).
-/// It records the rule set version the proposal was checked with so the decision can be reproduced (LIF-002). A final
-/// decision needs every mandatory piece of evidence received or waived, and a second person's approval within
-/// authority (§7.4, SRS-002). TODO(spec): automatic underwriting outcomes from acceptance and referral rules wait for
-/// OQ-051; the decision is the underwriter's.
+/// It records the rule set version the proposal was checked with, and the underwriting rule set's outcome for the case,
+/// so the decision can be reproduced (LIF-002). A final decision needs every mandatory piece of evidence received or
+/// waived. It is the underwriter's alone when it matches the rule outcome and is within their authority matrix;
+/// otherwise (an override, or above authority) a second person approves it in Workflow (§7.4, SRS-002). TODO(spec):
+/// how a set of underwriting rules combines into an outcome follows OQ-051's proposal.
 /// </summary>
 public sealed class LifeUnderwritingCase : AggregateRoot<Guid>
 {
@@ -193,6 +194,11 @@ public sealed class LifeUnderwritingCase : AggregateRoot<Guid>
 
     public string? ReferredTo { get; private set; }
 
+    /// <summary>The underwriting rule set's outcome for the case (ACCEPT, REFER or DECLINE), from Rules.</summary>
+    public string? RuleOutcome { get; private set; }
+
+    public Guid? RuleDecisionId { get; private set; }
+
     public IReadOnlyList<UnderwritingRequirement> Requirements => _requirements;
 
     public IReadOnlyList<UnderwritingDecisionItem> Items => _items;
@@ -229,6 +235,23 @@ public sealed class LifeUnderwritingCase : AggregateRoot<Guid>
         AssignedTo = underwriter;
         MarkChanged();
     }
+
+    /// <summary>The underwriting rule set's decision for the case (Rules' RuleDecisionRecorded); the last before the decision applies.</summary>
+    public Result RecordRuleOutcome(Guid decisionId, string outcome)
+    {
+        if (Status == CaseStatus.Decided || DecisionPending)
+        {
+            return Error.Conflict(LifeErrorCodes.DecisionPending, "The case is decided or waiting for approval.");
+        }
+
+        RuleOutcome = Guard.MaxLength(outcome, 10);
+        RuleDecisionId = decisionId;
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>Whether a decision matches the rule outcome: REFER, or no rule outcome, matches nothing (every decision then overrides).</summary>
+    public bool MatchesRuleOutcome(UnderwritingOutcome outcome) => RuleOutcome is { } rule && rule.Equals(outcome.ToString(), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Command RequestEvidence: the case waits for it. Evidence is requested before assessment starts.</summary>
     public Result<UnderwritingRequirement> RequestEvidence(string evidenceType, bool mandatory, DateTimeOffset now)
@@ -305,6 +328,50 @@ public sealed class LifeUnderwritingCase : AggregateRoot<Guid>
     public Result RequestDecision(UnderwritingOutcome outcome, string decisionCode, string reason, IReadOnlyList<DecisionItemRequest> items,
         IReadOnlySet<string> codesRequiringTerms, decimal sumAssured, string currency, Guid by, DateTimeOffset now)
     {
+        var valid = Validate(decisionCode, items, codesRequiringTerms);
+        if (valid.IsFailure)
+        {
+            return valid;
+        }
+
+        Apply(outcome, decisionCode, reason, items, by);
+        Raise(new UnderwritingDecisionRequested(Id, ProposalId, by, sumAssured, currency, SubjectHash!, now));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Command DecideCase by one underwriter: allowed when the decision matches the rule outcome and is within their
+    /// authority matrix (checked by the application); audited like any decision.
+    /// </summary>
+    public Result DecideCase(UnderwritingOutcome outcome, string decisionCode, string reason, IReadOnlyList<DecisionItemRequest> items,
+        IReadOnlySet<string> codesRequiringTerms, Guid by, string authorityRole, DateTimeOffset now)
+    {
+        if (!MatchesRuleOutcome(outcome))
+        {
+            return Error.Conflict(LifeErrorCodes.DecisionPending, "A decision that differs from the rule outcome needs a second person's approval.");
+        }
+
+        var valid = Validate(decisionCode, items, codesRequiringTerms);
+        if (valid.IsFailure)
+        {
+            return valid;
+        }
+
+        Apply(outcome, decisionCode, reason, items, by);
+        var result = Fire(CaseTrigger.DecideCase);
+        if (result.IsSuccess)
+        {
+            DecidedBy = by;
+            DecidedAt = now;
+            AuthorityRole = Guard.MaxLength(authorityRole, 30);
+            Raise(new LifeUnderwritingDecided(Id, ProposalId, outcome, DecisionCode!, RulesetCode, RulesetVersion, by, now));
+        }
+
+        return result;
+    }
+
+    private Result Validate(string decisionCode, IReadOnlyList<DecisionItemRequest> items, IReadOnlySet<string> codesRequiringTerms)
+    {
         if (Status != CaseStatus.InAssessment || DecisionPending)
         {
             return Error.Conflict(DecisionPending ? LifeErrorCodes.DecisionPending : ErrorCodes.InvalidStateTransition,
@@ -326,14 +393,18 @@ public sealed class LifeUnderwritingCase : AggregateRoot<Guid>
             return Error.Validation(LifeErrorCodes.TermsRequired, $"{decisionCode} needs the terms for each benefit.");
         }
 
+        return Result.Success();
+    }
+
+    private void Apply(UnderwritingOutcome outcome, string decisionCode, string reason, IReadOnlyList<DecisionItemRequest> items, Guid by)
+    {
         Outcome = outcome;
         DecisionCode = Guard.MaxLength(decisionCode, 15);
         DecisionReason = Guard.MaxLength(reason, 20);
         RequestedBy = by;
         _items.Clear();
         _items.AddRange(items.Select(i => UnderwritingDecisionItem.Create(Id, i)));
-        Raise(new UnderwritingDecisionRequested(Id, ProposalId, by, sumAssured, currency, SubjectHash!, now));
-        return Result.Success();
+        MarkChanged();
     }
 
     /// <summary>Workflow's decision. Approved, the case is Decided; rejected, the request is withdrawn and assessment continues.</summary>

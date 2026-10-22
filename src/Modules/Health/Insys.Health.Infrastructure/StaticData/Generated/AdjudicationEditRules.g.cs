@@ -21,12 +21,15 @@ public sealed class AdjudicationEditRules : StaticRecord<AdjudicationEditRulesIn
 
     public string ReasonCode { get; set; } = "";
 
+    public int? WindowDays { get; set; }
+
     public override void ApplyFields(AdjudicationEditRulesInput input, IFieldProtector protector)
     {
         EditCode = input.EditCode!;
         Condition = input.Condition!;
         Outcome = input.Outcome!;
         ReasonCode = input.ReasonCode!;
+        WindowDays = input.WindowDays;
     }
 }
 
@@ -40,6 +43,8 @@ public sealed record AdjudicationEditRulesInput : StaticRecordInput
     public string? Outcome { get; init; }
 
     public string? ReasonCode { get; init; }
+
+    public int? WindowDays { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

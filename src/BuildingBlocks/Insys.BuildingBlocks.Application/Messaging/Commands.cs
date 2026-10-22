@@ -5,6 +5,12 @@ namespace Insys.BuildingBlocks.Application.Messaging;
 /// <summary>A request to change one aggregate. Runs in one transaction with the outbox.</summary>
 public interface ICommand<TResult>;
 
+/// <summary>
+/// A command that is safe to send again: the pipeline retries it, from the start and in a new transaction, when it
+/// meets a concurrent change (optimistic lock, duplicate key, serialization failure, deadlock), up to a small limit.
+/// </summary>
+public interface IRetryOnConflict;
+
 /// <summary>A command on an existing aggregate that carries the version from If-Match (DBA-011).</summary>
 public interface IVersionedCommand
 {
