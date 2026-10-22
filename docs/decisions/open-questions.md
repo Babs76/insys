@@ -65,6 +65,7 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-057 | 3 | Journal reversal and posted-record immutability | Resolved (proposal): V0014, ADR-011 |
 | OQ-058 | 3 | Money gaps: numbering, tolerances, taxes, providers, timeouts | Open |
 | OQ-059 | 4 | General domain: schema gaps (V0016) and unspecified rules | Partly resolved by the Phase 4 review (V0017) |
+| OQ-060 | 5 | Health adjudication rules the specs do not define (tariffs, networks, co-payments) | **Open: blocks claims adjudication** |
 
 ---
 
@@ -425,4 +426,56 @@ Each item is built as stated and marked `TODO(spec)` in code.
   - **Exposure snapshot:** `general.exposure_snapshot` is mapped, not refreshed (reinsurance, Phase 6).
   - **Commission and reinsurance:** the steps of both processes come with those modules in Phase 6.
 - **Numbering:** quote and policy numbers are a prefix and an ID-based suffix, as in OQ-058.
+
+### OQ-060 Health adjudication rules the specs do not define (Phase 5)
+**Defined by the specs, and to be built as stated:**
+- plans and options (benefit schedule, network);
+- benefit schedules (limit, frequency, co-payment rule);
+- co-payment rules (percent or amount, network status, cap);
+- general and condition waiting periods, with exception categories;
+- limit definitions (annual, lifetime or per event; per member or per family);
+- provider register, contracts (provider, network, dates), tariff schedules (code, price, modifiers, dates) and network definitions (providers, plans);
+- network restriction rules (not covered, co-payment, or covered at tariff);
+- preauthorisation-required lists and validity periods;
+- adjudication edit rules (condition, outcome, reason) and adjustment reasons;
+- utilisation, high-cost and repeat-service rules;
+- payment run calendars;
+- fraud indicators;
+- dependant types and age limits.
+
+**Not defined, so claims cannot be adjudicated without inventing rules:**
+1. **Benefit category of a claim line:** a line has a tariff code and a diagnosis. Nothing maps a tariff, procedure or service code to a benefit category. Without the category there is no limit, co-payment, waiting period or accumulator to apply.
+2. **Which tariff applies:** `cfg_tariff_schedules` has no provider, contract, network or plan. With several contracts and networks, the price for a given provider and member is not determined. Contracts point to a terms document only.
+3. **Tariff modifiers:** what a modifier such as AFTER_HOURS does to the price (a factor or an amount) is not defined.
+4. **Allowed amount:**
+   - is it the lesser of claimed and tariff?
+   - what is the out-of-network price under "Covered at tariff", and under "Co-payment" (which tariff)?
+   - is the member liable for the difference over tariff (the OVER_TARIFF wording suggests so)?
+5. **Co-payment:**
+   - the order of tariff, co-payment and limit;
+   - whether the cap is per line, per claim, per event or per year;
+   - "deductible" appears in the table name, but no deductible rule (annual, accumulating) is defined.
+6. **Limits:**
+   - is the benefit period a calendar year or the membership year?
+   - how is a "per family" limit shared between the principal and dependants?
+   - which limit applies when both the benefit schedule and `cfg_limit_definitions` set one?
+7. **Exclusions:** `product.cfg_exclusion_library` has wording only. No diagnosis or procedure codes say what a claim line is excluded for.
+8. **Condition-specific waiting periods:** no diagnosis codes say what a condition is.
+9. **Preauthorisation:**
+   - how a claim is matched to its preauthorisation (member, provider, procedure, dates within validity, amount tolerance);
+   - what happens to a claim needing preauthorisation without one;
+   - how much is reserved on the accumulator, and in which category.
+10. **Edit rules:** the sample condition ("same member, provider, tariff and service date within 30 days") needs claim history, which the condition language cannot read. Which history facts edit rules may use is not defined.
+11. **Member reimbursement claims (HLT-006):** whether they are priced at tariff and paid to the member, and with which co-payment.
+12. **Schema gap (fixable):** `health.benefit_accumulator` has `used_amount` but no `reserved_amount`, though "used plus reserved never exceeds the limit". A migration will add it.
+
+**Proposal while waiting:** build Health except adjudication, as the specs define:
+- schemes, membership and dependants;
+- eligibility enquiries;
+- the benefit accumulator (reserve, consume, release, with optimistic locking);
+- preauthorisation (clinical review, expiry) and claim submission and validation;
+- utilisation and fraud cases;
+- provider payment runs.
+
+Adjudication, and the steps of "Health care to provider payment" that need it, wait for answers to items 1 to 9.
 
