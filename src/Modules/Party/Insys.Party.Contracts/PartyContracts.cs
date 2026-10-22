@@ -56,6 +56,9 @@ public sealed record BankAccountRef(Guid Id, Guid PartyId, string Currency, stri
 public interface IBankAccounts
 {
     Task<BankAccountRef?> Get(Guid tenantId, Guid bankAccountId, CancellationToken cancellationToken);
+
+    /// <summary>The party's current, verified (ACTIVE) account in the currency, if any.</summary>
+    Task<BankAccountRef?> Current(Guid tenantId, Guid partyId, string currency, CancellationToken cancellationToken);
 }
 
 /// <summary>An account's details, decrypted, for a payment provider adapter only. Its text never shows them.</summary>
@@ -73,3 +76,11 @@ public interface IBankAccountDetails
     Task<PayeeAccountDetails?> ForPayment(Guid tenantId, Guid bankAccountId, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Public query interface: an individual's date of birth, for age rules (Life entry ages, Health dependant age limits).
+/// Only the date is returned (minimum necessary); null for an organisation or an unknown party.
+/// </summary>
+public interface IPersonFacts
+{
+    Task<DateOnly?> BirthDate(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
+}

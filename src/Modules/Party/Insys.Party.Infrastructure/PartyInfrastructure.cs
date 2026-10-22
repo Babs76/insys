@@ -21,6 +21,7 @@ public static class PartyInfrastructure
         services.AddSingleton<BankAccountQueries>();
         services.AddSingleton<IBankAccounts>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddSingleton<IBankAccountDetails>(sp => sp.GetRequiredService<BankAccountQueries>());
+        services.AddSingleton<IPersonFacts>(sp => sp.GetRequiredService<BankAccountQueries>());
         return services;
     }
 }

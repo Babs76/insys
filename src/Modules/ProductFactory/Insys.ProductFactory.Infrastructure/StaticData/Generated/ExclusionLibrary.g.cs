@@ -21,12 +21,18 @@ public sealed class ExclusionLibrary : StaticRecord<ExclusionLibraryInput>
 
     public string? Jurisdiction { get; set; }
 
+    public string[]? DiagnosisCodes { get; set; }
+
+    public string[]? ProcedureCodes { get; set; }
+
     public override void ApplyFields(ExclusionLibraryInput input, IFieldProtector protector)
     {
         Name = input.Name!;
         WordingRef = input.WordingRef!;
         Scope = input.Scope!;
         Jurisdiction = input.Jurisdiction;
+        DiagnosisCodes = input.DiagnosisCodes;
+        ProcedureCodes = input.ProcedureCodes;
     }
 }
 
@@ -40,6 +46,10 @@ public sealed record ExclusionLibraryInput : StaticRecordInput
     public string? Scope { get; init; }
 
     public string? Jurisdiction { get; init; }
+
+    public string[]? DiagnosisCodes { get; init; }
+
+    public string[]? ProcedureCodes { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

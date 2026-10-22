@@ -23,6 +23,10 @@ public sealed class ProviderRegister : StaticRecord<ProviderRegisterInput>
 
     public string Status { get; set; } = "";
 
+    public string? ProviderType { get; set; }
+
+    public Guid? PartyId { get; set; }
+
     public override void ApplyFields(ProviderRegisterInput input, IFieldProtector protector)
     {
         ProviderId = input.ProviderId!;
@@ -30,6 +34,8 @@ public sealed class ProviderRegister : StaticRecord<ProviderRegisterInput>
         RegistrationNumbers = input.RegistrationNumbers.GetValueOrDefault();
         Locations = input.Locations.GetValueOrDefault();
         Status = input.Status!;
+        ProviderType = input.ProviderType;
+        PartyId = input.PartyId;
     }
 }
 
@@ -46,6 +52,10 @@ public sealed record ProviderRegisterInput : StaticRecordInput
 
     public string? Status { get; init; }
 
+    public string? ProviderType { get; init; }
+
+    public Guid? PartyId { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("providerId", ProviderId);
@@ -57,5 +67,6 @@ public sealed record ProviderRegisterInput : StaticRecordInput
         errors.Required("status", Status);
         errors.MaxLength("status", Status, 40);
         errors.OneOf("status", Status, ["ACTIVE", "SUSPENDED", "TERMINATED"]);
+        errors.MaxLength("providerType", ProviderType, 10);
     }
 }

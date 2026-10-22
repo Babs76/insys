@@ -66,6 +66,9 @@
   </Folder>
   <Folder Name="/src/Modules/Health/">
     <Project Path="src/Modules/Health/Insys.Health.Api/Insys.Health.Api.csproj" />
+    <Project Path="src/Modules/Health/Insys.Health.Application/Insys.Health.Application.csproj" />
+    <Project Path="src/Modules/Health/Insys.Health.Contracts/Insys.Health.Contracts.csproj" />
+    <Project Path="src/Modules/Health/Insys.Health.Domain/Insys.Health.Domain.csproj" />
     <Project Path="src/Modules/Health/Insys.Health.Infrastructure/Insys.Health.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Identity/">
@@ -84,6 +87,9 @@
   </Folder>
   <Folder Name="/src/Modules/Life/">
     <Project Path="src/Modules/Life/Insys.Life.Api/Insys.Life.Api.csproj" />
+    <Project Path="src/Modules/Life/Insys.Life.Application/Insys.Life.Application.csproj" />
+    <Project Path="src/Modules/Life/Insys.Life.Contracts/Insys.Life.Contracts.csproj" />
+    <Project Path="src/Modules/Life/Insys.Life.Domain/Insys.Life.Domain.csproj" />
     <Project Path="src/Modules/Life/Insys.Life.Infrastructure/Insys.Life.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Party/">
@@ -166,6 +172,8 @@
     <Project Path="tests/Insys.Payments.Tests/Insys.Payments.Tests.csproj" />
     <Project Path="tests/Insys.ClaimsFramework.Tests/Insys.ClaimsFramework.Tests.csproj" />
     <Project Path="tests/Insys.General.Tests/Insys.General.Tests.csproj" />
+    <Project Path="tests/Insys.Health.Tests/Insys.Health.Tests.csproj" />
+    <Project Path="tests/Insys.Life.Tests/Insys.Life.Tests.csproj" />
     <Project Path="tests/Insys.Testing/Insys.Testing.csproj" />
   </Folder>
   <Folder Name="/tools/">

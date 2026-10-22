@@ -21,12 +21,18 @@ public sealed class PlansAndOptions : StaticRecord<PlansAndOptionsInput>
 
     public string Network { get; set; } = "";
 
+    public string? ReferenceTariffScheduleCode { get; set; }
+
+    public string BenefitYear { get; set; } = "";
+
     public override void ApplyFields(PlansAndOptionsInput input, IFieldProtector protector)
     {
         PlanCode = input.PlanCode!;
         OptionCode = input.OptionCode!;
         BenefitSchedule = input.BenefitSchedule!;
         Network = input.Network!;
+        ReferenceTariffScheduleCode = input.ReferenceTariffScheduleCode;
+        BenefitYear = input.BenefitYear!;
     }
 }
 
@@ -41,6 +47,10 @@ public sealed record PlansAndOptionsInput : StaticRecordInput
 
     public string? Network { get; init; }
 
+    public string? ReferenceTariffScheduleCode { get; init; }
+
+    public string? BenefitYear { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("planCode", PlanCode);
@@ -51,5 +61,9 @@ public sealed record PlansAndOptionsInput : StaticRecordInput
         errors.MaxLength("benefitSchedule", BenefitSchedule, 80);
         errors.Required("network", Network);
         errors.MaxLength("network", Network, 80);
+        errors.MaxLength("referenceTariffScheduleCode", ReferenceTariffScheduleCode, 15);
+        errors.Required("benefitYear", BenefitYear);
+        errors.MaxLength("benefitYear", BenefitYear, 15);
+        errors.OneOf("benefitYear", BenefitYear, ["CALENDAR", "MEMBERSHIP_YEAR"]);
     }
 }

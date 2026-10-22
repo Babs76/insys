@@ -27,6 +27,7 @@ public static class PaymentsInfrastructure
         services.AddIntegrationEventHandler<InvoiceIssued, PaymentPolicies, PaymentsDbContext>(schema, "InvoiceIssued");
         services.AddIntegrationEventHandler<RefundApproved, PaymentPolicies, PaymentsDbContext>(schema, "RefundApproved");
         services.AddIntegrationEventHandler<ClaimPaymentInstructed, PaymentPolicies, PaymentsDbContext>(schema, "ClaimPaymentInstructed");
+        services.AddIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased, PaymentPolicies, PaymentsDbContext>(schema, "ProviderPaymentRunReleased");
         services.AddIntegrationEventHandler<ApprovalGranted, PaymentPolicies, PaymentsDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<PaymentReceived, PaymentPolicies, PaymentsDbContext>(schema, "PaymentReceived");
         services.AddIntegrationEventHandler<PaymentSucceeded, PaymentPolicies, PaymentsDbContext>(schema, "PaymentSucceeded");

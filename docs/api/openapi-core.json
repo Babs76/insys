@@ -460,6 +460,122 @@
         "x-permission": "party.update"
       }
     },
+    "/api/v1/party/parties/{id}/bank-accounts": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Add a bank account; the party\u0027s current account in the currency is superseded, and payments to it need a fresh approval",
+        "description": "The account number is encrypted at once and never returned: responses show its last four digits.",
+        "operationId": "PartyAddBankAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BankAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "bank_account.create"
+      },
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "List a party\u0027s bank accounts, current and superseded, without their numbers",
+        "operationId": "PartyListBankAccounts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "bank_account.read"
+      }
+    },
+    "/api/v1/party/parties/{id}/bank-accounts/{accountId}/verify": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Verify a bank account, with the verification\u0027s reference; it becomes payable",
+        "operationId": "PartyVerifyBankAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyBankAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "bank_account.verify"
+      }
+    },
     "/api/v1/party/parties/{id}/identifiers": {
       "post": {
         "tags": [
@@ -3550,7 +3666,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RetryInstructionRequest"
+                "$ref": "#/components/schemas/PayeeRequest"
               }
             }
           },
@@ -3562,6 +3678,1345 @@
           }
         },
         "x-permission": "claim_payment.release"
+      }
+    },
+    "/api/v1/claims/payment-instructions/{id}/redirect": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Redirect an approved instruction to another payee or bank account; a second person approves it before release (SRS-002)",
+        "operationId": "ClaimsRedirectInstruction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayeeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_payment.release"
+      }
+    },
+    "/api/v1/life/proposals": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Capture a proposal on a Life product version on sale (LIF-001)",
+        "operationId": "LifeCaptureProposal",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureProposal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_proposal.create"
+      }
+    },
+    "/api/v1/life/proposals/{id}": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Get a proposal",
+        "operationId": "LifeGetProposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_proposal.read"
+      }
+    },
+    "/api/v1/life/proposals/{id}/submit": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Submit a quoted, eligible proposal; its content is frozen from then (LIF-001)",
+        "operationId": "LifeSubmitProposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_proposal.update"
+      }
+    },
+    "/api/v1/life/proposals/{id}/withdraw": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Withdraw a quoted or submitted proposal",
+        "operationId": "LifeWithdrawProposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_proposal.update"
+      }
+    },
+    "/api/v1/life/proposals/{id}/underwriting-case": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Get the proposal\u0027s underwriting case",
+        "operationId": "LifeGetProposalCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_underwriting.read"
+      }
+    },
+    "/api/v1/life/underwriting-cases/{id}": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Get an underwriting case",
+        "operationId": "LifeGetUnderwritingCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_underwriting.read"
+      }
+    },
+    "/api/v1/life/underwriting-cases/{id}/evidence": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Request evidence; the case waits for it",
+        "operationId": "LifeRequestEvidence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_underwriting.update"
+      }
+    },
+    "/api/v1/life/underwriting-cases/{id}/evidence/{requirementId}/received": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Record evidence received",
+        "operationId": "LifeRecordEvidence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "requirementId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceReceivedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_underwriting.update"
+      }
+    },
+    "/api/v1/life/underwriting-cases/{id}/evidence/{requirementId}/waive": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Waive evidence, by someone with that authority",
+        "operationId": "LifeWaiveEvidence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "requirementId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaiverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_underwriting.waive"
+      }
+    },
+    "/api/v1/life/underwriting-cases/{id}/start-assessment": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Start assessment when no evidence is needed",
+        "operationId": "LifeCaseStartAssessment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_underwriting.update"
+      }
+    },
+    "/api/v1/life/underwriting-cases/{id}/answer-referral": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Return a referred case to assessment",
+        "operationId": "LifeCaseAnswerReferral",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_underwriting.update"
+      }
+    },
+    "/api/v1/life/underwriting-cases/{id}/refer": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Refer the case",
+        "operationId": "LifeReferCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseReferralRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_underwriting.update"
+      }
+    },
+    "/api/v1/life/underwriting-cases/{id}/decision": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Propose the decision and terms; a second person approves them in Workflow within authority (SRS-002)",
+        "operationId": "LifeDecideCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_underwriting.decide"
+      }
+    },
+    "/api/v1/life/policies": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Issue a policy from an accepted proposal, on its product and rating versions (LIF-003)",
+        "operationId": "LifeIssuePolicy",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueLifePolicy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_policy.create"
+      }
+    },
+    "/api/v1/life/policies/{id}": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Get a policy",
+        "operationId": "LifeGetPolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_policy.read"
+      }
+    },
+    "/api/v1/life/policies/{id}/beneficiaries": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Change beneficiaries from a date; shares total 100%",
+        "operationId": "LifeChangeBeneficiaries",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeneficiariesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_policy.update"
+      }
+    },
+    "/api/v1/life/policies/{id}/alterations": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Alter the policy, checked against its state and the alteration type (LIF-004)",
+        "operationId": "LifeAlterPolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlterationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_policy.update"
+      }
+    },
+    "/api/v1/life/policies/{id}/reinstate": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Reinstate a lapsed policy within the product\u0027s window, with evidence where required (LIF-005)",
+        "operationId": "LifeReinstatePolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReinstatementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_policy.update"
+      }
+    },
+    "/api/v1/life/policies/{id}/surrender": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Surrender: refused until actuarial defines the value calculation (OQ-052)",
+        "operationId": "LifePolicySurrender",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_policy.update"
+      }
+    },
+    "/api/v1/life/policies/{id}/paid-up": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "MakePaidUp: refused until actuarial defines the value calculation (OQ-052)",
+        "operationId": "LifePolicyMakePaidUp",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_policy.update"
+      }
+    },
+    "/api/v1/life/policies/{id}/mature": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Mature: refused until actuarial defines the value calculation (OQ-052)",
+        "operationId": "LifePolicyMature",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_policy.update"
+      }
+    },
+    "/api/v1/life/policies/{id}/loans": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Issue a policy loan within the product\u0027s share of the cash value (LIF-007)",
+        "operationId": "LifeIssueLoan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_loan.create"
+      }
+    },
+    "/api/v1/life/loans/{id}": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Get a policy loan",
+        "operationId": "LifeGetLoan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_loan.read"
+      }
+    },
+    "/api/v1/life/loans/{id}/repayments": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Record a loan repayment",
+        "operationId": "LifeRepayLoan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepaymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_loan.update"
+      }
+    },
+    "/api/v1/life/claims": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Notify a claim on an insured life of a policy",
+        "operationId": "LifeNotifyClaim",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotifyLifeClaim"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_claim.create"
+      }
+    },
+    "/api/v1/life/claims/{id}": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Get a claim",
+        "operationId": "LifeGetClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_claim.read"
+      }
+    },
+    "/api/v1/life/claims/{id}/register": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Register the claim: policy status, insured life, benefit, exclusions and claimant are checked (LIF-008)",
+        "operationId": "LifeRegisterClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_claim.update"
+      }
+    },
+    "/api/v1/life/claims/{id}/assessment": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Assess the benefits claimed",
+        "operationId": "LifeAssessClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_claim.update"
+      }
+    },
+    "/api/v1/life/claims/{id}/approval": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Propose approval and payees; a second person approves in Workflow within authority (SRS-002, CLM-003)",
+        "operationId": "LifeApproveClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_claim.decide"
+      }
+    },
+    "/api/v1/life/claims/{id}/decline": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Decline the claim with its reason and rationale (CLM-003)",
+        "operationId": "LifeDeclineClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimDeclineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_claim.decide"
+      }
+    },
+    "/api/v1/life/claims/{id}/close": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Close a settled or declined claim",
+        "operationId": "LifeCloseClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_claim.update"
+      }
+    },
+    "/api/v1/life/group-schemes": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Set up a group scheme on a Life product",
+        "operationId": "LifeSetUpScheme",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUpGroupScheme"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_group_scheme.create"
+      }
+    },
+    "/api/v1/life/group-schemes/{id}": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Get a group scheme",
+        "operationId": "LifeGetScheme",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_group_scheme.read"
+      }
+    },
+    "/api/v1/life/group-schemes/{id}/members": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Enrol a member in a category; cover above the free cover limit needs evidence",
+        "operationId": "LifeEnrolMember",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_group_scheme.update"
+      }
+    },
+    "/api/v1/life/group-schemes/{id}/members/{memberId}": {
+      "put": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Change a member\u0027s category or salary",
+        "operationId": "LifeChangeMember",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_group_scheme.update"
+      }
+    },
+    "/api/v1/life/group-schemes/{id}/members/{memberId}/evidence-accepted": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Accept a member\u0027s underwriting evidence",
+        "operationId": "LifeAcceptMemberEvidence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_underwriting.decide"
+      }
+    },
+    "/api/v1/life/group-schemes/{id}/members/{memberId}/leave": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Remove a member from a date",
+        "operationId": "LifeRemoveMember",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberLeaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_group_scheme.update"
+      }
+    },
+    "/api/v1/life/group-schemes/{id}/renew": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Renew the scheme",
+        "operationId": "LifeRenewScheme",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_group_scheme.update"
+      }
+    },
+    "/api/v1/life/group-schemes/{id}/terminate": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Terminate the scheme; its members leave",
+        "operationId": "LifeTerminateScheme",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchemeTerminationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "life_group_scheme.update"
       }
     },
     "/api/v1/general/risk-objects": {
@@ -5053,6 +6508,1296 @@
         "x-permission": "general_recovery.update"
       }
     },
+    "/api/v1/health/schemes": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Register a sponsor\u0027s scheme",
+        "operationId": "HealthRegisterScheme",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterHealthScheme"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_scheme.create"
+      }
+    },
+    "/api/v1/health/schemes/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Get a scheme",
+        "operationId": "HealthGetScheme",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_scheme.read"
+      }
+    },
+    "/api/v1/health/schemes/{id}/renew": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Renew the scheme",
+        "operationId": "HealthSchemeRenew",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_scheme.update"
+      }
+    },
+    "/api/v1/health/schemes/{id}/terminate": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Terminate the scheme",
+        "operationId": "HealthSchemeTerminate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_scheme.update"
+      }
+    },
+    "/api/v1/health/memberships": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Enrol a principal member on a plan option; waiting periods are fixed now (HLT-002)",
+        "operationId": "HealthEnrolMember",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrolHealthMember"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_membership.create"
+      }
+    },
+    "/api/v1/health/memberships/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Get a membership",
+        "operationId": "HealthGetMembership",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_membership.read"
+      }
+    },
+    "/api/v1/health/memberships/{id}/accumulators": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "The membership\u0027s benefit accumulators: limit, used, reserved",
+        "operationId": "HealthGetAccumulators",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "benefit_accumulator.read"
+      }
+    },
+    "/api/v1/health/memberships/{id}/dependants": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Add a dependant within the type\u0027s age limit",
+        "operationId": "HealthAddDependant",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DependantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_membership.update"
+      }
+    },
+    "/api/v1/health/memberships/{id}/dependants/{dependantId}/remove": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Remove a dependant from a date",
+        "operationId": "HealthRemoveDependant",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "dependantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DependantRemovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_membership.update"
+      }
+    },
+    "/api/v1/health/memberships/{id}/plan": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Change the plan option from a date",
+        "operationId": "HealthChangePlan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_membership.update"
+      }
+    },
+    "/api/v1/health/memberships/{id}/suspend": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Suspend the membership",
+        "operationId": "HealthMembershipSuspend",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_membership.update"
+      }
+    },
+    "/api/v1/health/memberships/{id}/reinstate": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Reinstate the membership",
+        "operationId": "HealthMembershipReinstate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_membership.update"
+      }
+    },
+    "/api/v1/health/memberships/{id}/terminate": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Terminate the membership",
+        "operationId": "HealthMembershipTerminate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_membership.update"
+      }
+    },
+    "/api/v1/health/eligibility": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "An authorised member-eligibility enquiry; the decision is recorded (HLT-003)",
+        "operationId": "HealthCheckEligibility",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckEligibility"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_eligibility.create"
+      }
+    },
+    "/api/v1/health/preauthorisations": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Request a preauthorisation for an eligible member (HLT-005)",
+        "operationId": "HealthRequestAuthorisation",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestAuthorisation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_preauthorisation.create"
+      }
+    },
+    "/api/v1/health/preauthorisations/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Get a preauthorisation",
+        "operationId": "HealthGetAuthorisation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_preauthorisation.read"
+      }
+    },
+    "/api/v1/health/preauthorisations/{id}/review": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Start clinical review (HLT-008)",
+        "operationId": "HealthReviewAuthorisation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_preauthorisation.review"
+      }
+    },
+    "/api/v1/health/preauthorisations/{id}/approve": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Approve within the available benefit; the amount is reserved (ADR-012, h)",
+        "operationId": "HealthApproveAuthorisation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorisationDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_preauthorisation.review"
+      }
+    },
+    "/api/v1/health/preauthorisations/{id}/reject": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Reject the authorisation",
+        "operationId": "HealthRejectAuthorisation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorisationRejectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_preauthorisation.review"
+      }
+    },
+    "/api/v1/health/preauthorisations/{id}/modify": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Change an approved line\u0027s amount and its reservation",
+        "operationId": "HealthModifyAuthorisation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorisationChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_preauthorisation.review"
+      }
+    },
+    "/api/v1/health/preauthorisations/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Cancel; the reservation is released",
+        "operationId": "HealthCancelAuthorisation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_preauthorisation.review"
+      }
+    },
+    "/api/v1/health/claims": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Submit a provider or member claim (HLT-006)",
+        "operationId": "HealthSubmitClaim",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitMedicalClaim"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "medical_claim.create"
+      }
+    },
+    "/api/v1/health/claims/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Get a claim",
+        "operationId": "HealthGetClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "medical_claim.read"
+      }
+    },
+    "/api/v1/health/claims/{id}/validate": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Validate membership, cover and codes (HLT-007)",
+        "operationId": "HealthValidateClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "medical_claim.update"
+      }
+    },
+    "/api/v1/health/claims/{id}/adjudicate": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Adjudicate the lines (ADR-012); safe to repeat after CONCURRENCY_CONFLICT",
+        "operationId": "HealthAdjudicateClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "medical_claim.update"
+      }
+    },
+    "/api/v1/health/claims/{id}/review": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Accept or reject pended lines, and adjudicate again",
+        "operationId": "HealthReviewPendedClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PendReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "medical_claim.approve"
+      }
+    },
+    "/api/v1/health/claims/{id}/approve": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Approve the adjudicated claim for payment",
+        "operationId": "HealthApproveClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "medical_claim.approve"
+      }
+    },
+    "/api/v1/health/claims/{id}/reject": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Reject a validated claim",
+        "operationId": "HealthRejectClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "medical_claim.approve"
+      }
+    },
+    "/api/v1/health/claims/{id}/reverse": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Reverse a paid claim; its benefit use is given back",
+        "operationId": "HealthReverseClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "medical_claim.approve"
+      }
+    },
+    "/api/v1/health/utilisation-cases": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Open a utilisation case",
+        "operationId": "HealthOpenUtilisationCase",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenUtilisationCase"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_case.update"
+      }
+    },
+    "/api/v1/health/utilisation-cases/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Get a utilisation case",
+        "operationId": "HealthGetUtilisationCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_case.read"
+      }
+    },
+    "/api/v1/health/utilisation-cases/{id}/review": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Start reviewing",
+        "operationId": "HealthReviewUtilisationCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_case.update"
+      }
+    },
+    "/api/v1/health/utilisation-cases/{id}/conclude": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Conclude, by the reviewer",
+        "operationId": "HealthConcludeUtilisationCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseOutcomeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_case.update"
+      }
+    },
+    "/api/v1/health/fraud-cases/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Get a fraud case",
+        "operationId": "HealthGetFraudCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_case.read"
+      }
+    },
+    "/api/v1/health/fraud-cases/{id}/investigate": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Start investigating",
+        "operationId": "HealthInvestigateFraudCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_case.update"
+      }
+    },
+    "/api/v1/health/fraud-cases/{id}/conclude": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Conclude, by the investigator",
+        "operationId": "HealthConcludeFraudCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseOutcomeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "health_case.update"
+      }
+    },
+    "/api/v1/health/payment-runs": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Open a provider payment run",
+        "operationId": "HealthOpenRun",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenPaymentRun"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "provider_payment_run.update"
+      }
+    },
+    "/api/v1/health/payment-runs/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Get a payment run",
+        "operationId": "HealthGetRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "provider_payment_run.read"
+      }
+    },
+    "/api/v1/health/payment-runs/{id}/cut-off": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Cut off the run",
+        "operationId": "HealthCutOffRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "provider_payment_run.update"
+      }
+    },
+    "/api/v1/health/payment-runs/{id}/calculate": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Calculate remittances; approval is requested in Workflow (HLT-009)",
+        "operationId": "HealthCalculateRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "provider_payment_run.update"
+      }
+    },
+    "/api/v1/health/payment-runs/{id}/release": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Release the approved run to Payments",
+        "operationId": "HealthReleaseRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "provider_payment_run.update"
+      }
+    },
     "/api/v1/finance/journals/{id}": {
       "get": {
         "tags": [
@@ -6133,6 +8878,29 @@
           }
         }
       },
+      "AlterationRequest": {
+        "required": [
+          "alterationCode",
+          "effectiveDate",
+          "intermediaryCode"
+        ],
+        "type": "object",
+        "properties": {
+          "alterationCode": {
+            "type": "string"
+          },
+          "effectiveDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "intermediaryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "AmendScheduleRequest": {
         "required": [
           "instalmentAmount",
@@ -6151,6 +8919,20 @@
           "effectiveFrom": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "AssessmentRequest": {
+        "required": [
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BenefitLineRequest"
+            }
           }
         }
       },
@@ -6300,6 +9082,163 @@
           }
         }
       },
+      "AuthorisationChangeRequest": {
+        "required": [
+          "lineId",
+          "authorisedAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "authorisedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "AuthorisationDecisionRequest": {
+        "required": [
+          "lines",
+          "validFrom",
+          "conditions"
+        ],
+        "type": "object",
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineAmount"
+            }
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "conditions": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AuthorisationRejectionRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "BankAccountRequest": {
+        "required": [
+          "accountNumber",
+          "bankCode",
+          "branchCode",
+          "accountHolderName",
+          "accountType",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "accountNumber": {
+            "type": "string"
+          },
+          "bankCode": {
+            "type": "string"
+          },
+          "branchCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "accountHolderName": {
+            "type": "string"
+          },
+          "accountType": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "BeneficiariesRequest": {
+        "required": [
+          "effectiveDate",
+          "nominations"
+        ],
+        "type": "object",
+        "properties": {
+          "effectiveDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "nominations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BeneficiaryNomination"
+            }
+          }
+        }
+      },
+      "BeneficiaryNomination": {
+        "required": [
+          "partyId",
+          "relationshipCode",
+          "sharePct"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "relationshipCode": {
+            "type": "string"
+          },
+          "sharePct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "BenefitLineRequest": {
+        "required": [
+          "policyBenefitId",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "policyBenefitId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "BuildBatchRequest": {
         "required": [
           "purpose",
@@ -6388,6 +9327,131 @@
           }
         }
       },
+      "CaptureProposal": {
+        "required": [
+          "productCode",
+          "productVersion",
+          "applicantPartyId",
+          "intermediaryCode",
+          "channelCode",
+          "currency",
+          "inceptionDate",
+          "frequency",
+          "collectionMethod",
+          "payerPartyId",
+          "lives",
+          "covers",
+          "disclosures",
+          "nominations"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "productVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "applicantPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intermediaryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "channelCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "inceptionDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "frequency": {
+            "type": "string"
+          },
+          "collectionMethod": {
+            "type": "string"
+          },
+          "payerPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "lives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsuredLifeInput"
+            }
+          },
+          "covers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoverRequest"
+            }
+          },
+          "disclosures": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/DisclosureInput"
+            }
+          },
+          "nominations": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BeneficiaryNomination"
+            }
+          }
+        }
+      },
+      "CaseDecisionRequest": {
+        "required": [
+          "outcome",
+          "decisionCode",
+          "reason",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/UnderwritingOutcome"
+          },
+          "decisionCode": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "items": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/DecisionItemRequest"
+            }
+          }
+        }
+      },
       "CaseNoteRequest": {
         "required": [
           "note"
@@ -6396,6 +9460,149 @@
         "properties": {
           "note": {
             "type": "string"
+          }
+        }
+      },
+      "CaseOutcomeRequest": {
+        "required": [
+          "outcome"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string"
+          }
+        }
+      },
+      "CaseReferralRequest": {
+        "required": [
+          "toRole"
+        ],
+        "type": "object",
+        "properties": {
+          "toRole": {
+            "type": "string"
+          }
+        }
+      },
+      "CheckEligibility": {
+        "required": [
+          "memberNumber",
+          "dependantSuffix",
+          "providerId",
+          "serviceType",
+          "serviceDate"
+        ],
+        "type": "object",
+        "properties": {
+          "memberNumber": {
+            "type": "string"
+          },
+          "dependantSuffix": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serviceType": {
+            "type": "string"
+          },
+          "serviceDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        }
+      },
+      "ClaimApprovalRequest": {
+        "required": [
+          "payees",
+          "reserveType",
+          "decisionReason",
+          "rationale"
+        ],
+        "type": "object",
+        "properties": {
+          "payees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayeeInput"
+            }
+          },
+          "reserveType": {
+            "type": "string"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      },
+      "ClaimDeclineRequest": {
+        "required": [
+          "decisionReason",
+          "rationale"
+        ],
+        "type": "object",
+        "properties": {
+          "decisionReason": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      },
+      "ClaimLineRequest": {
+        "required": [
+          "tariffCode",
+          "diagnosisCode",
+          "quantity",
+          "claimedAmount",
+          "modifiers"
+        ],
+        "type": "object",
+        "properties": {
+          "tariffCode": {
+            "type": "string"
+          },
+          "diagnosisCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "claimedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "modifiers": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -6459,6 +9666,40 @@
           },
           "isPrimary": {
             "type": "boolean"
+          }
+        }
+      },
+      "CoverRequest": {
+        "required": [
+          "insuredPartyId",
+          "benefitCode",
+          "sumAssured",
+          "termYears"
+        ],
+        "type": "object",
+        "properties": {
+          "insuredPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "benefitCode": {
+            "type": "string"
+          },
+          "sumAssured": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "termYears": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -6799,6 +10040,62 @@
           }
         }
       },
+      "DecisionItemRequest": {
+        "required": [
+          "benefitCode",
+          "decisionCode",
+          "loadingPct",
+          "loadingPerMille",
+          "exclusionCode",
+          "postponedUntil"
+        ],
+        "type": "object",
+        "properties": {
+          "benefitCode": {
+            "type": "string"
+          },
+          "decisionCode": {
+            "type": "string"
+          },
+          "loadingPct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "loadingPerMille": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "exclusionCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "postponedUntil": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "hasTerms": {
+            "type": "boolean"
+          },
+          "isLoaded": {
+            "type": "boolean"
+          }
+        }
+      },
       "DeclineRequest": {
         "required": [
           "decisionCode",
@@ -6829,11 +10126,77 @@
           }
         }
       },
+      "DependantRemovalRequest": {
+        "required": [
+          "lastDay"
+        ],
+        "type": "object",
+        "properties": {
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "DependantRequest": {
+        "required": [
+          "partyId",
+          "dependantType",
+          "student",
+          "startDate"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dependantType": {
+            "type": "string"
+          },
+          "student": {
+            "type": "boolean"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "Direction": {
         "enum": [
           "In",
           "Out"
         ]
+      },
+      "DisclosureInput": {
+        "required": [
+          "insuredPartyId",
+          "questionCode",
+          "questionVersion",
+          "answer"
+        ],
+        "type": "object",
+        "properties": {
+          "insuredPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "questionCode": {
+            "type": "string"
+          },
+          "questionVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "answer": {
+            "$ref": "#/components/schemas/JsonElement"
+          }
+        }
       },
       "DisposalRequest": {
         "required": [
@@ -6859,11 +10222,11 @@
         "required": [
           "instructionRef",
           "payeePartyId",
+          "bankAccountId",
           "amount",
           "approvedAmount",
           "currency",
-          "reserveType",
-          "bankDetails"
+          "reserveType"
         ],
         "type": "object",
         "properties": {
@@ -6871,6 +10234,10 @@
             "type": "string"
           },
           "payeePartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bankAccountId": {
             "type": "string",
             "format": "uuid"
           },
@@ -6895,16 +10262,6 @@
           },
           "reserveType": {
             "type": "string"
-          },
-          "bankDetails": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/PayeeBankDetails"
-              }
-            ]
           }
         }
       },
@@ -7005,6 +10362,81 @@
           }
         }
       },
+      "EnrolHealthMember": {
+        "required": [
+          "principalPartyId",
+          "schemeId",
+          "memberCategory",
+          "planCode",
+          "optionCode",
+          "startDate",
+          "currency",
+          "payerPartyId",
+          "billingAccountId",
+          "collectionMethod",
+          "facts"
+        ],
+        "type": "object",
+        "properties": {
+          "principalPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schemeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "memberCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "planCode": {
+            "type": "string"
+          },
+          "optionCode": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "payerPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "billingAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "collectionMethod": {
+            "type": "string"
+          },
+          "facts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          }
+        }
+      },
       "EstimateRequest": {
         "required": [
           "repairerPartyId",
@@ -7051,6 +10483,18 @@
           },
           "inputs": {
             "$ref": "#/components/schemas/JsonElement"
+          }
+        }
+      },
+      "EvidenceReceivedRequest": {
+        "required": [
+          "documentId"
+        ],
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -7220,7 +10664,8 @@
           "currency",
           "counterpartyPartyId",
           "businessRefType",
-          "businessRefId"
+          "businessRefId",
+          "bankAccountId"
         ],
         "type": "object",
         "properties": {
@@ -7263,6 +10708,40 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "bankAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "InsuredLifeInput": {
+        "required": [
+          "partyId",
+          "lifeRole",
+          "smokerStatus",
+          "occupationCode"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lifeRole": {
+            "type": "string"
+          },
+          "smokerStatus": {
+            "type": "string"
+          },
+          "occupationCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -7275,6 +10754,26 @@
           "asOf": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "IssueLifePolicy": {
+        "required": [
+          "proposalId",
+          "billingAccountId"
+        ],
+        "type": "object",
+        "properties": {
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "billingAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -7334,6 +10833,169 @@
           }
         }
       },
+      "LineAmount": {
+        "required": [
+          "lineId",
+          "authorisedAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "authorisedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "LineReview": {
+        "required": [
+          "lineNo",
+          "decision"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNo": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ReviewDecision"
+          }
+        }
+      },
+      "LoanRequest": {
+        "required": [
+          "principal",
+          "rateCode"
+        ],
+        "type": "object",
+        "properties": {
+          "principal": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rateCode": {
+            "type": "string"
+          }
+        }
+      },
+      "MemberChangeRequest": {
+        "required": [
+          "categoryCode",
+          "annualSalary",
+          "facts"
+        ],
+        "type": "object",
+        "properties": {
+          "categoryCode": {
+            "type": "string"
+          },
+          "annualSalary": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "facts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          }
+        }
+      },
+      "MemberLeaveRequest": {
+        "required": [
+          "leftOn"
+        ],
+        "type": "object",
+        "properties": {
+          "leftOn": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "MemberRequest": {
+        "required": [
+          "partyId",
+          "categoryCode",
+          "annualSalary",
+          "joinedOn",
+          "facts"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryCode": {
+            "type": "string"
+          },
+          "annualSalary": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "joinedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "facts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          }
+        }
+      },
+      "MembershipStatusRequest": {
+        "required": [
+          "effectiveDate",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "effectiveDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "MergePartiesRequest": {
         "required": [
           "survivorId",
@@ -7352,6 +11014,44 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "NotifyLifeClaim": {
+        "required": [
+          "policyId",
+          "claimType",
+          "eventDate",
+          "causeCode",
+          "claimantPartyId",
+          "insuredLifeId"
+        ],
+        "type": "object",
+        "properties": {
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimType": {
+            "type": "string"
+          },
+          "eventDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "causeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "claimantPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "insuredLifeId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -7430,6 +11130,45 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "OpenPaymentRun": {
+        "required": [
+          "runCode",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "runCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "OpenUtilisationCase": {
+        "required": [
+          "membershipId",
+          "ruleCode",
+          "claimId"
+        ],
+        "type": "object",
+        "properties": {
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ruleCode": {
+            "type": "string"
+          },
+          "claimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -7521,29 +11260,113 @@
           }
         }
       },
-      "PayeeBankDetails": {
+      "PayeeInput": {
         "required": [
-          "bankCode",
-          "branchCode",
-          "accountNumber",
-          "accountHolder"
+          "partyId",
+          "bankAccountId",
+          "sharePct"
         ],
         "type": "object",
         "properties": {
-          "bankCode": {
-            "type": "string"
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
           },
-          "branchCode": {
+          "bankAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sharePct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
             "type": [
-              "null",
+              "number",
               "string"
-            ]
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "PayeeRequest": {
+        "required": [
+          "payeePartyId",
+          "bankAccountId"
+        ],
+        "type": "object",
+        "properties": {
+          "payeePartyId": {
+            "type": "string",
+            "format": "uuid"
           },
-          "accountNumber": {
+          "bankAccountId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PendReviewRequest": {
+        "required": [
+          "reviews"
+        ],
+        "type": "object",
+        "properties": {
+          "reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineReview"
+            }
+          }
+        }
+      },
+      "PlanChangeRequest": {
+        "required": [
+          "planCode",
+          "optionCode",
+          "effectiveDate",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "planCode": {
             "type": "string"
           },
-          "accountHolder": {
+          "optionCode": {
             "type": "string"
+          },
+          "effectiveDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "PreauthLineRequest": {
+        "required": [
+          "procedureCode",
+          "quantity",
+          "requestedAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "procedureCode": {
+            "type": "string"
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "requestedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -7631,6 +11454,17 @@
           },
           "mfaEnrolled": {
             "type": "boolean"
+          }
+        }
+      },
+      "ReasonRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -7758,7 +11592,8 @@
       "RefundRequestBody": {
         "required": [
           "amount",
-          "reasonCode"
+          "reasonCode",
+          "bankAccountId"
         ],
         "type": "object",
         "properties": {
@@ -7771,6 +11606,35 @@
             "format": "double"
           },
           "reasonCode": {
+            "type": "string"
+          },
+          "bankAccountId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RegisterHealthScheme": {
+        "required": [
+          "sponsorCode",
+          "startDate",
+          "renewalDate",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "sponsorCode": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "renewalDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
             "type": "string"
           }
         }
@@ -7899,6 +11763,21 @@
           }
         }
       },
+      "ReinstatementRequest": {
+        "required": [
+          "evidenceRef"
+        ],
+        "type": "object",
+        "properties": {
+          "evidenceRef": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "RejectAccessRequest": {
         "required": [
           "reason"
@@ -7939,6 +11818,30 @@
           "validFrom": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "RepaymentRequest": {
+        "required": [
+          "amount",
+          "paymentRef"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "paymentRef": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -7992,6 +11895,45 @@
           }
         }
       },
+      "RequestAuthorisation": {
+        "required": [
+          "membershipId",
+          "patientPartyId",
+          "providerId",
+          "diagnosisCodes",
+          "serviceType",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "diagnosisCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "serviceType": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreauthLineRequest"
+            }
+          }
+        }
+      },
       "ReserveAction": {
         "enum": [
           "Set",
@@ -8039,29 +11981,6 @@
           },
           "evidence": {
             "type": "string"
-          }
-        }
-      },
-      "RetryInstructionRequest": {
-        "required": [
-          "payeePartyId",
-          "bankDetails"
-        ],
-        "type": "object",
-        "properties": {
-          "payeePartyId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "bankDetails": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/PayeeBankDetails"
-              }
-            ]
           }
         }
       },
@@ -8131,6 +12050,12 @@
           }
         }
       },
+      "ReviewDecision": {
+        "enum": [
+          "Accept",
+          "Reject"
+        ]
+      },
       "ReviewScope": {
         "enum": [
           "AllUsers",
@@ -8194,10 +12119,66 @@
           }
         }
       },
+      "SchemeTerminationRequest": {
+        "required": [
+          "on"
+        ],
+        "type": "object",
+        "properties": {
+          "on": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "SetUpGroupScheme": {
+        "required": [
+          "employerPartyId",
+          "productCode",
+          "productVersion",
+          "schemeType",
+          "startDate",
+          "renewalDate",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "employerPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "productVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "schemeType": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "renewalDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
       "SettlementRequestBody": {
         "required": [
           "payeePartyId",
-          "bankDetails",
+          "bankAccountId",
           "reserveType",
           "decisionCode",
           "rationale"
@@ -8208,8 +12189,9 @@
             "type": "string",
             "format": "uuid"
           },
-          "bankDetails": {
-            "$ref": "#/components/schemas/PayeeBankDetails"
+          "bankAccountId": {
+            "type": "string",
+            "format": "uuid"
           },
           "reserveType": {
             "type": "string"
@@ -8388,6 +12370,62 @@
           }
         }
       },
+      "SubmitMedicalClaim": {
+        "required": [
+          "source",
+          "providerId",
+          "membershipId",
+          "patientPartyId",
+          "serviceDate",
+          "formatCode",
+          "currency",
+          "preauthorisationId",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "serviceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "formatCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "preauthorisationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimLineRequest"
+            }
+          }
+        }
+      },
       "SubmitProposal": {
         "required": [
           "quoteId",
@@ -8404,6 +12442,24 @@
           }
         }
       },
+      "UnderwritingOutcome": {
+        "enum": [
+          "Accept",
+          "Decline",
+          "Postpone"
+        ]
+      },
+      "VerifyBankAccountRequest": {
+        "required": [
+          "verificationRef"
+        ],
+        "type": "object",
+        "properties": {
+          "verificationRef": {
+            "type": "string"
+          }
+        }
+      },
       "VerifyIdentifierRequest": {
         "required": [
           "verificationRef"
@@ -8411,6 +12467,17 @@
         "type": "object",
         "properties": {
           "verificationRef": {
+            "type": "string"
+          }
+        }
+      },
+      "WaiverRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
             "type": "string"
           }
         }
@@ -8474,7 +12541,13 @@
       "name": "ClaimsFramework"
     },
     {
+      "name": "Life"
+    },
+    {
       "name": "General"
+    },
+    {
+      "name": "Health"
     },
     {
       "name": "Finance"

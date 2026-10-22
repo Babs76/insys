@@ -60,3 +60,15 @@ public interface IAllocationPlanner
     Task<IReadOnlyList<PlannedAllocation>> Plan(Guid tenantId, Guid? billingAccountId, Guid? invoiceId, decimal amount, string currency, DateOnly day,
         CancellationToken cancellationToken);
 }
+
+/// <summary>A policy's instalments past their due date whose invoice is unpaid, and the oldest due date among them.</summary>
+public sealed record PolicyArrears(int OverdueInstalments, DateOnly? OldestDueDate);
+
+/// <summary>
+/// Public query interface: a policy's arrears on its invoices, read on Billing's own connection, for the domain that
+/// counts missed premiums (Life, process "Missed premium to lapse").
+/// </summary>
+public interface IPolicyArrears
+{
+    Task<PolicyArrears> For(Guid tenantId, string sourceDomain, Guid policyRef, DateOnly asOf, CancellationToken cancellationToken);
+}

@@ -492,7 +492,6 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
     }
 
-    /// <summary>Batches the instruction's payout, approves it as the checker, releases it, and answers it with the provider's status.</summary>
     /// <summary>Batches the payout, approves and releases it, and answers it with the provider's status (none when the payment never reaches the provider).</summary>
     private async Task<Guid> PayOut(Guid instruction, string? providerStatus, Func<Task>? beforeRelease = null)
     {

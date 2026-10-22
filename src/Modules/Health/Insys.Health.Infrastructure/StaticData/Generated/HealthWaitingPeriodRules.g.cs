@@ -21,12 +21,18 @@ public sealed class HealthWaitingPeriodRules : StaticRecord<HealthWaitingPeriodR
 
     public string[]? Exceptions { get; set; }
 
+    public string[]? DiagnosisCodes { get; set; }
+
+    public string[]? ProcedureCodes { get; set; }
+
     public override void ApplyFields(HealthWaitingPeriodRulesInput input, IFieldProtector protector)
     {
         RuleCode = input.RuleCode!;
         Type = input.Type!;
         Duration = input.Duration!;
         Exceptions = input.Exceptions;
+        DiagnosisCodes = input.DiagnosisCodes;
+        ProcedureCodes = input.ProcedureCodes;
     }
 }
 
@@ -40,6 +46,10 @@ public sealed record HealthWaitingPeriodRulesInput : StaticRecordInput
     public string? Duration { get; init; }
 
     public string[]? Exceptions { get; init; }
+
+    public string[]? DiagnosisCodes { get; init; }
+
+    public string[]? ProcedureCodes { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

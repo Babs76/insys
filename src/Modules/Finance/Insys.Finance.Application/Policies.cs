@@ -24,6 +24,7 @@ public sealed class PostingPolicies(EventPoster poster) :
     IIntegrationEventHandler<PaymentReversed>,
     IIntegrationEventHandler<ClaimReserveChanged>,
     IIntegrationEventHandler<ClaimPaymentCompleted>,
+    IIntegrationEventHandler<Health.Contracts.MedicalClaimSettled>,
     IIntegrationEventHandler<ClaimRecoveryRecorded>
 {
     public Task Handle(InvoiceIssued e, EventEnvelope envelope, CancellationToken cancellationToken) =>
@@ -58,6 +59,13 @@ public sealed class PostingPolicies(EventPoster poster) :
     public Task Handle(ClaimPaymentCompleted e, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Post(envelope, e.Domain, TransactionTypes.ClaimPaid, e.PaidOn, e.Amount, e.Currency, "CLAIM_MOVEMENT", e.MovementId,
             new() { ["domain"] = e.Domain, ["reserve_type"] = e.ReserveType }, cancellationToken);
+
+    /// <summary>A Health claim paid by a provider payment run (process "Health care to provider payment": PostBusinessEvent, claims paid).</summary>
+    public Task Handle(Health.Contracts.MedicalClaimSettled e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        e.Amount <= 0
+            ? Task.CompletedTask
+            : Post(envelope, Health.Contracts.HealthReferences.SourceDomain, TransactionTypes.ClaimPaid, e.PaidOn, e.Amount, e.Currency, "MEDICAL_CLAIM", e.ClaimId,
+                new() { ["domain"] = Health.Contracts.HealthReferences.SourceDomain, ["reserve_type"] = "HEALTH" }, cancellationToken);
 
     public Task Handle(ClaimRecoveryRecorded e, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Post(envelope, e.Domain, TransactionTypes.ClaimRecovery, e.MovementDate, e.Amount, e.Currency, "CLAIM_MOVEMENT", e.MovementId,

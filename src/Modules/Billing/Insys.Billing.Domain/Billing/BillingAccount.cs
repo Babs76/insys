@@ -148,6 +148,13 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
         EndDate = from.AddDays(-1) < StartDate ? StartDate : from.AddDays(-1);
     }
 
+    /// <summary>An ended schedule resumes from a date (a reinstated policy) to its new end: instalments are generated again from then.</summary>
+    internal void Resume(BillingFrequency frequency, DateOnly from, DateOnly? end)
+    {
+        EndDate = end;
+        Generate(frequency, from);
+    }
+
     /// <summary>AmendSchedule: instalments not yet invoiced from the effective date are cancelled and regenerated at the new amount.</summary>
     internal void Amend(BillingFrequency frequency, decimal amount, DateOnly effectiveFrom)
     {
@@ -315,6 +322,24 @@ public sealed class BillingAccount : AggregateRoot<Guid>
         }
 
         schedule.End(from);
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>A policy's ended schedule resumes from a date, to its end date (null: open-ended).</summary>
+    public Result ResumeSchedule(Guid scheduleId, BillingFrequency frequency, DateOnly from, DateOnly? end)
+    {
+        if (_schedules.SingleOrDefault(s => s.Id == scheduleId) is not { } schedule)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The account has no such schedule.");
+        }
+
+        if (Status == AccountStatus.Closed || (end is { } e && e < from))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "A schedule resumes on an open account, before its end.");
+        }
+
+        schedule.Resume(frequency, from, end);
         MarkChanged();
         return Result.Success();
     }

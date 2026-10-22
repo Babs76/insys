@@ -580,6 +580,7 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     IIntegrationEventHandler<InvoiceIssued>,
     IIntegrationEventHandler<RefundApproved>,
     IIntegrationEventHandler<ClaimPaymentInstructed>,
+    IIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased>,
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<PaymentReceived>,
     IIntegrationEventHandler<PaymentSucceeded>,
@@ -605,6 +606,16 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     public Task Handle(ClaimPaymentInstructed instructed, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Payout($"CLAIM_PAYMENT:{instructed.InstructionId:N}:{instructed.Attempt}", PaymentPurposes.ClaimPayout, instructed.Amount, instructed.Currency, instructed.PayeePartyId,
             ClaimsApprovals.InstructionBusinessRefType, instructed.InstructionId, instructed.BankAccountId, cancellationToken);
+
+    /// <summary>A released provider payment run: each remittance is paid to the provider's verified account through a payout batch (HLT-009).</summary>
+    public async Task Handle(Health.Contracts.ProviderPaymentRunReleased released, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        foreach (var remittance in released.Remittances)
+        {
+            await Payout($"REMITTANCE:{remittance.RemittanceId:N}", PaymentPurposes.ClaimPayout, remittance.Amount, released.Currency, remittance.ProviderPartyId,
+                Health.Contracts.HealthReferences.RemittanceRefType, remittance.RemittanceId, remittance.BankAccountId, cancellationToken);
+        }
+    }
 
     public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {

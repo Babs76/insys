@@ -42388,6 +42388,274 @@
         "x-permission": "static_data.create"
       }
     },
+    "/api/v1/health/static/benefit-category-mappings": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "List Benefit category mappings in force",
+        "description": "Benefit category mappings records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListHealthBenefitCategoryMappings",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.read"
+      },
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Create a tenant Benefit category mappings draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreateHealthBenefitCategoryMappingsDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BenefitCategoryMappingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.create"
+      }
+    },
+    "/api/v1/health/static/benefit-category-mappings/{code}": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Get the Benefit category mappings version in force",
+        "operationId": "GetHealthBenefitCategoryMappings",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.read"
+      }
+    },
+    "/api/v1/health/static/benefit-category-mappings/{code}/versions": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "List every tenant version of a Benefit category mappings code",
+        "operationId": "ListHealthBenefitCategoryMappingsVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.read"
+      }
+    },
+    "/api/v1/health/static/benefit-category-mappings/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Edit a tenant Benefit category mappings draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditHealthBenefitCategoryMappingsDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BenefitCategoryMappingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.update"
+      }
+    },
+    "/api/v1/health/static/benefit-category-mappings/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Benefit category mappings version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "operationId": "ChangeHealthBenefitCategoryMappingsLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.update"
+      }
+    },
+    "/api/v1/health/static/benefit-category-mappings/imports": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Import tenant Benefit category mappings drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012).",
+        "operationId": "ImportHealthBenefitCategoryMappings",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfBenefitCategoryMappingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.create"
+      }
+    },
     "/api/v1/health/static/benefit-schedules": {
       "get": {
         "tags": [
@@ -48539,6 +48807,274 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/StaticDataImportOfSchemeRenewalRulesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.create"
+      }
+    },
+    "/api/v1/health/static/tariff-modifiers": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "List Tariff modifiers in force",
+        "description": "Tariff modifiers records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListHealthTariffModifiers",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.read"
+      },
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Create a tenant Tariff modifiers draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreateHealthTariffModifiersDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TariffModifiersInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.create"
+      }
+    },
+    "/api/v1/health/static/tariff-modifiers/{code}": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Get the Tariff modifiers version in force",
+        "operationId": "GetHealthTariffModifiers",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.read"
+      }
+    },
+    "/api/v1/health/static/tariff-modifiers/{code}/versions": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "List every tenant version of a Tariff modifiers code",
+        "operationId": "ListHealthTariffModifiersVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.read"
+      }
+    },
+    "/api/v1/health/static/tariff-modifiers/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Edit a tenant Tariff modifiers draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditHealthTariffModifiersDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TariffModifiersInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.update"
+      }
+    },
+    "/api/v1/health/static/tariff-modifiers/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Tariff modifiers version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "operationId": "ChangeHealthTariffModifiersLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "static_data.update"
+      }
+    },
+    "/api/v1/health/static/tariff-modifiers/imports": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Import tenant Tariff modifiers drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012).",
+        "operationId": "ImportHealthTariffModifiers",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfTariffModifiersInput"
               }
             }
           },
@@ -63629,6 +64165,124 @@
           }
         }
       },
+      "BenefitCategoryMappingsInput": {
+        "type": "object",
+        "properties": {
+          "codeSystem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "codeFrom": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "codeTo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "providerType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "benefitCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
       "BenefitCategoryTaxonomyInput": {
         "type": "object",
         "properties": {
@@ -66182,6 +66836,24 @@
               "string"
             ],
             "format": "double"
+          },
+          "ruleKind": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "capBasis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "planCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "code": {
             "type": "string"
@@ -70075,6 +70747,24 @@
               "string"
             ]
           },
+          "diagnosisCodes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "procedureCodes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
           "code": {
             "type": "string"
           },
@@ -71447,6 +72137,24 @@
             ]
           },
           "exceptions": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "diagnosisCodes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "procedureCodes": {
             "type": [
               "null",
               "array"
@@ -73138,6 +73846,12 @@
               "string"
             ]
           },
+          "planCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "code": {
             "type": "string"
           },
@@ -74818,6 +75532,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "tariffScheduleCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "code": {
             "type": "string"
@@ -76792,6 +77512,18 @@
               "string"
             ]
           },
+          "referenceTariffScheduleCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "benefitYear": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "code": {
             "type": "string"
           },
@@ -78676,6 +79408,12 @@
               "string"
             ]
           },
+          "tariffScheduleCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "code": {
             "type": "string"
           },
@@ -78914,6 +79652,19 @@
               "null",
               "string"
             ]
+          },
+          "providerType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "partyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "code": {
             "type": "string"
@@ -83973,6 +84724,24 @@
           }
         }
       },
+      "StaticDataImportOfBenefitCategoryMappingsInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BenefitCategoryMappingsInput"
+            }
+          }
+        }
+      },
       "StaticDataImportOfBenefitCategoryTaxonomyInput": {
         "required": [
           "fileRef",
@@ -87141,6 +87910,24 @@
           }
         }
       },
+      "StaticDataImportOfTariffModifiersInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TariffModifiersInput"
+            }
+          }
+        }
+      },
       "StaticDataImportOfTariffSchedulesInput": {
         "required": [
           "fileRef",
@@ -87607,6 +88394,124 @@
           }
         }
       },
+      "TariffModifiersInput": {
+        "type": "object",
+        "properties": {
+          "modifierCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "value": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "appliesTo": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
       "TariffSchedulesInput": {
         "type": "object",
         "properties": {
@@ -87633,6 +88538,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "scheduleCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "code": {
             "type": "string"

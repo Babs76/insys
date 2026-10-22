@@ -25,6 +25,12 @@ public sealed class CoPaymentAndDeductibleRules : StaticRecord<CoPaymentAndDeduc
 
     public decimal? Cap { get; set; }
 
+    public string RuleKind { get; set; } = "";
+
+    public string CapBasis { get; set; } = "";
+
+    public string? PlanCode { get; set; }
+
     public override void ApplyFields(CoPaymentAndDeductibleRulesInput input, IFieldProtector protector)
     {
         RuleCode = input.RuleCode!;
@@ -33,6 +39,9 @@ public sealed class CoPaymentAndDeductibleRules : StaticRecord<CoPaymentAndDeduc
         Value = input.Value.GetValueOrDefault();
         NetworkStatus = input.NetworkStatus!;
         Cap = input.Cap;
+        RuleKind = input.RuleKind!;
+        CapBasis = input.CapBasis!;
+        PlanCode = input.PlanCode;
     }
 }
 
@@ -51,6 +60,12 @@ public sealed record CoPaymentAndDeductibleRulesInput : StaticRecordInput
 
     public decimal? Cap { get; init; }
 
+    public string? RuleKind { get; init; }
+
+    public string? CapBasis { get; init; }
+
+    public string? PlanCode { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("ruleCode", RuleCode);
@@ -64,5 +79,12 @@ public sealed record CoPaymentAndDeductibleRulesInput : StaticRecordInput
         errors.Required("networkStatus", NetworkStatus);
         errors.MaxLength("networkStatus", NetworkStatus, 40);
         errors.OneOf("networkStatus", NetworkStatus, ["IN_NETWORK", "OUT_OF_NETWORK"]);
+        errors.Required("ruleKind", RuleKind);
+        errors.MaxLength("ruleKind", RuleKind, 15);
+        errors.OneOf("ruleKind", RuleKind, ["CO_PAYMENT", "DEDUCTIBLE"]);
+        errors.Required("capBasis", CapBasis);
+        errors.MaxLength("capBasis", CapBasis, 15);
+        errors.OneOf("capBasis", CapBasis, ["PER_LINE", "PER_CLAIM", "PER_YEAR"]);
+        errors.MaxLength("planCode", PlanCode, 15);
     }
 }

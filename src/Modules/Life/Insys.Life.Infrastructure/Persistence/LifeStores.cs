@@ -1,0 +1,194 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
+using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Contracts;
+using Insys.BuildingBlocks.Contracts.Approvals;
+using Insys.BuildingBlocks.Domain;
+using Insys.BuildingBlocks.Infrastructure.StaticData;
+using Insys.Life.Application;
+using Insys.Life.Contracts;
+using Insys.Life.Domain.Claims;
+using Insys.Life.Domain.Groups;
+using Insys.Life.Domain.Policies;
+using Insys.Life.Domain.Proposals;
+using Insys.Life.Domain.Underwriting;
+using Insys.Life.Infrastructure.StaticData;
+using Microsoft.EntityFrameworkCore;
+
+namespace Insys.Life.Infrastructure.Persistence;
+
+internal sealed class LifeRepository(LifeDbContext db) : ILifeRepository
+{
+    public Task<LifeProposal?> Proposal(Guid id, CancellationToken cancellationToken) =>
+        db.Proposals.Include(p => p.Lives).Include(p => p.Covers).Include(p => p.Disclosures).AsSplitQuery().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+    public Task<LifeUnderwritingCase?> Case(Guid id, CancellationToken cancellationToken) => Cases().SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+
+    public async Task<LifeUnderwritingCase?> CaseForProposal(Guid proposalId, CancellationToken cancellationToken) =>
+        db.ChangeTracker.Entries<LifeUnderwritingCase>().Select(e => e.Entity).FirstOrDefault(c => c.ProposalId == proposalId)
+        ?? await Cases().SingleOrDefaultAsync(c => c.ProposalId == proposalId, cancellationToken);
+
+    public Task<LifePolicy?> Policy(Guid id, CancellationToken cancellationToken) => Policies().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+    public Task<LifePolicy?> PolicyForProposal(Guid proposalId, CancellationToken cancellationToken) =>
+        Policies().SingleOrDefaultAsync(p => p.ProposalId == proposalId, cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> PoliciesOnAccount(Guid billingAccountRef, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking()
+            .Where(p => p.BillingAccountRef == billingAccountRef && (p.Status == LifePolicyStatus.Issued || p.Status == LifePolicyStatus.InForce))
+            .OrderBy(p => p.Id).Select(p => p.Id).ToListAsync(cancellationToken);
+
+    public Task<LifePolicyLoan?> Loan(Guid id, CancellationToken cancellationToken) =>
+        db.Loans.Include(l => l.Transactions).SingleOrDefaultAsync(l => l.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<LifePolicyLoan>> ActiveLoans(Guid policyId, CancellationToken cancellationToken) =>
+        await db.Loans.Include(l => l.Transactions).Where(l => l.PolicyId == policyId && l.Status == LoanStatus.Active).OrderBy(l => l.Id).ToListAsync(cancellationToken);
+
+    public Task<int> LoanCount(Guid policyId, CancellationToken cancellationToken) => db.Loans.CountAsync(l => l.PolicyId == policyId, cancellationToken);
+
+    public async Task<decimal?> CashValue(Guid policyId, DateOnly asOf, CancellationToken cancellationToken) =>
+        await db.CashValues.AsNoTracking().Where(v => v.PolicyId == policyId && v.ValuationDate <= asOf).OrderByDescending(v => v.ValuationDate)
+            .Select(v => (decimal?)v.Value).FirstOrDefaultAsync(cancellationToken);
+
+    public Task<LifeClaim?> Claim(Guid id, CancellationToken cancellationToken) => Claims().SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+
+    public Task<LifeClaim?> ClaimByNumber(string claimNumber, CancellationToken cancellationToken) =>
+        Claims().SingleOrDefaultAsync(c => c.ClaimNumber == claimNumber, cancellationToken);
+
+    public Task<bool> OpenClaimExists(Guid policyId, string claimType, DateOnly eventDate, Guid exceptClaimId, CancellationToken cancellationToken) =>
+        db.Claims.AnyAsync(c => c.PolicyId == policyId && c.ClaimType == claimType && c.EventDate == eventDate && c.Id != exceptClaimId
+                                && c.Status != LifeClaimStatus.Notified && c.Status != LifeClaimStatus.Declined && c.Status != LifeClaimStatus.Closed, cancellationToken);
+
+    public Task<GroupScheme?> Scheme(Guid id, CancellationToken cancellationToken) =>
+        db.Schemes.Include(s => s.Members).SingleOrDefaultAsync(s => s.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> PoliciesToStart(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.Status == LifePolicyStatus.Issued && p.InceptionDate <= day).OrderBy(p => p.Id).Select(p => p.Id).Take(limit)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> PoliciesPastGrace(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.Status == LifePolicyStatus.InForce && p.Schedules.Any(s => s.GraceUntil != null && s.GraceUntil < day))
+            .OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> LapsedPolicies(int limit, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.Status == LifePolicyStatus.Lapsed).OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> SchemesToActivate(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.Schemes.AsNoTracking().Where(s => s.Status == SchemeStatus.SetUp && s.StartDate <= day).OrderBy(s => s.Id).Select(s => s.Id).Take(limit)
+            .ToListAsync(cancellationToken);
+
+    public void Add(LifeProposal proposal) => db.Proposals.Add(proposal);
+
+    public void Add(LifeUnderwritingCase underwritingCase) => db.Cases.Add(underwritingCase);
+
+    public void Add(LifePolicy policy) => db.Policies.Add(policy);
+
+    public void Add(LifePolicyLoan loan) => db.Loans.Add(loan);
+
+    public void Add(LifeClaim claim) => db.Claims.Add(claim);
+
+    public void Add(GroupScheme scheme) => db.Schemes.Add(scheme);
+
+    private IQueryable<LifeUnderwritingCase> Cases() => db.Cases.Include(c => c.Requirements).Include(c => c.Items).AsSplitQuery();
+
+    private IQueryable<LifePolicy> Policies() =>
+        db.Policies.Include(p => p.Lives).Include(p => p.Benefits).Include(p => p.Beneficiaries).Include(p => p.Schedules).Include(p => p.Events)
+            .Include(p => p.LapseHistory).AsSplitQuery();
+
+    private IQueryable<LifeClaim> Claims() => db.Claims.Include(c => c.Lines).Include(c => c.Payees).AsSplitQuery();
+}
+
+internal sealed partial class LifeCodes(LifeDbContext db) : ILifeCodes
+{
+    public async Task<string?> PolicyNumberPrefix(DateOnly day, CancellationToken cancellationToken) =>
+        (await InForce<PolicyNumberingSchemes>(day).ToListAsync(cancellationToken))
+        .Where(s => s.ProductLine.Equals("LIFE", StringComparison.OrdinalIgnoreCase)).Select(s => s.Prefix).FirstOrDefault();
+
+    public async Task<NominationRule?> NominationRule(string productCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<NominationRules>(day).Where(r => r.ProductCode == productCode)
+            .Select(r => new NominationRule(r.MaxBeneficiaries, r.MinShare, r.AllowedRelationships)).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<GraceRule?> GraceRule(string frequency, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<GracePeriodRules>(day).Where(r => r.Frequency == frequency).Select(r => new GraceRule(r.GraceDays, r.CoverDuringGrace))
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<LapseRule?> LapseRule(string productCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<LapseAndReinstatementRules>(day).Where(r => r.ProductCode == productCode)
+            .Select(r => new LapseRule(r.MissedPaymentsToLapse, r.ReinstatementWindow, r.EvidenceRequired)).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<AlterationType?> AlterationType(string code, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<AlterationTypes>(day).Where(t => t.AlterationCode == code)
+            .Select(t => new AlterationType(t.AlterationCode, t.AllowedStates, t.ReUnderwriting, t.AuthorityRole, t.DocumentType)).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<IReadOnlyDictionary<string, bool>> DecisionCodes(DateOnly day, CancellationToken cancellationToken) =>
+        (await InForce<UnderwritingDecisionCodes>(day).Select(c => new { c.Code, c.RequiresTerms }).ToListAsync(cancellationToken))
+        .GroupBy(c => c.Code).ToDictionary(g => g.Key, g => g.First().RequiresTerms);
+
+    public async Task<string?> ClaimBenefitType(string claimType, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<LifeClaimTypes>(day).Where(t => t.Code == claimType).Select(t => t.BenefitType).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<LoanRule?> LoanRule(string productCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<LoanEligibilityLimits>(day).Where(r => r.ProductCode == productCode).Select(r => new LoanRule(r.MaxPctCashValue, r.MinPolicyDuration))
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<MemberCategoryDefinition?> MemberCategory(string schemeNumber, string categoryCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<MemberCategoryDefinitions>(day).Where(c => c.Scheme == schemeNumber && c.CategoryCode == categoryCode)
+            .Select(c => new MemberCategoryDefinition(c.CategoryCode, c.EligibilityRule, c.BenefitMultiple)).FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>The band whose range holds the member count: "50-199 members", or "200+ members" for an open band.</summary>
+    public async Task<decimal?> FreeCoverLimit(int members, DateOnly day, CancellationToken cancellationToken) =>
+        (await InForce<FreeCoverLimits>(day).ToListAsync(cancellationToken))
+        .Where(b => Band().Match(b.SizeBand) is { Success: true } m && members >= int.Parse(m.Groups["from"].Value, CultureInfo.InvariantCulture)
+                    && (!m.Groups["to"].Success || members <= int.Parse(m.Groups["to"].Value, CultureInfo.InvariantCulture)))
+        .Select(b => (decimal?)b.FreeCoverLimit).FirstOrDefault();
+
+    public Task<bool> Exists(LifeCode kind, string code, DateOnly day, CancellationToken cancellationToken) => kind switch
+    {
+        LifeCode.CauseOfEvent => InForce<CauseOfEventCodes>(day).AnyAsync(c => c.Code == code, cancellationToken),
+        LifeCode.BeneficiaryRelationship => InForce<BeneficiaryRelationshipTypes>(day).AnyAsync(c => c.Code == code, cancellationToken),
+        LifeCode.LoanRate => InForce<PolicyLoanRates>(day).AnyAsync(c => c.RateCode == code, cancellationToken),
+        _ => InForce<GroupSchemeTypes>(day).AnyAsync(c => c.Code == code, cancellationToken),
+    };
+
+    [GeneratedRegex(@"^\s*(?<from>\d+)\s*(?:(?:-|to)\s*(?<to>\d+)|\+)")]
+    private static partial Regex Band();
+
+    private IQueryable<T> InForce<T>(DateOnly day) where T : StaticRecord =>
+        db.Set<T>().AsNoTracking().InForce(LifeStaticData.Descriptors.Single(d => d.EntityType == typeof(T)).Lifecycle, day);
+}
+
+internal sealed class LifeEventMapper : IDomainEventMapper
+{
+    public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
+    {
+        Domain.Proposals.LifeProposalSubmitted e => new Contracts.LifeProposalSubmitted(e.ProposalId, e.ProposalNumber, e.ProductCode, e.ProductVersion),
+        Domain.Proposals.LifeProposalWithdrawn e => new Contracts.LifeProposalWithdrawn(e.ProposalId, e.ProposalNumber),
+        Domain.Proposals.LifeProposalAccepted e => new Contracts.LifeProposalAccepted(e.ProposalId, e.ProposalNumber),
+        Domain.Proposals.LifeProposalDeclined e => new Contracts.LifeProposalDeclined(e.ProposalId, e.ProposalNumber, e.Postponed),
+        Domain.Underwriting.LifeUnderwritingCaseOpened e => new Contracts.LifeUnderwritingCaseOpened(e.CaseId, e.ProposalId),
+        UnderwritingDecisionRequested e => new ApprovalRequested(LifeApprovals.UnderwritingBusinessRefType, e.CaseId, LifeApprovals.UnderwritingApprovalType,
+            e.RequestedBy, e.SumAssured, e.Currency, $"Underwriting decision on proposal {e.ProposalId}", e.SubjectHash),
+        Domain.Underwriting.LifeUnderwritingDecided e => new Contracts.LifeUnderwritingDecided(e.CaseId, e.ProposalId, e.Outcome.ToString().ToUpperInvariant(),
+            e.DecisionCode, e.RulesetCode, e.RulesetVersion),
+        Domain.Policies.LifePolicyIssued e => new Contracts.LifePolicyIssued(e.PolicyId, e.PolicyNumber, e.ProposalId, e.ProductCode, e.ProductVersion,
+            e.PolicyholderPartyId, e.Billing.PayerPartyId, e.Billing.BillingAccountRef, e.Billing.Frequency, e.Billing.CollectionMethod, e.Currency, e.Premium,
+            e.InceptionDate, e.TermEndDate, e.SumAssured),
+        Domain.Policies.LifePolicyChanged e => new Contracts.LifePolicyChanged(e.PolicyId, e.PolicyNumber, e.ChangeType, e.EffectiveDate),
+        Domain.Policies.LifePolicyLapsed e => new Contracts.LifePolicyLapsed(e.PolicyId, e.PolicyNumber, e.LapseDate, e.MissedPayments, e.ProductCode, e.ProductVersion,
+            e.Currency),
+        Domain.Policies.LifePolicyReinstated e => new Contracts.LifePolicyReinstated(e.PolicyId, e.PolicyNumber, e.ReinstatedOn, e.TermEndDate),
+        Domain.Policies.PolicyLoanIssued e => new Contracts.PolicyLoanIssued(e.LoanId, e.LoanNumber, e.PolicyId, e.Principal, e.Currency),
+        Domain.Policies.PolicyLoanRepaid e => new Contracts.PolicyLoanRepaid(e.LoanId, e.LoanNumber, e.PolicyId),
+        Domain.Claims.LifeClaimRegistered e => new Contracts.LifeClaimRegistered(e.ClaimId, e.ClaimNumber, e.PolicyId, e.ClaimType, e.EventDate),
+        LifeClaimApprovalRequested e => new ApprovalRequested(LifeApprovals.ClaimBusinessRefType, e.ClaimId, LifeApprovals.ClaimApprovalType, e.RequestedBy, e.Amount,
+            e.Currency, $"Life claim {e.ClaimNumber}", e.SubjectHash),
+        Domain.Claims.LifeClaimApproved e => new Contracts.LifeClaimApproved(e.ClaimId, e.ClaimNumber, e.PolicyId, e.Amount, e.LoanOffset, e.Currency, e.ReserveType,
+            e.Payees.Select(p => new Contracts.LifeClaimPayee(p.PartyId, p.BankAccountId, p.BankAccountHash, p.Amount)).ToList(), e.ApprovalId, e.CheckerId),
+        Domain.Claims.LifeClaimDeclined e => new Contracts.LifeClaimDeclined(e.ClaimId, e.ClaimNumber, e.DecisionReason),
+        Domain.Claims.LifeClaimSettled e => new Contracts.LifeClaimSettled(e.ClaimId, e.ClaimNumber, e.PolicyId, e.PolicyBenefitIds, e.Amount, e.Currency, e.PaidOn),
+        Domain.Groups.GroupMemberEnrolled e => new Contracts.GroupMemberEnrolled(e.SchemeId, e.SchemeNumber, e.MemberId, e.PartyId, e.CategoryCode, e.CoverAmount,
+            e.EvidenceRequired),
+        Domain.Groups.GroupSchemeRenewed e => new Contracts.GroupSchemeRenewed(e.SchemeId, e.SchemeNumber, e.RenewalDate),
+        _ => null,
+    };
+}

@@ -55,6 +55,8 @@ public static class ProductFactoryStaticData
             entity.Property(x => x.WordingRef).HasColumnName("wording_ref").HasMaxLength(80);
             entity.Property(x => x.Scope).HasColumnName("scope").HasMaxLength(40);
             entity.Property(x => x.Jurisdiction).HasColumnName("jurisdiction").HasMaxLength(80);
+            entity.Property(x => x.DiagnosisCodes).HasColumnName("diagnosis_codes");
+            entity.Property(x => x.ProcedureCodes).HasColumnName("procedure_codes");
         });
         modelBuilder.Entity<LimitAndDeductibleSchedules>(entity =>
         {

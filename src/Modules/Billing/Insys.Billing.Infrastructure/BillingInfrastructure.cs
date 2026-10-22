@@ -5,6 +5,7 @@ using Insys.Billing.Infrastructure.StaticData;
 using Insys.BuildingBlocks.Infrastructure;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.General.Contracts;
+using Insys.Life.Contracts;
 using Insys.Payments.Contracts;
 using Insys.Workflow.Contracts;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +24,7 @@ public static class BillingInfrastructure
         services.AddScoped<IBillingRepository, BillingRepository>();
         services.AddScoped<IBillingCodes, BillingCodes>();
         services.AddSingleton<IAllocationPlanner, AllocationPlanner>();
+        services.AddSingleton<IPolicyArrears, PolicyArrearsQuery>();
         services.AddIntegrationEventHandler<PaymentAllocated, BillingPolicies, BillingDbContext>(schema, "PaymentAllocated");
         services.AddIntegrationEventHandler<PaymentReversed, BillingPolicies, BillingDbContext>(schema, "PaymentReversed");
         services.AddIntegrationEventHandler<PaymentSucceeded, BillingPolicies, BillingDbContext>(schema, "PaymentSucceeded");
@@ -31,6 +33,12 @@ public static class BillingInfrastructure
         services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyIssued");
         services.AddIntegrationEventHandler<GeneralPolicyEndorsed, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyEndorsed");
         services.AddIntegrationEventHandler<GeneralPolicyCancelled, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyCancelled");
+        services.AddIntegrationEventHandler<LifePolicyIssued, LifePolicyBilling, BillingDbContext>(schema, "LifePolicyIssued");
+        services.AddIntegrationEventHandler<LifePolicyLapsed, LifePolicyBilling, BillingDbContext>(schema, "LifePolicyLapsed");
+        services.AddIntegrationEventHandler<LifePolicyReinstated, LifePolicyBilling, BillingDbContext>(schema, "LifePolicyReinstated");
+        services.AddIntegrationEventHandler<Health.Contracts.HealthMemberEnrolled, HealthContributionBilling, BillingDbContext>(schema, "HealthMemberEnrolled");
+        services.AddIntegrationEventHandler<Health.Contracts.DependantAdded, HealthContributionBilling, BillingDbContext>(schema, "DependantAdded");
+        services.AddIntegrationEventHandler<Health.Contracts.HealthMemberStatusChanged, HealthContributionBilling, BillingDbContext>(schema, "MemberStatusChanged");
         services.AddOptions<BillingJobOptions>().BindConfiguration("Billing:Jobs");
         services.AddSingleton<BillingJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)

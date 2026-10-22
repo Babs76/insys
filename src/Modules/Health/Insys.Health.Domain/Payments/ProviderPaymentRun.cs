@@ -1,0 +1,231 @@
+using Insys.BuildingBlocks.Domain;
+
+namespace Insys.Health.Domain.Payments;
+
+/// <summary>States from domain-model.json (health › ProviderPaymentRun).</summary>
+public enum RunStatus
+{
+    Open,
+    CutOff,
+    Calculated,
+    Approved,
+    Released,
+    Reconciled,
+}
+
+public enum RunTrigger
+{
+    CutOffRun,
+    CalculateRun,
+    ApproveRun,
+    ReleaseRun,
+    PaymentsMatched,
+}
+
+/// <summary>A provider's share of a run: its party, its verified bank account (ADR-013), the amount and the claims in it.</summary>
+public sealed record RemittanceRequest(string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, int ClaimCount);
+
+public sealed record RemittanceReleased(Guid RemittanceId, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount);
+
+/// <summary>Asks Workflow for a second person's approval of the run's total, within authority (SRS-002).</summary>
+public sealed record PaymentRunCalculated(Guid RunId, string RunCode, Guid RequestedBy, decimal Total, string Currency, string SubjectHash, DateTimeOffset OccurredAt)
+    : IDomainEvent;
+
+public sealed record ProviderPaymentRunReleased(Guid RunId, string RunCode, decimal Total, string Currency, IReadOnlyList<RemittanceReleased> Remittances,
+    DateOnly ReleasedOn, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>Entity RemittanceAdvice (health.remittance_advice): one provider's payment in a run. TODO(spec): the remittance advice document (health.cfg_remittance_advice_formats) is not generated yet (OQ-061).</summary>
+public sealed class RemittanceAdvice : Entity<Guid>, ITenantScoped
+{
+    private RemittanceAdvice()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid RunId { get; private set; }
+
+    public string ProviderId { get; private set; } = "";
+
+    public decimal Amount { get; private set; }
+
+    public Guid? DocumentId { get; private set; }
+
+    public Guid ProviderPartyId { get; private set; }
+
+    public Guid BankAccountId { get; private set; }
+
+    public int ClaimCount { get; private set; }
+
+    public Guid? PaymentId { get; private set; }
+
+    public DateOnly? PaidOn { get; private set; }
+
+    internal static RemittanceAdvice Create(Guid runId, RemittanceRequest request) => new()
+    {
+        Id = Guid.CreateVersion7(), RunId = runId, ProviderId = Guard.MaxLength(request.ProviderId, 15), Amount = request.Amount, ProviderPartyId = request.ProviderPartyId,
+        BankAccountId = request.BankAccountId, ClaimCount = request.ClaimCount,
+    };
+
+    internal void Paid(Guid paymentId, DateOnly paidOn)
+    {
+        PaymentId = paymentId;
+        PaidOn = paidOn;
+    }
+}
+
+/// <summary>
+/// The ProviderPaymentRun aggregate (health.provider_payment_run, remittance_advice): it includes only claims approved
+/// for payment before its cut-off, its total equals the sum of its remittances (HLT-009), and a second person approves
+/// it in Workflow before it is released to Payments.
+/// </summary>
+public sealed class ProviderPaymentRun : AggregateRoot<Guid>
+{
+    public static readonly StateMachine<RunStatus, RunTrigger> Lifecycle = new StateMachine<RunStatus, RunTrigger>()
+        .Allow(RunStatus.Open, RunTrigger.CutOffRun, RunStatus.CutOff)
+        .Allow(RunStatus.CutOff, RunTrigger.CalculateRun, RunStatus.Calculated)
+        .Allow(RunStatus.Calculated, RunTrigger.ApproveRun, RunStatus.Approved)
+        .Allow(RunStatus.Approved, RunTrigger.ReleaseRun, RunStatus.Released)
+        .Allow(RunStatus.Released, RunTrigger.PaymentsMatched, RunStatus.Reconciled);
+
+    private readonly List<RemittanceAdvice> _remittances = [];
+
+    private ProviderPaymentRun()
+    {
+    }
+
+    public string RunCode { get; private set; } = "";
+
+    public DateTimeOffset CutOff { get; private set; }
+
+    public int ClaimCount { get; private set; }
+
+    public decimal TotalAmount { get; private set; }
+
+    public RunStatus Status { get; private set; }
+
+    public Guid? PayoutBatchRef { get; private set; }
+
+    public string Currency { get; private set; } = "";
+
+    public Guid? ApprovalId { get; private set; }
+
+    public Guid? ApprovedBy { get; private set; }
+
+    public DateTimeOffset? ReleasedAt { get; private set; }
+
+    public IReadOnlyList<RemittanceAdvice> Remittances => _remittances;
+
+    public string SubjectHash => ApprovalSubject.Hash([
+        "HEALTH_PAYMENT_RUN", Id, TotalAmount, Currency,
+        .. _remittances.OrderBy(r => r.ProviderId, StringComparer.Ordinal).SelectMany(r => new object?[] { r.ProviderId, r.ProviderPartyId, r.BankAccountId, r.Amount }),
+    ]);
+
+    /// <summary>Command OpenRun, on a run calendar (health.cfg_payment_run_calendars).</summary>
+    public static ProviderPaymentRun OpenRun(Guid id, string runCode, string currency, DateTimeOffset now)
+    {
+        var run = new ProviderPaymentRun { Id = id, RunCode = Guard.MaxLength(runCode, 15), Currency = currency, Status = RunStatus.Open, CutOff = now };
+        run.MarkChanged();
+        return run;
+    }
+
+    public Result CutOffRun(DateTimeOffset cutOff)
+    {
+        var result = Fire(RunTrigger.CutOffRun);
+        if (result.IsSuccess)
+        {
+            CutOff = cutOff;
+        }
+
+        return result;
+    }
+
+    /// <summary>Command CalculateRun: one remittance per provider; the total is their sum. Workflow is asked to approve it.</summary>
+    public Result CalculateRun(IReadOnlyList<RemittanceRequest> remittances, Guid requestedBy, DateTimeOffset now)
+    {
+        if (remittances.Count == 0 || remittances.Any(r => r.Amount <= 0))
+        {
+            return Error.Conflict(HealthErrorCodes.RunEmpty, "No claims approved for payment before the cut-off are waiting for a run.");
+        }
+
+        var result = Fire(RunTrigger.CalculateRun);
+        if (result.IsFailure)
+        {
+            return result;
+        }
+
+        _remittances.AddRange(remittances.Select(r => RemittanceAdvice.Create(Id, r)));
+        TotalAmount = _remittances.Sum(r => r.Amount);
+        ClaimCount = _remittances.Sum(r => r.ClaimCount);
+        Raise(new PaymentRunCalculated(Id, RunCode, requestedBy, TotalAmount, Currency, SubjectHash, now));
+        return Result.Success();
+    }
+
+    /// <summary>Command ApproveRun, from Workflow's decision; it applies only to the run as calculated.</summary>
+    public Result DecideApproval(bool approved, Guid approvalId, Guid checkerId, string? subjectHash)
+    {
+        if (Status != RunStatus.Calculated)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Run {RunCode} is {Status}.");
+        }
+
+        if (subjectHash != SubjectHash)
+        {
+            return Error.Conflict(HealthErrorCodes.ApprovalSubjectChanged, "The approval was for another run.");
+        }
+
+        if (!approved)
+        {
+            return Result.Success();
+        }
+
+        var result = Fire(RunTrigger.ApproveRun);
+        if (result.IsSuccess)
+        {
+            ApprovalId = approvalId;
+            ApprovedBy = checkerId;
+        }
+
+        return result;
+    }
+
+    /// <summary>Command ReleaseRun: each remittance goes to Payments, and the run's claims are paid ("Payment run released").</summary>
+    public Result ReleaseRun(DateOnly today, DateTimeOffset now)
+    {
+        var result = Fire(RunTrigger.ReleaseRun);
+        if (result.IsSuccess)
+        {
+            ReleasedAt = now;
+            Raise(new ProviderPaymentRunReleased(Id, RunCode, TotalAmount, Currency,
+                _remittances.Select(r => new RemittanceReleased(r.Id, r.ProviderId, r.ProviderPartyId, r.BankAccountId, r.Amount)).ToList(), today, now));
+        }
+
+        return result;
+    }
+
+    /// <summary>A remittance's payment succeeded; when all have, the run is Reconciled ("Payments matched").</summary>
+    public Result RecordPayment(Guid remittanceId, Guid paymentId, DateOnly paidOn)
+    {
+        if (_remittances.SingleOrDefault(r => r.Id == remittanceId) is not { } remittance)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The run has no such remittance.");
+        }
+
+        remittance.Paid(paymentId, paidOn);
+        MarkChanged();
+        return Status == RunStatus.Released && _remittances.All(r => r.PaymentId is not null) ? Fire(RunTrigger.PaymentsMatched) : Result.Success();
+    }
+
+    private Result Fire(RunTrigger trigger)
+    {
+        var next = Lifecycle.Fire(Status, trigger);
+        if (next.IsFailure)
+        {
+            return next.Error;
+        }
+
+        Status = next.Value;
+        MarkChanged();
+        return Result.Success();
+    }
+}

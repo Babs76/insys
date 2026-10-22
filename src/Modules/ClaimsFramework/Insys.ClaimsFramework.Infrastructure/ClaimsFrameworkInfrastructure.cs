@@ -28,6 +28,7 @@ public static class ClaimsFrameworkInfrastructure
         services.AddIntegrationEventHandler<PaymentFailed, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "PaymentFailed");
         services.AddIntegrationEventHandler<ClaimPaymentCompleted, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ClaimPaymentCompleted");
         services.AddIntegrationEventHandler<GeneralClaimApproved, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "GeneralClaimApproved");
+        services.AddIntegrationEventHandler<Life.Contracts.LifeClaimApproved, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "LifeClaimApproved");
         services.AddIntegrationEventHandler<RecoveryRecorded, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "RecoveryRecorded");
         services.AddScoped<IClaimRegistry, ClaimRegistry>();
         return services;

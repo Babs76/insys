@@ -8,5 +8,6 @@
     <ProjectReference Include="..\..\ClaimsFramework\Insys.ClaimsFramework.Contracts\Insys.ClaimsFramework.Contracts.csproj" />
     <ProjectReference Include="..\..\Tenancy\Insys.Tenancy.Contracts\Insys.Tenancy.Contracts.csproj" />
     <ProjectReference Include="..\..\Workflow\Insys.Workflow.Contracts\Insys.Workflow.Contracts.csproj" />
+    <ProjectReference Include="..\..\Health\Insys.Health.Contracts\Insys.Health.Contracts.csproj" />
   </ItemGroup>
 </Project>

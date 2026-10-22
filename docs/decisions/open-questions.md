@@ -65,7 +65,8 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-057 | 3 | Journal reversal and posted-record immutability | Resolved (proposal): V0014, ADR-011 |
 | OQ-058 | 3 | Money gaps: numbering, tolerances, taxes, providers, timeouts | Open |
 | OQ-059 | 4 | General domain: schema gaps (V0016) and unspecified rules | Partly resolved by the Phase 4 review (V0017) |
-| OQ-060 | 5 | Health adjudication rules the specs do not define (tariffs, networks, co-payments) | **Open: blocks claims adjudication** |
+| OQ-060 | 5 | Health adjudication rules the specs do not define (tariffs, networks, co-payments) | Resolved (proposal): ADR-012, pending business sign-off; items 10 and 11 open |
+| OQ-061 | 5 | Life and Health: smaller gaps found while building | Open (proposals in code) |
 
 ---
 
@@ -479,3 +480,21 @@ Each item is built as stated and marked `TODO(spec)` in code.
 
 Adjudication, and the steps of "Health care to provider payment" that need it, wait for answers to items 1 to 9.
 
+**Resolved (proposal, Phase 4 follow-ups item 3):** items 1 to 9 and 12 take the product owner's defaults, recorded in ADR-012 as proposed, pending business sign-off, each configurable (V0019: two new static tables and new columns). Worked examples per step are in `AdjudicationWorkedExamples`, labelled as engineering cases pending actuarial confirmation. Items 10 (edit rules read the line's own facts only; duplicates pend) and 11 (member reimbursement claims pend for a person, and are not paid by provider runs) stay open.
+
+### OQ-061 Life and Health: smaller gaps found while building (Phase 5)
+Each is built as shown and marked `TODO(spec)` in code; none changes an amount the specs define.
+- **Life**
+  - **Eligibility rule set per product:** the proposal accepts the outcome of any eligibility rule set evaluated for it and records its code and version (LIF-002); nothing links a product to the rule set it must pass.
+  - **Authority by role:** underwriting decisions and claims are approved in Workflow within the delegation limits for LIFE_UNDERWRITING and LIFE_CLAIM; `life.cfg_claims_authority_limits` (by claim type) and the alteration types' authority roles are not applied.
+  - **Alterations:** only alterations without cover or premium changes are applied (the servicing intermediary); others need re-rating (OQ-052) or re-underwriting.
+  - **Arrears on reinstatement:** whether arrears from before the lapse must be paid is not specified; billing resumes from the reinstatement date.
+  - **Missed premiums** are counted as invoiced instalments past their due date whose invoice is unpaid (Billing's IPolicyArrears). PaymentAllocated carries no policy, so a payment in grace is seen through InvoiceSettled.
+  - **Loan disbursement** has no payment flow; **group scheme renewal** moves the renewal date by a year.
+  - **Commission clawback and reinsurance cession** wait for Distribution and Reinsurance (Phase 6).
+- **Health**
+  - **Eligibility response codes:** outcomes are recorded as ELIGIBLE, NOT_ELIGIBLE and NOT_FOUND; their mapping to the tenant's response codes is not specified.
+  - **Contributions:** billed monthly to the payer named at enrolment, for scheme members (rate × members); the employer share split and individual members' contributions are not specified.
+  - **Conditionally approved authorisations** have no transitions in domain-model.json, so they are not matched to claims.
+  - **Utilisation rules** have free-text measures and are not evaluated; reviews open on high-cost thresholds and by people.
+  - **Remittance advice documents** are not generated yet; **claim reversal recoveries** are raised as an event only.

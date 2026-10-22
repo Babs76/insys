@@ -19,11 +19,14 @@ public sealed class TariffSchedules : StaticRecord<TariffSchedulesInput>
 
     public string[]? Modifiers { get; set; }
 
+    public string? ScheduleCode { get; set; }
+
     public override void ApplyFields(TariffSchedulesInput input, IFieldProtector protector)
     {
         TariffCode = input.TariffCode!;
         Price = input.Price.GetValueOrDefault();
         Modifiers = input.Modifiers;
+        ScheduleCode = input.ScheduleCode;
     }
 }
 
@@ -36,10 +39,13 @@ public sealed record TariffSchedulesInput : StaticRecordInput
 
     public string[]? Modifiers { get; init; }
 
+    public string? ScheduleCode { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("tariffCode", TariffCode);
         errors.MaxLength("tariffCode", TariffCode, 15);
         errors.Required("price", Price);
+        errors.MaxLength("scheduleCode", ScheduleCode, 15);
     }
 }

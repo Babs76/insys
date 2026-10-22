@@ -8,6 +8,7 @@ using Insys.BuildingBlocks.Domain;
 using Insys.ClaimsFramework.Contracts;
 using Insys.ClaimsFramework.Domain.Claims;
 using Insys.General.Contracts;
+using Insys.Life.Contracts;
 using Insys.Party.Contracts;
 using Insys.Payments.Contracts;
 using Insys.Workflow.Contracts;
@@ -517,6 +518,7 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
     IIntegrationEventHandler<PaymentFailed>,
     IIntegrationEventHandler<Contracts.ClaimPaymentCompleted>,
     IIntegrationEventHandler<GeneralClaimApproved>,
+    IIntegrationEventHandler<LifeClaimApproved>,
     IIntegrationEventHandler<RecoveryRecorded>
 {
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
@@ -579,6 +581,46 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
 
         var financials = new ClaimFinancials(claim.ClaimNumber, claim.Domain, approved.Currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
         instruction.Value.ReleaseInstruction(approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType), clock.UtcNow);
+    }
+
+    /// <summary>
+    /// LifeClaimApproved → one instruction per payee, each for the payee's approved amount into the approved account, and
+    /// released at once while the payee's account is unchanged (ADR-009, ADR-013). The claim approval covered each payee
+    /// and account, so it stands in for the instructions' approval.
+    /// </summary>
+    public async Task Handle(LifeClaimApproved approved, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await claims.ByNumber(approved.ClaimNumber, cancellationToken) is not { Domain: "LIFE" } claim)
+        {
+            return;
+        }
+
+        var financials = new ClaimFinancials(claim.ClaimNumber, claim.Domain, approved.Currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
+        foreach (var (payee, index) in approved.Payees.Select((p, i) => (p, i + 1)))
+        {
+            var reference = $"LIFE:{approved.ApprovalId:N}:{index}";
+            if (await claims.Instruction(claim.ClaimNumber, reference, cancellationToken) is not null)
+            {
+                continue;
+            }
+
+            var instruction = ClaimPaymentInstruction.FromApprovedSettlement(Guid.CreateVersion7(), claim, reference,
+                new PayeeAccount(payee.PartyId, payee.BankAccountId, payee.BankAccountHash), payee.Amount, approved.Currency, approved.ReserveType, approved.ApprovalId);
+            if (instruction.IsFailure)
+            {
+                throw new InvalidOperationException($"Claim {approved.ClaimNumber} could not be instructed: {instruction.Error.Message}");
+            }
+
+            claims.Add(instruction.Value);
+            if (await Payees.Unchanged(bankAccounts, tenant, instruction.Value.Payee, cancellationToken))
+            {
+                instruction.Value.ReleaseInstruction(approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType), clock.UtcNow);
+            }
+            else
+            {
+                logger.LogWarning("Claim {ClaimNumber} payee {Index} not released: the bank account changed after approval", approved.ClaimNumber, index);
+            }
+        }
     }
 
     /// <summary>A domain's recovery is recorded as a claim financial movement (CLM-004).</summary>

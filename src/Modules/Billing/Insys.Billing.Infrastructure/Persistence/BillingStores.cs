@@ -126,6 +126,41 @@ internal sealed class AllocationPlanner([FromKeyedServices(BillingDbContext.Sche
     }
 }
 
+/// <summary>
+/// A policy's invoiced instalments past their own due date whose invoice is not paid (issued, part paid or overdue). An
+/// invoice can hold several instalments (a backdated policy), so instalments are counted, not invoices.
+/// </summary>
+internal sealed class PolicyArrearsQuery([FromKeyedServices(BillingDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPolicyArrears
+{
+    public async Task<PolicyArrears> For(Guid tenantId, string sourceDomain, Guid policyRef, DateOnly asOf, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT count(*), min(i.due_date)
+            FROM billing.premium_instalment i
+            JOIN billing.premium_schedule s ON s.tenant_id = i.tenant_id AND s.id = i.schedule_id
+            JOIN billing.invoice v ON v.tenant_id = i.tenant_id AND v.id = i.invoice_id
+            WHERE i.tenant_id = @t AND s.source_domain = @domain AND s.policy_ref = @policy AND i.status = 'INVOICED'
+              AND v.status IN ('ISSUED', 'PART_PAID', 'OVERDUE') AND i.due_date < @day
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("domain", sourceDomain);
+        command.Parameters.AddWithValue("policy", policyRef);
+        command.Parameters.AddWithValue("day", asOf);
+        PolicyArrears arrears;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            await reader.ReadAsync(cancellationToken);
+            arrears = new PolicyArrears((int)reader.GetInt64(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<DateOnly>(1));
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return arrears;
+    }
+}
+
 internal sealed class BillingEventMapper : IDomainEventMapper
 {
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch

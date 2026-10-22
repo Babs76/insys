@@ -21,12 +21,15 @@ public sealed class LimitDefinitions : StaticRecord<LimitDefinitionsInput>
 
     public string Basis { get; set; } = "";
 
+    public string? PlanCode { get; set; }
+
     public override void ApplyFields(LimitDefinitionsInput input, IFieldProtector protector)
     {
         Benefit = input.Benefit!;
         Period = input.Period!;
         Amount = input.Amount.GetValueOrDefault();
         Basis = input.Basis!;
+        PlanCode = input.PlanCode;
     }
 }
 
@@ -41,6 +44,8 @@ public sealed record LimitDefinitionsInput : StaticRecordInput
 
     public string? Basis { get; init; }
 
+    public string? PlanCode { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("benefit", Benefit);
@@ -52,5 +57,6 @@ public sealed record LimitDefinitionsInput : StaticRecordInput
         errors.Required("basis", Basis);
         errors.MaxLength("basis", Basis, 40);
         errors.OneOf("basis", Basis, ["PER_MEMBER", "PER_FAMILY"]);
+        errors.MaxLength("planCode", PlanCode, 15);
     }
 }

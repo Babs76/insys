@@ -10,8 +10,8 @@
 | 2 review items 1–6 | CI fix, maker-checker gaps (V0013), schema gaps (V0012, ADR-010), SLA calendars, rating step order, expression limits | Done (CI green: 51bc94d) |
 | 3 Money | Billing, Payments, Finance, Claims Framework | Done (CI green: 7f86c0e) |
 | 4 First domain | General (OQ-001) | Done, accepted with follow-ups (CI green: 8f2eda7) |
-| 4 review items 1–5 | Approval subjects, payee details, inclusive periods, quote decline, arithmetic, cover start | **Done, awaiting review** (22 Oct 2026) |
-| 5 Other domains | Life and Health | Not started |
+| 4 review items 1–5 | Approval subjects, payee details, inclusive periods, quote decline, arithmetic, cover start | Done, accepted |
+| 5 Other domains | Payee bank accounts (ADR-013), product columns, Health defaults (ADR-012), Life and Health | **Done, awaiting review** (22 Oct 2026) |
 | 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration; General auto-renewal and the exposure snapshot job | Not started |
 | 7 Hardening | Security suite, OpenAPI review, performance, runbooks | Not started |
 
@@ -28,6 +28,32 @@
 4. **OpenAPI documents:** split into core, static-data and platform-operator. Each has its own snapshot in `docs/api`, and every endpoint is in exactly one.
 5. **Tier 2 maker-checker:** a per-tenant setting (V0008), on by default and audited. Tier 1 is always on.
 6. **Outbox relay lag:** reported on `/health` and `/health/ready` through `integration.outbox_lag` (V0009). Degraded after `Outbox:Lag:Warning` (1 minute); Unhealthy and not ready after `Outbox:Lag:Failure` (5 minutes).
+
+## Phase 5: what exists (Life and Health)
+
+**Before Phase 5 (the Phase 4 follow-ups):**
+- **Payee bank accounts (ADR-013, V0018):** `party.bank_account`, encrypted, superseded on change and audited. Settlements, payment instructions, refunds and payouts reference the account by id; Payments decrypts it only when sending. A changed account fails the payment and needs a fresh approval.
+- **Product settings as columns (V0018):** family, class and cover start; labels hold display text only.
+- **Health defaults (ADR-012, V0019):** benefit category mappings and tariff modifiers (new static tables), tariff schedules on contracts, networks and plans, benefit year, cost-share kinds and cap bases, limits per plan, code lists on exclusions and waiting periods, and the accumulator's reservation.
+
+**Life** (`life`, §9, LIF-001 to LIF-008):
+- **Proposals:** capture on a product version on sale, ages from Party, nominations within the product's rule; PremiumCalculated quotes them (spread over covers, OQ-052); RuleDecisionRecorded records eligibility; submission needs ELIGIBLE.
+- **Underwriting cases:** opened on submission with the rule set version (LIF-002); evidence requested, received or waived; the decision and its terms are approved by a second person in Workflow.
+- **Policies:** issued on the accepted terms (exclusions carried; loadings and postponements refused, OQ-052); beneficiaries changed by date; alterations checked against state; missed premiums from Billing start grace; the daily job lapses after grace with enough missed payments; reinstatement within the window, with evidence; termination after it; benefits close on settled claims.
+- **Loans** within the product's share of the cash value; repayment and offset against a claim.
+- **Claims:** notified, registered through the Claims Framework after the LIF-008 checks (status, insured life, benefit, coded exclusions, claimant), assessed, approved by a second person with payees and shares, paid per payee by the Claims Framework, settled when paid.
+- **Group schemes:** members by category (eligibility rule, salary multiple), free cover limits by size band, evidence above them.
+- **Skipped (OQ-051/052):** automatic underwriting outcomes, loaded premiums, surrender, paid-up and maturity values, loan interest, cash value valuation, group rating — eight skipped tests name them.
+
+**Health** (`health`, §11, HLT-001 to HLT-009):
+- **Schemes and memberships:** sponsor schemes; enrolment by category and plan, waiting periods fixed at enrolment; dependants within age limits; plan changes, suspension, reinstatement and termination; contributions billed monthly (Billing).
+- **Eligibility enquiries** recorded (partitioned table).
+- **Preauthorisation:** request, clinical review, approval within the available benefit (reserved), rejection, modification, cancellation and expiry (released).
+- **Claims:** submission (fraud indicators may open a case), validation, adjudication by `AdjudicationEngine` (ADR-012), pending lines reviewed, approval, reversal.
+- **Accumulators:** member and family pools, used, reserved, deductible met, co-payments taken.
+- **Utilisation and fraud cases,** and **provider payment runs:** cut-off, calculation into remittances to providers' verified accounts, approval in Workflow, release to Payments, reconciliation; Finance posts claims paid.
+
+**Processes (end to end):** `LifeProcessTests` ("Life proposal to policy", "Missed premium to lapse", a death claim to settlement) and `HealthProcessTests` ("Health care to provider payment"), with their compensations.
 
 ## Phase 4 review: what changed
 

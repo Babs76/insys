@@ -34,6 +34,7 @@ public static class FinanceInfrastructure
         services.AddIntegrationEventHandler<PaymentReversed, PostingPolicies, FinanceDbContext>(schema, "PaymentReversed");
         services.AddIntegrationEventHandler<ClaimReserveChanged, PostingPolicies, FinanceDbContext>(schema, "ClaimReserveChanged");
         services.AddIntegrationEventHandler<ClaimPaymentCompleted, PostingPolicies, FinanceDbContext>(schema, "ClaimPaymentCompleted");
+        services.AddIntegrationEventHandler<Health.Contracts.MedicalClaimSettled, PostingPolicies, FinanceDbContext>(schema, "MedicalClaimSettled");
         services.AddIntegrationEventHandler<ClaimRecoveryRecorded, PostingPolicies, FinanceDbContext>(schema, "ClaimRecoveryRecorded");
         services.AddIntegrationEventHandler<ApprovalGranted, PeriodReopenPolicy, FinanceDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, PeriodReopenPolicy, FinanceDbContext>(schema, "ApprovalRejected");

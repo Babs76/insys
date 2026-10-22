@@ -21,12 +21,15 @@ public sealed class NetworkDefinitions : StaticRecord<NetworkDefinitionsInput>
 
     public string[] Plans { get; set; } = [];
 
+    public string? TariffScheduleCode { get; set; }
+
     public override void ApplyFields(NetworkDefinitionsInput input, IFieldProtector protector)
     {
         NetworkCode = input.NetworkCode!;
         Name = input.Name!;
         Providers = input.Providers!;
         Plans = input.Plans!;
+        TariffScheduleCode = input.TariffScheduleCode;
     }
 }
 
@@ -41,6 +44,8 @@ public sealed record NetworkDefinitionsInput : StaticRecordInput
 
     public string[]? Plans { get; init; }
 
+    public string? TariffScheduleCode { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("networkCode", NetworkCode);
@@ -49,5 +54,6 @@ public sealed record NetworkDefinitionsInput : StaticRecordInput
         errors.MaxLength("name", Name, 80);
         errors.Required("providers", Providers);
         errors.Required("plans", Plans);
+        errors.MaxLength("tariffScheduleCode", TariffScheduleCode, 15);
     }
 }

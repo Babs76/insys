@@ -21,12 +21,15 @@ public sealed class ProviderContracts : StaticRecord<ProviderContractsInput>
 
     public string TermsRef { get; set; } = "";
 
+    public string? TariffScheduleCode { get; set; }
+
     public override void ApplyFields(ProviderContractsInput input, IFieldProtector protector)
     {
         ContractId = input.ContractId!;
         Provider = input.Provider!;
         Network = input.Network!;
         TermsRef = input.TermsRef!;
+        TariffScheduleCode = input.TariffScheduleCode;
     }
 }
 
@@ -41,6 +44,8 @@ public sealed record ProviderContractsInput : StaticRecordInput
 
     public string? TermsRef { get; init; }
 
+    public string? TariffScheduleCode { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("contractId", ContractId);
@@ -51,5 +56,6 @@ public sealed record ProviderContractsInput : StaticRecordInput
         errors.MaxLength("network", Network, 80);
         errors.Required("termsRef", TermsRef);
         errors.MaxLength("termsRef", TermsRef, 300);
+        errors.MaxLength("tariffScheduleCode", TariffScheduleCode, 15);
     }
 }

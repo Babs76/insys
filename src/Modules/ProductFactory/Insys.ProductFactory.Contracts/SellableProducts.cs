@@ -31,3 +31,15 @@ public interface ISellableProducts
 
     Task<IReadOnlyList<ProductTemplate>> Templates(Guid tenantId, string productCode, DateOnly day, CancellationToken cancellationToken);
 }
+
+/// <summary>An exclusion's diagnosis and procedure codes or ranges (product.cfg_exclusion_library, ADR-012).</summary>
+public sealed record ExclusionCodes(string Code, string Name, IReadOnlyList<string> DiagnosisCodes, IReadOnlyList<string> ProcedureCodes);
+
+/// <summary>
+/// Public query interface: the exclusions in force that carry codes, read live on Product Factory's own connection for
+/// the current tenant. With <c>codes</c>, only those exclusions; without, every exclusion with codes.
+/// </summary>
+public interface IExclusionCodes
+{
+    Task<IReadOnlyList<ExclusionCodes>> InForce(Guid tenantId, IReadOnlyCollection<string>? codes, DateOnly day, CancellationToken cancellationToken);
+}

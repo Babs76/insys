@@ -7,7 +7,11 @@ public static class StaticSeed
         params (string Column, object Value)[] fields) =>
         database.SeedStatic(tenantId, table, recordStatus, code, 1, from, null, fields);
 
-    public static Task SeedStatic(this TestDatabase database, Guid tenantId, string table, string recordStatus, string code, int version, DateOnly from, DateOnly? to,
+    /// <summary>A platform-global row (tenant_id NULL), for tables whose rows are global only (scope G).</summary>
+    public static Task SeedGlobalStatic(this TestDatabase database, string table, string recordStatus, string code, DateOnly from, params (string Column, object Value)[] fields) =>
+        database.SeedStatic(null, table, recordStatus, code, 1, from, null, fields);
+
+    public static Task SeedStatic(this TestDatabase database, Guid? tenantId, string table, string recordStatus, string code, int version, DateOnly from, DateOnly? to,
         params (string Column, object Value)[] fields)
     {
         var columns = string.Join(", ", fields.Select(f => f.Column));
@@ -17,7 +21,7 @@ public static class StaticSeed
             VALUES (@t, @code, @version, @from, @to, @status, 'seed', 'test seed'{(fields.Length == 0 ? "" : ", " + values)})
             ON CONFLICT DO NOTHING
             """,
-            [("t", tenantId), ("code", code), ("version", version), ("from", from), ("to", (object?)to ?? DBNull.Value), ("status", recordStatus),
+            [("t", (object?)tenantId ?? DBNull.Value), ("code", code), ("version", version), ("from", from), ("to", (object?)to ?? DBNull.Value), ("status", recordStatus),
              .. fields.Select((f, i) => ($"p{i}", f.Value))]);
     }
 }

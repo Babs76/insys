@@ -1,0 +1,44 @@
+{
+ "note": "Static data entities added after the original specification, each with the decision that added it. Same form as static-data-catalogue.json; the generator merges both.",
+ "entities": [
+  {
+   "layer": "Domain",
+   "module": "Health claims",
+   "subModule": "Adjudication",
+   "entity": "Benefit category mappings",
+   "table": "health.cfg_benefit_category_mappings",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 1,
+   "proposedOwner": "Health Product Manager",
+   "provenance": "ADR-012 (proposed, pending business sign-off)",
+   "basis": "OQ-060 item 1",
+   "fields": [
+    { "name": "code_system", "logicalType": "Ref CodeSystem", "mandatory": false, "sample": "NRPL" },
+    { "name": "code_from", "logicalType": "Code(15)", "mandatory": false, "sample": "0190" },
+    { "name": "code_to", "logicalType": "Code(15)", "mandatory": false, "sample": "0199" },
+    { "name": "provider_type", "logicalType": "Ref ProviderType", "mandatory": false, "sample": "GP" },
+    { "name": "benefit_category", "logicalType": "Ref BenefitCategory", "mandatory": true, "sample": "GP_VISITS" }
+   ]
+  },
+  {
+   "layer": "Domain",
+   "module": "Provider network management",
+   "subModule": "Effective-dated tariffs",
+   "entity": "Tariff modifiers",
+   "table": "health.cfg_tariff_modifiers",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 1,
+   "proposedOwner": "Network Manager",
+   "provenance": "ADR-012 (proposed, pending business sign-off)",
+   "basis": "OQ-060 item 3",
+   "fields": [
+    { "name": "modifier_code", "logicalType": "Code(15)", "mandatory": true, "sample": "AFTER_HOURS" },
+    { "name": "type", "logicalType": "Enum{PERCENT_UPLIFT,FIXED_ADD,MULTIPLIER}", "mandatory": true, "sample": "PERCENT_UPLIFT" },
+    { "name": "value", "logicalType": "Decimal(12,4)", "mandatory": true, "sample": "25.0000" },
+    { "name": "applies_to", "logicalType": "List<Code or range>", "mandatory": false, "sample": "0190-0199" }
+   ]
+  }
+ ]
+}
