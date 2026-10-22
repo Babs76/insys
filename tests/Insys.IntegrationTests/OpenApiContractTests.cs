@@ -25,11 +25,19 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
 
     public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
 
+    /// <summary>The static data document has over 1 400 paths; building it takes longer than HttpClient's default 100 seconds on CI runners.</summary>
+    private HttpClient Client()
+    {
+        var client = _factory.CreateClient();
+        client.Timeout = TimeSpan.FromMinutes(10);
+        return client;
+    }
+
     [Theory]
     [MemberData(nameof(Documents))]
     public async Task OpenApiDocument_MatchesItsCommittedSnapshot(string document)
     {
-        var current = Normalise(await _factory.CreateClient().GetStringAsync($"/openapi/{document}.json"));
+        var current = Normalise(await Client().GetStringAsync($"/openapi/{document}.json"));
         if (Environment.GetEnvironmentVariable("INSYS_UPDATE_OPENAPI") == "1")
         {
             await File.WriteAllTextAsync(Snapshot(document), current);
@@ -55,7 +63,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     [MemberData(nameof(Documents))]
     public async Task OpenApiDocument_ListsVersionedPaths_WithBearerSecurity(string document)
     {
-        using var json = JsonDocument.Parse(await _factory.CreateClient().GetStringAsync($"/openapi/{document}.json"));
+        using var json = JsonDocument.Parse(await Client().GetStringAsync($"/openapi/{document}.json"));
 
         json.RootElement.GetProperty("paths").EnumerateObject().ShouldNotBeEmpty();
         json.RootElement.GetProperty("paths").EnumerateObject().Select(p => p.Name).ShouldAllBe(p => p.StartsWith("/api/v1/"));
@@ -65,7 +73,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     [Fact]
     public async Task CoreDocument_HasNoStaticDataOperations()
     {
-        using var core = JsonDocument.Parse(await _factory.CreateClient().GetStringAsync("/openapi/core.json"));
+        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
 
         core.RootElement.GetProperty("paths").EnumerateObject().Select(p => p.Name)
             .ShouldAllBe(p => !p.Contains("/static/") && !p.Contains("/static-data/") && !p.StartsWith("/api/v1/tenancy/"));
@@ -74,7 +82,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     [Fact]
     public async Task EveryEndpoint_IsInExactlyOneDocument()
     {
-        var client = _factory.CreateClient();
+        var client = Client();
         var operations = 0;
         foreach (var (name, _, _) in ApiDocuments.All)
         {
