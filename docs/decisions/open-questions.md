@@ -62,6 +62,8 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-054 | 2 | Party lifecycle triggers, retention and merge | Open |
 | OQ-055 | 2 | Consent withdrawal records | Resolved (proposal) |
 | OQ-056 | 2 | Document state, storage, rendering and retention | Resolved (proposal): V0011; stubs |
+| OQ-057 | 3 | Journal reversal and posted-record immutability | Resolved (proposal): V0014, ADR-011 |
+| OQ-058 | 3 | Money gaps: numbering, tolerances, taxes, providers, timeouts | Open |
 
 ---
 
@@ -335,3 +337,35 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 - **Not yet:**
   - the legal hold reason's authority role is not checked;
   - consumers for LifePolicyIssued, InvoiceIssued and the other generation events come with their modules.
+
+### OQ-057 Journal reversal and posted-record immutability
+- **Gap:** domain-model.json gives Journal the transition `Posted → Reversed`, but FIN-002 says a posted journal is never overwritten. `fk_journal_reverses_journal_id` also required a reversal to share the original's accounting date, so a journal in a closed period could not be reversed.
+- **Resolved (proposal), V0014 and ADR-011:**
+  - **Status stays POSTED:** a reversal is a new journal that references the original. The original is never changed (status always POSTED), and "reversed" means a later journal reverses it.
+  - **Reversal date:** a reversal posts on its own accounting date, in an open period, with the original's rule versions.
+  - **Constraints:** the foreign key is replaced by a trigger, which checks that the original exists and is reversed at most once.
+  - **Balance and immutability:** both are enforced in the database. Deferred triggers check the balance at commit. Revoked grants and triggers refuse UPDATE and DELETE.
+
+### OQ-058 Money gaps found in Phase 3
+Each item is built as stated and marked `TODO(spec)` in code.
+- **Numbering:**
+  - **Claim, invoice, payment and journal numbers** are the scheme's prefix plus an ID-based suffix. Sequences with check digits and reset rules (`sequence_length`, `reset_rule`, `check_digit`) need a gap-free counter per tenant, which is not specified.
+  - **Claim registration** is unique per domain and domain claim (V0015), and a repeat returns the same number (CLM-005).
+- **Allocation:**
+  - `billing.cfg_allocation_rules` (tolerance, overpayment handling) is not applied. A payment is allocated oldest-due first, never above the amount received. Anything left over stays unallocated on the payment.
+  - The payments matching tolerance uses the lowest tolerance in force.
+- **Premium tax:** taxes on invoices are not specified, so invoices carry tax 0.
+- **Credit notes:**
+  - Those whose reason needs approval are refused until the approval flow for adjustments is specified.
+  - System credit notes record `approved_by` as the nil UUID.
+- **Providers:**
+  - **No real integrations:** none are specified. The `SIMULATOR` provider stands in for development and tests: an amount ending in .13 is rejected, .99 gets no answer (Unknown), and otherwise the payment is pending until an HMAC-signed callback.
+  - **Provider called inside the transaction:** the provider is called within the payment's transaction, so a crash after sending and before commit leaves the payment Initiated. The idempotency key goes to the provider, which must deduplicate. An outbox for provider calls is the proper fix.
+- **Payment timeouts:**
+  - **Unknown after 24 hours:** a pending payment with no answer becomes Unknown after `Payments:Jobs:UnknownAfter` (default 24 hours, not specified). Unknown goes to a reconciliation exception and a person, never to success (PAY-005).
+  - **Unmatched statement lines** become reconciliation exceptions too.
+- **Payouts:** a payout with no PAY method in force for its currency is skipped and logged. It should raise an exception for a person.
+- **Transaction types:** Finance maps events to its own codes, for example PREMIUM_DUE, PAYMENT_RECEIVED and CLAIM_PAID (`TransactionTypes`). `finance.ref_transaction_types` is not yet checked against them.
+- **Schedules:** open-ended premium schedules generate instalments one year ahead; how far ahead is not specified.
+- **Claim payment above the remaining reserve:** a reserve can be lowered after a payment is released. If the payment then exceeds the remaining reserve when it completes, it is not recorded as a movement; it needs an exception queue.
+

@@ -1,0 +1,161 @@
+using System.Security.Cryptography;
+using System.Text;
+using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Contracts;
+using Insys.BuildingBlocks.Domain;
+using Insys.BuildingBlocks.Infrastructure.StaticData;
+using Insys.Payments.Application;
+using Insys.Payments.Domain.Payments;
+using Insys.Payments.Infrastructure.StaticData;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+
+namespace Insys.Payments.Infrastructure.Persistence;
+
+internal sealed class PaymentRepository(PaymentsDbContext db) : IPaymentRepository
+{
+    public Task<Payment?> Get(Guid id, CancellationToken cancellationToken) => Payments().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+    public Task<Payment?> ByIdempotencyKey(string key, CancellationToken cancellationToken) => Payments().SingleOrDefaultAsync(p => p.IdempotencyKey == key, cancellationToken);
+
+    public Task<Payment?> ByExternalRef(string providerCode, string externalRef, CancellationToken cancellationToken) =>
+        Payments().FirstOrDefaultAsync(p => p.ProviderCode == providerCode && p.ExternalRef == externalRef, cancellationToken);
+
+    public Task<Payment?> ByReference(string reference, CancellationToken cancellationToken) =>
+        Payments().FirstOrDefaultAsync(p => p.PaymentRef == reference || p.ExternalRef == reference, cancellationToken);
+
+    public async Task<IReadOnlyList<Payment>> AwaitingBatch(string purpose, string currency, CancellationToken cancellationToken) =>
+        await Payments().Where(p => p.Direction == Direction.Out && p.Status == PaymentStatus.Initiated && p.PayoutBatchId == null && p.Purpose == purpose
+            && p.Currency == currency).OrderBy(p => p.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Payment>> InBatch(Guid batchId, CancellationToken cancellationToken) =>
+        await Payments().Where(p => p.PayoutBatchId == batchId).OrderBy(p => p.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> PendingSince(DateTimeOffset before, int limit, CancellationToken cancellationToken) =>
+        await db.Payments.AsNoTracking().Where(p => p.Status == PaymentStatus.Pending && p.InitiatedAt < before).OrderBy(p => p.Id).Select(p => p.Id).Take(limit)
+            .ToListAsync(cancellationToken);
+
+    public Task<PayoutBatch?> Batch(Guid id, CancellationToken cancellationToken) => db.Batches.SingleOrDefaultAsync(b => b.Id == id, cancellationToken);
+
+    public Task<ReconciliationException?> Exception(Guid id, CancellationToken cancellationToken) => db.Exceptions.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<ReconciliationException>> Exceptions(string? status, int limit, CancellationToken cancellationToken)
+    {
+        var query = db.Exceptions.AsNoTracking();
+        if (status is not null && Enum.TryParse<ExceptionStatus>(status, ignoreCase: true, out var parsed))
+        {
+            query = query.Where(e => e.Status == parsed);
+        }
+
+        return await query.OrderBy(e => e.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public void Add(Payment payment) => db.Payments.Add(payment);
+
+    public void Add(PayoutBatch batch) => db.Batches.Add(batch);
+
+    public void Add(ReconciliationException exception) => db.Exceptions.Add(exception);
+
+    public void Add(BankStatementLine line) => db.StatementLines.Add(line);
+
+    public void RecordCallback(string providerCode, string externalRef, string payloadJson, bool signatureValid, DateTimeOffset receivedAt, bool processed) =>
+        db.Callbacks.Add(ProviderCallback.Create(providerCode, externalRef, payloadJson, signatureValid, receivedAt, processed));
+
+    private IQueryable<Payment> Payments() => db.Payments.Include(p => p.History).Include(p => p.Allocations).AsSplitQuery();
+}
+
+internal sealed class PaymentCodes(PaymentsDbContext db) : IPaymentCodes
+{
+    public Task<bool> MethodUsable(string methodCode, Direction direction, string currency, DateOnly day, CancellationToken cancellationToken)
+    {
+        var wanted = direction == Direction.In ? "COLLECT" : "PAY";
+        return InForce<PaymentMethods>(day).AnyAsync(m => m.MethodCode == methodCode && (m.Direction == wanted || m.Direction == "BOTH") && m.Currencies.Contains(currency),
+            cancellationToken);
+    }
+
+    public Task<string?> PayoutMethod(string currency, DateOnly day, CancellationToken cancellationToken) =>
+        InForce<PaymentMethods>(day).Where(m => (m.Direction == "PAY" || m.Direction == "BOTH") && m.Currencies.Contains(currency)).OrderBy(m => m.MethodCode)
+            .Select(m => (string?)m.MethodCode).FirstOrDefaultAsync(cancellationToken);
+
+    public Task<string?> ProviderFor(string methodCode, DateOnly day, CancellationToken cancellationToken) =>
+        InForce<PaymentProviderAndBankRegister>(day).Where(p => p.SupportedMethods.Contains(methodCode)).OrderBy(p => p.ProviderCode)
+            .Select(p => (string?)p.ProviderCode).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<ProviderOutcome> MapStatus(string providerCode, string providerStatus, DateOnly day, CancellationToken cancellationToken)
+    {
+        var mapping = await InForce<PaymentStatusMappings>(day).Where(m => m.ProviderCode == providerCode && m.ProviderStatus == providerStatus)
+            .Select(m => new { m.PlatformStatus, m.Final }).FirstOrDefaultAsync(cancellationToken);
+        return mapping switch
+        {
+            { PlatformStatus: "SUCCEEDED", Final: true } => ProviderOutcome.Succeeded,
+            { PlatformStatus: "FAILED", Final: true } => ProviderOutcome.Failed,
+            { PlatformStatus: "PENDING" or "INITIATED" } => ProviderOutcome.Pending,
+            _ => ProviderOutcome.Unknown,
+        };
+    }
+
+    public async Task<decimal> MatchingTolerance(DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<ReconciliationMatchingRules>(day).OrderBy(r => r.Tolerance).Select(r => (decimal?)r.Tolerance).FirstOrDefaultAsync(cancellationToken) ?? 0m;
+
+    private IQueryable<T> InForce<T>(DateOnly day) where T : StaticRecord =>
+        db.Set<T>().AsNoTracking().InForce(PaymentsStaticData.Descriptors.Single(d => d.EntityType == typeof(T)).Lifecycle, day);
+}
+
+/// <summary>
+/// A stand-in for a payment provider, for development and tests (provider code SIMULATOR). It accepts every payment
+/// as pending, with an external reference, and the outcome arrives by callback; an amount ending in .13 is rejected
+/// and one ending in .99 gets no answer (an unknown outcome). Callbacks are signed with HMAC-SHA256 of the body using
+/// Payments:Providers:{code}:CallbackSecret. TODO(spec): real provider integrations are not specified (OQ-058).
+/// </summary>
+internal sealed class SimulatorGateway(IConfiguration configuration) : IPaymentGateway
+{
+    public const string Code = "SIMULATOR";
+
+    public bool Handles(string providerCode) => providerCode == Code;
+
+    public Task<(ProviderOutcome Outcome, string? ExternalRef, string? Reason)> Send(Payment payment, CancellationToken cancellationToken)
+    {
+        var cents = (int)((payment.Amount * 100) % 100);
+        return Task.FromResult(cents switch
+        {
+            13 => (ProviderOutcome.Failed, (string?)null, (string?)"Declined by the simulator"),
+            99 => (ProviderOutcome.Unknown, (string?)null, (string?)"No answer from the simulator"),
+            _ => (ProviderOutcome.Pending, (string?)("SIM-" + payment.IdempotencyKey.GetHashCode().ToString("X8")), (string?)null),
+        });
+    }
+
+    public bool SignatureValid(string providerCode, string body, string? signature)
+    {
+        var secret = configuration[$"Payments:Providers:{providerCode}:CallbackSecret"];
+        if (string.IsNullOrEmpty(secret) || string.IsNullOrEmpty(signature))
+        {
+            return false;
+        }
+
+        var expected = Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(body)));
+        return CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(expected), Encoding.ASCII.GetBytes(signature.ToLowerInvariant()));
+    }
+}
+
+internal sealed class PaymentsEventMapper : IDomainEventMapper
+{
+    public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
+    {
+        PaymentConfirmed { Direction: Direction.In } e => new Contracts.PaymentReceived(e.PaymentId, e.PaymentRef, e.Purpose, e.Amount, e.Currency, e.ValueDate,
+            e.CounterpartyPartyId, e.BusinessRefType, e.BusinessRefId),
+        PaymentConfirmed e => new Contracts.PaymentSucceeded(e.PaymentId, e.PaymentRef, e.Purpose, e.Amount, e.Currency, e.ValueDate, e.BusinessRefType, e.BusinessRefId),
+        Domain.Payments.PaymentFailed e => new Contracts.PaymentFailed(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency, e.BusinessRefType,
+            e.BusinessRefId, e.Reason),
+        Domain.Payments.PaymentOutcomeUnknown e => new Contracts.PaymentOutcomeUnknown(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency),
+        Domain.Payments.PaymentAllocated e => new Contracts.PaymentAllocated(e.PaymentId, e.AllocationId, e.InvoiceId, e.Amount, e.Currency),
+        Domain.Payments.PaymentReversed e => new Contracts.PaymentReversed(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency, e.ReversedOn,
+            e.Allocations.Select(a => new Contracts.ReversedAllocation(a.AllocationId, a.InvoiceId, a.Amount)).ToList(), e.Reason),
+        Domain.Payments.PayoutReleased e => new Contracts.PayoutReleased(e.BatchId, e.BatchRef, e.Purpose, e.PaymentCount, e.TotalAmount, e.Currency),
+        Domain.Payments.ReconciliationExceptionRaised e => new Contracts.ReconciliationExceptionRaised(e.ExceptionId, e.ExceptionType, e.PaymentId, e.StatementLineId, e.Amount),
+        PayoutBatchBuilt e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.PaymentApprovals.PayoutBusinessRefType, e.BatchId,
+            Contracts.PaymentApprovals.PayoutApprovalType, e.BuiltBy, e.TotalAmount, e.Currency, $"Release payout batch {e.BatchRef}"),
+        _ => null,
+    };
+
+    private static string Upper(Direction direction) => direction.ToString().ToUpperInvariant();
+}

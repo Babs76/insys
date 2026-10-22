@@ -23,10 +23,16 @@
   </Folder>
   <Folder Name="/src/Modules/Billing/">
     <Project Path="src/Modules/Billing/Insys.Billing.Api/Insys.Billing.Api.csproj" />
+    <Project Path="src/Modules/Billing/Insys.Billing.Application/Insys.Billing.Application.csproj" />
+    <Project Path="src/Modules/Billing/Insys.Billing.Contracts/Insys.Billing.Contracts.csproj" />
+    <Project Path="src/Modules/Billing/Insys.Billing.Domain/Insys.Billing.Domain.csproj" />
     <Project Path="src/Modules/Billing/Insys.Billing.Infrastructure/Insys.Billing.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/ClaimsFramework/">
     <Project Path="src/Modules/ClaimsFramework/Insys.ClaimsFramework.Api/Insys.ClaimsFramework.Api.csproj" />
+    <Project Path="src/Modules/ClaimsFramework/Insys.ClaimsFramework.Application/Insys.ClaimsFramework.Application.csproj" />
+    <Project Path="src/Modules/ClaimsFramework/Insys.ClaimsFramework.Contracts/Insys.ClaimsFramework.Contracts.csproj" />
+    <Project Path="src/Modules/ClaimsFramework/Insys.ClaimsFramework.Domain/Insys.ClaimsFramework.Domain.csproj" />
     <Project Path="src/Modules/ClaimsFramework/Insys.ClaimsFramework.Infrastructure/Insys.ClaimsFramework.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Compliance/">
@@ -46,6 +52,9 @@
   </Folder>
   <Folder Name="/src/Modules/Finance/">
     <Project Path="src/Modules/Finance/Insys.Finance.Api/Insys.Finance.Api.csproj" />
+    <Project Path="src/Modules/Finance/Insys.Finance.Application/Insys.Finance.Application.csproj" />
+    <Project Path="src/Modules/Finance/Insys.Finance.Contracts/Insys.Finance.Contracts.csproj" />
+    <Project Path="src/Modules/Finance/Insys.Finance.Domain/Insys.Finance.Domain.csproj" />
     <Project Path="src/Modules/Finance/Insys.Finance.Infrastructure/Insys.Finance.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/General/">
@@ -83,6 +92,9 @@
   </Folder>
   <Folder Name="/src/Modules/Payments/">
     <Project Path="src/Modules/Payments/Insys.Payments.Api/Insys.Payments.Api.csproj" />
+    <Project Path="src/Modules/Payments/Insys.Payments.Application/Insys.Payments.Application.csproj" />
+    <Project Path="src/Modules/Payments/Insys.Payments.Contracts/Insys.Payments.Contracts.csproj" />
+    <Project Path="src/Modules/Payments/Insys.Payments.Domain/Insys.Payments.Domain.csproj" />
     <Project Path="src/Modules/Payments/Insys.Payments.Infrastructure/Insys.Payments.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/ProductFactory/">
@@ -146,6 +158,10 @@
     <Project Path="tests/Insys.Rules.Tests/Insys.Rules.Tests.csproj" />
     <Project Path="tests/Insys.Workflow.Tests/Insys.Workflow.Tests.csproj" />
     <Project Path="tests/Insys.Tenancy.Tests/Insys.Tenancy.Tests.csproj" />
+    <Project Path="tests/Insys.Finance.Tests/Insys.Finance.Tests.csproj" />
+    <Project Path="tests/Insys.Billing.Tests/Insys.Billing.Tests.csproj" />
+    <Project Path="tests/Insys.Payments.Tests/Insys.Payments.Tests.csproj" />
+    <Project Path="tests/Insys.ClaimsFramework.Tests/Insys.ClaimsFramework.Tests.csproj" />
     <Project Path="tests/Insys.Testing/Insys.Testing.csproj" />
   </Folder>
   <Folder Name="/tools/">

@@ -19,3 +19,9 @@ public interface ITenantStatusQuery
 {
     Task<bool> IsActive(Guid tenantId, CancellationToken cancellationToken);
 }
+
+/// <summary>Public query interface: the tenant's base currency on a day (tenant.cfg_locale_defaults), or null when none is in force.</summary>
+public interface ITenantBaseCurrency
+{
+    Task<string?> BaseCurrency(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+}

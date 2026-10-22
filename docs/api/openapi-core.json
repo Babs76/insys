@@ -2332,6 +2332,1567 @@
         "x-permission": "document.dispose"
       }
     },
+    "/api/v1/billing/accounts": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Open a billing account for a payer",
+        "operationId": "BillingOpenAccount",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "billing_account.create"
+      }
+    },
+    "/api/v1/billing/accounts/{id}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Get a billing account with its schedules, instalments and arrears",
+        "operationId": "BillingGetAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "billing_account.read"
+      }
+    },
+    "/api/v1/billing/accounts/{id}/schedules": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Create a policy\u0027s premium schedule (BIL-001)",
+        "description": "Normally created from the domains\u0027 policy issued events; this endpoint is for authorised premium transactions.",
+        "operationId": "BillingCreateSchedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "billing_account.update"
+      }
+    },
+    "/api/v1/billing/accounts/{id}/schedules/{scheduleId}": {
+      "put": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Amend a schedule\u0027s instalment amount from a date; instalments already invoiced are not changed",
+        "operationId": "BillingAmendSchedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmendScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "billing_account.update"
+      }
+    },
+    "/api/v1/billing/accounts/{id}/invoices": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Issue invoices for instalments due by a date (the billing job does this daily)",
+        "operationId": "BillingIssueInvoices",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueInvoicesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "invoice.create"
+      },
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "List an account\u0027s invoices and credit notes",
+        "operationId": "BillingListInvoices",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "invoice.read"
+      }
+    },
+    "/api/v1/billing/accounts/{id}/age": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Mark overdue invoices and detect arrears by the ageing buckets (the billing job does this daily)",
+        "operationId": "BillingAgeAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "billing_account.update"
+      }
+    },
+    "/api/v1/billing/accounts/{id}/close": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Close an account with nothing outstanding",
+        "operationId": "BillingCloseAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "billing_account.update"
+      }
+    },
+    "/api/v1/billing/accounts/{id}/refunds": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Request a refund; a second person approves it in Workflow before any payment (SRS-002)",
+        "operationId": "BillingRequestRefund",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "refund.create"
+      }
+    },
+    "/api/v1/billing/invoices/{id}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Get an invoice or credit note",
+        "operationId": "BillingGetInvoice",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "invoice.read"
+      }
+    },
+    "/api/v1/billing/invoices/{id}/credit-notes": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Correct an issued invoice with a credit note; the invoice itself never changes (BIL-004)",
+        "operationId": "BillingRaiseCreditNote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreditNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "invoice.create"
+      }
+    },
+    "/api/v1/billing/refunds/{id}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Get a refund request",
+        "operationId": "BillingGetRefund",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "refund.read"
+      }
+    },
+    "/api/v1/payments/payments": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Start a payment; its Idempotency-Key is also the payment\u0027s own key, so it never moves money twice (PAY-001)",
+        "description": "An inbound payment is sent to its provider at once; an outbound one waits for a payout batch.",
+        "operationId": "PaymentsInitiate",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitiatePaymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "payment.create"
+      }
+    },
+    "/api/v1/payments/payments/{id}": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Get a payment with its status history (PAY-002) and allocations",
+        "operationId": "PaymentsGet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "payment.read"
+      }
+    },
+    "/api/v1/payments/payments/{id}/resolve": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Decide an unknown outcome from the evidence (PAY-005)",
+        "operationId": "PaymentsResolveUnknown",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveUnknownRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "payment.resolve"
+      }
+    },
+    "/api/v1/payments/payments/{id}/reverse": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Reverse a succeeded payment and its allocations",
+        "operationId": "PaymentsReverse",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReversePaymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "payment.resolve"
+      }
+    },
+    "/api/v1/payments/payments/{id}/allocate": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Allocate what is left of a received payment to its invoices (BIL-003); done automatically when it is received",
+        "operationId": "PaymentsAllocate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "payment.update"
+      }
+    },
+    "/api/v1/payments/providers/{providerCode}/callbacks": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "A provider reports a payment\u0027s status, signed in the X-Signature header (HMAC-SHA256 of the body)",
+        "description": "Every callback is recorded. An invalid signature changes nothing; a status with no mapping makes the payment Unknown (PAY-005).",
+        "operationId": "PaymentsProviderCallback",
+        "parameters": [
+          {
+            "name": "providerCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderCallbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "payment_callback.create"
+      }
+    },
+    "/api/v1/payments/payout-batches": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Batch the payouts waiting for a purpose and currency; a second person approves the batch in Workflow (SRS-002)",
+        "operationId": "PaymentsBuildBatch",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "payout_batch.create"
+      }
+    },
+    "/api/v1/payments/payout-batches/{id}": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Get a payout batch",
+        "operationId": "PaymentsGetBatch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "payout_batch.read"
+      }
+    },
+    "/api/v1/payments/payout-batches/{id}/release": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Release an approved batch: each payment is sent to its provider",
+        "operationId": "PaymentsReleaseBatch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "payout_batch.release"
+      }
+    },
+    "/api/v1/payments/bank-statements": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Import bank statement lines and match them to payments (PAY-003); unmatched lines become reconciliation exceptions",
+        "operationId": "PaymentsImportStatement",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportStatementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "reconciliation.update"
+      }
+    },
+    "/api/v1/payments/reconciliation-exceptions": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Unmatched and ambiguous items waiting for a person (PAY-005)",
+        "operationId": "PaymentsListExceptions",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "reconciliation.read"
+      }
+    },
+    "/api/v1/payments/reconciliation-exceptions/{id}/assign": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Take an exception to investigate",
+        "operationId": "PaymentsAssignException",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "reconciliation.update"
+      }
+    },
+    "/api/v1/payments/reconciliation-exceptions/{id}/resolve": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Resolve an exception you are investigating; an unknown payment is resolved first",
+        "operationId": "PaymentsResolveException",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "reconciliation.update"
+      }
+    },
+    "/api/v1/claims/claims": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Register a domain claim and allocate its claim number; a repeat returns the same number (CLM-005)",
+        "operationId": "ClaimsAllocateNumber",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AllocateClaimNumber"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_register.create"
+      }
+    },
+    "/api/v1/claims/claims/{claimNumber}": {
+      "get": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Get a claim\u0027s registration, evidence and fraud indicator hits",
+        "operationId": "ClaimsGet",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_register.read"
+      }
+    },
+    "/api/v1/claims/claims/{claimNumber}/evidence-requests": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Request evidence of a type",
+        "operationId": "ClaimsRequestEvidence",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_register.update"
+      }
+    },
+    "/api/v1/claims/claims/{claimNumber}/evidence": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Record evidence received, as a stored document",
+        "operationId": "ClaimsRecordEvidence",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_register.update"
+      }
+    },
+    "/api/v1/claims/claims/{claimNumber}/communications": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Record a communication on a claim",
+        "operationId": "ClaimsRecordCommunication",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordCommunication"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_register.update"
+      }
+    },
+    "/api/v1/claims/claims/{claimNumber}/fraud-evaluations": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Evaluate the fraud indicators in force against the claim\u0027s facts",
+        "operationId": "ClaimsEvaluateFraud",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_register.update"
+      }
+    },
+    "/api/v1/claims/claims/{claimNumber}/financials": {
+      "get": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Get a claim\u0027s financial movements and outstanding reserves (CLM-004)",
+        "operationId": "ClaimsGetFinancials",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_financials.read"
+      }
+    },
+    "/api/v1/claims/claims/{claimNumber}/reserves": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Set or change a reserve, or record a recovery; a reserve never goes below zero",
+        "operationId": "ClaimsMoveReserve",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_financials.update"
+      }
+    },
+    "/api/v1/claims/claims/{claimNumber}/payment-instructions": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Draft a claim payment within the approved amount; a repeat reference returns the same instruction (PAY-001)",
+        "operationId": "ClaimsDraftInstruction",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftInstructionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_payment.create"
+      }
+    },
+    "/api/v1/claims/payment-instructions/{id}": {
+      "get": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Get a claim payment instruction",
+        "operationId": "ClaimsGetInstruction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_payment.read"
+      }
+    },
+    "/api/v1/claims/payment-instructions/{id}/submit": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Submit for a second person\u0027s approval in Workflow (SRS-002)",
+        "operationId": "ClaimsSubmitInstruction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_payment.create"
+      }
+    },
+    "/api/v1/claims/payment-instructions/{id}/release": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Release an approved instruction to Payments, within the outstanding reserve",
+        "operationId": "ClaimsReleaseInstruction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_payment.release"
+      }
+    },
+    "/api/v1/claims/payment-instructions/{id}/retry": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Release a failed instruction again to corrected payee details, as a new payment",
+        "operationId": "ClaimsRetryInstruction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryInstructionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "claim_payment.release"
+      }
+    },
+    "/api/v1/finance/journals/{id}": {
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Get a journal with its subledger entries and the posting rule versions used",
+        "operationId": "FinanceGetJournal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "journal.read"
+      }
+    },
+    "/api/v1/finance/journals": {
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "List the journals of a business record (FIN-001)",
+        "operationId": "FinanceListJournals",
+        "parameters": [
+          {
+            "name": "businessRefType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "businessRefId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "journal.read"
+      }
+    },
+    "/api/v1/finance/journals/{id}/reverse": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Reverse a journal: a new journal with debits and credits swapped (FIN-003)",
+        "description": "The original journal is never changed (FIN-002). The reversal is posted on its own accounting date, which must be in an open period.",
+        "operationId": "FinanceReverseJournal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReverseJournalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "journal.reverse"
+      }
+    },
+    "/api/v1/finance/periods": {
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "List accounting periods and their states",
+        "operationId": "FinanceListPeriods",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "accounting_period.read"
+      }
+    },
+    "/api/v1/finance/periods/{periodCode}/open": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Open a period defined in the accounting calendar",
+        "operationId": "FinancePeriodOpen",
+        "parameters": [
+          {
+            "name": "periodCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "accounting_period.update"
+      }
+    },
+    "/api/v1/finance/periods/{periodCode}/soft-close": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Soft-close a period: it accepts no more postings",
+        "operationId": "FinancePeriodSoftClose",
+        "parameters": [
+          {
+            "name": "periodCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "accounting_period.update"
+      }
+    },
+    "/api/v1/finance/periods/{periodCode}/close": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Close a soft-closed period for good",
+        "operationId": "FinancePeriodClose",
+        "parameters": [
+          {
+            "name": "periodCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "accounting_period.update"
+      }
+    },
+    "/api/v1/finance/periods/{periodCode}/reopen": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Ask to reopen a soft-closed period; a second person approves it in Workflow",
+        "operationId": "FinancePeriodRequestReopen",
+        "parameters": [
+          {
+            "name": "periodCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "accounting_period.update"
+      }
+    },
+    "/api/v1/finance/periods/{periodCode}/trial-balance": {
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Debits, credits and balance per account and currency for a period",
+        "operationId": "FinanceTrialBalance",
+        "parameters": [
+          {
+            "name": "periodCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "journal.read"
+      }
+    },
+    "/api/v1/finance/posting-exceptions": {
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Business events that could not be posted (FIN-007)",
+        "operationId": "FinanceListPostingExceptions",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "posting_exception.read"
+      }
+    },
+    "/api/v1/finance/posting-exceptions/{id}/retry": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Post a failed business event again, optionally on another accounting date",
+        "operationId": "FinanceRetryPosting",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryPostingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "journal.reverse"
+      }
+    },
     "/api/v1/identity/users": {
       "post": {
         "tags": [
@@ -3062,6 +4623,48 @@
           }
         }
       },
+      "AllocateClaimNumber": {
+        "required": [
+          "domain",
+          "domainClaimId",
+          "policyRef"
+        ],
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "domainClaimId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyRef": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AmendScheduleRequest": {
+        "required": [
+          "instalmentAmount",
+          "effectiveFrom"
+        ],
+        "type": "object",
+        "properties": {
+          "instalmentAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "AssignRoleRequest": {
         "required": [
           "roleCode",
@@ -3182,6 +4785,21 @@
                 "$ref": "#/components/schemas/JsonElement"
               }
             ]
+          }
+        }
+      },
+      "BuildBatchRequest": {
+        "required": [
+          "purpose",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
           }
         }
       },
@@ -3325,6 +4943,72 @@
           "effectiveFrom": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "CreateScheduleRequest": {
+        "required": [
+          "sourceDomain",
+          "policyRef",
+          "productVersionRef",
+          "frequency",
+          "startDate",
+          "endDate",
+          "instalmentAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceDomain": {
+            "type": "string"
+          },
+          "policyRef": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productVersionRef": {
+            "type": "string"
+          },
+          "frequency": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "instalmentAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "CreditNoteRequest": {
+        "required": [
+          "amount",
+          "reasonCode"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "reasonCode": {
+            "type": "string"
           }
         }
       },
@@ -3506,6 +5190,54 @@
           }
         }
       },
+      "Direction": {
+        "enum": [
+          "In",
+          "Out"
+        ]
+      },
+      "DraftInstructionRequest": {
+        "required": [
+          "instructionRef",
+          "payeePartyId",
+          "amount",
+          "approvedAmount",
+          "currency",
+          "reserveType"
+        ],
+        "type": "object",
+        "properties": {
+          "instructionRef": {
+            "type": "string"
+          },
+          "payeePartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "approvedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "reserveType": {
+            "type": "string"
+          }
+        }
+      },
       "EditConfigurationRequest": {
         "required": [
           "name",
@@ -3554,6 +5286,25 @@
           },
           "inputs": {
             "$ref": "#/components/schemas/JsonElement"
+          }
+        }
+      },
+      "EvidenceRequest": {
+        "required": [
+          "evidenceType",
+          "documentId"
+        ],
+        "type": "object",
+        "properties": {
+          "evidenceType": {
+            "type": "string"
+          },
+          "documentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -3622,6 +5373,24 @@
           }
         }
       },
+      "ImportStatementRequest": {
+        "required": [
+          "accountRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "accountRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatementLine"
+            }
+          }
+        }
+      },
       "IndividualData": {
         "required": [
           "titleCode",
@@ -3677,6 +5446,73 @@
           }
         }
       },
+      "InitiatePaymentRequest": {
+        "required": [
+          "direction",
+          "purpose",
+          "methodCode",
+          "amount",
+          "currency",
+          "counterpartyPartyId",
+          "businessRefType",
+          "businessRefId"
+        ],
+        "type": "object",
+        "properties": {
+          "direction": {
+            "$ref": "#/components/schemas/Direction"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "methodCode": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "counterpartyPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "businessRefType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "businessRefId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "IssueInvoicesRequest": {
+        "required": [
+          "asOf"
+        ],
+        "type": "object",
+        "properties": {
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "JsonElement": {},
       "LegalHoldRequest": {
         "required": [
@@ -3707,6 +5543,33 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "OpenAccountRequest": {
+        "required": [
+          "payerPartyId",
+          "currency",
+          "collectionMethod",
+          "mandateRef"
+        ],
+        "type": "object",
+        "properties": {
+          "payerPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "collectionMethod": {
+            "type": "string"
+          },
+          "mandateRef": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -3820,6 +5683,21 @@
           "Health"
         ]
       },
+      "ProviderCallbackRequest": {
+        "required": [
+          "externalRef",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "externalRef": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "ProvisionUserRequest": {
         "required": [
           "username",
@@ -3844,6 +5722,53 @@
           },
           "mfaEnrolled": {
             "type": "boolean"
+          }
+        }
+      },
+      "RecordCommunication": {
+        "required": [
+          "claimNumber",
+          "direction",
+          "channel",
+          "documentId"
+        ],
+        "type": "object",
+        "properties": {
+          "claimNumber": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "documentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "RefundRequestBody": {
+        "required": [
+          "amount",
+          "reasonCode"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "reasonCode": {
+            "type": "string"
           }
         }
       },
@@ -3987,6 +5912,110 @@
           }
         }
       },
+      "ReserveAction": {
+        "enum": [
+          "Set",
+          "Change",
+          "Recovery"
+        ]
+      },
+      "ReserveRequest": {
+        "required": [
+          "action",
+          "reserveType",
+          "amount",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ReserveAction"
+          },
+          "reserveType": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "ResolveUnknownRequest": {
+        "required": [
+          "succeeded",
+          "evidence"
+        ],
+        "type": "object",
+        "properties": {
+          "succeeded": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "type": "string"
+          }
+        }
+      },
+      "RetryInstructionRequest": {
+        "required": [
+          "payeePartyId"
+        ],
+        "type": "object",
+        "properties": {
+          "payeePartyId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RetryPostingRequest": {
+        "required": [
+          "accountingDate"
+        ],
+        "type": "object",
+        "properties": {
+          "accountingDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        }
+      },
+      "ReverseJournalRequest": {
+        "required": [
+          "accountingDate",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "accountingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ReversePaymentRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "ReviewScope": {
         "enum": [
           "AllUsers",
@@ -4089,6 +6118,35 @@
           "dueDate": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "StatementLine": {
+        "required": [
+          "date",
+          "amount",
+          "currency",
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
           }
         }
       },
@@ -4207,6 +6265,18 @@
     },
     {
       "name": "Documents"
+    },
+    {
+      "name": "Billing"
+    },
+    {
+      "name": "Payments"
+    },
+    {
+      "name": "ClaimsFramework"
+    },
+    {
+      "name": "Finance"
     },
     {
       "name": "Identity"

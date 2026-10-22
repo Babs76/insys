@@ -91,3 +91,24 @@ internal sealed class TenantStatusQuery([FromKeyedServices(TenancyDbContext.Sche
         return await command.ExecuteScalarAsync(cancellationToken) is string status && status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Active);
     }
 }
+
+internal sealed class TenantBaseCurrency([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantBaseCurrency
+{
+    public async Task<string?> BaseCurrency(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT base_currency FROM tenant.cfg_locale_defaults
+            WHERE tenant_id = @t AND record_status = ANY(@statuses) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
+            ORDER BY version DESC LIMIT 1
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("statuses", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce);
+        command.Parameters.AddWithValue("day", day);
+        var currency = await command.ExecuteScalarAsync(cancellationToken) as string;
+        await transaction.CommitAsync(cancellationToken);
+        return currency;
+    }
+}

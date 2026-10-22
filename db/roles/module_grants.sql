@@ -50,7 +50,20 @@ BEGIN
     END LOOP;
   END LOOP;
 
-  -- Insert-only: audit events (DBA-016). Finance journal tables join this list in Phase 3 (DBA-009).
+  -- Insert-only: posted financial records and payment history (FIN-002, PAY-002, DBA-009), partitions included.
+  -- A trigger (V0014) also refuses UPDATE and DELETE, for partitions created later with the schema's default grants.
+  FOR t IN
+    SELECT n.nspname, c.relname, r.role_name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    JOIN (VALUES ('finance', 'journal', 'insys_finance'), ('finance', 'subledger_entry', 'insys_finance'),
+                 ('claims', 'claim_financial_movement', 'insys_claims'), ('payment', 'payment_status_history', 'insys_payment'))
+      AS r(schema_name, table_name, role_name)
+      ON n.nspname = r.schema_name AND (c.relname = r.table_name OR c.relname LIKE r.table_name || '\_2%')
+    WHERE c.relkind IN ('r', 'p')
+  LOOP
+    EXECUTE format('REVOKE UPDATE, DELETE ON %I.%I FROM %I', t.nspname, t.relname, t.role_name);
+  END LOOP;
+
+  -- Insert-only: audit events (DBA-016).
   FOR t IN
     SELECT n.nspname, c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'audit' AND c.relname LIKE 'audit\_event%' AND c.relkind IN ('r', 'p')

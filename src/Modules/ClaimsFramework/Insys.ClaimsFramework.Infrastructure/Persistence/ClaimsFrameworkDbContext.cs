@@ -1,4 +1,5 @@
 using Insys.BuildingBlocks.Infrastructure.Persistence;
+using Insys.ClaimsFramework.Domain.Claims;
 using Insys.ClaimsFramework.Infrastructure.StaticData;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,5 +13,95 @@ public sealed class ClaimsFrameworkDbContext(DbContextOptions<ClaimsFrameworkDbC
 
     public override string Schema => SchemaName;
 
-    protected override void ConfigureModel(ModelBuilder modelBuilder) => ClaimsFrameworkStaticData.Configure(modelBuilder);
+    public DbSet<ClaimRegistration> Claims => Set<ClaimRegistration>();
+
+    public DbSet<FinancialMovement> Movements => Set<FinancialMovement>();
+
+    public DbSet<ClaimPaymentInstruction> Instructions => Set<ClaimPaymentInstruction>();
+
+    protected override void ConfigureModel(ModelBuilder modelBuilder)
+    {
+        ClaimsFrameworkStaticData.Configure(modelBuilder);
+
+        // Children reference the claim by its number (V0001's foreign keys), the register's alternate key.
+        modelBuilder.Entity<ClaimRegistration>(claim =>
+        {
+            claim.ToTable("claim_register");
+            claim.HasKey(c => new { c.TenantId, c.Id });
+            claim.HasAlternateKey(c => new { c.TenantId, c.ClaimNumber });
+            claim.HasAuditColumns();
+            claim.Ignore(c => c.DomainEvents);
+            claim.Ignore(c => c.HasChanges);
+            claim.Property(c => c.ClaimNumber).HasMaxLength(25);
+            claim.Property(c => c.Domain).HasMaxLength(10);
+            claim.HasMany(c => c.Evidence).WithOne().HasForeignKey(e => new { e.TenantId, e.ClaimNumber }).HasPrincipalKey(c => new { c.TenantId, c.ClaimNumber });
+            claim.Navigation(c => c.Evidence).UsePropertyAccessMode(PropertyAccessMode.Field);
+            claim.HasMany(c => c.Communications).WithOne().HasForeignKey(e => new { e.TenantId, e.ClaimNumber }).HasPrincipalKey(c => new { c.TenantId, c.ClaimNumber });
+            claim.Navigation(c => c.Communications).UsePropertyAccessMode(PropertyAccessMode.Field);
+            claim.HasMany(c => c.FraudHits).WithOne().HasForeignKey(e => new { e.TenantId, e.ClaimNumber }).HasPrincipalKey(c => new { c.TenantId, c.ClaimNumber });
+            claim.Navigation(c => c.FraudHits).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<EvidenceItem>(evidence =>
+        {
+            evidence.ToTable("claim_evidence");
+            evidence.HasKey(e => new { e.TenantId, e.Id });
+            evidence.HasAuditColumns();
+            evidence.Property(e => e.ClaimNumber).HasMaxLength(25);
+            evidence.Property(e => e.EvidenceType).HasMaxLength(20);
+            evidence.Property(e => e.Status).HasMaxLength(12);
+        });
+
+        modelBuilder.Entity<Communication>(communication =>
+        {
+            communication.ToTable("claim_communication");
+            communication.HasKey(c => new { c.TenantId, c.Id });
+            communication.HasAuditColumns(updatable: false);
+            communication.Property(c => c.ClaimNumber).HasMaxLength(25);
+            communication.Property(c => c.Direction).HasMaxLength(8);
+            communication.Property(c => c.Channel).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<FraudIndicatorHit>(hit =>
+        {
+            hit.ToTable("fraud_indicator_hit");
+            hit.HasKey(h => new { h.TenantId, h.Id });
+            hit.HasAuditColumns(updatable: false);
+            hit.Property(h => h.ClaimNumber).HasMaxLength(25);
+            hit.Property(h => h.IndicatorCode).HasMaxLength(20);
+        });
+
+        // Append-only: inserted, never updated or deleted (CLM-004; V0014 refuses both). No row_version.
+        modelBuilder.Entity<FinancialMovement>(movement =>
+        {
+            movement.ToTable("claim_financial_movement");
+            movement.HasKey(m => new { m.TenantId, m.Id });
+            movement.HasAuditColumns(updatable: false);
+            movement.Ignore(m => m.DomainEvents);
+            movement.Ignore(m => m.HasChanges);
+            movement.Ignore(m => m.RowVersion);
+            movement.Property(m => m.ClaimNumber).HasMaxLength(25);
+            movement.Property(m => m.MovementType).HasConversion(new UpperCaseEnumConverter<MovementType>()).HasMaxLength(15);
+            movement.Property(m => m.ReserveType).HasMaxLength(15);
+            movement.Property(m => m.Amount).HasPrecision(18, 2);
+            movement.Property(m => m.Currency).HasColumnType("char(3)");
+        });
+
+        modelBuilder.Entity<ClaimPaymentInstruction>(instruction =>
+        {
+            instruction.ToTable("claim_payment_instruction");
+            instruction.HasKey(i => new { i.TenantId, i.Id });
+            instruction.HasAuditColumns();
+            instruction.Ignore(i => i.DomainEvents);
+            instruction.Ignore(i => i.HasChanges);
+            instruction.Property(i => i.ClaimNumber).HasMaxLength(25);
+            instruction.Property(i => i.InstructionRef).HasMaxLength(60);
+            instruction.Property(i => i.Amount).HasPrecision(18, 2);
+            instruction.Property(i => i.ApprovedAmount).HasPrecision(18, 2);
+            instruction.Property(i => i.Currency).HasColumnType("char(3)");
+            instruction.Property(i => i.ReserveType).HasMaxLength(15);
+            instruction.Property(i => i.Status).HasConversion(new UpperCaseEnumConverter<InstructionStatus>()).HasMaxLength(30);
+            instruction.Property(i => i.Attempt).HasColumnType("smallint");
+        });
+    }
 }

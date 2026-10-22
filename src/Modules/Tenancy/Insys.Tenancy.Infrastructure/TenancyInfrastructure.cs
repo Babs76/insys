@@ -21,6 +21,7 @@ public static class TenancyInfrastructure
         services.AddScoped<ITenantQueries, TenantQueries>();
         services.AddSingleton<ITenantDirectory, TenantDirectory>();
         services.AddSingleton<ITenantStatusQuery, TenantStatusQuery>();
+        services.AddSingleton<ITenantBaseCurrency, TenantBaseCurrency>();
         return services;
     }
 }

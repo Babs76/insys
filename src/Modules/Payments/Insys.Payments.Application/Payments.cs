@@ -1,0 +1,627 @@
+using FluentValidation;
+using Insys.Billing.Contracts;
+using Insys.BuildingBlocks.Application.Auditing;
+using Insys.BuildingBlocks.Application.Context;
+using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Contracts;
+using Insys.BuildingBlocks.Domain;
+using Insys.ClaimsFramework.Contracts;
+using Insys.Payments.Contracts;
+using Insys.Payments.Domain.Payments;
+using Insys.Workflow.Contracts;
+
+namespace Insys.Payments.Application;
+
+public interface IPaymentRepository
+{
+    Task<Payment?> Get(Guid id, CancellationToken cancellationToken);
+
+    Task<Payment?> ByIdempotencyKey(string key, CancellationToken cancellationToken);
+
+    Task<Payment?> ByExternalRef(string providerCode, string externalRef, CancellationToken cancellationToken);
+
+    /// <summary>A payment whose reference or external reference is the text, for matching a bank statement line.</summary>
+    Task<Payment?> ByReference(string reference, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Payment>> AwaitingBatch(string purpose, string currency, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Payment>> InBatch(Guid batchId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Guid>> PendingSince(DateTimeOffset before, int limit, CancellationToken cancellationToken);
+
+    Task<PayoutBatch?> Batch(Guid id, CancellationToken cancellationToken);
+
+    Task<ReconciliationException?> Exception(Guid id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ReconciliationException>> Exceptions(string? status, int limit, CancellationToken cancellationToken);
+
+    void Add(Payment payment);
+
+    void Add(PayoutBatch batch);
+
+    void Add(ReconciliationException exception);
+
+    void Add(BankStatementLine line);
+
+    /// <summary>Records a provider callback as received (payment.provider_callback), whatever its signature.</summary>
+    void RecordCallback(string providerCode, string externalRef, string payloadJson, bool signatureValid, DateTimeOffset receivedAt, bool processed);
+}
+
+/// <summary>The Payments module's static data and provider configuration.</summary>
+public interface IPaymentCodes
+{
+    /// <summary>A payment method in force for the direction and currency (payment.ref_payment_methods).</summary>
+    Task<bool> MethodUsable(string methodCode, Direction direction, string currency, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The first outbound method in force for the currency, for payouts.</summary>
+    Task<string?> PayoutMethod(string currency, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>A provider in the register that supports the method (payment.mst_payment_provider_and_bank_register).</summary>
+    Task<string?> ProviderFor(string methodCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The platform outcome of a provider status (payment.ref_payment_status_mappings); Unknown when it has no mapping (PAY-005).</summary>
+    Task<ProviderOutcome> MapStatus(string providerCode, string providerStatus, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The matching tolerance for bank statement lines (payment.cfg_reconciliation_matching_rules).</summary>
+    Task<decimal> MatchingTolerance(DateOnly day, CancellationToken cancellationToken);
+}
+
+/// <summary>A payment provider or bank. The platform sends with the payment's idempotency key, so a retry never pays twice (PAY-001).</summary>
+public interface IPaymentGateway
+{
+    bool Handles(string providerCode);
+
+    Task<(ProviderOutcome Outcome, string? ExternalRef, string? Reason)> Send(Payment payment, CancellationToken cancellationToken);
+
+    /// <summary>Whether a callback body carries the provider's valid signature. Credentials stay in configuration, never in the database (PAY-004).</summary>
+    bool SignatureValid(string providerCode, string body, string? signature);
+}
+
+public sealed record StatusChangeView(string From, string To, string Source, DateTimeOffset ChangedAt);
+
+public sealed record AllocationView(Guid Id, Guid InvoiceId, decimal Amount, string Currency, DateTimeOffset AllocatedAt, Guid? ReversedById);
+
+public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, string Purpose, string MethodCode, string ProviderCode, decimal Amount, string Currency,
+    string Status, string? ExternalRef, string IdempotencyKey, DateOnly? ValueDate, string? BusinessRefType, Guid? BusinessRefId, Guid? PayoutBatchId,
+    IReadOnlyList<StatusChangeView> History, IReadOnlyList<AllocationView> Allocations)
+{
+    public static PaymentView From(Payment p) => new(p.Id, p.PaymentRef, p.Direction.ToString(), p.Purpose, p.MethodCode, p.ProviderCode, p.Amount, p.Currency,
+        p.Status.ToString(), p.ExternalRef, p.IdempotencyKey, p.ValueDate, p.BusinessRefType, p.BusinessRefId, p.PayoutBatchId,
+        p.History.OrderBy(h => h.ChangedAt).ThenBy(h => h.Id).Select(h => new StatusChangeView(h.FromStatus.ToString(), h.ToStatus.ToString(), h.Source, h.ChangedAt)).ToList(),
+        p.Allocations.Select(a => new AllocationView(a.Id, a.InvoiceId, a.Amount, a.Currency, a.AllocatedAt, a.ReversedById)).ToList());
+}
+
+public sealed record BatchView(Guid Id, string BatchRef, string Purpose, int PaymentCount, decimal TotalAmount, string Currency, string Status, Guid? BuiltBy,
+    Guid? ApprovedBy, Guid? ReleasedBy)
+{
+    public static BatchView From(PayoutBatch b) => new(b.Id, b.BatchRef, b.Purpose, b.PaymentCount, b.TotalAmount, b.Currency, b.Status.ToString(), b.BuiltBy,
+        b.ApprovedBy, b.ReleasedBy);
+}
+
+public sealed record ExceptionView(Guid Id, string ExceptionType, Guid? PaymentId, Guid? StatementLineId, decimal Amount, string Status, Guid? AssignedTo)
+{
+    public static ExceptionView From(ReconciliationException e) => new(e.Id, e.ExceptionType, e.PaymentId, e.StatementLineId, e.Amount, e.Status.ToString(), e.AssignedTo);
+}
+
+public sealed record StatementLine(DateOnly Date, decimal Amount, string Currency, string Reference);
+
+public sealed record StatementResult(int Matched, int Exceptions);
+
+/// <summary>
+/// Command InitiatePayment. A key already used returns the payment made with it (PAY-001). An inbound payment with a
+/// provider is sent at once; an outbound one waits for a payout batch.
+/// </summary>
+public sealed record InitiatePayment(string IdempotencyKey, Direction Direction, string Purpose, string MethodCode, decimal Amount, string Currency,
+    Guid? CounterpartyPartyId, string? BusinessRefType, Guid? BusinessRefId) : ICommand<PaymentView>;
+
+/// <summary>Command RecordProviderCallback: a provider reports a payment's status, with a signature over the body.</summary>
+public sealed record RecordProviderCallback(string ProviderCode, string ExternalRef, string ProviderStatus, string Body, string? Signature) : ICommand<PaymentView>;
+
+public sealed record MarkUnknown(Guid PaymentId) : ICommand<PaymentView>;
+
+/// <summary>Command ResolveUnknown: a person decides an unknown outcome from the evidence (PAY-005).</summary>
+public sealed record ResolveUnknown(Guid PaymentId, bool Succeeded, string Evidence) : ICommand<PaymentView>;
+
+public sealed record ReversePayment(Guid PaymentId, string Reason) : ICommand<PaymentView>;
+
+public sealed record AllocatePayment(Guid PaymentId) : ICommand<PaymentView>;
+
+public sealed record BuildBatch(string Purpose, string Currency) : ICommand<BatchView>;
+
+public sealed record ReleaseBatch(Guid BatchId) : ICommand<BatchView>;
+
+public sealed record ImportStatement(string AccountRef, IReadOnlyList<StatementLine> Lines) : ICommand<StatementResult>;
+
+public sealed record AssignException(Guid ExceptionId) : ICommand<ExceptionView>;
+
+public sealed record ResolveException(Guid ExceptionId) : ICommand<ExceptionView>;
+
+public sealed record GetPayment(Guid PaymentId) : IQuery<PaymentView>;
+
+public sealed record GetBatch(Guid BatchId) : IQuery<BatchView>;
+
+public sealed record ListExceptions(string? Status, int Limit) : IQuery<IReadOnlyList<ExceptionView>>;
+
+public sealed record PendingPayments(DateTimeOffset Before) : IQuery<IReadOnlyList<Guid>>;
+
+public sealed class InitiatePaymentValidator : AbstractValidator<InitiatePayment>
+{
+    public InitiatePaymentValidator()
+    {
+        RuleFor(c => c.IdempotencyKey).NotEmpty().MaximumLength(80);
+        RuleFor(c => c.Purpose).NotEmpty().MaximumLength(15);
+        RuleFor(c => c.MethodCode).NotEmpty().MaximumLength(15);
+        RuleFor(c => c.Amount).GreaterThan(0).PrecisionScale(18, 2, true);
+        RuleFor(c => c.Currency).Length(3);
+        RuleFor(c => c.BusinessRefType).MaximumLength(30);
+    }
+}
+
+public sealed class ResolveUnknownValidator : AbstractValidator<ResolveUnknown>
+{
+    public ResolveUnknownValidator() => RuleFor(c => c.Evidence).NotEmpty().MaximumLength(500);
+}
+
+public sealed class ReversePaymentValidator : AbstractValidator<ReversePayment>
+{
+    public ReversePaymentValidator() => RuleFor(c => c.Reason).NotEmpty().MaximumLength(500);
+}
+
+public sealed class ImportStatementValidator : AbstractValidator<ImportStatement>
+{
+    public ImportStatementValidator()
+    {
+        RuleFor(c => c.AccountRef).NotEmpty().MaximumLength(15);
+        RuleFor(c => c.Lines).NotEmpty();
+        RuleForEach(c => c.Lines).ChildRules(line =>
+        {
+            line.RuleFor(l => l.Currency).Length(3);
+            line.RuleFor(l => l.Reference).NotEmpty().MaximumLength(80);
+        });
+    }
+}
+
+internal static class Users
+{
+    public static Result<Guid> Require(IExecutionContext execution) =>
+        execution.ActorType == ActorType.User && Guid.TryParse(execution.ActorId, out var id)
+            ? id
+            : Error.Forbidden(ErrorCodes.Forbidden, "This is done by an identified user.");
+}
+
+/// <summary>Starts payments: one per idempotency key (PAY-001); inbound collections are sent at once, payouts wait for a batch.</summary>
+public sealed class PaymentStarter(IPaymentRepository payments, IPaymentCodes codes, IEnumerable<IPaymentGateway> gateways, IClock clock)
+{
+    public async Task<Result<Payment>> Start(InitiatePayment command, CancellationToken cancellationToken)
+    {
+        if (await payments.ByIdempotencyKey(command.IdempotencyKey, cancellationToken) is { } existing)
+        {
+            return existing;
+        }
+
+        var day = clock.UtcToday;
+        if (!await codes.MethodUsable(command.MethodCode, command.Direction, command.Currency, day, cancellationToken))
+        {
+            return Error.Validation(PaymentErrorCodes.CodeNotInForce, $"{command.MethodCode} is not a {command.Direction} payment method in force for {command.Currency}.");
+        }
+
+        if (await codes.ProviderFor(command.MethodCode, day, cancellationToken) is not { } provider)
+        {
+            return Error.Validation(PaymentErrorCodes.NoProvider, $"No payment provider in the register supports {command.MethodCode}.");
+        }
+
+        var payment = Payment.InitiatePayment(Guid.CreateVersion7(), command.IdempotencyKey, command.Direction, command.Purpose, command.MethodCode, provider,
+            command.Amount, command.Currency, command.CounterpartyPartyId, command.BusinessRefType, command.BusinessRefId, clock.UtcNow);
+        if (payment.IsFailure)
+        {
+            return payment.Error;
+        }
+
+        payments.Add(payment.Value);
+        if (command.Direction == Direction.In)
+        {
+            await Send(payment.Value, cancellationToken);
+        }
+
+        return payment;
+    }
+
+    /// <summary>
+    /// Sends a payment to its provider. Any exception is an unknown outcome, never a success (PAY-005). TODO(spec):
+    /// the provider is called inside the transaction; with the idempotency key a retried send cannot pay twice (OQ-058).
+    /// </summary>
+    public async Task Send(Payment payment, CancellationToken cancellationToken)
+    {
+        var gateway = gateways.FirstOrDefault(g => g.Handles(payment.ProviderCode));
+        (ProviderOutcome Outcome, string? ExternalRef, string? Reason) answer;
+        try
+        {
+            answer = gateway is null ? (ProviderOutcome.Unknown, null, "No gateway for the provider") : await gateway.Send(payment, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            answer = (ProviderOutcome.Unknown, null, ex.GetType().Name);
+        }
+
+        payment.Sent(answer.Outcome, answer.ExternalRef, answer.Reason, clock.UtcToday, clock.UtcNow);
+    }
+}
+
+internal sealed class InitiatePaymentHandler(PaymentStarter starter, IAuditTrail audit) : ICommandHandler<InitiatePayment, PaymentView>
+{
+    public async Task<Result<PaymentView>> Handle(InitiatePayment command, CancellationToken cancellationToken)
+    {
+        var payment = await starter.Start(command, cancellationToken);
+        if (payment.IsSuccess)
+        {
+            audit.Record(new AuditEntry("PAYMENT", "InitiatePayment", nameof(Payment), payment.Value.Id.ToString(),
+                new Dictionary<string, string?> { ["purpose"] = command.Purpose, ["direction"] = command.Direction.ToString() }));
+        }
+
+        return payment.IsFailure ? payment.Error : PaymentView.From(payment.Value);
+    }
+}
+
+internal sealed class RecordProviderCallbackHandler(IPaymentRepository payments, IPaymentCodes codes, IEnumerable<IPaymentGateway> gateways, IClock clock)
+    : ICommandHandler<RecordProviderCallback, PaymentView>
+{
+    public async Task<Result<PaymentView>> Handle(RecordProviderCallback command, CancellationToken cancellationToken)
+    {
+        var valid = gateways.FirstOrDefault(g => g.Handles(command.ProviderCode))?.SignatureValid(command.ProviderCode, command.Body, command.Signature) ?? false;
+        var payment = valid ? await payments.ByExternalRef(command.ProviderCode, command.ExternalRef, cancellationToken) : null;
+        payments.RecordCallback(command.ProviderCode, command.ExternalRef, command.Body, valid, clock.UtcNow, processed: payment is not null);
+        if (!valid)
+        {
+            // Kept, with signature_valid false, for investigation; nothing changes.
+            return Error.Forbidden(PaymentErrorCodes.CallbackSignatureInvalid, "The callback's signature is not valid; it was recorded and not applied.");
+        }
+
+        if (payment is null)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "No payment has this provider reference; the callback was recorded.");
+        }
+
+        var outcome = await codes.MapStatus(command.ProviderCode, command.ProviderStatus, clock.UtcToday, cancellationToken);
+        var result = payment.RecordCallback(outcome, $"Provider status {command.ProviderStatus}", clock.UtcToday, clock.UtcNow);
+        return result.IsFailure ? result.Error : PaymentView.From(payment);
+    }
+}
+
+internal sealed class MarkUnknownHandler(IPaymentRepository payments, IClock clock) : ICommandHandler<MarkUnknown, PaymentView>
+{
+    public async Task<Result<PaymentView>> Handle(MarkUnknown command, CancellationToken cancellationToken)
+    {
+        if (await payments.Get(command.PaymentId, cancellationToken) is not { } payment)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
+        }
+
+        var result = payment.MarkUnknown(clock.UtcNow);
+        return result.IsFailure ? result.Error : PaymentView.From(payment);
+    }
+}
+
+internal sealed class ResolveUnknownHandler(IPaymentRepository payments, IExecutionContext execution, IClock clock, IAuditTrail audit)
+    : ICommandHandler<ResolveUnknown, PaymentView>
+{
+    public async Task<Result<PaymentView>> Handle(ResolveUnknown command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await payments.Get(command.PaymentId, cancellationToken) is not { } payment)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
+        }
+
+        audit.Record(new AuditEntry("PAYMENT", "ResolveUnknown", nameof(Payment), payment.Id.ToString(),
+            new Dictionary<string, string?> { ["succeeded"] = command.Succeeded.ToString(), ["evidence"] = command.Evidence }));
+        var result = payment.ResolveUnknown(command.Succeeded, command.Evidence, clock.UtcToday, clock.UtcNow);
+        return result.IsFailure ? result.Error : PaymentView.From(payment);
+    }
+}
+
+internal sealed class ReversePaymentHandler(IPaymentRepository payments, IExecutionContext execution, IClock clock, IAuditTrail audit)
+    : ICommandHandler<ReversePayment, PaymentView>
+{
+    public async Task<Result<PaymentView>> Handle(ReversePayment command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await payments.Get(command.PaymentId, cancellationToken) is not { } payment)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
+        }
+
+        audit.Record(new AuditEntry("PAYMENT", "ReversePayment", nameof(Payment), payment.Id.ToString(), new Dictionary<string, string?> { ["reason"] = command.Reason }));
+        var result = payment.ReversePayment(command.Reason, clock.UtcToday, clock.UtcNow);
+        return result.IsFailure ? result.Error : PaymentView.From(payment);
+    }
+}
+
+/// <summary>Command AllocatePayment: Billing's allocation plan applied to a received payment (BIL-003).</summary>
+internal sealed class AllocatePaymentHandler(IPaymentRepository payments, IAllocationPlanner planner, ITenantContext tenant, IClock clock)
+    : ICommandHandler<AllocatePayment, PaymentView>
+{
+    public async Task<Result<PaymentView>> Handle(AllocatePayment command, CancellationToken cancellationToken)
+    {
+        if (await payments.Get(command.PaymentId, cancellationToken) is not { } payment)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
+        }
+
+        var result = await Allocation.Allocate(payment, planner, tenant, clock, cancellationToken);
+        return result.IsFailure ? result.Error : PaymentView.From(payment);
+    }
+}
+
+internal static class Allocation
+{
+    public const string Rule = "OLDEST_FIRST";
+
+    public static async Task<Result> Allocate(Payment payment, IAllocationPlanner planner, ITenantContext tenant, IClock clock, CancellationToken cancellationToken)
+    {
+        var remaining = payment.Amount - payment.Allocated;
+        if (remaining <= 0 || payment.BusinessRefId is not { } refId)
+        {
+            return Result.Success();
+        }
+
+        var invoice = payment.BusinessRefType == "INVOICE" ? refId : (Guid?)null;
+        var account = payment.BusinessRefType == "BILLING_ACCOUNT" ? refId : (Guid?)null;
+        if (invoice is null && account is null)
+        {
+            return Result.Success();
+        }
+
+        var plan = await planner.Plan(tenant.RequireTenantId(), account, invoice, remaining, payment.Currency, clock.UtcToday, cancellationToken);
+        return plan.Count == 0 ? Result.Success() : payment.AllocatePayment(plan.Select(p => (p.InvoiceId, p.Amount)).ToList(), Rule, clock.UtcNow);
+    }
+}
+
+internal sealed class BuildBatchHandler(IPaymentRepository payments, IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<BuildBatch, BatchView>
+{
+    public async Task<Result<BatchView>> Handle(BuildBatch command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        var batch = PayoutBatch.BuildBatch(Guid.CreateVersion7(), command.Purpose, command.Currency, await payments.AwaitingBatch(command.Purpose, command.Currency, cancellationToken),
+            user.Value, clock.UtcNow);
+        if (batch.IsFailure)
+        {
+            return batch.Error;
+        }
+
+        payments.Add(batch.Value);
+        audit.Record(new AuditEntry("PAYMENT", "BuildBatch", nameof(PayoutBatch), batch.Value.Id.ToString()));
+        return BatchView.From(batch.Value);
+    }
+}
+
+internal sealed class ReleaseBatchHandler(IPaymentRepository payments, PaymentStarter starter, IExecutionContext execution, IClock clock, IAuditTrail audit)
+    : ICommandHandler<ReleaseBatch, BatchView>
+{
+    public async Task<Result<BatchView>> Handle(ReleaseBatch command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await payments.Batch(command.BatchId, cancellationToken) is not { } batch)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.");
+        }
+
+        audit.Record(new AuditEntry("PAYMENT", "ReleaseBatch", nameof(PayoutBatch), batch.Id.ToString()));
+        var result = batch.ReleaseBatch(user.Value, clock.UtcNow);
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        foreach (var payment in await payments.InBatch(batch.Id, cancellationToken))
+        {
+            await starter.Send(payment, cancellationToken);
+        }
+
+        return BatchView.From(batch);
+    }
+}
+
+/// <summary>Matches bank statement lines to payments (PAY-003): by payment or provider reference and amount within tolerance; anything else is an exception.</summary>
+internal sealed class ImportStatementHandler(IPaymentRepository payments, IPaymentCodes codes, IClock clock) : ICommandHandler<ImportStatement, StatementResult>
+{
+    public async Task<Result<StatementResult>> Handle(ImportStatement command, CancellationToken cancellationToken)
+    {
+        var tolerance = await codes.MatchingTolerance(clock.UtcToday, cancellationToken);
+        var (matched, exceptions) = (0, 0);
+        foreach (var line in command.Lines)
+        {
+            var statementLine = BankStatementLine.Import(Guid.CreateVersion7(), command.AccountRef, line.Date, line.Amount, line.Currency, line.Reference);
+            payments.Add(statementLine);
+            var payment = await payments.ByReference(line.Reference, cancellationToken);
+            if (payment is not null && payment.Currency == line.Currency && Math.Abs(payment.Amount - Math.Abs(line.Amount)) <= tolerance)
+            {
+                statementLine.Matched(payment.Id);
+                matched++;
+            }
+            else
+            {
+                statementLine.Unmatched();
+                payments.Add(ReconciliationException.RaiseException(Guid.CreateVersion7(), ReconciliationException.UnmatchedLine, payment?.Id, statementLine.Id,
+                    line.Amount, clock.UtcNow));
+                exceptions++;
+            }
+        }
+
+        return new StatementResult(matched, exceptions);
+    }
+}
+
+internal sealed class AssignExceptionHandler(IPaymentRepository payments, IExecutionContext execution) : ICommandHandler<AssignException, ExceptionView>
+{
+    public async Task<Result<ExceptionView>> Handle(AssignException command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await payments.Exception(command.ExceptionId, cancellationToken) is not { } exception)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The reconciliation exception was not found.");
+        }
+
+        var result = exception.AssignException(user.Value);
+        return result.IsFailure ? result.Error : ExceptionView.From(exception);
+    }
+}
+
+internal sealed class ResolveExceptionHandler(IPaymentRepository payments, IExecutionContext execution, IAuditTrail audit) : ICommandHandler<ResolveException, ExceptionView>
+{
+    public async Task<Result<ExceptionView>> Handle(ResolveException command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await payments.Exception(command.ExceptionId, cancellationToken) is not { } exception)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The reconciliation exception was not found.");
+        }
+
+        // An unknown outcome is resolved on the payment first (ResolveUnknown); the exception then records who closed it.
+        if (exception.ExceptionType == ReconciliationException.UnknownOutcome && exception.PaymentId is { } paymentId
+            && await payments.Get(paymentId, cancellationToken) is { Status: PaymentStatus.Unknown })
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Resolve the payment's unknown outcome first.");
+        }
+
+        audit.Record(new AuditEntry("PAYMENT", "ResolveException", nameof(ReconciliationException), exception.Id.ToString()));
+        var result = exception.ResolveException(user.Value);
+        return result.IsFailure ? result.Error : ExceptionView.From(exception);
+    }
+}
+
+internal sealed class GetPaymentHandler(IPaymentRepository payments) : IQueryHandler<GetPayment, PaymentView>
+{
+    public async Task<Result<PaymentView>> Handle(GetPayment query, CancellationToken cancellationToken) =>
+        await payments.Get(query.PaymentId, cancellationToken) is { } p ? PaymentView.From(p) : Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
+}
+
+internal sealed class GetBatchHandler(IPaymentRepository payments) : IQueryHandler<GetBatch, BatchView>
+{
+    public async Task<Result<BatchView>> Handle(GetBatch query, CancellationToken cancellationToken) =>
+        await payments.Batch(query.BatchId, cancellationToken) is { } b ? BatchView.From(b) : Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.");
+}
+
+internal sealed class ListExceptionsHandler(IPaymentRepository payments) : IQueryHandler<ListExceptions, IReadOnlyList<ExceptionView>>
+{
+    public async Task<Result<IReadOnlyList<ExceptionView>>> Handle(ListExceptions query, CancellationToken cancellationToken) =>
+        (await payments.Exceptions(query.Status, query.Limit, cancellationToken)).Select(ExceptionView.From).ToList();
+}
+
+internal sealed class PendingPaymentsHandler(IPaymentRepository payments) : IQueryHandler<PendingPayments, IReadOnlyList<Guid>>
+{
+    public async Task<Result<IReadOnlyList<Guid>>> Handle(PendingPayments query, CancellationToken cancellationToken) =>
+        Result.Success(await payments.PendingSince(query.Before, 500, cancellationToken));
+}
+
+/// <summary>
+/// Payments' policies (domain-model.json: payments consumes): collect issued invoices whose method a provider supports;
+/// pay approved refunds and released claim payments through payout batches; approve batches from Workflow; allocate
+/// received payments; raise a reconciliation exception for every unknown outcome (PAY-005); settle a batch when all its
+/// payments are final.
+/// </summary>
+public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter starter, IPaymentCodes codes, IAllocationPlanner planner, ITenantContext tenant,
+    IClock clock) :
+    IIntegrationEventHandler<InvoiceIssued>,
+    IIntegrationEventHandler<RefundApproved>,
+    IIntegrationEventHandler<ClaimPaymentInstructed>,
+    IIntegrationEventHandler<ApprovalGranted>,
+    IIntegrationEventHandler<PaymentReceived>,
+    IIntegrationEventHandler<PaymentSucceeded>,
+    IIntegrationEventHandler<Contracts.PaymentFailed>,
+    IIntegrationEventHandler<Contracts.PaymentOutcomeUnknown>
+{
+    public async Task Handle(InvoiceIssued issued, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        // Only methods a provider collects (a debit order, say); otherwise the payer pays and the bank statement shows it.
+        if (await codes.ProviderFor(issued.PaymentMethod, clock.UtcToday, cancellationToken) is null)
+        {
+            return;
+        }
+
+        await starter.Start(new InitiatePayment($"INVOICE:{issued.InvoiceId:N}", Direction.In, PaymentPurposes.Premium, issued.PaymentMethod, issued.TotalAmount,
+            issued.Currency, issued.PayerPartyId, "INVOICE", issued.InvoiceId), cancellationToken);
+    }
+
+    public Task Handle(RefundApproved approved, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Payout($"REFUND:{approved.RefundId:N}", PaymentPurposes.Refund, approved.Amount, approved.Currency, null, BillingApprovals.RefundBusinessRefType, approved.RefundId,
+            cancellationToken);
+
+    public Task Handle(ClaimPaymentInstructed instructed, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Payout($"CLAIM_PAYMENT:{instructed.InstructionId:N}:{instructed.Attempt}", PaymentPurposes.ClaimPayout, instructed.Amount, instructed.Currency, instructed.PayeePartyId,
+            ClaimsApprovals.InstructionBusinessRefType, instructed.InstructionId, cancellationToken);
+
+    public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (granted.BusinessRefType == PaymentApprovals.PayoutBusinessRefType && await payments.Batch(granted.BusinessRefId, cancellationToken) is { } batch)
+        {
+            batch.ApproveBatch(granted.CheckerId);
+        }
+    }
+
+    public async Task Handle(PaymentReceived received, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await payments.Get(received.PaymentId, cancellationToken) is { } payment)
+        {
+            await Allocation.Allocate(payment, planner, tenant, clock, cancellationToken);
+        }
+    }
+
+    public Task Handle(PaymentSucceeded succeeded, EventEnvelope envelope, CancellationToken cancellationToken) => Settle(succeeded.PaymentId, cancellationToken);
+
+    public Task Handle(Contracts.PaymentFailed failed, EventEnvelope envelope, CancellationToken cancellationToken) => Settle(failed.PaymentId, cancellationToken);
+
+    public Task Handle(Contracts.PaymentOutcomeUnknown unknown, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        payments.Add(ReconciliationException.RaiseException(Guid.CreateVersion7(), ReconciliationException.UnknownOutcome, unknown.PaymentId, null, unknown.Amount,
+            clock.UtcNow));
+        return Task.CompletedTask;
+    }
+
+    private async Task Payout(string key, string purpose, decimal amount, string currency, Guid? payee, string businessRefType, Guid businessRefId,
+        CancellationToken cancellationToken)
+    {
+        if (await codes.PayoutMethod(currency, clock.UtcToday, cancellationToken) is { } method)
+        {
+            // TODO(spec): a payout with no method or provider for its currency is not started; it needs an exception queue (OQ-058).
+            await starter.Start(new InitiatePayment(key, Direction.Out, purpose, method, amount, currency, payee, businessRefType, businessRefId), cancellationToken);
+        }
+    }
+
+    private async Task Settle(Guid paymentId, CancellationToken cancellationToken)
+    {
+        if (await payments.Get(paymentId, cancellationToken) is { PayoutBatchId: { } batchId } && await payments.Batch(batchId, cancellationToken) is { } batch)
+        {
+            batch.Settle((await payments.InBatch(batchId, cancellationToken)).All(p => p.IsFinal));
+        }
+    }
+}

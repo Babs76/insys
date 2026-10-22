@@ -7,8 +7,8 @@
 | 1 Platform | Tenancy, Identity, Audit, Static Data and generator | Done, accepted |
 | 1 review items 1–6 | Repository move, V0007 to V0009, access aggregates, cache guard, OpenAPI split, Tier 2 setting, outbox lag | Done, accepted |
 | 2 Shared services | Party, Product Factory, Rating, Rules, Workflow, Documents | Done, accepted with conditions (CI green: 979e207) |
-| 2 review items 1–6 | CI fix, maker-checker gaps (V0013), schema gaps (V0012, ADR-010), SLA calendars, rating step order, expression limits | **Done, awaiting review** (22 Oct 2026) |
-| 3 Money | Billing, Payments, Finance, Claims Framework | Not started |
+| 2 review items 1–6 | CI fix, maker-checker gaps (V0013), schema gaps (V0012, ADR-010), SLA calendars, rating step order, expression limits | Done (CI green: 51bc94d) |
+| 3 Money | Billing, Payments, Finance, Claims Framework | **Done, awaiting review** (22 Oct 2026) |
 | 4 First domain | `FIRST_DOMAIN` (ask first: OQ-001) | Not started |
 | 5 Other domains | The remaining two domains | Not started |
 | 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration | Not started |
@@ -27,6 +27,61 @@
 4. **OpenAPI documents:** split into core, static-data and platform-operator. Each has its own snapshot in `docs/api`, and every endpoint is in exactly one.
 5. **Tier 2 maker-checker:** a per-tenant setting (V0008), on by default and audited. Tier 1 is always on.
 6. **Outbox relay lag:** reported on `/health` and `/health/ready` through `integration.outbox_lag` (V0009). Degraded after `Outbox:Lag:Warning` (1 minute); Unhealthy and not ready after `Outbox:Lag:Failure` (5 minutes).
+
+## Phase 3: what exists
+
+**Finance** (`finance`):
+- **Journal:** PostBusinessEvent and ReverseJournal. Debits equal credits in one currency; every line stores its posting rule code and version, its base amount and FX rate.
+- **AccountingPeriod:** Future → Open → Soft close → Closed. Reopening a soft-closed period waits for a second person's approval in Workflow.
+- **PostingRuleResolver:** exactly one rule in force on the accounting date whose condition holds.
+- **PostingException:** an event that cannot be posted is kept with its payload and can be retried, optionally on another date (FIN-007).
+- **Policies:** these events are posted: InvoiceIssued, CreditNoteIssued, PaymentReceived, PaymentSucceeded (refunds), PaymentReversed, ClaimReserveChanged, ClaimPaymentCompleted and ClaimRecoveryRecorded.
+- **API:** `/finance`: journals, reversal, periods, trial balance, posting exceptions.
+
+**Billing** (`billing`):
+- **BillingAccount:** schedules and instalments (BIL-001), arrears by ageing bucket.
+- **Invoice:** issue, allocate, reverse an allocation, overdue. A credit note is a separate document (BIL-004).
+- **RefundRequest:** approved by a second person before any payment (SRS-002).
+- **Jobs:** a billing job issues due invoices and ages accounts.
+- **API:** `/billing`.
+
+**Payments** (`payment`):
+- **Payment:**
+  - one per idempotency key (PAY-001);
+  - every status change kept in an insert-only history (PAY-002);
+  - signed provider callbacks;
+  - Unknown outcomes go to a reconciliation exception and a person, never to success (PAY-005);
+  - allocation never above the amount received;
+  - reversal with its allocations.
+- **PayoutBatch:** approved by someone other than its builder before release.
+- **ReconciliationException and bank statement matching** (PAY-003).
+- **Provider:** the `SIMULATOR` provider (OQ-058).
+- **API:** `/payments`.
+
+**Claims Framework** (`claims`):
+- **ClaimRegistration:** one claim number per domain claim (CLM-005), evidence, communications, fraud indicators.
+- **ClaimFinancials:** reserves, payments and recoveries as insert-only movements; a reserve never goes below zero (CLM-004).
+- **ClaimPaymentInstruction:** within the approved amount; released only after Workflow approval; a retry is a new payment attempt.
+- **API:** `/claims`.
+
+**Database:**
+- **V0014:**
+  - deferred balance triggers on journals;
+  - insert-only posted tables, with revoked grants and triggers;
+  - reversal checks;
+  - reopen request columns.
+- **V0015:** CHECKs on the money lifecycles, plus the columns the aggregates need: payment business reference and batch, instruction reference and attempt, refund and batch makers and checkers, invoice allocated amount, and posting exception payload.
+- **Decisions:** ADR-011; OQ-057 and OQ-058.
+
+**Tests:**
+- **Unit tests:** Finance, Billing, Payments and Claims Framework, including lifecycles checked against domain-model.json.
+- **Database tests:** an unbalanced, one-sided or mixed-currency journal is refused at commit; module roles hold no UPDATE or DELETE on posted tables; even the owner is refused by the trigger; a journal is reversed at most once.
+- **Mapping test:** every column a DbContext maps exists in the schema.
+- **API flow tests:**
+  - premium billed, collected, confirmed by a signed callback, allocated and posted with the posting rule version in force on the accounting date;
+  - an Unknown outcome never treated as succeeded until a person resolves it;
+  - a refund and its payout batch, each needing a second person;
+  - a claim payment released only after approval, paid, and drawn from the reserve.
 
 ## Phase 2 review: what changed
 
