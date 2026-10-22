@@ -25,6 +25,7 @@ public static class DocumentsInfrastructure
         services.AddScoped<DocumentGenerator>();
         services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralPolicyIssued");
         services.AddIntegrationEventHandler<GeneralPolicyEndorsed, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralPolicyEndorsed");
+        services.AddIntegrationEventHandler<GeneralRenewalInvited, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralRenewalInvited");
         services.AddIntegrationEventHandler<Life.Contracts.LifePolicyIssued, LifeDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "LifePolicyIssued");
         services.AddIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased, HealthDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName,
             "ProviderPaymentRunReleased");

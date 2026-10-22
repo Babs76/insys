@@ -252,6 +252,83 @@
         "x-permission": "dead_letter.update"
       }
     },
+    "/api/v1/integration/webhook-deliveries": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Partner webhook deliveries, by status or subscription, with their latest attempt (INT-006)",
+        "operationId": "ListWebhookDeliveries",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/WebhookDeliveryStatus"
+            }
+          },
+          {
+            "name": "subscriptionId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "webhook_delivery.read"
+      }
+    },
+    "/api/v1/integration/webhook-deliveries/{id}/retry": {
+      "post": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Attempt a pending delivery at the next run of the webhook job instead of at its back-off time",
+        "operationId": "RetryWebhookDelivery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "webhook_delivery.update"
+      }
+    },
     "/api/v1/party/parties": {
       "post": {
         "tags": [
@@ -8108,6 +8185,953 @@
         "x-permission": "journal.reverse"
       }
     },
+    "/api/v1/distribution/intermediaries/{code}/permissions/{productCode}": {
+      "get": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "Whether the intermediary may sell the product today: in the register, not suspended, with a permission in force (DST-001)",
+        "operationId": "DistributionCheckIntermediary",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "intermediary.read"
+      }
+    },
+    "/api/v1/distribution/entitlements": {
+      "get": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "Commission entitlements, by intermediary, policy or status, with cursor pagination",
+        "operationId": "DistributionListEntitlements",
+        "parameters": [
+          {
+            "name": "intermediaryCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "policyRef",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/EntitlementStatus"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "commission.read"
+      }
+    },
+    "/api/v1/distribution/entitlements/{id}": {
+      "get": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "A commission entitlement, with its plan version and source transaction (DST-003) and any clawback",
+        "operationId": "DistributionGetEntitlement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "commission.read"
+      }
+    },
+    "/api/v1/distribution/entitlements/{id}/claw-back": {
+      "post": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "Claw back an accrued or payable entitlement in full; one already on a statement is recovered on the next",
+        "operationId": "DistributionClawBack",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClawBackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "commission.update"
+      }
+    },
+    "/api/v1/distribution/statements": {
+      "post": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "Prepare an intermediary\u0027s statement for a month, or prepare a draft again; a second person approves it in Workflow (DST-004)",
+        "operationId": "DistributionPrepareStatement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareStatement"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "commission_statement.create"
+      }
+    },
+    "/api/v1/distribution/statements/{id}": {
+      "get": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "A commission statement",
+        "operationId": "DistributionGetStatement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "commission_statement.read"
+      }
+    },
+    "/api/v1/reinsurance/cessions": {
+      "get": {
+        "tags": [
+          "Reinsurance"
+        ],
+        "summary": "A policy\u0027s cessions, superseded ones included, with the treaty, rule and gross amounts they were calculated from (REI-001, REI-002)",
+        "operationId": "ReinsuranceListCessions",
+        "parameters": [
+          {
+            "name": "sourceDomain",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "policyRef",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "cession.read"
+      }
+    },
+    "/api/v1/reinsurance/recoveries": {
+      "get": {
+        "tags": [
+          "Reinsurance"
+        ],
+        "summary": "Recoveries, by claim or status, with cursor pagination",
+        "operationId": "ReinsuranceListRecoveries",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/RecoveryStatus"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "ri_recovery.read"
+      }
+    },
+    "/api/v1/reinsurance/recoveries/{id}": {
+      "get": {
+        "tags": [
+          "Reinsurance"
+        ],
+        "summary": "A recovery, with what was recoverable, billed and settled (REI-003)",
+        "operationId": "ReinsuranceGetRecovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "ri_recovery.read"
+      }
+    },
+    "/api/v1/reinsurance/recoveries/{id}/bill": {
+      "post": {
+        "tags": [
+          "Reinsurance"
+        ],
+        "summary": "Bill an identified recovery to the reinsurer through the adapter",
+        "operationId": "ReinsuranceBillRecovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "ri_recovery.update"
+      }
+    },
+    "/api/v1/reinsurance/recoveries/{id}/settle": {
+      "post": {
+        "tags": [
+          "Reinsurance"
+        ],
+        "summary": "Record what the reinsurer paid on a billed recovery; a difference stays visible for reconciliation (REI-003)",
+        "operationId": "ReinsuranceSettleRecovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettleRecoveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "ri_recovery.update"
+      }
+    },
+    "/api/v1/reinsurance/bordereaux": {
+      "post": {
+        "tags": [
+          "Reinsurance"
+        ],
+        "summary": "Prepare a treaty\u0027s bordereau for a period from its layout; one per treaty and period",
+        "operationId": "ReinsurancePrepareBordereau",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareBordereau"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "bordereau.create"
+      }
+    },
+    "/api/v1/reinsurance/bordereaux/{id}": {
+      "get": {
+        "tags": [
+          "Reinsurance"
+        ],
+        "summary": "A bordereau and its rows",
+        "operationId": "ReinsuranceGetBordereau",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "bordereau.read"
+      }
+    },
+    "/api/v1/reinsurance/bordereaux/{id}/send": {
+      "post": {
+        "tags": [
+          "Reinsurance"
+        ],
+        "summary": "Send a prepared bordereau to the reinsurer through the adapter",
+        "operationId": "ReinsuranceSendBordereau",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "bordereau.update"
+      }
+    },
+    "/api/v1/reinsurance/bordereaux/{id}/agree": {
+      "post": {
+        "tags": [
+          "Reinsurance"
+        ],
+        "summary": "Record that the reinsurer agreed a sent bordereau",
+        "operationId": "ReinsuranceAgreeBordereau",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "bordereau.update"
+      }
+    },
+    "/api/v1/compliance/returns": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Prepare a regulatory return for the period it ends with, from its definition\u0027s field mapping; one per code and period",
+        "operationId": "CompliancePrepareReturn",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareReturn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "regulatory_return.create"
+      },
+      "get": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Regulatory returns, by period or status",
+        "operationId": "ComplianceListReturns",
+        "parameters": [
+          {
+            "name": "periodCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ReturnStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "regulatory_return.read"
+      }
+    },
+    "/api/v1/compliance/returns/{id}": {
+      "get": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "A regulatory return and its values",
+        "operationId": "ComplianceGetReturn",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "regulatory_return.read"
+      }
+    },
+    "/api/v1/compliance/returns/{id}/review": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Review a prepared return; the reviewer is not its preparer",
+        "operationId": "ComplianceReviewReturn",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReturnReasonRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "regulatory_return.update"
+      }
+    },
+    "/api/v1/compliance/returns/{id}/approve": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Approve a reviewed return, as a compliance officer other than its preparer and reviewer",
+        "operationId": "ComplianceApproveReturn",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReturnReasonRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "regulatory_return.approve"
+      }
+    },
+    "/api/v1/compliance/returns/{id}/submit": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Submit an approved return to its regulator through the adapter",
+        "operationId": "ComplianceSubmitReturn",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReturnReasonRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "regulatory_return.update"
+      }
+    },
+    "/api/v1/compliance/returns/{id}/accept": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Record that the regulator accepted a submitted return",
+        "operationId": "ComplianceAcceptReturn",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReturnReasonRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "regulatory_return.update"
+      }
+    },
+    "/api/v1/compliance/returns/{id}/reject": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Record that the regulator rejected a submitted return, with its reason",
+        "operationId": "ComplianceRejectReturn",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReturnReasonRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "regulatory_return.update"
+      }
+    },
+    "/api/v1/compliance/returns/{id}/correct": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Correct a rejected return: its values are calculated again and it returns to Prepared",
+        "operationId": "ComplianceCorrectReturn",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReturnReasonRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "regulatory_return.update"
+      }
+    },
+    "/api/v1/compliance/report-runs": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Run a report in the catalogue, if your roles allow it; export only where the catalogue allows",
+        "operationId": "ComplianceRunReport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "report.create"
+      }
+    },
+    "/api/v1/compliance/report-runs/{id}": {
+      "get": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "A report run and its result",
+        "operationId": "ComplianceGetReportRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "report.read"
+      }
+    },
+    "/api/v1/analytics/written-premium": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Written premium and policy count by day, product, channel and branch",
+        "operationId": "AnalyticsWrittenPremium",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "analytics.read"
+      }
+    },
+    "/api/v1/analytics/claims-incurred": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Claims incurred and claim count by month (yyyy-MM), product and cause",
+        "operationId": "AnalyticsClaimsIncurred",
+        "parameters": [
+          {
+            "name": "fromMonth",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "toMonth",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "analytics.read"
+      }
+    },
+    "/api/v1/analytics/projections/rebuild": {
+      "post": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Clear the tenant\u0027s projections and rebuild them from the events Analytics consumed",
+        "operationId": "AnalyticsRebuildProjections",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "analytics.update"
+      }
+    },
     "/api/v1/identity/users": {
       "post": {
         "tags": [
@@ -9587,6 +10611,17 @@
           }
         }
       },
+      "ClawBackRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "CompleteTaskRequest": {
         "required": [
           "toState",
@@ -10433,6 +11468,15 @@
             ]
           }
         }
+      },
+      "EntitlementStatus": {
+        "enum": [
+          "Accrued",
+          "Payable",
+          "Paid",
+          "ClawedBack",
+          null
+        ]
       },
       "EstimateRequest": {
         "required": [
@@ -11367,6 +12411,55 @@
           }
         }
       },
+      "PrepareBordereau": {
+        "required": [
+          "layoutCode",
+          "periodCode"
+        ],
+        "type": "object",
+        "properties": {
+          "layoutCode": {
+            "type": "string"
+          },
+          "periodCode": {
+            "type": "string"
+          }
+        }
+      },
+      "PrepareReturn": {
+        "required": [
+          "returnCode",
+          "periodCode"
+        ],
+        "type": "object",
+        "properties": {
+          "returnCode": {
+            "type": "string"
+          },
+          "periodCode": {
+            "type": "string"
+          }
+        }
+      },
+      "PrepareStatement": {
+        "required": [
+          "intermediaryCode",
+          "periodCode",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "intermediaryCode": {
+            "type": "string"
+          },
+          "periodCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
       "ProblemDetails": {
         "type": "object",
         "properties": {
@@ -11542,6 +12635,14 @@
             "format": "double"
           }
         }
+      },
+      "RecoveryStatus": {
+        "enum": [
+          "Identified",
+          "Billed",
+          "Settled",
+          null
+        ]
       },
       "ReferRequest": {
         "required": [
@@ -12003,6 +13104,31 @@
           }
         }
       },
+      "ReturnReasonRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ReturnStatus": {
+        "enum": [
+          "Prepared",
+          "Reviewed",
+          "Approved",
+          "Submitted",
+          "Accepted",
+          "Rejected",
+          null
+        ]
+      },
       "RevalueRequest": {
         "required": [
           "valuation",
@@ -12112,6 +13238,38 @@
           "Underwriting"
         ]
       },
+      "RunReport": {
+        "required": [
+          "reportCode",
+          "from",
+          "to",
+          "metrics",
+          "export"
+        ],
+        "type": "object",
+        "properties": {
+          "reportCode": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "export": {
+            "type": "boolean"
+          }
+        }
+      },
       "SalvageRequest": {
         "required": [
           "description"
@@ -12176,6 +13334,27 @@
           },
           "currency": {
             "type": "string"
+          }
+        }
+      },
+      "SettleRecoveryRequest": {
+        "required": [
+          "amount",
+          "settledOn"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "settledOn": {
+            "type": "string",
+            "format": "date"
           }
         }
       },
@@ -12475,6 +13654,14 @@
           }
         }
       },
+      "WebhookDeliveryStatus": {
+        "enum": [
+          "Pending",
+          "Delivered",
+          "Failed",
+          null
+        ]
+      },
       "WithdrawVersionRequest": {
         "required": [
           "effectiveTo"
@@ -12544,6 +13731,18 @@
     },
     {
       "name": "Finance"
+    },
+    {
+      "name": "Distribution"
+    },
+    {
+      "name": "Reinsurance"
+    },
+    {
+      "name": "Compliance"
+    },
+    {
+      "name": "Analytics"
     },
     {
       "name": "Identity"

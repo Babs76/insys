@@ -19,11 +19,14 @@ public sealed class IntermediaryProductPermissions : StaticRecord<IntermediaryPr
 
     public string[] TransactionsAllowed { get; set; } = [];
 
+    public string? PlanCode { get; set; }
+
     public override void ApplyFields(IntermediaryProductPermissionsInput input, IFieldProtector protector)
     {
         Intermediary = input.Intermediary!;
         Product = input.Product!;
         TransactionsAllowed = input.TransactionsAllowed!;
+        PlanCode = input.PlanCode;
     }
 }
 
@@ -36,6 +39,8 @@ public sealed record IntermediaryProductPermissionsInput : StaticRecordInput
 
     public string[]? TransactionsAllowed { get; init; }
 
+    public string? PlanCode { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("intermediary", Intermediary);
@@ -43,5 +48,6 @@ public sealed record IntermediaryProductPermissionsInput : StaticRecordInput
         errors.Required("product", Product);
         errors.MaxLength("product", Product, 80);
         errors.Required("transactionsAllowed", TransactionsAllowed);
+        errors.MaxLength("planCode", PlanCode, 15);
     }
 }

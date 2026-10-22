@@ -70,7 +70,7 @@ public sealed record GeneralQuoteExpired(Guid QuoteId, string QuoteNumber, int Q
 [IntegrationEvent("general.GeneralPolicyIssued")]
 public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, Guid PayerPartyId,
     Guid BillingAccountRef, string BillingFrequency, string CollectionMethod, string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd,
-    Guid? RenewalOfId) : IIntegrationEvent;
+    Guid? RenewalOfId, decimal? SumInsured = null) : IIntegrationEvent;
 
 /// <summary>
 /// An endorsement was applied: Billing amends the schedule from the effective date; Documents generates the endorsement
@@ -78,7 +78,13 @@ public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, str
 /// </summary>
 [IntegrationEvent("general.GeneralPolicyEndorsed")]
 public sealed record GeneralPolicyEndorsed(Guid PolicyId, string PolicyNumber, Guid EndorsementId, string EndorsementNumber, DateOnly EffectiveDate,
-    decimal NewAnnualPremium, decimal PremiumDelta, string Currency, string ProductCode, int ProductVersion, IReadOnlyList<string> DocumentTypes) : IIntegrationEvent;
+    decimal NewAnnualPremium, decimal PremiumDelta, string Currency, string ProductCode, int ProductVersion, IReadOnlyList<string> DocumentTypes,
+    decimal? NewSumInsured = null) : IIntegrationEvent;
+
+/// <summary>A renewal invitation is due: Documents generates it from <paramref name="TemplateCode"/> (general.cfg_renewal_rules.invitation_template).</summary>
+[IntegrationEvent("general.GeneralRenewalInvited")]
+public sealed record GeneralRenewalInvited(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, DateOnly PeriodEnd, string TemplateCode)
+    : IIntegrationEvent;
 
 [IntegrationEvent("general.GeneralPolicyRenewed")]
 public sealed record GeneralPolicyRenewed(Guid PolicyId, string PolicyNumber, Guid RenewalPolicyId) : IIntegrationEvent;
@@ -108,7 +114,7 @@ public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid
     string ReserveType, Guid ApprovalId, Guid CheckerId) : IIntegrationEvent;
 
 [IntegrationEvent("general.GeneralClaimSettled")]
-public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateOnly PaidOn) : IIntegrationEvent;
+public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateOnly PaidOn, Guid? PolicyId = null) : IIntegrationEvent;
 
 [IntegrationEvent("general.GeneralClaimClosed")]
 public sealed record GeneralClaimClosed(Guid ClaimId, string ClaimNumber) : IIntegrationEvent;

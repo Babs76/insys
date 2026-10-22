@@ -188,7 +188,7 @@ public static class InfrastructureRegistration
         services.TryAddScoped<THandler>();
         services.AddScoped<InboxEventHandler<TEvent, THandler, TDbContext>>();
         services.AddSingleton(new EventSubscription(
-            IntegrationEventTypes.Describe(typeof(TEvent)).Type,
+            typeof(TEvent) == typeof(AnyIntegrationEvent) ? AnyIntegrationEvent.Wildcard : IntegrationEventTypes.Describe(typeof(TEvent)).Type,
             consumer,
             typeof(TEvent),
             (sp, integrationEvent, envelope, cancellationToken) =>

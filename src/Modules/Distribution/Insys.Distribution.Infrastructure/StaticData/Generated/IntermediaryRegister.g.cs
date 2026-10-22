@@ -25,6 +25,8 @@ public sealed class IntermediaryRegister : StaticRecord<IntermediaryRegisterInpu
 
     public string HierarchyNode { get; set; } = "";
 
+    public Guid? PartyId { get; set; }
+
     public override void ApplyFields(IntermediaryRegisterInput input, IFieldProtector protector)
     {
         IntermediaryCode = input.IntermediaryCode!;
@@ -33,6 +35,7 @@ public sealed class IntermediaryRegister : StaticRecord<IntermediaryRegisterInpu
         LicenceNumbers = input.LicenceNumbers.GetValueOrDefault();
         Status = input.Status!;
         HierarchyNode = input.HierarchyNode!;
+        PartyId = input.PartyId;
     }
 }
 
@@ -50,6 +53,8 @@ public sealed record IntermediaryRegisterInput : StaticRecordInput
     public string? Status { get; init; }
 
     public string? HierarchyNode { get; init; }
+
+    public Guid? PartyId { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

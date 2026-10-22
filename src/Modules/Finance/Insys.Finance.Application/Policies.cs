@@ -25,8 +25,35 @@ public sealed class PostingPolicies(EventPoster poster) :
     IIntegrationEventHandler<ClaimReserveChanged>,
     IIntegrationEventHandler<ClaimPaymentCompleted>,
     IIntegrationEventHandler<Health.Contracts.MedicalClaimSettled>,
-    IIntegrationEventHandler<ClaimRecoveryRecorded>
+    IIntegrationEventHandler<ClaimRecoveryRecorded>,
+    IIntegrationEventHandler<Distribution.Contracts.CommissionAccrued>,
+    IIntegrationEventHandler<Distribution.Contracts.CommissionClawedBack>,
+    IIntegrationEventHandler<Reinsurance.Contracts.CessionCalculated>,
+    IIntegrationEventHandler<Reinsurance.Contracts.RecoveryBilled>,
+    IIntegrationEventHandler<Reinsurance.Contracts.RecoverySettled>
 {
+    /// <summary>
+    /// Premium ceded by a cession, or the increase on a recalculation (process "General quote to cash": PostBusinessEvent for
+    /// cession). TODO(spec): a recalculation that cedes less needs a return of ceded premium, which has no transaction type (OQ-063).
+    /// </summary>
+    public Task Handle(Reinsurance.Contracts.CessionCalculated e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        e.PremiumChange <= 0
+            ? Task.CompletedTask
+            : Post(envelope, e.SourceDomain, TransactionTypes.PremiumCeded, DateOnly.FromDateTime(envelope.OccurredAt.UtcDateTime), e.PremiumChange, e.Currency, "CESSION",
+                e.CessionId, new() { ["domain"] = e.SourceDomain, ["treaty"] = e.TreatyCode, ["rule"] = e.RuleCode }, cancellationToken);
+
+    /// <summary>A recovery billed to the reinsurer is recoverable (REI-003).</summary>
+    public Task Handle(Reinsurance.Contracts.RecoveryBilled e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Post(envelope, e.SourceDomain, TransactionTypes.ReinsuranceRecoverable, e.BilledOn, e.Amount, e.Currency, "RI_RECOVERY", e.RecoveryId,
+            new() { ["domain"] = e.SourceDomain, ["treaty"] = e.TreatyCode }, cancellationToken);
+
+    /// <summary>What the reinsurer paid on a recovery (REI-003).</summary>
+    public Task Handle(Reinsurance.Contracts.RecoverySettled e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        e.Amount <= 0
+            ? Task.CompletedTask
+            : Post(envelope, e.SourceDomain, TransactionTypes.ReinsuranceRecovered, e.SettledOn, e.Amount, e.Currency, "RI_RECOVERY", e.RecoveryId,
+                new() { ["domain"] = e.SourceDomain, ["treaty"] = e.TreatyCode }, cancellationToken);
+
     public Task Handle(InvoiceIssued e, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Post(envelope, e.SourceDomain, TransactionTypes.PremiumDue, e.IssueDate, e.TotalAmount, e.Currency, "INVOICE", e.InvoiceId,
             new() { ["domain"] = e.SourceDomain, ["product_version"] = e.ProductVersionRef }, cancellationToken);
@@ -39,12 +66,25 @@ public sealed class PostingPolicies(EventPoster poster) :
         Post(envelope, "SHARED", TransactionTypes.PaymentReceived, e.ValueDate, e.Amount, e.Currency, "PAYMENT", e.PaymentId,
             new() { ["purpose"] = e.Purpose }, cancellationToken);
 
-    /// <summary>Outbound payments are posted by their purpose's owner (claims payments by ClaimPaymentCompleted); refunds are posted here.</summary>
-    public Task Handle(PaymentSucceeded e, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        e.Purpose != PaymentPurposes.Refund
-            ? Task.CompletedTask
-            : Post(envelope, "SHARED", TransactionTypes.RefundPaid, e.ValueDate, e.Amount, e.Currency, "PAYMENT", e.PaymentId, new() { ["purpose"] = e.Purpose },
-                cancellationToken);
+    /// <summary>Outbound payments are posted by their purpose's owner (claims payments by ClaimPaymentCompleted); refunds and commission are posted here.</summary>
+    public Task Handle(PaymentSucceeded e, EventEnvelope envelope, CancellationToken cancellationToken) => e.Purpose switch
+    {
+        PaymentPurposes.Refund => Post(envelope, "SHARED", TransactionTypes.RefundPaid, e.ValueDate, e.Amount, e.Currency, "PAYMENT", e.PaymentId,
+            new() { ["purpose"] = e.Purpose }, cancellationToken),
+        PaymentPurposes.Commission => Post(envelope, "SHARED", TransactionTypes.CommissionPaid, e.ValueDate, e.Amount, e.Currency, "PAYMENT", e.PaymentId,
+            new() { ["purpose"] = e.Purpose }, cancellationToken),
+        _ => Task.CompletedTask,
+    };
+
+    /// <summary>Commission accrued on an invoice (process "General quote to cash": PostBusinessEvent for commission).</summary>
+    public Task Handle(Distribution.Contracts.CommissionAccrued e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Post(envelope, e.SourceDomain, TransactionTypes.CommissionAccrued, e.AccruedOn, e.Amount, e.Currency, "COMMISSION", e.EntitlementId,
+            new() { ["domain"] = e.SourceDomain, ["intermediary"] = e.IntermediaryCode, ["plan"] = e.PlanCode }, cancellationToken);
+
+    /// <summary>A clawback reverses the commission it references (process "Missed premium to lapse": PostBusinessEvent, clawback).</summary>
+    public Task Handle(Distribution.Contracts.CommissionClawedBack e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Post(envelope, e.SourceDomain, TransactionTypes.CommissionClawedBack, e.ClawedBackOn, e.Amount, e.Currency, "COMMISSION", e.EntitlementId,
+            new() { ["domain"] = e.SourceDomain, ["intermediary"] = e.IntermediaryCode, ["reason"] = e.Reason }, cancellationToken);
 
     public Task Handle(PaymentReversed e, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Post(envelope, "SHARED", TransactionTypes.PaymentReversed, e.ReversedOn, e.Amount, e.Currency, "PAYMENT", e.PaymentId,

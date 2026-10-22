@@ -173,9 +173,13 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
     }
 }
 
-public sealed record DueWork(IReadOnlyList<Guid> PoliciesToStart, IReadOnlyList<Guid> PoliciesToExpire, IReadOnlyList<Guid> QuotesToExpire);
+public sealed record DueWork(IReadOnlyList<Guid> PoliciesToStart, IReadOnlyList<Guid> PoliciesToExpire, IReadOnlyList<Guid> QuotesToExpire,
+    IReadOnlyList<Guid> PoliciesToInvite, IReadOnlyList<Guid> PoliciesToRenew);
 
-/// <summary>The daily jobs' work: policies whose period starts or ends, and quotes past validity.</summary>
+/// <summary>
+/// The daily jobs' work: policies whose period starts or ends, quotes past validity, renewal invitations due, and policies
+/// that renew by themselves (an auto_renew rule that does not re-rate; one that re-rates is renewed through a new quote).
+/// </summary>
 public sealed record FindDueWork(DateOnly Day, int Limit) : IQuery<DueWork>;
 
 public enum DueAction
@@ -183,19 +187,42 @@ public enum DueAction
     StartPeriod,
     ExpirePolicy,
     ExpireQuote,
+    InviteRenewal,
 }
+
+/// <summary>The day's exposure snapshot (general.exposure_snapshot), for reinsurance aggregation.</summary>
+public sealed record RefreshExposureSnapshot(DateOnly Day) : ICommand<int>;
 
 public sealed record RunDue(Guid Id, DueAction Action, DateOnly Day) : ICommand<bool>;
 
-internal sealed class FindDueWorkHandler(IGeneralRepository general) : IQueryHandler<FindDueWork, DueWork>
+internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCodes codes) : IQueryHandler<FindDueWork, DueWork>
 {
-    public async Task<BuildingBlocks.Domain.Result<DueWork>> Handle(FindDueWork query, CancellationToken cancellationToken) =>
-        new DueWork(await general.PoliciesToStart(query.Day, query.Limit, cancellationToken), await general.PoliciesToExpire(query.Day, query.Limit, cancellationToken),
-            await general.QuotesToExpire(query.Day, query.Limit, cancellationToken));
+    public async Task<BuildingBlocks.Domain.Result<DueWork>> Handle(FindDueWork query, CancellationToken cancellationToken)
+    {
+        var invite = new List<Guid>();
+        var renew = new List<Guid>();
+        foreach (var rule in await codes.RenewalRules(query.Day, cancellationToken))
+        {
+            invite.AddRange(await general.PoliciesToInvite(rule.ProductCode, query.Day.AddDays(rule.NoticeDays), query.Limit, cancellationToken));
+            if (rule.AutoRenew && !rule.ReRating)
+            {
+                renew.AddRange(await general.PoliciesToRenew(rule.ProductCode, query.Day, query.Limit, cancellationToken));
+            }
+        }
+
+        return new DueWork(await general.PoliciesToStart(query.Day, query.Limit, cancellationToken), await general.PoliciesToExpire(query.Day, query.Limit, cancellationToken),
+            await general.QuotesToExpire(query.Day, query.Limit, cancellationToken), invite, renew);
+    }
+}
+
+internal sealed class RefreshExposureSnapshotHandler(IGeneralRepository general, IClock clock) : ICommandHandler<RefreshExposureSnapshot, int>
+{
+    public async Task<BuildingBlocks.Domain.Result<int>> Handle(RefreshExposureSnapshot command, CancellationToken cancellationToken) =>
+        await general.RefreshExposure(command.Day, clock.UtcNow, cancellationToken);
 }
 
 /// <summary>Transitions "Period starts", "Period ends without renewal" and "Validity ends".</summary>
-internal sealed class RunDueHandler(IGeneralRepository general, IClock clock) : ICommandHandler<RunDue, bool>
+internal sealed class RunDueHandler(IGeneralRepository general, IGeneralCodes codes, IClock clock) : ICommandHandler<RunDue, bool>
 {
     public async Task<BuildingBlocks.Domain.Result<bool>> Handle(RunDue command, CancellationToken cancellationToken)
     {
@@ -214,6 +241,14 @@ internal sealed class RunDueHandler(IGeneralRepository general, IClock clock) : 
                 if (await general.Policy(command.Id, cancellationToken) is not { } policy)
                 {
                     return false;
+                }
+
+                if (command.Action == DueAction.InviteRenewal)
+                {
+                    result = await codes.RenewalRule(policy.ProductCode, command.Day, cancellationToken) is { } rule
+                        ? policy.InviteRenewal(rule.NoticeDays, rule.InvitationTemplate, command.Day, clock.UtcNow)
+                        : BuildingBlocks.Domain.Error.Validation(Domain.GeneralErrorCodes.CodeNotInForce, $"{policy.ProductCode} has no renewal rule in force.");
+                    break;
                 }
 
                 result = command.Action == DueAction.StartPeriod ? policy.StartPeriod(command.Day) : policy.ExpirePolicy(command.Day);

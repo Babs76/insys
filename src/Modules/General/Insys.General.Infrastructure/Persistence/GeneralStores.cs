@@ -65,6 +65,41 @@ internal sealed class GeneralRepository(GeneralDbContext db) : IGeneralRepositor
         await db.Policies.AsNoTracking().Where(p => p.Status == PolicyStatus.InForce && p.PeriodEnd < day).OrderBy(p => p.Id).Select(p => p.Id).Take(limit)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> PoliciesToInvite(string productCode, DateOnly lastPeriodEnd, int limit, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.ProductCode == productCode && p.Status == PolicyStatus.InForce && p.RenewalInvitedOn == null
+                                                    && p.PeriodEnd <= lastPeriodEnd)
+            .OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> PoliciesToRenew(string productCode, DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.ProductCode == productCode && p.Status == PolicyStatus.InForce && p.PeriodEnd <= day
+                                                    && !db.Policies.Any(r => r.RenewalOfId == p.Id))
+            .OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// The exposure snapshot (OQ-066 item 4): the sum insured of the risks attached on the day to policies in force, by the
+    /// risk object's zone (UNKNOWN when it has none) and the zone's peril (general.ref_risk_zones), replacing the day's rows.
+    /// TODO(spec): the snapshot's key has no currency; one currency per tenant is assumed.
+    /// </summary>
+    public async Task<int> RefreshExposure(DateOnly day, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM general.exposure_snapshot WHERE as_at = {day}", cancellationToken);
+        return await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO general.exposure_snapshot (tenant_id, refreshed_at, as_at, zone, peril_code, sum_insured, currency)
+            SELECT p.tenant_id, {now}, {day}, coalesce(o.risk_zone, 'UNKNOWN'), coalesce(z.peril, 'UNKNOWN'), sum(r.sum_insured), min(p.currency)
+            FROM general.policy p
+            JOIN general.policy_risk r ON r.tenant_id = p.tenant_id AND r.policy_id = p.id
+            JOIN general.risk_object o ON o.tenant_id = r.tenant_id AND o.id = r.risk_object_id
+            LEFT JOIN LATERAL (
+              SELECT left(peril, 10) AS peril FROM general.ref_risk_zones
+              WHERE tenant_id = p.tenant_id AND zone_code = o.risk_zone AND record_status IN ('ACTIVE', 'DEPRECATED') AND effective_from <= {day}
+                AND (effective_to IS NULL OR effective_to > {day})
+              ORDER BY version DESC LIMIT 1) z ON true
+            WHERE p.status = 'IN_FORCE' AND p.period_start <= {day} AND p.period_end >= {day} AND r.attached_from <= {day}
+              AND (r.detached_on IS NULL OR r.detached_on > {day})
+            GROUP BY p.tenant_id, coalesce(o.risk_zone, 'UNKNOWN'), coalesce(z.peril, 'UNKNOWN')
+            """, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Guid>> QuotesToExpire(DateOnly day, int limit, CancellationToken cancellationToken) =>
         await db.Quotes.AsNoTracking().Where(q => q.Status == QuoteStatus.Issued && q.ValidUntil < day).OrderBy(q => q.Id).Select(q => q.Id).Take(limit)
             .ToListAsync(cancellationToken);
@@ -116,7 +151,12 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
             .Select(t => new EndorsementType(t.Code, t.PremiumMethod, t.Documents, t.RequiresUnderwriting ?? false)).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<RenewalRule?> RenewalRule(string productCode, DateOnly day, CancellationToken cancellationToken) =>
-        await InForce<RenewalRules>(day).Where(r => r.ProductCode == productCode).Select(r => new RenewalRule(r.AutoRenew, r.ReRating)).FirstOrDefaultAsync(cancellationToken);
+        await InForce<RenewalRules>(day).Where(r => r.ProductCode == productCode)
+            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate)).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<RenewalRule>> RenewalRules(DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<RenewalRules>(day).OrderBy(r => r.ProductCode)
+            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate)).ToListAsync(cancellationToken);
 
     public Task<bool> Exists(GeneralCode kind, string code, DateOnly day, CancellationToken cancellationToken) => kind switch
     {
@@ -157,10 +197,12 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         GeneralQuoteExpired e => new Contracts.GeneralQuoteExpired(e.QuoteId, e.QuoteNumber, e.QuoteVersion),
         GeneralQuoteDeclined e => new Contracts.GeneralQuoteDeclined(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.DecisionCode),
         GeneralPolicyIssued e => new Contracts.GeneralPolicyIssued(e.PolicyId, e.PolicyNumber, e.ProductCode, e.ProductVersion, e.PolicyholderPartyId, e.Billing.PayerPartyId,
-            e.Billing.BillingAccountRef, e.Billing.Frequency, e.Billing.CollectionMethod, e.Currency, e.AnnualPremium, e.PeriodStart, e.PeriodEnd, e.RenewalOfId),
+            e.Billing.BillingAccountRef, e.Billing.Frequency, e.Billing.CollectionMethod, e.Currency, e.AnnualPremium, e.PeriodStart, e.PeriodEnd, e.RenewalOfId,
+            e.SumInsured),
         GeneralPolicyEndorsed e => new Contracts.GeneralPolicyEndorsed(e.PolicyId, e.PolicyNumber, e.EndorsementId, e.EndorsementNumber, e.EffectiveDate, e.NewAnnualPremium,
-            e.PremiumDelta, e.Currency, e.ProductCode, e.ProductVersion, e.DocumentTypes),
+            e.PremiumDelta, e.Currency, e.ProductCode, e.ProductVersion, e.DocumentTypes, e.NewSumInsured),
         GeneralPolicyRenewed e => new Contracts.GeneralPolicyRenewed(e.PolicyId, e.PolicyNumber, e.RenewalPolicyId),
+        GeneralRenewalInvited e => new Contracts.GeneralRenewalInvited(e.PolicyId, e.PolicyNumber, e.ProductCode, e.ProductVersion, e.PeriodEnd, e.TemplateCode),
         GeneralPolicyCancelled e => new Contracts.GeneralPolicyCancelled(e.PolicyId, e.PolicyNumber, e.ReasonCode, e.EffectiveDate, e.RefundAmount, e.Currency, e.ProductCode,
             e.ProductVersion),
         GeneralPolicyReinstated e => new Contracts.GeneralPolicyReinstated(e.PolicyId, e.PolicyNumber),
@@ -173,7 +215,7 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
             Contracts.GeneralApprovals.SettlementApprovalType, e.RequestedBy, e.Amount, e.Currency, $"Settlement of claim {e.ClaimNumber}", e.SubjectHash),
         GeneralClaimApproved e => new Contracts.GeneralClaimApproved(e.ClaimId, e.ClaimNumber, e.PayeePartyId, e.BankAccountId, e.PayeeBankHash, e.Amount, e.Currency,
             e.ReserveType, e.ApprovalId, e.CheckerId),
-        GeneralClaimSettled e => new Contracts.GeneralClaimSettled(e.ClaimId, e.ClaimNumber, e.Amount, e.Currency, e.PaidOn),
+        GeneralClaimSettled e => new Contracts.GeneralClaimSettled(e.ClaimId, e.ClaimNumber, e.Amount, e.Currency, e.PaidOn, e.PolicyId),
         GeneralClaimClosed e => new Contracts.GeneralClaimClosed(e.ClaimId, e.ClaimNumber),
         LossAssessed e => new Contracts.LossAssessed(e.AssessmentId, e.ClaimId, e.AssessedAmount, e.ExcessApplied),
         RecoveryRecorded e => new Contracts.RecoveryRecorded(e.RecoveryCaseId, e.ClaimId, e.ClaimNumber, e.RecoveryType, e.Amount, e.Currency, e.ReserveType),

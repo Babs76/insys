@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <!-- IHttpClientFactory for webhook delivery. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Infrastructure\Insys.BuildingBlocks.Infrastructure.csproj" />
     <ProjectReference Include="..\Insys.Integration.Application\Insys.Integration.Application.csproj" />
   </ItemGroup>

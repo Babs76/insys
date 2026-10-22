@@ -29,6 +29,7 @@ public static class LifeInfrastructure
         services.AddDomainEventMapper<LifeEventMapper>(schema);
         services.AddScoped<ILifeRepository, LifeRepository>();
         services.AddScoped<ILifeCodes, LifeCodes>();
+        services.AddSingleton<Distribution.Contracts.IPolicyDistribution, LifePolicyDistribution>();
         services.AddSingleton<Workflow.Contracts.IApprovalAuthoritySource, ClaimsAuthority>();
         services.AddIntegrationEventHandler<PremiumCalculated, LifeEventPolicies, LifeDbContext>(schema, "PremiumCalculated");
         services.AddIntegrationEventHandler<RuleDecisionRecorded, LifeEventPolicies, LifeDbContext>(schema, "RuleDecisionRecorded");

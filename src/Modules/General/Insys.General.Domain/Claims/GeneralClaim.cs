@@ -41,7 +41,8 @@ public sealed record SettlementRequested(Guid ClaimId, string ClaimNumber, Guid 
 public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid PayeePartyId, Guid BankAccountId, string PayeeBankHash, decimal Amount, string Currency,
     string ReserveType, Guid ApprovalId, Guid CheckerId, DateTimeOffset OccurredAt) : IDomainEvent;
 
-public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateOnly PaidOn, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, Guid PolicyId, decimal Amount, string Currency, DateOnly PaidOn, DateTimeOffset OccurredAt)
+    : IDomainEvent;
 
 public sealed record GeneralClaimClosed(Guid ClaimId, string ClaimNumber, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -381,7 +382,7 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
         var result = Fire(ClaimTrigger.PaymentCompleted);
         if (result.IsSuccess)
         {
-            Raise(new GeneralClaimSettled(Id, ClaimNumber!, SettlementAmount!.Value, SettlementCurrency!, paidOn, now));
+            Raise(new GeneralClaimSettled(Id, ClaimNumber!, PolicyId, SettlementAmount!.Value, SettlementCurrency!, paidOn, now));
         }
 
         return result;

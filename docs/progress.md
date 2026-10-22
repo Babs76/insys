@@ -12,8 +12,8 @@
 | 4 First domain | General (OQ-001) | Done, accepted with follow-ups (CI green: 8f2eda7) |
 | 4 review items 1–5 | Approval subjects, payee details, inclusive periods, quote decline, arithmetic, cover start | Done, accepted |
 | 5 Other domains | Payee bank accounts (ADR-013), product columns, Health defaults (ADR-012), Life and Health | Done, accepted with follow-ups |
-| 5 review items 1–5 | Bank account verification in Workflow, skipped tests, underwriting authority, Health concurrency, OQ-061 | **Done, awaiting review** (22 Oct 2026) |
-| 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration; General auto-renewal and the exposure snapshot job | Not started |
+| 5 review items 1–5 | Bank account verification in Workflow, skipped tests, underwriting authority, Health concurrency, OQ-061 | Done, accepted |
+| 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration; General auto-renewal and the exposure snapshot job | **Done, awaiting review** (23 Oct 2026) |
 | 7 Hardening | Security suite, OpenAPI review, performance, runbooks | Not started |
 
 ## Phase 1 review items
@@ -29,6 +29,19 @@
 4. **OpenAPI documents:** split into core, static-data and platform-operator. Each has its own snapshot in `docs/api`, and every endpoint is in exactly one.
 5. **Tier 2 maker-checker:** a per-tenant setting (V0008), on by default and audited. Tier 1 is always on.
 6. **Outbox relay lag:** reported on `/health` and `/health/ready` through `integration.outbox_lag` (V0009). Degraded after `Outbox:Lag:Warning` (1 minute); Unhealthy and not ready after `Outbox:Lag:Failure` (5 minutes).
+
+## Phase 6: what exists (enterprise)
+
+The defaults of OQ-062 to OQ-066 were accepted to build (ADR-014, ADR-015, V0021), pending business sign-off.
+- **Distribution** (`commission`, DST-001 to DST-004): intermediaries, permissions and plans as static data, with a lifecycle guard on the register; General quotes and Life proposals refused through a suspended or unpermitted intermediary; commission accrued on invoices at the plan version in force, payable when the invoice is paid, clawed back on cancellation or lapse; monthly statements approved in Workflow and paid to the intermediary's verified account.
+- **Reinsurance** (`reinsurance`, REI-001 to REI-003): quota share and surplus cessions (or facultative), recalculated on endorsement; proportional and excess of loss recoveries on settled claims, billed through the reinsurer adapter and settled; bordereaux per treaty and period.
+- **Compliance** (`reporting`): regulatory returns prepared on a closed period from the ledger and the projections, reviewed, approved by another compliance officer, submitted through the regulator adapter; report runs under the catalogue's roles.
+- **Analytics** (`analytics`): written premium and claims incurred projections from events, rebuilt from Analytics' own event log.
+- **Integration**: partner webhooks (signed, retried by policy, dead-lettered), stub reinsurer and regulator adapters logging to `external_call_log`.
+- **General:** renewal invitations and auto-renewal (GEN-004), and the daily exposure snapshot.
+- **Finance** posts commission, ceded premium and reinsurance recoveries.
+
+**Processes (end to end):** `EnterpriseProcessTests`.
 
 ## Phase 5 review: what changed
 
@@ -88,7 +101,7 @@
    - cover starting on first payment (a product setting; InvoiceSettled starts cover);
    - short-period refunds still refused;
    - proportional allocation flagged under OQ-052.
-5. **Scheduled for Phase 6:** auto-renewal and the exposure snapshot job.
+5. **Built in Phase 6 (ADR-015):** auto-renewal and the exposure snapshot job.
 
 ## Phase 4: what exists (General)
 

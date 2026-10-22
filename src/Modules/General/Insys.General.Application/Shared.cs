@@ -50,6 +50,15 @@ public interface IGeneralRepository
 
     Task<IReadOnlyList<Guid>> QuotesToExpire(DateOnly day, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Policies of a product in force, not yet invited to renew, whose period ends on or before the date.</summary>
+    Task<IReadOnlyList<Guid>> PoliciesToInvite(string productCode, DateOnly lastPeriodEnd, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Policies of a product in force whose period has ended by the day and that have no renewal.</summary>
+    Task<IReadOnlyList<Guid>> PoliciesToRenew(string productCode, DateOnly day, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Replaces the day's exposure snapshot; returns the rows written.</summary>
+    Task<int> RefreshExposure(DateOnly day, DateTimeOffset now, CancellationToken cancellationToken);
+
     void Add(RiskObject riskObject);
 
     void Add(GeneralQuote quote);
@@ -71,7 +80,8 @@ public interface IGeneralRepository
 public sealed record RiskObjectTypeDefinition(string ObjectType, int Version, IReadOnlyList<string> Attributes, IReadOnlyList<string> Validation);
 
 /// <summary>A renewal rule (general.cfg_renewal_rules).</summary>
-public sealed record RenewalRule(bool AutoRenew, bool ReRating);
+/// <summary>A product's renewal rule (general.cfg_renewal_rules): the notice for the invitation, whether it renews by itself, and whether it is re-rated.</summary>
+public sealed record RenewalRule(string ProductCode, int NoticeDays, bool AutoRenew, bool ReRating, string InvitationTemplate);
 
 public enum GeneralCode
 {
@@ -100,6 +110,8 @@ public interface IGeneralCodes
     Task<EndorsementType?> EndorsementType(string code, DateOnly day, CancellationToken cancellationToken);
 
     Task<RenewalRule?> RenewalRule(string productCode, DateOnly day, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<RenewalRule>> RenewalRules(DateOnly day, CancellationToken cancellationToken);
 
     Task<bool> Exists(GeneralCode kind, string code, DateOnly day, CancellationToken cancellationToken);
 

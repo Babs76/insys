@@ -18,3 +18,13 @@ public sealed class IntegrationEventAttribute(string type, short version = 1) : 
 
     public short Version { get; } = version;
 }
+
+/// <summary>
+/// Any published event, as its JSON payload, for a consumer that subscribes to every event type (partner webhooks). Its
+/// envelope says which event it is.
+/// </summary>
+public sealed record AnyIntegrationEvent(System.Text.Json.JsonElement Payload) : IIntegrationEvent
+{
+    /// <summary>The subscription event type that receives every event.</summary>
+    public const string Wildcard = "*";
+}

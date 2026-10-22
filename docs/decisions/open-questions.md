@@ -67,6 +67,11 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-059 | 4 | General domain: schema gaps (V0016) and unspecified rules | Partly resolved by the Phase 4 review (V0017) |
 | OQ-060 | 5 | Health adjudication rules the specs do not define (tariffs, networks, co-payments) | Resolved (proposal): ADR-012, pending business sign-off; item 11 a configurable business decision |
 | OQ-061 | 5 | Life and Health: smaller gaps found while building | Resolved by the Phase 5 review, item 5, from existing static data; two business decisions configurable |
+| OQ-062 | 6 | Commission: plan assignment, basis, clawback, tax and payee not defined | Resolved (proposal): ADR-014, accepted to build 23 Oct 2026, pending business sign-off |
+| OQ-063 | 6 | Reinsurance: treaty arithmetic, recovery basis and bordereau output not defined | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
+| OQ-064 | 6 | Compliance: return content and approval, report runs not defined | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
+| OQ-065 | 6 | Analytics: projection dimensions and the event history to rebuild from | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
+| OQ-066 | 6 | Integration, General renewal and exposure snapshot: smaller gaps | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
 
 ---
 
@@ -381,7 +386,7 @@ Each item is built as stated and marked `TODO(spec)` in code.
 - **Cover start:** a product version sets `coverStartsOn`, ISSUE or FIRST_PAYMENT. With FIRST_PAYMENT the policy stays Issued, and nothing is covered, until Billing's InvoiceSettled for its first invoice. Cover then starts from that day.
 - **Short-period refunds:** still refused until scales are configured.
 - **Premium allocation:** proportional allocation stays, flagged under OQ-052.
-- **Scheduled for Phase 6 at the latest:** auto-renewal and renewal invitations (GEN-004), and the exposure snapshot job.
+- **Done in Phase 6 (ADR-015):** auto-renewal and renewal invitations (GEN-004), and the exposure snapshot job.
 
 **Before the Phase 4 review:**
 
@@ -424,8 +429,8 @@ Each item is built as stated and marked `TODO(spec)` in code.
 - **Not run yet:**
   - **Renewal jobs:** auto-renewal and renewal invitations (`cfg_renewal_rules`).
   - **ProductVersionPublished:** "Refresh product availability". Availability is read live through `ISellableProducts`, so there is nothing to refresh.
-  - **Exposure snapshot:** `general.exposure_snapshot` is mapped, not refreshed (reinsurance, Phase 6).
-  - **Commission and reinsurance:** the steps of both processes come with those modules in Phase 6.
+  - **Exposure snapshot:** refreshed daily since Phase 6 (ADR-015).
+  - **Commission and reinsurance:** built in Phase 6 (ADR-014, ADR-015).
 - **Numbering:** quote and policy numbers are a prefix and an ID-based suffix, as in OQ-058.
 
 ### OQ-060 Health adjudication rules the specs do not define (Phase 5)
@@ -495,7 +500,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - **Arrears on reinstatement:** whether arrears from before the lapse must be paid is not specified; billing resumes from the reinstatement date.
   - **Missed premiums** are counted as invoiced instalments past their due date whose invoice is unpaid (Billing's IPolicyArrears). PaymentAllocated carries no policy, so a payment in grace is seen through InvoiceSettled.
   - **Loan disbursement** has no payment flow; **group scheme renewal** moves the renewal date by a year.
-  - **Commission clawback and reinsurance cession** wait for Distribution and Reinsurance (Phase 6).
+  - **Commission clawback and reinsurance cession:** built in Phase 6 (ADR-014, ADR-015).
 - **Health**
   - **Eligibility response codes:** outcomes are recorded as ELIGIBLE, NOT_ELIGIBLE and NOT_FOUND; their mapping to the tenant's response codes is not specified.
   - **Contributions:** billed monthly to the payer named at enrolment, for scheme members (rate × members); the employer share split and individual members' contributions are not specified.
@@ -518,3 +523,62 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Member reimbursement:** see OQ-060 item 11.
 
 **Still open:** utilisation rule measures, claim reversal recoveries, alterations that change cover or premium (OQ-052), loan disbursement, group scheme renewal term, the monthly billing frequency code and individual members' contributions.
+
+### OQ-062 Commission: what the specs do not define (Phase 6)
+**Accepted to build (23 October 2026), pending business sign-off:** ADR-014. Deviations: commission is payable when the invoice is paid in full (not on each PaymentAllocated); a paid entitlement is not clawed back (domain-model.json gives Paid no transition). Still open: tax on commission, overriding commission, collecting a negative statement.
+
+**Defined:** intermediaries (register, hierarchy, product permissions), commission plans (code, basis PREMIUM / POLICY_COUNT / FIXED, rate, a free-text clawback rule), statement templates; entitlements record the plan version and source transaction (DST-002, DST-003); statements are approved before payment (DST-004); accrual on InvoiceIssued, payable on PaymentAllocated, clawback on GeneralPolicyCancelled and LifePolicyLapsed.
+
+**Not defined, and the proposal (configurable, pending business sign-off):**
+1. **Which plan applies.** Nothing links a plan to an intermediary or product. *Proposal:* a `plan_code` column on `cfg_intermediary_product_permissions` (intermediary × product → plan), via a migration.
+2. **Whose commission an invoice earns.** InvoiceIssued carries the policy but not its intermediary. *Proposal:* General and Life expose a public query (the policy's intermediary code, product, line); Health memberships earn none.
+3. **Basis.** *Proposal:* PREMIUM = the invoice's net amount (excluding tax) × rate %; FIXED = the rate as an amount per invoice; POLICY_COUNT = the rate as an amount on a policy's first invoice only. Rounded half away from zero to cents. The plan version in force on the invoice's issue date applies.
+4. **When it is payable.** *Proposal:* when the invoice is fully paid (InvoiceSettled), not on each partial allocation.
+5. **Clawback rule** (free text). *Proposal:* codes NONE or UNEARNED (default). UNEARNED claws back, in full, each entitlement on the policy whose invoice falls due on or after the cancellation or lapse date, whether accrued, payable or paid; a paid one is recovered on the next statement as a negative line.
+6. **Statement tax.** `commission_statement.tax_amount` has no rule. *Proposal:* 0 until a tax rule is configured (TODO).
+7. **Payee.** The register has no party or bank account. *Proposal:* a `party_id` column on `mst_intermediary_register`; statements are paid to that party's verified account (ADR-013) through Payments, after a second person approves the statement in Workflow (COMMISSION_STATEMENT, within delegation authority).
+8. **Overriding commission** on the hierarchy has no rate. *Proposal:* not calculated (TODO).
+9. **Intermediary lifecycle.** The intermediary is Tier 1 static data. *Proposal:* Appoint, Grant, Suspend, Reinstate and Terminate are register and permission changes through static data maker-checker; Distribution checks transitions (Appointed ↔ Suspended, either → Terminated), raises IntermediarySuspended when a suspension takes effect, and General and Life refuse new business through a suspended intermediary or one without a current permission for the product (DST-001).
+
+### OQ-063 Reinsurance: what the specs do not define (Phase 6)
+**Accepted to build (23 October 2026), pending business sign-off:** ADR-015. Still open: stop loss, probable maximum loss, Health cessions, a transaction type for a decrease in ceded premium, bordereaux as documents.
+
+**Defined:** reinsurers, treaties (type QUOTA_SHARE / SURPLUS / EXCESS_OF_LOSS / STOP_LOSS, retention as text, capacity, period, participants), cession rules (treaty, products, allocation basis), facultative arrangements, bordereau layouts; cessions are reproducible (REI-002) and linked (REI-001); recoveries are traceable and reconcilable (REI-003); one bordereau per treaty and period.
+
+**Not defined, and the proposal:**
+1. **Treaty arithmetic.** *Proposal:*
+   - QUOTA_SHARE: `retention` is the retained percent ("30"); ceded sum insured = sum insured × (100 − retention) %, at most `capacity`.
+   - SURPLUS: `retention` is an amount; ceded sum insured = min(max(sum insured − retention, 0), capacity).
+   - Ceded premium = premium × ceded sum insured / sum insured (allocation basis SUM_INSURED); PREMIUM basis applies the same share to premium directly; PROBABLE_MAXIMUM_LOSS is not supported (no PML data).
+   - EXCESS_OF_LOSS: no cession; per claim, recoverable = min(max(paid − retention, 0), capacity).
+   - STOP_LOSS: not supported (aggregate loss ratio not defined).
+   - Facultative arrangements: when a policy's risk reference matches, the arrangement's share is ceded instead of the treaty.
+2. **Sum insured and policy on events.** GeneralPolicyIssued has no sum insured and GeneralClaimSettled no policy. *Proposal:* add them (optional fields, compatible).
+3. **Recovery.** *Proposal:* proportional treaties recover paid × ceded share of the latest cession for the claim's policy; Health claims are not ceded until a treaty names Health products.
+4. **Billing and settling recoveries.** *Proposal:* BillRecovery posts the recoverable to Finance and sends it through a reinsurer adapter (stub); SettleRecovery records the amount received; the difference stays visible for reconciliation.
+5. **Bordereau output.** *Proposal:* a CSV of the layout's fields over the cessions (or recoveries) in the period, stored as a document; SendBordereau goes through the reinsurer adapter (stub); AgreeBordereau records the reinsurer's agreement.
+6. **Finance.** *Proposal:* new transaction types for ceded premium and reinsurance recoverable, posted through PostBusinessEvent like the others; their posting rules are static data.
+
+### OQ-064 Compliance and reporting: what the specs do not define (Phase 6)
+**Accepted to build (23 October 2026), pending business sign-off:** ADR-015. Still open: metric formulas (a metric is the sum of its source measure), returns and report results as documents.
+
+1. **Return content.** `field_mapping` (jsonb) has no defined form. *Proposal:* `{"field": "account:<code>"}` takes the account's period balance from Finance's trial balance; `"metric:<code>"` takes an analytics projection total. The return is generated as a document.
+2. **When.** *Proposal:* PrepareReturn on a final AccountingPeriodClosed for each return definition whose frequency ends with that period (monthly every month, quarterly at quarter end, annual at year end).
+3. **Approval.** *Proposal:* ReviewReturn and ApproveReturn need the compliance permissions; the approver differs from the reviewer and the preparer. SubmitReturn goes through a regulator adapter (stub); its answer moves the return to Accepted or Rejected; a rejected return is corrected back to Prepared.
+4. **Report runs.** *Proposal:* the catalogue's roles decide who may run a report; a run stores its result as a document; export only where `export_allowed`.
+
+### OQ-065 Analytics: what the specs do not define (Phase 6)
+**Accepted to build (23 October 2026), pending business sign-off:** ADR-015. Still open: Health projections, currencies in the projection keys, cause codes on claim events.
+
+1. **Dimensions.** `fact_written_premium` has channel and branch; no event carries either. *Proposal:* channel = INTERMEDIARY when the policy has an intermediary, otherwise DIRECT; branch = ALL until branches exist.
+2. **Measures.** *Proposal:* written premium = annual premium at issue, plus endorsement deltas, less cancellation refunds, by the transaction date; claims incurred = paid plus the change in outstanding reserve, by month and cause code (UNKNOWN when none).
+3. **Rebuild.** Inboxes do not keep payloads, so there is nothing to rebuild from. *Proposal:* Analytics keeps its own log of the events it consumes (a new table), and a rebuild clears the facts and replays that log.
+
+### OQ-066 Integration, General renewal and exposure: smaller gaps (Phase 6)
+**Accepted to build (23 October 2026), pending business sign-off:** ADR-015. Still open: the production secret store and transport, replaying a failed webhook (Failed has no transition in domain-model.json), the exposure snapshot's currency.
+
+1. **Webhooks.** *Proposal:* deliver the subscribed event types to the endpoint, signed with HMAC-SHA256 using the key named by `signing_key_ref` (resolved by a secret store stub); retry by the subscription's retry and dead-letter policy (exponential or fixed back-off); when retries are exhausted the delivery is Failed and dead-lettered.
+2. **Partner adapters.** Interfaces with stub implementations (reinsurer, regulator, general ledger), each call recorded in `integration.external_call_log`.
+3. **Renewal job (GEN-004).** *Proposal:* `notice_days` before the period end, a renewal invitation document (`invitation_template`); at the period end, an `auto_renew` policy without `re_rating` is renewed (RenewPolicy); one that needs re-rating gets an invitation only.
+4. **Exposure snapshot.** *Proposal:* a daily job sums the sum insured of in-force policies' risk objects by `risk_zone` (UNKNOWN when empty) and covered peril, as at the day.
+

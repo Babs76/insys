@@ -8,5 +8,6 @@
     <ProjectReference Include="..\..\Workflow\Insys.Workflow.Contracts\Insys.Workflow.Contracts.csproj" />
     <ProjectReference Include="..\..\Party\Insys.Party.Contracts\Insys.Party.Contracts.csproj" />
     <ProjectReference Include="..\..\Health\Insys.Health.Contracts\Insys.Health.Contracts.csproj" />
+    <ProjectReference Include="..\..\Distribution\Insys.Distribution.Contracts\Insys.Distribution.Contracts.csproj" />
   </ItemGroup>
 </Project>

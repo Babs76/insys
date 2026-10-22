@@ -2,6 +2,8 @@ using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.Integration.Api.StaticData;
 using Insys.Integration.Application.DeadLetters;
+using Insys.Integration.Application.Webhooks;
+using Insys.Integration.Domain.Webhooks;
 using Insys.Integration.Contracts;
 using Insys.Integration.Domain.DeadLetters;
 using Insys.Integration.Infrastructure;
@@ -66,6 +68,20 @@ public sealed class IntegrationModule : IModule
         MapResolution(deadLetters, "discard", "DiscardMessage", "Discard a dead-lettered message",
             "Closes the dead letter without delivering it (INT-006).",
             (id, version) => new DiscardMessage(id, version));
+
+        var webhooks = api.MapGroup("/integration/webhook-deliveries").WithTags(Name);
+
+        webhooks.MapGet("/", async (WebhookDeliveryStatus? status, string? subscriptionId, Guid? after, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListDeliveries(status, subscriptionId, after, limit ?? 50), ct)).ToHttp(Results.Ok))
+            .WithName("ListWebhookDeliveries")
+            .WithSummary("Partner webhook deliveries, by status or subscription, with their latest attempt (INT-006)")
+            .RequirePermission(IntegrationPermissions.WebhookRead);
+
+        webhooks.MapPost("/{id:guid}/retry", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new RetryDelivery(id), ct)).ToHttp(Results.Ok))
+            .WithName("RetryWebhookDelivery")
+            .WithSummary("Attempt a pending delivery at the next run of the webhook job instead of at its back-off time")
+            .RequirePermission(IntegrationPermissions.WebhookUpdate);
     }
 
     private static void MapResolution(RouteGroupBuilder group, string action, string name, string summary, string description,

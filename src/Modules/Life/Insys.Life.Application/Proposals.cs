@@ -4,6 +4,7 @@ using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Domain;
+using Insys.Distribution.Contracts;
 using Insys.Life.Domain;
 using Insys.Life.Domain.Proposals;
 using Insys.Party.Contracts;
@@ -63,8 +64,8 @@ public sealed class CaptureProposalValidator : AbstractValidator<CaptureProposal
     }
 }
 
-internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, IPersonFacts persons, ITenantContext tenant, IClock clock,
-    IAuditTrail audit) : ICommandHandler<CaptureProposal, ProposalView>
+internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, IPersonFacts persons, IIntermediaries intermediaries,
+    ITenantContext tenant, IClock clock, IAuditTrail audit) : ICommandHandler<CaptureProposal, ProposalView>
 {
     public async Task<Result<ProposalView>> Handle(CaptureProposal command, CancellationToken cancellationToken)
     {
@@ -73,6 +74,14 @@ internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes co
         if (product.IsFailure)
         {
             return product.Error;
+        }
+
+        // DST-001: a proposal through an intermediary needs one that may sell the product.
+        if (command.IntermediaryCode is { Length: > 0 } intermediary
+            && await intermediaries.CanSell(tenantId, intermediary, product.Value.ProductCode, IntermediaryTransactions.NewBusiness, clock.UtcToday, cancellationToken)
+                is { } refusal)
+        {
+            return Error.Validation(refusal.Code, refusal.Message);
         }
 
         var lives = new List<InsuredLifeRequest>();

@@ -2,6 +2,7 @@ using System.Reflection;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Contracts.StaticData;
+using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,6 +16,19 @@ public sealed class StaticDataCatalogue<TDbContext>(IReadOnlyList<StaticDataDesc
 
     public StaticDataDescriptor? Find(StaticRecordRef record) =>
         Descriptors.FirstOrDefault(d => d.Schema == record.Schema && d.Table == record.Table);
+}
+
+/// <summary>
+/// A module's rule for changes to one of its static data tables, checked when a draft is submitted: the proposed
+/// version against the version it supersedes (none for a new code).
+/// </summary>
+public interface IStaticChangeGuard
+{
+    string Schema { get; }
+
+    string Table { get; }
+
+    Result Check(StaticRecord proposed, StaticRecord? current);
 }
 
 /// <summary>Every static data table in the platform, for platform-wide checks.</summary>

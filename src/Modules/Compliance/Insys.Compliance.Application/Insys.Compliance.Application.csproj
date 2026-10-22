@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Application\Insys.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\Insys.Compliance.Domain\Insys.Compliance.Domain.csproj" />
+    <ProjectReference Include="..\Insys.Compliance.Contracts\Insys.Compliance.Contracts.csproj" />
+    <ProjectReference Include="..\..\Analytics\Insys.Analytics.Contracts\Insys.Analytics.Contracts.csproj" />
+    <ProjectReference Include="..\..\Finance\Insys.Finance.Contracts\Insys.Finance.Contracts.csproj" />
+    <ProjectReference Include="..\..\Identity\Insys.Identity.Contracts\Insys.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\Integration\Insys.Integration.Contracts\Insys.Integration.Contracts.csproj" />
+  </ItemGroup>
+</Project>

@@ -47,6 +47,7 @@ public static class DistributionStaticData
             entity.Property(x => x.Intermediary).HasColumnName("intermediary").HasMaxLength(80);
             entity.Property(x => x.Product).HasColumnName("product").HasMaxLength(80);
             entity.Property(x => x.TransactionsAllowed).HasColumnName("transactions_allowed");
+            entity.Property(x => x.PlanCode).HasColumnName("plan_code").HasMaxLength(15);
         });
         modelBuilder.Entity<StatementTemplates>(entity =>
         {
@@ -65,6 +66,7 @@ public static class DistributionStaticData
             entity.Property(x => x.LicenceNumbers).HasColumnName("licence_numbers").HasColumnType("jsonb");
             entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(40);
             entity.Property(x => x.HierarchyNode).HasColumnName("hierarchy_node").HasMaxLength(80);
+            entity.Property(x => x.PartyId).HasColumnName("party_id");
         });
         modelBuilder.Entity<LicenceAndAppointmentTypes>(entity =>
         {

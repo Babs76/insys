@@ -3,6 +3,7 @@ using Insys.BuildingBlocks.Infrastructure;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.ClaimsFramework.Contracts;
 using Insys.Finance.Application;
+using Insys.Finance.Contracts;
 using Insys.Finance.Infrastructure.Persistence;
 using Insys.Finance.Infrastructure.StaticData;
 using Insys.Payments.Contracts;
@@ -26,6 +27,7 @@ public static class FinanceInfrastructure
         services.AddScoped<IPostingConfiguration, PostingConfiguration>();
         services.AddScoped<PostingService>();
         services.AddScoped<EventPoster>();
+        services.AddSingleton<ILedgerBalances, LedgerBalances>();
 
         services.AddIntegrationEventHandler<InvoiceIssued, PostingPolicies, FinanceDbContext>(schema, "InvoiceIssued");
         services.AddIntegrationEventHandler<CreditNoteIssued, PostingPolicies, FinanceDbContext>(schema, "CreditNoteIssued");
@@ -36,6 +38,11 @@ public static class FinanceInfrastructure
         services.AddIntegrationEventHandler<ClaimPaymentCompleted, PostingPolicies, FinanceDbContext>(schema, "ClaimPaymentCompleted");
         services.AddIntegrationEventHandler<Health.Contracts.MedicalClaimSettled, PostingPolicies, FinanceDbContext>(schema, "MedicalClaimSettled");
         services.AddIntegrationEventHandler<ClaimRecoveryRecorded, PostingPolicies, FinanceDbContext>(schema, "ClaimRecoveryRecorded");
+        services.AddIntegrationEventHandler<Distribution.Contracts.CommissionAccrued, PostingPolicies, FinanceDbContext>(schema, "CommissionAccrued");
+        services.AddIntegrationEventHandler<Distribution.Contracts.CommissionClawedBack, PostingPolicies, FinanceDbContext>(schema, "CommissionClawedBack");
+        services.AddIntegrationEventHandler<Reinsurance.Contracts.CessionCalculated, PostingPolicies, FinanceDbContext>(schema, "CessionCalculated");
+        services.AddIntegrationEventHandler<Reinsurance.Contracts.RecoveryBilled, PostingPolicies, FinanceDbContext>(schema, "RecoveryBilled");
+        services.AddIntegrationEventHandler<Reinsurance.Contracts.RecoverySettled, PostingPolicies, FinanceDbContext>(schema, "RecoverySettled");
         services.AddIntegrationEventHandler<ApprovalGranted, PeriodReopenPolicy, FinanceDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, PeriodReopenPolicy, FinanceDbContext>(schema, "ApprovalRejected");
         return services;

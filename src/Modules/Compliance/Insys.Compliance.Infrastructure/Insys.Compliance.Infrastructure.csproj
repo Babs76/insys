@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Infrastructure\Insys.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\Insys.Compliance.Application\Insys.Compliance.Application.csproj" />
   </ItemGroup>
 </Project>

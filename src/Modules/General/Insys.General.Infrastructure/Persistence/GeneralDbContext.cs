@@ -255,7 +255,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             item.Property(s => s.Proceeds).HasPrecision(18, 2);
         });
 
-        // Exposure by zone and peril, for reinsurance (Phase 6). Mapped, not yet written.
+        // Exposure by zone and peril, for reinsurance; refreshed daily by the General jobs (ADR-015).
         modelBuilder.Entity<ExposureSnapshot>(snapshot =>
         {
             snapshot.ToTable("exposure_snapshot");
@@ -276,7 +276,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
     }
 }
 
-/// <summary>Exposure by zone and peril (general.exposure_snapshot), refreshed for reinsurance aggregation. TODO(spec): refreshed in Phase 6 (OQ-059).</summary>
+/// <summary>Exposure by zone and peril (general.exposure_snapshot), refreshed daily for reinsurance aggregation (ADR-015).</summary>
 public sealed class ExposureSnapshot : BuildingBlocks.Domain.ITenantScoped
 {
     public Guid TenantId { get; set; }

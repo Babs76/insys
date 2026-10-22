@@ -13,6 +13,8 @@
   <Folder Name="/src/Modules/" />
   <Folder Name="/src/Modules/Analytics/">
     <Project Path="src/Modules/Analytics/Insys.Analytics.Api/Insys.Analytics.Api.csproj" />
+    <Project Path="src/Modules/Analytics/Insys.Analytics.Application/Insys.Analytics.Application.csproj" />
+    <Project Path="src/Modules/Analytics/Insys.Analytics.Contracts/Insys.Analytics.Contracts.csproj" />
     <Project Path="src/Modules/Analytics/Insys.Analytics.Infrastructure/Insys.Analytics.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Audit/">
@@ -37,10 +39,16 @@
   </Folder>
   <Folder Name="/src/Modules/Compliance/">
     <Project Path="src/Modules/Compliance/Insys.Compliance.Api/Insys.Compliance.Api.csproj" />
+    <Project Path="src/Modules/Compliance/Insys.Compliance.Application/Insys.Compliance.Application.csproj" />
+    <Project Path="src/Modules/Compliance/Insys.Compliance.Contracts/Insys.Compliance.Contracts.csproj" />
+    <Project Path="src/Modules/Compliance/Insys.Compliance.Domain/Insys.Compliance.Domain.csproj" />
     <Project Path="src/Modules/Compliance/Insys.Compliance.Infrastructure/Insys.Compliance.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Distribution/">
     <Project Path="src/Modules/Distribution/Insys.Distribution.Api/Insys.Distribution.Api.csproj" />
+    <Project Path="src/Modules/Distribution/Insys.Distribution.Application/Insys.Distribution.Application.csproj" />
+    <Project Path="src/Modules/Distribution/Insys.Distribution.Contracts/Insys.Distribution.Contracts.csproj" />
+    <Project Path="src/Modules/Distribution/Insys.Distribution.Domain/Insys.Distribution.Domain.csproj" />
     <Project Path="src/Modules/Distribution/Insys.Distribution.Infrastructure/Insys.Distribution.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Documents/">
@@ -122,6 +130,9 @@
   </Folder>
   <Folder Name="/src/Modules/Reinsurance/">
     <Project Path="src/Modules/Reinsurance/Insys.Reinsurance.Api/Insys.Reinsurance.Api.csproj" />
+    <Project Path="src/Modules/Reinsurance/Insys.Reinsurance.Application/Insys.Reinsurance.Application.csproj" />
+    <Project Path="src/Modules/Reinsurance/Insys.Reinsurance.Contracts/Insys.Reinsurance.Contracts.csproj" />
+    <Project Path="src/Modules/Reinsurance/Insys.Reinsurance.Domain/Insys.Reinsurance.Domain.csproj" />
     <Project Path="src/Modules/Reinsurance/Insys.Reinsurance.Infrastructure/Insys.Reinsurance.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Rules/">
@@ -171,6 +182,9 @@
     <Project Path="tests/Insys.Billing.Tests/Insys.Billing.Tests.csproj" />
     <Project Path="tests/Insys.Payments.Tests/Insys.Payments.Tests.csproj" />
     <Project Path="tests/Insys.ClaimsFramework.Tests/Insys.ClaimsFramework.Tests.csproj" />
+    <Project Path="tests/Insys.Compliance.Tests/Insys.Compliance.Tests.csproj" />
+    <Project Path="tests/Insys.Distribution.Tests/Insys.Distribution.Tests.csproj" />
+    <Project Path="tests/Insys.Reinsurance.Tests/Insys.Reinsurance.Tests.csproj" />
     <Project Path="tests/Insys.General.Tests/Insys.General.Tests.csproj" />
     <Project Path="tests/Insys.Health.Tests/Insys.Health.Tests.csproj" />
     <Project Path="tests/Insys.Life.Tests/Insys.Life.Tests.csproj" />

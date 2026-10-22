@@ -19,8 +19,8 @@ namespace Insys.EndToEndTests;
 /// <summary>
 /// The Life processes of domain-model.json, through the API with the real migrations and every module involved: "Life
 /// proposal to policy" (LIF-001 to LIF-005) and "Missed premium to lapse" (LIF-005), with their compensations, and a
-/// death claim paid to the beneficiaries through the Claims Framework (LIF-008, CLM-003). Reinsurance cession and
-/// commission clawback come with those modules in Phase 6. The premium is an engineering case (OQ-052).
+/// death claim paid to the beneficiaries through the Claims Framework (LIF-008, CLM-003). Commission and reinsurance
+/// steps are tested on General in EnterpriseProcessTests. The premium is an engineering case (OQ-052).
 /// </summary>
 public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
 {

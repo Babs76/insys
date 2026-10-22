@@ -70,5 +70,8 @@ public sealed record PolicyArrears(int OverdueInstalments, DateOnly? OldestDueDa
 /// </summary>
 public interface IPolicyArrears
 {
+    /// <summary>How many instalments a billing frequency has in a year (billing.ref_billing_frequencies.periods_per_year), if it is in force.</summary>
+    Task<int?> PeriodsPerYear(Guid tenantId, string frequencyCode, DateOnly day, CancellationToken cancellationToken);
+
     Task<PolicyArrears> For(Guid tenantId, string sourceDomain, Guid policyRef, DateOnly asOf, CancellationToken cancellationToken);
 }

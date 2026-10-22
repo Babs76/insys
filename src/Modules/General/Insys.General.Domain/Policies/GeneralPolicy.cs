@@ -29,13 +29,16 @@ public sealed record BillingArrangement(Guid BillingAccountRef, Guid PayerPartyI
 public sealed record CancellationRule(string ReasonCode, string Initiator, string RefundBasis, decimal Fee);
 
 public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, BillingArrangement Billing,
-    string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd, Guid? RenewalOfId, DateTimeOffset OccurredAt) : IDomainEvent;
+    string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd, Guid? RenewalOfId, decimal SumInsured, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record GeneralPolicyEndorsed(Guid PolicyId, string PolicyNumber, Guid EndorsementId, string EndorsementNumber, DateOnly EffectiveDate,
-    decimal NewAnnualPremium, decimal PremiumDelta, string Currency, string ProductCode, int ProductVersion, IReadOnlyList<string> DocumentTypes, DateTimeOffset OccurredAt)
-    : IDomainEvent;
+    decimal NewAnnualPremium, decimal PremiumDelta, string Currency, string ProductCode, int ProductVersion, IReadOnlyList<string> DocumentTypes, decimal NewSumInsured,
+    DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record GeneralPolicyRenewed(Guid PolicyId, string PolicyNumber, Guid RenewalPolicyId, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record GeneralRenewalInvited(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, DateOnly PeriodEnd, string TemplateCode,
+    DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record GeneralPolicyCancelled(Guid PolicyId, string PolicyNumber, string ReasonCode, DateOnly EffectiveDate, decimal RefundAmount, string Currency,
     string ProductCode, int ProductVersion, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -219,6 +222,9 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
     public Guid? RenewalOfId { get; private set; }
 
+    /// <summary>When the renewal invitation was sent (GEN-004).</summary>
+    public DateOnly? RenewalInvitedOn { get; private set; }
+
     public Guid? QuoteId { get; private set; }
 
     /// <summary>ISSUE: cover starts when the policy is issued and its period has started. FIRST_PAYMENT: also not before the first payment.</summary>
@@ -236,6 +242,9 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     private bool CoverMayStart => CoverStartsOn == "ISSUE" || FirstPaidOn is not null;
 
     public IReadOnlyList<PolicyRisk> Risks => _risks;
+
+    /// <summary>The sum insured of the risks attached on the day (reinsurance cessions, OQ-063).</summary>
+    public decimal SumInsuredOn(DateOnly day) => _risks.Where(r => r.AttachedOn(day)).Sum(r => r.SumInsured);
 
     public IReadOnlyList<Cancellation> Cancellations => _cancellations;
 
@@ -331,6 +340,22 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     }
 
     /// <summary>Transition "Period ends without renewal": the day after the last day of cover.</summary>
+    /// <summary>
+    /// The renewal invitation (GEN-004, OQ-066 item 3): once, for a policy in force, from the rule's notice days before
+    /// its period ends. Documents generates it from the rule's invitation template.
+    /// </summary>
+    public Result InviteRenewal(int noticeDays, string templateCode, DateOnly today, DateTimeOffset now)
+    {
+        if (Status != PolicyStatus.InForce || RenewalInvitedOn is not null || today < PeriodEnd.AddDays(-noticeDays))
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is not due a renewal invitation.");
+        }
+
+        RenewalInvitedOn = today;
+        Raise(new GeneralRenewalInvited(Id, PolicyNumber, ProductCode, ProductVersion, PeriodEnd, templateCode, now));
+        return Result.Success();
+    }
+
     public Result ExpirePolicy(DateOnly today) =>
         Status == PolicyStatus.InForce && PeriodEnd < today ? Fire(PolicyTrigger.PeriodEndsWithoutRenewal)
             : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is {Status}, to the end of {PeriodEnd:yyyy-MM-dd}.");
@@ -458,7 +483,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
         SetPremium(endorsement.NewAnnualPremium!.Value);
         Raise(new GeneralPolicyEndorsed(Id, PolicyNumber, endorsement.Id, endorsement.EndorsementNumber, endorsement.EffectiveDate, AnnualPremium,
-            endorsement.PremiumDelta, Currency, ProductCode, ProductVersion, documentTypes, now));
+            endorsement.PremiumDelta, Currency, ProductCode, ProductVersion, documentTypes, SumInsuredOn(endorsement.EffectiveDate), now));
         MarkChanged();
         return Result.Success();
     }
@@ -555,7 +580,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     private Result<GeneralPolicy> Issued(DateOnly today, DateTimeOffset now)
     {
         Raise(new GeneralPolicyIssued(Id, PolicyNumber, ProductCode, ProductVersion, PolicyholderPartyId, Billing, Currency, AnnualPremium, PeriodStart, PeriodEnd,
-            RenewalOfId, now));
+            RenewalOfId, SumInsuredOn(PeriodStart), now));
         if (PeriodStart <= today && CoverMayStart)
         {
             Fire(PolicyTrigger.PeriodStarts);

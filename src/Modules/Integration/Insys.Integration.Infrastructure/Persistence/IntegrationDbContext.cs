@@ -1,5 +1,6 @@
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.Integration.Domain.DeadLetters;
+using Insys.Integration.Domain.Webhooks;
 using Insys.Integration.Infrastructure.StaticData;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,6 +21,8 @@ public sealed class IntegrationDbContext(DbContextOptions<IntegrationDbContext> 
     public override IReadOnlyCollection<string> OwnedSchemas => [SchemaName, "channel"];
 
     public DbSet<DeadLetter> DeadLetters => Set<DeadLetter>();
+
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
@@ -44,6 +47,22 @@ public sealed class IntegrationDbContext(DbContextOptions<IntegrationDbContext> 
             entity.Property(d => d.Resolution).HasColumnName("resolution").HasMaxLength(20)
                 .HasConversion(v => v == DeadLetterResolution.Replayed ? "REPLAYED" : "DISCARDED",
                                v => v == "REPLAYED" ? DeadLetterResolution.Replayed : DeadLetterResolution.Discarded);
+        });
+
+        modelBuilder.Entity<WebhookDelivery>(entity =>
+        {
+            entity.ToTable("webhook_delivery");
+            entity.HasKey(d => new { d.TenantId, d.Id });
+            entity.HasAuditColumns();
+            entity.Ignore(d => d.DomainEvents);
+            entity.Ignore(d => d.HasChanges);
+            entity.Ignore(d => d.LastAttempt);
+            entity.Property(d => d.SubscriptionId).HasMaxLength(20);
+            entity.Property(d => d.EventType).HasMaxLength(80);
+            entity.Property(d => d.Payload).HasColumnType("jsonb");
+            entity.Property(d => d.Attempt).HasColumnType("smallint");
+            entity.Property(d => d.HttpStatus).HasColumnType("smallint");
+            entity.Property(d => d.Status).HasConversion(new UpperCaseEnumConverter<WebhookDeliveryStatus>()).HasMaxLength(12);
         });
     }
 }

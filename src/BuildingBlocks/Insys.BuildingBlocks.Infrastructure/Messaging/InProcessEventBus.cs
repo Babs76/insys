@@ -34,15 +34,17 @@ public sealed class InProcessEventBus(IEnumerable<EventSubscription> subscriptio
     public async Task Publish(EventEnvelope envelope, CancellationToken cancellationToken)
     {
         List<Exception>? failures = null;
-        foreach (var subscription in _subscriptions[envelope.EventType])
+        foreach (var subscription in _subscriptions[envelope.EventType].Concat(_subscriptions[AnyIntegrationEvent.Wildcard]))
         {
             try
             {
                 await using var scope = scopeFactory.CreateAsyncScope();
                 scope.ServiceProvider.GetRequiredService<ExecutionScope>()
                     .InitialiseForService(envelope.TenantId, subscription.Consumer, envelope.CorrelationId, envelope.EventId);
-                var integrationEvent = envelope.Payload.Deserialize(subscription.EventClrType, ModuleDbContext.EventJson)
-                    ?? throw new InvalidOperationException($"Event {envelope.EventId} has an empty payload.");
+                var integrationEvent = subscription.EventClrType == typeof(AnyIntegrationEvent)
+                    ? new AnyIntegrationEvent(envelope.Payload)
+                    : envelope.Payload.Deserialize(subscription.EventClrType, ModuleDbContext.EventJson)
+                      ?? throw new InvalidOperationException($"Event {envelope.EventId} has an empty payload.");
                 await subscription.Invoke(scope.ServiceProvider, integrationEvent, envelope, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

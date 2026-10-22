@@ -11,5 +11,6 @@
     <ProjectReference Include="..\..\Rules\Insys.Rules.Contracts\Insys.Rules.Contracts.csproj" />
     <ProjectReference Include="..\..\Identity\Insys.Identity.Contracts\Insys.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\Workflow\Insys.Workflow.Contracts\Insys.Workflow.Contracts.csproj" />
+    <ProjectReference Include="..\..\Distribution\Insys.Distribution.Contracts\Insys.Distribution.Contracts.csproj" />
   </ItemGroup>
 </Project>

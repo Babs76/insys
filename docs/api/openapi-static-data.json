@@ -72739,6 +72739,12 @@
               "type": "string"
             }
           },
+          "planCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "code": {
             "type": "string"
           },
@@ -72866,6 +72872,13 @@
               "null",
               "string"
             ]
+          },
+          "partyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "code": {
             "type": "string"

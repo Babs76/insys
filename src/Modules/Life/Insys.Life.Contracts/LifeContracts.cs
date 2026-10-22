@@ -86,7 +86,7 @@ public sealed record LifePolicyIssued(Guid PolicyId, string PolicyNumber, Guid P
 [IntegrationEvent("life.LifePolicyChanged")]
 public sealed record LifePolicyChanged(Guid PolicyId, string PolicyNumber, string ChangeType, DateOnly EffectiveDate) : IIntegrationEvent;
 
-/// <summary>A policy lapsed (LIF-005): Billing stops its schedule from the lapse date. Commission clawback follows in Phase 6.</summary>
+/// <summary>A policy lapsed (LIF-005): Billing stops its schedule from the lapse date; Distribution claws back unearned commission (ADR-014).</summary>
 [IntegrationEvent("life.LifePolicyLapsed")]
 public sealed record LifePolicyLapsed(Guid PolicyId, string PolicyNumber, DateOnly LapseDate, int MissedPayments, string ProductCode, int ProductVersion, string Currency)
     : IIntegrationEvent;

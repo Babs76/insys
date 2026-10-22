@@ -59,7 +59,8 @@ public sealed class StaticDataService<TDbContext>(
     StaticDataContextFactory<TDbContext> contexts,
     IExecutionContext execution,
     IClock clock,
-    IFieldProtector protector)
+    IFieldProtector protector,
+    IEnumerable<IStaticChangeGuard> guards)
     where TDbContext : ModuleDbContext
 {
     public async Task<IReadOnlyList<TEntity>> ListInForce<TEntity>(StaticDataDescriptor descriptor, DateOnly asAt, string? afterCode, int limit,
@@ -208,6 +209,16 @@ public sealed class StaticDataService<TDbContext>(
             {
                 return Error.Validation(StaticDataErrorCodes.RetroactiveChange,
                     "Tier 1 data in force cannot change retroactively; use the correction workflow (SDM-005).");
+            }
+
+            // A module's own rules for a change to one of its tables (an intermediary's lifecycle, say).
+            foreach (var guard in guards.Where(g => g.Schema == descriptor.Schema && g.Table == descriptor.Table))
+            {
+                var allowed = guard.Check(entity, current);
+                if (allowed.IsFailure)
+                {
+                    return allowed.Error;
+                }
             }
 
             entity.RecordStatus = descriptor.Lifecycle.PendingApproval;

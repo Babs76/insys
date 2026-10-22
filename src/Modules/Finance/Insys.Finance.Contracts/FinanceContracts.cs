@@ -32,6 +32,12 @@ public static class TransactionTypes
     public const string ClaimReserveDecrease = "CLAIM_RESERVE_DOWN";
     public const string ClaimPaid = "CLAIM_PAID";
     public const string ClaimRecovery = "CLAIM_RECOVERY";
+    public const string CommissionAccrued = "COMMISSION_ACCRUED";
+    public const string CommissionClawedBack = "COMMISSION_CLAWBACK";
+    public const string CommissionPaid = "COMMISSION_PAID";
+    public const string PremiumCeded = "PREMIUM_CEDED";
+    public const string ReinsuranceRecoverable = "RI_RECOVERABLE";
+    public const string ReinsuranceRecovered = "RI_RECOVERED";
 }
 
 [IntegrationEvent("finance.SubledgerEntryPosted")]
@@ -47,3 +53,12 @@ public sealed record PostingFailed(Guid ExceptionId, Guid SourceEventId, string 
 
 [IntegrationEvent("finance.AccountingPeriodClosed")]
 public sealed record AccountingPeriodClosed(Guid PeriodId, string PeriodCode, bool Final) : IIntegrationEvent;
+
+/// <summary>
+/// Public query interface: an account's movement in an accounting period (debits less credits of the journal lines
+/// dated in it, reversals included), read on Finance's own connection, for regulatory returns (OQ-064).
+/// </summary>
+public interface ILedgerBalances
+{
+    Task<decimal> PeriodMovement(Guid tenantId, string accountCode, string periodCode, CancellationToken cancellationToken);
+}

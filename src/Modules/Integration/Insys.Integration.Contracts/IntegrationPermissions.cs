@@ -8,4 +8,6 @@ public static class IntegrationPermissions
 {
     public const string DeadLetterRead = "dead_letter.read";
     public const string DeadLetterUpdate = "dead_letter.update";
+    public const string WebhookRead = "webhook_delivery.read";
+    public const string WebhookUpdate = "webhook_delivery.update";
 }

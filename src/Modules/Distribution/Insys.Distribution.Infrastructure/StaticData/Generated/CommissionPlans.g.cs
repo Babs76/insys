@@ -49,5 +49,6 @@ public sealed record CommissionPlansInput : StaticRecordInput
         errors.MaxLength("basis", Basis, 40);
         errors.OneOf("basis", Basis, ["PREMIUM", "POLICY_COUNT", "FIXED"]);
         errors.Required("rate", Rate);
+        errors.OneOf("clawbackRule", ClawbackRule, ["NONE", "UNEARNED"]);
     }
 }

@@ -4,6 +4,7 @@ using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Domain;
+using Insys.Distribution.Contracts;
 using Insys.General.Domain;
 using Insys.General.Domain.Underwriting;
 using Insys.ProductFactory.Contracts;
@@ -192,7 +193,8 @@ internal static class RiskSchemas
             : Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{objectType} is not a risk object type in force.");
 }
 
-internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellableProducts products, ITenantContext tenant, IClock clock, IAuditTrail audit)
+internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellableProducts products, IIntermediaries intermediaries, ITenantContext tenant, IClock clock,
+    IAuditTrail audit)
     : ICommandHandler<CreateQuote, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(CreateQuote command, CancellationToken cancellationToken)
@@ -212,6 +214,14 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
         if (product.IsFailure)
         {
             return product.Error;
+        }
+
+        // DST-001: a quote through an intermediary needs one that may sell the product.
+        if (command.IntermediaryCode is { Length: > 0 } intermediary
+            && await intermediaries.CanSell(tenant.RequireTenantId(), intermediary, product.Value.ProductCode, IntermediaryTransactions.NewBusiness, clock.UtcToday,
+                cancellationToken) is { } refusal)
+        {
+            return Error.Validation(refusal.Code, refusal.Message);
         }
 
         foreach (var riskId in command.Risks.Select(r => r.RiskObjectId))

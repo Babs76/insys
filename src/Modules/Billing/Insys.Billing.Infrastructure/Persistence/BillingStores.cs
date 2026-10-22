@@ -136,6 +136,26 @@ internal sealed class AllocationPlanner([FromKeyedServices(BillingDbContext.Sche
 /// </summary>
 internal sealed class PolicyArrearsQuery([FromKeyedServices(BillingDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPolicyArrears
 {
+    public async Task<int?> PeriodsPerYear(Guid tenantId, string frequencyCode, DateOnly day, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT periods_per_year FROM billing.ref_billing_frequencies
+            WHERE (tenant_id = @t OR tenant_id IS NULL) AND code = @code AND record_status = ANY(@statuses) AND effective_from <= @day
+              AND (effective_to IS NULL OR effective_to > @day)
+            ORDER BY tenant_id NULLS LAST, version DESC LIMIT 1
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("code", frequencyCode);
+        command.Parameters.AddWithValue("statuses", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Reference.InForce);
+        command.Parameters.AddWithValue("day", day);
+        var periods = await command.ExecuteScalarAsync(cancellationToken) as int?;
+        await transaction.CommitAsync(cancellationToken);
+        return periods;
+    }
+
     public async Task<PolicyArrears> For(Guid tenantId, string sourceDomain, Guid policyRef, DateOnly asOf, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

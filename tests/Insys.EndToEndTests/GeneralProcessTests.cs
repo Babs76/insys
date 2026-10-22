@@ -18,8 +18,8 @@ namespace Insys.EndToEndTests;
 /// <summary>
 /// The General processes of domain-model.json, through the API with the real migrations and every module involved:
 /// "General quote to cash" (§27.3 scenarios 2–4) and "General claim to settlement" (§27.3 scenario 5, GEN-006 to
-/// GEN-008), with their compensations, and endorsement and cancellation (GEN-003, GEN-004). Commission and
-/// reinsurance steps come with those modules in Phase 6.
+/// GEN-008), with their compensations, and endorsement and cancellation (GEN-003, GEN-004). The commission and
+/// reinsurance steps are in EnterpriseProcessTests.
 /// </summary>
 public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 {

@@ -31,6 +31,7 @@ public static class PaymentPurposes
     public const string Refund = "REFUND";
     public const string ClaimPayout = "CLAIM_PAYOUT";
     public const string Recovery = "RECOVERY";
+    public const string Commission = "COMMISSION";
 }
 
 /// <summary>Money was received and confirmed (Succeeded inbound). Never raised for an unknown outcome (PAY-005).</summary>

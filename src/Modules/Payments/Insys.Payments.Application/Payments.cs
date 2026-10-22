@@ -581,6 +581,7 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     IIntegrationEventHandler<RefundApproved>,
     IIntegrationEventHandler<ClaimPaymentInstructed>,
     IIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased>,
+    IIntegrationEventHandler<Distribution.Contracts.CommissionStatementApproved>,
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<PaymentReceived>,
     IIntegrationEventHandler<PaymentSucceeded>,
@@ -616,6 +617,11 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
                 Health.Contracts.HealthReferences.RemittanceRefType, remittance.RemittanceId, remittance.BankAccountId, cancellationToken);
         }
     }
+
+    /// <summary>An approved commission statement is paid to the intermediary's verified account through a payout batch (DST-004).</summary>
+    public Task Handle(Distribution.Contracts.CommissionStatementApproved approved, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Payout($"COMMISSION:{approved.StatementId:N}", PaymentPurposes.Commission, approved.NetAmount, approved.Currency, approved.PayeePartyId,
+            Distribution.Contracts.DistributionApprovals.StatementBusinessRefType, approved.StatementId, approved.BankAccountId, cancellationToken);
 
     public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {

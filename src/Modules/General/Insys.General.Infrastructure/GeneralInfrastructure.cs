@@ -29,6 +29,7 @@ public static class GeneralInfrastructure
         services.AddDomainEventMapper<GeneralEventMapper>(schema);
         services.AddScoped<IGeneralRepository, GeneralRepository>();
         services.AddScoped<IGeneralCodes, GeneralCodes>();
+        services.AddSingleton<Distribution.Contracts.IPolicyDistribution, GeneralPolicyDistribution>();
         services.AddIntegrationEventHandler<PremiumCalculated, GeneralPolicies, GeneralDbContext>(schema, "PremiumCalculated");
         services.AddIntegrationEventHandler<ApprovalGranted, GeneralPolicies, GeneralDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, GeneralPolicies, GeneralDbContext>(schema, "ApprovalRejected");
@@ -59,8 +60,9 @@ public sealed class GeneralJobOptions
 
 /// <summary>
 /// The daily transitions, one record per transaction, as a service identity: issued policies come into force when
-/// their period starts; policies in force that were not renewed expire when it ends; issued quotes expire after their
-/// validity. TODO(spec): automatic renewal and renewal invitations (general.cfg_renewal_rules) are not run (OQ-059).
+/// their period starts; renewal invitations go out the rule's notice days before a period ends; policies whose rule
+/// renews them by themselves are renewed when it ends (GEN-004); policies in force that were not renewed expire after
+/// it; issued quotes expire after their validity; and the day's exposure snapshot is refreshed (OQ-066).
 /// </summary>
 public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, IClock clock, ILogger<GeneralJobs> logger)
 {
@@ -84,7 +86,22 @@ public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory te
                 work = found.Value;
             }
 
+            foreach (var id in work.PoliciesToRenew)
+            {
+                await using var scope = Scope(tenantId);
+                var renewed = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RenewPolicy(id), cancellationToken);
+                if (renewed.IsSuccess)
+                {
+                    done++;
+                }
+                else
+                {
+                    logger.LogWarning("General job RenewPolicy on {Id} failed: {Code}", id, renewed.Error.Code);
+                }
+            }
+
             foreach (var (id, action) in work.PoliciesToStart.Select(id => (id, DueAction.StartPeriod))
+                         .Concat(work.PoliciesToInvite.Select(id => (id, DueAction.InviteRenewal)))
                          .Concat(work.PoliciesToExpire.Select(id => (id, DueAction.ExpirePolicy)))
                          .Concat(work.QuotesToExpire.Select(id => (id, DueAction.ExpireQuote))))
             {
@@ -102,6 +119,27 @@ public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory te
         }
 
         return done;
+    }
+
+    /// <summary>The day's exposure snapshot, per tenant.</summary>
+    public async Task<int> RefreshExposure(CancellationToken cancellationToken)
+    {
+        var rows = 0;
+        foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+        {
+            await using var scope = Scope(tenantId);
+            var refreshed = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RefreshExposureSnapshot(clock.UtcToday), cancellationToken);
+            if (refreshed.IsSuccess)
+            {
+                rows += refreshed.Value;
+            }
+            else
+            {
+                logger.LogWarning("Exposure snapshot for tenant {TenantId} failed: {Code}", tenantId, refreshed.Error.Code);
+            }
+        }
+
+        return rows;
     }
 
     private AsyncServiceScope Scope(Guid tenantId)
@@ -127,6 +165,7 @@ public sealed class GeneralJobsService(GeneralJobs jobs, IOptions<GeneralJobOpti
             try
             {
                 await jobs.Run(stoppingToken);
+                await jobs.RefreshExposure(stoppingToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
