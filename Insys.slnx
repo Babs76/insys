@@ -59,6 +59,9 @@
   </Folder>
   <Folder Name="/src/Modules/General/">
     <Project Path="src/Modules/General/Insys.General.Api/Insys.General.Api.csproj" />
+    <Project Path="src/Modules/General/Insys.General.Application/Insys.General.Application.csproj" />
+    <Project Path="src/Modules/General/Insys.General.Contracts/Insys.General.Contracts.csproj" />
+    <Project Path="src/Modules/General/Insys.General.Domain/Insys.General.Domain.csproj" />
     <Project Path="src/Modules/General/Insys.General.Infrastructure/Insys.General.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Health/">
@@ -162,6 +165,7 @@
     <Project Path="tests/Insys.Billing.Tests/Insys.Billing.Tests.csproj" />
     <Project Path="tests/Insys.Payments.Tests/Insys.Payments.Tests.csproj" />
     <Project Path="tests/Insys.ClaimsFramework.Tests/Insys.ClaimsFramework.Tests.csproj" />
+    <Project Path="tests/Insys.General.Tests/Insys.General.Tests.csproj" />
     <Project Path="tests/Insys.Testing/Insys.Testing.csproj" />
   </Folder>
   <Folder Name="/tools/">

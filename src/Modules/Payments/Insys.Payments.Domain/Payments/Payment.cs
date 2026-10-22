@@ -172,7 +172,10 @@ public sealed class Payment : AggregateRoot<Guid>
 
     public IReadOnlyList<PaymentAllocation> Allocations => _allocations;
 
-    public decimal Allocated => _allocations.Where(a => a.ReversedById is null).Sum(a => a.Amount);
+    /// <summary>The allocation rule of a reversing allocation row (payment_allocation.reversed_by_id points to it).</summary>
+    public const string ReversalRule = "REVERSAL";
+
+    public decimal Allocated => _allocations.Where(a => a.ReversedById is null && a.AllocationRule != ReversalRule).Sum(a => a.Amount);
 
     public bool IsFinal => Status is PaymentStatus.Succeeded or PaymentStatus.Failed or PaymentStatus.Reversed;
 
@@ -292,11 +295,14 @@ public sealed class Payment : AggregateRoot<Guid>
             return result;
         }
 
-        var reversalId = Guid.CreateVersion7();
-        var reversed = _allocations.Where(a => a.ReversedById is null).ToList();
+        // Each allocation is reversed by a reversing allocation row of the same amount, which it then points to (V0001's
+        // fk_payment_allocation_reversed_by_id). Neither counts as allocated any more.
+        var reversed = _allocations.Where(a => a.ReversedById is null && a.AllocationRule != ReversalRule).ToList();
         foreach (var allocation in reversed)
         {
-            allocation.Reverse(reversalId);
+            var reversal = PaymentAllocation.Create(Id, allocation.InvoiceId, allocation.Amount, Currency, ReversalRule, now);
+            _allocations.Add(reversal);
+            allocation.Reverse(reversal.Id);
         }
 
         Raise(new PaymentReversed(Id, PaymentRef, Direction, Purpose, Amount, Currency, today, reversed.Select(a => (a.Id, a.InvoiceId, a.Amount)).ToList(), reason, now));

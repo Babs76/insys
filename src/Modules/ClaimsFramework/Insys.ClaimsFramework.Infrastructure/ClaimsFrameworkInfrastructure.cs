@@ -2,6 +2,7 @@ using Insys.BuildingBlocks.Infrastructure;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.ClaimsFramework.Application;
 using Insys.ClaimsFramework.Contracts;
+using Insys.General.Contracts;
 using Insys.ClaimsFramework.Infrastructure.Persistence;
 using Insys.ClaimsFramework.Infrastructure.StaticData;
 using Insys.Payments.Contracts;
@@ -26,6 +27,9 @@ public static class ClaimsFrameworkInfrastructure
         services.AddIntegrationEventHandler<PaymentSucceeded, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "PaymentSucceeded");
         services.AddIntegrationEventHandler<PaymentFailed, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "PaymentFailed");
         services.AddIntegrationEventHandler<ClaimPaymentCompleted, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ClaimPaymentCompleted");
+        services.AddIntegrationEventHandler<GeneralClaimApproved, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "GeneralClaimApproved");
+        services.AddIntegrationEventHandler<RecoveryRecorded, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "RecoveryRecorded");
+        services.AddScoped<IClaimRegistry, ClaimRegistry>();
         return services;
     }
 }

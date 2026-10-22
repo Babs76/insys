@@ -137,6 +137,17 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
         }
     }
 
+    /// <summary>The schedule ends the day before <paramref name="from"/>: instalments not yet invoiced from then are cancelled.</summary>
+    internal void End(DateOnly from)
+    {
+        foreach (var instalment in _instalments.Where(i => i.Status == InstalmentStatus.Scheduled && i.DueDate >= from))
+        {
+            instalment.Cancel();
+        }
+
+        EndDate = from.AddDays(-1) < StartDate ? StartDate : from.AddDays(-1);
+    }
+
     /// <summary>AmendSchedule: instalments not yet invoiced from the effective date are cancelled and regenerated at the new amount.</summary>
     internal void Amend(BillingFrequency frequency, decimal amount, DateOnly effectiveFrom)
     {
@@ -291,6 +302,22 @@ public sealed class BillingAccount : AggregateRoot<Guid>
     /// <summary>The scheduled instalments due on or before the day, to invoice.</summary>
     public IEnumerable<(PremiumSchedule Schedule, Instalment Instalment)> DueInstalments(DateOnly day) =>
         _schedules.SelectMany(s => s.Instalments.Where(i => i.Status == InstalmentStatus.Scheduled && i.DueDate <= day).Select(i => (s, i)));
+
+    /// <summary>A policy's schedule on this account.</summary>
+    public PremiumSchedule? ScheduleFor(string sourceDomain, Guid policyRef) => _schedules.SingleOrDefault(s => s.SourceDomain == sourceDomain && s.PolicyRef == policyRef);
+
+    /// <summary>A cancelled policy's schedule stops from the cancellation date: nothing more is billed.</summary>
+    public Result EndSchedule(Guid scheduleId, DateOnly from)
+    {
+        if (_schedules.SingleOrDefault(s => s.Id == scheduleId) is not { } schedule)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The account has no such schedule.");
+        }
+
+        schedule.End(from);
+        MarkChanged();
+        return Result.Success();
+    }
 
     public void MarkInvoiced(Instalment instalment, Guid invoiceId)
     {

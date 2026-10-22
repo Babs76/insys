@@ -153,10 +153,20 @@ internal static class Loaded
         await documents.Get(id, cancellationToken) is { } document ? document : Error.NotFound(ErrorCodes.NotFound, "The document was not found.");
 }
 
-internal sealed class GenerateDocumentHandler(IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentRenderer renderer, IDocumentStorage storage,
-    ITenantContext tenant, IClock clock) : ICommandHandler<GenerateDocument, DocumentView>
+internal sealed class GenerateDocumentHandler(DocumentGenerator generator) : ICommandHandler<GenerateDocument, DocumentView>
 {
     public async Task<Result<DocumentView>> Handle(GenerateDocument command, CancellationToken cancellationToken)
+    {
+        var document = await generator.Generate(command, cancellationToken);
+        return document.IsFailure ? document.Error : DocumentView.From(document.Value);
+    }
+}
+
+/// <summary>Renders the template version in force with the data, stores it, and records the template and product versions (DOC-002).</summary>
+public sealed class DocumentGenerator(IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentRenderer renderer, IDocumentStorage storage,
+    ITenantContext tenant, IClock clock)
+{
+    public async Task<Result<Document>> Generate(GenerateDocument command, CancellationToken cancellationToken)
     {
         var today = clock.UtcToday;
         var category = await catalogue.Category(command.CategoryCode, today, cancellationToken);
@@ -183,7 +193,7 @@ internal sealed class GenerateDocumentHandler(IDocumentRepository documents, IDo
         documents.Add(GenerationRequest.Generated(new TemplateVersionRef(template.TemplateCode, template.Version), command.Language,
             JsonSerializer.Serialize(new { businessRefType = command.BusinessRefType, businessRefId = command.BusinessRefId, fields = data.Keys.Order(StringComparer.Ordinal) },
                 JsonSerializerOptions.Web), id));
-        return DocumentView.From(document);
+        return document;
     }
 }
 

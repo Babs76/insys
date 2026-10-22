@@ -1,0 +1,63 @@
+using Insys.BuildingBlocks.Domain;
+
+namespace Insys.General.Domain;
+
+public static class GeneralErrorCodes
+{
+    [ErrorCode(422, "error.general.attribute_schema_invalid")]
+    public const string AttributeSchemaInvalid = "ATTRIBUTE_SCHEMA_INVALID";
+
+    [ErrorCode(422, "error.general.attributes_invalid")]
+    public const string AttributesInvalid = "RISK_ATTRIBUTES_INVALID";
+
+    [ErrorCode(422, "error.general.valuation_basis_required")]
+    public const string ValuationBasisRequired = "VALUATION_BASIS_REQUIRED";
+
+    [ErrorCode(422, "error.general.outside_product_limits")]
+    public const string OutsideProductLimits = "OUTSIDE_PRODUCT_LIMITS";
+
+    [ErrorCode(422, "error.general.rating_mismatch")]
+    public const string RatingMismatch = "RATING_MISMATCH";
+
+    [ErrorCode(409, "error.general.quote_expired")]
+    public const string QuoteExpired = "QUOTE_EXPIRED";
+
+    [ErrorCode(409, "error.general.quote_not_accepted")]
+    public const string QuoteNotAccepted = "QUOTE_NOT_ACCEPTED";
+
+    [ErrorCode(422, "error.general.product_not_available")]
+    public const string ProductNotAvailable = "PRODUCT_NOT_AVAILABLE";
+
+    [ErrorCode(422, "error.general.outside_policy_period")]
+    public const string OutsidePolicyPeriod = "OUTSIDE_POLICY_PERIOD";
+
+    [ErrorCode(422, "error.general.rule_not_specified")]
+    public const string RuleNotSpecified = "GENERAL_RULE_NOT_SPECIFIED";
+
+    [ErrorCode(409, "error.general.reinstatement_not_permitted")]
+    public const string ReinstatementNotPermitted = "REINSTATEMENT_NOT_PERMITTED";
+
+    [ErrorCode(422, "error.general.not_covered")]
+    public const string NotCovered = "LOSS_NOT_COVERED";
+
+    [ErrorCode(422, "error.general.endorsement_change_invalid")]
+    public const string EndorsementChangeInvalid = "ENDORSEMENT_CHANGE_INVALID";
+
+    [ErrorCode(422, "error.general.rationale_required")]
+    public const string RationaleRequired = "DECISION_RATIONALE_REQUIRED";
+
+    [ErrorCode(422, "error.general.nothing_to_settle")]
+    public const string NothingToSettle = "NOTHING_TO_SETTLE";
+
+    [ErrorCode(422, "error.general.assessor_not_on_panel")]
+    public const string AssessorNotOnPanel = "ASSESSOR_NOT_ON_PANEL";
+
+    [ErrorCode(422, "error.general.code_not_in_force")]
+    public const string CodeNotInForce = "GENERAL_CODE_NOT_IN_FORCE";
+
+    [ErrorCode(422, "error.general.renewal_needs_rating")]
+    public const string RenewalNeedsRating = "RENEWAL_NEEDS_RATING";
+
+    [ErrorCode(409, "error.general.assessment_not_accepted")]
+    public const string AssessmentNotAccepted = "ASSESSMENT_NOT_ACCEPTED";
+}

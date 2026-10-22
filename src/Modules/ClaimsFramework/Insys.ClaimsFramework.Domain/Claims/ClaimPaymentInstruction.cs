@@ -105,6 +105,25 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
         return instruction;
     }
 
+    /// <summary>
+    /// An instruction for a settlement a domain has already had approved in Workflow by a second person (process
+    /// "General claim to settlement": the settlement approval is the instruction's approval, so it is not asked again).
+    /// </summary>
+    public static Result<ClaimPaymentInstruction> FromApprovedSettlement(Guid id, ClaimRegistration claim, string instructionRef, Guid payee, decimal amount,
+        string currency, string reserveType, Guid approvalId)
+    {
+        var instruction = DraftInstruction(id, claim, instructionRef, payee, amount, amount, currency, reserveType, Guid.Empty);
+        if (instruction.IsFailure)
+        {
+            return instruction;
+        }
+
+        instruction.Value.DraftedBy = null;
+        instruction.Value.Fire(InstructionTrigger.SubmitInstruction);
+        instruction.Value.Decide(approved: true, approvalId);
+        return instruction;
+    }
+
     /// <summary>Command SubmitInstruction: the approval is requested in Workflow, with the amount (WFL-004).</summary>
     public Result SubmitInstruction(Guid submittedBy, DateTimeOffset now)
     {

@@ -3,6 +3,7 @@ using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Documents.Application;
 using Insys.Documents.Infrastructure.Persistence;
 using Insys.Documents.Infrastructure.StaticData;
+using Insys.General.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Documents.Infrastructure;
@@ -21,6 +22,9 @@ public static class DocumentsInfrastructure
         services.AddSingleton<IDocumentStorage, FileSystemDocumentStorage>();
         services.AddSingleton<IDocumentRenderer, PlainTextDocumentRenderer>();
         services.AddSingleton<IDocumentDelivery, StubDocumentDelivery>();
+        services.AddScoped<DocumentGenerator>();
+        services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralPolicyIssued");
+        services.AddIntegrationEventHandler<GeneralPolicyEndorsed, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralPolicyEndorsed");
         return services;
     }
 }

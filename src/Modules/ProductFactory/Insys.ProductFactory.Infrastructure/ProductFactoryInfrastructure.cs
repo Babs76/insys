@@ -2,6 +2,7 @@ using Insys.BuildingBlocks.Contracts.StaticData;
 using Insys.BuildingBlocks.Infrastructure;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.ProductFactory.Application;
+using Insys.ProductFactory.Contracts;
 using Insys.ProductFactory.Infrastructure.Persistence;
 using Insys.ProductFactory.Infrastructure.StaticData;
 using Insys.Workflow.Contracts;
@@ -20,6 +21,7 @@ public static class ProductFactoryInfrastructure
         services.AddScoped<IProductVersionRepository, ProductVersionRepository>();
         services.AddScoped<ISimulationRuns, SimulationRunStore>();
         services.AddScoped<IProductCatalogue, ProductCatalogue>();
+        services.AddSingleton<ISellableProducts, SellableProducts>();
         services.AddIntegrationEventHandler<ApprovalGranted, ProductPolicies, ProductFactoryDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, ProductPolicies, ProductFactoryDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<StaticDataVersionActivated, ProductPolicies, ProductFactoryDbContext>(schema, "StaticDataActivated");

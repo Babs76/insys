@@ -74,6 +74,7 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
             allocation.Property(a => a.Amount).HasPrecision(18, 2);
             allocation.Property(a => a.Currency).HasColumnType("char(3)");
             allocation.Property(a => a.AllocationRule).HasMaxLength(15);
+            allocation.HasOne<PaymentAllocation>().WithMany().HasForeignKey(a => new { a.TenantId, a.ReversedById });
         });
 
         modelBuilder.Entity<PayoutBatch>(batch =>

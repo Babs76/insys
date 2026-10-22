@@ -3564,6 +3564,1495 @@
         "x-permission": "claim_payment.release"
       }
     },
+    "/api/v1/general/risk-objects": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Register a risk object; its attributes conform to its type\u0027s schema (GEN-005)",
+        "operationId": "GeneralRegisterRiskObject",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRiskObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_risk_object.create"
+      }
+    },
+    "/api/v1/general/risk-objects/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Get a risk object",
+        "operationId": "GeneralGetRiskObject",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_risk_object.read"
+      }
+    },
+    "/api/v1/general/risk-objects/{id}/attributes": {
+      "put": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Update a risk object\u0027s attributes, against the schema version in force",
+        "operationId": "GeneralUpdateRiskAttributes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttributesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_risk_object.update"
+      }
+    },
+    "/api/v1/general/risk-objects/{id}/revalue": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Revalue a risk object, with a valuation basis",
+        "operationId": "GeneralRevalueRiskObject",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevalueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_risk_object.update"
+      }
+    },
+    "/api/v1/general/risk-objects/{id}/deactivate": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Mark a risk object no longer insured",
+        "operationId": "GeneralDeactivateRiskObject",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_risk_object.update"
+      }
+    },
+    "/api/v1/general/quotes": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Create a quote, or (fromQuoteId) the next version of one",
+        "description": "Rate it through Rating (POST /api/v1/rating/calculations with subjectType GENERAL_QUOTE and the quote\u0027s id); the recorded calculation is attached to the quote (PRD-008).",
+        "operationId": "GeneralCreateQuote",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuote"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_quote.create"
+      }
+    },
+    "/api/v1/general/quotes/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Get a quote version with its risks and referrals",
+        "operationId": "GeneralGetQuote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_quote.read"
+      }
+    },
+    "/api/v1/general/quotes/{id}/issue": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Issue a rated quote, valid for the product\u0027s validity period",
+        "operationId": "GeneralQuoteIssue",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_quote.update"
+      }
+    },
+    "/api/v1/general/quotes/{id}/accept": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Accept an issued quote within its validity period (GEN-001)",
+        "operationId": "GeneralQuoteAccept",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_quote.update"
+      }
+    },
+    "/api/v1/general/quotes/{id}/reject": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Reject an issued quote",
+        "operationId": "GeneralQuoteReject",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_quote.update"
+      }
+    },
+    "/api/v1/general/quotes/{id}/refer": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Refer a rated quote to an underwriter",
+        "operationId": "GeneralReferQuote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_quote.update"
+      }
+    },
+    "/api/v1/general/quotes/{id}/referral-decision": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "An underwriter\u0027s decision on a referred quote",
+        "operationId": "GeneralDecideReferral",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReferralDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_quote.underwrite"
+      }
+    },
+    "/api/v1/general/proposals": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Submit a proposal, with declarations, on an accepted quote version",
+        "operationId": "GeneralSubmitProposal",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitProposal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_quote.update"
+      }
+    },
+    "/api/v1/general/proposals/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Get a proposal",
+        "operationId": "GeneralGetProposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_quote.read"
+      }
+    },
+    "/api/v1/general/proposals/{id}/accept": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Accept a proposal",
+        "operationId": "GeneralAcceptProposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_quote.underwrite"
+      }
+    },
+    "/api/v1/general/policies": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Issue a policy from an accepted quote version",
+        "description": "Billing opens the account (if new) and the premium schedule; Documents generates the schedule and certificate.",
+        "operationId": "GeneralIssuePolicy",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssuePolicy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_policy.create"
+      }
+    },
+    "/api/v1/general/policies/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Get a policy with its risks, coverages and cancellations",
+        "operationId": "GeneralGetPolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_policy.read"
+      }
+    },
+    "/api/v1/general/policies/{id}/renew": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Renew a policy whose product does not re-rate at renewal (GEN-004)",
+        "operationId": "GeneralRenewPolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_policy.create"
+      }
+    },
+    "/api/v1/general/policies/{id}/cancel": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Cancel a policy; the refund follows the reason\u0027s refund rule (GEN-004)",
+        "operationId": "GeneralCancelPolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_policy.cancel"
+      }
+    },
+    "/api/v1/general/policies/{id}/reinstate": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Reinstate a cancelled policy where permitted",
+        "operationId": "GeneralReinstatePolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_policy.cancel"
+      }
+    },
+    "/api/v1/general/policies/{id}/endorsements": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Draft an endorsement effective within the policy period (GEN-003)",
+        "description": "Rate it through Rating (subjectType GENERAL_ENDORSEMENT) with the endorsed policy\u0027s inputs; the premium is the new annual premium.",
+        "operationId": "GeneralDraftEndorsement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndorsementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_endorsement.create"
+      }
+    },
+    "/api/v1/general/endorsements/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Get an endorsement",
+        "operationId": "GeneralGetEndorsement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_endorsement.read"
+      }
+    },
+    "/api/v1/general/endorsements/{id}/submit": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Submit a rated endorsement for a second person\u0027s approval in Workflow (SRS-002)",
+        "operationId": "GeneralSubmitEndorsement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_endorsement.create"
+      }
+    },
+    "/api/v1/general/claims": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Notify a loss (first notification)",
+        "operationId": "GeneralNotifyLoss",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotifyLoss"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.create"
+      }
+    },
+    "/api/v1/general/claims/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Get a claim",
+        "operationId": "GeneralGetClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.read"
+      }
+    },
+    "/api/v1/general/claims/{id}/register": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Register a claim: the cover is validated (GEN-006) and a claim number allocated (CLM-005)",
+        "operationId": "GeneralRegisterClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.create"
+      }
+    },
+    "/api/v1/general/claims/{id}/parties": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Add a party to a claim",
+        "operationId": "GeneralAddClaimParty",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.update"
+      }
+    },
+    "/api/v1/general/claims/{id}/assessor": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Appoint an assessor on an approved panel (GEN-007)",
+        "operationId": "GeneralAppointAssessor",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.update"
+      }
+    },
+    "/api/v1/general/claims/{id}/settlement": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Approve a settlement: excess and limits are applied (GEN-008); a second person approves it in Workflow (SRS-002)",
+        "operationId": "GeneralRequestSettlement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettlementRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.decide"
+      }
+    },
+    "/api/v1/general/claims/{id}/decline": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Decline a claim, with the decision\u0027s rationale (CLM-003)",
+        "operationId": "GeneralDeclineClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.decide"
+      }
+    },
+    "/api/v1/general/claims/{id}/close": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Close a claim",
+        "operationId": "GeneralClaimClose",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.update"
+      }
+    },
+    "/api/v1/general/claims/{id}/reopen": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Reopen a claim",
+        "operationId": "GeneralClaimReopen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.update"
+      }
+    },
+    "/api/v1/general/claims/{id}/assessments": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "List a claim\u0027s loss assessments",
+        "operationId": "GeneralListAssessments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.read"
+      }
+    },
+    "/api/v1/general/assessments/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Get a loss assessment",
+        "operationId": "GeneralGetAssessment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.read"
+      }
+    },
+    "/api/v1/general/assessments/{id}/start": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Start a loss assessment",
+        "operationId": "GeneralAssessmentStart",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_assessment.update"
+      }
+    },
+    "/api/v1/general/assessments/{id}/accept": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Accept a loss assessment",
+        "operationId": "GeneralAssessmentAccept",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_assessment.update"
+      }
+    },
+    "/api/v1/general/assessments/{id}/further-work": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "RequestFurtherWork a loss assessment",
+        "operationId": "GeneralAssessmentRequestFurtherWork",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_assessment.update"
+      }
+    },
+    "/api/v1/general/assessments/{id}/estimates": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Record a panel repairer\u0027s estimate",
+        "operationId": "GeneralRecordEstimate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EstimateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_assessment.update"
+      }
+    },
+    "/api/v1/general/assessments/{id}/report": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Submit the assessment report; the coverage\u0027s excess is applied (GEN-008)",
+        "operationId": "GeneralSubmitReport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_assessment.update"
+      }
+    },
+    "/api/v1/general/claims/{id}/recoveries": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Open a salvage or third-party recovery (GEN-007)",
+        "operationId": "GeneralOpenRecovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_recovery.update"
+      }
+    },
+    "/api/v1/general/recoveries/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Get a recovery",
+        "operationId": "GeneralGetRecovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_claim.read"
+      }
+    },
+    "/api/v1/general/recoveries/{id}/demand": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "SendDemand on a recovery",
+        "operationId": "GeneralRecoverySendDemand",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_recovery.update"
+      }
+    },
+    "/api/v1/general/recoveries/{id}/write-off": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "WriteOff on a recovery",
+        "operationId": "GeneralRecoveryWriteOff",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_recovery.update"
+      }
+    },
+    "/api/v1/general/recoveries/{id}/close": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Close on a recovery",
+        "operationId": "GeneralRecoveryClose",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_recovery.update"
+      }
+    },
+    "/api/v1/general/recoveries/{id}/salvage": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Add a salvage item",
+        "operationId": "GeneralAddSalvage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalvageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_recovery.update"
+      }
+    },
+    "/api/v1/general/recoveries/{id}/salvage/{itemId}/dispose": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Record a salvage item\u0027s disposal and proceeds",
+        "operationId": "GeneralDisposeSalvage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_recovery.update"
+      }
+    },
+    "/api/v1/general/recoveries/{id}/recovered": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Record money recovered; it becomes a claim financial movement (CLM-004)",
+        "operationId": "GeneralRecordRecovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveredRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "x-permission": "general_recovery.update"
+      }
+    },
     "/api/v1/finance/journals/{id}": {
       "get": {
         "tags": [
@@ -4665,6 +6154,18 @@
           }
         }
       },
+      "AssessorRequest": {
+        "required": [
+          "assessorPartyId"
+        ],
+        "type": "object",
+        "properties": {
+          "assessorPartyId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "AssignRoleRequest": {
         "required": [
           "roleCode",
@@ -4724,6 +6225,17 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "AttributesRequest": {
+        "required": [
+          "attributes"
+        ],
+        "type": "object",
+        "properties": {
+          "attributes": {
+            "$ref": "#/components/schemas/JsonElement"
           }
         }
       },
@@ -4860,6 +6372,22 @@
           }
         }
       },
+      "CancelRequest": {
+        "required": [
+          "reasonCode",
+          "effectiveDate"
+        ],
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string"
+          },
+          "effectiveDate": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "CaseNoteRequest": {
         "required": [
           "note"
@@ -4934,6 +6462,33 @@
           }
         }
       },
+      "CoverageRequest": {
+        "required": [
+          "coverageCode",
+          "sumInsured",
+          "excessScheduleCode"
+        ],
+        "type": "object",
+        "properties": {
+          "coverageCode": {
+            "type": "string"
+          },
+          "sumInsured": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "excessScheduleCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CreateDraftVersionRequest": {
         "required": [
           "effectiveFrom"
@@ -4943,6 +6498,68 @@
           "effectiveFrom": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "CreateQuote": {
+        "required": [
+          "productCode",
+          "productVersion",
+          "proposerPartyId",
+          "intermediaryCode",
+          "currency",
+          "periodStart",
+          "periodEnd",
+          "risks",
+          "fromQuoteId"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "productVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "proposerPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intermediaryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskRequest"
+            }
+          },
+          "fromQuoteId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -5175,6 +6792,21 @@
           }
         }
       },
+      "DeclineRequest": {
+        "required": [
+          "decisionCode",
+          "rationale"
+        ],
+        "type": "object",
+        "properties": {
+          "decisionCode": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      },
       "DeliverDocumentRequest": {
         "required": [
           "channel",
@@ -5195,6 +6827,26 @@
           "In",
           "Out"
         ]
+      },
+      "DisposalRequest": {
+        "required": [
+          "disposalMethod",
+          "proceeds"
+        ],
+        "type": "object",
+        "properties": {
+          "disposalMethod": {
+            "type": "string"
+          },
+          "proceeds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
       },
       "DraftInstructionRequest": {
         "required": [
@@ -5258,6 +6910,90 @@
           "effectiveFrom": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "EndorsementAction": {
+        "enum": [
+          "AttachRisk",
+          "DetachRisk",
+          "ChangeRisk"
+        ]
+      },
+      "EndorsementChange": {
+        "required": [
+          "action",
+          "riskObjectId",
+          "sumInsured",
+          "coverages"
+        ],
+        "type": "object",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/EndorsementAction"
+          },
+          "riskObjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sumInsured": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "coverages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoverageRequest"
+            }
+          }
+        }
+      },
+      "EndorsementRequest": {
+        "required": [
+          "endorsementType",
+          "effectiveDate",
+          "changes"
+        ],
+        "type": "object",
+        "properties": {
+          "endorsementType": {
+            "type": "string"
+          },
+          "effectiveDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EndorsementChange"
+            }
+          }
+        }
+      },
+      "EstimateRequest": {
+        "required": [
+          "repairerPartyId",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "repairerPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -5513,6 +7249,50 @@
           }
         }
       },
+      "IssuePolicy": {
+        "required": [
+          "quoteId",
+          "billingAccountId",
+          "payerPartyId",
+          "billingFrequency",
+          "collectionMethod",
+          "renewalOfPolicyId"
+        ],
+        "type": "object",
+        "properties": {
+          "quoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "billingAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "payerPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "billingFrequency": {
+            "type": "string"
+          },
+          "collectionMethod": {
+            "type": "string"
+          },
+          "renewalOfPolicyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "JsonElement": {},
       "LegalHoldRequest": {
         "required": [
@@ -5543,6 +7323,57 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "NotifyLoss": {
+        "required": [
+          "policyId",
+          "riskObjectId",
+          "coverageCode",
+          "lossDate",
+          "causeCode",
+          "perilCode",
+          "catEventCode",
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "riskObjectId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "coverageCode": {
+            "type": "string"
+          },
+          "lossDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "causeCode": {
+            "type": "string"
+          },
+          "perilCode": {
+            "type": "string"
+          },
+          "catEventCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -5602,6 +7433,29 @@
             ]
           },
           "industryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PartyRequest": {
+        "required": [
+          "partyId",
+          "role",
+          "insurerRef"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string"
+          },
+          "insurerRef": {
             "type": [
               "null",
               "string"
@@ -5752,6 +7606,93 @@
           }
         }
       },
+      "RecoveredRequest": {
+        "required": [
+          "amount",
+          "reserveType"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "reserveType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RecoveryRequest": {
+        "required": [
+          "recoveryType",
+          "counterpartyPartyId",
+          "expectedAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "recoveryType": {
+            "type": "string"
+          },
+          "counterpartyPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expectedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "ReferRequest": {
+        "required": [
+          "reasonCode"
+        ],
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string"
+          }
+        }
+      },
+      "ReferralDecisionRequest": {
+        "required": [
+          "approved",
+          "decisionCode",
+          "specialConditions"
+        ],
+        "type": "object",
+        "properties": {
+          "approved": {
+            "type": "boolean"
+          },
+          "decisionCode": {
+            "type": "string"
+          },
+          "specialConditions": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "RefundRequestBody": {
         "required": [
           "amount",
@@ -5843,6 +7784,59 @@
           }
         }
       },
+      "RegisterRiskObject": {
+        "required": [
+          "objectType",
+          "attributes",
+          "valuation",
+          "valuationBasis",
+          "subdivision",
+          "postalCode",
+          "riskZone"
+        ],
+        "type": "object",
+        "properties": {
+          "objectType": {
+            "type": "string"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "valuation": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "valuationBasis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "subdivision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "postalCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "riskZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "RejectAccessRequest": {
         "required": [
           "reason"
@@ -5883,6 +7877,30 @@
           "validFrom": {
             "type": "string",
             "format": "date"
+          }
+        }
+      },
+      "ReportRequest": {
+        "required": [
+          "assessedAmount",
+          "reportDocumentId"
+        ],
+        "type": "object",
+        "properties": {
+          "assessedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "reportDocumentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -5989,6 +8007,30 @@
           }
         }
       },
+      "RevalueRequest": {
+        "required": [
+          "valuation",
+          "valuationBasis"
+        ],
+        "type": "object",
+        "properties": {
+          "valuation": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "valuationBasis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ReverseJournalRequest": {
         "required": [
           "accountingDate",
@@ -6034,11 +8076,74 @@
           }
         }
       },
+      "RiskRequest": {
+        "required": [
+          "riskObjectId",
+          "sumInsured",
+          "coverages"
+        ],
+        "type": "object",
+        "properties": {
+          "riskObjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sumInsured": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "coverages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoverageRequest"
+            }
+          }
+        }
+      },
       "RuleSetKind": {
         "enum": [
           "Eligibility",
           "Underwriting"
         ]
+      },
+      "SalvageRequest": {
+        "required": [
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "SettlementRequestBody": {
+        "required": [
+          "payeePartyId",
+          "reserveType",
+          "decisionCode",
+          "rationale"
+        ],
+        "type": "object",
+        "properties": {
+          "payeePartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reserveType": {
+            "type": "string"
+          },
+          "decisionCode": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
       },
       "SimulatePremiumRequest": {
         "required": [
@@ -6206,6 +8311,22 @@
           }
         }
       },
+      "SubmitProposal": {
+        "required": [
+          "quoteId",
+          "declarations"
+        ],
+        "type": "object",
+        "properties": {
+          "quoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "declarations": {
+            "$ref": "#/components/schemas/JsonElement"
+          }
+        }
+      },
       "VerifyIdentifierRequest": {
         "required": [
           "verificationRef"
@@ -6274,6 +8395,9 @@
     },
     {
       "name": "ClaimsFramework"
+    },
+    {
+      "name": "General"
     },
     {
       "name": "Finance"

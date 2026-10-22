@@ -28,6 +28,10 @@ internal sealed class BillingRepository(BillingDbContext db) : IBillingRepositor
 
     public Task<RefundRequest?> Refund(Guid id, CancellationToken cancellationToken) => db.Refunds.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
 
+    public async Task<BillingAccount?> AccountForPolicy(string sourceDomain, Guid policyRef, CancellationToken cancellationToken) =>
+        await db.Set<PremiumSchedule>().AsNoTracking().Where(s => s.SourceDomain == sourceDomain && s.PolicyRef == policyRef).Select(s => (Guid?)s.BillingAccountId)
+            .FirstOrDefaultAsync(cancellationToken) is { } id ? await Account(id, cancellationToken) : null;
+
     public async Task<IReadOnlyList<Guid>> AccountsWithDueInstalments(DateOnly day, int limit, CancellationToken cancellationToken) =>
         await db.Set<Instalment>().AsNoTracking().Where(i => i.Status == InstalmentStatus.Scheduled && i.DueDate <= day)
             .Join(db.Set<PremiumSchedule>(), i => i.ScheduleId, s => s.Id, (i, s) => s.BillingAccountId).Distinct().Take(limit).ToListAsync(cancellationToken);

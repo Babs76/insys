@@ -6,7 +6,7 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 
 | ID | Phase | Topic | Status |
 |---|---|---|---|
-| OQ-001 | 4 | First domain to build | Open |
+| OQ-001 | 4 | First domain to build | Resolved: General first (22 Oct 2026) |
 | OQ-002 | 0 | Shared platform tables in the integration schema | Resolved: inbox per module schema (V0004), idempotency keys stay in integration (review item 3) |
 | OQ-003 | 0 | Partitions before January 2027 do not exist | Resolved (V0003, with RLS checked by tests) |
 | OQ-004 | 0 | One application role versus one role per module | Resolved: one role per module (ADR-001) |
@@ -64,12 +64,13 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-056 | 2 | Document state, storage, rendering and retention | Resolved (proposal): V0011; stubs |
 | OQ-057 | 3 | Journal reversal and posted-record immutability | Resolved (proposal): V0014, ADR-011 |
 | OQ-058 | 3 | Money gaps: numbering, tolerances, taxes, providers, timeouts | Open |
+| OQ-059 | 4 | General domain: schema gaps (V0016) and unspecified rules | Open |
 
 ---
 
 ### OQ-001 First domain to build
 - **Sources:** PROMPT settings `FIRST_DOMAIN: ASK`; SRS §30.
-- **Proposal:** none. Phase 4 will stop and ask.
+- **Resolved (22 October 2026):** asked before Phase 4. General is built first; Life and Health follow in Phase 5.
 
 ### OQ-002 Shared platform tables in the integration schema
 - **Resolved by the Phase 0 review, item 3:**
@@ -368,4 +369,52 @@ Each item is built as stated and marked `TODO(spec)` in code.
 - **Transaction types:** Finance maps events to its own codes, for example PREMIUM_DUE, PAYMENT_RECEIVED and CLAIM_PAID (`TransactionTypes`). `finance.ref_transaction_types` is not yet checked against them.
 - **Schedules:** open-ended premium schedules generate instalments one year ahead; how far ahead is not specified.
 - **Claim payment above the remaining reserve:** a reserve can be lowered after a payment is released. If the payment then exceeds the remaining reserve when it completes, it is not recorded as a movement; it needs an exception queue.
+
+### OQ-059 General domain: schema gaps and unspecified rules (Phase 4)
+**Schema gaps, resolved by V0016:**
+- **Quote versions:**
+  - **Conflict:** V0001 has both `uq_quote_1 (quote_number, quote_version)` and `uq_quote_quote_number (quote_number)`. The second allows only one version. domain-model.json says "changes create a new version".
+  - **Resolved:** the SQL contradicts itself, so V0016 drops the single-column constraint. A new version keeps the quote number.
+  - **Draft quotes:** a draft is not rated yet, so its premium and rating request are nullable until it is rated (a CHECK).
+- **Quoted risks and coverages:** QuotedRisk and QuotedCoverage have no tables, so V0016 adds `general.quote_risk` and `general.quote_coverage`. Both are insert-only, with RLS.
+- **Claim number:** V0001 makes `general.claim.claim_number` NOT NULL, but the process allocates it at RegisterClaim, after the first notification. It is now null only while the claim is FIRST_NOTIFICATION (a CHECK).
+- **Missing columns:** V0016 adds them for:
+  - the settlement (amount, payee, reserve type, requester, approval);
+  - the decision and its rationale (CLM-003, also a CHECK);
+  - endorsement rating and approval;
+  - cancellation history for reinstatement (one cancellation in effect at a time);
+  - proposal declarations;
+  - referral decisions;
+  - how the policy is billed;
+  - the repair estimate's loss assessment.
+- **Status CHECKs:** added for quote, policy, proposal, referral, risk object and repair estimate.
+
+**Rules not specified, built as stated and marked `TODO(spec)`:**
+- **Rating:**
+  - **Premium frequency:** the rating result is taken as the annual premium. `PremiumCalculated` carries no frequency.
+  - **Coverage premiums:** rating gives one premium. It is spread over the coverages in proportion to their sums insured, with any rounding difference on the largest, so the policy premium equals the sum of the coverage premiums.
+- **Instalments:** monthly and other instalments are the annual premium divided by the periods, rounded half up. The total may differ from the annual premium by a few cents.
+- **Policy period:** the period end is exclusive, and a renewal starts on it. A loss on the end date is not covered.
+- **Refund scale:** short-period refunds have no scale configured, so cancellations and endorsements with SHORT_PERIOD are refused.
+- **Reinstatement:** permitted before the period ends. The product rules that permit it are not specified.
+- **Reinstated billing:** a reinstated policy's schedule is not restarted by Billing, because no consumer of GeneralPolicyReinstated is specified.
+- **Declined referral:** domain-model.json has no transition for it, so the quote stays Referred and cannot be issued.
+- **Quote validity:** counts from issue (`cfg_quote_validity_periods`). With none configured, a quote is not issued.
+- **Assessor panels:** the product's line is its `class` label, else its family. Panel parties are matched by party ID.
+- **Settlement:**
+  - the assessed amount less the excess, capped at the coverage's sum insured and its limits and sublimits;
+  - valuation rules beyond that are not specified;
+  - Workflow's approval authority is used (ADR-009), so `general.cfg_settlement_authority_limits` duplicates it and is not read.
+- **Cancellation refund in Billing:**
+  - credited against the policy's invoices, latest first, with the cancellation reason as the adjustment reason (else CANCELLATION);
+  - a refund above what was invoiced is left for a refund request.
+- **Documents at issue:** the policy schedule and certificate are generated, as the process names them; they are not configured. Endorsement documents come from the endorsement type's `documents` list.
+- **Risk validation rules:** they use the condition language (ADR-008) with `current_year`. The catalogue's sample rule `year <= current_year + 1` needs arithmetic, which the language does not have.
+- **Not run yet:**
+  - **Renewal jobs:** auto-renewal and renewal invitations (`cfg_renewal_rules`).
+  - **InvoiceSettled:** "Confirm cover where payment is a condition"; when payment is a condition is not specified.
+  - **ProductVersionPublished:** "Refresh product availability". Availability is read live through `ISellableProducts`, so there is nothing to refresh.
+  - **Exposure snapshot:** `general.exposure_snapshot` is mapped, not refreshed (reinsurance, Phase 6).
+  - **Commission and reinsurance:** the steps of both processes come with those modules in Phase 6.
+- **Numbering:** quote and policy numbers are a prefix and an ID-based suffix, as in OQ-058.
 

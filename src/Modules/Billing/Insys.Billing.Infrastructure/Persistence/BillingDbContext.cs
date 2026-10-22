@@ -120,6 +120,9 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options,
             adjustment.Property(a => a.ReasonCode).HasMaxLength(15);
             adjustment.Property(a => a.Amount).HasPrecision(18, 2);
             adjustment.Property(a => a.Currency).HasColumnType("char(3)");
+
+            // So the credit note is inserted before the adjustment that names it (fk_adjustment_credit_note_id).
+            adjustment.HasOne<Invoice>().WithMany().HasForeignKey(a => new { a.TenantId, a.CreditNoteId });
         });
 
         modelBuilder.Entity<RefundRequest>(refund =>

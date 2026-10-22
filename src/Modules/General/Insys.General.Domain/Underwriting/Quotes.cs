@@ -1,0 +1,447 @@
+using Insys.BuildingBlocks.Domain;
+
+namespace Insys.General.Domain.Underwriting;
+
+/// <summary>States from domain-model.json (general › GeneralQuote).</summary>
+public enum QuoteStatus
+{
+    Draft,
+    Rated,
+    Referred,
+    Issued,
+    Accepted,
+    Rejected,
+    Expired,
+}
+
+public enum QuoteTrigger
+{
+    RateQuote,
+    ReferQuote,
+    ReferralApproved,
+    IssueQuote,
+    AcceptQuote,
+    RejectQuote,
+    ValidityEnds,
+}
+
+public sealed record GeneralQuoteIssued(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, decimal Premium, string Currency,
+    DateOnly ValidUntil, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record GeneralQuoteAccepted(Guid QuoteId, string QuoteNumber, int QuoteVersion, Guid ProposerPartyId, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record GeneralQuoteExpired(Guid QuoteId, string QuoteNumber, int QuoteVersion, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>A coverage asked for on a risk: its sum insured and excess schedule.</summary>
+public sealed record CoverageRequest(string CoverageCode, decimal SumInsured, string? ExcessScheduleCode);
+
+/// <summary>A risk object to insure, with its sum insured and coverages.</summary>
+public sealed record RiskRequest(Guid RiskObjectId, decimal SumInsured, IReadOnlyList<CoverageRequest> Coverages);
+
+/// <summary>A limit of the product (product.cfg_limit_and_deductible_schedules, §7.2) for a coverage.</summary>
+public sealed record CoverageLimit(string ScheduleCode, string CoverageCode, string LimitType, decimal? Amount, decimal? Percentage, string Rule, string Currency);
+
+/// <summary>What a product version allows: its coverages and their limits and sublimits.</summary>
+public sealed record ProductTerms(string ProductCode, int Version, string Line, IReadOnlyList<string> Coverages, IReadOnlyList<CoverageLimit> Limits)
+{
+    /// <summary>Coverages are the product's, and stay within its limits and sublimits (§7.2), and excess schedules are the coverage's.</summary>
+    public Result Check(IEnumerable<CoverageRequest> coverages, string currency)
+    {
+        var problems = new List<string>();
+        foreach (var coverage in coverages)
+        {
+            if (!Coverages.Contains(coverage.CoverageCode, StringComparer.Ordinal))
+            {
+                problems.Add($"{coverage.CoverageCode} is not a coverage of {ProductCode} v{Version}.");
+                continue;
+            }
+
+            foreach (var limit in Limits.Where(l => l.CoverageCode == coverage.CoverageCode && l.LimitType is "LIMIT" or "SUBLIMIT" && l.Amount is not null
+                         && l.Currency == currency))
+            {
+                if (coverage.SumInsured > limit.Amount)
+                {
+                    problems.Add($"{coverage.CoverageCode} sum insured {coverage.SumInsured} {currency} exceeds the {limit.LimitType.ToLowerInvariant()} of {limit.Amount} ({limit.ScheduleCode}).");
+                }
+            }
+
+            if (coverage.ExcessScheduleCode is { } schedule && !Limits.Any(l => l.ScheduleCode == schedule && l.CoverageCode == coverage.CoverageCode))
+            {
+                problems.Add($"{schedule} is not an excess schedule of {coverage.CoverageCode}.");
+            }
+        }
+
+        return problems.Count == 0 ? Result.Success() : Error.Validation(GeneralErrorCodes.OutsideProductLimits, string.Join(" ", problems));
+    }
+}
+
+/// <summary>Entity QuotedCoverage (general.quote_coverage, V0016).</summary>
+public sealed class QuotedCoverage : Entity<Guid>, ITenantScoped
+{
+    private QuotedCoverage()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid QuoteRiskId { get; private set; }
+
+    public string CoverageCode { get; private set; } = "";
+
+    public decimal SumInsured { get; private set; }
+
+    public string? ExcessScheduleCode { get; private set; }
+
+    internal static QuotedCoverage Create(Guid riskId, CoverageRequest request) => new()
+    {
+        Id = Guid.CreateVersion7(), QuoteRiskId = riskId, CoverageCode = Guard.MaxLength(request.CoverageCode, 20), SumInsured = request.SumInsured,
+        ExcessScheduleCode = request.ExcessScheduleCode,
+    };
+}
+
+/// <summary>Entity QuotedRisk (general.quote_risk, V0016).</summary>
+public sealed class QuotedRisk : Entity<Guid>, ITenantScoped
+{
+    private readonly List<QuotedCoverage> _coverages = [];
+
+    private QuotedRisk()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid QuoteId { get; private set; }
+
+    public Guid RiskObjectId { get; private set; }
+
+    public decimal SumInsured { get; private set; }
+
+    public IReadOnlyList<QuotedCoverage> Coverages => _coverages;
+
+    internal static QuotedRisk Create(Guid quoteId, RiskRequest request)
+    {
+        var risk = new QuotedRisk { Id = Guid.CreateVersion7(), QuoteId = quoteId, RiskObjectId = Guard.NotEmpty(request.RiskObjectId), SumInsured = request.SumInsured };
+        risk._coverages.AddRange(request.Coverages.Select(c => QuotedCoverage.Create(risk.Id, c)));
+        return risk;
+    }
+
+    public RiskRequest ToRequest() =>
+        new(RiskObjectId, SumInsured, _coverages.Select(c => new CoverageRequest(c.CoverageCode, c.SumInsured, c.ExcessScheduleCode)).ToList());
+}
+
+/// <summary>Entity UnderwritingReferral (general.underwriting_referral): a quote referred to an underwriter, and the decision.</summary>
+public sealed class UnderwritingReferral : Entity<Guid>, ITenantScoped
+{
+    private UnderwritingReferral()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid QuoteId { get; private set; }
+
+    public string ReasonCode { get; private set; } = "";
+
+    /// <summary>OPEN, APPROVED or DECLINED.</summary>
+    public string Status { get; private set; } = "OPEN";
+
+    public Guid? ReferredBy { get; private set; }
+
+    public Guid? DecidedBy { get; private set; }
+
+    public DateTimeOffset? DecidedAt { get; private set; }
+
+    public string? DecisionCode { get; private set; }
+
+    public string[]? SpecialConditions { get; private set; }
+
+    public long RowVersion { get; private set; }
+
+    internal static UnderwritingReferral Open(Guid quoteId, string reasonCode, Guid referredBy) =>
+        new() { Id = Guid.CreateVersion7(), QuoteId = quoteId, ReasonCode = Guard.MaxLength(reasonCode, 15), ReferredBy = referredBy };
+
+    internal void Decide(bool approved, string decisionCode, IReadOnlyList<string> conditions, Guid decidedBy, DateTimeOffset now)
+    {
+        Status = approved ? "APPROVED" : "DECLINED";
+        DecisionCode = Guard.MaxLength(decisionCode, 15);
+        SpecialConditions = conditions.Count == 0 ? null : conditions.ToArray();
+        DecidedBy = decidedBy;
+        DecidedAt = now;
+    }
+}
+
+/// <summary>
+/// The GeneralQuote aggregate (general.quote): versioned (a change is a new version with the same number); rated only
+/// from a recorded rating request (PRD-008); accepted only within its validity period (GEN-001).
+/// </summary>
+public sealed class GeneralQuote : AggregateRoot<Guid>
+{
+    public static readonly StateMachine<QuoteStatus, QuoteTrigger> Lifecycle = new StateMachine<QuoteStatus, QuoteTrigger>()
+        .Allow(QuoteStatus.Draft, QuoteTrigger.RateQuote, QuoteStatus.Rated)
+        .Allow(QuoteStatus.Rated, QuoteTrigger.ReferQuote, QuoteStatus.Referred)
+        .Allow(QuoteStatus.Referred, QuoteTrigger.ReferralApproved, QuoteStatus.Rated)
+        .Allow(QuoteStatus.Rated, QuoteTrigger.IssueQuote, QuoteStatus.Issued)
+        .Allow(QuoteStatus.Issued, QuoteTrigger.AcceptQuote, QuoteStatus.Accepted)
+        .Allow(QuoteStatus.Issued, QuoteTrigger.RejectQuote, QuoteStatus.Rejected)
+        .Allow(QuoteStatus.Issued, QuoteTrigger.ValidityEnds, QuoteStatus.Expired);
+
+    private readonly List<QuotedRisk> _risks = [];
+    private readonly List<UnderwritingReferral> _referrals = [];
+
+    private GeneralQuote()
+    {
+    }
+
+    public string QuoteNumber { get; private set; } = "";
+
+    public int QuoteVersion { get; private set; }
+
+    public string ProductCode { get; private set; } = "";
+
+    public int ProductVersion { get; private set; }
+
+    public Guid ProposerPartyId { get; private set; }
+
+    public string? IntermediaryCode { get; private set; }
+
+    public QuoteStatus Status { get; private set; }
+
+    public DateOnly ValidUntil { get; private set; }
+
+    public DateOnly PeriodStart { get; private set; }
+
+    public DateOnly PeriodEnd { get; private set; }
+
+    /// <summary>The annual premium of the recorded rating request. TODO(spec): the rating result is taken as the annual premium (OQ-059).</summary>
+    public decimal? Premium { get; private set; }
+
+    public string Currency { get; private set; } = "";
+
+    /// <summary>The recorded premium calculation (rating.premium_calculation) the premium comes from (PRD-008).</summary>
+    public Guid? RatingRequestId { get; private set; }
+
+    public int? RatingVersion { get; private set; }
+
+    public IReadOnlyList<QuotedRisk> Risks => _risks;
+
+    public IReadOnlyList<UnderwritingReferral> Referrals => _referrals;
+
+    /// <summary>Command CreateQuote: version 1 of a new quote number, or the next version of an existing one (<paramref name="previous"/>).</summary>
+    public static Result<GeneralQuote> CreateQuote(Guid id, string quoteNumber, GeneralQuote? previous, ProductTerms product, Guid proposer, string? intermediary,
+        string currency, DateOnly periodStart, DateOnly periodEnd, IReadOnlyList<RiskRequest> risks, DateOnly validUntil)
+    {
+        if (risks.Count == 0 || risks.Any(r => r.Coverages.Count == 0 || r.SumInsured <= 0 || r.Coverages.Any(c => c.SumInsured <= 0))
+            || risks.Select(r => r.RiskObjectId).Distinct().Count() != risks.Count || risks.Any(r => r.Coverages.Select(c => c.CoverageCode).Distinct().Count() != r.Coverages.Count))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed,
+                "A quote insures at least one risk object, each once, with at least one coverage each, and positive sums insured (GEN-002).");
+        }
+
+        if (periodEnd <= periodStart)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "The policy period ends after it starts.");
+        }
+
+        var limits = product.Check(risks.SelectMany(r => r.Coverages), currency);
+        if (limits.IsFailure)
+        {
+            return limits.Error;
+        }
+
+        if (previous is not null && (previous.ProductCode != product.ProductCode))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "A new version of a quote is for the same product.");
+        }
+
+        var quote = new GeneralQuote
+        {
+            Id = Guard.NotEmpty(id),
+            QuoteNumber = previous?.QuoteNumber ?? Guard.MaxLength(quoteNumber, 15),
+            QuoteVersion = (previous?.QuoteVersion ?? 0) + 1,
+            ProductCode = Guard.MaxLength(product.ProductCode, 15),
+            ProductVersion = product.Version,
+            ProposerPartyId = Guard.NotEmpty(proposer),
+            IntermediaryCode = intermediary,
+            Currency = Guard.MaxLength(currency, 3),
+            PeriodStart = periodStart,
+            PeriodEnd = periodEnd,
+            ValidUntil = validUntil,
+            Status = QuoteStatus.Draft,
+        };
+        quote._risks.AddRange(risks.Select(r => QuotedRisk.Create(id, r)));
+        quote.MarkChanged();
+        return quote;
+    }
+
+    /// <summary>
+    /// Command RateQuote, from Rating's PremiumCalculated for this quote: the premium always matches a recorded rating
+    /// request (PRD-008) for the quote's product version and currency. A repeat of the same calculation changes nothing.
+    /// </summary>
+    public Result RateQuote(Guid calculationId, string productCode, int productVersion, int ratingVersion, decimal premium, string currency)
+    {
+        if (RatingRequestId == calculationId)
+        {
+            return Result.Success();
+        }
+
+        if (productCode != ProductCode || productVersion != ProductVersion || currency != Currency || premium < 0)
+        {
+            return Error.Validation(GeneralErrorCodes.RatingMismatch,
+                $"The calculation is for {productCode} v{productVersion} in {currency}; quote {QuoteNumber} v{QuoteVersion} is for {ProductCode} v{ProductVersion} in {Currency}.");
+        }
+
+        var result = Fire(QuoteTrigger.RateQuote);
+        if (result.IsSuccess)
+        {
+            Premium = premium;
+            RatingRequestId = calculationId;
+            RatingVersion = ratingVersion;
+        }
+
+        return result;
+    }
+
+    /// <summary>Command ReferQuote: to an underwriter, with a referral reason.</summary>
+    public Result ReferQuote(string reasonCode, Guid referredBy)
+    {
+        var result = Fire(QuoteTrigger.ReferQuote);
+        if (result.IsSuccess)
+        {
+            _referrals.Add(UnderwritingReferral.Open(Id, reasonCode, referredBy));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The underwriter's decision on the open referral. Approved returns the quote to Rated (transition "Referral
+    /// approved"). TODO(spec): domain-model.json has no transition for a declined referral; the quote stays Referred
+    /// and cannot be issued (OQ-059).
+    /// </summary>
+    public Result DecideReferral(bool approved, string decisionCode, IReadOnlyList<string> specialConditions, Guid decidedBy, DateTimeOffset now)
+    {
+        if (Status != QuoteStatus.Referred || _referrals.SingleOrDefault(r => r.Status == "OPEN") is not { } referral)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Quote {QuoteNumber} v{QuoteVersion} has no open referral.");
+        }
+
+        referral.Decide(approved, decisionCode, specialConditions, decidedBy, now);
+        MarkChanged();
+        return approved ? Fire(QuoteTrigger.ReferralApproved) : Result.Success();
+    }
+
+    /// <summary>Command IssueQuote: valid until the date the product's quote validity period gives. Once issued, the version never changes.</summary>
+    public Result IssueQuote(DateOnly validUntil, DateTimeOffset now)
+    {
+        var result = Fire(QuoteTrigger.IssueQuote);
+        if (result.IsSuccess)
+        {
+            ValidUntil = validUntil;
+            Raise(new GeneralQuoteIssued(Id, QuoteNumber, QuoteVersion, ProductCode, ProductVersion, Premium!.Value, Currency, validUntil, now));
+        }
+
+        return result;
+    }
+
+    /// <summary>Command AcceptQuote: only within its validity period (GEN-001).</summary>
+    public Result AcceptQuote(DateOnly today, DateTimeOffset now)
+    {
+        if (Status == QuoteStatus.Issued && today > ValidUntil)
+        {
+            return Error.Conflict(GeneralErrorCodes.QuoteExpired, $"Quote {QuoteNumber} v{QuoteVersion} was valid until {ValidUntil:yyyy-MM-dd}.");
+        }
+
+        var result = Fire(QuoteTrigger.AcceptQuote);
+        if (result.IsSuccess)
+        {
+            Raise(new GeneralQuoteAccepted(Id, QuoteNumber, QuoteVersion, ProposerPartyId, now));
+        }
+
+        return result;
+    }
+
+    public Result RejectQuote() => Fire(QuoteTrigger.RejectQuote);
+
+    /// <summary>Command ExpireQuote (transition "Validity ends"): an issued quote past its validity date.</summary>
+    public Result ExpireQuote(DateOnly today, DateTimeOffset now)
+    {
+        if (Status != QuoteStatus.Issued || today <= ValidUntil)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Quote {QuoteNumber} v{QuoteVersion} is not an issued quote past its validity.");
+        }
+
+        var result = Fire(QuoteTrigger.ValidityEnds);
+        if (result.IsSuccess)
+        {
+            Raise(new GeneralQuoteExpired(Id, QuoteNumber, QuoteVersion, now));
+        }
+
+        return result;
+    }
+
+    private Result Fire(QuoteTrigger trigger)
+    {
+        var next = Lifecycle.Fire(Status, trigger);
+        if (next.IsFailure)
+        {
+            return next.Error;
+        }
+
+        Status = next.Value;
+        MarkChanged();
+        return Result.Success();
+    }
+}
+
+public enum ProposalStatus
+{
+    Submitted,
+    Accepted,
+    Converted,
+}
+
+/// <summary>The GeneralProposal aggregate (general.proposal): the proposer's declarations, based on exactly one accepted quote version.</summary>
+public sealed class GeneralProposal : AggregateRoot<Guid>
+{
+    private GeneralProposal()
+    {
+    }
+
+    public Guid QuoteId { get; private set; }
+
+    public DateTimeOffset SubmittedAt { get; private set; }
+
+    public ProposalStatus Status { get; private set; }
+
+    /// <summary>The declarations as JSON.</summary>
+    public string Declarations { get; private set; } = "{}";
+
+    public static Result<GeneralProposal> SubmitProposal(Guid id, GeneralQuote quote, string declarationsJson, DateTimeOffset now)
+    {
+        if (quote.Status != QuoteStatus.Accepted)
+        {
+            return Error.Conflict(GeneralErrorCodes.QuoteNotAccepted, $"A proposal is based on an accepted quote; quote {quote.QuoteNumber} v{quote.QuoteVersion} is {quote.Status}.");
+        }
+
+        var proposal = new GeneralProposal { Id = Guard.NotEmpty(id), QuoteId = quote.Id, SubmittedAt = now, Declarations = declarationsJson, Status = ProposalStatus.Submitted };
+        proposal.MarkChanged();
+        return proposal;
+    }
+
+    public Result AcceptProposal() => Move(ProposalStatus.Submitted, ProposalStatus.Accepted);
+
+    /// <summary>Transition "Policy issued".</summary>
+    public Result Convert() => Status == ProposalStatus.Converted ? Result.Success() : Move(ProposalStatus.Accepted, ProposalStatus.Converted);
+
+    private Result Move(ProposalStatus from, ProposalStatus to)
+    {
+        if (Status != from)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"The proposal is {Status}, not {from}.");
+        }
+
+        Status = to;
+        MarkChanged();
+        return Result.Success();
+    }
+}

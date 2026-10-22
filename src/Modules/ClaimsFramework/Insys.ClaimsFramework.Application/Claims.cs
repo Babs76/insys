@@ -7,6 +7,7 @@ using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.ClaimsFramework.Contracts;
 using Insys.ClaimsFramework.Domain.Claims;
+using Insys.General.Contracts;
 using Insys.Payments.Contracts;
 using Insys.Workflow.Contracts;
 
@@ -441,7 +442,9 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IClock clock) :
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<PaymentSucceeded>,
     IIntegrationEventHandler<PaymentFailed>,
-    IIntegrationEventHandler<Contracts.ClaimPaymentCompleted>
+    IIntegrationEventHandler<Contracts.ClaimPaymentCompleted>,
+    IIntegrationEventHandler<GeneralClaimApproved>,
+    IIntegrationEventHandler<RecoveryRecorded>
 {
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, cancellationToken);
@@ -472,6 +475,48 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IClock clock) :
         }
     }
 
+    /// <summary>
+    /// GeneralClaimApproved → DraftInstruction, then ReleaseInstruction (process "General claim to settlement"). The
+    /// instruction is for the approved amount, never more. Released when the reserve covers it; otherwise it waits,
+    /// approved, for the reserve to be raised and a release through the API.
+    /// </summary>
+    public async Task Handle(GeneralClaimApproved approved, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var reference = $"SETTLEMENT:{approved.ApprovalId:N}";
+        if (await claims.ByNumber(approved.ClaimNumber, cancellationToken) is not { } claim || claim.Domain != "GENERAL"
+            || await claims.Instruction(claim.ClaimNumber, reference, cancellationToken) is not null)
+        {
+            return;
+        }
+
+        var instruction = ClaimPaymentInstruction.FromApprovedSettlement(Guid.CreateVersion7(), claim, reference, approved.PayeePartyId, approved.Amount, approved.Currency,
+            approved.ReserveType, approved.ApprovalId);
+        if (instruction.IsFailure)
+        {
+            throw new InvalidOperationException($"Settlement of {approved.ClaimNumber} could not be instructed: {instruction.Error.Message}");
+        }
+
+        claims.Add(instruction.Value);
+        var financials = new ClaimFinancials(claim.ClaimNumber, claim.Domain, approved.Currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
+        instruction.Value.ReleaseInstruction(approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType), clock.UtcNow);
+    }
+
+    /// <summary>A domain's recovery is recorded as a claim financial movement (CLM-004).</summary>
+    public async Task Handle(RecoveryRecorded recovered, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await claims.ByNumber(recovered.ClaimNumber, cancellationToken) is not { } claim)
+        {
+            return;
+        }
+
+        var financials = new ClaimFinancials(claim.ClaimNumber, claim.Domain, recovered.Currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
+        var movement = financials.RecordRecovery(recovered.ReserveType, recovered.Amount, clock.UtcToday, clock.UtcNow);
+        if (movement.IsSuccess)
+        {
+            claims.Add(movement.Value);
+        }
+    }
+
     private async Task Decide(string businessRefType, Guid instructionId, bool approved, Guid approvalId, CancellationToken cancellationToken)
     {
         if (businessRefType == ClaimsApprovals.InstructionBusinessRefType && await claims.Instruction(instructionId, cancellationToken) is { } instruction)
@@ -489,3 +534,21 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IClock clock) :
         }
     }
 }
+
+/// <summary>The Claims Framework's registry for domain claims (<see cref="IClaimRegistry"/>), through its own commands and transactions.</summary>
+public sealed class ClaimRegistry(IDispatcher dispatcher) : IClaimRegistry
+{
+    public async Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, JsonElement fraudFacts, CancellationToken cancellationToken)
+    {
+        var allocated = await dispatcher.Send(new AllocateClaimNumber(domain, domainClaimId, policyRef), cancellationToken);
+        if (allocated.IsFailure)
+        {
+            return new ClaimRegistrationResult(false, null, allocated.Error.Code, allocated.Error.Message);
+        }
+
+        // An indicator that cannot be evaluated (a fact missing, say) leaves the claim registered; evaluate again through the API.
+        await dispatcher.Send(new EvaluateFraudIndicators(allocated.Value.ClaimNumber, fraudFacts), cancellationToken);
+        return new ClaimRegistrationResult(true, allocated.Value.ClaimNumber, null, null);
+    }
+}
+

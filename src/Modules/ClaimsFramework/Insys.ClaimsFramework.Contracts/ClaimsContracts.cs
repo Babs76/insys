@@ -43,3 +43,16 @@ public sealed record ClaimPaymentInstructed(Guid InstructionId, string ClaimNumb
 [IntegrationEvent("claims.ClaimPaymentCompleted")]
 public sealed record ClaimPaymentCompleted(Guid InstructionId, Guid MovementId, string ClaimNumber, string Domain, string ReserveType, decimal Amount, string Currency,
     DateOnly PaidOn) : IIntegrationEvent;
+
+/// <summary>The outcome of registering a domain claim: its claim number, or why it could not be allocated.</summary>
+public sealed record ClaimRegistrationResult(bool Succeeded, string? ClaimNumber, string? ErrorCode, string? ErrorMessage);
+
+/// <summary>
+/// Open Host Service (domain-model.json claims → domains: claim numbers). A domain registering a claim gets its claim
+/// number here: idempotent per domain and domain claim (CLM-005). The fraud indicators in force are evaluated against
+/// the facts given; an indicator that cannot be evaluated does not stop the registration.
+/// </summary>
+public interface IClaimRegistry
+{
+    Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, System.Text.Json.JsonElement fraudFacts, CancellationToken cancellationToken);
+}

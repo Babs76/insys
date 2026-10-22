@@ -2,23 +2,18 @@ namespace Insys.EndToEndTests;
 
 /// <summary>
 /// The six cross-context processes in domain-model.json, end to end with their compensations. Each is implemented in
-/// the phase that builds its modules and is skipped until then. Product publication is in <see cref="ProductPublicationTests"/>.
+/// the phase that builds its modules and is skipped until then. Product publication is in <see cref="ProductPublicationTests"/>;
+/// the General processes are in <see cref="GeneralProcessTests"/>.
 /// </summary>
 public sealed class ProcessTests
 {
-    [Fact(Skip = "Phase 4 or 5: General domain")]
-    public void GeneralQuoteToCash() { }
-
-    [Fact(Skip = "Phase 4 or 5: Life domain")]
+    [Fact(Skip = "Phase 5: Life domain")]
     public void LifeProposalToPolicy() { }
 
-    [Fact(Skip = "Phase 4 or 5: General domain")]
-    public void GeneralClaimToSettlement() { }
-
-    [Fact(Skip = "Phase 4 or 5: Health domain")]
+    [Fact(Skip = "Phase 5: Health domain")]
     public void HealthCareToProviderPayment() { }
 
-    [Fact(Skip = "Phase 4 or 5: Life domain, with Billing and Payments from Phase 3")]
+    [Fact(Skip = "Phase 5: Life domain, with Billing and Payments from Phase 3")]
     public void MissedPremiumToLapse() { }
 
     [Fact]

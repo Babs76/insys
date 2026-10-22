@@ -8,9 +8,9 @@
 | 1 review items 1–6 | Repository move, V0007 to V0009, access aggregates, cache guard, OpenAPI split, Tier 2 setting, outbox lag | Done, accepted |
 | 2 Shared services | Party, Product Factory, Rating, Rules, Workflow, Documents | Done, accepted with conditions (CI green: 979e207) |
 | 2 review items 1–6 | CI fix, maker-checker gaps (V0013), schema gaps (V0012, ADR-010), SLA calendars, rating step order, expression limits | Done (CI green: 51bc94d) |
-| 3 Money | Billing, Payments, Finance, Claims Framework | **Done, awaiting review** (22 Oct 2026) |
-| 4 First domain | `FIRST_DOMAIN` (ask first: OQ-001) | Not started |
-| 5 Other domains | The remaining two domains | Not started |
+| 3 Money | Billing, Payments, Finance, Claims Framework | Done (CI green: 7f86c0e) |
+| 4 First domain | General (OQ-001) | **Done, awaiting review** (22 Oct 2026) |
+| 5 Other domains | Life and Health | Not started |
 | 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration | Not started |
 | 7 Hardening | Security suite, OpenAPI review, performance, runbooks | Not started |
 
@@ -27,6 +27,57 @@
 4. **OpenAPI documents:** split into core, static-data and platform-operator. Each has its own snapshot in `docs/api`, and every endpoint is in exactly one.
 5. **Tier 2 maker-checker:** a per-tenant setting (V0008), on by default and audited. Tier 1 is always on.
 6. **Outbox relay lag:** reported on `/health` and `/health/ready` through `integration.outbox_lag` (V0009). Degraded after `Outbox:Lag:Warning` (1 minute); Unhealthy and not ready after `Outbox:Lag:Failure` (5 minutes).
+
+## Phase 4: what exists (General)
+
+**General** (`general`, §10, GEN-001 to GEN-008):
+- **RiskObject:** attributes validated against the type's attribute schema version (GEN-005); a valuation basis whenever a value is set.
+- **GeneralQuote:**
+  - versioned with the same number;
+  - risks and coverages within the product's coverages and limits (§7.2);
+  - rated only from Rating's recorded calculation (PremiumCalculated, PRD-008);
+  - referral to an underwriter and the decision;
+  - issued for the product's validity period, and accepted only within it (GEN-001).
+- **GeneralProposal:** declarations on an accepted quote; converted when the policy is issued.
+- **GeneralPolicy:**
+  - issued from the accepted quote version, with several risk objects (GEN-002);
+  - coverage premiums that sum to the policy premium;
+  - in force from its start;
+  - renewal (rule-driven; a re-rated renewal is a new quote), cancellation with a pro rata refund, reinstatement and expiry (GEN-004).
+- **GeneralEndorsement:**
+  - effective within the period (GEN-003);
+  - rated through Rating, with the premium change by the type's method;
+  - approved by a second person in Workflow before the policy changes;
+  - its document is attached.
+- **GeneralClaim:**
+  - first notification, then registration with cover validation (GEN-006), the number allocated by the Claims Framework (CLM-005), and fraud indicators evaluated;
+  - assessor appointment;
+  - a settlement with the excess and limits applied (GEN-008), approved by a second person within authority (SRS-002);
+  - decline with a rationale (CLM-003);
+  - settled on ClaimPaymentCompleted; closed; reopened.
+- **LossAssessment:** an assessor on an approved panel (GEN-007), panel repairers' estimates, a report with the excess the coverage's schedule applies, acceptance or further work.
+- **RecoveryCase:** demand, salvage and its disposal, a recovery recorded as a claim financial movement (CLM-004), write-off, closure.
+- **Jobs:** periods start and end; quotes expire.
+- **API:** `/general`, 47 endpoints.
+
+**Other modules:**
+- **Billing** consumes GeneralPolicyIssued (account and schedule, first invoice), GeneralPolicyEndorsed (schedule amended) and GeneralPolicyCancelled (schedule stopped, refund credited).
+- **Documents** consumes GeneralPolicyIssued (schedule and certificate) and GeneralPolicyEndorsed (the endorsement type's documents), with the product's templates.
+- **Claims Framework:**
+  - `IClaimRegistry`: the claim number and fraud evaluation at registration;
+  - consumes GeneralClaimApproved (an instruction that reuses the settlement's approval, released within the reserve) and RecoveryRecorded (a recovery movement).
+- **Product Factory:** `ISellableProducts`: the product versions on sale, their limits and templates.
+
+**Database:** V0016 (OQ-059). Two new tables, `general.quote_risk` and `general.quote_coverage`.
+
+**Phase 3 defects found and fixed by the Phase 4 process tests:**
+- a credit note's adjustment was inserted before the credit note (`fk_adjustment_credit_note_id`);
+- a payment reversal pointed its allocations to a row that did not exist (`fk_payment_allocation_reversed_by_id`); reversals now write reversing allocation rows.
+
+**Tests:**
+- **Unit tests:** General, with every lifecycle checked against domain-model.json.
+- **End to end:** "General quote to cash" and "General claim to settlement", with their compensations: document generation dead-lettered and regenerated by replay; a payment reversed and the invoice reopened; a settlement approval rejected; a payout failed and re-released to corrected details. Also an endorsement and a cancellation.
+- **Tenant isolation:** General's API and its module role.
 
 ## Phase 3: what exists
 

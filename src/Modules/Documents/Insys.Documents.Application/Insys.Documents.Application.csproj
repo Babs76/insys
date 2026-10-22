@@ -4,5 +4,7 @@
     <ProjectReference Include="..\Insys.Documents.Domain\Insys.Documents.Domain.csproj" />
     <ProjectReference Include="..\Insys.Documents.Contracts\Insys.Documents.Contracts.csproj" />
     <ProjectReference Include="..\..\Identity\Insys.Identity.Contracts\Insys.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\General\Insys.General.Contracts\Insys.General.Contracts.csproj" />
+    <ProjectReference Include="..\..\ProductFactory\Insys.ProductFactory.Contracts\Insys.ProductFactory.Contracts.csproj" />
   </ItemGroup>
 </Project>

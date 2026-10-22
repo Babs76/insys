@@ -21,6 +21,9 @@ public interface IBillingRepository
 
     Task<RefundRequest?> Refund(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The account billing a domain's policy, through its premium schedule.</summary>
+    Task<BillingAccount?> AccountForPolicy(string sourceDomain, Guid policyRef, CancellationToken cancellationToken);
+
     /// <summary>Accounts with instalments due on or before the day that are not invoiced yet.</summary>
     Task<IReadOnlyList<Guid>> AccountsWithDueInstalments(DateOnly day, int limit, CancellationToken cancellationToken);
 
@@ -238,13 +241,24 @@ internal sealed class IssueDueInvoicesHandler(IBillingRepository billing, IBilli
             return account.Error;
         }
 
+        var issued = await DueInvoices.Issue(account.Value, command.AsOf, billing, codes, clock, cancellationToken);
+        return issued.IsFailure ? issued.Error : issued.Value.Select(InvoiceView.From).ToList();
+    }
+}
+
+/// <summary>Invoices for the instalments due by a day, one per schedule (BIL-002).</summary>
+public static class DueInvoices
+{
+    public static async Task<Result<IReadOnlyList<Invoice>>> Issue(BillingAccount account, DateOnly asOf, IBillingRepository billing, IBillingCodes codes, IClock clock,
+        CancellationToken cancellationToken)
+    {
         var prefix = await codes.NumberPrefix("INVOICE", clock.UtcToday, cancellationToken);
-        var paymentMethod = await codes.PaymentMethodOf(account.Value.CollectionMethod, clock.UtcToday, cancellationToken) ?? account.Value.CollectionMethod;
-        var issued = new List<InvoiceView>();
-        foreach (var group in account.Value.DueInstalments(command.AsOf).GroupBy(d => d.Schedule).ToList())
+        var paymentMethod = await codes.PaymentMethodOf(account.CollectionMethod, clock.UtcToday, cancellationToken) ?? account.CollectionMethod;
+        var issued = new List<Invoice>();
+        foreach (var group in account.DueInstalments(asOf).GroupBy(d => d.Schedule).ToList())
         {
             var instalments = group.Select(g => g.Instalment).ToList();
-            var invoice = Invoice.IssueInvoice(Guid.CreateVersion7(), prefix, account.Value, group.Key, instalments, paymentMethod, clock.UtcToday, clock.UtcNow);
+            var invoice = Invoice.IssueInvoice(Guid.CreateVersion7(), prefix, account, group.Key, instalments, paymentMethod, clock.UtcToday, clock.UtcNow);
             if (invoice.IsFailure)
             {
                 return invoice.Error;
@@ -252,11 +266,11 @@ internal sealed class IssueDueInvoicesHandler(IBillingRepository billing, IBilli
 
             foreach (var instalment in instalments)
             {
-                account.Value.MarkInvoiced(instalment, invoice.Value.Id);
+                account.MarkInvoiced(instalment, invoice.Value.Id);
             }
 
             billing.Add(invoice.Value);
-            issued.Add(InvoiceView.From(invoice.Value));
+            issued.Add(invoice.Value);
         }
 
         return issued;
