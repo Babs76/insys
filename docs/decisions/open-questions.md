@@ -64,7 +64,7 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-056 | 2 | Document state, storage, rendering and retention | Resolved (proposal): V0011; stubs |
 | OQ-057 | 3 | Journal reversal and posted-record immutability | Resolved (proposal): V0014, ADR-011 |
 | OQ-058 | 3 | Money gaps: numbering, tolerances, taxes, providers, timeouts | Open |
-| OQ-059 | 4 | General domain: schema gaps (V0016) and unspecified rules | Open |
+| OQ-059 | 4 | General domain: schema gaps (V0016) and unspecified rules | Partly resolved by the Phase 4 review (V0017) |
 
 ---
 
@@ -303,6 +303,7 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
   - the `"{code} v{n}"` product version reference;
   - levies on commission, which are refused.
 - **Preloading:** the rating cache is not preloaded on publication, because a product version does not list its currencies. It is dropped, and the next calculation loads it.
+- **Premium allocation to coverages (from OQ-059, Phase 4 review):** rating gives one premium per policy. General spreads it over the coverages in proportion to their sums insured, with any rounding difference on the largest. This stays until the rating algorithm gives a premium per coverage.
 
 ### OQ-053 Product versions kept in a static data table
 - **Resolved (Phase 2 review, item 3d):** ADR-010. `record_status` is the single lifecycle; V0012 makes the duplicate `status` columns nullable and deprecated, and nothing writes them.
@@ -371,6 +372,17 @@ Each item is built as stated and marked `TODO(spec)` in code.
 - **Claim payment above the remaining reserve:** a reserve can be lowered after a payment is released. If the payment then exceeds the remaining reserve when it completes, it is not recorded as a movement; it needs an exception queue.
 
 ### OQ-059 General domain: schema gaps and unspecified rules (Phase 4)
+**Phase 4 review decisions (V0017):**
+- **Policy period:** `period_end` is inclusive, with cover to the end of that day. Pro rata uses days from the effective date to the end date, both included, over the period's days. A renewal starts the day after the end and lasts the same whole months (or days). Tests cover the first day, the last day and a leap year.
+- **Declined referral:** a referred quote can be declined with a reason. Referred → Declined is terminal, and the event is GeneralQuoteDeclined (domain-model.json updated).
+- **Validation rules:** the expression language has bounded arithmetic, `year()` and `today()` (ADR-008). The catalogue's sample `year <= current_year + 1` works.
+- **Cover start:** a product version sets `coverStartsOn`, ISSUE or FIRST_PAYMENT. With FIRST_PAYMENT the policy stays Issued, and nothing is covered, until Billing's InvoiceSettled for its first invoice. Cover then starts from that day.
+- **Short-period refunds:** still refused until scales are configured.
+- **Premium allocation:** proportional allocation stays, flagged under OQ-052.
+- **Scheduled for Phase 6 at the latest:** auto-renewal and renewal invitations (GEN-004), and the exposure snapshot job.
+
+**Before the Phase 4 review:**
+
 **Schema gaps, resolved by V0016:**
 - **Quote versions:**
   - **Conflict:** V0001 has both `uq_quote_1 (quote_number, quote_version)` and `uq_quote_quote_number (quote_number)`. The second allows only one version. domain-model.json says "changes create a new version".
@@ -394,11 +406,9 @@ Each item is built as stated and marked `TODO(spec)` in code.
   - **Premium frequency:** the rating result is taken as the annual premium. `PremiumCalculated` carries no frequency.
   - **Coverage premiums:** rating gives one premium. It is spread over the coverages in proportion to their sums insured, with any rounding difference on the largest, so the policy premium equals the sum of the coverage premiums.
 - **Instalments:** monthly and other instalments are the annual premium divided by the periods, rounded half up. The total may differ from the annual premium by a few cents.
-- **Policy period:** the period end is exclusive, and a renewal starts on it. A loss on the end date is not covered.
 - **Refund scale:** short-period refunds have no scale configured, so cancellations and endorsements with SHORT_PERIOD are refused.
 - **Reinstatement:** permitted before the period ends. The product rules that permit it are not specified.
 - **Reinstated billing:** a reinstated policy's schedule is not restarted by Billing, because no consumer of GeneralPolicyReinstated is specified.
-- **Declined referral:** domain-model.json has no transition for it, so the quote stays Referred and cannot be issued.
 - **Quote validity:** counts from issue (`cfg_quote_validity_periods`). With none configured, a quote is not issued.
 - **Assessor panels:** the product's line is its `class` label, else its family. Panel parties are matched by party ID.
 - **Settlement:**
@@ -409,10 +419,8 @@ Each item is built as stated and marked `TODO(spec)` in code.
   - credited against the policy's invoices, latest first, with the cancellation reason as the adjustment reason (else CANCELLATION);
   - a refund above what was invoiced is left for a refund request.
 - **Documents at issue:** the policy schedule and certificate are generated, as the process names them; they are not configured. Endorsement documents come from the endorsement type's `documents` list.
-- **Risk validation rules:** they use the condition language (ADR-008) with `current_year`. The catalogue's sample rule `year <= current_year + 1` needs arithmetic, which the language does not have.
 - **Not run yet:**
   - **Renewal jobs:** auto-renewal and renewal invitations (`cfg_renewal_rules`).
-  - **InvoiceSettled:** "Confirm cover where payment is a condition"; when payment is a condition is not specified.
   - **ProductVersionPublished:** "Refresh product availability". Availability is read live through `ISellableProducts`, so there is nothing to refresh.
   - **Exposure snapshot:** `general.exposure_snapshot` is mapped, not refreshed (reinsurance, Phase 6).
   - **Commission and reinsurance:** the steps of both processes come with those modules in Phase 6.

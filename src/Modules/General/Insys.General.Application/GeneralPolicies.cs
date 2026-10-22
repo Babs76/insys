@@ -1,3 +1,4 @@
+using Insys.Billing.Contracts;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
@@ -27,8 +28,18 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
     IIntegrationEventHandler<GeneralEndorsementApproved>,
     IIntegrationEventHandler<GeneralPolicyEndorsed>,
     IIntegrationEventHandler<GeneralPolicyIssued>,
-    IIntegrationEventHandler<AssessorAppointed>
+    IIntegrationEventHandler<AssessorAppointed>,
+    IIntegrationEventHandler<InvoiceSettled>
 {
+    /// <summary>InvoiceSettled → confirm cover where payment is a condition: a policy whose cover starts on first payment comes into force.</summary>
+    public async Task Handle(InvoiceSettled settled, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (settled.SourceDomain == GeneralRatingSubjects.SourceDomain && await general.Policy(settled.PolicyRef, cancellationToken) is { CoverStartsOn: "FIRST_PAYMENT" } policy)
+        {
+            policy.RecordFirstPayment(clock.UtcToday, clock.UtcToday);
+        }
+    }
+
     /// <summary>
     /// PremiumCalculated → attach the premium to the quote or endorsement it was calculated for (RateQuote,
     /// RateEndorsement; PRD-008). A calculation that does not match its subject is logged and not attached.
@@ -67,11 +78,11 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
 
     /// <summary>ApprovalGranted → ApproveEndorsement or ApproveSettlement.</summary>
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, granted.CheckerId, cancellationToken);
+        Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash, cancellationToken);
 
     /// <summary>ApprovalRejected → RejectEndorsement, or the claim stays under assessment.</summary>
     public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.ApprovalId, rejected.CheckerId, cancellationToken);
+        Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.ApprovalId, rejected.CheckerId, rejected.SubjectHash, cancellationToken);
 
     /// <summary>ClaimPaymentCompleted → SettleClaim.</summary>
     public async Task Handle(ClaimPaymentCompleted completed, EventEnvelope envelope, CancellationToken cancellationToken)
@@ -145,7 +156,7 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
         general.Add(assessment.Value);
     }
 
-    private async Task Decide(string businessRefType, Guid id, bool approved, Guid approvalId, Guid checkerId, CancellationToken cancellationToken)
+    private async Task Decide(string businessRefType, Guid id, bool approved, Guid approvalId, Guid checkerId, string? subjectHash, CancellationToken cancellationToken)
     {
         if (businessRefType == GeneralApprovals.EndorsementBusinessRefType && await general.Endorsement(id, cancellationToken) is { } endorsement)
         {
@@ -153,7 +164,11 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
         }
         else if (businessRefType == GeneralApprovals.SettlementBusinessRefType && await general.Claim(id, cancellationToken) is { } claim)
         {
-            claim.DecideSettlement(approved, approvalId, checkerId, clock.UtcNow);
+            var decided = claim.DecideSettlement(approved, approvalId, checkerId, subjectHash, clock.UtcNow);
+            if (decided.IsFailure)
+            {
+                logger.LogWarning("Approval {ApprovalId} not applied to claim {ClaimId}: {Code}", approvalId, id, decided.Error.Code);
+            }
         }
     }
 }

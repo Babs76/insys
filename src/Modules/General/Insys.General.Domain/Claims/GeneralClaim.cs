@@ -35,17 +35,22 @@ public sealed record GeneralClaimRegistered(Guid ClaimId, string ClaimNumber, Gu
 public sealed record AssessorAppointed(Guid ClaimId, Guid AssessorPartyId, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>Asks Workflow for a second person's approval of the settlement amount, within authority (SRS-002).</summary>
-public sealed record SettlementRequested(Guid ClaimId, string ClaimNumber, Guid RequestedBy, decimal Amount, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record SettlementRequested(Guid ClaimId, string ClaimNumber, Guid RequestedBy, decimal Amount, string Currency, string SubjectHash, DateTimeOffset OccurredAt)
+    : IDomainEvent;
 
-public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid PayeePartyId, decimal Amount, string Currency, string ReserveType, Guid ApprovalId,
-    Guid CheckerId, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid PayeePartyId, string? PayeeBankHash, decimal Amount, string Currency, string ReserveType,
+    Guid ApprovalId, Guid CheckerId, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateOnly PaidOn, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record GeneralClaimClosed(Guid ClaimId, string ClaimNumber, DateTimeOffset OccurredAt) : IDomainEvent;
 
-/// <summary>What the settlement is: the accepted assessment, the coverage, payee and reserve, and the maker's decision and rationale (CLM-003).</summary>
-public sealed record SettlementRequest(decimal AssessedAmount, decimal ExcessApplied, Guid PayeePartyId, string ReserveType, string DecisionCode, string Rationale);
+/// <summary>
+/// What the settlement is: the accepted assessment, the coverage, the payee and the hash of their bank details, the
+/// reserve, and the maker's decision and rationale (CLM-003).
+/// </summary>
+public sealed record SettlementRequest(decimal AssessedAmount, decimal ExcessApplied, Guid PayeePartyId, string? PayeeBankHash, string ReserveType, string DecisionCode,
+    string Rationale);
 
 /// <summary>
 /// The excess or deductible of a coverage's schedule (product.cfg_limit_and_deductible_schedules, GEN-008): a fixed
@@ -160,6 +165,13 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
 
     public Guid? SettlementPayeePartyId { get; private set; }
 
+    /// <summary>The hash of the payee's bank details the settlement approval covers; the details are never stored.</summary>
+    public string? SettlementPayeeBankHash { get; private set; }
+
+    /// <summary>What the settlement approval covers: payee, bank details, amount, currency and reserve.</summary>
+    public string? SettlementSubjectHash => SettlementAmount is null ? null
+        : ApprovalSubject.Hash("GENERAL_SETTLEMENT", Id, SettlementPayeePartyId, SettlementPayeeBankHash, SettlementAmount, SettlementCurrency, SettlementReserveType);
+
     public string? SettlementReserveType { get; private set; }
 
     public Guid? SettlementRequestedBy { get; private set; }
@@ -269,21 +281,30 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
         SettlementAmount = amount;
         SettlementCurrency = currency;
         SettlementPayeePartyId = Guard.NotEmpty(request.PayeePartyId);
+        SettlementPayeeBankHash = request.PayeeBankHash;
         SettlementReserveType = Guard.MaxLength(request.ReserveType, 15);
         SettlementRequestedBy = requestedBy;
         DecisionCode = Guard.MaxLength(request.DecisionCode, 15);
         DecisionRationale = request.Rationale;
-        Raise(new SettlementRequested(Id, ClaimNumber!, requestedBy, amount, currency, now));
+        Raise(new SettlementRequested(Id, ClaimNumber!, requestedBy, amount, currency, SettlementSubjectHash!, now));
         MarkChanged();
         return Result.Success();
     }
 
-    /// <summary>Workflow's decision on the settlement. Approved, the claim is Approved; rejected, it stays under assessment.</summary>
-    public Result DecideSettlement(bool approved, Guid approvalId, Guid checkerId, DateTimeOffset now)
+    /// <summary>
+    /// Workflow's decision on the settlement. Approved, the claim is Approved; rejected, it stays under assessment. It
+    /// applies only to the settlement it was asked for: the same payee, bank details, amount and reserve.
+    /// </summary>
+    public Result DecideSettlement(bool approved, Guid approvalId, Guid checkerId, string? subjectHash, DateTimeOffset now)
     {
         if (!SettlementPending)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "No settlement is waiting for approval.");
+        }
+
+        if (subjectHash != SettlementSubjectHash)
+        {
+            return Error.Conflict(GeneralErrorCodes.ApprovalSubjectChanged, "The approval was for another settlement.");
         }
 
         if (checkerId == SettlementRequestedBy)
@@ -296,6 +317,7 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             SettlementAmount = null;
             SettlementCurrency = null;
             SettlementPayeePartyId = null;
+            SettlementPayeeBankHash = null;
             SettlementReserveType = null;
             SettlementRequestedBy = null;
             DecisionCode = null;
@@ -310,8 +332,8 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             SettlementApprovalId = approvalId;
             DecidedBy = checkerId;
             DecidedAt = now;
-            Raise(new GeneralClaimApproved(Id, ClaimNumber!, SettlementPayeePartyId!.Value, SettlementAmount!.Value, SettlementCurrency!, SettlementReserveType!,
-                approvalId, checkerId, now));
+            Raise(new GeneralClaimApproved(Id, ClaimNumber!, SettlementPayeePartyId!.Value, SettlementPayeeBankHash, SettlementAmount!.Value, SettlementCurrency!,
+                SettlementReserveType!, approvalId, checkerId, now));
         }
 
         return result;

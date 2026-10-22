@@ -104,7 +104,7 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {policy.PolicyNumber} is {policy.Status}.");
         }
 
-        if (effectiveDate < policy.PeriodStart || effectiveDate >= policy.PeriodEnd)
+        if (effectiveDate < policy.PeriodStart || effectiveDate > policy.PeriodEnd)
         {
             return Error.Validation(GeneralErrorCodes.OutsidePolicyPeriod,
                 $"{effectiveDate:yyyy-MM-dd} is outside the policy period {policy.PeriodStart:yyyy-MM-dd} to {policy.PeriodEnd:yyyy-MM-dd} (GEN-003).");
@@ -139,8 +139,7 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
         var change = newAnnualPremium - policy.AnnualPremium;
         decimal? delta = type.PremiumMethod switch
         {
-            "PRO_RATA" => Math.Round(change * (policy.PeriodEnd.DayNumber - EffectiveDate.DayNumber) / (policy.PeriodEnd.DayNumber - policy.PeriodStart.DayNumber), 2,
-                MidpointRounding.AwayFromZero),
+            "PRO_RATA" => Math.Round(change * policy.DaysFrom(EffectiveDate) / policy.PeriodDays, 2, MidpointRounding.AwayFromZero),
             "FLAT" => change,
             "NONE" => 0m,
             _ => null,

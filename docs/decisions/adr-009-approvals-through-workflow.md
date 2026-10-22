@@ -16,6 +16,13 @@ Maker-checker is needed in several modules: static data changes, product publica
 - **Outcome:** `workflow.ApprovalGranted` or `workflow.ApprovalRejected` goes to every module. Each acts only on its own business reference type:
   - **Static Data** (`STATIC_DATA_CHANGE`, `STATIC_DATA_T{tier}`): ApproveChange or RejectChange. The owning module then marks the version approved or returns it to draft.
   - **Product Factory** (`PRODUCT_VERSION`, `PRODUCT_PUBLICATION`): ApproveVersion then PublishVersion, or back to Draft.
+- **Bound to the subject (Phase 4 review):**
+  - A request may carry a `SubjectHash`: a SHA-256 of exactly what is approved (`ApprovalSubject.Hash`). Workflow stores it (`workflow.approval.subject_hash`, V0017) and returns it with `ApprovalGranted` or `ApprovalRejected`.
+  - The requester applies a decision only if the hash still matches its current subject. A decision for an earlier subject is logged and not applied.
+  - **Payments to a payee:** the subject includes the payee and a hash of their bank details (`PayeeBankDetails.Hash()`). The details themselves are never stored, logged or published.
+  - **General claim settlement:** the settlement approval covers payee, bank-details hash, amount, currency and reserve type. It stands in for the claim payment instruction's approval, because the instruction is drafted from that approved snapshot.
+  - **New payee or bank details:** any change after approval (a retry after a failed payment) needs a new approval of the new subject before the payment is released again.
+  - **Payout batches:** they keep their own release approval (`PAYOUT_RELEASE`), whatever approved the payments in them.
 - **Bootstrap exception (OQ-050):** the authority table is itself Tier 1 static data. So static data approvals are governed by the `static_data.approve` permission, with maker and checker different, until the tenant configures authority for `STATIC_DATA_T{n}`. From then on that authority applies.
 
 ## Consequences

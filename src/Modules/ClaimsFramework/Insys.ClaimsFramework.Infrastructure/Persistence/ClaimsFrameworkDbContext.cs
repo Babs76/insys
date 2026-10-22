@@ -102,6 +102,10 @@ public sealed class ClaimsFrameworkDbContext(DbContextOptions<ClaimsFrameworkDbC
             instruction.Property(i => i.ReserveType).HasMaxLength(15);
             instruction.Property(i => i.Status).HasConversion(new UpperCaseEnumConverter<InstructionStatus>()).HasMaxLength(30);
             instruction.Property(i => i.Attempt).HasColumnType("smallint");
+            instruction.Property(i => i.PayeeBankHash).HasMaxLength(64);
+            instruction.Property(i => i.PendingPayeeBankHash).HasMaxLength(64);
+            instruction.Ignore(i => i.SubjectHash);
+            instruction.Ignore(i => i.PendingSubjectHash);
         });
     }
 }

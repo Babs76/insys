@@ -12,7 +12,7 @@ public sealed class GeneralTests
     private static readonly DateTimeOffset Now = new(2026, 10, 21, 12, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly Today = new(2026, 10, 21);
     private static readonly DateOnly Start = new(2026, 10, 1);
-    private static readonly DateOnly End = new(2027, 10, 1);
+    private static readonly DateOnly End = new(2027, 9, 30);
 
     private static readonly ProductTerms Motor = new("MOTOR", 1, "MOTOR", ["OWN_DAMAGE", "THEFT"],
     [
@@ -50,7 +50,8 @@ public sealed class GeneralTests
     [Fact]
     public void Lifecycles_MatchDomainModel()
     {
-        Model(GeneralQuote.Lifecycle).ShouldBe(Spec("GeneralQuote", ("Referral approved", "ReferralApproved"), ("Validity ends", "ValidityEnds")));
+        Model(GeneralQuote.Lifecycle).ShouldBe(Spec("GeneralQuote", ("Referral approved", "ReferralApproved"), ("Referral declined", "ReferralDeclined"),
+            ("Validity ends", "ValidityEnds")));
         Model(GeneralPolicy.Lifecycle).ShouldBe(Spec("GeneralPolicy", ("Period starts", "PeriodStarts"), ("ReinstatePolicy (where permitted)", "ReinstatePolicy"),
             ("Period ends without renewal", "PeriodEndsWithoutRenewal")));
         Model(GeneralEndorsement.Lifecycle).ShouldBe(Spec("GeneralEndorsement", ("Policy updated", "PolicyUpdated")));
@@ -64,13 +65,17 @@ public sealed class GeneralTests
     {
         var schema = AttributeSchema.Parse("VEHICLE", 2, ["registration:String(10):Y", "year:Integer:Y", "tracked:Boolean:N"], ["year <= current_year"]).Value;
 
-        schema.Validate(new Dictionary<string, object?> { ["registration"] = "CA123456", ["year"] = 2024m }, 2026).IsSuccess.ShouldBeTrue();
-        schema.Validate(new Dictionary<string, object?> { ["year"] = 2024m }, 2026).Error!.Message.ShouldContain("registration is required");
-        schema.Validate(new Dictionary<string, object?> { ["registration"] = "CA12345678901", ["year"] = 2024m }, 2026).IsFailure.ShouldBeTrue();
-        schema.Validate(new Dictionary<string, object?> { ["registration"] = "CA1", ["year"] = 2024.5m }, 2026).IsFailure.ShouldBeTrue();
-        schema.Validate(new Dictionary<string, object?> { ["registration"] = "CA1", ["year"] = 2027m }, 2026).IsFailure.ShouldBeTrue();
-        AttributeSchema.Parse("VEHICLE", 2, ["year:Integer:Y"], ["year <= current_year + 1"]).Error!.Code.ShouldBe(GeneralErrorCodes.AttributeSchemaInvalid);
-        schema.Validate(new Dictionary<string, object?> { ["registration"] = "CA1", ["year"] = 2024m, ["colour"] = "red" }, 2026).Error!.Message.ShouldContain("colour");
+        schema.Validate(new Dictionary<string, object?> { ["registration"] = "CA123456", ["year"] = 2024m }, Today).IsSuccess.ShouldBeTrue();
+        schema.Validate(new Dictionary<string, object?> { ["year"] = 2024m }, Today).Error!.Message.ShouldContain("registration is required");
+        schema.Validate(new Dictionary<string, object?> { ["registration"] = "CA12345678901", ["year"] = 2024m }, Today).IsFailure.ShouldBeTrue();
+        schema.Validate(new Dictionary<string, object?> { ["registration"] = "CA1", ["year"] = 2024.5m }, Today).IsFailure.ShouldBeTrue();
+        schema.Validate(new Dictionary<string, object?> { ["registration"] = "CA1", ["year"] = 2027m }, Today).IsFailure.ShouldBeTrue();
+
+        // The catalogue's sample rule, with arithmetic (ADR-008).
+        var sample = AttributeSchema.Parse("VEHICLE", 3, ["year:Integer:Y"], ["year <= current_year + 1"]).Value;
+        sample.Validate(new Dictionary<string, object?> { ["year"] = 2027m }, Today).IsSuccess.ShouldBeTrue();
+        sample.Validate(new Dictionary<string, object?> { ["year"] = 2028m }, Today).IsFailure.ShouldBeTrue();
+        schema.Validate(new Dictionary<string, object?> { ["registration"] = "CA1", ["year"] = 2024m, ["colour"] = "red" }, Today).Error!.Message.ShouldContain("colour");
     }
 
     [Fact]
@@ -78,10 +83,10 @@ public sealed class GeneralTests
     {
         var schema = AttributeSchema.Parse("VEHICLE", 1, ["registration:String(10):Y"], []).Value;
         var values = new Dictionary<string, object?> { ["registration"] = "CA1" };
-        RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema, values, "{}", 150_000m, null, new(null, null, null), 2026, Now).Error!.Code
+        RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema, values, "{}", 150_000m, null, new(null, null, null), Today, Now).Error!.Code
             .ShouldBe(GeneralErrorCodes.ValuationBasisRequired);
 
-        var risk = RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema, values, "{}", 150_000m, "MARKET", new(null, null, "Z1"), 2026, Now).Value;
+        var risk = RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema, values, "{}", 150_000m, "MARKET", new(null, null, "Z1"), Today, Now).Value;
         risk.AttributeSchemaVersion.ShouldBe(1);
         risk.RevalueRiskObject(10m, " ").IsFailure.ShouldBeTrue();
     }
@@ -131,9 +136,14 @@ public sealed class GeneralTests
         quote.ReferQuote("HIGH_VALUE", Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
         quote.IssueQuote(Today.AddDays(30), Now).IsFailure.ShouldBeTrue();
 
-        quote.DecideReferral(false, "DECLINE", [], Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
-        quote.Status.ShouldBe(QuoteStatus.Referred);
+        quote.DecideReferral(false, "DECLINE", [], " ", Guid.CreateVersion7(), Now).Error!.Code.ShouldBe(GeneralErrorCodes.RationaleRequired);
+        quote.DecideReferral(false, "DECLINE", [], "Vehicle modified beyond appetite", Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+
+        quote.Status.ShouldBe(QuoteStatus.Declined);
+        quote.DomainEvents.OfType<GeneralQuoteDeclined>().Single().Reason.ShouldBe("Vehicle modified beyond appetite");
+        quote.Referrals.Single().DeclineReason.ShouldBe("Vehicle modified beyond appetite");
         quote.IssueQuote(Today.AddDays(30), Now).IsFailure.ShouldBeTrue();
+        quote.DecideReferral(true, "ACCEPT", [], null, Guid.CreateVersion7(), Now).IsFailure.ShouldBeTrue();
     }
 
     [Fact]
@@ -173,7 +183,7 @@ public sealed class GeneralTests
     {
         var policy = Policy(36_500m);
         var cancelled = new DateOnly(2027, 4, 1);
-        var unexpired = 36_500m * (End.DayNumber - cancelled.DayNumber) / (End.DayNumber - Start.DayNumber);
+        var unexpired = 36_500m * (End.DayNumber - cancelled.DayNumber + 1) / (End.DayNumber - Start.DayNumber + 1);
 
         policy.CancelPolicy(new CancellationRule("INS_REQUEST", "INSURED", "PRO_RATA", 100m), cancelled, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
         policy.DomainEvents.OfType<GeneralPolicyCancelled>().Single().RefundAmount.ShouldBe(Math.Round(unexpired, 2, MidpointRounding.AwayFromZero) - 100m);
@@ -194,7 +204,8 @@ public sealed class GeneralTests
         var policy = Policy();
         var renewal = GeneralPolicy.RenewPolicy(Guid.CreateVersion7(), "GP9", policy, Today, Now).Value;
 
-        renewal.PeriodStart.ShouldBe(End);
+        renewal.PeriodStart.ShouldBe(End.AddDays(1));
+        renewal.PeriodEnd.ShouldBe(new DateOnly(2028, 9, 30));
         renewal.RenewalOfId.ShouldBe(policy.Id);
         renewal.AnnualPremium.ShouldBe(policy.AnnualPremium);
         renewal.Status.ShouldBe(PolicyStatus.Issued);
@@ -209,7 +220,9 @@ public sealed class GeneralTests
         var type = new EndorsementType("CHANGE_SI", "PRO_RATA", ["ENDORSEMENT"], false);
         List<EndorsementChange> changes = [new(EndorsementAction.ChangeRisk, Vehicle, 300_000m, [new CoverageRequest("OWN_DAMAGE", 300_000m, null)])];
 
-        GeneralEndorsement.DraftEndorsement(Guid.CreateVersion7(), "E1", policy, type, End, changes, Guid.CreateVersion7()).Error!.Code.ShouldBe(GeneralErrorCodes.OutsidePolicyPeriod);
+        GeneralEndorsement.DraftEndorsement(Guid.CreateVersion7(), "E1", policy, type, End.AddDays(1), changes, Guid.CreateVersion7()).Error!.Code
+            .ShouldBe(GeneralErrorCodes.OutsidePolicyPeriod);
+        GeneralEndorsement.DraftEndorsement(Guid.CreateVersion7(), "E1", policy, type, End, changes, Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
         GeneralEndorsement.DraftEndorsement(Guid.CreateVersion7(), "E1", policy, type, Start.AddDays(-1), changes, Guid.CreateVersion7()).IsFailure.ShouldBeTrue();
     }
 
@@ -224,7 +237,7 @@ public sealed class GeneralTests
             [new(EndorsementAction.ChangeRisk, Vehicle, 300_000m, [new CoverageRequest("OWN_DAMAGE", 300_000m, null)])], maker).Value;
 
         endorsement.RateEndorsement(Guid.CreateVersion7(), 15_000m, policy, type).IsSuccess.ShouldBeTrue();
-        endorsement.PremiumDelta.ShouldBe(Math.Round(3_000m * (End.DayNumber - effective.DayNumber) / (End.DayNumber - Start.DayNumber), 2, MidpointRounding.AwayFromZero));
+        endorsement.PremiumDelta.ShouldBe(Math.Round(3_000m * (End.DayNumber - effective.DayNumber + 1) / (End.DayNumber - Start.DayNumber + 1), 2, MidpointRounding.AwayFromZero));
         policy.ApplyEndorsement(endorsement, Motor, [], Now).IsFailure.ShouldBeTrue();
 
         endorsement.SubmitEndorsement(maker, "ZAR", Now).IsSuccess.ShouldBeTrue();
@@ -291,24 +304,25 @@ public sealed class GeneralTests
         var coverage = policy.Coverage(Vehicle, "OWN_DAMAGE")!;
         var maker = Guid.CreateVersion7();
 
-        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), "INDEMNITY", "SETTLE", " "), coverage, [], "ZAR", maker, Now).Error!.Code
+        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", " "), coverage, [], "ZAR", maker, Now).Error!.Code
             .ShouldBe(GeneralErrorCodes.RationaleRequired);
-        claim.RequestSettlement(new SettlementRequest(4_000m, 5_000m, Guid.CreateVersion7(), "INDEMNITY", "SETTLE", "Excess exceeds loss"), coverage, [], "ZAR", maker, Now)
+        claim.RequestSettlement(new SettlementRequest(4_000m, 5_000m, Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Excess exceeds loss"), coverage, [], "ZAR", maker, Now)
             .Error!.Code.ShouldBe(GeneralErrorCodes.NothingToSettle);
-        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), "INDEMNITY", "SETTLE", "Repair quote accepted"), coverage, [], "ZAR", maker, Now)
+        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Repair quote accepted"), coverage, [], "ZAR", maker, Now)
             .IsSuccess.ShouldBeTrue();
         claim.SettlementAmount.ShouldBe(35_000m);
         claim.Status.ShouldBe(ClaimStatus.UnderAssessment);
 
-        claim.DecideSettlement(true, Guid.CreateVersion7(), maker, Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
-        claim.DecideSettlement(false, Guid.CreateVersion7(), Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        claim.DecideSettlement(true, Guid.CreateVersion7(), maker, claim.SettlementSubjectHash, Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        claim.DecideSettlement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), "another subject", Now).Error!.Code.ShouldBe(GeneralErrorCodes.ApprovalSubjectChanged);
+        claim.DecideSettlement(false, Guid.CreateVersion7(), Guid.CreateVersion7(), claim.SettlementSubjectHash, Now).IsSuccess.ShouldBeTrue();
         claim.Status.ShouldBe(ClaimStatus.UnderAssessment);
         claim.SettlementAmount.ShouldBeNull();
 
-        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), "INDEMNITY", "SETTLE", "Repair quote accepted"), coverage, [], "ZAR", maker, Now);
-        claim.DecideSettlement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Repair quote accepted"), coverage, [], "ZAR", maker, Now);
+        claim.DecideSettlement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), claim.SettlementSubjectHash, Now).IsSuccess.ShouldBeTrue();
         claim.Status.ShouldBe(ClaimStatus.Approved);
-        claim.DomainEvents.OfType<GeneralClaimApproved>().Single().Amount.ShouldBe(35_000m);
+        claim.DomainEvents.OfType<GeneralClaimApproved>().Single().ShouldSatisfyAllConditions(e => e.Amount.ShouldBe(35_000m), e => e.PayeeBankHash.ShouldBe("bank-hash"));
 
         claim.SettleClaim(Today, Now).IsSuccess.ShouldBeTrue();
         claim.CloseClaim(Now).IsSuccess.ShouldBeTrue();
@@ -362,5 +376,71 @@ public sealed class GeneralTests
         recovery.DomainEvents.OfType<RecoveryRecorded>().Single().ShouldSatisfyAllConditions(e => e.Amount.ShouldBe(15_000m), e => e.ClaimNumber.ShouldBe("GEN-1"));
         recovery.CloseRecovery().IsSuccess.ShouldBeTrue();
         recovery.AddSalvageItem("late").IsFailure.ShouldBeTrue();
+    }
+    [Fact]
+    public void PeriodEnd_IsTheLastDayOfCover_FirstAndLastDaysCovered_OQ059()
+    {
+        var policy = Policy();
+        GeneralClaim Notify(DateOnly loss) =>
+            GeneralClaim.NotifyLoss(Guid.CreateVersion7(), policy.Id, Vehicle, "OWN_DAMAGE", loss, "COLLISION", "ACC", null, null, End.AddDays(5), Now).Value;
+
+        Notify(Start).RegisterClaim(policy, "GEN-1", Now).IsSuccess.ShouldBeTrue();
+        Notify(End).RegisterClaim(policy, "GEN-2", Now).IsSuccess.ShouldBeTrue();
+        Notify(End.AddDays(1)).RegisterClaim(policy, "GEN-3", Now).Error!.Code.ShouldBe(GeneralErrorCodes.NotCovered);
+        Notify(Start.AddDays(-1)).RegisterClaim(policy, "GEN-4", Now).Error!.Code.ShouldBe(GeneralErrorCodes.NotCovered);
+
+        policy.PeriodDays.ShouldBe(365);
+        policy.ExpirePolicy(End).IsFailure.ShouldBeTrue();
+        policy.ExpirePolicy(End.AddDays(1)).IsSuccess.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("2026-10-01", 36_500)]
+    [InlineData("2027-09-30", 100)]
+    [InlineData("2027-04-01", 18_300)]
+    public void ProRataRefund_CountsTheEffectiveDayAndTheLastDay(string effective, double expected)
+    {
+        var policy = Policy(36_500m);
+
+        policy.CancelPolicy(new CancellationRule("INS_REQUEST", "INSURED", "PRO_RATA", 0), DateOnly.Parse(effective), Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+
+        policy.DomainEvents.OfType<GeneralPolicyCancelled>().Single().RefundAmount.ShouldBe((decimal)expected);
+    }
+
+    [Fact]
+    public void LeapYear_HasThreeHundredAndSixtySixDays_AndRenewsToTheSameDayNextYear()
+    {
+        var leap = GeneralQuote.CreateQuote(Guid.CreateVersion7(), "GQ-L", null, Motor, Guid.CreateVersion7(), null, "ZAR", new DateOnly(2027, 3, 1),
+            new DateOnly(2028, 2, 29), [Risk()], Today).Value;
+        leap.RateQuote(Guid.CreateVersion7(), "MOTOR", 1, 3, 36_600m, "ZAR");
+        leap.IssueQuote(Today.AddDays(30), Now);
+        leap.AcceptQuote(Today, Now);
+        var policy = GeneralPolicy.IssuePolicy(Guid.CreateVersion7(), "GPL", leap, Billing, null, new DateOnly(2027, 3, 1), Now).Value;
+
+        policy.PeriodDays.ShouldBe(366);
+        policy.CancelPolicy(new CancellationRule("X", "INSURED", "PRO_RATA", 0), new DateOnly(2028, 2, 29), Guid.CreateVersion7(), Now);
+        policy.DomainEvents.OfType<GeneralPolicyCancelled>().Single().RefundAmount.ShouldBe(100m);
+
+        GeneralPolicy.NextPeriodEnd(new DateOnly(2027, 3, 1), new DateOnly(2028, 2, 29), new DateOnly(2028, 3, 1)).ShouldBe(new DateOnly(2029, 2, 28));
+        GeneralPolicy.NextPeriodEnd(new DateOnly(2027, 10, 1), new DateOnly(2027, 10, 14), new DateOnly(2027, 10, 15)).ShouldBe(new DateOnly(2027, 10, 28));
+        GeneralPolicy.NextPeriodEnd(new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 2)).ShouldBe(new DateOnly(2026, 10, 2));
+    }
+
+    [Fact]
+    public void CoverStartingOnFirstPayment_WaitsForIt()
+    {
+        var policy = GeneralPolicy.IssuePolicy(Guid.CreateVersion7(), "GPF", Accepted(), Billing, null, Today, Now, "FIRST_PAYMENT").Value;
+
+        policy.Status.ShouldBe(PolicyStatus.Issued);
+        policy.StartPeriod(Today).IsFailure.ShouldBeTrue();
+        policy.CoversLoss(Vehicle, "OWN_DAMAGE", Today).Error!.Code.ShouldBe(GeneralErrorCodes.NotCovered);
+
+        var paidOn = Today.AddDays(3);
+        policy.RecordFirstPayment(paidOn, paidOn).IsSuccess.ShouldBeTrue();
+        policy.Status.ShouldBe(PolicyStatus.InForce);
+        policy.CoversLoss(Vehicle, "OWN_DAMAGE", paidOn.AddDays(-1)).Error!.Code.ShouldBe(GeneralErrorCodes.NotCovered);
+        policy.CoversLoss(Vehicle, "OWN_DAMAGE", paidOn).IsSuccess.ShouldBeTrue();
+        policy.RecordFirstPayment(paidOn.AddDays(30), paidOn.AddDays(30)).IsSuccess.ShouldBeTrue();
+        policy.FirstPaidOn.ShouldBe(paidOn);
     }
 }

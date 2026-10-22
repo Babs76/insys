@@ -13,10 +13,11 @@ public static class WorkflowPermissions
 
 /// <summary>An approval was granted. Consumers act on their own business references only.</summary>
 [IntegrationEvent("workflow.ApprovalGranted")]
-public sealed record ApprovalGranted(Guid ApprovalId, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid CheckerId) : IIntegrationEvent;
+public sealed record ApprovalGranted(Guid ApprovalId, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid CheckerId,
+    string? SubjectHash = null) : IIntegrationEvent;
 
 [IntegrationEvent("workflow.ApprovalRejected")]
-public sealed record ApprovalRejected(Guid ApprovalId, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid CheckerId, string Reason)
+public sealed record ApprovalRejected(Guid ApprovalId, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid CheckerId, string Reason, string? SubjectHash = null)
     : IIntegrationEvent;
 
 /// <summary>Consumed by Workflow itself: EscalateTask (domain-model.json).</summary>

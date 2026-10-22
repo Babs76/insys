@@ -12,6 +12,7 @@ public enum QuoteStatus
     Accepted,
     Rejected,
     Expired,
+    Declined,
 }
 
 public enum QuoteTrigger
@@ -19,6 +20,7 @@ public enum QuoteTrigger
     RateQuote,
     ReferQuote,
     ReferralApproved,
+    ReferralDeclined,
     IssueQuote,
     AcceptQuote,
     RejectQuote,
@@ -32,6 +34,9 @@ public sealed record GeneralQuoteAccepted(Guid QuoteId, string QuoteNumber, int 
 
 public sealed record GeneralQuoteExpired(Guid QuoteId, string QuoteNumber, int QuoteVersion, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>The underwriter declined the referred quote: it is final, and the proposer can be told why.</summary>
+public sealed record GeneralQuoteDeclined(Guid QuoteId, string QuoteNumber, int QuoteVersion, string DecisionCode, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>A coverage asked for on a risk: its sum insured and excess schedule.</summary>
 public sealed record CoverageRequest(string CoverageCode, decimal SumInsured, string? ExcessScheduleCode);
 
@@ -41,8 +46,9 @@ public sealed record RiskRequest(Guid RiskObjectId, decimal SumInsured, IReadOnl
 /// <summary>A limit of the product (product.cfg_limit_and_deductible_schedules, §7.2) for a coverage.</summary>
 public sealed record CoverageLimit(string ScheduleCode, string CoverageCode, string LimitType, decimal? Amount, decimal? Percentage, string Rule, string Currency);
 
-/// <summary>What a product version allows: its coverages and their limits and sublimits.</summary>
-public sealed record ProductTerms(string ProductCode, int Version, string Line, IReadOnlyList<string> Coverages, IReadOnlyList<CoverageLimit> Limits)
+/// <summary>What a product version allows: its coverages and their limits and sublimits, and when cover starts (ISSUE or FIRST_PAYMENT).</summary>
+public sealed record ProductTerms(string ProductCode, int Version, string Line, IReadOnlyList<string> Coverages, IReadOnlyList<CoverageLimit> Limits,
+    string CoverStartsOn = "ISSUE")
 {
     /// <summary>Coverages are the product's, and stay within its limits and sublimits (§7.2), and excess schedules are the coverage's.</summary>
     public Result Check(IEnumerable<CoverageRequest> coverages, string currency)
@@ -155,14 +161,18 @@ public sealed class UnderwritingReferral : Entity<Guid>, ITenantScoped
 
     public string[]? SpecialConditions { get; private set; }
 
+    /// <summary>Why a declined referral was declined.</summary>
+    public string? DeclineReason { get; private set; }
+
     public long RowVersion { get; private set; }
 
     internal static UnderwritingReferral Open(Guid quoteId, string reasonCode, Guid referredBy) =>
         new() { Id = Guid.CreateVersion7(), QuoteId = quoteId, ReasonCode = Guard.MaxLength(reasonCode, 15), ReferredBy = referredBy };
 
-    internal void Decide(bool approved, string decisionCode, IReadOnlyList<string> conditions, Guid decidedBy, DateTimeOffset now)
+    internal void Decide(bool approved, string decisionCode, IReadOnlyList<string> conditions, string? declineReason, Guid decidedBy, DateTimeOffset now)
     {
         Status = approved ? "APPROVED" : "DECLINED";
+        DeclineReason = approved ? null : declineReason;
         DecisionCode = Guard.MaxLength(decisionCode, 15);
         SpecialConditions = conditions.Count == 0 ? null : conditions.ToArray();
         DecidedBy = decidedBy;
@@ -180,6 +190,7 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
         .Allow(QuoteStatus.Draft, QuoteTrigger.RateQuote, QuoteStatus.Rated)
         .Allow(QuoteStatus.Rated, QuoteTrigger.ReferQuote, QuoteStatus.Referred)
         .Allow(QuoteStatus.Referred, QuoteTrigger.ReferralApproved, QuoteStatus.Rated)
+        .Allow(QuoteStatus.Referred, QuoteTrigger.ReferralDeclined, QuoteStatus.Declined)
         .Allow(QuoteStatus.Rated, QuoteTrigger.IssueQuote, QuoteStatus.Issued)
         .Allow(QuoteStatus.Issued, QuoteTrigger.AcceptQuote, QuoteStatus.Accepted)
         .Allow(QuoteStatus.Issued, QuoteTrigger.RejectQuote, QuoteStatus.Rejected)
@@ -237,9 +248,9 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
                 "A quote insures at least one risk object, each once, with at least one coverage each, and positive sums insured (GEN-002).");
         }
 
-        if (periodEnd <= periodStart)
+        if (periodEnd < periodStart)
         {
-            return Error.Validation(ErrorCodes.ValidationFailed, "The policy period ends after it starts.");
+            return Error.Validation(ErrorCodes.ValidationFailed, "The policy period ends on or after the day it starts; its end date is the last day of cover.");
         }
 
         var limits = product.Check(risks.SelectMany(r => r.Coverages), currency);
@@ -315,19 +326,28 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
 
     /// <summary>
     /// The underwriter's decision on the open referral. Approved returns the quote to Rated (transition "Referral
-    /// approved"). TODO(spec): domain-model.json has no transition for a declined referral; the quote stays Referred
-    /// and cannot be issued (OQ-059).
+    /// approved"); declined, with a reason, the quote is Declined for good (transition "Referral declined").
     /// </summary>
-    public Result DecideReferral(bool approved, string decisionCode, IReadOnlyList<string> specialConditions, Guid decidedBy, DateTimeOffset now)
+    public Result DecideReferral(bool approved, string decisionCode, IReadOnlyList<string> specialConditions, string? declineReason, Guid decidedBy, DateTimeOffset now)
     {
         if (Status != QuoteStatus.Referred || _referrals.SingleOrDefault(r => r.Status == "OPEN") is not { } referral)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Quote {QuoteNumber} v{QuoteVersion} has no open referral.");
         }
 
-        referral.Decide(approved, decisionCode, specialConditions, decidedBy, now);
-        MarkChanged();
-        return approved ? Fire(QuoteTrigger.ReferralApproved) : Result.Success();
+        if (!approved && string.IsNullOrWhiteSpace(declineReason))
+        {
+            return Error.Validation(GeneralErrorCodes.RationaleRequired, "A declined referral records why.");
+        }
+
+        referral.Decide(approved, decisionCode, specialConditions, declineReason, decidedBy, now);
+        var result = Fire(approved ? QuoteTrigger.ReferralApproved : QuoteTrigger.ReferralDeclined);
+        if (result.IsSuccess && !approved)
+        {
+            Raise(new GeneralQuoteDeclined(Id, QuoteNumber, QuoteVersion, decisionCode, declineReason!, now));
+        }
+
+        return result;
     }
 
     /// <summary>Command IssueQuote: valid until the date the product's quote validity period gives. Once issued, the version never changes.</summary>

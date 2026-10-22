@@ -11,11 +11,19 @@ namespace Insys.BuildingBlocks.Domain.Expressions;
 ///   or          := and ("OR" and)*
 ///   and         := not ("AND" not)*
 ///   not         := "NOT" not | comparison
-///   comparison  := operand (op operand | "IN" "(" list ")" | "NOT" "IN" "(" list ")" | "BETWEEN" operand "AND" operand)?
+///   comparison  := sum (op sum | "IN" "(" list ")" | "NOT" "IN" "(" list ")" | "BETWEEN" sum "AND" sum)?
 ///   op          := = | != | ≠ | &lt; | &lt;= | ≤ | &gt; | &gt;= | ≥
-///   operand     := number | 'text' | true | false | identifier | "(" expression ")"
-///   list        := item ("," item)*      items are numbers, 'text' or bare words such as ZA
+///   sum         := product (("+" | "-") product)*
+///   product     := unary (("*" | "/") unary)*
+///   unary       := "-" unary | operand
+///   operand     := number | 'text' | true | false | null | identifier | function | "(" expression ")"
+///   function    := "year" "(" sum ")" | "today" "(" ")"
+///   list        := item ("," item)*      items are numbers, 'text' or bare words such as ZA or 25-34
 /// </code>
+/// Arithmetic (Phase 4 review): numbers add, subtract, multiply and divide; a date plus or minus a number of days is a
+/// date, and a date minus a date is a number of days. Dates come from variables (or text such as '2027-01-01' where a
+/// date is expected). <c>year(d)</c> is a date's year; <c>today()</c> is the evaluation date the caller supplies.
+/// Division by zero, overflow and dates out of range fail the evaluation.
 /// Keywords are case-insensitive. Identifiers name variables (a-z, 0-9, _ and dots). Numbers are decimal; a missing
 /// variable is an error, never a silent false. Limits keep evaluation cheap and safe: <see cref="MaxLength"/>
 /// characters, <see cref="MaxDepth"/> levels of nesting, and <see cref="MaxSteps"/> evaluation steps. Any malformed
@@ -77,20 +85,26 @@ public sealed class Expression
 
     /// <summary>Evaluates to true or false. Values may be decimal (or any number), string, bool or null.</summary>
     /// <param name="maxSteps">At most <see cref="MaxSteps"/>; a lower limit can be set for a caller's own budget.</param>
-    public Result<bool> Evaluate(IReadOnlyDictionary<string, object?> variables, int maxSteps = MaxSteps)
+    /// <param name="today">The date <c>today()</c> returns; an expression that uses it fails without one.</param>
+    public Result<bool> Evaluate(IReadOnlyDictionary<string, object?> variables, int maxSteps = MaxSteps, DateOnly? today = null)
     {
         try
         {
-            var steps = new StepCounter(Math.Min(maxSteps, MaxSteps));
+            var steps = new StepCounter(Math.Min(maxSteps, MaxSteps), today);
             return Eval(_root, variables, steps) is bool b ? b : throw new ExpressionException("The expression does not evaluate to true or false.");
         }
         catch (ExpressionException ex)
         {
             return ExpressionErrors.Evaluation(ex.Message);
         }
-        catch (Exception ex) when (ex is FormatException or OverflowException or InvalidOperationException or InsufficientExecutionStackException)
+        catch (DivideByZeroException)
         {
-            return ExpressionErrors.Evaluation("A value could not be compared.");
+            return ExpressionErrors.Evaluation("Division by zero.");
+        }
+        catch (Exception ex) when (ex is FormatException or OverflowException or InvalidOperationException or InsufficientExecutionStackException
+                                       or ArgumentOutOfRangeException)
+        {
+            return ExpressionErrors.Evaluation("A value could not be calculated or compared.");
         }
     }
 
@@ -110,9 +124,50 @@ public sealed class Expression
             In i => InList(i, Eval(i.Operand, variables, steps), steps),
             Between b => Comparison(">=", Eval(b.Operand, variables, steps), Eval(b.Low, variables, steps))
                          && Comparison("<=", Eval(b.Operand, variables, steps), Eval(b.High, variables, steps)),
+            Arithmetic a => Calculate(a.Op, Eval(a.Left, variables, steps), Eval(a.Right, variables, steps)),
+            Negate n => Eval(n.Operand, variables, steps) is decimal d ? -d : throw new ExpressionException("Only a number is negated."),
+            Year y => AsDate(Eval(y.Operand, variables, steps)) is { } date ? (decimal)date.Year : throw new ExpressionException("year() needs a date."),
+            Today => steps.Today ?? throw new ExpressionException("today() needs the evaluation date."),
             _ => throw new ExpressionException("Unknown expression."),
         };
     }
+
+    /// <summary>Numbers, and dates plus or minus days; a date minus a date is days.</summary>
+    private static object Calculate(char op, object? left, object? right)
+    {
+        if (left is decimal a && right is decimal b)
+        {
+            return op switch
+            {
+                '+' => a + b,
+                '-' => a - b,
+                '*' => a * b,
+                _ => b == 0 ? throw new DivideByZeroException() : a / b,
+            };
+        }
+
+        var leftDate = AsDate(left);
+        var rightDate = AsDate(right);
+        return (op, leftDate, rightDate, left, right) switch
+        {
+            ('+', { } d, null, _, decimal days) => d.AddDays(Days(days)),
+            ('+', null, { } d, decimal days, _) => d.AddDays(Days(days)),
+            ('-', { } d, null, _, decimal days) => d.AddDays(-Days(days)),
+            ('-', { } from, { } to, _, _) => (decimal)(from.DayNumber - to.DayNumber),
+            _ => throw new ExpressionException($"Cannot apply {op} to {Describe(left)} and {Describe(right)}."),
+        };
+    }
+
+    private static int Days(decimal days) =>
+        decimal.Truncate(days) == days && days is >= -3_650_000 and <= 3_650_000 ? (int)days : throw new ExpressionException("Days are a whole number.");
+
+    /// <summary>A date, or text that is a date (yyyy-MM-dd); otherwise null.</summary>
+    private static DateOnly? AsDate(object? value) => value switch
+    {
+        DateOnly date => date,
+        string text when DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
+        _ => null,
+    };
 
     private static bool InList(In list, object? value, StepCounter steps)
     {
@@ -120,9 +175,11 @@ public sealed class Expression
         return list.Items.Any(item => Equal(value, item)) != list.Negated;
     }
 
-    private sealed class StepCounter(int limit)
+    private sealed class StepCounter(int limit, DateOnly? today)
     {
         private int _steps;
+
+        public DateOnly? Today => today;
 
         public void Take(int count)
         {
@@ -145,7 +202,8 @@ public sealed class Expression
         short s => (decimal)s,
         double d => (decimal)d,
         float f => (decimal)f,
-        DateOnly date => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        DateOnly date => date,
+        DateTime dateTime => DateOnly.FromDateTime(dateTime),
         System.Text.Json.JsonElement json => json.ValueKind switch
         {
             System.Text.Json.JsonValueKind.Number => json.GetDecimal(),
@@ -167,6 +225,7 @@ public sealed class Expression
         (string a, decimal b) => decimal.TryParse(a, NumberStyles.Number, CultureInfo.InvariantCulture, out var m) && m == b,
         (string a, string b) => string.Equals(a, b, StringComparison.Ordinal),
         (bool a, bool b) => a == b,
+        (DateOnly, _) or (_, DateOnly) when AsDate(left) is { } x && AsDate(right) is { } y => x == y,
         _ => throw new ExpressionException($"Cannot compare {Describe(left)} with {Describe(right)}."),
     };
 
@@ -180,6 +239,7 @@ public sealed class Expression
         var order = (left, right) switch
         {
             (decimal a, decimal b) => a.CompareTo(b),
+            (DateOnly, _) or (_, DateOnly) when AsDate(left) is { } x && AsDate(right) is { } y => x.CompareTo(y),
             (string a, string b) => string.CompareOrdinal(a, b),
             _ => throw new ExpressionException($"Cannot order {Describe(left)} and {Describe(right)} with {op}."),
         };
@@ -199,6 +259,7 @@ public sealed class Expression
         decimal => "a number",
         string => "text",
         bool => "true/false",
+        DateOnly => "a date",
         _ => value.GetType().Name,
     };
 
@@ -211,6 +272,9 @@ public sealed class Expression
         Compare c => Collect(c.Left).Concat(Collect(c.Right)),
         In i => Collect(i.Operand),
         Between b => Collect(b.Operand).Concat(Collect(b.Low)).Concat(Collect(b.High)),
+        Arithmetic a => Collect(a.Left).Concat(Collect(a.Right)),
+        Negate n => Collect(n.Operand),
+        Year y => Collect(y.Operand),
         _ => [],
     };
 
@@ -232,12 +296,21 @@ public sealed class Expression
 
     private sealed record Between(Node Operand, Node Low, Node High) : Node;
 
+    private sealed record Arithmetic(char Op, Node Left, Node Right) : Node;
+
+    private sealed record Negate(Node Operand) : Node;
+
+    private sealed record Year(Node Operand) : Node;
+
+    private sealed record Today : Node;
+
     private enum Kind
     {
         Number,
         Text,
         Word,
         Op,
+        Arith,
         Open,
         Close,
         Comma,
@@ -252,6 +325,7 @@ public sealed class Expression
         {
             var tokens = new List<Token>();
             var i = 0;
+            var inList = false;
             while (i < text.Length)
             {
                 var c = text[i];
@@ -267,8 +341,8 @@ public sealed class Expression
                         i++;
                     }
 
-                    // A value such as 25-34 or 2027-01-01 in a list is a word, not arithmetic.
-                    if (i < text.Length && (char.IsAsciiLetter(text[i]) || text[i] == '-' || text[i] == '+'))
+                    // A value such as 25-34 or 2027-01-01 in a list is a word; elsewhere - and + are arithmetic.
+                    if (i < text.Length && (char.IsAsciiLetter(text[i]) || (inList && text[i] is '-' or '+')))
                     {
                         while (i < text.Length && !char.IsWhiteSpace(text[i]) && text[i] is not (',' or ')' or '(')) { i++; }
                         tokens.Add(new Token(Kind.Word, text[start..i], start));
@@ -310,7 +384,7 @@ public sealed class Expression
                 else if (char.IsAsciiLetter(c) || c == '_')
                 {
                     var start = i;
-                    while (i < text.Length && (char.IsAsciiLetterOrDigit(text[i]) || text[i] is '_' or '.' or '-' or '+'))
+                    while (i < text.Length && (char.IsAsciiLetterOrDigit(text[i]) || text[i] is '_' or '.' || (inList && text[i] is '-' or '+')))
                     {
                         i++;
                     }
@@ -319,7 +393,13 @@ public sealed class Expression
                 }
                 else if (c is '(' or ')' or ',')
                 {
+                    inList = c == '(' ? tokens.Count > 0 && tokens[^1] is { Kind: Kind.Word } last && last.Value.Equals("IN", StringComparison.OrdinalIgnoreCase)
+                        : c == ')' ? false : inList;
                     tokens.Add(new Token(c == '(' ? Kind.Open : c == ')' ? Kind.Close : Kind.Comma, c.ToString(), i++));
+                }
+                else if (c is '+' or '-' or '*' or '/')
+                {
+                    tokens.Add(new Token(Kind.Arith, c.ToString(), i++));
                 }
                 else
                 {
@@ -340,7 +420,7 @@ public sealed class Expression
         }
 
         private static bool PrecedesValue(List<Token> tokens) =>
-            tokens.Count == 0 || tokens[^1].Kind is Kind.Op or Kind.Open or Kind.Comma || IsKeyword(tokens[^1]);
+            tokens.Count == 0 || tokens[^1].Kind is Kind.Op or Kind.Arith or Kind.Open or Kind.Comma || IsKeyword(tokens[^1]);
 
         private static bool IsKeyword(Token token) =>
             token.Kind == Kind.Word && token.Value.ToUpperInvariant() is "AND" or "OR" or "NOT" or "IN" or "BETWEEN";
@@ -410,22 +490,22 @@ public sealed class Expression
 
         private Node ParseComparison()
         {
-            var left = ParseOperand();
+            var left = ParseSum();
             if (Current.Kind == Kind.Op)
             {
                 var op = Next().Value;
-                return new Compare(op, left, ParseOperand());
+                return new Compare(op, left, ParseSum());
             }
 
             if (Keyword("BETWEEN"))
             {
-                var low = ParseOperand();
+                var low = ParseSum();
                 if (!Keyword("AND"))
                 {
                     throw new ExpressionException($"BETWEEN needs AND at position {Current.Position}.");
                 }
 
-                return new Between(left, low, ParseOperand());
+                return new Between(left, low, ParseSum());
             }
 
             var negated = IsKeyword("NOT") && _position + 1 < tokens.Count && tokens[_position + 1] is { Kind: Kind.Word } next
@@ -463,9 +543,57 @@ public sealed class Expression
             };
         }
 
+        private Node ParseSum()
+        {
+            var left = ParseProduct();
+            while (Current is { Kind: Kind.Arith, Value: "+" or "-" })
+            {
+                var op = Next().Value[0];
+                left = new Arithmetic(op, left, ParseProduct());
+            }
+
+            return left;
+        }
+
+        private Node ParseProduct()
+        {
+            var left = ParseUnary();
+            while (Current is { Kind: Kind.Arith, Value: "*" or "/" })
+            {
+                var op = Next().Value[0];
+                left = new Arithmetic(op, left, ParseUnary());
+            }
+
+            return left;
+        }
+
+        private Node ParseUnary()
+        {
+            if (Current is not { Kind: Kind.Arith, Value: "-" })
+            {
+                return ParseOperand();
+            }
+
+            _position++;
+            Enter();
+            var operand = new Negate(ParseUnary());
+            _depth--;
+            return operand;
+        }
+
         private Node ParseOperand()
         {
             var token = Next();
+            if (token.Kind == Kind.Word && Current.Kind == Kind.Open && token.Value.ToUpperInvariant() is "YEAR" or "TODAY")
+            {
+                _position++;
+                Enter();
+                Node call = token.Value.Equals("TODAY", StringComparison.OrdinalIgnoreCase) ? new Today() : new Year(ParseSum());
+                Expect(Kind.Close, ")");
+                _depth--;
+                return call;
+            }
+
             switch (token.Kind)
             {
                 case Kind.Number:

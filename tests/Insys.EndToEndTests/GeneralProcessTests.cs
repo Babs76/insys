@@ -38,7 +38,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         RatingPermissions.CalculationCreate, RatingPermissions.CalculationRead, BillingPermissions.AccountRead, BillingPermissions.InvoiceRead,
         PaymentPermissions.PaymentRead, PaymentPermissions.PaymentResolve, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease,
         PaymentPermissions.CallbackCreate, ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate,
-        ClaimsPermissions.InstructionRead, ClaimsPermissions.InstructionRelease, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate,
+        ClaimsPermissions.InstructionRead, ClaimsPermissions.InstructionRelease, ClaimsPermissions.InstructionCreate, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate,
         WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove, IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate,
         DocumentPermissions.DocumentRead,
     ];
@@ -58,7 +58,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _db.AssignRole(Tenant, checker, approverRole);
         var from = Today.AddDays(-30);
 
-        foreach (var type in new[] { GeneralApprovals.EndorsementApprovalType, GeneralApprovals.SettlementApprovalType, PaymentApprovals.PayoutApprovalType })
+        foreach (var type in new[] { GeneralApprovals.EndorsementApprovalType, GeneralApprovals.SettlementApprovalType, PaymentApprovals.PayoutApprovalType, ClaimsApprovals.InstructionApprovalType })
         {
             await Seed("workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}",
                 ("role_code", approverRole), ("transaction_type", type), ("limit_value", 1_000_000m), ("delegation_allowed", false));
@@ -258,7 +258,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         // RequestApproval for the settlement. Compensation: rejected, the claim stays under assessment.
         var payee = Guid.CreateVersion7();
-        var settlement = new { payeePartyId = payee, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Repair estimate within the assessed amount" };
+        var bank = new { bankCode = "632005", accountNumber = "62 0001 2345", accountHolder = "Repairs Ltd" };
+        var settlement = new { payeePartyId = payee, bankDetails = bank, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Repair estimate within the assessed amount" };
         (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/settlement", settlement)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         await Decide(GeneralApprovals.SettlementBusinessRefType, claim, approve: false);
@@ -274,14 +275,28 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         instructed.GetProperty("status").GetString().ShouldBe("Released");
         instructed.GetProperty("amount").GetDecimal().ShouldBe(35_000m);
 
+        // The settlement approval covered this payee and these bank details, so it stands in for the instruction's
+        // approval: the instruction keeps the approved bank-details hash, and the details themselves are stored nowhere.
+        var approvedHash = instructed.GetProperty("payeeBankHash").GetString()!;
+        approvedHash.ShouldBe(await _db.ScalarAsOwner<string>("SELECT settlement_payee_bank_hash FROM general.claim WHERE id = @c", ("c", claim)));
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM general.claim WHERE id = @c AND settlement_payee_bank_hash LIKE '%2345%'", ("c", claim))).ShouldBe(0L);
+
         // Payout batch, approved and released. Compensation: the payment fails; the instruction returns to Failed and is
         // re-released with corrected details, as a new payment.
         var first = await PayOut(instruction, "BOUNCED");
         (await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).Json()).GetProperty("status").GetString().ShouldBe("Failed");
         (await Claim(claim)).GetProperty("status").GetString().ShouldBe("Approved");
-        (await _maker.PostAsJsonAsync($"/api/v1/claims/payment-instructions/{instruction}/retry", new { payeePartyId = Guid.CreateVersion7() }))
-            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        // New bank details after the approval need a new approval in Workflow before the payment is released again.
+        var corrected = new { bankCode = "250655", accountNumber = "1234567890", accountHolder = "Repairs Ltd" };
+        var retried = await (await _maker.PostAsJsonAsync($"/api/v1/claims/payment-instructions/{instruction}/retry", new { payeePartyId = payee, bankDetails = corrected })).Json();
+        retried.GetProperty("status").GetString().ShouldBe("Failed");
+        retried.GetProperty("pendingPayeePartyId").GetGuid().ShouldBe(payee);
         await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM payment.payment WHERE business_ref_id = @i", ("i", instruction))).ShouldBe(1L);
+        await Decide(ClaimsApprovals.InstructionBusinessRefType, instruction, approve: true);
+        var released = await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).Json();
+        released.GetProperty("status").GetString().ShouldBe("Released");
+        released.GetProperty("payeeBankHash").GetString().ShouldNotBe(approvedHash);
         var second = await PayOut(instruction, "PAID");
         second.ShouldNotBe(first);
 
@@ -346,8 +361,71 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await Policy(policy)).GetProperty("status").GetString().ShouldBe("InForce");
     }
 
+    [Fact]
+    public async Task ReferredQuote_DeclinedWithAReason_IsFinal()
+    {
+        await Seed("general.ref_referral_reason_codes", "ACTIVE", "HIGH_VALUE", ("label", "High value"), ("target_queue", "UW"));
+        await Seed("general.ref_underwriting_decision_codes", "ACTIVE", "DECLINE", ("label", "Declined"), ("requires_terms", false));
+        var vehicle = await Created("/api/v1/general/risk-objects", new { objectType = "VEHICLE", attributes = new { registration = "CA9", vehicle_group = "G3", year = Today.Year } });
+        var quote = await Created("/api/v1/general/quotes", new
+        {
+            productCode = Product, proposerPartyId = Guid.CreateVersion7(), currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1),
+            risks = new[] { new { riskObjectId = vehicle, sumInsured = 400_000m, coverages = new[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 400_000m } } } },
+        });
+        await Rate(GeneralRatingSubjects.Quote, quote, 400_000m);
+        (await _maker.PostAsJsonAsync($"/api/v1/general/quotes/{quote}/refer", new { reasonCode = "HIGH_VALUE" })).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var declined = await (await _checker.PostAsJsonAsync($"/api/v1/general/quotes/{quote}/referral-decision",
+            new { approved = false, decisionCode = "DECLINE", declineReason = "Outside the vehicle value appetite" })).Json();
+
+        declined.GetProperty("status").GetString().ShouldBe("Declined");
+        declined.GetProperty("referrals")[0].GetProperty("declineReason").GetString().ShouldBe("Outside the vehicle value appetite");
+        (await (await _maker.PostAsync($"/api/v1/general/quotes/{quote}/issue", null)).Code()).ShouldBe("INVALID_STATE_TRANSITION");
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM general.outbox_event WHERE event_type = 'general.GeneralQuoteDeclined'")).ShouldBe(1L);
+    }
+
+    [Fact]
+    public async Task CoverStartingOnFirstPayment_StartsWhenTheFirstInvoiceIsSettled()
+    {
+        const string firstPayment = "E2E-GFP";
+        var from = Today.AddDays(-30);
+        await _db.ExecuteAsOwner("""
+            INSERT INTO product.cfg_product_definitions_and_versions (tenant_id, id, code, version, effective_from, record_status, created_by, change_reason, labels,
+                                                                     product_code, domain, name, coverages)
+            VALUES (@t, gen_random_uuid(), @p, 1, @from, 'PUBLISHED', 'seed', 'published', '{"class":"MOTOR","cover_starts_on":"FIRST_PAYMENT"}', @p, 'GENERAL', 'Motor',
+                    @coverages)
+            """, ("t", Tenant), ("p", firstPayment), ("from", from), ("coverages", new[] { "OWN_DAMAGE", "THEFT" }));
+        await Seed("rating.cfg_premium_parameters", "EFFECTIVE", "GFP-P1", ("parameter_code", "GMOT-BASE"), ("product_version", $"{firstPayment} v1"), ("value", 1m), ("unit", "FACTOR"));
+        await Seed("rating.cfg_premium_parameters", "EFFECTIVE", "GFP-P2", ("parameter_code", "POLICY_FEE"), ("product_version", $"{firstPayment} v1"), ("value", 50m), ("unit", "AMOUNT"));
+        await Seed("general.cfg_quote_validity_periods", "EFFECTIVE", "QV-GFP", ("product_code", firstPayment), ("days_valid", 30), ("re_rate_on_expiry", false));
+        foreach (var type in new[] { "POLICY_SCHEDULE", "CERTIFICATE" })
+        {
+            await Seed("product.cfg_product_template_assignments", "EFFECTIVE", $"TAF-{type}", ("product_code", firstPayment), ("document_type", type),
+                ("template", $"TPL-{type}"), ("language", "en"));
+        }
+
+        var (policy, vehicle) = await IssuedPolicy(firstPayment);
+        await _factory.DrainOutbox();
+        var issued = await Policy(policy);
+        issued.GetProperty("status").GetString().ShouldBe("Issued");
+        issued.GetProperty("coverStartsOn").GetString().ShouldBe("FIRST_PAYMENT");
+        var loss = await Created("/api/v1/general/claims", new { policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC" });
+        (await (await _maker.PostAsync($"/api/v1/general/claims/{loss}/register", null)).Code()).ShouldBe("LOSS_NOT_COVERED");
+
+        // InvoiceSettled → cover starts.
+        var invoice = await _db.ScalarAsOwner<Guid>("SELECT id FROM billing.invoice WHERE policy_ref = @p", ("p", policy));
+        var payment = await _db.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @i", ("i", invoice));
+        (await Callback(payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var inForce = await Policy(policy);
+        inForce.GetProperty("status").GetString().ShouldBe("InForce");
+        inForce.GetProperty("firstPaidOn").GetString().ShouldBe(Today.ToString("yyyy-MM-dd"));
+        (await (await _maker.PostAsync($"/api/v1/general/claims/{loss}/register", null)).Json()).GetProperty("status").GetString().ShouldBe("Registered");
+    }
+
     /// <summary>A vehicle, a quote rated through Rating, issued and accepted (GeneralQuoteAccepted), a proposal, and the policy issued from it.</summary>
-    private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy()
+    private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product)
     {
         var vehicle = await Created("/api/v1/general/risk-objects", new
         {
@@ -359,7 +437,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         });
         var quote = await Created("/api/v1/general/quotes", new
         {
-            productCode = Product, proposerPartyId = Guid.CreateVersion7(), currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1),
+            productCode = product, proposerPartyId = Guid.CreateVersion7(), currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1),
             risks = new[]
             {
                 new
@@ -369,7 +447,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
                 },
             },
         });
-        await Rate(GeneralRatingSubjects.Quote, quote, 100_000m);
+        await Rate(GeneralRatingSubjects.Quote, quote, 100_000m, product);
         (await (await _maker.GetAsync($"/api/v1/general/quotes/{quote}")).Json()).GetProperty("premium").GetDecimal().ShouldBe(3_050m);
         (await _maker.PostAsync($"/api/v1/general/quotes/{quote}/issue", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _maker.PostAsync($"/api/v1/general/quotes/{quote}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -377,15 +455,20 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsync($"/api/v1/general/proposals/{proposal}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var policy = await Created("/api/v1/general/policies", new { quoteId = quote, billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER" });
+        if (product != Product)
+        {
+            return (policy, vehicle);
+        }
+
         (await Policy(policy)).GetProperty("risks")[0].GetProperty("coverages").EnumerateArray().Sum(c => c.GetProperty("premium").GetDecimal()).ShouldBe(3_050m);
         return (policy, vehicle);
     }
 
-    private async Task Rate(string subjectType, Guid subjectId, decimal sumInsured)
+    private async Task Rate(string subjectType, Guid subjectId, decimal sumInsured, string product = Product)
     {
         var calculated = await _maker.Send(HttpMethod.Post, "/api/v1/rating/calculations", new
         {
-            requestRef = $"E2E-{subjectId:N}"[..20], sourceDomain = GeneralRatingSubjects.SourceDomain, subjectType, subjectId, productCode = Product, productVersion = 1,
+            requestRef = $"E2E-{subjectId:N}"[..20], sourceDomain = GeneralRatingSubjects.SourceDomain, subjectType, subjectId, productCode = product, productVersion = 1,
             currency = "ZAR", frequency = "ANNUAL", values = new { sum_insured = sumInsured, vehicle_group = "G3" },
         }, idempotent: true);
         calculated.StatusCode.ShouldBe(HttpStatusCode.Created, await calculated.Content.ReadAsStringAsync());
@@ -399,6 +482,9 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         built.StatusCode.ShouldBe(HttpStatusCode.Created, await built.Content.ReadAsStringAsync());
         var batch = (await built.Json()).GetProperty("id").GetGuid();
         await _factory.DrainOutbox();
+
+        // The payout batch keeps its own release approval, whatever approved the payments in it (SRS-002).
+        (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.Conflict);
         await Decide(PaymentApprovals.PayoutBusinessRefType, batch, approve: true);
         (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var payment = await _db.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @i AND payout_batch_id = @b", ("i", instruction), ("b", batch));

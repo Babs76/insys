@@ -26,7 +26,9 @@ public sealed record AddClaimParty(Guid ClaimId, Guid PartyId, string Role, stri
 public sealed record AppointAssessor(Guid ClaimId, Guid AssessorPartyId) : ICommand<ClaimView>;
 
 /// <summary>Command ApproveSettlement: requested by the maker, approved in Workflow by a second person within authority (SRS-002).</summary>
-public sealed record RequestSettlement(Guid ClaimId, Guid PayeePartyId, string ReserveType, string DecisionCode, string Rationale) : ICommand<ClaimView>;
+/// <param name="BankDetails">The payee's bank details: only their hash is kept, and the approval covers it with the payee and amount.</param>
+public sealed record RequestSettlement(Guid ClaimId, Guid PayeePartyId, PayeeBankDetails BankDetails, string ReserveType, string DecisionCode, string Rationale)
+    : ICommand<ClaimView>;
 
 public sealed record DeclineClaim(Guid ClaimId, string DecisionCode, string Rationale) : ICommand<ClaimView>;
 
@@ -105,6 +107,10 @@ public sealed class RequestSettlementValidator : AbstractValidator<RequestSettle
     public RequestSettlementValidator()
     {
         RuleFor(c => c.PayeePartyId).NotEmpty();
+        RuleFor(c => c.BankDetails).NotNull();
+        RuleFor(c => c.BankDetails.AccountNumber).NotEmpty().MaximumLength(34).When(c => c.BankDetails is not null);
+        RuleFor(c => c.BankDetails.BankCode).NotEmpty().MaximumLength(20).When(c => c.BankDetails is not null);
+        RuleFor(c => c.BankDetails.AccountHolder).NotEmpty().MaximumLength(140).When(c => c.BankDetails is not null);
         RuleFor(c => c.ReserveType).NotEmpty().MaximumLength(15);
         RuleFor(c => c.DecisionCode).NotEmpty().MaximumLength(15);
         RuleFor(c => c.Rationale).NotEmpty().MaximumLength(4000);
@@ -308,8 +314,8 @@ internal sealed class RequestSettlementHandler(IGeneralRepository general, ISell
 
         audit.Record(new AuditEntry("GENERAL", "ApproveSettlement", nameof(GeneralClaim), claim.Id.ToString()));
         var limits = coverage.Value.Product.Limits.Where(l => l.CoverageCode == claim.CoverageCode && l.Currency == policy.Currency).ToList();
-        var result = claim.RequestSettlement(new SettlementRequest(assessment.AssessedAmount!.Value, assessment.ExcessApplied!.Value, command.PayeePartyId, command.ReserveType,
-            command.DecisionCode, command.Rationale), coverage.Value.Coverage, limits, policy.Currency, user.Value, clock.UtcNow);
+        var result = claim.RequestSettlement(new SettlementRequest(assessment.AssessedAmount!.Value, assessment.ExcessApplied!.Value, command.PayeePartyId,
+            command.BankDetails.Hash(), command.ReserveType, command.DecisionCode, command.Rationale), coverage.Value.Coverage, limits, policy.Currency, user.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : ClaimView.From(claim);
     }
 }

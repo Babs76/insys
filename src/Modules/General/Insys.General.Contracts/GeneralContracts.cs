@@ -59,6 +59,10 @@ public sealed record GeneralQuoteIssued(Guid QuoteId, string QuoteNumber, int Qu
 [IntegrationEvent("general.GeneralQuoteAccepted")]
 public sealed record GeneralQuoteAccepted(Guid QuoteId, string QuoteNumber, int QuoteVersion, Guid ProposerPartyId) : IIntegrationEvent;
 
+/// <summary>An underwriter declined a referred quote; it is final. The reason stays with the referral.</summary>
+[IntegrationEvent("general.GeneralQuoteDeclined")]
+public sealed record GeneralQuoteDeclined(Guid QuoteId, string QuoteNumber, int QuoteVersion, string DecisionCode) : IIntegrationEvent;
+
 [IntegrationEvent("general.GeneralQuoteExpired")]
 public sealed record GeneralQuoteExpired(Guid QuoteId, string QuoteNumber, int QuoteVersion) : IIntegrationEvent;
 
@@ -98,8 +102,9 @@ public sealed record AssessorAppointed(Guid ClaimId, Guid AssessorPartyId) : IIn
 
 /// <summary>The settlement was approved by a second person: the Claims Framework drafts and releases the payment instruction.</summary>
 [IntegrationEvent("general.GeneralClaimApproved")]
-public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid PayeePartyId, decimal Amount, string Currency, string ReserveType, Guid ApprovalId,
-    Guid CheckerId) : IIntegrationEvent;
+/// <param name="PayeeBankHash">The hash of the payee's bank details the approval covered.</param>
+public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid PayeePartyId, string? PayeeBankHash, decimal Amount, string Currency, string ReserveType,
+    Guid ApprovalId, Guid CheckerId) : IIntegrationEvent;
 
 [IntegrationEvent("general.GeneralClaimSettled")]
 public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateOnly PaidOn) : IIntegrationEvent;

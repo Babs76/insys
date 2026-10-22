@@ -3533,7 +3533,7 @@
         "tags": [
           "ClaimsFramework"
         ],
-        "summary": "Release a failed instruction again to corrected payee details, as a new payment",
+        "summary": "Release a failed instruction again, as a new payment; new payee or bank details are approved by a second person first (SRS-002)",
         "operationId": "ClaimsRetryInstruction",
         "parameters": [
           {
@@ -6462,6 +6462,13 @@
           }
         }
       },
+      "CoverStart": {
+        "enum": [
+          "Issue",
+          "FirstPayment",
+          null
+        ]
+      },
       "CoverageRequest": {
         "required": [
           "coverageCode",
@@ -6855,7 +6862,8 @@
           "amount",
           "approvedAmount",
           "currency",
-          "reserveType"
+          "reserveType",
+          "bankDetails"
         ],
         "type": "object",
         "properties": {
@@ -6887,6 +6895,16 @@
           },
           "reserveType": {
             "type": "string"
+          },
+          "bankDetails": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PayeeBankDetails"
+              }
+            ]
           }
         }
       },
@@ -6894,7 +6912,8 @@
         "required": [
           "name",
           "coverages",
-          "effectiveFrom"
+          "effectiveFrom",
+          "coverStartsOn"
         ],
         "type": "object",
         "properties": {
@@ -6910,6 +6929,16 @@
           "effectiveFrom": {
             "type": "string",
             "format": "date"
+          },
+          "coverStartsOn": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CoverStart"
+              }
+            ]
           }
         }
       },
@@ -7492,6 +7521,32 @@
           }
         }
       },
+      "PayeeBankDetails": {
+        "required": [
+          "bankCode",
+          "branchCode",
+          "accountNumber",
+          "accountHolder"
+        ],
+        "type": "object",
+        "properties": {
+          "bankCode": {
+            "type": "string"
+          },
+          "branchCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "accountNumber": {
+            "type": "string"
+          },
+          "accountHolder": {
+            "type": "string"
+          }
+        }
+      },
       "ProblemDetails": {
         "type": "object",
         "properties": {
@@ -7672,7 +7727,8 @@
         "required": [
           "approved",
           "decisionCode",
-          "specialConditions"
+          "specialConditions",
+          "declineReason"
         ],
         "type": "object",
         "properties": {
@@ -7690,6 +7746,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "declineReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -7982,13 +8044,24 @@
       },
       "RetryInstructionRequest": {
         "required": [
-          "payeePartyId"
+          "payeePartyId",
+          "bankDetails"
         ],
         "type": "object",
         "properties": {
           "payeePartyId": {
             "type": "string",
             "format": "uuid"
+          },
+          "bankDetails": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PayeeBankDetails"
+              }
+            ]
           }
         }
       },
@@ -8124,6 +8197,7 @@
       "SettlementRequestBody": {
         "required": [
           "payeePartyId",
+          "bankDetails",
           "reserveType",
           "decisionCode",
           "rationale"
@@ -8133,6 +8207,9 @@
           "payeePartyId": {
             "type": "string",
             "format": "uuid"
+          },
+          "bankDetails": {
+            "$ref": "#/components/schemas/PayeeBankDetails"
           },
           "reserveType": {
             "type": "string"

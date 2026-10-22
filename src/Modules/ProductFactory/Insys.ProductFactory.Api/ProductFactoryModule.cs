@@ -18,7 +18,7 @@ public sealed record RegisterProductRequest(string ProductCode, ProductDomain Do
 
 public sealed record CreateDraftVersionRequest(DateOnly EffectiveFrom);
 
-public sealed record EditConfigurationRequest(string Name, string[] Coverages, DateOnly EffectiveFrom);
+public sealed record EditConfigurationRequest(string Name, string[] Coverages, DateOnly EffectiveFrom, CoverStart? CoverStartsOn);
 
 public sealed record SubmitForApprovalRequest(string? Reason);
 
@@ -81,7 +81,7 @@ public sealed class ProductFactoryModule : IModule
             .RequirePermission(ProductPermissions.ProductRead);
 
         versions.MapPut("/{versionNumber:int}", (string productCode, int versionNumber, EditConfigurationRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
-                Versioned(http, expected => dispatcher.Send(new EditConfiguration(productCode, versionNumber, r.Name, r.Coverages, r.EffectiveFrom, expected), ct)))
+                Versioned(http, expected => dispatcher.Send(new EditConfiguration(productCode, versionNumber, r.Name, r.Coverages, r.EffectiveFrom, expected, r.CoverStartsOn), ct)))
             .WithName("ProductEditConfiguration")
             .WithSummary("Edit a draft or validated version (a validated version returns to draft)")
             .WithDescription("Submitted, approved and published versions are immutable (PRD-002).")

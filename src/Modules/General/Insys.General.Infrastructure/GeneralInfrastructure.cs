@@ -1,3 +1,4 @@
+using Insys.Billing.Contracts;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Infrastructure;
@@ -37,6 +38,7 @@ public static class GeneralInfrastructure
         services.AddIntegrationEventHandler<GeneralPolicyEndorsed, GeneralPolicies, GeneralDbContext>(schema, "GeneralPolicyEndorsed");
         services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralPolicies, GeneralDbContext>(schema, "GeneralPolicyIssued");
         services.AddIntegrationEventHandler<AssessorAppointed, GeneralPolicies, GeneralDbContext>(schema, "AssessorAppointed");
+        services.AddIntegrationEventHandler<InvoiceSettled, GeneralPolicies, GeneralDbContext>(schema, "InvoiceSettled");
         services.AddOptions<GeneralJobOptions>().BindConfiguration("General:Jobs");
         services.AddSingleton<GeneralJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)

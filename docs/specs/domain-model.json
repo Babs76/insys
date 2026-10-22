@@ -703,6 +703,10 @@
       {
        "name": "GeneralQuoteExpired",
        "provenance": "P"
+      },
+      {
+       "name": "GeneralQuoteDeclined",
+       "provenance": "P"
       }
      ],
      "stateTransitions": [
@@ -720,6 +724,11 @@
        "from": "Referred",
        "to": "Rated",
        "trigger": "Referral approved"
+      },
+      {
+       "from": "Referred",
+       "to": "Declined",
+       "trigger": "Referral declined"
       },
       {
        "from": "Rated",

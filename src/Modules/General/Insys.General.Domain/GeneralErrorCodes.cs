@@ -58,6 +58,9 @@ public static class GeneralErrorCodes
     [ErrorCode(422, "error.general.renewal_needs_rating")]
     public const string RenewalNeedsRating = "RENEWAL_NEEDS_RATING";
 
+    [ErrorCode(409, "error.general.approval_subject_changed")]
+    public const string ApprovalSubjectChanged = "SETTLEMENT_SUBJECT_CHANGED";
+
     [ErrorCode(409, "error.general.assessment_not_accepted")]
     public const string AssessmentNotAccepted = "ASSESSMENT_NOT_ACCEPTED";
 }

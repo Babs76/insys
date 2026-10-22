@@ -120,7 +120,8 @@ internal static class Products
 {
     public static ProductTerms Terms(SellableProduct product) =>
         new(product.ProductCode, product.Version, product.Line, product.Coverages,
-            product.Limits.Select(l => new CoverageLimit(l.ScheduleCode, l.CoverageCode, l.LimitType, l.Amount, l.Percentage, l.Rule, l.Currency)).ToList());
+            product.Limits.Select(l => new CoverageLimit(l.ScheduleCode, l.CoverageCode, l.LimitType, l.Amount, l.Percentage, l.Rule, l.Currency)).ToList(),
+            product.CoverStartsOn);
 
     public static async Task<Result<ProductTerms>> Sellable(ISellableProducts products, Guid tenantId, string productCode, int? version, DateOnly day,
         CancellationToken cancellationToken) =>
@@ -185,7 +186,8 @@ public sealed record RiskObjectView(Guid Id, string ObjectType, JsonElement Attr
         r.ValuationBasis, r.Subdivision, r.PostalCode, r.RiskZone, r.Status.ToString(), r.RowVersion);
 }
 
-public sealed record ReferralView(Guid Id, string ReasonCode, string Status, Guid? ReferredBy, Guid? DecidedBy, string? DecisionCode, IReadOnlyList<string> SpecialConditions);
+public sealed record ReferralView(Guid Id, string ReasonCode, string Status, Guid? ReferredBy, Guid? DecidedBy, string? DecisionCode, IReadOnlyList<string> SpecialConditions,
+    string? DeclineReason);
 
 public sealed record QuoteView(Guid Id, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, Guid ProposerPartyId, string? IntermediaryCode,
     string Status, DateOnly ValidUntil, DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Premium, string Currency, Guid? RatingRequestId, int? RatingVersion,
@@ -195,7 +197,8 @@ public sealed record QuoteView(Guid Id, string QuoteNumber, int QuoteVersion, st
         q.Status.ToString(), q.ValidUntil, q.PeriodStart, q.PeriodEnd, q.Premium, q.Currency, q.RatingRequestId, q.RatingVersion,
         q.Risks.Select(r => new RiskView(r.RiskObjectId, r.SumInsured, null, null,
             r.Coverages.Select(c => new CoverageView(c.CoverageCode, c.SumInsured, c.ExcessScheduleCode, null)).ToList())).ToList(),
-        q.Referrals.Select(r => new ReferralView(r.Id, r.ReasonCode, r.Status, r.ReferredBy, r.DecidedBy, r.DecisionCode, r.SpecialConditions ?? [])).ToList(), q.RowVersion);
+        q.Referrals.Select(r => new ReferralView(r.Id, r.ReasonCode, r.Status, r.ReferredBy, r.DecidedBy, r.DecisionCode, r.SpecialConditions ?? [], r.DeclineReason)).ToList(),
+        q.RowVersion);
 }
 
 public sealed record ProposalView(Guid Id, Guid QuoteId, string Status, DateTimeOffset SubmittedAt, JsonElement Declarations)
@@ -208,10 +211,10 @@ public sealed record CancellationView(string ReasonCode, DateOnly EffectiveDate,
 
 public sealed record PolicyView(Guid Id, string PolicyNumber, string ProductCode, int ProductVersion, int RatingVersion, Guid PolicyholderPartyId, string Status,
     DateOnly PeriodStart, DateOnly PeriodEnd, string Currency, decimal AnnualPremium, Guid BillingAccountRef, string? BillingFrequency, string? CollectionMethod,
-    Guid? RenewalOfId, IReadOnlyList<RiskView> Risks, IReadOnlyList<CancellationView> Cancellations, long RowVersion)
+    Guid? RenewalOfId, string CoverStartsOn, DateOnly? FirstPaidOn, IReadOnlyList<RiskView> Risks, IReadOnlyList<CancellationView> Cancellations, long RowVersion)
 {
     public static PolicyView From(GeneralPolicy p) => new(p.Id, p.PolicyNumber, p.ProductCode, p.ProductVersion, p.RatingVersion, p.PolicyholderPartyId, p.Status.ToString(),
-        p.PeriodStart, p.PeriodEnd, p.Currency, p.AnnualPremium, p.BillingAccountRef, p.BillingFrequency, p.CollectionMethod, p.RenewalOfId,
+        p.PeriodStart, p.PeriodEnd, p.Currency, p.AnnualPremium, p.BillingAccountRef, p.BillingFrequency, p.CollectionMethod, p.RenewalOfId, p.CoverStartsOn, p.FirstPaidOn,
         p.Risks.Select(r => new RiskView(r.RiskObjectId, r.SumInsured, r.AttachedFrom, r.DetachedOn,
             r.Coverages.Select(c => new CoverageView(c.CoverageCode, c.SumInsured, c.ExcessScheduleCode, c.Premium)).ToList())).ToList(),
         p.Cancellations.Select(c => new CancellationView(c.ReasonCode, c.EffectiveDate, c.RefundAmount, c.RefundBasis, c.Fee, c.CancelledAt, c.ReinstatedAt)).ToList(),

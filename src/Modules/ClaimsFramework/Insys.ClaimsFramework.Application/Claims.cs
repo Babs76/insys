@@ -10,6 +10,7 @@ using Insys.ClaimsFramework.Domain.Claims;
 using Insys.General.Contracts;
 using Insys.Payments.Contracts;
 using Insys.Workflow.Contracts;
+using Microsoft.Extensions.Logging;
 
 namespace Insys.ClaimsFramework.Application;
 
@@ -67,10 +68,10 @@ public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementVi
 }
 
 public sealed record InstructionView(Guid Id, string ClaimNumber, string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency,
-    string ReserveType, string Status, Guid? ApprovalId, Guid? PaymentId, int Attempt)
+    string ReserveType, string Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, string? PayeeBankHash, Guid? PendingPayeePartyId)
 {
     public static InstructionView From(ClaimPaymentInstruction i) => new(i.Id, i.ClaimNumber, i.InstructionRef, i.PayeePartyId, i.Amount, i.ApprovedAmount, i.Currency,
-        i.ReserveType, i.Status.ToString(), i.ApprovalId, i.PaymentId, i.Attempt);
+        i.ReserveType, i.Status.ToString(), i.ApprovalId, i.PaymentId, i.Attempt, i.PayeeBankHash, i.PendingPayeePartyId);
 }
 
 /// <summary>Command AllocateClaimNumber; a repeat for the same domain claim returns the same number (CLM-005).</summary>
@@ -95,8 +96,9 @@ public enum ReserveAction
 public sealed record MoveReserve(string ClaimNumber, ReserveAction Action, string ReserveType, decimal Amount, string Currency) : ICommand<FinancialsView>;
 
 /// <summary>Command DraftInstruction; a repeat for the same claim and reference returns the same instruction (PAY-001).</summary>
+/// <param name="BankDetails">The payee's bank details: only their hash is kept, and the approval covers it.</param>
 public sealed record DraftInstruction(string ClaimNumber, string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency,
-    string ReserveType) : ICommand<InstructionView>;
+    string ReserveType, PayeeBankDetails? BankDetails = null) : ICommand<InstructionView>;
 
 public enum InstructionAction
 {
@@ -106,7 +108,8 @@ public enum InstructionAction
 
 public sealed record ChangeInstruction(Guid InstructionId, InstructionAction Action) : ICommand<InstructionView>;
 
-public sealed record RetryInstruction(Guid InstructionId, Guid PayeePartyId) : ICommand<InstructionView>;
+/// <summary>Releases a failed payment again; a different payee or bank details wait for a second person's approval first.</summary>
+public sealed record RetryInstruction(Guid InstructionId, Guid PayeePartyId, PayeeBankDetails? BankDetails = null) : ICommand<InstructionView>;
 
 public sealed record GetClaim(string ClaimNumber) : IQuery<ClaimView>;
 
@@ -325,7 +328,7 @@ internal sealed class DraftInstructionHandler(IClaimsRepository claims, IClaimsC
         }
 
         var instruction = ClaimPaymentInstruction.DraftInstruction(Guid.CreateVersion7(), claim.Value, command.InstructionRef, command.PayeePartyId, command.Amount,
-            command.ApprovedAmount, command.Currency, command.ReserveType, user.Value);
+            command.ApprovedAmount, command.Currency, command.ReserveType, user.Value, command.BankDetails?.Hash());
         if (instruction.IsFailure)
         {
             return instruction.Error;
@@ -398,7 +401,7 @@ internal sealed class RetryInstructionHandler(IClaimsRepository claims, IExecuti
         }
 
         audit.Record(new AuditEntry("CLAIMS", "RetryInstruction", nameof(ClaimPaymentInstruction), instruction.Id.ToString()));
-        var result = instruction.Retry(command.PayeePartyId, claim.Value.Domain, user.Value, clock.UtcNow);
+        var result = instruction.Retry(command.PayeePartyId, command.BankDetails?.Hash(), claim.Value.Domain, user.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : InstructionView.From(instruction);
     }
 }
@@ -437,7 +440,7 @@ internal sealed class GetInstructionHandler(IClaimsRepository claims) : IQueryHa
 /// Claims' policies (domain-model.json: claims consumes): Workflow's decision on an instruction; the payout's outcome
 /// (RecordOutcome); and its own ClaimPaymentCompleted, which records the payment movement against the reserve (CLM-004).
 /// </summary>
-public sealed class ClaimsPolicies(IClaimsRepository claims, IClock clock) :
+public sealed class ClaimsPolicies(IClaimsRepository claims, IClock clock, ILogger<ClaimsPolicies> logger) :
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<PaymentSucceeded>,
@@ -447,10 +450,10 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IClock clock) :
     IIntegrationEventHandler<RecoveryRecorded>
 {
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, cancellationToken);
+        Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, granted.SubjectHash, cancellationToken);
 
     public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.ApprovalId, cancellationToken);
+        Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.ApprovalId, rejected.SubjectHash, cancellationToken);
 
     public Task Handle(PaymentSucceeded succeeded, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Outcome(succeeded.BusinessRefType, succeeded.BusinessRefId, true, succeeded.PaymentId, succeeded.ValueDate, cancellationToken);
@@ -489,8 +492,8 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IClock clock) :
             return;
         }
 
-        var instruction = ClaimPaymentInstruction.FromApprovedSettlement(Guid.CreateVersion7(), claim, reference, approved.PayeePartyId, approved.Amount, approved.Currency,
-            approved.ReserveType, approved.ApprovalId);
+        var instruction = ClaimPaymentInstruction.FromApprovedSettlement(Guid.CreateVersion7(), claim, reference, approved.PayeePartyId, approved.PayeeBankHash,
+            approved.Amount, approved.Currency, approved.ReserveType, approved.ApprovalId);
         if (instruction.IsFailure)
         {
             throw new InvalidOperationException($"Settlement of {approved.ClaimNumber} could not be instructed: {instruction.Error.Message}");
@@ -517,11 +520,17 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IClock clock) :
         }
     }
 
-    private async Task Decide(string businessRefType, Guid instructionId, bool approved, Guid approvalId, CancellationToken cancellationToken)
+    /// <summary>A decision for other payee details or another amount than those now on the instruction does not apply.</summary>
+    private async Task Decide(string businessRefType, Guid instructionId, bool approved, Guid approvalId, string? subjectHash, CancellationToken cancellationToken)
     {
-        if (businessRefType == ClaimsApprovals.InstructionBusinessRefType && await claims.Instruction(instructionId, cancellationToken) is { } instruction)
+        if (businessRefType == ClaimsApprovals.InstructionBusinessRefType && await claims.Instruction(instructionId, cancellationToken) is { } instruction
+            && await claims.ByNumber(instruction.ClaimNumber, cancellationToken) is { } claim)
         {
-            instruction.Decide(approved, approvalId);
+            var decided = instruction.Decide(approved, approvalId, subjectHash, claim.Domain, clock.UtcNow);
+            if (decided.IsFailure)
+            {
+                logger.LogWarning("Approval {ApprovalId} not applied to instruction {InstructionId}: {Code}", approvalId, instructionId, decided.Error.Code);
+            }
         }
     }
 

@@ -37,7 +37,8 @@ public sealed record ChangeQuote(Guid QuoteId, QuoteAction Action) : ICommand<Qu
 
 public sealed record ReferQuote(Guid QuoteId, string ReasonCode) : ICommand<QuoteView>;
 
-public sealed record DecideReferral(Guid QuoteId, bool Approved, string DecisionCode, IReadOnlyList<string> SpecialConditions) : ICommand<QuoteView>;
+/// <param name="DeclineReason">Why, when declined: the quote is then Declined for good.</param>
+public sealed record DecideReferral(Guid QuoteId, bool Approved, string DecisionCode, IReadOnlyList<string> SpecialConditions, string? DeclineReason = null) : ICommand<QuoteView>;
 
 public sealed record GetQuote(Guid QuoteId) : IQuery<QuoteView>;
 
@@ -111,7 +112,7 @@ internal sealed class RegisterRiskObjectHandler(IGeneralRepository general, IGen
         }
 
         var risk = RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema.Value, values.Value, command.Attributes.GetRawText(), command.Valuation, command.ValuationBasis,
-            new RiskLocation(command.Subdivision, command.PostalCode, command.RiskZone), clock.UtcToday.Year, clock.UtcNow);
+            new RiskLocation(command.Subdivision, command.PostalCode, command.RiskZone), clock.UtcToday, clock.UtcNow);
         if (risk.IsFailure)
         {
             return risk.Error;
@@ -139,7 +140,7 @@ internal sealed class UpdateRiskAttributesHandler(IGeneralRepository general, IG
             return schema.IsFailure ? schema.Error : values.Error!;
         }
 
-        var result = risk.UpdateAttributes(schema.Value, values.Value, command.Attributes.GetRawText(), clock.UtcToday.Year);
+        var result = risk.UpdateAttributes(schema.Value, values.Value, command.Attributes.GetRawText(), clock.UtcToday);
         return result.IsFailure ? result.Error : RiskObjectView.From(risk);
     }
 }
@@ -318,7 +319,7 @@ internal sealed class DecideReferralHandler(IGeneralRepository general, IGeneral
 
         audit.Record(new AuditEntry("GENERAL", "DecideReferral", nameof(GeneralQuote), quote.Id.ToString(),
             new Dictionary<string, string?> { ["approved"] = command.Approved.ToString(), ["decision"] = command.DecisionCode }));
-        var result = quote.DecideReferral(command.Approved, command.DecisionCode, command.SpecialConditions, user.Value, clock.UtcNow);
+        var result = quote.DecideReferral(command.Approved, command.DecisionCode, command.SpecialConditions, command.DeclineReason, user.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : QuoteView.From(quote);
     }
 }

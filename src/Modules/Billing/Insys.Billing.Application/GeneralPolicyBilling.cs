@@ -46,8 +46,9 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
         }
 
         var frequency = await Frequency(issued.BillingFrequency, issued.PolicyNumber, cancellationToken);
+        // The period end is the last day of cover (OQ-059).
         var schedule = account.CreateSchedule(SourceDomain, issued.PolicyId, $"{issued.ProductCode} v{issued.ProductVersion}", frequency, issued.PeriodStart,
-            issued.PeriodEnd.AddDays(-1), Instalment(issued.AnnualPremium, frequency));
+            issued.PeriodEnd, Instalment(issued.AnnualPremium, frequency));
         if (schedule.IsFailure)
         {
             throw new InvalidOperationException($"Policy {issued.PolicyNumber} cannot be scheduled: {schedule.Error.Message}");

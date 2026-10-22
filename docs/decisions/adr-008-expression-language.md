@@ -31,5 +31,13 @@ A small, typed condition language in `Insys.BuildingBlocks.Domain.Expressions`. 
 Malformed input of any kind fails with `EXPRESSION_INVALID` or `EXPRESSION_EVALUATION_FAILED`, never with another exception. A seeded fuzz test checks this.
 
 ## Consequences
-- Anything beyond conditions, such as arithmetic or date functions, needs a decision first.
+- **Arithmetic (Phase 4 review):** bounded arithmetic was added within the same limits:
+  - `+ - * /` on numbers, and unary minus;
+  - a date plus or minus a whole number of days is a date, and a date minus a date is a number of days;
+  - `year(d)` and `today()`. `today()` is the evaluation date the caller supplies; without one it fails.
+  - **Date variables** are dates. Text such as `'2027-01-01'` is read as a date where a date is expected, so existing comparisons of dates with text still hold.
+  - **Words in lists:** `-` and `+` stay part of a word only inside `IN (…)` lists (such as `25-34`); elsewhere they are arithmetic.
+  - **Failures:** division by zero, overflow, fractional days and dates out of range fail the evaluation, never with another exception.
+  - The catalogue's sample `year <= current_year + 1` now works.
+- Anything beyond this (other functions, assignment, loops) needs a decision first.
 - Expressions are evaluated in memory against the inputs. The inputs are recorded with each rule decision (LIF-002).

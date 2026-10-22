@@ -3,8 +3,12 @@ namespace Insys.ProductFactory.Contracts;
 /// <summary>A limit, sublimit, deductible or excess of a coverage (product.cfg_limit_and_deductible_schedules, §7.2).</summary>
 public sealed record ProductLimit(string ScheduleCode, string CoverageCode, string LimitType, decimal? Amount, decimal? Percentage, string Rule, string Currency);
 
-/// <summary>A product version that can be sold: its domain, line (the family, or class where set), coverages and their limits.</summary>
-public sealed record SellableProduct(string ProductCode, int Version, string Domain, string Line, IReadOnlyList<string> Coverages, IReadOnlyList<ProductLimit> Limits);
+/// <summary>
+/// A product version that can be sold: its domain, line (the family, or class where set), coverages and their limits,
+/// and when cover starts (ISSUE or FIRST_PAYMENT).
+/// </summary>
+public sealed record SellableProduct(string ProductCode, int Version, string Domain, string Line, IReadOnlyList<string> Coverages, IReadOnlyList<ProductLimit> Limits,
+    string CoverStartsOn = "ISSUE");
 
 /// <summary>A document template assigned to a product (product.cfg_product_template_assignments).</summary>
 public sealed record ProductTemplate(string DocumentType, string TemplateCode, string Language);

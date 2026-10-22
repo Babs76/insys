@@ -232,6 +232,12 @@ public static class ClaimsErrorCodes
     [ErrorCode(422, "error.claims.code_not_in_force")]
     public const string CodeNotInForce = "CLAIMS_CODE_NOT_IN_FORCE";
 
+    [ErrorCode(409, "error.claims.approval_subject_changed")]
+    public const string ApprovalSubjectChanged = "APPROVAL_SUBJECT_CHANGED";
+
+    [ErrorCode(409, "error.claims.retry_pending")]
+    public const string RetryPending = "PAYMENT_RETRY_PENDING";
+
     [ErrorCode(404, "error.claims.claim_not_registered")]
     public const string ClaimNotRegistered = "CLAIM_NOT_REGISTERED";
 }

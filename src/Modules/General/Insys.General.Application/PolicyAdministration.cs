@@ -111,7 +111,7 @@ internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCod
 
         var billing = new BillingArrangement(command.BillingAccountId ?? Guid.CreateVersion7(), command.PayerPartyId ?? quote.ProposerPartyId, command.BillingFrequency,
             command.CollectionMethod);
-        var policy = GeneralPolicy.IssuePolicy(id, number.Value, quote, billing, command.RenewalOfPolicyId, clock.UtcToday, clock.UtcNow);
+        var policy = GeneralPolicy.IssuePolicy(id, number.Value, quote, billing, command.RenewalOfPolicyId, clock.UtcToday, clock.UtcNow, product.Value.CoverStartsOn);
         if (policy.IsFailure)
         {
             return policy.Error;

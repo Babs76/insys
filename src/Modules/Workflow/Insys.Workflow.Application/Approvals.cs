@@ -40,7 +40,7 @@ public interface IAuthorityReader
 
 public sealed record ApprovalView(Guid Id, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid? CheckerId, string Status,
     decimal? Amount, string? Currency, string? Reason, string? DecisionReason, DateTimeOffset RequestedAt, DateTimeOffset? DecidedAt, DateTimeOffset? ExpiresAt,
-    long RowVersion);
+    string? SubjectHash, long RowVersion);
 
 public interface IApprovalQueries
 {
@@ -221,6 +221,6 @@ public sealed class RequestApprovalPolicy(IApprovalRepository approvals, IClock 
 
         var now = clock.UtcNow;
         approvals.Add(Approval.RequestApproval(Guid.CreateVersion7(), requested.BusinessRefType, requested.BusinessRefId, requested.ApprovalType, requested.MakerId,
-            requested.Amount, requested.Currency, requested.Reason, now, now + options.Value.DefaultExpiry));
+            requested.Amount, requested.Currency, requested.Reason, now, now + options.Value.DefaultExpiry, requested.SubjectHash));
     }
 }

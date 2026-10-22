@@ -38,8 +38,8 @@ public sealed class GeneralTenantIsolationTests(DatabaseFixture fixture) : IClas
             INSERT INTO general.quote (tenant_id, id, {audit}, quote_number, quote_version, product_code, product_version, proposer_party_id, status, valid_until, currency)
             VALUES (@b, @q, {stamp}, @qn, 1, 'MOTOR', 1, gen_random_uuid(), 'DRAFT', current_date + 30, 'ZAR');
             INSERT INTO general.policy (tenant_id, id, {audit}, policy_number, product_code, product_version, rating_version, policyholder_party_id, status,
-                                        period_start, period_end, currency, annual_premium, billing_account_ref)
-            VALUES (@b, @p, {stamp}, @pn, 'MOTOR', 1, 1, gen_random_uuid(), 'IN_FORCE', current_date - 10, current_date + 355, 'ZAR', 1200, gen_random_uuid());
+                                        period_start, period_end, currency, annual_premium, billing_account_ref, cover_starts_on)
+            VALUES (@b, @p, {stamp}, @pn, 'MOTOR', 1, 1, gen_random_uuid(), 'IN_FORCE', current_date - 10, current_date + 355, 'ZAR', 1200, gen_random_uuid(), 'ISSUE');
             INSERT INTO general.claim (tenant_id, id, {audit}, policy_id, loss_date, notified_at, cause_code, peril_code, status, coverage_code)
             VALUES (@b, @c, {stamp}, @p, current_date, now(), 'COLLISION', 'ACC', 'FIRST_NOTIFICATION', 'OWN_DAMAGE');
             """, ("b", DatabaseFixture.TenantB), ("r", _risk), ("q", _quote), ("p", _policy), ("c", _claim),

@@ -59,10 +59,17 @@ public sealed record ProductVersionWithdrawn(Guid VersionId, string ProductCode,
 
 public sealed record ProductRegistered(Guid VersionId, string ProductCode, ProductDomain Domain, string FamilyCode, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>When a policy's cover starts: when it is issued (and its period has started), or with the first payment.</summary>
+public enum CoverStart
+{
+    Issue,
+    FirstPayment,
+}
+
 /// <summary>The stored state of a version, as the repository reads it from product.cfg_product_definitions_and_versions.</summary>
 public sealed record ProductVersionState(Guid Id, string ProductCode, int Version, ProductDomain Domain, string Name, IReadOnlyList<string> Coverages,
     ProductVersionStatus Status, DateOnly EffectiveFrom, DateOnly? EffectiveTo, Guid? SupersedesId, string? FamilyCode, string? ClassCode, string? ApprovedBy,
-    DateTimeOffset? ApprovedAt, long RowVersion);
+    DateTimeOffset? ApprovedAt, long RowVersion, CoverStart CoverStartsOn = CoverStart.Issue);
 
 /// <summary>
 /// The ProductVersion aggregate: one governed version of a product (§7.7). Published versions are immutable (PRD-002);
@@ -112,6 +119,9 @@ public sealed class ProductVersion : AggregateRoot<Guid>
 
     public string? ClassCode { get; private set; }
 
+    /// <summary>When cover starts on policies of this version (Phase 4 review, OQ-059).</summary>
+    public CoverStart CoverStartsOn { get; private set; }
+
     public string? ApprovedBy { get; private set; }
 
     public DateTimeOffset? ApprovedAt { get; private set; }
@@ -141,6 +151,7 @@ public sealed class ProductVersion : AggregateRoot<Guid>
             SupersedesId = state.SupersedesId,
             FamilyCode = state.FamilyCode,
             ClassCode = state.ClassCode,
+            CoverStartsOn = state.CoverStartsOn,
             ApprovedBy = state.ApprovedBy,
             ApprovedAt = state.ApprovedAt,
         };
@@ -161,12 +172,16 @@ public sealed class ProductVersion : AggregateRoot<Guid>
     }
 
     /// <summary>Command CreateDraftVersion: the next version of a product, a copy of <paramref name="latest"/> to change (PRD-003).</summary>
-    public static ProductVersion CreateDraftVersion(Guid id, ProductVersion latest, DateOnly effectiveFrom) =>
-        New(id, latest.ProductCode, latest.Version + 1, latest.Domain, latest.Name, latest.Coverages, effectiveFrom,
+    public static ProductVersion CreateDraftVersion(Guid id, ProductVersion latest, DateOnly effectiveFrom)
+    {
+        var version = New(id, latest.ProductCode, latest.Version + 1, latest.Domain, latest.Name, latest.Coverages, effectiveFrom,
             latest.Status is ProductVersionStatus.Published or ProductVersionStatus.Effective ? latest.Id : latest.SupersedesId, latest.FamilyCode, latest.ClassCode);
+        version.CoverStartsOn = latest.CoverStartsOn;
+        return version;
+    }
 
     /// <summary>Command EditConfiguration. A Validated version returns to Draft; anything submitted or later is immutable (PRD-002).</summary>
-    public Result EditConfiguration(string name, IReadOnlyList<string> coverages, DateOnly effectiveFrom)
+    public Result EditConfiguration(string name, IReadOnlyList<string> coverages, DateOnly effectiveFrom, CoverStart? coverStartsOn = null)
     {
         if (!IsEditable)
         {
@@ -186,6 +201,7 @@ public sealed class ProductVersion : AggregateRoot<Guid>
         Name = Guard.MaxLength(Guard.NotNullOrWhiteSpace(name), 100);
         Coverages = coverages.ToArray();
         EffectiveFrom = effectiveFrom;
+        CoverStartsOn = coverStartsOn ?? CoverStartsOn;
         MarkChanged();
         return Result.Success();
     }

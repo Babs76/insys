@@ -9,9 +9,10 @@
 | 2 Shared services | Party, Product Factory, Rating, Rules, Workflow, Documents | Done, accepted with conditions (CI green: 979e207) |
 | 2 review items 1–6 | CI fix, maker-checker gaps (V0013), schema gaps (V0012, ADR-010), SLA calendars, rating step order, expression limits | Done (CI green: 51bc94d) |
 | 3 Money | Billing, Payments, Finance, Claims Framework | Done (CI green: 7f86c0e) |
-| 4 First domain | General (OQ-001) | **Done, awaiting review** (22 Oct 2026) |
+| 4 First domain | General (OQ-001) | Done, accepted with follow-ups (CI green: 8f2eda7) |
+| 4 review items 1–5 | Approval subjects, payee details, inclusive periods, quote decline, arithmetic, cover start | **Done, awaiting review** (22 Oct 2026) |
 | 5 Other domains | Life and Health | Not started |
-| 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration | Not started |
+| 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration; General auto-renewal and the exposure snapshot job | Not started |
 | 7 Hardening | Security suite, OpenAPI review, performance, runbooks | Not started |
 
 ## Phase 1 review items
@@ -27,6 +28,32 @@
 4. **OpenAPI documents:** split into core, static-data and platform-operator. Each has its own snapshot in `docs/api`, and every endpoint is in exactly one.
 5. **Tier 2 maker-checker:** a per-tenant setting (V0008), on by default and audited. Tier 1 is always on.
 6. **Outbox relay lag:** reported on `/health` and `/health/ready` through `integration.outbox_lag` (V0009). Degraded after `Outbox:Lag:Warning` (1 minute); Unhealthy and not ready after `Outbox:Lag:Failure` (5 minutes).
+
+## Phase 4 review: what changed
+
+1. **Phase 2 conditions,** each with its tests (all passing):
+   - **OQ-038:** `MakerCheckerTests.PrivilegedRole_IsPendingAndGivesNoPermission_UntilASecondPersonApproves_OQ038`; `UserAccountTests.PrivilegedAssignment_IsPending_UntilASecondPersonApproves_SRS002` and `RejectedPrivilegedAssignment_NeverApplies`.
+   - **OQ-046:** `MakerCheckerTests.SwitchingTier2Off_NeedsASecondPersonsApproval_OQ046`; `StaticDataChangeTests.SwitchingTier2Off_WaitsForASecondPerson_OQ046` and `RejectedSwitchOff_LeavesTier2On`.
+   - **V0012:** `SchemaGapTests.StatusColumns_HoldTheirLongestState`, `LossAssessment_HasItsFiguresFromReportedOnwards`, `AccountingPeriods_AllowOneOpenPeriodPerDate` and `DeprecatedStatusColumns_AreNullable_ADR010`.
+   - **Balanced journals:** `PostedFinancialRecordsTests.BalancedJournal_IsAccepted`, `UnbalancedJournal_IsRefusedAtCommit`, `OneSidedJournal_IsRefusedAtCommit` and `JournalMixingCurrencies_IsRefusedAtCommit`.
+   - **No UPDATE or DELETE on posted tables:** `PostedFinancialRecordsTests.ModuleRoles_HoldNoUpdateOrDelete_OnPostedTables_IncludingPartitions_DBA009`, `ModuleRole_CannotChangePostedRecords_FIN002` and `EvenTheOwner_CannotChangeAPostedJournal_TheTriggerRefuses`.
+2. **Regression tests against the real schema, independent of General:**
+   - **Billing:** `BillingPersistenceTests` covers credit notes and their adjustments.
+   - **Payments:** `PaymentPersistenceTests` covers reversals, with reversing allocation rows, and no re-allocation. Allocating a payment that has not succeeded is now refused.
+3. **Approvals bound to their subject (ADR-009, V0017):**
+   - **Hashes:** Workflow keeps the requester's subject hash and returns it with the decision.
+   - **Settlement standing in for the payment approval:** a General settlement approval covers payee, bank-details hash, amount, currency and reserve type, and stands in for the payment instruction's approval.
+   - **New payee or bank details:** after a failed payment they need a new approval before release.
+   - **Payout batches:** keep their own release approval.
+   - **Tests:** `ClaimsTests` (four new) and the claim process test.
+4. **OQ-059:**
+   - inclusive policy periods, with boundary tests (first day, last day, leap year);
+   - Referred → Declined with GeneralQuoteDeclined;
+   - bounded arithmetic in the expression language (ADR-008), tested by `ExpressionArithmeticTests`;
+   - cover starting on first payment (a product setting; InvoiceSettled starts cover);
+   - short-period refunds still refused;
+   - proportional allocation flagged under OQ-052.
+5. **Scheduled for Phase 6:** auto-renewal and the exposure snapshot job.
 
 ## Phase 4: what exists (General)
 

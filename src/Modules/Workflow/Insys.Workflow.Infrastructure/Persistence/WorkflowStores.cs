@@ -67,7 +67,7 @@ internal sealed class ApprovalQueries(WorkflowDbContext db) : IApprovalQueries
 
     private static ApprovalView View(Approval a) =>
         new(a.Id, a.BusinessRefType, a.BusinessRefId, a.ApprovalType, a.MakerId, a.CheckerId, a.Status.ToString(), a.Amount, a.Currency, a.Reason, a.DecisionReason,
-            a.RequestedAt, a.DecidedAt, a.ExpiresAt, a.RowVersion);
+            a.RequestedAt, a.DecidedAt, a.ExpiresAt, a.SubjectHash, a.RowVersion);
 }
 
 internal sealed class ProcessRepository(WorkflowDbContext db) : IProcessRepository
@@ -315,8 +315,8 @@ internal sealed class WorkflowEventMapper : IDomainEventMapper
 {
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
     {
-        Domain.Approvals.ApprovalGranted e => new Contracts.ApprovalGranted(e.ApprovalId, e.BusinessRefType, e.BusinessRefId, e.ApprovalType, e.MakerId, e.CheckerId),
-        Domain.Approvals.ApprovalRejected e => new Contracts.ApprovalRejected(e.ApprovalId, e.BusinessRefType, e.BusinessRefId, e.ApprovalType, e.MakerId, e.CheckerId, e.Reason),
+        Domain.Approvals.ApprovalGranted e => new Contracts.ApprovalGranted(e.ApprovalId, e.BusinessRefType, e.BusinessRefId, e.ApprovalType, e.MakerId, e.CheckerId, e.SubjectHash),
+        Domain.Approvals.ApprovalRejected e => new Contracts.ApprovalRejected(e.ApprovalId, e.BusinessRefType, e.BusinessRefId, e.ApprovalType, e.MakerId, e.CheckerId, e.Reason, e.SubjectHash),
         Domain.Processes.SlaBreached e => new Contracts.SlaBreached(e.ProcessInstanceId, e.TaskId, e.TaskType, e.SlaCode),
         _ => null,
     };

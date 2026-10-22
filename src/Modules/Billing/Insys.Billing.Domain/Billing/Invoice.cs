@@ -28,7 +28,7 @@ public sealed record InvoiceIssued(Guid InvoiceId, string InvoiceNumber, Guid Bi
 public sealed record CreditNoteIssued(Guid CreditNoteId, string CreditNoteNumber, Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef,
     DateOnly IssueDate, string Currency, decimal TotalAmount, string ReasonCode, DateTimeOffset OccurredAt) : IDomainEvent;
 
-public sealed record InvoiceSettled(Guid InvoiceId, Guid BillingAccountId, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record InvoiceSettled(Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>Entity InvoiceLine (billing.invoice_line).</summary>
 public sealed class InvoiceLine : Entity<Guid>, ITenantScoped
@@ -214,7 +214,7 @@ public sealed class Invoice : AggregateRoot<Guid>
         Status = settled ? InvoiceStatus.Paid : Status == InvoiceStatus.Overdue ? InvoiceStatus.Overdue : InvoiceStatus.PartPaid;
         if (settled)
         {
-            Raise(new InvoiceSettled(Id, BillingAccountId, now));
+            Raise(new InvoiceSettled(Id, BillingAccountId, SourceDomain, PolicyRef, now));
         }
 
         MarkChanged();

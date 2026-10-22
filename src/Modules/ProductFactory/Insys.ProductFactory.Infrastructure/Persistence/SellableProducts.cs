@@ -52,7 +52,7 @@ internal sealed class SellableProducts([FromKeyedServices(ProductFactoryDbContex
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT p.version, p.domain, coalesce(p.labels ->> 'class', p.labels ->> 'family', p.domain), p.coverages
+            SELECT p.version, p.domain, coalesce(p.labels ->> 'class', p.labels ->> 'family', p.domain), p.coverages, coalesce(p.labels ->> 'cover_starts_on', 'ISSUE')
             FROM product.cfg_product_definitions_and_versions p
             WHERE p.tenant_id = @t AND p.code = @c AND p.record_status = ANY(@statuses) AND (@version::int IS NULL OR p.version = @version)
               AND (NOT @sold OR (p.effective_from <= @day AND (p.effective_to IS NULL OR p.effective_to > @day)))
@@ -72,12 +72,12 @@ internal sealed class SellableProducts([FromKeyedServices(ProductFactoryDbContex
         command.Parameters.Add(new NpgsqlParameter<int?>("version", NpgsqlTypes.NpgsqlDbType.Integer) { TypedValue = version });
         command.Parameters.AddWithValue("sold", checkSaleWindow);
         command.Parameters.AddWithValue("day", day);
-        (int Version, string Domain, string Line, string[] Coverages)? product = null;
+        (int Version, string Domain, string Line, string[] Coverages, string CoverStartsOn)? product = null;
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
             if (await reader.ReadAsync(cancellationToken))
             {
-                product = (reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<string[]>(3));
+                product = (reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<string[]>(3), reader.GetString(4));
             }
         }
 
@@ -108,6 +108,6 @@ internal sealed class SellableProducts([FromKeyedServices(ProductFactoryDbContex
         }
 
         await transaction.CommitAsync(cancellationToken);
-        return new SellableProduct(productCode, found.Version, found.Domain, found.Line, found.Coverages, limits);
+        return new SellableProduct(productCode, found.Version, found.Domain, found.Line, found.Coverages, limits, found.CoverStartsOn);
     }
 }

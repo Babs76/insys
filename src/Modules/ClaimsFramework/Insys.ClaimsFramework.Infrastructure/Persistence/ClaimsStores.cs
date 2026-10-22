@@ -87,7 +87,9 @@ internal sealed class ClaimsEventMapper : IDomainEventMapper
         ClaimPaymentInstructed e => new Contracts.ClaimPaymentInstructed(e.InstructionId, e.ClaimNumber, e.Domain, e.PayeePartyId, e.Amount, e.Currency, e.Attempt),
         ClaimPaymentCompleted e => new Contracts.ClaimPaymentCompleted(e.InstructionId, e.MovementId, e.ClaimNumber, e.Domain, e.ReserveType, e.Amount, e.Currency, e.PaidOn),
         InstructionSubmitted e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.ClaimsApprovals.InstructionBusinessRefType, e.InstructionId,
-            Contracts.ClaimsApprovals.InstructionApprovalType, e.DraftedBy, e.Amount, e.Currency, $"Claim payment on {e.ClaimNumber}"),
+            Contracts.ClaimsApprovals.InstructionApprovalType, e.DraftedBy, e.Amount, e.Currency, $"Claim payment on {e.ClaimNumber}", e.SubjectHash),
+        InstructionRetryRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.ClaimsApprovals.InstructionBusinessRefType, e.InstructionId,
+            Contracts.ClaimsApprovals.InstructionApprovalType, e.RequestedBy, e.Amount, e.Currency, $"New payee details for the claim payment on {e.ClaimNumber}", e.SubjectHash),
         _ => null,
     };
 }

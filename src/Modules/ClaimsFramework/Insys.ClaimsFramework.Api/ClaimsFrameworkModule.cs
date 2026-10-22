@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Domain;
 using Insys.ClaimsFramework.Api.StaticData;
 using Insys.ClaimsFramework.Application;
 using Insys.ClaimsFramework.Contracts;
@@ -17,9 +18,10 @@ public sealed record EvidenceRequest(string EvidenceType, Guid? DocumentId);
 
 public sealed record ReserveRequest(ReserveAction Action, string ReserveType, decimal Amount, string Currency);
 
-public sealed record DraftInstructionRequest(string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency, string ReserveType);
+public sealed record DraftInstructionRequest(string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency, string ReserveType,
+    PayeeBankDetails? BankDetails);
 
-public sealed record RetryInstructionRequest(Guid PayeePartyId);
+public sealed record RetryInstructionRequest(Guid PayeePartyId, PayeeBankDetails? BankDetails);
 
 /// <summary>
 /// The ClaimsFramework module: what the domain claims share (CLM-001): claim numbers (CLM-005), evidence,
@@ -88,7 +90,7 @@ public sealed class ClaimsFrameworkModule : IModule
             .RequirePermission(ClaimsPermissions.FinancialsUpdate);
 
         claims.MapPost("/claims/{claimNumber}/payment-instructions", async (string claimNumber, DraftInstructionRequest r, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new DraftInstruction(claimNumber, r.InstructionRef, r.PayeePartyId, r.Amount, r.ApprovedAmount, r.Currency, r.ReserveType), ct))
+                (await dispatcher.Send(new DraftInstruction(claimNumber, r.InstructionRef, r.PayeePartyId, r.Amount, r.ApprovedAmount, r.Currency, r.ReserveType, r.BankDetails), ct))
                 .ToHttp(view => Results.Created($"/api/v1/claims/payment-instructions/{view.Id}", view)))
             .WithName("ClaimsDraftInstruction")
             .WithSummary("Draft a claim payment within the approved amount; a repeat reference returns the same instruction (PAY-001)")
@@ -113,9 +115,9 @@ public sealed class ClaimsFrameworkModule : IModule
             .RequirePermission(ClaimsPermissions.InstructionRelease);
 
         claims.MapPost("/payment-instructions/{id:guid}/retry", async (Guid id, RetryInstructionRequest r, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new RetryInstruction(id, r.PayeePartyId), ct)).ToHttp(Results.Ok))
+                (await dispatcher.Send(new RetryInstruction(id, r.PayeePartyId, r.BankDetails), ct)).ToHttp(Results.Ok))
             .WithName("ClaimsRetryInstruction")
-            .WithSummary("Release a failed instruction again to corrected payee details, as a new payment")
+            .WithSummary("Release a failed instruction again, as a new payment; new payee or bank details are approved by a second person first (SRS-002)")
             .RequirePermission(ClaimsPermissions.InstructionRelease);
     }
 }

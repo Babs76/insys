@@ -368,6 +368,11 @@ internal static class Allocation
 
     public static async Task<Result> Allocate(Payment payment, IAllocationPlanner planner, ITenantContext tenant, IClock clock, CancellationToken cancellationToken)
     {
+        if (payment.Direction != Direction.In || payment.Status != PaymentStatus.Succeeded)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Payment {payment.PaymentRef} is {payment.Status}; only a received payment that succeeded is allocated.");
+        }
+
         var remaining = payment.Amount - payment.Allocated;
         if (remaining <= 0 || payment.BusinessRefId is not { } refId)
         {

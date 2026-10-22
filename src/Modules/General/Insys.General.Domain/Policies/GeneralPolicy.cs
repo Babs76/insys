@@ -221,6 +221,20 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
     public Guid? QuoteId { get; private set; }
 
+    /// <summary>ISSUE: cover starts when the policy is issued and its period has started. FIRST_PAYMENT: also not before the first payment.</summary>
+    public string CoverStartsOn { get; private set; } = "ISSUE";
+
+    /// <summary>The day the first premium was paid in full, for cover that starts on first payment.</summary>
+    public DateOnly? FirstPaidOn { get; private set; }
+
+    /// <summary>Days of cover in the period: its end date is the last day of cover (OQ-059).</summary>
+    public int PeriodDays => PeriodEnd.DayNumber - PeriodStart.DayNumber + 1;
+
+    /// <summary>Days of cover from a date to the end of the period, both included.</summary>
+    public int DaysFrom(DateOnly day) => PeriodEnd.DayNumber - day.DayNumber + 1;
+
+    private bool CoverMayStart => CoverStartsOn == "ISSUE" || FirstPaidOn is not null;
+
     public IReadOnlyList<PolicyRisk> Risks => _risks;
 
     public IReadOnlyList<Cancellation> Cancellations => _cancellations;
@@ -233,7 +247,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
     /// <summary>Command IssuePolicy from the accepted quote version; in force at once when its period has started.</summary>
     public static Result<GeneralPolicy> IssuePolicy(Guid id, string policyNumber, GeneralQuote quote, BillingArrangement billing, Guid? renewalOfId, DateOnly today,
-        DateTimeOffset now)
+        DateTimeOffset now, string coverStartsOn = "ISSUE")
     {
         if (quote.Status != QuoteStatus.Accepted)
         {
@@ -242,6 +256,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
         var policy = New(id, policyNumber, quote.ProductCode, quote.ProductVersion, quote.RatingVersion!.Value, quote.ProposerPartyId, quote.Currency, quote.PeriodStart,
             quote.PeriodEnd, quote.IntermediaryCode, billing, renewalOfId, quote.Id);
+        policy.CoverStartsOn = coverStartsOn;
         policy._risks.AddRange(quote.Risks.Select(r => PolicyRisk.Create(id, r.ToRequest(), quote.PeriodStart)));
         policy.SetPremium(quote.Premium!.Value);
         return policy.Issued(today, now);
@@ -255,10 +270,10 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Only a policy in force is renewed; {expiring.PolicyNumber} is {expiring.Status}.");
         }
 
-        var length = expiring.PeriodEnd.DayNumber - expiring.PeriodStart.DayNumber;
-        var start = expiring.PeriodEnd;
+        var start = expiring.PeriodEnd.AddDays(1);
         var renewal = New(id, policyNumber, expiring.ProductCode, expiring.ProductVersion, expiring.RatingVersion, expiring.PolicyholderPartyId, expiring.Currency, start,
-            start.AddDays(length), expiring.IntermediaryCode, expiring.Billing, expiring.Id, null);
+            NextPeriodEnd(expiring.PeriodStart, expiring.PeriodEnd, start), expiring.IntermediaryCode, expiring.Billing, expiring.Id, null);
+        renewal.CoverStartsOn = expiring.CoverStartsOn;
         foreach (var risk in expiring._risks.Where(r => r.DetachedOn is null))
         {
             renewal._risks.Add(PolicyRisk.Create(id, new RiskRequest(risk.RiskObjectId, risk.SumInsured,
@@ -281,19 +296,50 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         return result;
     }
 
-    /// <summary>Transition "Period starts".</summary>
-    public Result StartPeriod(DateOnly today) =>
-        Status == PolicyStatus.Issued && PeriodStart <= today ? Fire(PolicyTrigger.PeriodStarts)
-            : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is {Status}, from {PeriodStart:yyyy-MM-dd}.");
+    /// <summary>
+    /// The next period after <paramref name="start"/>: as many whole months as the expiring period (so a year stays a
+    /// year across leap days), or else as many days.
+    /// </summary>
+    public static DateOnly NextPeriodEnd(DateOnly periodStart, DateOnly periodEnd, DateOnly start)
+    {
+        var after = periodEnd.AddDays(1);
+        var months = (after.Year - periodStart.Year) * 12 + after.Month - periodStart.Month;
+        return months > 0 && periodStart.AddMonths(months) == after
+            ? start.AddMonths(months).AddDays(-1)
+            : start.AddDays(periodEnd.DayNumber - periodStart.DayNumber);
+    }
 
-    /// <summary>Transition "Period ends without renewal".</summary>
+    /// <summary>Transition "Period starts": from its start date, and for cover that starts on first payment, once paid.</summary>
+    public Result StartPeriod(DateOnly today) =>
+        Status == PolicyStatus.Issued && PeriodStart <= today && CoverMayStart ? Fire(PolicyTrigger.PeriodStarts)
+            : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is {Status}, from {PeriodStart:yyyy-MM-dd}{(CoverMayStart ? "" : ", waiting for its first payment")}.");
+
+    /// <summary>
+    /// The first premium was paid in full (Billing's InvoiceSettled): for cover that starts on first payment, cover starts
+    /// now if the period has started (domain-model.json: "Confirm cover where payment is a condition").
+    /// </summary>
+    public Result RecordFirstPayment(DateOnly paidOn, DateOnly today)
+    {
+        if (FirstPaidOn is not null)
+        {
+            return Result.Success();
+        }
+
+        FirstPaidOn = paidOn;
+        MarkChanged();
+        return Status == PolicyStatus.Issued && PeriodStart <= today ? Fire(PolicyTrigger.PeriodStarts) : Result.Success();
+    }
+
+    /// <summary>Transition "Period ends without renewal": the day after the last day of cover.</summary>
     public Result ExpirePolicy(DateOnly today) =>
-        Status == PolicyStatus.InForce && PeriodEnd <= today ? Fire(PolicyTrigger.PeriodEndsWithoutRenewal)
-            : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is {Status}, until {PeriodEnd:yyyy-MM-dd}.");
+        Status == PolicyStatus.InForce && PeriodEnd < today ? Fire(PolicyTrigger.PeriodEndsWithoutRenewal)
+            : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is {Status}, to the end of {PeriodEnd:yyyy-MM-dd}.");
 
     /// <summary>
     /// Command CancelPolicy by the reason's refund rule (GEN-004): pro rata returns the unexpired part of the annual
-    /// premium less the fee; none returns nothing. TODO(spec): the short-period scale is not specified (OQ-059).
+    /// premium less the fee; none returns nothing. There is no cover from the effective date, so the unexpired days are
+    /// the effective date to the end of the period, both included. TODO(spec): the short-period scale is not specified
+    /// (OQ-059).
     /// </summary>
     public Result CancelPolicy(CancellationRule rule, DateOnly effectiveDate, Guid cancelledBy, DateTimeOffset now)
     {
@@ -306,7 +352,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         switch (rule.RefundBasis)
         {
             case "PRO_RATA":
-                var unexpired = AnnualPremium * (PeriodEnd.DayNumber - effectiveDate.DayNumber) / (PeriodEnd.DayNumber - PeriodStart.DayNumber);
+                var unexpired = AnnualPremium * DaysFrom(effectiveDate) / PeriodDays;
                 refund = Math.Max(0, Math.Round(unexpired, 2, MidpointRounding.AwayFromZero) - rule.Fee);
                 break;
             case "NONE":
@@ -328,11 +374,11 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
     /// <summary>
     /// Command ReinstatePolicy (where permitted): the cancellation is kept as history. TODO(spec): the product rules
-    /// that permit reinstatement are not specified, so it is permitted before the period ends (OQ-059).
+    /// that permit reinstatement are not specified, so it is permitted until the period's last day (OQ-059).
     /// </summary>
     public Result ReinstatePolicy(Guid reinstatedBy, DateOnly today, DateTimeOffset now)
     {
-        if (Status == PolicyStatus.Cancelled && today >= PeriodEnd)
+        if (Status == PolicyStatus.Cancelled && today > PeriodEnd)
         {
             return Error.Conflict(GeneralErrorCodes.ReinstatementNotPermitted, $"Policy {PolicyNumber}'s period has ended.");
         }
@@ -348,12 +394,14 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Whether the policy covers a loss (GEN-006): the loss date is within the period and before any cancellation in
-    /// effect, the risk object was attached on that date, and the coverage is on it.
+    /// Whether the policy covers a loss (GEN-006): the loss date is within the period, end date included, and before
+    /// any cancellation in effect; for cover that starts on first payment, not before it was paid; the risk object was
+    /// attached on that date, and the coverage is on it.
     /// </summary>
     public Result CoversLoss(Guid? riskObjectId, string coverageCode, DateOnly lossDate)
     {
-        if (Status == PolicyStatus.Issued || lossDate < PeriodStart || lossDate >= PeriodEnd)
+        if (Status == PolicyStatus.Issued || lossDate < PeriodStart || lossDate > PeriodEnd
+            || (CoverStartsOn == "FIRST_PAYMENT" && (FirstPaidOn is not { } paid || lossDate < paid)))
         {
             return Error.Validation(GeneralErrorCodes.NotCovered, $"Policy {PolicyNumber} was not in force on {lossDate:yyyy-MM-dd}.");
         }
@@ -508,7 +556,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     {
         Raise(new GeneralPolicyIssued(Id, PolicyNumber, ProductCode, ProductVersion, PolicyholderPartyId, Billing, Currency, AnnualPremium, PeriodStart, PeriodEnd,
             RenewalOfId, now));
-        if (PeriodStart <= today)
+        if (PeriodStart <= today && CoverMayStart)
         {
             Fire(PolicyTrigger.PeriodStarts);
         }

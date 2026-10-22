@@ -22,10 +22,10 @@ public enum ApprovalTrigger
 public sealed record AuthorityGrant(string RoleCode, string ApprovalType, decimal Limit);
 
 public sealed record ApprovalGranted(Guid ApprovalId, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid CheckerId,
-    DateTimeOffset OccurredAt) : IDomainEvent;
+    string? SubjectHash, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record ApprovalRejected(Guid ApprovalId, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid CheckerId,
-    string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
+    string Reason, string? SubjectHash, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>
 /// The Approval aggregate: maker-checker for sensitive operations (SRS-002). The checker is a different person from
@@ -73,9 +73,15 @@ public sealed class Approval : AggregateRoot<Guid>
 
     public string? DecisionReason { get; private set; }
 
+    /// <summary>
+    /// A hash of exactly what is being approved (the payee and their bank details, say), set by the requester. The
+    /// decision carries it back, so the requester applies it only to the same subject.
+    /// </summary>
+    public string? SubjectHash { get; private set; }
+
     /// <summary>Command RequestApproval.</summary>
     public static Approval RequestApproval(Guid id, string businessRefType, Guid businessRefId, string approvalType, Guid makerId, decimal? amount, string? currency,
-        string? reason, DateTimeOffset now, DateTimeOffset? expiresAt)
+        string? reason, DateTimeOffset now, DateTimeOffset? expiresAt, string? subjectHash = null)
     {
         var approval = new Approval
         {
@@ -87,6 +93,7 @@ public sealed class Approval : AggregateRoot<Guid>
             Amount = amount,
             Currency = currency,
             Reason = reason,
+            SubjectHash = subjectHash is null ? null : Guard.MaxLength(subjectHash, 64),
             RequestedAt = now,
             ExpiresAt = expiresAt,
             Status = ApprovalStatus.Requested,
@@ -125,7 +132,7 @@ public sealed class Approval : AggregateRoot<Guid>
             CheckerId = checkerId;
             Decision = "APPROVED";
             DecidedAt = now;
-            Raise(new ApprovalGranted(Id, BusinessRefType, BusinessRefId, ApprovalType, MakerId, checkerId, now));
+            Raise(new ApprovalGranted(Id, BusinessRefType, BusinessRefId, ApprovalType, MakerId, checkerId, SubjectHash, now));
         }
 
         return result;
@@ -152,7 +159,7 @@ public sealed class Approval : AggregateRoot<Guid>
             Decision = "REJECTED";
             DecisionReason = reason;
             DecidedAt = now;
-            Raise(new ApprovalRejected(Id, BusinessRefType, BusinessRefId, ApprovalType, MakerId, checkerId, reason, now));
+            Raise(new ApprovalRejected(Id, BusinessRefType, BusinessRefId, ApprovalType, MakerId, checkerId, reason, SubjectHash, now));
         }
 
         return result;

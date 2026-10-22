@@ -124,6 +124,8 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             policy.Property(p => p.IntermediaryCode).HasMaxLength(15);
             policy.Property(p => p.BillingFrequency).HasMaxLength(15);
             policy.Property(p => p.CollectionMethod).HasMaxLength(15);
+            policy.Property(p => p.CoverStartsOn).HasMaxLength(15);
+            policy.Ignore(p => p.PeriodDays);
             policy.HasMany(p => p.Risks).WithOne().HasForeignKey(r => new { r.TenantId, r.PolicyId });
             policy.Navigation(p => p.Risks).UsePropertyAccessMode(PropertyAccessMode.Field);
             policy.HasMany(p => p.Cancellations).WithOne().HasForeignKey(c => new { c.TenantId, c.PolicyId });
@@ -186,6 +188,8 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             claim.ToTable("claim");
             Root(claim);
             claim.Ignore(c => c.SettlementPending);
+            claim.Ignore(c => c.SettlementSubjectHash);
+            claim.Property(c => c.SettlementPayeeBankHash).HasMaxLength(64);
             claim.Property(c => c.ClaimNumber).HasMaxLength(25);
             claim.Property(c => c.CoverageCode).HasMaxLength(20);
             claim.Property(c => c.CauseCode).HasMaxLength(15);

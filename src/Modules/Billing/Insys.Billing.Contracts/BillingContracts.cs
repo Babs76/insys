@@ -36,7 +36,8 @@ public sealed record CreditNoteIssued(Guid CreditNoteId, string CreditNoteNumber
     DateOnly IssueDate, string Currency, decimal TotalAmount, string ReasonCode) : IIntegrationEvent;
 
 [IntegrationEvent("billing.InvoiceSettled")]
-public sealed record InvoiceSettled(Guid InvoiceId, Guid BillingAccountId) : IIntegrationEvent;
+/// <summary>An invoice was paid in full; <paramref name="PolicyRef"/> is the policy it bills in <paramref name="SourceDomain"/>.</summary>
+public sealed record InvoiceSettled(Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef) : IIntegrationEvent;
 
 [IntegrationEvent("billing.ArrearsDetected")]
 public sealed record ArrearsDetected(Guid AccountId, string BucketCode, int DaysOverdue, decimal AmountOverdue, string Currency) : IIntegrationEvent;
