@@ -165,6 +165,8 @@ public sealed class GeneralModule : IModule
             .Produces<PolicyView>(StatusCodes.Status201Created)
             .WithName("GeneralIssuePolicy").WithSummary("Issue a policy from an accepted quote version")
             .WithDescription("Billing opens the account (if new) and the premium schedule; Documents generates the schedule and certificate.")
+            .WithEventualEffects("Billing (account, premium schedule, first invoice), Documents (policy schedule, certificate), Reinsurance (cession) "
+                + "and Analytics follow; each needs its tenant configuration (docs/runbooks/dead-letters-and-webhooks.md).")
             .RequirePermission(GeneralPermissions.PolicyCreate).RequireIdempotencyKey();
         general.MapGet("/policies/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPolicy(id), ct)).ToHttp(Results.Ok))
             .Produces<PolicyView>(StatusCodes.Status200OK)

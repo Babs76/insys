@@ -61,6 +61,7 @@ public sealed class ClaimsFrameworkModule : IModule
 
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
+        AuditTargetTypes.Register(nameof(Domain.Claims.ClaimFinancials)); // an aggregate kept as movements, not an IAggregateRoot
         ClaimsFrameworkStaticDataEndpoints.MapStaticData(api);
         var claims = api.MapGroup("/claims").WithTags(Name);
 

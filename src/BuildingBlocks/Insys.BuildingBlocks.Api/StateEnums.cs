@@ -44,7 +44,16 @@ public static class StateEnums
     private static readonly ConcurrentDictionary<Type, StaticLifecycle> Lifecycles = new();
 
     /// <summary>Records the lifecycle of a static data table as its endpoints are mapped.</summary>
-    public static void Register(StaticDataDescriptor descriptor) => Lifecycles[descriptor.EntityType] = descriptor.Lifecycle;
+    public static void Register(StaticDataDescriptor descriptor)
+    {
+        Lifecycles[descriptor.EntityType] = descriptor.Lifecycle;
+        Codes_[descriptor.EntityCode] = 0;
+    }
+
+    private static readonly ConcurrentDictionary<string, byte> Codes_ = new(StringComparer.Ordinal);
+
+    /// <summary>The entity codes of the static data tables mapped so far, which static data audit events name as their target type.</summary>
+    public static IEnumerable<string> EntityCodes => Codes_.Keys;
 
     /// <summary>Every record_status code of a lifecycle, in lifecycle order.</summary>
     public static IReadOnlyList<string> Codes(StaticLifecycle lifecycle) =>

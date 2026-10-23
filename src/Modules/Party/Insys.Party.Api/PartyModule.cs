@@ -77,6 +77,7 @@ public sealed class PartyModule : IModule
 
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
+        AuditTargetTypes.Register(nameof(BankAccount));
         PartyStaticDataEndpoints.MapStaticData(api);
         var parties = api.MapGroup("/party/parties").WithTags(Name);
 

@@ -183,6 +183,8 @@ public static class StaticDataEndpoints
                 .WithSummary($"Submit, activate, deprecate or retire a {owner} {entityName} version")
                 .WithDescription("submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); "
                     + "activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).")
+                .WithEventualEffects("after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, "
+                    + "GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation's cache refreshes follow too.")
                 .Secure(global, StaticDataPermissions.Update);
 
             scope.MapPost("/imports", async (StaticDataImport<TInput> import, StaticDataService<TDbContext> service, CancellationToken ct) =>

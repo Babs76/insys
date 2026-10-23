@@ -232,6 +232,20 @@ public static class ApiRegistration
                 operation.Extensions["x-permission"] = new Microsoft.OpenApi.JsonNodeExtension(System.Text.Json.Nodes.JsonValue.Create(permission.Permission));
             }
 
+            if (operation.OperationId is "ListAuditEvents" or "GetRecordHistory"
+                && operation.Parameters?.FirstOrDefault(p => p.Name == "targetType")?.Schema is OpenApiSchema targetType)
+            {
+                // GAP-029: the target types audit events name.
+                targetType.Enum = [.. AuditTargetTypes.All().Select(t => (System.Text.Json.Nodes.JsonNode)System.Text.Json.Nodes.JsonValue.Create(t))];
+            }
+
+            if (metadata.OfType<EventualEffectsMetadata>().FirstOrDefault() is { } eventual)
+            {
+                operation.Extensions ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiExtension>();
+                operation.Extensions[EventualEffectsExtensions.Extension] = new Microsoft.OpenApi.JsonNodeExtension(System.Text.Json.Nodes.JsonValue.Create(eventual.Effects));
+                operation.Description = (operation.Description is { Length: > 0 } d ? d + " " : "") + "Completes asynchronously (GAP-027): " + eventual.Effects;
+            }
+
             if (metadata.OfType<IfMatchRequiredMetadata>().Any())
             {
                 operation.Parameters ??= [];

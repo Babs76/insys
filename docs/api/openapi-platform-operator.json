@@ -232,7 +232,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) UI label and translation bundles version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeIntegrationUILabelAndTranslationBundlesLifecycleGlobal",
         "parameters": [
           {
@@ -317,7 +317,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/integration/static/ui-label-and-translation-bundles/global/imports": {
@@ -615,7 +616,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) API catalogue entries version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeIntegrationAPICatalogueEntriesLifecycleGlobal",
         "parameters": [
           {
@@ -700,7 +701,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/integration/static/api-catalogue-entries/global/imports": {
@@ -998,7 +1000,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Event schema versions version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeIntegrationEventSchemaVersionsLifecycleGlobal",
         "parameters": [
           {
@@ -1083,7 +1085,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/integration/static/event-schema-versions/global/imports": {
@@ -1381,7 +1384,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Rate limit policies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeIntegrationRateLimitPoliciesLifecycleGlobal",
         "parameters": [
           {
@@ -1466,7 +1469,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/integration/static/rate-limit-policies/global/imports": {
@@ -1764,7 +1768,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Retry and dead-letter policies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeIntegrationRetryAndDeadLetterPoliciesLifecycleGlobal",
         "parameters": [
           {
@@ -1849,7 +1853,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/integration/static/retry-and-dead-letter-policies/global/imports": {
@@ -2147,7 +2152,7 @@
           "Integration static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Error code catalogue version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeIntegrationErrorCodeCatalogueLifecycleGlobal",
         "parameters": [
           {
@@ -2232,7 +2237,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/integration/static/error-code-catalogue/global/imports": {
@@ -2530,7 +2536,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Alert rules and thresholds version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataAlertRulesAndThresholdsLifecycleGlobal",
         "parameters": [
           {
@@ -2615,7 +2621,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/alert-rules-and-thresholds/global/imports": {
@@ -2913,7 +2920,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Backup and recovery policies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataBackupAndRecoveryPoliciesLifecycleGlobal",
         "parameters": [
           {
@@ -2998,7 +3005,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/backup-and-recovery-policies/global/imports": {
@@ -3296,7 +3304,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Dashboard definitions version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataDashboardDefinitionsLifecycleGlobal",
         "parameters": [
           {
@@ -3381,7 +3389,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/dashboard-definitions/global/imports": {
@@ -3679,7 +3688,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Environment configuration baselines version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataEnvironmentConfigurationBaselinesLifecycleGlobal",
         "parameters": [
           {
@@ -3764,7 +3773,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/environment-configuration-baselines/global/imports": {
@@ -4062,7 +4072,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Countries version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataCountriesLifecycleGlobal",
         "parameters": [
           {
@@ -4147,7 +4157,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/countries/global/imports": {
@@ -4445,7 +4456,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Country subdivisions version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataCountrySubdivisionsLifecycleGlobal",
         "parameters": [
           {
@@ -4530,7 +4541,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/country-subdivisions/global/imports": {
@@ -4828,7 +4840,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Currencies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataCurrenciesLifecycleGlobal",
         "parameters": [
           {
@@ -4913,7 +4925,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/currencies/global/imports": {
@@ -5211,7 +5224,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Languages version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataLanguagesLifecycleGlobal",
         "parameters": [
           {
@@ -5296,7 +5309,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/languages/global/imports": {
@@ -5594,7 +5608,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Public holiday calendars version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataPublicHolidayCalendarsLifecycleGlobal",
         "parameters": [
           {
@@ -5679,7 +5693,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/public-holiday-calendars/global/imports": {
@@ -5977,7 +5992,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Time zones version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataTimeZonesLifecycleGlobal",
         "parameters": [
           {
@@ -6062,7 +6077,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/time-zones/global/imports": {
@@ -6360,7 +6376,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Units of measure version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataUnitsOfMeasureLifecycleGlobal",
         "parameters": [
           {
@@ -6445,7 +6461,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/units-of-measure/global/imports": {
@@ -6743,7 +6760,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Static data entity register version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataStaticDataEntityRegisterLifecycleGlobal",
         "parameters": [
           {
@@ -6828,7 +6845,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/static-data-entity-register/global/imports": {
@@ -7126,7 +7144,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Validation rule sets version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataValidationRuleSetsLifecycleGlobal",
         "parameters": [
           {
@@ -7211,7 +7229,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/validation-rule-sets/global/imports": {
@@ -7509,7 +7528,7 @@
           "StaticData static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) External source register version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeStaticDataExternalSourceRegisterLifecycleGlobal",
         "parameters": [
           {
@@ -7594,7 +7613,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/static-data/static/external-source-register/global/imports": {
@@ -7892,7 +7912,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Address formats and administrative regions version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangePartyAddressFormatsAndAdministrativeRegionsLifecycleGlobal",
         "parameters": [
           {
@@ -7977,7 +7997,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/party/static/address-formats-and-administrative-regions/global/imports": {
@@ -8275,7 +8296,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Contact channel types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangePartyContactChannelTypesLifecycleGlobal",
         "parameters": [
           {
@@ -8360,7 +8381,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/party/static/contact-channel-types/global/imports": {
@@ -8658,7 +8680,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Customer status codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangePartyCustomerStatusCodesLifecycleGlobal",
         "parameters": [
           {
@@ -8743,7 +8765,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/party/static/customer-status-codes/global/imports": {
@@ -9041,7 +9064,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Identity document types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangePartyIdentityDocumentTypesLifecycleGlobal",
         "parameters": [
           {
@@ -9126,7 +9149,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/party/static/identity-document-types/global/imports": {
@@ -9424,7 +9448,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Party role types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangePartyPartyRoleTypesLifecycleGlobal",
         "parameters": [
           {
@@ -9509,7 +9533,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/party/static/party-role-types/global/imports": {
@@ -9807,7 +9832,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Party types and legal forms version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangePartyPartyTypesAndLegalFormsLifecycleGlobal",
         "parameters": [
           {
@@ -9892,7 +9917,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/party/static/party-types-and-legal-forms/global/imports": {
@@ -10190,7 +10216,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Personal attribute code lists version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangePartyPersonalAttributeCodeListsLifecycleGlobal",
         "parameters": [
           {
@@ -10275,7 +10301,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/party/static/personal-attribute-code-lists/global/imports": {
@@ -10573,7 +10600,7 @@
           "Party static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Relationship types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangePartyRelationshipTypesLifecycleGlobal",
         "parameters": [
           {
@@ -10658,7 +10685,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/party/static/relationship-types/global/imports": {
@@ -10956,7 +10984,7 @@
           "ProductFactory static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Product approval workflow settings version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeProductFactoryProductApprovalWorkflowSettingsLifecycleGlobal",
         "parameters": [
           {
@@ -11041,7 +11069,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/product-factory/static/product-approval-workflow-settings/global/imports": {
@@ -11339,7 +11368,7 @@
           "Rating static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Rounding and currency precision rules version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeRatingRoundingAndCurrencyPrecisionRulesLifecycleGlobal",
         "parameters": [
           {
@@ -11424,7 +11453,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/rating/static/rounding-and-currency-precision-rules/global/imports": {
@@ -11722,7 +11752,7 @@
           "Workflow static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Business calendars version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeWorkflowBusinessCalendarsLifecycleGlobal",
         "parameters": [
           {
@@ -11807,7 +11837,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/workflow/static/business-calendars/global/imports": {
@@ -12286,7 +12317,7 @@
           "Documents static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Document categories version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeDocumentsDocumentCategoriesLifecycleGlobal",
         "parameters": [
           {
@@ -12371,7 +12402,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/documents/static/document-categories/global/imports": {
@@ -12669,7 +12701,7 @@
           "Documents static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Merge field dictionary version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeDocumentsMergeFieldDictionaryLifecycleGlobal",
         "parameters": [
           {
@@ -12754,7 +12786,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/documents/static/merge-field-dictionary/global/imports": {
@@ -13052,7 +13085,7 @@
           "Billing static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Billing frequencies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeBillingBillingFrequenciesLifecycleGlobal",
         "parameters": [
           {
@@ -13137,7 +13170,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/billing/static/billing-frequencies/global/imports": {
@@ -13435,7 +13469,7 @@
           "Billing static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Collection methods version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeBillingCollectionMethodsLifecycleGlobal",
         "parameters": [
           {
@@ -13520,7 +13554,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/billing/static/collection-methods/global/imports": {
@@ -13818,7 +13853,7 @@
           "Payments static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Bank and branch directory version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangePaymentsBankAndBranchDirectoryLifecycleGlobal",
         "parameters": [
           {
@@ -13903,7 +13938,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/payments/static/bank-and-branch-directory/global/imports": {
@@ -14201,7 +14237,7 @@
           "Payments static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Payment methods version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangePaymentsPaymentMethodsLifecycleGlobal",
         "parameters": [
           {
@@ -14286,7 +14322,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/payments/static/payment-methods/global/imports": {
@@ -14584,7 +14621,7 @@
           "ClaimsFramework static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Claim status model version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeClaimsFrameworkClaimStatusModelLifecycleGlobal",
         "parameters": [
           {
@@ -14669,7 +14706,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/claims-framework/static/claim-status-model/global/imports": {
@@ -14967,7 +15005,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Beneficiary relationship types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeLifeBeneficiaryRelationshipTypesLifecycleGlobal",
         "parameters": [
           {
@@ -15052,7 +15090,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/life/static/beneficiary-relationship-types/global/imports": {
@@ -15350,7 +15389,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Cause of event codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeLifeCauseOfEventCodesLifecycleGlobal",
         "parameters": [
           {
@@ -15435,7 +15474,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/life/static/cause-of-event-codes/global/imports": {
@@ -15733,7 +15773,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Life benefit types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeLifeLifeBenefitTypesLifecycleGlobal",
         "parameters": [
           {
@@ -15818,7 +15858,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/life/static/life-benefit-types/global/imports": {
@@ -16116,7 +16157,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Life claim types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeLifeLifeClaimTypesLifecycleGlobal",
         "parameters": [
           {
@@ -16201,7 +16242,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/life/static/life-claim-types/global/imports": {
@@ -16499,7 +16541,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Policy status model version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeLifePolicyStatusModelLifecycleGlobal",
         "parameters": [
           {
@@ -16584,7 +16626,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/life/static/policy-status-model/global/imports": {
@@ -16882,7 +16925,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Proposal status codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeLifeProposalStatusCodesLifecycleGlobal",
         "parameters": [
           {
@@ -16967,7 +17010,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/life/static/proposal-status-codes/global/imports": {
@@ -17265,7 +17309,7 @@
           "Life static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Underwriting decision codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeLifeUnderwritingDecisionCodesLifecycleGlobal",
         "parameters": [
           {
@@ -17350,7 +17394,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/life/static/underwriting-decision-codes/global/imports": {
@@ -17648,7 +17693,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Construction types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeGeneralConstructionTypesLifecycleGlobal",
         "parameters": [
           {
@@ -17733,7 +17778,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/general/static/construction-types/global/imports": {
@@ -18031,7 +18077,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Driver licence categories version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeGeneralDriverLicenceCategoriesLifecycleGlobal",
         "parameters": [
           {
@@ -18116,7 +18162,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/general/static/driver-licence-categories/global/imports": {
@@ -18414,7 +18461,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Industry classification codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeGeneralIndustryClassificationCodesLifecycleGlobal",
         "parameters": [
           {
@@ -18499,7 +18546,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/general/static/industry-classification-codes/global/imports": {
@@ -18797,7 +18845,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Ports and places version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeGeneralPortsAndPlacesLifecycleGlobal",
         "parameters": [
           {
@@ -18882,7 +18930,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/general/static/ports-and-places/global/imports": {
@@ -19180,7 +19229,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Quote status codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeGeneralQuoteStatusCodesLifecycleGlobal",
         "parameters": [
           {
@@ -19265,7 +19314,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/general/static/quote-status-codes/global/imports": {
@@ -19563,7 +19613,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Underwriting decision codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeGeneralUnderwritingDecisionCodesLifecycleGlobal",
         "parameters": [
           {
@@ -19648,7 +19698,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/general/static/underwriting-decision-codes/global/imports": {
@@ -19946,7 +19997,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Vehicle make, model and variant directory version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeGeneralVehicleMakeModelAndVariantDirectoryLifecycleGlobal",
         "parameters": [
           {
@@ -20031,7 +20082,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/general/static/vehicle-make-model-and-variant-directory/global/imports": {
@@ -20329,7 +20381,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Vehicle valuation guide reference version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeGeneralVehicleValuationGuideReferenceLifecycleGlobal",
         "parameters": [
           {
@@ -20414,7 +20466,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/general/static/vehicle-valuation-guide-reference/global/imports": {
@@ -20712,7 +20765,7 @@
           "General static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Vessel types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeGeneralVesselTypesLifecycleGlobal",
         "parameters": [
           {
@@ -20797,7 +20850,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/general/static/vessel-types/global/imports": {
@@ -21095,7 +21149,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Claim format definitions version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeHealthClaimFormatDefinitionsLifecycleGlobal",
         "parameters": [
           {
@@ -21180,7 +21234,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/health/static/claim-format-definitions/global/imports": {
@@ -21478,7 +21533,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Claim adjustment reason codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeHealthClaimAdjustmentReasonCodesLifecycleGlobal",
         "parameters": [
           {
@@ -21563,7 +21618,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/health/static/claim-adjustment-reason-codes/global/imports": {
@@ -21861,7 +21917,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Diagnosis codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeHealthDiagnosisCodesLifecycleGlobal",
         "parameters": [
           {
@@ -21946,7 +22002,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/health/static/diagnosis-codes/global/imports": {
@@ -22244,7 +22301,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Eligibility response codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeHealthEligibilityResponseCodesLifecycleGlobal",
         "parameters": [
           {
@@ -22329,7 +22386,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/health/static/eligibility-response-codes/global/imports": {
@@ -22627,7 +22685,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Membership status codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeHealthMembershipStatusCodesLifecycleGlobal",
         "parameters": [
           {
@@ -22712,7 +22770,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/health/static/membership-status-codes/global/imports": {
@@ -23010,7 +23069,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Procedure and service codes version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeHealthProcedureAndServiceCodesLifecycleGlobal",
         "parameters": [
           {
@@ -23095,7 +23154,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/health/static/procedure-and-service-codes/global/imports": {
@@ -23393,7 +23453,7 @@
           "Health static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Provider types and specialties version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeHealthProviderTypesAndSpecialtiesLifecycleGlobal",
         "parameters": [
           {
@@ -23478,7 +23538,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/health/static/provider-types-and-specialties/global/imports": {
@@ -23776,7 +23837,7 @@
           "Finance static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Exchange rates and rate types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeFinanceExchangeRatesAndRateTypesLifecycleGlobal",
         "parameters": [
           {
@@ -23861,7 +23922,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/finance/static/exchange-rates-and-rate-types/global/imports": {
@@ -24159,7 +24221,7 @@
           "Finance static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Transaction types version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeFinanceTransactionTypesLifecycleGlobal",
         "parameters": [
           {
@@ -24244,7 +24306,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/finance/static/transaction-types/global/imports": {
@@ -24542,7 +24605,7 @@
           "Compliance static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Compliance register entries version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeComplianceComplianceRegisterEntriesLifecycleGlobal",
         "parameters": [
           {
@@ -24627,7 +24690,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/compliance/static/compliance-register-entries/global/imports": {
@@ -24925,7 +24989,7 @@
           "Compliance static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Data classification scheme version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeComplianceDataClassificationSchemeLifecycleGlobal",
         "parameters": [
           {
@@ -25010,7 +25074,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/compliance/static/data-classification-scheme/global/imports": {
@@ -25308,7 +25373,7 @@
           "Tenancy static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Feature entitlements version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeTenancyFeatureEntitlementsLifecycleGlobal",
         "parameters": [
           {
@@ -25393,7 +25458,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/tenancy/static/feature-entitlements/global/imports": {
@@ -25691,7 +25757,7 @@
           "Tenancy static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Isolation profile assignment version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeTenancyIsolationProfileAssignmentLifecycleGlobal",
         "parameters": [
           {
@@ -25776,7 +25842,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/tenancy/static/isolation-profile-assignment/global/imports": {
@@ -26074,7 +26141,7 @@
           "Tenancy static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Operational limits version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeTenancyOperationalLimitsLifecycleGlobal",
         "parameters": [
           {
@@ -26159,7 +26226,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/tenancy/static/operational-limits/global/imports": {
@@ -27117,7 +27185,7 @@
           "Identity static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Authentication and session policies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeIdentityAuthenticationAndSessionPoliciesLifecycleGlobal",
         "parameters": [
           {
@@ -27202,7 +27270,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/identity/static/authentication-and-session-policies/global/imports": {
@@ -27500,7 +27569,7 @@
           "Identity static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Permission catalogue version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeIdentityPermissionCatalogueLifecycleGlobal",
         "parameters": [
           {
@@ -27585,7 +27654,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/identity/static/permission-catalogue/global/imports": {
@@ -27663,7 +27733,7 @@
           "Identity"
         ],
         "summary": "Request a new tenant\u0027s first administrator",
-        "description": "Platform operator only, while the tenant is Onboarding and has no users. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR); then the tenant\u0027s TENANT_ADMIN role (with these permissions), the user and an active assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with externalSubject, whose token must carry the new tenant\u0027s tenant_id.",
+        "description": "Platform operator only, while the tenant is Onboarding and has no users. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR); then the tenant\u0027s TENANT_ADMIN role (with these permissions), the user and an active assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with externalSubject, whose token must carry the new tenant\u0027s tenant_id. Completes asynchronously (GAP-027): the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy completes the onboarding step.",
         "operationId": "ProvisionTenantAdministrator",
         "parameters": [
           {
@@ -27723,7 +27793,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "user.create"
+        "x-permission": "user.create",
+        "x-eventual-effects": "the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy completes the onboarding step."
       },
       "get": {
         "tags": [
@@ -28054,7 +28125,7 @@
           "Audit static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Audit retention policies version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeAuditAuditRetentionPoliciesLifecycleGlobal",
         "parameters": [
           {
@@ -28139,7 +28210,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/audit/static/audit-retention-policies/global/imports": {
@@ -28437,7 +28509,7 @@
           "Audit static data"
         ],
         "summary": "Submit, activate, deprecate or retire a global (platform administrators) Audit event type catalogue version",
-        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007).",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
         "operationId": "ChangeAuditAuditEventTypeCatalogueLifecycleGlobal",
         "parameters": [
           {
@@ -28522,7 +28594,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
     "/api/v1/audit/static/audit-event-type-catalogue/global/imports": {

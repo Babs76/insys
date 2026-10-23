@@ -150,6 +150,8 @@ public sealed class IdentityModule : IModule
             .WithName("AssignRole")
             .WithSummary("Assign a role")
             .WithDescription("Refused for roles with no version in force, MFA-required roles without MFA (IAM-003) and segregation-of-duties conflicts (SRS-002).")
+            .WithEventualEffects("for a privileged role (requiresApproval), the PRIVILEGED_ROLE approval appears in Workflow; the assignment stays "
+                + "PendingApproval until it is decided.")
             .RequirePermission(IdentityPermissions.UserUpdate);
 
         users.MapPost("/{id:guid}/revoke-role", (Guid id, RevokeRoleRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
@@ -338,6 +340,8 @@ public sealed class IdentityModule : IModule
                 + "Workflow (approval type TENANT_ADMINISTRATOR); then the tenant's TENANT_ADMIN role (with these permissions), the user and an active "
                 + "assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with "
                 + "externalSubject, whose token must carry the new tenant's tenant_id.")
+            .WithEventualEffects("the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy "
+                + "completes the onboarding step.")
             .RequirePlatformPermission(IdentityPermissions.UserCreate)
             .RequireIdempotencyKey();
 

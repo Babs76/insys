@@ -172,6 +172,8 @@ public sealed class ProductFactoryModule : IModule
             .WithSummary("Submit a validated version for publication approval")
             .WithDescription("Needs a passed simulation of this configuration unless the tenant's approval settings say otherwise. Workflow then asks a "
                 + "checker other than the submitter, with PRODUCT_PUBLICATION authority (PRD-006); approval publishes the version, rejection returns it to draft.")
+            .WithEventualEffects("the Workflow approval appears (GET /api/v1/workflow/approvals); after approval the version becomes Published and "
+                + "Rating loads it.")
             .RequirePermission(ProductPermissions.ProductPublish);
 
         versions.MapPost("/{versionNumber:int}/withdraw", (string productCode, int versionNumber, WithdrawVersionRequest r, IDispatcher dispatcher, HttpContext http,
