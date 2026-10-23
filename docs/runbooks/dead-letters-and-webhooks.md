@@ -47,21 +47,23 @@ Rules for both replay and discard:
 - A dead letter is resolved once. A second replay or discard answers 409 `INVALID_STATE_TRANSITION`.
 - A `webhook:` dead letter **cannot be replayed** (409). See [Failed webhooks](#failed-webhooks).
 
-### Events that need tenant configuration (GAP-034)
+### Events that need tenant configuration (GAP-034, ADR-022)
 
-Some consumers need tenant configuration, and fail until it exists. They are retried with back-off for about 43 minutes, then dead-lettered (`outbox:<schema>`). Add the configuration, then replay. What the General policy events need:
+A consumer that finds the tenant's configuration missing **parks** its delivery instead of failing. It shows at `GET /api/v1/integration/parked-deliveries`, with the code and item that name what is missing, and later events for the same record wait behind it. It is retried when configuration is published in the tenant, every 15 minutes, or from `POST /api/v1/integration/parked-deliveries/{id}/retry` (or `/retry` with a code). It is never dropped: discarding needs a reason and is audited. Escalation and alarms are in `deployment.md` (Cloud Eye) and ADR-022.
 
-| Event | Consumer | Needs, in the tenant |
-|---|---|---|
-| `GeneralPolicyIssued` | Billing | The policy's collection method (`billing.ref_collection_methods`) and billing frequency (`billing.ref_billing_frequencies`) in force |
-| `GeneralPolicyIssued` | Documents | A template assigned to the product for `POLICY_SCHEDULE` and `CERTIFICATE` (`product.cfg_product_template_assignments`), in force in the recipient's language chain |
-| `GeneralPolicyIssued` | Reinsurance, Analytics | The billing frequency in force |
-| `GeneralPolicyEndorsed` | Billing | The policy's premium schedule (from its issue) |
-| `GeneralPolicyEndorsed` | Documents, Reinsurance, Analytics | As for issue |
-| `GeneralPolicyCancelled` | Billing | The reason code, or `CANCELLATION`, in `billing.ref_adjustment_and_reversal_reason_codes` |
-| `GeneralRenewalInvited` | Documents | The renewal rule's invitation template in force in the policyholder's languages |
+| Event | Consumer | Parks with | Needs, in the tenant |
+|---|---|---|---|
+| `GeneralPolicyIssued`, `LifePolicyIssued` | Billing | `COLLECTION_METHOD_NOT_IN_FORCE` <method>, `BILLING_FREQUENCY_NOT_IN_FORCE` <frequency> | The policy's collection method (`billing.ref_collection_methods`) and billing frequency (`billing.ref_billing_frequencies`) in force |
+| `HealthMemberEnrolled` | Billing | As above (frequency `MONTHLY`) | As above |
+| `GeneralPolicyIssued`, `GeneralPolicyEndorsed`, `LifePolicyIssued` | Documents | `DOCUMENT_TEMPLATE_NOT_IN_FORCE` <product>:<document types> | A template assigned to the product for each document type (`product.cfg_product_template_assignments`), in force in the recipient's language chain |
+| `GeneralRenewalInvited`, `ProviderPaymentRunReleased` | Documents | `DOCUMENT_TEMPLATE_NOT_IN_FORCE` <template code> | The template in force in the recipient's languages |
+| `LifePolicyIssued` | Reinsurance, Analytics | `BILLING_FREQUENCY_NOT_IN_FORCE` <frequency> | The billing frequency in force |
+| `GeneralPolicyIssued`, `LifePolicyIssued` | Reinsurance | `TREATY_NOT_APPLICABLE` <error code> | A treaty for the product that can be applied |
+| `GeneralPolicyCancelled` | Billing | `ADJUSTMENT_REASON_NOT_IN_FORCE` `CANCELLATION` | The reason code, or `CANCELLATION`, in `billing.ref_adjustment_and_reversal_reason_codes` |
+| Refund, claim payment, remittance or commission released | Payments | `PAYOUT_METHOD_NOT_IN_FORCE` <currency>, `PAYOUT_PROVIDER_NOT_IN_FORCE` <method> | A payout method for the currency, and a provider supporting it |
+| `GeneralPolicyEndorsed` | Billing | (fails, then waits in order) | The policy's premium schedule, from its issue: an endorsement waits behind a parked issue |
 
-Outbox lag is not part of readiness, so a stuck event does not take the instance out of service. ADR-022 (proposed) parks such deliveries and retries them once the configuration exists.
+Anything else a consumer fails on is still a failure: retried with back-off, then dead-lettered, while later events for its record wait behind it. Outbox lag is not part of readiness, so a stuck event does not take the instance out of service.
 
 ## Webhooks
 

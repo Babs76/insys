@@ -134,6 +134,7 @@ internal static class ParkedRows
 /// </summary>
 public sealed class PostgresDeliveryLedger(
     [FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource,
+    IServiceProvider services,
     IClock clock,
     IOptions<OutboxOptions> outbox,
     ILogger<PostgresDeliveryLedger> logger) : IDeliveryLedger
@@ -198,8 +199,8 @@ public sealed class PostgresDeliveryLedger(
         if (firstOfKind)
         {
             // ADR-022 decision 5: once per tenant and kind, for the log alarm. Configuration names only, never a party or payload.
-            logger.LogWarning("ParkedDeliveryRaised: tenant {TenantId} {Code} {Item} ({Consumer}), event type {EventType}",
-                envelope.TenantId, code, item, consumer, envelope.EventType);
+            logger.LogWarning("ParkedDeliveryRaised: tenant {Tenant} {Code} {Item} ({Consumer}), event type {EventType}",
+                await TenantName.Of(services, envelope.TenantId, cancellationToken), code, item, consumer, envelope.EventType);
         }
     }
 

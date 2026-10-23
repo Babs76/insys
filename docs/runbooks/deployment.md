@@ -157,6 +157,8 @@ A probe reads `/health` on every API instance once a minute and reports custom m
 | `health_status` | 0 Healthy, 1 Degraded, 2 Unhealthy (the `status` of `/health`) |
 | `outbox_lag_seconds` | `checks.outbox-lag.data.lagSeconds` |
 | `outbox_pending` | `checks.outbox-lag.data.pending` |
+| `parked_deliveries` | `checks.parked-deliveries.data.parked` (ADR-022) |
+| `parked_escalated` | `checks.parked-deliveries.data.escalated` |
 
 The probe runs as a CCE CronJob with `curl` and `jq`. It calls `/health` through the instance's pod address, not the load balancer, so that each instance is seen. It reports through the Cloud Eye custom metric API, authenticated by the node's IAM agency, never an access key pair (see `docs/production-readiness.md`).
 
@@ -169,8 +171,25 @@ Create the alarm rules on the custom metrics, and notify the operations SMN topi
 | `/health` Degraded | `health_status` ≥ 1 for 10 periods in any hour | Major |
 | Outbox lag | `outbox_lag_seconds` > 300 for 5 periods | Critical |
 | Probe silent | `health_status` has no data for 5 periods | Major: the probe or the instance is down |
+| Parked delivery | `parked_deliveries` > 0 for 1 period | Major: a tenant is missing configuration (ADR-022). Platform operations is alerted at once (OQ-072) |
+| Parked delivery escalated | `parked_escalated` > 0 for 1 period | Critical: the second escalation has passed, so the platform operator acts with the tenant administrator (OQ-072) |
 
 Also alarm on the load balancer's backend health (`/health/ready`): unhealthy backends for more than 2 minutes, Critical.
+
+### Parked deliveries: what the alarm says, and the log alarm
+- **`/health`**, check `parked-deliveries`:
+  - `description` names up to five kinds as `<tenant code> <code> <item> xN (<consumer>)`, for example `OFT-ZA BILLING_FREQUENCY_NOT_IN_FORCE MONTHLY x3 (billing.GeneralPolicyBilling.GeneralPolicyIssued)`;
+  - `data.tenants` lists every tenant code with all of its kinds, marked `escalated level N` once escalated.
+
+  The probe copies `description` into the alarm notification, so the SMN message names the tenant and the missing configuration.
+- **Log alarm (Cloud Eye, LTS keyword alarm)** on the API's log group, so the first park alerts even between probe runs:
+
+| Keyword | Level | Severity | Says |
+|---|---|---|---|
+| `ParkedDeliveryRaised` | Warning | Major | First park of a kind in a tenant: `tenant <code> <prerequisite code> <item> (<consumer>)` |
+| `ParkedDeliveryEscalated` with `level 2` | Error | Critical | Second escalation: the tenant administrator has a task, and platform operations is to follow up |
+
+  Neither names a party, a payload or an event's values. Clearing: publish the configuration (the parking job retries within seconds), retry from `POST /api/v1/integration/parked-deliveries/retry`, or discard with a reason. See `docs/runbooks/dead-letters-and-webhooks.md`.
 
 When `/health` alarms, its `checks` say which check and why. For outbox lag, see `slowestOutbox` and follow `docs/runbooks/monitoring.md` (outbox lag) and `docs/runbooks/dead-letters-and-webhooks.md` (events that need tenant configuration).
 

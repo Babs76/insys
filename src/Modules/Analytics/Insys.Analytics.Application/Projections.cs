@@ -132,7 +132,7 @@ public sealed class ProjectionPolicies(IProjectionStore store, IEnumerable<IPoli
     public async Task Handle(LifePolicyIssued e, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         var periods = await billing.PeriodsPerYear(tenant.RequireTenantId(), e.BillingFrequency, e.InceptionDate, cancellationToken)
-                      ?? throw new InvalidOperationException($"{e.BillingFrequency} is not a billing frequency in force; {e.PolicyNumber} is not projected.");
+                      ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, e.BillingFrequency);
         await Project(envelope, new ProjectionEntry(ProjectionEntry.WrittenPremium, Day(envelope), e.ProductCode,
             await Channel(LifeSubjects.SourceDomain, e.PolicyId, cancellationToken), AllBranches, e.Premium * periods, 1, e.Currency), cancellationToken);
     }

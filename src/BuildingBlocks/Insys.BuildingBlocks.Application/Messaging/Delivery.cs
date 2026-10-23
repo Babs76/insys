@@ -41,6 +41,28 @@ public sealed class PrerequisiteMissingException(string code, string? item = nul
     public string? Item { get; } = item is null || item.Length <= 80 ? item : item[..80];
 }
 
+/// <summary>
+/// The prerequisite codes consumers park on (ADR-022), shared so that the operations view, alerts and escalation name
+/// the same configuration the same way. The item names the code or key that is missing, never a party or payload value.
+/// </summary>
+public static class PrerequisiteCodes
+{
+    /// <summary>Item: the billing frequency code (billing.ref_billing_frequencies).</summary>
+    public const string BillingFrequencyNotInForce = "BILLING_FREQUENCY_NOT_IN_FORCE";
+
+    /// <summary>Item: the collection method code (billing.ref_collection_methods).</summary>
+    public const string CollectionMethodNotInForce = "COLLECTION_METHOD_NOT_IN_FORCE";
+
+    /// <summary>Item: the adjustment reason code (billing.ref_adjustment_and_reversal_reason_codes).</summary>
+    public const string AdjustmentReasonNotInForce = "ADJUSTMENT_REASON_NOT_IN_FORCE";
+
+    /// <summary>Item: product and document type ("GEN-MOTOR:POLICY_SCHEDULE"), or the template code.</summary>
+    public const string DocumentTemplateNotInForce = "DOCUMENT_TEMPLATE_NOT_IN_FORCE";
+
+    /// <summary>Item: the treaty code, or the error code when no single treaty is at fault.</summary>
+    public const string TreatyNotApplicable = "TREATY_NOT_APPLICABLE";
+}
+
 public enum DeliveryStatus
 {
     /// <summary>The consumer handled the event, or had already handled it (its inbox).</summary>

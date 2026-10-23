@@ -336,7 +336,7 @@ public sealed class ReinsurancePolicies(IReinsuranceRepository repository, IRein
     public async Task Handle(LifePolicyIssued issued, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         var periods = await billing.PeriodsPerYear(tenant.RequireTenantId(), issued.BillingFrequency, issued.InceptionDate, cancellationToken)
-                      ?? throw new InvalidOperationException($"{issued.BillingFrequency} is not a billing frequency in force; {issued.PolicyNumber} cannot be ceded.");
+                      ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, issued.BillingFrequency);
         await Cede(new PolicyRisk(LifeSubjects.SourceDomain, issued.PolicyId, issued.PolicyNumber, issued.ProductCode, issued.SumAssured, issued.Premium * periods,
             issued.Currency, issued.InceptionDate, issued.TermEndDate ?? issued.InceptionDate.AddYears(1).AddDays(-1)), issued.InceptionDate, cancellationToken);
     }
@@ -382,8 +382,8 @@ public sealed class ReinsurancePolicies(IReinsuranceRepository repository, IRein
         }
         else if (cession.Error.Code != ReinsuranceErrorCodes.NothingCeded)
         {
-            // A treaty that cannot be applied is a configuration error: retried, then dead-lettered for a person.
-            throw new InvalidOperationException($"{risk.PolicyNumber} was not ceded: {cession.Error.Message}");
+            // A treaty that cannot be applied is a configuration error: parked until the treaty is fixed (ADR-022).
+            throw new PrerequisiteMissingException(PrerequisiteCodes.TreatyNotApplicable, cession.Error.Code);
         }
     }
 

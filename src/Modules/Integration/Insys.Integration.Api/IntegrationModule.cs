@@ -54,6 +54,9 @@ public sealed class IntegrationModule : IModule
 {
     public string Name => "Integration";
 
+    /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
+    public bool HoldsBusinessData => false;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddIntegrationInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

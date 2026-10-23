@@ -57,7 +57,7 @@ public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes 
         {
             if (!await codes.CollectionMethodExists(issued.CollectionMethod, clock.UtcToday, cancellationToken))
             {
-                throw new InvalidOperationException($"{issued.CollectionMethod} is not a collection method in force; policy {issued.PolicyNumber} cannot be billed.");
+                throw new PrerequisiteMissingException(PrerequisiteCodes.CollectionMethodNotInForce, issued.CollectionMethod);
             }
 
             account = BillingAccount.OpenAccount(issued.BillingAccountRef, issued.PayerPartyId, issued.Currency, issued.CollectionMethod, null, clock.UtcNow);
@@ -117,5 +117,5 @@ public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes 
 
     private async Task<BillingFrequency> Frequency(string code, string policyNumber, CancellationToken cancellationToken) =>
         await codes.Frequency(code, clock.UtcToday, cancellationToken)
-        ?? throw new InvalidOperationException($"{code} is not a billing frequency in force; policy {policyNumber} cannot be billed.");
+        ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, code);
 }

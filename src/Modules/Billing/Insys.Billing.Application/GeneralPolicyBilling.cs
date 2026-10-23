@@ -60,7 +60,7 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
         {
             if (!await codes.CollectionMethodExists(issued.CollectionMethod, clock.UtcToday, cancellationToken))
             {
-                throw new InvalidOperationException($"{issued.CollectionMethod} is not a collection method in force; policy {issued.PolicyNumber} cannot be billed.");
+                throw new PrerequisiteMissingException(PrerequisiteCodes.CollectionMethodNotInForce, issued.CollectionMethod);
             }
 
             account = BillingAccount.OpenAccount(issued.BillingAccountRef, issued.PayerPartyId, issued.Currency, issued.CollectionMethod, null, clock.UtcNow);
@@ -125,7 +125,7 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
 
         var reason = await codes.AdjustmentReason(cancelled.ReasonCode, clock.UtcToday, cancellationToken)
             ?? await codes.AdjustmentReason("CANCELLATION", clock.UtcToday, cancellationToken)
-            ?? throw new InvalidOperationException($"Neither {cancelled.ReasonCode} nor CANCELLATION is an adjustment reason in force; policy {cancelled.PolicyNumber}'s refund is not credited.");
+            ?? throw new PrerequisiteMissingException(PrerequisiteCodes.AdjustmentReasonNotInForce, "CANCELLATION");
         var prefix = await codes.NumberPrefix("CREDIT_NOTE", clock.UtcToday, cancellationToken);
         var remaining = cancelled.RefundAmount;
         foreach (var invoice in (await billing.Invoices(account.Id, cancellationToken))
@@ -154,7 +154,7 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
 
     private async Task<BillingFrequency> Frequency(string code, string policyNumber, CancellationToken cancellationToken) =>
         await codes.Frequency(code, clock.UtcToday, cancellationToken)
-        ?? throw new InvalidOperationException($"{code} is not a billing frequency in force; policy {policyNumber} cannot be billed.");
+        ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, code);
 
     /// <summary>The annual premium spread over the year's instalments. TODO(spec): instalment rounding is not specified; each is rounded half up (OQ-059).</summary>
     private static decimal Instalment(decimal annualPremium, BillingFrequency frequency) =>

@@ -104,7 +104,7 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
     {
         if (!await codes.CollectionMethodExists(enrolled.CollectionMethod, clock.UtcToday, cancellationToken))
         {
-            throw new InvalidOperationException($"{enrolled.CollectionMethod} is not a collection method in force; member {enrolled.MemberNumber} cannot be billed.");
+            throw new PrerequisiteMissingException(PrerequisiteCodes.CollectionMethodNotInForce, enrolled.CollectionMethod);
         }
 
         var account = BillingAccount.OpenAccount(id, payerPartyId, enrolled.Currency, enrolled.CollectionMethod, null, clock.UtcNow);
@@ -141,5 +141,5 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
 
     private async Task<BillingFrequency> Frequency(string memberNumber, CancellationToken cancellationToken) =>
         await codes.Frequency(Monthly, clock.UtcToday, cancellationToken)
-        ?? throw new InvalidOperationException($"{Monthly} is not a billing frequency in force; member {memberNumber}'s contributions cannot be billed.");
+        ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, Monthly);
 }

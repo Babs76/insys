@@ -202,7 +202,12 @@ public sealed class ParkedDeliveryTests(DatabaseFixture fixture) : IClassFixture
         (await Status(widget, "test_mod.WidgetCreated")).ShouldBe("PARKED");
         var health = await Health();
         health.Status.ShouldBe(HealthStatus.Unhealthy);
-        health.Data.Values.Cast<string>().ShouldContain(v => v.Contains($"{WidgetLedgerConsumer.MissingCode} BLUE", StringComparison.Ordinal));
+        // The alert names the tenant by its code and the missing configuration by code and item, with numbers for the Cloud Eye probe.
+        var tenants = (SortedDictionary<string, List<string>>)health.Data["tenants"];
+        tenants["TENA"].ShouldContain(v => v.StartsWith($"{WidgetLedgerConsumer.MissingCode} BLUE x1 ({Consumer}), escalated level 2", StringComparison.Ordinal));
+        health.Description.ShouldNotBeNull().ShouldContain($"TENA {WidgetLedgerConsumer.MissingCode} BLUE");
+        ((int)health.Data["parked"]).ShouldBeGreaterThanOrEqualTo(1);
+        ((int)health.Data["escalated"]).ShouldBeGreaterThanOrEqualTo(1);
 
         // Clean up: discard it, so the other tests' health checks start from nothing.
         await Discard(widget);

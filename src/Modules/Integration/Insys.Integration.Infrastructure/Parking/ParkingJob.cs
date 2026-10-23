@@ -59,6 +59,7 @@ public sealed record ParkingPass(int Retried, int Resolved, int Released, int Es
 /// </summary>
 public sealed class ParkingJob(
     [FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource,
+    IServiceProvider services,
     IServiceScopeFactory scopes,
     ITenantDirectory tenants,
     IEventBus bus,
@@ -346,16 +347,17 @@ public sealed class ParkingJob(
                 return await insert.ExecuteNonQueryAsync(cancellationToken);
             }, cancellationToken);
 
+            var tenantName = await TenantName.Of(services, tenantId, cancellationToken);
             if (level >= 2)
             {
                 // The platform operator's alert (OQ-072): the log alarm, and /health Unhealthy while it stays escalated.
-                logger.LogError("ParkedDeliveryEscalated: tenant {TenantId} {Code} {Item} ({Consumer}) x{Count}, level {Level}, to {Role} and platform operations",
-                    tenantId, group.Code, group.Item, group.Consumer, group.Count, level, targetRole);
+                logger.LogError("ParkedDeliveryEscalated: tenant {Tenant} {Code} {Item} ({Consumer}) x{Count}, level {Level}, to {Role} and platform operations",
+                    tenantName, group.Code, group.Item, group.Consumer, group.Count, level, targetRole);
             }
             else
             {
-                logger.LogWarning("ParkedDeliveryEscalated: tenant {TenantId} {Code} {Item} ({Consumer}) x{Count}, level {Level}, to {Role}",
-                    tenantId, group.Code, group.Item, group.Consumer, group.Count, level, targetRole);
+                logger.LogWarning("ParkedDeliveryEscalated: tenant {Tenant} {Code} {Item} ({Consumer}) x{Count}, level {Level}, to {Role}",
+                    tenantName, group.Code, group.Item, group.Consumer, group.Count, level, targetRole);
             }
         }
 
@@ -418,9 +420,10 @@ public sealed class ParkedDeliveriesHealthCheck(
 {
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
-        var data = new Dictionary<string, object>(StringComparer.Ordinal);
-        var escalated = false;
-        var profiles = services.GetService<ITenantProfiles>();
+        // data: parked and escalated (numbers, for the Cloud Eye probe), and tenants: each tenant code with its kinds,
+        // "CODE ITEM xN (consumer)" (escalated ones marked), so the alert names the tenant and the missing configuration.
+        var byTenant = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
+        int parked = 0, escalated = 0;
         foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
         {
             var kinds = await ParkedDeliveryStore.Counts(dataSource, tenantId, cancellationToken);
@@ -429,14 +432,32 @@ public sealed class ParkedDeliveriesHealthCheck(
                 continue;
             }
 
-            escalated |= kinds.Any(k => k.EscalationLevel > 0);
-            var code = profiles is null ? null : (await profiles.Get(tenantId, cancellationToken))?.TenantCode;
-            data[code ?? tenantId.ToString()] = string.Join("; ", kinds.Select(k => $"{k.Code}{(k.Item is null ? "" : " " + k.Item)} x{k.Count} ({k.Consumer})"));
+            parked += kinds.Sum(k => k.Count);
+            escalated += kinds.Where(k => k.EscalationLevel > 0).Sum(k => k.Count);
+            byTenant[await TenantName.Of(services, tenantId, cancellationToken)] = kinds.Select(Describe).ToList();
         }
 
-        return data.Count == 0
-            ? HealthCheckResult.Healthy("No parked deliveries.")
-            : new HealthCheckResult(escalated ? HealthStatus.Unhealthy : HealthStatus.Degraded,
-                escalated ? "Parked deliveries have been escalated (ADR-022)." : "Deliveries are parked for missing tenant configuration (ADR-022).", data: data);
+        if (parked == 0)
+        {
+            return HealthCheckResult.Healthy("No parked deliveries.", new Dictionary<string, object> { ["parked"] = 0, ["escalated"] = 0 });
+        }
+
+        var summary = string.Join("; ", byTenant.SelectMany(t => t.Value.Select(k => $"{t.Key} {k}")).Take(5));
+        var data = new Dictionary<string, object> { ["parked"] = parked, ["escalated"] = escalated, ["tenants"] = byTenant };
+        return escalated > 0
+            ? new HealthCheckResult(HealthStatus.Unhealthy, $"Parked deliveries escalated (ADR-022): {summary}", data: data)
+            : new HealthCheckResult(HealthStatus.Degraded, $"Deliveries parked for missing tenant configuration (ADR-022): {summary}", data: data);
     }
+
+    private static string Describe(ParkedDeliveryCount k) =>
+        $"{k.Code}{(k.Item is null ? "" : " " + k.Item)} x{k.Count} ({k.Consumer}){(k.EscalationLevel > 0 ? $", escalated level {k.EscalationLevel}" : "")}";
+}
+
+/// <summary>A tenant as alerts name it: its code, or its ID when Tenancy cannot say.</summary>
+internal static class TenantName
+{
+    public static async Task<string> Of(IServiceProvider services, Guid tenantId, CancellationToken cancellationToken) =>
+        services.GetService<ITenantProfiles>() is { } profiles && await profiles.Get(tenantId, cancellationToken) is { } profile
+            ? profile.TenantCode
+            : tenantId.ToString();
 }

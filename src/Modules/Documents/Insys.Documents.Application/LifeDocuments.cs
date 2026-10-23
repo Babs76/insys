@@ -47,7 +47,7 @@ public sealed class LifeDocumentPolicies(DocumentGenerator generator, ISellableP
         // In the policyholder's language by the chain (docs/specs/addenda/localisation.md §5).
         var chain = await languages.Chain(issued.PolicyholderPartyId, cancellationToken);
         var template = DocumentLanguages.Pick(await products.Templates(tenant.RequireTenantId(), issued.ProductCode, clock.UtcToday, cancellationToken), PolicySchedule, chain)
-            ?? throw new InvalidOperationException($"Product {issued.ProductCode} has no template assigned for {PolicySchedule} in {string.Join(", ", chain)}.");
+            ?? throw new PrerequisiteMissingException(PrerequisiteCodes.DocumentTemplateNotInForce, $"{issued.ProductCode}:{PolicySchedule}");
         var data = JsonSerializer.SerializeToElement(new Dictionary<string, object?>
         {
             ["policy_number"] = issued.PolicyNumber, ["product_code"] = issued.ProductCode, ["product_version"] = issued.ProductVersion,

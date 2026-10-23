@@ -48,7 +48,7 @@ public sealed class GeneralDocumentPolicies(DocumentGenerator generator, ISellab
     public async Task Handle(GeneralRenewalInvited invited, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         var template = await languages.Template(invited.TemplateCode, await languages.Chain(invited.PolicyholderPartyId, cancellationToken), cancellationToken)
-                       ?? throw new InvalidOperationException($"Renewal invitation template {invited.TemplateCode} is not in force in the policyholder's languages; {invited.PolicyNumber} was not invited.");
+                       ?? throw new PrerequisiteMissingException(PrerequisiteCodes.DocumentTemplateNotInForce, invited.TemplateCode);
         var data = JsonSerializer.SerializeToElement(new Dictionary<string, object?>
         {
             ["policy_number"] = invited.PolicyNumber, ["product_code"] = invited.ProductCode, ["period_end"] = invited.PeriodEnd.ToString("yyyy-MM-dd"),
@@ -90,7 +90,7 @@ public sealed class GeneralDocumentPolicies(DocumentGenerator generator, ISellab
         var missing = documentTypes.Where(type => templates.All(t => t.DocumentType != type)).ToList();
         if (missing.Count > 0)
         {
-            throw new InvalidOperationException($"Product {productCode} has no template assigned for {string.Join(", ", missing)} in {string.Join(", ", chain)}.");
+            throw new PrerequisiteMissingException(PrerequisiteCodes.DocumentTemplateNotInForce, $"{productCode}:{string.Join(",", missing)}");
         }
 
         var data = JsonSerializer.SerializeToElement(fields, JsonSerializerOptions.Web);

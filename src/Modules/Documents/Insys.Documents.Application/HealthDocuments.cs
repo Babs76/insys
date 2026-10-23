@@ -53,7 +53,7 @@ public sealed class HealthDocumentPolicies(DocumentGenerator generator, Document
         {
             // In the provider's language by the chain; a provider organisation has none, so the tenant default (addendum §5).
             var template = await languages.Template(code, await languages.Chain(remittance.ProviderPartyId, cancellationToken), cancellationToken)
-                           ?? throw new InvalidOperationException($"Remittance advice template {code} is not in force in the tenant's languages; run {released.RunCode}'s advices were not generated.");
+                           ?? throw new PrerequisiteMissingException(PrerequisiteCodes.DocumentTemplateNotInForce, code);
             var data = JsonSerializer.SerializeToElement(new Dictionary<string, object?>
             {
                 ["run_code"] = released.RunCode, ["provider_id"] = remittance.ProviderId, ["amount"] = remittance.Amount, ["currency"] = released.Currency,
