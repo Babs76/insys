@@ -72,8 +72,9 @@ public interface IPermissionCache
 /// <param name="Privileged">The role is privileged (OQ-038): in an authentication policy's MFA roles, or holding a permission such a role holds.</param>
 /// <param name="RequiresMfa">An authentication policy in force names the role in its MFA roles (IAM-003).</param>
 /// <param name="RequiresApproval">Assigning the role needs a second administrator's approval: true for every privileged role (OQ-038).</param>
+/// <param name="RevokedAt">When a Revoked assignment was revoked (GAP-020); it gave no permission from the next request.</param>
 public sealed record RoleAssignmentView(Guid Id, string RoleCode, AssignmentStatus Status, DateOnly ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches,
-    Guid AssignedBy, Guid? ApprovedBy, bool Privileged, bool RequiresMfa, bool RequiresApproval);
+    Guid AssignedBy, Guid? ApprovedBy, bool Privileged, bool RequiresMfa, bool RequiresApproval, DateTimeOffset? RevokedAt, Guid? RevokedBy);
 
 /// <summary>
 /// A role the tenant can assign (GAP-021), with what assigning it involves: a privileged role needs MFA under the
@@ -244,7 +245,7 @@ internal sealed class RevokeRoleHandler(IUserRepository users, IExecutionContext
 
         audit.Record(new AuditEntry("IDENTITY", "RevokeRole", nameof(UserAccount), command.UserId.ToString(),
             new Dictionary<string, string?> { ["role"] = command.RoleCode }));
-        var result = user.Value.RevokeRole(command.RoleCode, clock.UtcToday, clock.UtcNow);
+        var result = user.Value.RevokeRole(command.RoleCode, administrator.Value, clock.UtcToday, clock.UtcNow);
         if (result.IsFailure)
         {
             return result.Error;

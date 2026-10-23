@@ -75,7 +75,8 @@ internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles,
         return users.Select(u => new UserView(u.Id, u.Username, u.DisplayName, u.IdpCode, u.ExternalSubject, u.Status, u.MfaEnrolled, u.LastLoginAt,
             u.RoleAssignments.OrderBy(a => a.ValidFrom)
                 .Select(a => new RoleAssignmentView(a.Id, a.RoleCode, a.Status, a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, a.AssignedBy,
-                    a.ApprovedBy, facts[a.RoleCode].Privileged, facts[a.RoleCode].RequiresMfa, facts[a.RoleCode].Privileged)).ToList(),
+                    a.ApprovedBy, facts[a.RoleCode].Privileged, facts[a.RoleCode].RequiresMfa, facts[a.RoleCode].Privileged, a.RevokedAt, a.RevokedBy))
+                .ToList(),
             u.RowVersion)).ToList();
     }
 }

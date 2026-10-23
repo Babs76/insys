@@ -45,17 +45,18 @@ public enum UserTrigger
     DisableUser,
 }
 
-/// <summary>iam.user_role_assignment.status (V0013). Only an Active assignment gives permissions.</summary>
+/// <summary>iam.user_role_assignment.status (V0013, V0025). Only an Active assignment gives permissions.</summary>
 public enum AssignmentStatus
 {
     PendingApproval,
     Active,
     Rejected,
+    Revoked,
 }
 
 /// <summary>
-/// Entity RoleAssignment (iam.user_role_assignment). A revoked assignment ends today, so it stops applying at once
-/// (IAM-005). A privileged assignment is pending until a second person approves it in Workflow (SRS-002, ADR-009).
+/// Entity RoleAssignment (iam.user_role_assignment). A revoked assignment is Revoked, with when and by whom, so it
+/// stops applying at once (IAM-005, GAP-020). A privileged assignment is pending until a second person approves it in Workflow (SRS-002, ADR-009).
 /// </summary>
 public sealed class RoleAssignment : Entity<Guid>, ITenantScoped
 {
@@ -86,6 +87,10 @@ public sealed class RoleAssignment : Entity<Guid>, ITenantScoped
 
     public DateTimeOffset? DecidedAt { get; private set; }
 
+    public DateTimeOffset? RevokedAt { get; private set; }
+
+    public Guid? RevokedBy { get; private set; }
+
     public long RowVersion { get; private set; }
 
     /// <summary>In effect on <paramref name="day"/>: active, valid_from inclusive, valid_to exclusive.</summary>
@@ -107,7 +112,20 @@ public sealed class RoleAssignment : Entity<Guid>, ITenantScoped
         DecidedAt = now;
     }
 
-    internal void EndOn(DateOnly day) => ValidTo = ValidTo is { } end && end < day ? end : day;
+    /// <summary>
+    /// Revoked from now. The validity period also ends today where it began before today; an assignment that began today
+    /// (or begins later) keeps its dates, since an empty period is not valid; its status ends it.
+    /// </summary>
+    internal void Revoke(Guid revokedBy, DateOnly today, DateTimeOffset now)
+    {
+        Status = AssignmentStatus.Revoked;
+        RevokedAt = now;
+        RevokedBy = revokedBy;
+        if (ValidFrom < today && (ValidTo is null || ValidTo > today))
+        {
+            ValidTo = today;
+        }
+    }
 }
 
 /// <summary>Entity Session (iam.session). Sessions are issued by the identity provider; disabling a user revokes them.</summary>
@@ -305,8 +323,11 @@ public sealed class UserAccount : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    /// <summary>Command RevokeRole: the assignment ends today, so the next request is already without it (IAM-005).</summary>
-    public Result RevokeRole(string roleCode, DateOnly today, DateTimeOffset now)
+    /// <summary>
+    /// Command RevokeRole: the role's current and future assignments become Revoked, so the next request is already
+    /// without it (IAM-005, GAP-020). <paramref name="revokedBy"/> is the administrator, or the reviewer of an access review.
+    /// </summary>
+    public Result RevokeRole(string roleCode, Guid revokedBy, DateOnly today, DateTimeOffset now)
     {
         var assignments = _roleAssignments.Where(a => a.RoleCode == roleCode && a.Status == AssignmentStatus.Active && (a.ValidTo is null || a.ValidTo > today)).ToList();
         if (assignments.Count == 0)
@@ -316,7 +337,7 @@ public sealed class UserAccount : AggregateRoot<Guid>
 
         foreach (var assignment in assignments)
         {
-            assignment.EndOn(today);
+            assignment.Revoke(revokedBy, today, now);
         }
 
         Raise(new RoleRevoked(Id, roleCode, now));

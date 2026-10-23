@@ -60,6 +60,15 @@ public sealed class IdentityTests(DatabaseFixture fixture) : IClassFixture<Datab
         revoked.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         (await clerk.GetAsync("/api/v1/integration/dead-letters")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        // GAP-020: the assignment is explicitly Revoked, with when and by whom.
+        var assignment = (await (await admin.GetAsync($"/api/v1/identity/users/{clerkId}")).Json()).GetProperty("roleAssignments").EnumerateArray().Single();
+        assignment.GetProperty("status").GetString().ShouldBe("Revoked");
+        assignment.GetProperty("revokedAt").GetDateTimeOffset().ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-5));
+        var adminId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND username = @n",
+            ("t", DatabaseFixture.TenantA), ("n", Admin));
+        assignment.GetProperty("revokedBy").GetGuid().ShouldBe(adminId);
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM iam.user_role_assignment WHERE user_id = @u", ("u", clerkId))).ShouldBe("REVOKED");
     }
 
     [Fact]

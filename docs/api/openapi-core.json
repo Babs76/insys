@@ -20217,7 +20217,8 @@
         "enum": [
           "PendingApproval",
           "Active",
-          "Rejected"
+          "Rejected",
+          "Revoked"
         ]
       },
       "AttributesRequest": {
@@ -29978,7 +29979,9 @@
           "approvedBy",
           "privileged",
           "requiresMfa",
-          "requiresApproval"
+          "requiresApproval",
+          "revokedAt",
+          "revokedBy"
         ],
         "type": "object",
         "properties": {
@@ -30040,6 +30043,20 @@
           },
           "requiresApproval": {
             "type": "boolean"
+          },
+          "revokedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "revokedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

@@ -337,16 +337,20 @@ internal sealed class GetReviewHandler(IAccessQueries queries) : IQueryHandler<G
 /// Identity's policy for its own AccessReviewCompleted: every role the reviewer revoked ends today (IAM-005). The
 /// revocations of one review are applied together, in the inbox transaction, so a review is never half applied.
 /// </summary>
-public sealed class RevokeReviewedAccess(IUserRepository users, IClock clock, IPermissionCache cache) : IIntegrationEventHandler<Contracts.AccessReviewCompleted>
+public sealed class RevokeReviewedAccess(IUserRepository users, IAccessRepository access, IClock clock, IPermissionCache cache)
+    : IIntegrationEventHandler<Contracts.AccessReviewCompleted>
 {
     public async Task Handle(Contracts.AccessReviewCompleted completed, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        // The reviewer revoked these roles (GAP-020: revoked_by).
+        var reviewer = (await access.Review(completed.ReviewId, cancellationToken))?.ReviewerId
+            ?? throw new InvalidOperationException($"Access review {completed.ReviewId} was not found.");
         foreach (var revoked in completed.Revoked)
         {
             if (await users.Get(revoked.UserId, cancellationToken) is { } user)
             {
                 // The role may already have been revoked elsewhere; that is fine.
-                user.RevokeRole(revoked.RoleCode, clock.UtcToday, clock.UtcNow);
+                user.RevokeRole(revoked.RoleCode, reviewer, clock.UtcToday, clock.UtcNow);
             }
         }
 

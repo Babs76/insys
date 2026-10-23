@@ -93,10 +93,41 @@ public sealed class UserAccountTests
         var user = User();
         user.AssignRole(Role("CLERK"), [], [], Today.AddDays(-10), null, null, null, Admin, Today, Now);
 
-        user.RevokeRole("CLERK", Today, Now).IsSuccess.ShouldBeTrue();
+        user.RevokeRole("CLERK", Admin, Today, Now).IsSuccess.ShouldBeTrue();
 
         user.EffectiveAssignments(Today).ShouldBeEmpty();
         user.DomainEvents.OfType<RoleRevoked>().ShouldHaveSingleItem();
+        var assignment = user.RoleAssignments.Single();
+        (assignment.Status, assignment.RevokedAt, assignment.RevokedBy, assignment.ValidTo).ShouldBe((AssignmentStatus.Revoked, Now, Admin, Today));
+    }
+
+    /// <summary>GAP-020: an assignment that starts and is revoked on the same day keeps a valid period; its status ends it.</summary>
+    [Fact]
+    public void RevokeRole_OnTheDayTheAssignmentStarts_LeavesNoEmptyPeriod_GAP020()
+    {
+        var user = User();
+        user.AssignRole(Role("CLERK"), [], [], Today, null, null, null, Admin, Today, Now);
+
+        user.RevokeRole("CLERK", Admin, Today, Now).IsSuccess.ShouldBeTrue();
+
+        var assignment = user.RoleAssignments.Single();
+        (assignment.Status, assignment.ValidFrom, assignment.ValidTo).ShouldBe((AssignmentStatus.Revoked, Today, (DateOnly?)null));
+        user.EffectiveAssignments(Today).ShouldBeEmpty();
+    }
+
+    /// <summary>GAP-020: once revoked, the role can be assigned again later the same day, and only the new assignment applies.</summary>
+    [Fact]
+    public void RevokedRole_CanBeAssignedAgainTheSameDay_GAP020()
+    {
+        var user = User();
+        user.AssignRole(Role("CLERK"), [], [], Today.AddDays(-3), null, null, null, Admin, Today, Now);
+        user.RevokeRole("CLERK", Admin, Today, Now);
+
+        user.AssignRole(Role("CLERK"), [], [], Today, null, null, null, Admin, Today, Now.AddHours(2)).IsSuccess.ShouldBeTrue();
+
+        user.EffectiveAssignments(Today).ShouldHaveSingleItem().Status.ShouldBe(AssignmentStatus.Active);
+        user.RevokeRole("CLERK", Admin, Today, Now.AddHours(3)).IsSuccess.ShouldBeTrue();
+        user.RoleAssignments.ShouldAllBe(a => a.Status == AssignmentStatus.Revoked);
     }
 
     [Theory]
