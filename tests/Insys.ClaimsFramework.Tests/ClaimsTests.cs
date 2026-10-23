@@ -234,19 +234,26 @@ public sealed class ClaimsTests
         ];
 
         claim.EvaluateFraudIndicators(indicators, new Dictionary<string, object?> { ["days_since_inception"] = 10m, ["amount"] = 250000m, ["prior_claims"] = 0m }, Now)
-            .Value.ShouldBe(75);
+            .Score.ShouldBe(75);
 
         claim.FraudHits.Select(h => h.IndicatorCode).ShouldBe(["EARLY_CLAIM", "HIGH_VALUE"]);
         claim.FraudHits.ShouldAllBe(h => h.Referred);
     }
 
+    /// <summary>
+    /// F009: an indicator another domain's facts are needed for (or that fails on these facts) is skipped and reported; it
+    /// never stops the other indicators from screening the claim.
+    /// </summary>
     [Fact]
-    public void FraudIndicator_ThatCannotBeEvaluated_FailsTheEvaluation()
+    public void FraudIndicator_ThatCannotBeEvaluated_IsSkippedAndReported_AndTheOthersStillScreenTheClaim_F009()
     {
         var claim = Claim();
-        claim.EvaluateFraudIndicators([new("X", Expression.Parse("missing > 1").Value, 10, 10)], new Dictionary<string, object?>(), Now).Error!.Code
-            .ShouldBe(ExpressionErrors.EvaluationCode);
-        claim.FraudHits.ShouldBeEmpty();
+        var evaluation = claim.EvaluateFraudIndicators(
+            [new("LIFE_ONLY", Expression.Parse("sum_assured > 1").Value, 10, 100), new("EARLY_CLAIM", Expression.Parse("days_since_inception < 30").Value, 40, 100)],
+            new Dictionary<string, object?> { ["days_since_inception"] = 5m }, Now);
+
+        evaluation.NotEvaluated.ShouldBe(["LIFE_ONLY"]);
+        (evaluation.Score, claim.FraudHits.Single().IndicatorCode).ShouldBe((40, "EARLY_CLAIM"));
     }
 
     [Fact]

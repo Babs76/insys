@@ -57,6 +57,7 @@ public static class ClaimsFrameworkInfrastructure
         services.AddIntegrationEventHandler<Life.Contracts.LifeClaimApproved, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "LifeClaimApproved");
         services.AddIntegrationEventHandler<RecoveryRecorded, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "RecoveryRecorded");
         services.AddScoped<IClaimRegistry, ClaimRegistry>();
+        services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator, Persistence.FraudIndicatorValidator>();
         return services;
     }
 }

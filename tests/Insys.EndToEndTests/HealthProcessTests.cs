@@ -456,11 +456,18 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         });
         var account = await _maker.AddVerifiedBankAccount(_checker, _factory, principal, "5500112233");
 
+        // F009: Health's fraud indicators are evaluated when the claim is submitted; reaching the threshold opens a fraud case,
+        // which does not hold up adjudication (it is investigated separately).
+        await Seed("health.cfg_health_fraud_indicator_definitions", "EFFECTIVE", "E2E-MEMBER-SUBMITTED", ("indicator_code", "LATE_MEMBER"),
+            ("logic", "days_to_submission >= 3"), ("score", 50), ("threshold", 50));
         var claim = await Created("/api/v1/health/claims", new
         {
             source = "MEMBER", membershipId = membership, patientPartyId = principal, serviceDate = Today.AddDays(-3), formatCode = "API", currency = "ZAR",
             lines = new[] { new { tariffCode = "0190", quantity = 1, claimedAmount = 650m } },
         });
+        var claimNumber = (await _db.ScalarAsOwner<string>("SELECT claim_number FROM health.medical_claim WHERE id = @c", ("c", claim)))!;
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM health.fraud_case WHERE subject_type = 'CLAIM' AND subject_ref = @n", ("n", claimNumber)))
+            .ShouldBe(1L, "F009: fraud indicators are evaluated at submission");
         (await _maker.PostAsync($"/api/v1/health/claims/{claim}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var adjudicated = await (await _maker.PostAsync($"/api/v1/health/claims/{claim}/adjudicate", null)).Json();
         adjudicated.GetProperty("status").GetString().ShouldBe("Adjudicated", adjudicated.ToString());

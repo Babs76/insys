@@ -286,6 +286,10 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             policyId = policy, riskObjectId = vehicle, coverageCode = "THEFT", lossDate = Today.AddDays(-400), causeCode = "COLLISION", perilCode = "ACC",
         });
         (await (await _maker.PostAsync($"/api/v1/general/claims/{uncovered}/register", null)).Code()).ShouldBe("LOSS_NOT_COVERED");
+        // F009: the fraud indicators in force are evaluated when the claim is registered. This one fires (a loss on the day
+        // of inception) below its referral threshold, so it is recorded without referring the claim.
+        await Seed("claims.cfg_fraud_indicator_definitions", "EFFECTIVE", "E2E-EARLY-GEN", ("indicator_code", "EARLY_CLAIM"), ("logic", "days_since_inception < 30"),
+            ("score", 10), ("referral_threshold", 100), ("referral_queue", "FRAUD"));
         var claim = await Created("/api/v1/general/claims", new
         {
             policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC",
@@ -296,6 +300,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         number.ShouldStartWith("GEN-");
         registered.GetProperty("status").GetString().ShouldBe("Registered");
         ShouldMatchDocumented(await Claim(claim), "GeneralGetClaim");
+        (await _db.ScalarAsOwner<string>("SELECT indicator_code || ':' || referred FROM claims.fraud_indicator_hit WHERE claim_number = @n", ("n", number)))
+            .ShouldBe("EARLY_CLAIM:false", customMessage: "F009: fraud indicators are evaluated at registration");
         var claims = await (await _maker.GetAsync($"/api/v1/general/claims?claimNumber={number}")).Json();
         ShouldMatchDocumented(claims, "GeneralListClaims");
         claims.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid().ShouldBe(claim);

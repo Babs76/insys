@@ -279,7 +279,8 @@ internal sealed class RecordCommunicationHandler(IClaimsRepository claims, ICloc
     }
 }
 
-internal sealed class EvaluateFraudIndicatorsHandler(IClaimsRepository claims, IClaimsCodes codes, IClock clock) : ICommandHandler<EvaluateFraudIndicators, ClaimView>
+internal sealed class EvaluateFraudIndicatorsHandler(IClaimsRepository claims, IClaimsCodes codes, IClock clock, ILogger<EvaluateFraudIndicatorsHandler> logger)
+    : ICommandHandler<EvaluateFraudIndicators, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(EvaluateFraudIndicators command, CancellationToken cancellationToken)
     {
@@ -298,8 +299,15 @@ internal sealed class EvaluateFraudIndicatorsHandler(IClaimsRepository claims, I
         var facts = command.Facts.ValueKind == JsonValueKind.Object
             ? command.Facts.EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value.Clone(), StringComparer.Ordinal)
             : new Dictionary<string, object?>();
-        var result = claim.Value.EvaluateFraudIndicators(indicators.Value, facts, clock.UtcNow);
-        return result.IsFailure ? result.Error : ClaimView.From(claim.Value);
+        var evaluation = claim.Value.EvaluateFraudIndicators(indicators.Value, facts, clock.UtcNow);
+        if (evaluation.NotEvaluated.Count > 0)
+        {
+            // Codes only: the facts may describe the claim.
+            logger.LogWarning("Fraud indicators {Indicators} could not be evaluated on claim {ClaimNumber}", string.Join(", ", evaluation.NotEvaluated),
+                command.ClaimNumber);
+        }
+
+        return ClaimView.From(claim.Value);
     }
 }
 
@@ -690,7 +698,7 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
 }
 
 /// <summary>The Claims Framework's registry for domain claims (<see cref="IClaimRegistry"/>), through its own commands and transactions.</summary>
-public sealed class ClaimRegistry(IDispatcher dispatcher) : IClaimRegistry
+public sealed class ClaimRegistry(IDispatcher dispatcher, ILogger<ClaimRegistry> logger) : IClaimRegistry
 {
     public async Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, JsonElement fraudFacts, CancellationToken cancellationToken)
     {
@@ -700,8 +708,14 @@ public sealed class ClaimRegistry(IDispatcher dispatcher) : IClaimRegistry
             return new ClaimRegistrationResult(false, null, allocated.Error.Code, allocated.Error.Message);
         }
 
-        // An indicator that cannot be evaluated (a fact missing, say) leaves the claim registered; evaluate again through the API.
-        await dispatcher.Send(new EvaluateFraudIndicators(allocated.Value.ClaimNumber, fraudFacts), cancellationToken);
+        // Indicators that cannot be evaluated on these facts are skipped and logged; the claim is registered and screened by the rest.
+        var screened = await dispatcher.Send(new EvaluateFraudIndicators(allocated.Value.ClaimNumber, fraudFacts), cancellationToken);
+        if (screened.IsFailure)
+        {
+            // The indicators in force could not be read (an invalid definition, say). The claim is registered; screen it again
+            // through POST /claims/claims/{number}/fraud-evaluations once the definitions are fixed.
+            logger.LogError("Claim {ClaimNumber} was not screened for fraud: {ErrorCode}", allocated.Value.ClaimNumber, screened.Error.Code);
+        }
         return new ClaimRegistrationResult(true, allocated.Value.ClaimNumber, null, null);
     }
 }

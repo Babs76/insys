@@ -351,10 +351,16 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         var refused = await Created("/api/v1/life/claims", new { policyId = policy, claimType = "DEATH", eventDate = Today, causeCode = "I21", claimantPartyId = stranger, insuredLifeId = life });
         (await (await _maker.PostAsync($"/api/v1/life/claims/{refused}/register", null)).Code()).ShouldBe("CLAIMANT_NOT_AUTHORISED");
 
+        // F009: the fraud indicators in force are evaluated at registration with the claim's facts; this one (a death claim)
+        // fires below its referral threshold, so it is recorded without referring the claim.
+        await Seed("claims.cfg_fraud_indicator_definitions", "EFFECTIVE", "E2E-DEATH-LIFE", ("indicator_code", "DEATH_CLAIM"), ("logic", "claim_type = 'DEATH'"),
+            ("score", 10), ("referral_threshold", 100), ("referral_queue", "FRAUD"));
         var claim = await Created("/api/v1/life/claims", new { policyId = policy, claimType = "DEATH", eventDate = Today, causeCode = "I21", claimantPartyId = spouse, insuredLifeId = life });
         var registered = await (await _maker.PostAsync($"/api/v1/life/claims/{claim}/register", null)).Json();
         var number = registered.GetProperty("claimNumber").GetString()!;
         number.ShouldStartWith("LIF");
+        (await _db.ScalarAsOwner<string>("SELECT indicator_code || ':' || referred FROM claims.fraud_indicator_hit WHERE claim_number = @n", ("n", number)))
+            .ShouldBe("DEATH_CLAIM:false", customMessage: "F009: fraud indicators are evaluated at registration");
         (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 1_000_000m, currency = "ZAR" }))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
         var death = view.GetProperty("benefits").EnumerateArray().Single(b => b.GetProperty("benefitCode").GetString() == "DEATH");

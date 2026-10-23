@@ -34,8 +34,8 @@ Within the same category, the baseline note was also wrong for these rows:
 | Row | Correction |
 |---|---|
 | F005 | Channel permissions are not enforced at all. |
-| F009 | Fraud is evaluated on request, not at registration. |
-| F023 | Renewals are billed through `GeneralPolicyIssued`, but no test proves it. |
+| F009 | Fraud is evaluated on request, not at registration. **Corrected in Wave 0 (23 October 2026):** wrong. General and Life evaluate the Claims Framework indicators at registration (`IClaimRegistry`, since Phase 4), and Health evaluates its own at submission. The real gap: one indicator that could not be evaluated (a fact its domain does not give) stopped the Claims Framework screening the claim at all, silently. Fixed, and covered end to end. |
+| F023 | Renewals are billed through `GeneralPolicyIssued`, but no test proves it. **Wave 0 (23 October 2026):** proved end to end (`EnterpriseProcessTests.RenewalJob_…_AndTheRenewalIsBilled_GEN004_F023`). |
 | F055 | There is no GL export and no GL adapter. |
 | F062 | Limits are not enforced. |
 

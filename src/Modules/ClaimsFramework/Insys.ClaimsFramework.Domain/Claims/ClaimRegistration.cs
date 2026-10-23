@@ -36,6 +36,9 @@ public sealed record FraudIndicatorRaised(string ClaimNumber, string IndicatorCo
 /// <summary>A fraud indicator (claims.cfg_fraud_indicator_definitions): a condition, its score, and the total score that refers a claim.</summary>
 public sealed record FraudIndicator(string IndicatorCode, Expression Logic, int Score, int ReferralThreshold);
 
+/// <summary>An evaluation's total score, and the indicators that could not be evaluated on the claim's facts (F009).</summary>
+public sealed record FraudEvaluation(int Score, IReadOnlyList<string> NotEvaluated);
+
 /// <summary>Entity EvidenceItem (claims.claim_evidence).</summary>
 public sealed class EvidenceItem : Entity<Guid>, ITenantScoped
 {
@@ -212,20 +215,22 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
 
     /// <summary>
     /// Command EvaluateFraudIndicators: every indicator whose condition holds is recorded; when their total score reaches
-    /// an indicator's referral threshold, the claim is referred. An indicator that cannot be evaluated fails the evaluation.
+    /// an indicator's referral threshold, the claim is referred. An indicator that cannot be evaluated on these facts (a
+    /// fact its domain does not give, say, since the indicators are shared by the domains) is skipped and reported, so
+    /// that it never stops the others from screening the claim (F009).
     /// </summary>
-    public Result<int> EvaluateFraudIndicators(IReadOnlyList<FraudIndicator> indicators, IReadOnlyDictionary<string, object?> facts, DateTimeOffset now)
+    public FraudEvaluation EvaluateFraudIndicators(IReadOnlyList<FraudIndicator> indicators, IReadOnlyDictionary<string, object?> facts, DateTimeOffset now)
     {
         var hits = new List<FraudIndicator>();
+        var notEvaluated = new List<string>();
         foreach (var indicator in indicators)
         {
-            var holds = indicator.Logic.Evaluate(facts);
-            if (holds.IsFailure)
+            var holds = indicator.Logic.Variables.All(facts.ContainsKey) ? indicator.Logic.Evaluate(facts) : null;
+            if (holds is null || holds.IsFailure)
             {
-                return Error.Validation(holds.Error.Code, $"Fraud indicator {indicator.IndicatorCode}: {holds.Error.Message}");
+                notEvaluated.Add(indicator.IndicatorCode);
             }
-
-            if (holds.Value)
+            else if (holds.Value)
             {
                 hits.Add(indicator);
             }
@@ -240,7 +245,7 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
         }
 
         MarkChanged();
-        return total;
+        return new FraudEvaluation(total, notEvaluated);
     }
 }
 

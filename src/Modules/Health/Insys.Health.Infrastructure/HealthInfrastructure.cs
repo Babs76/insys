@@ -47,6 +47,7 @@ public static class HealthInfrastructure
     {
         const string schema = HealthDbContext.SchemaName;
         services.AddModuleDbContext<HealthDbContext>(schema, "Health");
+        services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator, Persistence.HealthFraudIndicatorValidator>();
         services.AddStaticData<HealthDbContext>(schema, HealthStaticData.Descriptors);
         services.AddModuleHandlers<HealthDbContext>(typeof(EnrolHealthMember).Assembly);
         services.AddDomainEventMapper<HealthEventMapper>(schema);
