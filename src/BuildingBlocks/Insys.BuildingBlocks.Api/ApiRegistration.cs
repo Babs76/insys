@@ -102,6 +102,13 @@ public static class ApiRegistration
         // Bound when first used, so configuration added after registration (tests, environment overrides) applies.
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
         services.AddHostedService<DevelopmentSigningKeyGuard>();
+
+        // Development CORS for the front end's dev server (GAP-002): origins from Cors:AllowedOrigins, honoured only in
+        // Development and Testing. Production is same-origin through the gateway; there, configured origins stop startup.
+        services.AddCors();
+        services.AddOptions<Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions>().Configure<IConfiguration, Microsoft.Extensions.Hosting.IHostEnvironment>(
+            (options, config, environment) => options.AddPolicy(DevelopmentCors.Policy, policy => DevelopmentCors.Configure(policy, config, environment)));
+        services.AddHostedService<DevelopmentCorsGuard>();
         services.AddSingleton<EndpointWarmup>();
         services.AddHealthChecks().AddCheck<EndpointWarmupHealthCheck>("endpoints", tags: ["ready"]);
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme).Configure<IConfiguration, IHostEnvironment>((options, config, environment) =>
@@ -243,6 +250,7 @@ public static class ApiRegistration
     {
         app.UseMiddleware<WarmupGateMiddleware>();
         app.UseRouting();
+        app.UseCors(DevelopmentCors.Policy);
         app.UseExceptionHandler();
         app.UseStatusCodePages();
         app.UseAuthentication();
