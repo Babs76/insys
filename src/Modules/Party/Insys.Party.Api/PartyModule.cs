@@ -60,6 +60,9 @@ public sealed record DeathRequest(DateOnly DeceasedDate);
 
 public sealed record MergePartiesRequest(Guid SurvivorId, Guid MergedId, string Reason);
 
+/// <summary>Party search filters (GAP-022): any combination, at least one. The body carries them, so an identifier number never appears in a URL.</summary>
+public sealed record PartySearchRequest(string? Name, IdentifierFilter? Identifier, string? RoleCode, PartyStatus? Status, string? Cursor, int? Limit);
+
 public sealed record ConsentRequest(string PurposeCode, string CaptureChannel, string? EvidenceRef);
 
 /// <summary>The Party module: people and organisations, their details, identifiers, relationships, roles and consent (SRS PTY-001 to PTY-005).</summary>
@@ -76,6 +79,26 @@ public sealed class PartyModule : IModule
     {
         PartyStaticDataEndpoints.MapStaticData(api);
         var parties = api.MapGroup("/party/parties").WithTags(Name);
+
+        parties.MapPost("/search", async (PartySearchRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(r.Cursor, out var afterId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(r.Limit);
+                return (await dispatcher.Send(new SearchParties(r.Name, r.Identifier, r.RoleCode, r.Status, afterId, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<PartySummary>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<PartySummary>>(StatusCodes.Status200OK)
+            .WithName("PartySearchParties")
+            .WithSummary("Search parties")
+            .WithDescription("By name (at least 3 characters, anywhere in the display name), an exact identifier (document type, country and number), "
+                + "a role in effect today, and status; at least one, all that are given must match. Results are summaries ordered by ID with cursor "
+                + "paging; open a party for its details. Every search is written to the party access log (PTY-003, PTY-005): who, when, the filters "
+                + "and the number of results, with an identifier by its keyed hash only. POST, so the identifier number is never in a URL.")
+            .RequirePermission(PartyPermissions.PartyRead);
 
         parties.MapPost("/", async (RegisterPartyRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Send(new RegisterParty(r.Individual, r.Organisation), ct)).ToHttp(id =>

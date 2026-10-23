@@ -47,6 +47,20 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
     {
         PartyStaticData.Configure(modelBuilder);
 
+        modelBuilder.Entity<PartySearchLog>(log =>
+        {
+            log.ToTable("party_search_log");
+            log.HasKey(l => new { l.TenantId, l.Id });
+            log.HasAuditColumns(updatable: false);
+            log.Property(l => l.SearchedBy).HasMaxLength(80);
+            log.Property(l => l.NameFilter).HasMaxLength(200);
+            log.Property(l => l.IdentifierDocType).HasMaxLength(15);
+            log.Property(l => l.IdentifierCountry).HasColumnType("char(2)");
+            log.Property(l => l.IdentifierHash).HasColumnType("char(64)");
+            log.Property(l => l.RoleFilter).HasMaxLength(20);
+            log.Property(l => l.StatusFilter).HasMaxLength(12);
+        });
+
         modelBuilder.Entity<Domain.Parties.Party>(party =>
         {
             party.ToTable("party");

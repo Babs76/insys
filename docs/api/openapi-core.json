@@ -411,6 +411,63 @@
         "x-permission": "webhook_delivery.update"
       }
     },
+    "/api/v1/party/parties/search": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Search parties",
+        "description": "By name (at least 3 characters, anywhere in the display name), an exact identifier (document type, country and number), a role in effect today, and status; at least one, all that are given must match. Results are summaries ordered by ID with cursor paging; open a party for its details. Every search is written to the party access log (PTY-003, PTY-005): who, when, the filters and the number of results, with an identifier by its keyed hash only. POST, so the identifier number is never in a URL.",
+        "operationId": "PartySearchParties",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartySearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartySummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "party.read"
+      }
+    },
     "/api/v1/party/parties": {
       "post": {
         "tags": [
@@ -21155,6 +21212,27 @@
           }
         }
       },
+      "CursorPageOfPartySummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartySummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfWorkflowApprovalView": {
         "required": [
           "items",
@@ -28875,6 +28953,25 @@
           }
         }
       },
+      "PartyIdentifierFilter": {
+        "required": [
+          "docType",
+          "country",
+          "number"
+        ],
+        "type": "object",
+        "properties": {
+          "docType": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          }
+        }
+      },
       "PartyIdentifierRequest": {
         "required": [
           "docType",
@@ -28980,6 +29077,12 @@
             ]
           }
         }
+      },
+      "PartyKind": {
+        "enum": [
+          "Individual",
+          "Organisation"
+        ]
       },
       "PartyMergePartiesRequest": {
         "required": [
@@ -29224,6 +29327,66 @@
           }
         }
       },
+      "PartySearchRequest": {
+        "required": [
+          "name",
+          "identifier",
+          "roleCode",
+          "status",
+          "cursor",
+          "limit"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "identifier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PartyIdentifierFilter"
+              }
+            ]
+          },
+          "roleCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PartyStatus"
+              }
+            ]
+          },
+          "cursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "limit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "PartyStatus": {
         "enum": [
           "Active",
@@ -29232,6 +29395,37 @@
           "Merged",
           "Anonymised"
         ]
+      },
+      "PartySummary": {
+        "required": [
+          "id",
+          "kind",
+          "displayName",
+          "status",
+          "roles"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PartyKind"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PartyStatus"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       },
       "PartyVerifyIdentifierRequest": {
         "required": [
