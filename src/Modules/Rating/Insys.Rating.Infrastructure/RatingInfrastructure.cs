@@ -49,6 +49,7 @@ public static class RatingInfrastructure
         services.AddSingleton<RatingConfigurationCache>();
         services.AddScoped<IRatingConfigurationReader, RatingConfigurationReader>();
         services.AddScoped<IRatingTestCases, RatingTestCases>();
+        services.AddSingleton<IStaticRecordValidator, RatingTestCaseValidator>();
         services.AddScoped<IPremiumCalculationRepository, PremiumCalculationRepository>();
         services.AddScoped<IPremiumCalculationQueries, PremiumCalculationQueries>();
         services.AddScoped<PremiumRater>();
