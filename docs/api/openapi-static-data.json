@@ -233097,6 +233097,9 @@
           "country": {
             "type": "string"
           },
+          "defaultLanguage": {
+            "type": "string"
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -233286,6 +233289,12 @@
             ]
           },
           "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "defaultLanguage": {
             "type": [
               "null",
               "string"
