@@ -92,7 +92,7 @@ internal sealed class ChangeRequestQueries(StaticDataDbContext db) : IChangeRequ
         }
 
         return (await query.OrderBy(b => b.Id).Take(limit).ToListAsync(cancellationToken))
-            .Select(b => new ImportBatchView(b.Id, b.BatchNumber, b.EntityCode, b.FileRef, b.RowCount, b.RejectedCount, b.Status.ToString(), b.SubmittedBy,
+            .Select(b => new ImportBatchView(b.Id, b.BatchNumber, b.EntityCode, b.FileRef, b.RowCount, b.RejectedCount, b.Status, b.SubmittedBy,
                 b.Errors.OrderBy(e => e.LineNo).Select(e => new ImportLineError(e.LineNo, e.Field, e.Message)).ToList()))
             .ToList();
     }
@@ -100,7 +100,7 @@ internal sealed class ChangeRequestQueries(StaticDataDbContext db) : IChangeRequ
     private static ChangeRequestView View(StaticDataChange c)
     {
         using var record = JsonDocument.Parse(c.After);
-        return new ChangeRequestView(c.Id, c.RequestNumber, c.EntityCode, c.RecordKey, c.Action, c.Status.ToString(), c.MakerId, c.CheckerId, c.EffectiveFrom,
+        return new ChangeRequestView(c.Id, c.RequestNumber, c.EntityCode, c.RecordKey, c.Action, c.Status, c.MakerId, c.CheckerId, c.EffectiveFrom,
             c.Reason, record.RootElement.Clone(), c.RowVersion);
     }
 }

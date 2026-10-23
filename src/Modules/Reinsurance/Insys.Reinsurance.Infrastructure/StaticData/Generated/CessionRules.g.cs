@@ -45,6 +45,7 @@ public sealed class CessionRules : StaticRecord<CessionRulesInput>
 
     public string[] Products { get; set; } = [];
 
+    [Insys.BuildingBlocks.Domain.OneOf("SUM_INSURED", "PREMIUM", "PROBABLE_MAXIMUM_LOSS")]
     public string AllocationBasis { get; set; } = "";
 
     public override void ApplyFields(CessionRulesInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record CessionRulesInput : StaticRecordInput
 
     public string[]? Products { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("SUM_INSURED", "PREMIUM", "PROBABLE_MAXIMUM_LOSS")]
     public string? AllocationBasis { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

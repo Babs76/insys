@@ -85,19 +85,19 @@ public interface IBillingCodes
     Task<string> NumberPrefix(string documentType, DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record InstalmentView(Guid Id, DateOnly DueDate, decimal Amount, string Status, Guid? InvoiceId);
+public sealed record InstalmentView(Guid Id, DateOnly DueDate, decimal Amount, InstalmentStatus Status, Guid? InvoiceId);
 
 public sealed record ScheduleView(Guid Id, string SourceDomain, Guid PolicyRef, string ProductVersionRef, string Frequency, DateOnly StartDate, DateOnly? EndDate,
     decimal InstalmentAmount, string Currency, IReadOnlyList<InstalmentView> Instalments);
 
-public sealed record ArrearsView(string BucketCode, int DaysOverdue, decimal AmountOverdue, string NextAction, string Status);
+public sealed record ArrearsView(string BucketCode, int DaysOverdue, decimal AmountOverdue, string NextAction, [property: OneOf("OPEN", "CLEARED")] string Status);
 
-public sealed record AccountView(Guid Id, string AccountNumber, Guid PayerPartyId, string Currency, string CollectionMethod, string Status,
+public sealed record AccountView(Guid Id, string AccountNumber, Guid PayerPartyId, string Currency, string CollectionMethod, AccountStatus Status,
     IReadOnlyList<ScheduleView> Schedules, IReadOnlyList<ArrearsView> Arrears, long RowVersion)
 {
-    public static AccountView From(BillingAccount a) => new(a.Id, a.AccountNumber, a.PayerPartyId, a.Currency, a.CollectionMethod, a.Status.ToString(),
+    public static AccountView From(BillingAccount a) => new(a.Id, a.AccountNumber, a.PayerPartyId, a.Currency, a.CollectionMethod, a.Status,
         a.Schedules.Select(s => new ScheduleView(s.Id, s.SourceDomain, s.PolicyRef, s.ProductVersionRef, s.Frequency, s.StartDate, s.EndDate, s.InstalmentAmount,
-            s.Currency, s.Instalments.OrderBy(i => i.DueDate).Select(i => new InstalmentView(i.Id, i.DueDate, i.Amount, i.Status.ToString(), i.InvoiceId)).ToList())).ToList(),
+            s.Currency, s.Instalments.OrderBy(i => i.DueDate).Select(i => new InstalmentView(i.Id, i.DueDate, i.Amount, i.Status, i.InvoiceId)).ToList())).ToList(),
         a.Arrears.Select(r => new ArrearsView(r.BucketCode, r.DaysOverdue, r.AmountOverdue, r.NextAction, r.Status)).ToList(), a.RowVersion);
 }
 
@@ -105,14 +105,14 @@ public sealed record InvoiceLineView(int LineNo, string ChargeType, string Descr
 
 public sealed record InvoiceView(Guid Id, string InvoiceNumber, string DocumentType, Guid BillingAccountId, string SourceDomain, Guid PolicyRef, string ProductVersionRef,
     DateOnly IssueDate, DateOnly DueDate, string Currency, decimal NetAmount, decimal TaxAmount, decimal TotalAmount, decimal AllocatedAmount, decimal Credited,
-    decimal Outstanding, string Status, Guid? ReversesInvoiceId, IReadOnlyList<InvoiceLineView> Lines)
+    decimal Outstanding, InvoiceStatus Status, Guid? ReversesInvoiceId, IReadOnlyList<InvoiceLineView> Lines)
 {
     public static InvoiceView From(Invoice i) => new(i.Id, i.InvoiceNumber, i.DocumentType.ToString(), i.BillingAccountId, i.SourceDomain, i.PolicyRef,
         i.ProductVersionRef, i.IssueDate, i.DueDate, i.Currency, i.NetAmount, i.TaxAmount, i.TotalAmount, i.AllocatedAmount, i.Credited, i.Outstanding,
-        i.Status.ToString(), i.ReversesInvoiceId, i.Lines.OrderBy(l => l.LineNo).Select(l => new InvoiceLineView(l.LineNo, l.ChargeType, l.Description, l.Amount)).ToList());
+        i.Status, i.ReversesInvoiceId, i.Lines.OrderBy(l => l.LineNo).Select(l => new InvoiceLineView(l.LineNo, l.ChargeType, l.Description, l.Amount)).ToList());
 }
 
-public sealed record RefundView(Guid Id, Guid BillingAccountId, decimal Amount, string Currency, string ReasonCode, string Status, Guid? PaymentId, Guid? RequestedBy,
+public sealed record RefundView(Guid Id, Guid BillingAccountId, decimal Amount, string Currency, string ReasonCode, RefundStatus Status, Guid? PaymentId, Guid? RequestedBy,
     Guid? DecidedBy, Guid? BankAccountId);
 
 public sealed record OpenAccount(Guid PayerPartyId, string Currency, string CollectionMethod, string? MandateRef) : ICommand<AccountView>;
@@ -455,7 +455,7 @@ internal sealed class AccountsDueHandler(IBillingRepository billing) : IQueryHan
 
 internal static class Views
 {
-    public static RefundView From(RefundRequest r) => new(r.Id, r.BillingAccountId, r.Amount, r.Currency, r.ReasonCode, r.Status.ToString(), r.PaymentId, r.RequestedBy,
+    public static RefundView From(RefundRequest r) => new(r.Id, r.BillingAccountId, r.Amount, r.Currency, r.ReasonCode, r.Status, r.PaymentId, r.RequestedBy,
         r.DecidedBy, r.BankAccountId);
 }
 

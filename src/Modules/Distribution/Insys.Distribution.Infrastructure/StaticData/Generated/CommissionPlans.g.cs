@@ -41,10 +41,12 @@ public sealed class CommissionPlans : StaticRecord<CommissionPlansInput>
 {
     public string PlanCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PREMIUM", "POLICY_COUNT", "FIXED")]
     public string Basis { get; set; } = "";
 
     public decimal Rate { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "UNEARNED")]
     public string? ClawbackRule { get; set; }
 
     public override void ApplyFields(CommissionPlansInput input, IFieldProtector protector)
@@ -61,10 +63,12 @@ public sealed record CommissionPlansInput : StaticRecordInput
 {
     public string? PlanCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PREMIUM", "POLICY_COUNT", "FIXED")]
     public string? Basis { get; init; }
 
     public decimal? Rate { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "UNEARNED")]
     public string? ClawbackRule { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

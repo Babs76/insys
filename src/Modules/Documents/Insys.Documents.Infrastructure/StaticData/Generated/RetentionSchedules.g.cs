@@ -45,8 +45,10 @@ public sealed class RetentionSchedules : StaticRecord<RetentionSchedulesInput>
 
     public string Period { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("CREATION", "POLICY_END", "CLAIM_CLOSURE")]
     public string TriggerEvent { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("DELETE", "ANONYMISE", "ARCHIVE")]
     public string DisposalMethod { get; set; } = "";
 
     public override void ApplyFields(RetentionSchedulesInput input, IFieldProtector protector)
@@ -68,8 +70,10 @@ public sealed record RetentionSchedulesInput : StaticRecordInput
 
     public string? Period { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("CREATION", "POLICY_END", "CLAIM_CLOSURE")]
     public string? TriggerEvent { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("DELETE", "ANONYMISE", "ARCHIVE")]
     public string? DisposalMethod { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

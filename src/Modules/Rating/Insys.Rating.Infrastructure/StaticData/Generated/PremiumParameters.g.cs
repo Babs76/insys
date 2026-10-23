@@ -45,6 +45,7 @@ public sealed class PremiumParameters : StaticRecord<PremiumParametersInput>
 
     public decimal Value { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("AMOUNT", "PERCENT", "FACTOR")]
     public string Unit { get; set; } = "";
 
     public override void ApplyFields(PremiumParametersInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record PremiumParametersInput : StaticRecordInput
 
     public decimal? Value { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("AMOUNT", "PERCENT", "FACTOR")]
     public string? Unit { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

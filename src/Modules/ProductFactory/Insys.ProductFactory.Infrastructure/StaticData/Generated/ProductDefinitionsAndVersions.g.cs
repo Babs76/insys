@@ -41,6 +41,7 @@ public sealed class ProductDefinitionsAndVersions : StaticRecord<ProductDefiniti
 {
     public string ProductCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string Domain { get; set; } = "";
 
     public string Name { get; set; } = "";
@@ -51,10 +52,12 @@ public sealed class ProductDefinitionsAndVersions : StaticRecord<ProductDefiniti
 
     public string? ClassCode { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ISSUE", "FIRST_PAYMENT")]
     public string CoverStartsOn { get; set; } = "";
 
     public string? EligibilityRulesetCode { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "REQUIRED")]
     public string ReinstatementArrears { get; set; } = "";
 
     public override void ApplyFields(ProductDefinitionsAndVersionsInput input, IFieldProtector protector)
@@ -76,6 +79,7 @@ public sealed record ProductDefinitionsAndVersionsInput : StaticRecordInput
 {
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string? Domain { get; init; }
 
     public string? Name { get; init; }
@@ -86,10 +90,12 @@ public sealed record ProductDefinitionsAndVersionsInput : StaticRecordInput
 
     public string? ClassCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ISSUE", "FIRST_PAYMENT")]
     public string? CoverStartsOn { get; init; }
 
     public string? EligibilityRulesetCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "REQUIRED")]
     public string? ReinstatementArrears { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

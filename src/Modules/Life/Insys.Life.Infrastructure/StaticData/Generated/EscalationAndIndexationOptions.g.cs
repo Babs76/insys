@@ -41,6 +41,7 @@ public sealed class EscalationAndIndexationOptions : StaticRecord<EscalationAndI
 {
     public string OptionCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("FIXED", "INDEX_LINKED")]
     public string Type { get; set; } = "";
 
     public decimal? Rate { get; set; }
@@ -64,6 +65,7 @@ public sealed record EscalationAndIndexationOptionsInput : StaticRecordInput
 {
     public string? OptionCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("FIXED", "INDEX_LINKED")]
     public string? Type { get; init; }
 
     public decimal? Rate { get; init; }

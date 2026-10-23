@@ -129,10 +129,10 @@ internal sealed class ChangeTier2MakerCheckerHandler(IChangeRequestRepository re
 }
 
 public sealed record ChangeRequestView(
-    Guid Id, string RequestNumber, string EntityCode, string RecordKey, string Action, string Status, Guid MakerId, Guid? CheckerId, DateOnly EffectiveFrom,
+    Guid Id, string RequestNumber, string EntityCode, string RecordKey, string Action, ChangeStatus Status, Guid MakerId, Guid? CheckerId, DateOnly EffectiveFrom,
     string Reason, JsonElement Record, long RowVersion);
 
-public sealed record ImportBatchView(Guid Id, string BatchNumber, string EntityCode, string FileRef, int RowCount, int RejectedCount, string Status,
+public sealed record ImportBatchView(Guid Id, string BatchNumber, string EntityCode, string FileRef, int RowCount, int RejectedCount, ImportStatus Status,
     Guid SubmittedBy, IReadOnlyList<ImportLineError> Errors);
 
 public interface IChangeRequestQueries

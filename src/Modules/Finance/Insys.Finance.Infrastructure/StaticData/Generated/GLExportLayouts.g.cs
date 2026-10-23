@@ -43,6 +43,7 @@ public sealed class GLExportLayouts : StaticRecord<GLExportLayoutsInput>
 
     public string TargetSystem { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("CSV", "API", "FIXED_WIDTH")]
     public string Format { get; set; } = "";
 
     public string Schedule { get; set; } = "";
@@ -63,6 +64,7 @@ public sealed record GLExportLayoutsInput : StaticRecordInput
 
     public string? TargetSystem { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("CSV", "API", "FIXED_WIDTH")]
     public string? Format { get; init; }
 
     public string? Schedule { get; init; }

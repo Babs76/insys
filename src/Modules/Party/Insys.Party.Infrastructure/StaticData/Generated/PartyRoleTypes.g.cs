@@ -43,8 +43,10 @@ public sealed class PartyRoleTypes : StaticRecord<PartyRoleTypesInput>
 
     public string Label { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("INDIVIDUAL", "ORGANISATION")]
     public string[] AllowedPartyKinds { get; set; } = [];
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string[] Domains { get; set; } = [];
 
     public override void ApplyFields(PartyRoleTypesInput input, IFieldProtector protector)
@@ -63,8 +65,10 @@ public sealed record PartyRoleTypesInput : StaticRecordInput
 
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("INDIVIDUAL", "ORGANISATION")]
     public string[]? AllowedPartyKinds { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string[]? Domains { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

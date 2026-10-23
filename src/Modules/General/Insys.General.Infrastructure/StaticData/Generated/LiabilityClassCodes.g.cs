@@ -43,6 +43,7 @@ public sealed class LiabilityClassCodes : StaticRecord<LiabilityClassCodesInput>
 
     public string Label { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("TURNOVER", "WAGEROLL", "FIXED")]
     public string RatingBasis { get; set; } = "";
 
     public override void ApplyFields(LiabilityClassCodesInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record LiabilityClassCodesInput : StaticRecordInput
 
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("TURNOVER", "WAGEROLL", "FIXED")]
     public string? RatingBasis { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

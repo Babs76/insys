@@ -39,6 +39,7 @@ namespace Insys.Identity.Infrastructure.StaticData;
 /// <summary>Access review schedules: iam.cfg_access_review_schedules. Scope T, Tier 2, configuration lifecycle.</summary>
 public sealed class AccessReviewSchedules : StaticRecord<AccessReviewSchedulesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("PRIVILEGED", "ALL_USERS", "SERVICE_ACCOUNTS")]
     public string Scope { get; set; } = "";
 
     public string Frequency { get; set; } = "";
@@ -56,6 +57,7 @@ public sealed class AccessReviewSchedules : StaticRecord<AccessReviewSchedulesIn
 /// <summary>The fields a client sends for Access review schedules.</summary>
 public sealed record AccessReviewSchedulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("PRIVILEGED", "ALL_USERS", "SERVICE_ACCOUNTS")]
     public string? Scope { get; init; }
 
     public string? Frequency { get; init; }

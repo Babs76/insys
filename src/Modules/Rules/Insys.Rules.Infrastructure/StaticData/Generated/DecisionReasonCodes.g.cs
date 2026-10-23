@@ -41,6 +41,7 @@ public sealed class DecisionReasonCodes : StaticRecord<DecisionReasonCodesInput>
 {
     public string ReasonCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACCEPT", "LOAD", "EXCLUDE", "POSTPONE", "DECLINE")]
     public string DecisionType { get; set; } = "";
 
     public string CustomerWording { get; set; } = "";
@@ -61,6 +62,7 @@ public sealed record DecisionReasonCodesInput : StaticRecordInput
 {
     public string? ReasonCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACCEPT", "LOAD", "EXCLUDE", "POSTPONE", "DECLINE")]
     public string? DecisionType { get; init; }
 
     public string? CustomerWording { get; init; }

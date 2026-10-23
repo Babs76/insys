@@ -41,6 +41,7 @@ public sealed class TreatyDefinitions : StaticRecord<TreatyDefinitionsInput>
 {
     public string TreatyCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("QUOTA_SHARE", "SURPLUS", "EXCESS_OF_LOSS", "STOP_LOSS")]
     public string Type { get; set; } = "";
 
     public string Retention { get; set; } = "";
@@ -70,6 +71,7 @@ public sealed record TreatyDefinitionsInput : StaticRecordInput
 {
     public string? TreatyCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("QUOTA_SHARE", "SURPLUS", "EXCESS_OF_LOSS", "STOP_LOSS")]
     public string? Type { get; init; }
 
     public string? Retention { get; init; }

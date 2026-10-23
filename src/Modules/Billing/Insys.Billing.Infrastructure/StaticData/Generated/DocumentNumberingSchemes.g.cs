@@ -39,12 +39,14 @@ namespace Insys.Billing.Infrastructure.StaticData;
 /// <summary>Document numbering schemes: billing.cfg_document_numbering_schemes. Scope T, Tier 2, configuration lifecycle.</summary>
 public sealed class DocumentNumberingSchemes : StaticRecord<DocumentNumberingSchemesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("INVOICE", "DEBIT_NOTE", "CREDIT_NOTE")]
     public string DocumentType { get; set; } = "";
 
     public string Prefix { get; set; } = "";
 
     public int SequenceLength { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NEVER", "YEARLY", "MONTHLY")]
     public string ResetRule { get; set; } = "";
 
     public string? ExampleOutput { get; set; }
@@ -62,12 +64,14 @@ public sealed class DocumentNumberingSchemes : StaticRecord<DocumentNumberingSch
 /// <summary>The fields a client sends for Document numbering schemes.</summary>
 public sealed record DocumentNumberingSchemesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("INVOICE", "DEBIT_NOTE", "CREDIT_NOTE")]
     public string? DocumentType { get; init; }
 
     public string? Prefix { get; init; }
 
     public int? SequenceLength { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NEVER", "YEARLY", "MONTHLY")]
     public string? ResetRule { get; init; }
 
     public string? ExampleOutput { get; init; }

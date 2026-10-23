@@ -45,6 +45,7 @@ public sealed class RegulatoryReturnDefinitions : StaticRecord<RegulatoryReturnD
 
     public JsonElement FieldMapping { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY", "ANNUAL")]
     public string Frequency { get; set; } = "";
 
     public override void ApplyFields(RegulatoryReturnDefinitionsInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record RegulatoryReturnDefinitionsInput : StaticRecordInput
 
     public JsonElement? FieldMapping { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY", "ANNUAL")]
     public string? Frequency { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

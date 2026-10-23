@@ -47,6 +47,7 @@ public sealed class ExternalCodeMappingTables : StaticRecord<ExternalCodeMapping
 
     public string PartnerValue { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("INBOUND", "OUTBOUND", "BOTH")]
     public string Direction { get; set; } = "";
 
     public override void ApplyFields(ExternalCodeMappingTablesInput input, IFieldProtector protector)
@@ -70,6 +71,7 @@ public sealed record ExternalCodeMappingTablesInput : StaticRecordInput
 
     public string? PartnerValue { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("INBOUND", "OUTBOUND", "BOTH")]
     public string? Direction { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

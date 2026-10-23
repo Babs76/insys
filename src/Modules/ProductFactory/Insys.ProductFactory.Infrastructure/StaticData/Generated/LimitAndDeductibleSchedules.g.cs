@@ -43,12 +43,14 @@ public sealed class LimitAndDeductibleSchedules : StaticRecord<LimitAndDeductibl
 
     public string Coverage { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIMIT", "SUBLIMIT", "DEDUCTIBLE", "EXCESS", "AGGREGATE")]
     public string LimitType { get; set; } = "";
 
     public decimal? Amount { get; set; }
 
     public decimal? Percentage { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("FIXED", "PERCENT_OF_CLAIM", "GREATER_OF", "LESSER_OF")]
     public string Rule { get; set; } = "";
 
     public string Currency { get; set; } = "";
@@ -72,12 +74,14 @@ public sealed record LimitAndDeductibleSchedulesInput : StaticRecordInput
 
     public string? Coverage { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIMIT", "SUBLIMIT", "DEDUCTIBLE", "EXCESS", "AGGREGATE")]
     public string? LimitType { get; init; }
 
     public decimal? Amount { get; init; }
 
     public decimal? Percentage { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("FIXED", "PERCENT_OF_CLAIM", "GREATER_OF", "LESSER_OF")]
     public string? Rule { get; init; }
 
     public string? Currency { get; init; }

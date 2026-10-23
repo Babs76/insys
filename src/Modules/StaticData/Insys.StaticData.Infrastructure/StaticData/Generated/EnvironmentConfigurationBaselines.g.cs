@@ -39,6 +39,7 @@ namespace Insys.StaticData.Infrastructure.StaticData;
 /// <summary>Environment configuration baselines: ops.cfg_environment_configuration_baselines. Scope G, Tier 1, configuration lifecycle.</summary>
 public sealed class EnvironmentConfigurationBaselines : StaticRecord<EnvironmentConfigurationBaselinesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("DEVELOPMENT", "TEST", "STAGING", "PRODUCTION")]
     public string Environment { get; set; } = "";
 
     public string SettingsPackage { get; set; } = "";
@@ -53,6 +54,7 @@ public sealed class EnvironmentConfigurationBaselines : StaticRecord<Environment
 /// <summary>The fields a client sends for Environment configuration baselines.</summary>
 public sealed record EnvironmentConfigurationBaselinesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("DEVELOPMENT", "TEST", "STAGING", "PRODUCTION")]
     public string? Environment { get; init; }
 
     public string? SettingsPackage { get; init; }

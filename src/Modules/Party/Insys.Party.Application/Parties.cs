@@ -82,11 +82,11 @@ public sealed record RoleView(Guid Id, string RoleCode, string Domain, string Co
 
 public sealed record RelationshipView(Guid Id, Guid ToPartyId, string RelationshipCode, DateOnly ValidFrom, DateOnly? ValidTo);
 
-public sealed record PartyView(Guid Id, string Kind, string DisplayName, string Status, Guid? MergedIntoId, IndividualData? Individual, OrganisationData? Organisation,
+public sealed record PartyView(Guid Id, string Kind, string DisplayName, PartyStatus Status, Guid? MergedIntoId, IndividualData? Individual, OrganisationData? Organisation,
     DateOnly? DeceasedDate, IReadOnlyList<AddressView> Addresses, IReadOnlyList<ContactPointView> ContactPoints, IReadOnlyList<IdentifierView> Identifiers,
     IReadOnlyList<RoleView> Roles, IReadOnlyList<RelationshipView> Relationships, long RowVersion)
 {
-    public static PartyView From(Domain.Parties.Party p) => new(p.Id, p.Kind.ToString(), p.DisplayName, p.Status.ToString(), p.MergedIntoId,
+    public static PartyView From(Domain.Parties.Party p) => new(p.Id, p.Kind.ToString(), p.DisplayName, p.Status, p.MergedIntoId,
         p.Individual is { } i ? new IndividualData(i.TitleCode, i.FirstNames, i.Surname, i.BirthDate, i.GenderCode, i.MaritalStatusCode, i.Nationality, i.PreferredLanguage) : null,
         p.Organisation is { } o ? new OrganisationData(o.LegalName, o.TradingName, o.LegalFormCode, o.RegistrationNumber, o.IndustryCode) : null,
         p.Individual?.DeceasedDate,
@@ -124,7 +124,7 @@ public sealed record AddBankAccount(Guid PartyId, string AccountNumber, string B
 public sealed record ListBankAccounts(Guid PartyId) : IQuery<IReadOnlyList<BankAccountView>>;
 
 /// <summary>A bank account without its number: the last four digits only.</summary>
-public sealed record BankAccountView(Guid Id, Guid PartyId, string Last4, string BankCode, string? BranchCode, string AccountType, string Currency, string Status,
+public sealed record BankAccountView(Guid Id, Guid PartyId, string Last4, string BankCode, string? BranchCode, string AccountType, string Currency, [property: OneOf("PENDING_VERIFICATION", "ACTIVE", "SUPERSEDED", "REJECTED")] string Status,
     DateTimeOffset? VerifiedAt, Guid? SupersededById)
 {
     public static BankAccountView From(BankAccount a) => new(a.Id, a.PartyId, a.AccountNumberLast4, a.BankCode, a.BranchCode, a.AccountType, a.Currency,

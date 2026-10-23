@@ -41,12 +41,14 @@ public sealed class IntermediaryRegister : StaticRecord<IntermediaryRegisterInpu
 {
     public string IntermediaryCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("BROKER", "AGENT", "BANCASSURANCE", "AGGREGATOR", "EMPLOYER")]
     public string Type { get; set; } = "";
 
     public string LegalName { get; set; } = "";
 
     public JsonElement LicenceNumbers { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED", "TERMINATED")]
     public string Status { get; set; } = "";
 
     public string HierarchyNode { get; set; } = "";
@@ -70,12 +72,14 @@ public sealed record IntermediaryRegisterInput : StaticRecordInput
 {
     public string? IntermediaryCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("BROKER", "AGENT", "BANCASSURANCE", "AGGREGATOR", "EMPLOYER")]
     public string? Type { get; init; }
 
     public string? LegalName { get; init; }
 
     public JsonElement? LicenceNumbers { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED", "TERMINATED")]
     public string? Status { get; init; }
 
     public string? HierarchyNode { get; init; }

@@ -35,10 +35,10 @@ public interface IDeadLetterRepository
     void Add(DeadLetter deadLetter);
 }
 
-public sealed record DeadLetterSummary(Guid Id, string Source, string MessageRef, string Status, short Attempts, DateTimeOffset FirstFailedAt);
+public sealed record DeadLetterSummary(Guid Id, string Source, string MessageRef, DeadLetterStatus Status, short Attempts, DateTimeOffset FirstFailedAt);
 
 public sealed record DeadLetterDetail(
-    Guid Id, string Source, string MessageRef, string Status, short Attempts, DateTimeOffset FirstFailedAt, string Error,
+    Guid Id, string Source, string MessageRef, DeadLetterStatus Status, short Attempts, DateTimeOffset FirstFailedAt, string Error,
     System.Text.Json.JsonElement Payload, Guid? ResolvedBy, long RowVersion);
 
 public interface IDeadLetterQueries

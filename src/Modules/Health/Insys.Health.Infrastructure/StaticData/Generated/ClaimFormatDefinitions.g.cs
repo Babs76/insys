@@ -43,6 +43,7 @@ public sealed class ClaimFormatDefinitions : StaticRecord<ClaimFormatDefinitions
 
     public JsonElement FieldMapping { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("API", "FILE", "CLEARING_HOUSE")]
     public string? Transport { get; set; }
 
     public override void ApplyFields(ClaimFormatDefinitionsInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record ClaimFormatDefinitionsInput : StaticRecordInput
 
     public JsonElement? FieldMapping { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("API", "FILE", "CLEARING_HOUSE")]
     public string? Transport { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

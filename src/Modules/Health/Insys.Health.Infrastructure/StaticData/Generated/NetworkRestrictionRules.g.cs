@@ -43,6 +43,7 @@ public sealed class NetworkRestrictionRules : StaticRecord<NetworkRestrictionRul
 
     public string Network { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("NOT_COVERED", "CO_PAYMENT", "COVERED_AT_TARIFF")]
     public string OutOfNetworkTreatment { get; set; } = "";
 
     public override void ApplyFields(NetworkRestrictionRulesInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record NetworkRestrictionRulesInput : StaticRecordInput
 
     public string? Network { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NOT_COVERED", "CO_PAYMENT", "COVERED_AT_TARIFF")]
     public string? OutOfNetworkTreatment { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

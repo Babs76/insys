@@ -45,6 +45,7 @@ public sealed class PortsAndPlaces : StaticRecord<PortsAndPlacesInput>
 
     public string Country { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PORT", "RAIL", "ROAD", "AIRPORT")]
     public string[] Functions { get; set; } = [];
 
     public override void ApplyFields(PortsAndPlacesInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record PortsAndPlacesInput : StaticRecordInput
 
     public string? Country { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PORT", "RAIL", "ROAD", "AIRPORT")]
     public string[]? Functions { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

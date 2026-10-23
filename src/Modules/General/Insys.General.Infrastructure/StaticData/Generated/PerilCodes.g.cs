@@ -43,6 +43,7 @@ public sealed class PerilCodes : StaticRecord<PerilCodesInput>
 
     public string Label { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("MOTOR", "PROPERTY", "MARINE", "COMMERCIAL")]
     public string Line { get; set; } = "";
 
     public bool Catastrophe { get; set; }
@@ -63,6 +64,7 @@ public sealed record PerilCodesInput : StaticRecordInput
 
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("MOTOR", "PROPERTY", "MARINE", "COMMERCIAL")]
     public string? Line { get; init; }
 
     public bool? Catastrophe { get; init; }

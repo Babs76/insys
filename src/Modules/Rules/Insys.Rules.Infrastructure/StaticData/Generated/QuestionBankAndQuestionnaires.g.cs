@@ -43,6 +43,7 @@ public sealed class QuestionBankAndQuestionnaires : StaticRecord<QuestionBankAnd
 
     public string Text { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("YES_NO", "SINGLE_CHOICE", "MULTI_CHOICE", "NUMBER", "DATE", "TEXT")]
     public string AnswerType { get; set; } = "";
 
     public string[]? Options { get; set; }
@@ -66,6 +67,7 @@ public sealed record QuestionBankAndQuestionnairesInput : StaticRecordInput
 
     public string? Text { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("YES_NO", "SINGLE_CHOICE", "MULTI_CHOICE", "NUMBER", "DATE", "TEXT")]
     public string? AnswerType { get; init; }
 
     public string[]? Options { get; init; }

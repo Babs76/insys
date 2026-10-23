@@ -43,6 +43,7 @@ public sealed class ConsentPurposes : StaticRecord<ConsentPurposesInput>
 
     public string Label { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("CONSENT", "CONTRACT", "LEGAL_OBLIGATION", "LEGITIMATE_INTEREST")]
     public string LegalBasis { get; set; } = "";
 
     public string Jurisdiction { get; set; } = "";
@@ -69,6 +70,7 @@ public sealed record ConsentPurposesInput : StaticRecordInput
 
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("CONSENT", "CONTRACT", "LEGAL_OBLIGATION", "LEGITIMATE_INTEREST")]
     public string? LegalBasis { get; init; }
 
     public string? Jurisdiction { get; init; }

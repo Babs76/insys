@@ -41,10 +41,12 @@ public sealed class TransactionTypes : StaticRecord<TransactionTypesInput>
 {
     public string TypeCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "SHARED")]
     public string SourceDomain { get; set; } = "";
 
     public string Label { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("DEBIT", "CREDIT")]
     public string Sign { get; set; } = "";
 
     public override void ApplyFields(TransactionTypesInput input, IFieldProtector protector)
@@ -61,10 +63,12 @@ public sealed record TransactionTypesInput : StaticRecordInput
 {
     public string? TypeCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "SHARED")]
     public string? SourceDomain { get; init; }
 
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("DEBIT", "CREDIT")]
     public string? Sign { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -47,6 +47,7 @@ public sealed class ReinsurerRegister : StaticRecord<ReinsurerRegisterInput>
 
     public string? SecurityRating { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("APPROVED", "RESTRICTED", "NOT_APPROVED")]
     public string Status { get; set; } = "";
 
     public override void ApplyFields(ReinsurerRegisterInput input, IFieldProtector protector)
@@ -70,6 +71,7 @@ public sealed record ReinsurerRegisterInput : StaticRecordInput
 
     public string? SecurityRating { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("APPROVED", "RESTRICTED", "NOT_APPROVED")]
     public string? Status { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

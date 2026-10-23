@@ -65,9 +65,9 @@ internal sealed class UserQueries(IdentityDbContext db) : IUserQueries
         await db.Users.AsNoTracking().Include(u => u.RoleAssignments).SingleOrDefaultAsync(u => u.Id == userId, cancellationToken) is { } user ? View(user) : null;
 
     private static UserView View(UserAccount u) =>
-        new(u.Id, u.Username, u.DisplayName, u.IdpCode, u.ExternalSubject, u.Status.ToString(), u.MfaEnrolled, u.LastLoginAt,
+        new(u.Id, u.Username, u.DisplayName, u.IdpCode, u.ExternalSubject, u.Status, u.MfaEnrolled, u.LastLoginAt,
             u.RoleAssignments.OrderBy(a => a.ValidFrom)
-                .Select(a => new RoleAssignmentView(a.Id, a.RoleCode, a.Status.ToString(), a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, a.AssignedBy,
+                .Select(a => new RoleAssignmentView(a.Id, a.RoleCode, a.Status, a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, a.AssignedBy,
                     a.ApprovedBy)).ToList(),
             u.RowVersion);
 }
@@ -184,10 +184,10 @@ internal sealed class AccessQueries(IdentityDbContext db) : Application.Access.I
         await db.Reviews.AsNoTracking().Include(r => r.Items).SingleOrDefaultAsync(r => r.Id == id, cancellationToken) is { } review ? View(review) : null;
 
     private static Application.Access.GrantView View(Domain.Access.PrivilegedAccessGrant g) =>
-        new(g.Id, g.UserId, g.Purpose, g.RequestedBy, g.ApprovedBy, g.ValidFrom, g.ValidTo, g.Status.ToString(), g.DecidedAt, g.RejectionReason, g.RowVersion);
+        new(g.Id, g.UserId, g.Purpose, g.RequestedBy, g.ApprovedBy, g.ValidFrom, g.ValidTo, g.Status, g.DecidedAt, g.RejectionReason, g.RowVersion);
 
     private static Application.Access.ReviewView View(Domain.Access.AccessReview r) =>
-        new(r.Id, r.Scope.ToString(), r.ReviewerId, r.DueDate, r.Status.ToString(), r.ItemsTotal, r.ItemsRevoked,
+        new(r.Id, r.Scope.ToString(), r.ReviewerId, r.DueDate, r.Status, r.ItemsTotal, r.ItemsRevoked,
             r.Items.OrderBy(i => i.Id).Select(i => new Application.Access.ReviewItemView(i.Id, i.UserId, i.RoleCode, i.Decision.ToString(), i.DecidedBy, i.DecidedAt))
                 .ToList(),
             r.RowVersion);

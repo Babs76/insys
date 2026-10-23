@@ -77,21 +77,21 @@ public interface ISimulationRuns
     void Add(SimulationRun run);
 }
 
-public sealed record ProductVersionView(Guid Id, string ProductCode, int Version, string Domain, string Name, IReadOnlyList<string> Coverages, string Status,
+public sealed record ProductVersionView(Guid Id, string ProductCode, int Version, string Domain, string Name, IReadOnlyList<string> Coverages, ProductVersionStatus Status,
     DateOnly EffectiveFrom, DateOnly? EffectiveTo, string? FamilyCode, string? ClassCode, string CoverStartsOn, string? ApprovedBy, DateTimeOffset? ApprovedAt,
     long RowVersion, string? EligibilityRulesetCode, string ReinstatementArrears)
 {
     public static ProductVersionView From(ProductVersion v) => new(v.Id, v.ProductCode, v.Version, v.Domain.ToString().ToUpperInvariant(), v.Name, v.Coverages,
-        v.Status.ToString(), v.EffectiveFrom, v.EffectiveTo, v.FamilyCode, v.ClassCode, v.CoverStartsOn.ToString(), v.ApprovedBy, v.ApprovedAt, v.RowVersion,
+        v.Status, v.EffectiveFrom, v.EffectiveTo, v.FamilyCode, v.ClassCode, v.CoverStartsOn.ToString(), v.ApprovedBy, v.ApprovedAt, v.RowVersion,
         v.EligibilityRulesetCode, v.ReinstatementArrears.ToString());
 }
 
 public sealed record SimulationResultView(string CaseId, JsonElement Expected, JsonElement Actual, bool Passed);
 
-public sealed record SimulationRunView(Guid Id, string RunNumber, string ProductCode, int ProductVersion, Guid StartedBy, DateTimeOffset StartedAt, string Status,
+public sealed record SimulationRunView(Guid Id, string RunNumber, string ProductCode, int ProductVersion, Guid StartedBy, DateTimeOffset StartedAt, SimulationStatus Status,
     int CasesTotal, int CasesFailed, IReadOnlyList<SimulationResultView> Results)
 {
-    public static SimulationRunView From(SimulationRun r) => new(r.Id, r.RunNumber, r.ProductCode, r.ProductVersion, r.StartedBy, r.StartedAt, r.Status.ToString(),
+    public static SimulationRunView From(SimulationRun r) => new(r.Id, r.RunNumber, r.ProductCode, r.ProductVersion, r.StartedBy, r.StartedAt, r.Status,
         r.CasesTotal, r.CasesFailed, r.Results.OrderBy(x => x.CaseId, StringComparer.Ordinal).Select(x => new SimulationResultView(x.CaseId, Parse(x.Expected), Parse(x.Actual), x.Passed)).ToList());
 
     private static JsonElement Parse(string json)

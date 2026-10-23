@@ -43,16 +43,20 @@ public sealed class CoPaymentAndDeductibleRules : StaticRecord<CoPaymentAndDeduc
 
     public string Benefit { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PERCENT", "AMOUNT")]
     public string Type { get; set; } = "";
 
     public decimal Value { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("IN_NETWORK", "OUT_OF_NETWORK")]
     public string NetworkStatus { get; set; } = "";
 
     public decimal? Cap { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("CO_PAYMENT", "DEDUCTIBLE")]
     public string RuleKind { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PER_LINE", "PER_CLAIM", "PER_YEAR")]
     public string CapBasis { get; set; } = "";
 
     public string? PlanCode { get; set; }
@@ -78,16 +82,20 @@ public sealed record CoPaymentAndDeductibleRulesInput : StaticRecordInput
 
     public string? Benefit { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PERCENT", "AMOUNT")]
     public string? Type { get; init; }
 
     public decimal? Value { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("IN_NETWORK", "OUT_OF_NETWORK")]
     public string? NetworkStatus { get; init; }
 
     public decimal? Cap { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("CO_PAYMENT", "DEDUCTIBLE")]
     public string? RuleKind { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PER_LINE", "PER_CLAIM", "PER_YEAR")]
     public string? CapBasis { get; init; }
 
     public string? PlanCode { get; init; }

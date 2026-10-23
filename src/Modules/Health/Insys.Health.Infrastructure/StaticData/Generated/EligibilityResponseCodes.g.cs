@@ -43,6 +43,7 @@ public sealed class EligibilityResponseCodes : StaticRecord<EligibilityResponseC
 
     public string ProviderAction { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("ELIGIBLE", "NOT_ELIGIBLE", "NOT_FOUND", "WAITING_PERIOD")]
     public string? Outcome { get; set; }
 
     public override void ApplyFields(EligibilityResponseCodesInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record EligibilityResponseCodesInput : StaticRecordInput
 
     public string? ProviderAction { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ELIGIBLE", "NOT_ELIGIBLE", "NOT_FOUND", "WAITING_PERIOD")]
     public string? Outcome { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

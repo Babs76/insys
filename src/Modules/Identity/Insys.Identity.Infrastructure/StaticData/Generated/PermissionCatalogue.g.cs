@@ -43,6 +43,7 @@ public sealed class PermissionCatalogue : StaticRecord<PermissionCatalogueInput>
 
     public string Resource { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("READ", "CREATE", "UPDATE", "APPROVE", "DELETE")]
     public string Operation { get; set; } = "";
 
     public override void ApplyFields(PermissionCatalogueInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record PermissionCatalogueInput : StaticRecordInput
 
     public string? Resource { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("READ", "CREATE", "UPDATE", "APPROVE", "DELETE")]
     public string? Operation { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

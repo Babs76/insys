@@ -45,6 +45,7 @@ public sealed class BordereauxLayouts : StaticRecord<BordereauxLayoutsInput>
 
     public string[] Fields { get; set; } = [];
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY")]
     public string Frequency { get; set; } = "";
 
     public override void ApplyFields(BordereauxLayoutsInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record BordereauxLayoutsInput : StaticRecordInput
 
     public string[]? Fields { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY")]
     public string? Frequency { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

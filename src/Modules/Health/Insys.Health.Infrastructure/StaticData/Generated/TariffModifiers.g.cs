@@ -41,6 +41,7 @@ public sealed class TariffModifiers : StaticRecord<TariffModifiersInput>
 {
     public string ModifierCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PERCENT_UPLIFT", "FIXED_ADD", "MULTIPLIER")]
     public string Type { get; set; } = "";
 
     public decimal Value { get; set; }
@@ -61,6 +62,7 @@ public sealed record TariffModifiersInput : StaticRecordInput
 {
     public string? ModifierCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PERCENT_UPLIFT", "FIXED_ADD", "MULTIPLIER")]
     public string? Type { get; init; }
 
     public decimal? Value { get; init; }

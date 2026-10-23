@@ -189,18 +189,18 @@ internal static class Numbers
     public static string Of(string prefix, Guid id, int length) => References.Of(prefix, id, length);
 }
 
-public sealed record SchemeView(Guid Id, string SchemeNumber, string SponsorCode, string Status, DateOnly StartDate, DateOnly RenewalDate, string? Currency, long RowVersion)
+public sealed record SchemeView(Guid Id, string SchemeNumber, string SponsorCode, SchemeStatus Status, DateOnly StartDate, DateOnly RenewalDate, string? Currency, long RowVersion)
 {
-    public static SchemeView From(HealthScheme s) => new(s.Id, s.SchemeNumber, s.SponsorCode, s.Status.ToString(), s.StartDate, s.RenewalDate, s.Currency, s.RowVersion);
+    public static SchemeView From(HealthScheme s) => new(s.Id, s.SchemeNumber, s.SponsorCode, s.Status, s.StartDate, s.RenewalDate, s.Currency, s.RowVersion);
 }
 
-public sealed record DependantView(Guid Id, Guid PartyId, string DependantType, string Suffix, DateOnly StartDate, DateOnly? EndDate, string Status);
+public sealed record DependantView(Guid Id, Guid PartyId, string DependantType, string Suffix, DateOnly StartDate, DateOnly? EndDate, [property: OneOf("ACTIVE", "REMOVED")] string Status);
 
-public sealed record MembershipView(Guid Id, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode, int PlanVersion, string Status,
+public sealed record MembershipView(Guid Id, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode, int PlanVersion, MembershipStatus Status,
     DateOnly StartDate, DateOnly? EndDate, string? MemberCategory, IReadOnlyList<WaitingPeriod> WaitingPeriods, IReadOnlyList<DependantView> Dependants, long RowVersion)
 {
     public static MembershipView From(HealthMembership m) => new(m.Id, m.MemberNumber, m.PrincipalPartyId, m.SchemeId, m.PlanCode, m.OptionCode, m.PlanVersion,
-        m.Status.ToString(), m.StartDate, m.EndDate, m.MemberCategory, m.WaitingPeriods,
+        m.Status, m.StartDate, m.EndDate, m.MemberCategory, m.WaitingPeriods,
         m.Dependants.Select(d => new DependantView(d.Id, d.PartyId, d.DependantType, d.Suffix, d.StartDate, d.EndDate, d.Status)).ToList(), m.RowVersion);
 }
 
@@ -217,11 +217,11 @@ public sealed record EligibilityView(Guid Id, string MemberNumber, string Depend
 public sealed record PreauthLineView(Guid Id, string ProcedureCode, int Quantity, decimal AuthorisedAmount, string? BenefitCategory, decimal ReservedAmount,
     decimal ConsumedAmount);
 
-public sealed record PreauthorisationView(Guid Id, string AuthNumber, Guid MembershipId, Guid PatientPartyId, string ProviderId, string Status, decimal RequestedAmount,
+public sealed record PreauthorisationView(Guid Id, string AuthNumber, Guid MembershipId, Guid PatientPartyId, string ProviderId, PreauthStatus Status, decimal RequestedAmount,
     decimal? AuthorisedAmount, DateOnly? ValidFrom, DateOnly? ValidTo, string? ServiceType, string? Conditions, string? DecisionReason,
     IReadOnlyList<PreauthLineView> Lines, long RowVersion)
 {
-    public static PreauthorisationView From(Preauthorisation p) => new(p.Id, p.AuthNumber, p.MembershipId, p.PatientPartyId, p.ProviderId, p.Status.ToString(),
+    public static PreauthorisationView From(Preauthorisation p) => new(p.Id, p.AuthNumber, p.MembershipId, p.PatientPartyId, p.ProviderId, p.Status,
         p.RequestedAmount, p.AuthorisedAmount, p.ValidFrom, p.ValidTo, p.ServiceType, p.Conditions, p.DecisionReason,
         p.Lines.Select(l => new PreauthLineView(l.Id, l.ProcedureCode, l.Quantity, l.AuthorisedAmount, l.BenefitCategory, l.ReservedAmount, l.ConsumedAmount)).ToList(),
         p.RowVersion);
@@ -233,32 +233,32 @@ public sealed record ClaimLineView(int LineNo, string TariffCode, int Quantity, 
 
 /// <summary>The claim without diagnosis codes: medical information is shown only to roles with a clinical purpose (HLT-008).</summary>
 public sealed record MedicalClaimView(Guid Id, string ClaimNumber, string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate,
-    string Status, string Currency, decimal TotalClaimed, decimal? TotalPaid, string? PendReason, Guid? PaymentRunId, IReadOnlyList<ClaimLineView> Lines, long RowVersion)
+    MedicalClaimStatus Status, string Currency, decimal TotalClaimed, decimal? TotalPaid, string? PendReason, Guid? PaymentRunId, IReadOnlyList<ClaimLineView> Lines, long RowVersion)
 {
     public static MedicalClaimView From(MedicalClaim c) => new(c.Id, c.ClaimNumber, c.Source, c.ProviderId, c.MembershipId, c.PatientPartyId, c.ServiceDate,
-        c.Status.ToString(), c.Currency, c.TotalClaimed, c.TotalPaid, c.PendReason, c.PaymentRunId,
+        c.Status, c.Currency, c.TotalClaimed, c.TotalPaid, c.PendReason, c.PaymentRunId,
         c.Lines.OrderBy(l => l.LineNo).Select(l => new ClaimLineView(l.LineNo, l.TariffCode, l.Quantity, l.ClaimedAmount, l.Outcome, l.AdjustmentReason, l.BenefitCategory,
             l.NetworkStatus, l.TariffAmount, l.AllowedAmount, l.DeductibleAmount, l.CopayAmount, l.PaidAmount, l.MemberLiability, l.PreauthLineId)).ToList(), c.RowVersion);
 }
 
-public sealed record UtilisationCaseView(Guid Id, Guid MembershipId, string RuleCode, string Status, Guid? ReviewerId, string? Outcome, Guid? ClaimId, long RowVersion)
+public sealed record UtilisationCaseView(Guid Id, Guid MembershipId, string RuleCode, UtilisationStatus Status, Guid? ReviewerId, string? Outcome, Guid? ClaimId, long RowVersion)
 {
-    public static UtilisationCaseView From(UtilisationCase c) => new(c.Id, c.MembershipId, c.RuleCode, c.Status.ToString(), c.ReviewerId, c.Outcome, c.ClaimId, c.RowVersion);
+    public static UtilisationCaseView From(UtilisationCase c) => new(c.Id, c.MembershipId, c.RuleCode, c.Status, c.ReviewerId, c.Outcome, c.ClaimId, c.RowVersion);
 }
 
-public sealed record FraudCaseView(Guid Id, string SubjectType, string SubjectRef, IReadOnlyList<string> IndicatorCodes, string Status, string? OutcomeCode,
+public sealed record FraudCaseView(Guid Id, string SubjectType, string SubjectRef, IReadOnlyList<string> IndicatorCodes, FraudStatus Status, string? OutcomeCode,
     Guid? InvestigatorId, long RowVersion)
 {
-    public static FraudCaseView From(HealthFraudCase c) => new(c.Id, c.SubjectType, c.SubjectRef, c.IndicatorCodes, c.Status.ToString(), c.OutcomeCode, c.InvestigatorId,
+    public static FraudCaseView From(HealthFraudCase c) => new(c.Id, c.SubjectType, c.SubjectRef, c.IndicatorCodes, c.Status, c.OutcomeCode, c.InvestigatorId,
         c.RowVersion);
 }
 
 public sealed record RemittanceView(Guid Id, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, int ClaimCount, Guid? PaymentId, DateOnly? PaidOn);
 
-public sealed record PaymentRunView(Guid Id, string RunCode, DateTimeOffset CutOff, string Status, string Currency, int ClaimCount, decimal TotalAmount,
+public sealed record PaymentRunView(Guid Id, string RunCode, DateTimeOffset CutOff, RunStatus Status, string Currency, int ClaimCount, decimal TotalAmount,
     IReadOnlyList<RemittanceView> Remittances, long RowVersion)
 {
-    public static PaymentRunView From(ProviderPaymentRun r) => new(r.Id, r.RunCode, r.CutOff, r.Status.ToString(), r.Currency, r.ClaimCount, r.TotalAmount,
+    public static PaymentRunView From(ProviderPaymentRun r) => new(r.Id, r.RunCode, r.CutOff, r.Status, r.Currency, r.ClaimCount, r.TotalAmount,
         r.Remittances.Select(x => new RemittanceView(x.Id, x.ProviderId, x.ProviderPartyId, x.BankAccountId, x.Amount, x.ClaimCount, x.PaymentId, x.PaidOn)).ToList(),
         r.RowVersion);
 }

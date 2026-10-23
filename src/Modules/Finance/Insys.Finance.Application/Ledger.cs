@@ -92,7 +92,7 @@ public interface IPostingExceptions
 public sealed record EntryView(int LineNo, string AccountCode, decimal Debit, decimal Credit, string Currency, decimal BaseAmount, decimal? FxRate,
     DateOnly TransactionDate, string BusinessRefType, Guid BusinessRefId, string PostingRuleCode, int PostingRuleVersion);
 
-public sealed record JournalView(Guid Id, string JournalNumber, DateOnly AccountingDate, string PeriodCode, Guid SourceEventId, string SourceDomain, string Status,
+public sealed record JournalView(Guid Id, string JournalNumber, DateOnly AccountingDate, string PeriodCode, Guid SourceEventId, string SourceDomain, [property: OneOf("POSTED")] string Status,
     DateTimeOffset PostedAt, Guid? ReversesJournalId, IReadOnlyList<EntryView> Lines)
 {
     public static JournalView From(Journal j) => new(j.Id, j.JournalNumber, j.AccountingDate, j.PeriodCode, j.SourceEventId, j.SourceDomain, j.Status, j.PostedAt,
@@ -100,14 +100,14 @@ public sealed record JournalView(Guid Id, string JournalNumber, DateOnly Account
             l.TransactionDate, l.BusinessRefType, l.BusinessRefId, l.PostingRuleCode, l.PostingRuleVersion)).ToList());
 }
 
-public sealed record PeriodView(Guid Id, string PeriodCode, DateOnly StartDate, DateOnly EndDate, string Status, Guid? ClosedBy, DateTimeOffset? ClosedAt,
+public sealed record PeriodView(Guid Id, string PeriodCode, DateOnly StartDate, DateOnly EndDate, PeriodStatus Status, Guid? ClosedBy, DateTimeOffset? ClosedAt,
     Guid? ReopenRequestedBy, long RowVersion)
 {
     public static PeriodView From(AccountingPeriod p) =>
-        new(p.Id, p.PeriodCode, p.StartDate, p.EndDate, p.Status.ToString(), p.ClosedBy, p.ClosedAt, p.ReopenRequestedBy, p.RowVersion);
+        new(p.Id, p.PeriodCode, p.StartDate, p.EndDate, p.Status, p.ClosedBy, p.ClosedAt, p.ReopenRequestedBy, p.RowVersion);
 }
 
-public sealed record PostingExceptionView(Guid Id, Guid SourceEventId, string EventType, string Error, string Status, Guid? ResolvedBy, DateTimeOffset? ResolvedAt,
+public sealed record PostingExceptionView(Guid Id, Guid SourceEventId, string EventType, string Error, [property: OneOf("OPEN", "RESOLVED")] string Status, Guid? ResolvedBy, DateTimeOffset? ResolvedAt,
     Guid? JournalId, long RowVersion);
 
 public sealed record TrialBalanceLine(string AccountCode, string Currency, decimal Debit, decimal Credit, decimal Balance);

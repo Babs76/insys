@@ -41,6 +41,7 @@ public sealed class PaymentProviderAndBankRegister : StaticRecord<PaymentProvide
 {
     public string ProviderCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("BANK", "PAYMENT_GATEWAY", "MOBILE_MONEY", "CLEARING_HOUSE")]
     public string Type { get; set; } = "";
 
     public string? Bic { get; set; }
@@ -64,6 +65,7 @@ public sealed record PaymentProviderAndBankRegisterInput : StaticRecordInput
 {
     public string? ProviderCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("BANK", "PAYMENT_GATEWAY", "MOBILE_MONEY", "CLEARING_HOUSE")]
     public string? Type { get; init; }
 
     public string? Bic { get; init; }

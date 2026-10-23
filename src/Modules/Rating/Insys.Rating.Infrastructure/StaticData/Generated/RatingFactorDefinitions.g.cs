@@ -41,6 +41,7 @@ public sealed class RatingFactorDefinitions : StaticRecord<RatingFactorDefinitio
 {
     public string FactorCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("INTEGER", "DECIMAL", "CODE", "BOOLEAN", "DATE")]
     public string DataType { get; set; } = "";
 
     public string SourceAttribute { get; set; } = "";
@@ -61,6 +62,7 @@ public sealed record RatingFactorDefinitionsInput : StaticRecordInput
 {
     public string? FactorCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("INTEGER", "DECIMAL", "CODE", "BOOLEAN", "DATE")]
     public string? DataType { get; init; }
 
     public string? SourceAttribute { get; init; }

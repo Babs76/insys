@@ -38,7 +38,8 @@ using Microsoft.Extensions.Options;
 namespace Insys.Identity.Application.Users;
 
 /// <summary>The caller's tenant.</summary>
-public sealed record MeTenant(Guid Id, string TenantCode, string Name, string Status, bool IsPlatformOperator);
+public sealed record MeTenant(Guid Id, string TenantCode, string Name, [property: OneOf("Onboarding", "Active", "Suspended", "Terminated")] string Status,
+    bool IsPlatformOperator);
 
 /// <summary>The caller's preferred language, this request's language, and the tenant's languages (OQ-068).</summary>
 public sealed record MeLanguage(string? Preferred, string Request, string TenantDefault, IReadOnlyList<string> Supported);
@@ -47,7 +48,7 @@ public sealed record MeLanguage(string? Preferred, string Request, string Tenant
 /// One of the caller's role assignments: its status, dates and scopes, whether the role is privileged (needs MFA and a
 /// second person's approval to assign; OQ-038), and the permissions it gives while active.
 /// </summary>
-public sealed record MeRole(string RoleCode, string Status, DateOnly ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches,
+public sealed record MeRole(string RoleCode, AssignmentStatus Status, DateOnly ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches,
     bool InEffect, bool Privileged, bool RequiresMfa, IReadOnlyList<string> Permissions);
 
 /// <summary>A scope a permission is held in: the products and branches of the assignment that gives it (null = all).</summary>
@@ -57,7 +58,7 @@ public sealed record PermissionScope(string RoleCode, string[]? Products, string
 public sealed record MePermission(string Permission, IReadOnlyList<PermissionScope> Scopes);
 
 /// <summary>GET /api/v1/identity/me (GAP-003): who the caller is, in which tenant and language, and what they may do.</summary>
-public sealed record MeView(Guid UserId, string Username, string DisplayName, string Status, bool MfaEnrolled, MeTenant Tenant, MeLanguage Language,
+public sealed record MeView(Guid UserId, string Username, string DisplayName, UserStatus Status, bool MfaEnrolled, MeTenant Tenant, MeLanguage Language,
     IReadOnlyList<MeRole> Roles, IReadOnlyList<MePermission> Permissions, long RowVersion);
 
 public sealed record GetMe : IQuery<MeView>;
@@ -88,7 +89,7 @@ internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader role
         {
             var role = facts[a.RoleCode];
             var inEffect = a.Status == AssignmentStatus.Active && a.ValidFrom <= today && (a.ValidTo is null || a.ValidTo > today) && role.Exists;
-            return new MeRole(a.RoleCode, a.Status.ToString(), a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, inEffect, role.Privileged, role.RequiresMfa,
+            return new MeRole(a.RoleCode, a.Status, a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, inEffect, role.Privileged, role.RequiresMfa,
                 [.. role.Permissions.Order(StringComparer.Ordinal)]);
         }).ToList();
         var permissions = assignments.Where(a => a.InEffect)
@@ -98,7 +99,7 @@ internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader role
 
         var profile = await tenants.Get(tenantId, cancellationToken);
         var tenantLanguages = await languages.For(tenantId, cancellationToken);
-        return new MeView(user.Id, user.Username, user.DisplayName, user.Status.ToString(), user.MfaEnrolled,
+        return new MeView(user.Id, user.Username, user.DisplayName, user.Status, user.MfaEnrolled,
             new MeTenant(tenantId, profile?.TenantCode ?? "", profile?.LegalName ?? "", profile?.Status ?? "", tenantId == platform.Value.OperatorTenantId),
             new MeLanguage(user.PreferredLanguage, request.Language, tenantLanguages.Default, tenantLanguages.Supported),
             assignments, permissions, user.RowVersion);

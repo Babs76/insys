@@ -43,6 +43,7 @@ public sealed class ExposureExtractLayouts : StaticRecord<ExposureExtractLayouts
 
     public string[] Fields { get; set; } = [];
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY")]
     public string Frequency { get; set; } = "";
 
     public override void ApplyFields(ExposureExtractLayoutsInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record ExposureExtractLayoutsInput : StaticRecordInput
 
     public string[]? Fields { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY")]
     public string? Frequency { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

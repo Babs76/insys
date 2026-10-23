@@ -105,30 +105,30 @@ public interface IPaymentGateway
     bool SignatureValid(string providerCode, string body, string? signature);
 }
 
-public sealed record StatusChangeView(string From, string To, string Source, DateTimeOffset ChangedAt);
+public sealed record StatusChangeView(PaymentStatus From, PaymentStatus To, string Source, DateTimeOffset ChangedAt);
 
 public sealed record AllocationView(Guid Id, Guid InvoiceId, decimal Amount, string Currency, DateTimeOffset AllocatedAt, Guid? ReversedById);
 
 public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, string Purpose, string MethodCode, string ProviderCode, decimal Amount, string Currency,
-    string Status, string? ExternalRef, string IdempotencyKey, DateOnly? ValueDate, string? BusinessRefType, Guid? BusinessRefId, Guid? PayoutBatchId,
+    PaymentStatus Status, string? ExternalRef, string IdempotencyKey, DateOnly? ValueDate, string? BusinessRefType, Guid? BusinessRefId, Guid? PayoutBatchId,
     IReadOnlyList<StatusChangeView> History, IReadOnlyList<AllocationView> Allocations)
 {
     public static PaymentView From(Payment p) => new(p.Id, p.PaymentRef, p.Direction.ToString(), p.Purpose, p.MethodCode, p.ProviderCode, p.Amount, p.Currency,
-        p.Status.ToString(), p.ExternalRef, p.IdempotencyKey, p.ValueDate, p.BusinessRefType, p.BusinessRefId, p.PayoutBatchId,
-        p.History.OrderBy(h => h.ChangedAt).ThenBy(h => h.Id).Select(h => new StatusChangeView(h.FromStatus.ToString(), h.ToStatus.ToString(), h.Source, h.ChangedAt)).ToList(),
+        p.Status, p.ExternalRef, p.IdempotencyKey, p.ValueDate, p.BusinessRefType, p.BusinessRefId, p.PayoutBatchId,
+        p.History.OrderBy(h => h.ChangedAt).ThenBy(h => h.Id).Select(h => new StatusChangeView(h.FromStatus, h.ToStatus, h.Source, h.ChangedAt)).ToList(),
         p.Allocations.Select(a => new AllocationView(a.Id, a.InvoiceId, a.Amount, a.Currency, a.AllocatedAt, a.ReversedById)).ToList());
 }
 
-public sealed record BatchView(Guid Id, string BatchRef, string Purpose, int PaymentCount, decimal TotalAmount, string Currency, string Status, Guid? BuiltBy,
+public sealed record BatchView(Guid Id, string BatchRef, string Purpose, int PaymentCount, decimal TotalAmount, string Currency, BatchStatus Status, Guid? BuiltBy,
     Guid? ApprovedBy, Guid? ReleasedBy)
 {
-    public static BatchView From(PayoutBatch b) => new(b.Id, b.BatchRef, b.Purpose, b.PaymentCount, b.TotalAmount, b.Currency, b.Status.ToString(), b.BuiltBy,
+    public static BatchView From(PayoutBatch b) => new(b.Id, b.BatchRef, b.Purpose, b.PaymentCount, b.TotalAmount, b.Currency, b.Status, b.BuiltBy,
         b.ApprovedBy, b.ReleasedBy);
 }
 
-public sealed record ExceptionView(Guid Id, string ExceptionType, Guid? PaymentId, Guid? StatementLineId, decimal Amount, string Status, Guid? AssignedTo)
+public sealed record ExceptionView(Guid Id, string ExceptionType, Guid? PaymentId, Guid? StatementLineId, decimal Amount, ExceptionStatus Status, Guid? AssignedTo)
 {
-    public static ExceptionView From(ReconciliationException e) => new(e.Id, e.ExceptionType, e.PaymentId, e.StatementLineId, e.Amount, e.Status.ToString(), e.AssignedTo);
+    public static ExceptionView From(ReconciliationException e) => new(e.Id, e.ExceptionType, e.PaymentId, e.StatementLineId, e.Amount, e.Status, e.AssignedTo);
 }
 
 public sealed record StatementLine(DateOnly Date, decimal Amount, string Currency, string Reference);

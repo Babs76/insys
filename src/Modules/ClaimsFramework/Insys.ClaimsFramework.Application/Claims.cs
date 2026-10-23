@@ -74,7 +74,7 @@ public interface IClaimsCodes
     Task<Result<IReadOnlyList<FraudIndicator>>> FraudIndicators(DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record EvidenceView(string EvidenceType, string Status, Guid? DocumentId, DateTimeOffset? RequestedAt, DateTimeOffset? ReceivedAt);
+public sealed record EvidenceView(string EvidenceType, [property: OneOf("REQUESTED", "RECEIVED")] string Status, Guid? DocumentId, DateTimeOffset? RequestedAt, DateTimeOffset? ReceivedAt);
 
 public sealed record FraudHitView(string IndicatorCode, int Score, bool Referred, DateTimeOffset EvaluatedAt);
 
@@ -96,11 +96,11 @@ public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementVi
 }
 
 public sealed record InstructionView(Guid Id, string ClaimNumber, string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency,
-    string ReserveType, string Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId, string? PayeeBankHash, Guid? PendingPayeePartyId,
+    string ReserveType, InstructionStatus Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId, string? PayeeBankHash, Guid? PendingPayeePartyId,
     Guid? PendingBankAccountId)
 {
     public static InstructionView From(ClaimPaymentInstruction i) => new(i.Id, i.ClaimNumber, i.InstructionRef, i.PayeePartyId, i.Amount, i.ApprovedAmount, i.Currency,
-        i.ReserveType, i.Status.ToString(), i.ApprovalId, i.PaymentId, i.Attempt, i.BankAccountId, i.PayeeBankHash, i.PendingPayeePartyId, i.PendingBankAccountId);
+        i.ReserveType, i.Status, i.ApprovalId, i.PaymentId, i.Attempt, i.BankAccountId, i.PayeeBankHash, i.PendingPayeePartyId, i.PendingBankAccountId);
 }
 
 /// <summary>Command AllocateClaimNumber; a repeat for the same domain claim returns the same number (CLM-005).</summary>

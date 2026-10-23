@@ -91,16 +91,16 @@ public sealed record CessionView(Guid Id, string TreatyCode, int? TreatyVersion,
 }
 
 public sealed record RecoveryView(Guid Id, string ClaimNumber, Guid ClaimId, string SourceDomain, Guid PolicyRef, string TreatyCode, Guid? CessionId, decimal PaidAmount,
-    decimal Recoverable, string Currency, string Status, DateOnly? BilledOn, decimal? SettledAmount, DateOnly? SettledOn, decimal? Difference, long RowVersion)
+    decimal Recoverable, string Currency, RecoveryStatus Status, DateOnly? BilledOn, decimal? SettledAmount, DateOnly? SettledOn, decimal? Difference, long RowVersion)
 {
     public static RecoveryView From(ReinsuranceRecovery r) => new(r.Id, r.ClaimNumber, r.ClaimId, r.SourceDomain, r.PolicyRef, r.TreatyCode, r.CessionId, r.PaidAmount,
-        r.Recoverable, r.Currency, r.Status.ToString(), r.BilledOn, r.SettledAmount, r.SettledOn, r.Difference, r.RowVersion);
+        r.Recoverable, r.Currency, r.Status, r.BilledOn, r.SettledAmount, r.SettledOn, r.Difference, r.RowVersion);
 }
 
-public sealed record BordereauView(Guid Id, string TreatyCode, string PeriodCode, string LayoutCode, int RowCount, string Status, string Content, string? PartnerRef,
+public sealed record BordereauView(Guid Id, string TreatyCode, string PeriodCode, string LayoutCode, int RowCount, BordereauStatus Status, string Content, string? PartnerRef,
     long RowVersion)
 {
-    public static BordereauView From(Bordereau b) => new(b.Id, b.TreatyCode, b.PeriodCode, b.LayoutCode, b.RowCount, b.Status.ToString(), b.Content, b.PartnerRef,
+    public static BordereauView From(Bordereau b) => new(b.Id, b.TreatyCode, b.PeriodCode, b.LayoutCode, b.RowCount, b.Status, b.Content, b.PartnerRef,
         b.RowVersion);
 }
 

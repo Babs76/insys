@@ -41,6 +41,7 @@ public sealed class OrganisationStructure : StaticRecord<OrganisationStructureIn
 {
     public string NodeCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("LEGAL_ENTITY", "REGION", "BRANCH")]
     public string Type { get; set; } = "";
 
     public string? Parent { get; set; }
@@ -64,6 +65,7 @@ public sealed record OrganisationStructureInput : StaticRecordInput
 {
     public string? NodeCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("LEGAL_ENTITY", "REGION", "BRANCH")]
     public string? Type { get; init; }
 
     public string? Parent { get; init; }

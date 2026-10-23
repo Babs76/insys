@@ -39,6 +39,7 @@ namespace Insys.General.Infrastructure.StaticData;
 /// <summary>Endorsement types: general.cfg_endorsement_types. Scope T, Tier 1, configuration lifecycle.</summary>
 public sealed class EndorsementTypes : StaticRecord<EndorsementTypesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("PRO_RATA", "SHORT_PERIOD", "FLAT", "NONE")]
     public string PremiumMethod { get; set; } = "";
 
     public string[] Documents { get; set; } = [];
@@ -56,6 +57,7 @@ public sealed class EndorsementTypes : StaticRecord<EndorsementTypesInput>
 /// <summary>The fields a client sends for Endorsement types.</summary>
 public sealed record EndorsementTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("PRO_RATA", "SHORT_PERIOD", "FLAT", "NONE")]
     public string? PremiumMethod { get; init; }
 
     public string[]? Documents { get; init; }

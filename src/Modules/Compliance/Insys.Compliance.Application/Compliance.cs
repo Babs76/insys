@@ -71,14 +71,14 @@ public interface IComplianceCodes
     Task<ReportDefinition?> Report(string reportCode, DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record ReturnView(Guid Id, string ReturnCode, string PeriodCode, string Status, JsonElement FieldValues, Guid? PreparedBy, Guid? ReviewedBy, Guid? ApprovedBy,
+public sealed record ReturnView(Guid Id, string ReturnCode, string PeriodCode, ReturnStatus Status, JsonElement FieldValues, Guid? PreparedBy, Guid? ReviewedBy, Guid? ApprovedBy,
     DateTimeOffset? SubmittedAt, string? RegulatorRef, string? RejectionReason, long RowVersion)
 {
-    public static ReturnView From(RegulatoryReturn r) => new(r.Id, r.ReturnCode, r.PeriodCode, r.Status.ToString(), Json.Parse(r.FieldValues), r.PreparedBy, r.ReviewedBy,
+    public static ReturnView From(RegulatoryReturn r) => new(r.Id, r.ReturnCode, r.PeriodCode, r.Status, Json.Parse(r.FieldValues), r.PreparedBy, r.ReviewedBy,
         r.ApprovedBy, r.SubmittedAt, r.RegulatorRef, r.RejectionReason, r.RowVersion);
 }
 
-public sealed record ReportRunView(Guid Id, string ReportCode, Guid RequestedBy, JsonElement Parameters, string Status, JsonElement? Result, bool Exported)
+public sealed record ReportRunView(Guid Id, string ReportCode, Guid RequestedBy, JsonElement Parameters, [property: OneOf("COMPLETED", "FAILED")] string Status, JsonElement? Result, bool Exported)
 {
     public static ReportRunView From(ReportRun r) => new(r.Id, r.ReportCode, r.RequestedBy, Json.Parse(r.Parameters), r.Status, r.Result is null ? null : Json.Parse(r.Result),
         r.Exported);

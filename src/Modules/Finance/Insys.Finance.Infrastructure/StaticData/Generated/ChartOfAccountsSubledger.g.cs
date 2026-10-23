@@ -43,12 +43,14 @@ public sealed class ChartOfAccountsSubledger : StaticRecord<ChartOfAccountsSuble
 
     public string Name { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE")]
     public string Type { get; set; } = "";
 
     public string? Currency { get; set; }
 
     public string GlAccount { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "BLOCKED")]
     public string Status { get; set; } = "";
 
     public override void ApplyFields(ChartOfAccountsSubledgerInput input, IFieldProtector protector)
@@ -69,12 +71,14 @@ public sealed record ChartOfAccountsSubledgerInput : StaticRecordInput
 
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE")]
     public string? Type { get; init; }
 
     public string? Currency { get; init; }
 
     public string? GlAccount { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "BLOCKED")]
     public string? Status { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

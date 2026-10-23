@@ -41,10 +41,12 @@ public sealed class AggregateLimitDefinitions : StaticRecord<AggregateLimitDefin
 {
     public string Coverage { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("POLICY_PERIOD", "ANNUAL")]
     public string Period { get; set; } = "";
 
     public decimal AggregateAmount { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "AUTOMATIC", "ON_REQUEST")]
     public string? Reinstatement { get; set; }
 
     public override void ApplyFields(AggregateLimitDefinitionsInput input, IFieldProtector protector)
@@ -61,10 +63,12 @@ public sealed record AggregateLimitDefinitionsInput : StaticRecordInput
 {
     public string? Coverage { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("POLICY_PERIOD", "ANNUAL")]
     public string? Period { get; init; }
 
     public decimal? AggregateAmount { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "AUTOMATIC", "ON_REQUEST")]
     public string? Reinstatement { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -45,6 +45,7 @@ public sealed class PremiumTaxAndLevyRates : StaticRecord<PremiumTaxAndLevyRates
 
     public decimal Rate { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("GROSS_PREMIUM", "NET_PREMIUM", "COMMISSION")]
     public string Base { get; set; } = "";
 
     public string Rounding { get; set; } = "";
@@ -68,6 +69,7 @@ public sealed record PremiumTaxAndLevyRatesInput : StaticRecordInput
 
     public decimal? Rate { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("GROSS_PREMIUM", "NET_PREMIUM", "COMMISSION")]
     public string? Base { get; init; }
 
     public string? Rounding { get; init; }

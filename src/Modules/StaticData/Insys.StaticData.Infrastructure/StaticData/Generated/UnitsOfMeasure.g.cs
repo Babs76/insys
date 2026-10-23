@@ -41,6 +41,7 @@ public sealed class UnitsOfMeasure : StaticRecord<UnitsOfMeasureInput>
 {
     public string UnitCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("MASS", "LENGTH", "VOLUME", "AREA", "TIME")]
     public string Dimension { get; set; } = "";
 
     public decimal? ConversionToBase { get; set; }
@@ -58,6 +59,7 @@ public sealed record UnitsOfMeasureInput : StaticRecordInput
 {
     public string? UnitCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("MASS", "LENGTH", "VOLUME", "AREA", "TIME")]
     public string? Dimension { get; init; }
 
     public decimal? ConversionToBase { get; init; }

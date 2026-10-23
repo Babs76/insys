@@ -45,6 +45,7 @@ public sealed class RatingTables : StaticRecord<RatingTablesInput>
 
     public JsonElement Values { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "LINEAR")]
     public string Interpolation { get; set; } = "";
 
     public override void ApplyFields(RatingTablesInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record RatingTablesInput : StaticRecordInput
 
     public JsonElement? Values { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "LINEAR")]
     public string? Interpolation { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

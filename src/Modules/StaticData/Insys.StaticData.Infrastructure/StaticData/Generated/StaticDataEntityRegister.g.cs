@@ -41,10 +41,13 @@ public sealed class StaticDataEntityRegister : StaticRecord<StaticDataEntityRegi
 {
     public string EntityCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("REF", "CFG", "MST")]
     public string Class { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("G", "GT", "T")]
     public string Scope { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("1", "2", "3")]
     public string Tier { get; set; } = "";
 
     public string OwnerRole { get; set; } = "";
@@ -70,10 +73,13 @@ public sealed record StaticDataEntityRegisterInput : StaticRecordInput
 {
     public string? EntityCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("REF", "CFG", "MST")]
     public string? Class { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("G", "GT", "T")]
     public string? Scope { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("1", "2", "3")]
     public string? Tier { get; init; }
 
     public string? OwnerRole { get; init; }

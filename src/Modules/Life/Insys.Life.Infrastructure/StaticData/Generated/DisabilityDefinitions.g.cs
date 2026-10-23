@@ -41,6 +41,7 @@ public sealed class DisabilityDefinitions : StaticRecord<DisabilityDefinitionsIn
 {
     public string DefinitionCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("OWN_OCCUPATION", "SUITED_OCCUPATION", "ANY_OCCUPATION", "ACTIVITIES_OF_DAILY_LIVING")]
     public string Basis { get; set; } = "";
 
     public string DeferredPeriod { get; set; } = "";
@@ -61,6 +62,7 @@ public sealed record DisabilityDefinitionsInput : StaticRecordInput
 {
     public string? DefinitionCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("OWN_OCCUPATION", "SUITED_OCCUPATION", "ANY_OCCUPATION", "ACTIVITIES_OF_DAILY_LIVING")]
     public string? Basis { get; init; }
 
     public string? DeferredPeriod { get; init; }

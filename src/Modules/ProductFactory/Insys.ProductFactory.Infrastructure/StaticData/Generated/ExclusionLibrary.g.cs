@@ -43,6 +43,7 @@ public sealed class ExclusionLibrary : StaticRecord<ExclusionLibraryInput>
 
     public string WordingRef { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PRODUCT", "COVERAGE", "BENEFIT")]
     public string Scope { get; set; } = "";
 
     public string? Jurisdiction { get; set; }
@@ -69,6 +70,7 @@ public sealed record ExclusionLibraryInput : StaticRecordInput
 
     public string? WordingRef { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PRODUCT", "COVERAGE", "BENEFIT")]
     public string? Scope { get; init; }
 
     public string? Jurisdiction { get; init; }

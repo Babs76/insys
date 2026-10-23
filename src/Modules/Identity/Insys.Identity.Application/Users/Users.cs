@@ -66,11 +66,11 @@ public interface IPermissionCache
 }
 
 /// <param name="Status">PendingApproval for a privileged assignment waiting for a second person; only Active gives permissions.</param>
-public sealed record RoleAssignmentView(Guid Id, string RoleCode, string Status, DateOnly ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches,
+public sealed record RoleAssignmentView(Guid Id, string RoleCode, AssignmentStatus Status, DateOnly ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches,
     Guid AssignedBy, Guid? ApprovedBy);
 
 public sealed record UserView(
-    Guid Id, string Username, string DisplayName, string IdpCode, string? ExternalSubject, string Status, bool MfaEnrolled, DateTimeOffset? LastLoginAt,
+    Guid Id, string Username, string DisplayName, string IdpCode, string? ExternalSubject, UserStatus Status, bool MfaEnrolled, DateTimeOffset? LastLoginAt,
     IReadOnlyList<RoleAssignmentView> RoleAssignments, long RowVersion);
 
 public interface IUserQueries

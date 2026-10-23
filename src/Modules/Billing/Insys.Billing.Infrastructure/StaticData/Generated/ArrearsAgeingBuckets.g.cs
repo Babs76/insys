@@ -45,6 +45,7 @@ public sealed class ArrearsAgeingBuckets : StaticRecord<ArrearsAgeingBucketsInpu
 
     public int DaysTo { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "REMINDER", "FINAL_NOTICE", "LAPSE", "CANCEL")]
     public string Action { get; set; } = "";
 
     public override void ApplyFields(ArrearsAgeingBucketsInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record ArrearsAgeingBucketsInput : StaticRecordInput
 
     public int? DaysTo { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "REMINDER", "FINAL_NOTICE", "LAPSE", "CANCEL")]
     public string? Action { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -45,6 +45,7 @@ public sealed class CriticalIllnessConditionDefinitions : StaticRecord<CriticalI
 
     public string WordingRef { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("A", "B", "C", "D")]
     public string Severity { get; set; } = "";
 
     public decimal PayoutPct { get; set; }
@@ -68,6 +69,7 @@ public sealed record CriticalIllnessConditionDefinitionsInput : StaticRecordInpu
 
     public string? WordingRef { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("A", "B", "C", "D")]
     public string? Severity { get; init; }
 
     public decimal? PayoutPct { get; init; }

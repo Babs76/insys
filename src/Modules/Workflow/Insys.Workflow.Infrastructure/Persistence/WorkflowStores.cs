@@ -92,7 +92,7 @@ internal sealed class ApprovalQueries(WorkflowDbContext db) : IApprovalQueries
         await db.Approvals.AsNoTracking().SingleOrDefaultAsync(a => a.Id == id, cancellationToken) is { } approval ? View(approval) : null;
 
     private static ApprovalView View(Approval a) =>
-        new(a.Id, a.BusinessRefType, a.BusinessRefId, a.ApprovalType, a.MakerId, a.CheckerId, a.Status.ToString(), a.Amount, a.Currency, a.Reason, a.DecisionReason,
+        new(a.Id, a.BusinessRefType, a.BusinessRefId, a.ApprovalType, a.MakerId, a.CheckerId, a.Status, a.Amount, a.Currency, a.Reason, a.DecisionReason,
             a.RequestedAt, a.DecidedAt, a.ExpiresAt, a.SubjectHash, a.RowVersion);
 }
 
@@ -162,11 +162,11 @@ internal sealed class ProcessQueries(WorkflowDbContext db) : IProcessQueries
     }
 
     private static ProcessView View(ProcessInstance p, IReadOnlyList<CaseNoteView> notes) =>
-        new(p.Id, p.ProcessCode, p.ProcessVersion, p.BusinessRefType, p.BusinessRefId, p.Status.ToString(), p.DefinitionState, p.StartedAt, p.EndedAt,
+        new(p.Id, p.ProcessCode, p.ProcessVersion, p.BusinessRefType, p.BusinessRefId, p.Status, p.DefinitionState, p.StartedAt, p.EndedAt,
             p.Tasks.OrderBy(t => t.Id).Select(View).ToList(), notes, p.RowVersion);
 
     private static TaskView View(ProcessTask t) =>
-        new(t.Id, t.TaskType, t.QueueCode, t.AssigneeId, t.Status.ToString(), t.SlaCode, t.DueAt, t.CompletedAt, t.Outcome);
+        new(t.Id, t.TaskType, t.QueueCode, t.AssigneeId, t.Status, t.SlaCode, t.DueAt, t.CompletedAt, t.Outcome);
 }
 
 public sealed class WorkflowOptions

@@ -59,14 +59,14 @@ public interface IProcessRepository
     void Add(ProcessInstance process);
 }
 
-public sealed record TaskView(Guid Id, string TaskType, string QueueCode, Guid? AssigneeId, string Status, string? SlaCode, DateTimeOffset DueAt,
+public sealed record TaskView(Guid Id, string TaskType, string QueueCode, Guid? AssigneeId, Domain.Processes.TaskStatus Status, string? SlaCode, DateTimeOffset DueAt,
     DateTimeOffset? CompletedAt, string? Outcome);
 
 public sealed record OpenTaskView(Guid ProcessId, TaskView Task);
 
 public sealed record CaseNoteView(Guid AuthorId, string Note, DateTimeOffset CreatedAt);
 
-public sealed record ProcessView(Guid Id, string ProcessCode, int ProcessVersion, string BusinessRefType, Guid BusinessRefId, string Status, string State,
+public sealed record ProcessView(Guid Id, string ProcessCode, int ProcessVersion, string BusinessRefType, Guid BusinessRefId, ProcessStatus Status, string State,
     DateTimeOffset StartedAt, DateTimeOffset? EndedAt, IReadOnlyList<TaskView> Tasks, IReadOnlyList<CaseNoteView> Notes, long RowVersion);
 
 public interface IProcessQueries

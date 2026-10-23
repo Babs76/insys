@@ -41,6 +41,7 @@ public sealed class AssumptionSetReferences : StaticRecord<AssumptionSetReferenc
 {
     public string SetCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("BEST_ESTIMATE", "PRUDENTIAL", "STATUTORY")]
     public string Basis { get; set; } = "";
 
     public string? ExternalEngineRef { get; set; }
@@ -58,6 +59,7 @@ public sealed record AssumptionSetReferencesInput : StaticRecordInput
 {
     public string? SetCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("BEST_ESTIMATE", "PRUDENTIAL", "STATUTORY")]
     public string? Basis { get; init; }
 
     public string? ExternalEngineRef { get; init; }

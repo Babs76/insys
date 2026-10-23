@@ -41,6 +41,7 @@ public sealed class RepairerAndAssessorPanels : StaticRecord<RepairerAndAssessor
 {
     public string Party { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("REPAIRER", "ASSESSOR")]
     public string PanelType { get; set; } = "";
 
     public string Location { get; set; } = "";
@@ -49,6 +50,7 @@ public sealed class RepairerAndAssessorPanels : StaticRecord<RepairerAndAssessor
 
     public decimal? LabourRate { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED")]
     public string Status { get; set; } = "";
 
     public override void ApplyFields(RepairerAndAssessorPanelsInput input, IFieldProtector protector)
@@ -67,6 +69,7 @@ public sealed record RepairerAndAssessorPanelsInput : StaticRecordInput
 {
     public string? Party { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("REPAIRER", "ASSESSOR")]
     public string? PanelType { get; init; }
 
     public string? Location { get; init; }
@@ -75,6 +78,7 @@ public sealed record RepairerAndAssessorPanelsInput : StaticRecordInput
 
     public decimal? LabourRate { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED")]
     public string? Status { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

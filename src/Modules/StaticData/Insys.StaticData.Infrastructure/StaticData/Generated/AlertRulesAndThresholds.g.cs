@@ -45,6 +45,7 @@ public sealed class AlertRulesAndThresholds : StaticRecord<AlertRulesAndThreshol
 
     public decimal Threshold { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("INFO", "WARNING", "CRITICAL")]
     public string Severity { get; set; } = "";
 
     public string Route { get; set; } = "";
@@ -68,6 +69,7 @@ public sealed record AlertRulesAndThresholdsInput : StaticRecordInput
 
     public decimal? Threshold { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("INFO", "WARNING", "CRITICAL")]
     public string? Severity { get; init; }
 
     public string? Route { get; init; }

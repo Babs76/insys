@@ -76,10 +76,10 @@ public interface ISecretStore
     string? Resolve(string secretRef);
 }
 
-public sealed record WebhookDeliveryView(Guid Id, string SubscriptionId, Guid EventId, string EventType, int Attempt, string Status, int? HttpStatus,
+public sealed record WebhookDeliveryView(Guid Id, string SubscriptionId, Guid EventId, string EventType, int Attempt, WebhookDeliveryStatus Status, int? HttpStatus,
     DateTimeOffset? NextAttemptAt, string? Error, long RowVersion)
 {
-    public static WebhookDeliveryView From(WebhookDelivery d) => new(d.Id, d.SubscriptionId, d.EventId, d.EventType, d.Attempt, d.Status.ToString(), d.HttpStatus,
+    public static WebhookDeliveryView From(WebhookDelivery d) => new(d.Id, d.SubscriptionId, d.EventId, d.EventType, d.Attempt, d.Status, d.HttpStatus,
         d.NextAttemptAt, d.Error, d.RowVersion);
 }
 

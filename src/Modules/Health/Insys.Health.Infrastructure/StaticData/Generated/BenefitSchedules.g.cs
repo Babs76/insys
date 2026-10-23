@@ -45,6 +45,7 @@ public sealed class BenefitSchedules : StaticRecord<BenefitSchedulesInput>
 
     public decimal LimitValue { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PER_EVENT", "PER_YEAR", "LIFETIME")]
     public string Frequency { get; set; } = "";
 
     public string? CoPayment { get; set; }
@@ -68,6 +69,7 @@ public sealed record BenefitSchedulesInput : StaticRecordInput
 
     public decimal? LimitValue { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PER_EVENT", "PER_YEAR", "LIFETIME")]
     public string? Frequency { get; init; }
 
     public string? CoPayment { get; init; }

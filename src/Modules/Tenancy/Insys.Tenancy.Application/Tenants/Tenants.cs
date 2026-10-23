@@ -42,12 +42,12 @@ public interface ITenantRepository
     void Add(Tenant tenant);
 }
 
-public sealed record TenantSummary(Guid Id, string TenantCode, string LegalName, string IsolationProfile, string Status, long RowVersion);
+public sealed record TenantSummary(Guid Id, string TenantCode, string LegalName, string IsolationProfile, TenantStatus Status, long RowVersion);
 
-public sealed record StatusChangeView(string FromStatus, string ToStatus, string Reason, Guid ChangedBy, DateTimeOffset ChangedAt);
+public sealed record StatusChangeView(TenantStatus FromStatus, TenantStatus ToStatus, string Reason, Guid ChangedBy, DateTimeOffset ChangedAt);
 
 public sealed record TenantDetail(
-    Guid Id, string TenantCode, string LegalName, string IsolationProfile, string Status, string? OnboardingStep, string? OnboardingStatus,
+    Guid Id, string TenantCode, string LegalName, string IsolationProfile, TenantStatus Status, string? OnboardingStep, [property: OneOf("IN_PROGRESS", "COMPLETED")] string? OnboardingStatus,
     IReadOnlyList<string> OnboardingSteps, IReadOnlyList<StatusChangeView> StatusHistory, long RowVersion);
 
 public interface ITenantQueries

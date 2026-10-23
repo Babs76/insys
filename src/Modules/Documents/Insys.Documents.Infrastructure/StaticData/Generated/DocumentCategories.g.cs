@@ -45,6 +45,7 @@ public sealed class DocumentCategories : StaticRecord<DocumentCategoriesInput>
 
     public string Classification { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("ALL", "LIFE", "GENERAL", "HEALTH")]
     public string Domain { get; set; } = "";
 
     public string[] AllowedRoles { get; set; } = [];
@@ -68,6 +69,7 @@ public sealed record DocumentCategoriesInput : StaticRecordInput
 
     public string? Classification { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ALL", "LIFE", "GENERAL", "HEALTH")]
     public string? Domain { get; init; }
 
     public string[]? AllowedRoles { get; init; }

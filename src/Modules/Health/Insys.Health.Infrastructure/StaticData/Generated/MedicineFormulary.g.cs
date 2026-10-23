@@ -43,6 +43,7 @@ public sealed class MedicineFormulary : StaticRecord<MedicineFormularyInput>
 
     public string ActiveIngredient { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("1", "2", "3", "NON_FORMULARY")]
     public string Tier { get; set; } = "";
 
     public decimal? ReferencePrice { get; set; }
@@ -63,6 +64,7 @@ public sealed record MedicineFormularyInput : StaticRecordInput
 
     public string? ActiveIngredient { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("1", "2", "3", "NON_FORMULARY")]
     public string? Tier { get; init; }
 
     public decimal? ReferencePrice { get; init; }

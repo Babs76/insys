@@ -41,10 +41,12 @@ public sealed class AllocationRules : StaticRecord<AllocationRulesInput>
 {
     public string RuleCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PERCENTAGE", "EQUAL")]
     public string ShareBasis { get; set; } = "";
 
     public decimal TotalMustEqual { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("REDISTRIBUTE", "ESTATE")]
     public string PredeceasedDefault { get; set; } = "";
 
     public override void ApplyFields(AllocationRulesInput input, IFieldProtector protector)
@@ -61,10 +63,12 @@ public sealed record AllocationRulesInput : StaticRecordInput
 {
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PERCENTAGE", "EQUAL")]
     public string? ShareBasis { get; init; }
 
     public decimal? TotalMustEqual { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("REDISTRIBUTE", "ESTATE")]
     public string? PredeceasedDefault { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

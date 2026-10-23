@@ -45,8 +45,10 @@ public sealed class RoundingAndCurrencyPrecisionRules : StaticRecord<RoundingAnd
 
     public decimal Step { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("HALF_UP", "HALF_EVEN", "UP", "DOWN")]
     public string Method { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("EACH_FACTOR", "FINAL_PREMIUM", "INSTALMENT")]
     public string Stage { get; set; } = "";
 
     public override void ApplyFields(RoundingAndCurrencyPrecisionRulesInput input, IFieldProtector protector)
@@ -68,8 +70,10 @@ public sealed record RoundingAndCurrencyPrecisionRulesInput : StaticRecordInput
 
     public decimal? Step { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("HALF_UP", "HALF_EVEN", "UP", "DOWN")]
     public string? Method { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("EACH_FACTOR", "FINAL_PREMIUM", "INSTALMENT")]
     public string? Stage { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

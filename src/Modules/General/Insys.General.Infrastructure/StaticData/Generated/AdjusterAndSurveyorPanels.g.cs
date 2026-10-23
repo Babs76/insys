@@ -47,6 +47,7 @@ public sealed class AdjusterAndSurveyorPanels : StaticRecord<AdjusterAndSurveyor
 
     public string? FeeScale { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED")]
     public string Status { get; set; } = "";
 
     public override void ApplyFields(AdjusterAndSurveyorPanelsInput input, IFieldProtector protector)
@@ -70,6 +71,7 @@ public sealed record AdjusterAndSurveyorPanelsInput : StaticRecordInput
 
     public string? FeeScale { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED")]
     public string? Status { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -66,6 +66,7 @@ public static class StaticDataEndpoints
         where TEntity : StaticRecord<TInput>, new()
         where TInput : StaticRecordInput
     {
+        StateEnums.Register(descriptor);
         var group = api.MapGroup($"/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}").WithTags(tag)
             .WithMetadata(new StaticDataEndpointMetadata());
         var name = descriptor.EntityName;

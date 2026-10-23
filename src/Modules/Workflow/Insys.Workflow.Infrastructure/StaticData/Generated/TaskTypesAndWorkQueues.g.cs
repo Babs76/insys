@@ -45,6 +45,7 @@ public sealed class TaskTypesAndWorkQueues : StaticRecord<TaskTypesAndWorkQueues
 
     public string[]? Skills { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ROUND_ROBIN", "LEAST_LOADED", "MANUAL_PULL")]
     public string AssignmentRule { get; set; } = "";
 
     public override void ApplyFields(TaskTypesAndWorkQueuesInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record TaskTypesAndWorkQueuesInput : StaticRecordInput
 
     public string[]? Skills { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ROUND_ROBIN", "LEAST_LOADED", "MANUAL_PULL")]
     public string? AssignmentRule { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

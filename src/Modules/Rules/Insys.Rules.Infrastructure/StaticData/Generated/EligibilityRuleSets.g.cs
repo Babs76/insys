@@ -43,6 +43,7 @@ public sealed class EligibilityRuleSets : StaticRecord<EligibilityRuleSetsInput>
 
     public string Conditions { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("ELIGIBLE", "INELIGIBLE", "REFER")]
     public string Outcome { get; set; } = "";
 
     public override void ApplyFields(EligibilityRuleSetsInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record EligibilityRuleSetsInput : StaticRecordInput
 
     public string? Conditions { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ELIGIBLE", "INELIGIBLE", "REFER")]
     public string? Outcome { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

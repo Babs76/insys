@@ -41,6 +41,7 @@ public sealed class SettlementAuthorityLimits : StaticRecord<SettlementAuthority
 {
     public string Role { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("MOTOR", "PROPERTY", "MARINE", "COMMERCIAL")]
     public string Line { get; set; } = "";
 
     public decimal LimitValue { get; set; }
@@ -58,6 +59,7 @@ public sealed record SettlementAuthorityLimitsInput : StaticRecordInput
 {
     public string? Role { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("MOTOR", "PROPERTY", "MARINE", "COMMERCIAL")]
     public string? Line { get; init; }
 
     public decimal? LimitValue { get; init; }

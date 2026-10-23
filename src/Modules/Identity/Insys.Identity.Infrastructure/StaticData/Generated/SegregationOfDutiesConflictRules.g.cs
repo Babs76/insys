@@ -43,6 +43,7 @@ public sealed class SegregationOfDutiesConflictRules : StaticRecord<SegregationO
 
     public string PermissionB { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("BLOCK", "WARN")]
     public string Conflict { get; set; } = "";
 
     public string? OverrideRole { get; set; }
@@ -63,6 +64,7 @@ public sealed record SegregationOfDutiesConflictRulesInput : StaticRecordInput
 
     public string? PermissionB { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("BLOCK", "WARN")]
     public string? Conflict { get; init; }
 
     public string? OverrideRole { get; init; }

@@ -53,6 +53,7 @@ public sealed class TenantBankAccounts : StaticRecord<TenantBankAccountsInput>
 
     public string Currency { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("COLLECTIONS", "CLAIMS_PAYOUT", "COMMISSION", "GENERAL")]
     public string Purpose { get; set; } = "";
 
     public string GlAccount { get; set; } = "";
@@ -79,6 +80,7 @@ public sealed record TenantBankAccountsInput : StaticRecordInput
 
     public string? Currency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("COLLECTIONS", "CLAIMS_PAYOUT", "COMMISSION", "GENERAL")]
     public string? Purpose { get; init; }
 
     public string? GlAccount { get; init; }

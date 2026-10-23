@@ -43,6 +43,7 @@ public sealed class RetryAndDeadLetterPolicies : StaticRecord<RetryAndDeadLetter
 
     public int MaxAttempts { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("FIXED", "EXPONENTIAL")]
     public string Backoff { get; set; } = "";
 
     public string InitialDelay { get; set; } = "";
@@ -69,6 +70,7 @@ public sealed record RetryAndDeadLetterPoliciesInput : StaticRecordInput
 
     public int? MaxAttempts { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("FIXED", "EXPONENTIAL")]
     public string? Backoff { get; init; }
 
     public string? InitialDelay { get; init; }

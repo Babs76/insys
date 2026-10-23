@@ -39,14 +39,18 @@ namespace Insys.ProductFactory.Infrastructure.StaticData;
 /// <summary>Coverage and benefit library: product.cfg_coverage_and_benefit_library. Scope T, Tier 1, configuration lifecycle.</summary>
 public sealed class CoverageAndBenefitLibrary : StaticRecord<CoverageAndBenefitLibraryInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("COVERAGE", "BENEFIT")]
     public string Type { get; set; } = "";
 
     public string Name { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("INDEMNITY", "FIXED_BENEFIT", "REIMBURSEMENT")]
     public string Basis { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("SUM_INSURED", "SUM_ASSURED", "LIMIT", "UNITS")]
     public string Measure { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string Domain { get; set; } = "";
 
     public override void ApplyFields(CoverageAndBenefitLibraryInput input, IFieldProtector protector)
@@ -62,14 +66,18 @@ public sealed class CoverageAndBenefitLibrary : StaticRecord<CoverageAndBenefitL
 /// <summary>The fields a client sends for Coverage and benefit library.</summary>
 public sealed record CoverageAndBenefitLibraryInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("COVERAGE", "BENEFIT")]
     public string? Type { get; init; }
 
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("INDEMNITY", "FIXED_BENEFIT", "REIMBURSEMENT")]
     public string? Basis { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("SUM_INSURED", "SUM_ASSURED", "LIMIT", "UNITS")]
     public string? Measure { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string? Domain { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

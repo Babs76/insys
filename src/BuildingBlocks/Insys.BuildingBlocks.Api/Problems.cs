@@ -84,8 +84,8 @@ public static class ResultHttpExtensions
 }
 
 /// <summary>
-/// The ProblemDetails responses every endpoint can give, declared for the OpenAPI documents (INT-001): 401, 403, 429
-/// and 500 always; 400 when it takes input; 404 when its route names a resource; 409 and 422 when it changes something.
+/// The ProblemDetails responses every endpoint can give, declared for the OpenAPI documents (INT-001): 401, 403, 429,
+/// 500 and 503 (NOT_READY, while a new instance warms up) always; 400 when it takes input; 404 when its route names a resource; 409 and 422 when it changes something.
 /// A status the endpoint declares itself is left as it is.
 /// </summary>
 public static class StandardProblems
@@ -98,7 +98,11 @@ public static class StandardProblems
         var methods = endpoint.Metadata.OfType<IHttpMethodMetadata>().SelectMany(m => m.HttpMethods).ToList();
         var changes = methods.Any(m => m is not "GET" and not "HEAD");
         var routeValues = endpoint is RouteEndpointBuilder route && route.RoutePattern.Parameters.Any(p => p.Name != "version");
-        var statuses = new List<int> { StatusCodes.Status401Unauthorized, StatusCodes.Status403Forbidden, StatusCodes.Status429TooManyRequests, StatusCodes.Status500InternalServerError };
+        var statuses = new List<int>
+        {
+            StatusCodes.Status401Unauthorized, StatusCodes.Status403Forbidden, StatusCodes.Status429TooManyRequests, StatusCodes.Status500InternalServerError,
+            StatusCodes.Status503ServiceUnavailable,
+        };
         if (changes || routeValues)
         {
             statuses.Add(StatusCodes.Status400BadRequest);

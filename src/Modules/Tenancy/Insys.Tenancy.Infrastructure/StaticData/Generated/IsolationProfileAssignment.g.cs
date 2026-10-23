@@ -41,6 +41,7 @@ public sealed class IsolationProfileAssignment : StaticRecord<IsolationProfileAs
 {
     public string Tenant { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("A", "B", "C")]
     public string Profile { get; set; } = "";
 
     public string DataRegion { get; set; } = "";
@@ -58,6 +59,7 @@ public sealed record IsolationProfileAssignmentInput : StaticRecordInput
 {
     public string? Tenant { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("A", "B", "C")]
     public string? Profile { get; init; }
 
     public string? DataRegion { get; init; }

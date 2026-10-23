@@ -39,12 +39,14 @@ namespace Insys.ClaimsFramework.Infrastructure.StaticData;
 /// <summary>Claim numbering schemes: claims.cfg_claim_numbering_schemes. Scope T, Tier 2, configuration lifecycle.</summary>
 public sealed class ClaimNumberingSchemes : StaticRecord<ClaimNumberingSchemesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string Domain { get; set; } = "";
 
     public string Prefix { get; set; } = "";
 
     public int SequenceLength { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "LUHN", "MOD11")]
     public string? CheckDigit { get; set; }
 
     public string? ExampleOutput { get; set; }
@@ -62,12 +64,14 @@ public sealed class ClaimNumberingSchemes : StaticRecord<ClaimNumberingSchemesIn
 /// <summary>The fields a client sends for Claim numbering schemes.</summary>
 public sealed record ClaimNumberingSchemesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string? Domain { get; init; }
 
     public string? Prefix { get; init; }
 
     public int? SequenceLength { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "LUHN", "MOD11")]
     public string? CheckDigit { get; init; }
 
     public string? ExampleOutput { get; init; }

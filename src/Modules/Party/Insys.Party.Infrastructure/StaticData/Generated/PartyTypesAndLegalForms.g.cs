@@ -39,6 +39,7 @@ namespace Insys.Party.Infrastructure.StaticData;
 /// <summary>Party types and legal forms: party.ref_party_types_and_legal_forms. Scope GT, Tier 3, reference lifecycle.</summary>
 public sealed class PartyTypesAndLegalForms : StaticRecord<PartyTypesAndLegalFormsInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("INDIVIDUAL", "ORGANISATION")]
     public string PartyKind { get; set; } = "";
 
     public string Label { get; set; } = "";
@@ -56,6 +57,7 @@ public sealed class PartyTypesAndLegalForms : StaticRecord<PartyTypesAndLegalFor
 /// <summary>The fields a client sends for Party types and legal forms.</summary>
 public sealed record PartyTypesAndLegalFormsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("INDIVIDUAL", "ORGANISATION")]
     public string? PartyKind { get; init; }
 
     public string? Label { get; init; }

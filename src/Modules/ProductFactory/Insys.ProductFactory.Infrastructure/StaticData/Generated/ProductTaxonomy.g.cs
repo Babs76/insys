@@ -39,6 +39,7 @@ namespace Insys.ProductFactory.Infrastructure.StaticData;
 /// <summary>Product taxonomy: product.ref_product_taxonomy. Scope T, Tier 2, reference lifecycle.</summary>
 public sealed class ProductTaxonomy : StaticRecord<ProductTaxonomyInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string Line { get; set; } = "";
 
     public string FamilyCode { get; set; } = "";
@@ -62,6 +63,7 @@ public sealed class ProductTaxonomy : StaticRecord<ProductTaxonomyInput>
 /// <summary>The fields a client sends for Product taxonomy.</summary>
 public sealed record ProductTaxonomyInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string? Line { get; init; }
 
     public string? FamilyCode { get; init; }

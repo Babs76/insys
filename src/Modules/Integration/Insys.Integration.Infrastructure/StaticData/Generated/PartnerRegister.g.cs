@@ -41,6 +41,7 @@ public sealed class PartnerRegister : StaticRecord<PartnerRegisterInput>
 {
     public string PartnerCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("BROKER_SYSTEM", "BANK", "PAYMENT_PROVIDER", "PROVIDER_SYSTEM", "REINSURER", "GL", "OTHER")]
     public string PartnerType { get; set; } = "";
 
     public string LegalName { get; set; } = "";
@@ -51,6 +52,7 @@ public sealed class PartnerRegister : StaticRecord<PartnerRegisterInput>
 
     public string? CertRef { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED")]
     public string Status { get; set; } = "";
 
     public override void ApplyFields(PartnerRegisterInput input, IFieldProtector protector)
@@ -70,6 +72,7 @@ public sealed record PartnerRegisterInput : StaticRecordInput
 {
     public string? PartnerCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("BROKER_SYSTEM", "BANK", "PAYMENT_PROVIDER", "PROVIDER_SYSTEM", "REINSURER", "GL", "OTHER")]
     public string? PartnerType { get; init; }
 
     public string? LegalName { get; init; }
@@ -80,6 +83,7 @@ public sealed record PartnerRegisterInput : StaticRecordInput
 
     public string? CertRef { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED")]
     public string? Status { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

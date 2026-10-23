@@ -39,12 +39,14 @@ namespace Insys.Life.Infrastructure.StaticData;
 /// <summary>Policy numbering schemes: life.cfg_policy_numbering_schemes. Scope T, Tier 2, configuration lifecycle.</summary>
 public sealed class PolicyNumberingSchemes : StaticRecord<PolicyNumberingSchemesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string ProductLine { get; set; } = "";
 
     public string Prefix { get; set; } = "";
 
     public int SequenceLength { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "LUHN", "MOD11")]
     public string? CheckDigit { get; set; }
 
     public string? ExampleOutput { get; set; }
@@ -62,12 +64,14 @@ public sealed class PolicyNumberingSchemes : StaticRecord<PolicyNumberingSchemes
 /// <summary>The fields a client sends for Policy numbering schemes.</summary>
 public sealed record PolicyNumberingSchemesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string? ProductLine { get; init; }
 
     public string? Prefix { get; init; }
 
     public int? SequenceLength { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "LUHN", "MOD11")]
     public string? CheckDigit { get; init; }
 
     public string? ExampleOutput { get; init; }

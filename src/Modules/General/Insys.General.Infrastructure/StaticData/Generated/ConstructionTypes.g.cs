@@ -41,6 +41,7 @@ public sealed class ConstructionTypes : StaticRecord<ConstructionTypesInput>
 {
     public string Label { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("NON_COMBUSTIBLE", "MIXED", "COMBUSTIBLE")]
     public string Combustibility { get; set; } = "";
 
     public override void ApplyFields(ConstructionTypesInput input, IFieldProtector protector)
@@ -55,6 +56,7 @@ public sealed record ConstructionTypesInput : StaticRecordInput
 {
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NON_COMBUSTIBLE", "MIXED", "COMBUSTIBLE")]
     public string? Combustibility { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

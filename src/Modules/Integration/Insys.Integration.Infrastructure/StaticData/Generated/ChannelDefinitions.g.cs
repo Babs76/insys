@@ -41,6 +41,7 @@ public sealed class ChannelDefinitions : StaticRecord<ChannelDefinitionsInput>
 {
     public string ChannelCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("STAFF", "BROKER", "CUSTOMER", "PROVIDER", "PARTNER")]
     public string Audience { get; set; } = "";
 
     public string Name { get; set; } = "";
@@ -67,6 +68,7 @@ public sealed record ChannelDefinitionsInput : StaticRecordInput
 {
     public string? ChannelCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("STAFF", "BROKER", "CUSTOMER", "PROVIDER", "PARTNER")]
     public string? Audience { get; init; }
 
     public string? Name { get; init; }

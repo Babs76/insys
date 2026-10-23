@@ -43,6 +43,7 @@ public sealed class NotificationLeadTimes : StaticRecord<NotificationLeadTimesIn
 
     public int DaysBefore { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "POST")]
     public string Channel { get; set; } = "";
 
     public string Template { get; set; } = "";
@@ -63,6 +64,7 @@ public sealed record NotificationLeadTimesInput : StaticRecordInput
 
     public int? DaysBefore { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "POST")]
     public string? Channel { get; init; }
 
     public string? Template { get; init; }

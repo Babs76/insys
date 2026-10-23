@@ -43,6 +43,7 @@ public sealed class RelationshipTypes : StaticRecord<RelationshipTypesInput>
 
     public string Label { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("IND_IND", "IND_ORG", "ORG_ORG")]
     public string PartyKinds { get; set; } = "";
 
     public string[]? Domains { get; set; }
@@ -63,6 +64,7 @@ public sealed record RelationshipTypesInput : StaticRecordInput
 
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("IND_IND", "IND_ORG", "ORG_ORG")]
     public string? PartyKinds { get; init; }
 
     public string[]? Domains { get; init; }

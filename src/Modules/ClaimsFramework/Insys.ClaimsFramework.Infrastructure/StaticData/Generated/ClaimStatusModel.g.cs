@@ -45,6 +45,7 @@ public sealed class ClaimStatusModel : StaticRecord<ClaimStatusModelInput>
 
     public string[] AllowedNext { get; set; } = [];
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string? DomainOverride { get; set; }
 
     public override void ApplyFields(ClaimStatusModelInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record ClaimStatusModelInput : StaticRecordInput
 
     public string[]? AllowedNext { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string? DomainOverride { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

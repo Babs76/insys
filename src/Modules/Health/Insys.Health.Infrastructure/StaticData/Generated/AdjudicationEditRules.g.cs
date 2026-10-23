@@ -43,6 +43,7 @@ public sealed class AdjudicationEditRules : StaticRecord<AdjudicationEditRulesIn
 
     public string Condition { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PEND", "REJECT", "ADJUST", "PAY")]
     public string Outcome { get; set; } = "";
 
     public string ReasonCode { get; set; } = "";
@@ -66,6 +67,7 @@ public sealed record AdjudicationEditRulesInput : StaticRecordInput
 
     public string? Condition { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PEND", "REJECT", "ADJUST", "PAY")]
     public string? Outcome { get; init; }
 
     public string? ReasonCode { get; init; }

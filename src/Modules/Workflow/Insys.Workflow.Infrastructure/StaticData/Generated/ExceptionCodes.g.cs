@@ -39,6 +39,7 @@ namespace Insys.Workflow.Infrastructure.StaticData;
 /// <summary>Exception codes: workflow.ref_exception_codes. Scope T, Tier 3, reference lifecycle.</summary>
 public sealed class ExceptionCodes : StaticRecord<ExceptionCodesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("DATA", "INTEGRATION", "BUSINESS_RULE", "PAYMENT")]
     public string Category { get; set; } = "";
 
     public string? DefaultQueue { get; set; }
@@ -53,6 +54,7 @@ public sealed class ExceptionCodes : StaticRecord<ExceptionCodesInput>
 /// <summary>The fields a client sends for Exception codes.</summary>
 public sealed record ExceptionCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("DATA", "INTEGRATION", "BUSINESS_RULE", "PAYMENT")]
     public string? Category { get; init; }
 
     public string? DefaultQueue { get; init; }

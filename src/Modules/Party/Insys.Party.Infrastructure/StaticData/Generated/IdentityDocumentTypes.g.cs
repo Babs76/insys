@@ -47,6 +47,7 @@ public sealed class IdentityDocumentTypes : StaticRecord<IdentityDocumentTypesIn
 
     public string FormatPattern { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "LUHN", "MOD11", "CUSTOM")]
     public string? CheckDigitRule { get; set; }
 
     public string? Issuer { get; set; }
@@ -73,6 +74,7 @@ public sealed record IdentityDocumentTypesInput : StaticRecordInput
 
     public string? FormatPattern { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "LUHN", "MOD11", "CUSTOM")]
     public string? CheckDigitRule { get; init; }
 
     public string? Issuer { get; init; }

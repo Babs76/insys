@@ -180,30 +180,30 @@ public sealed record InsuredLifeView(Guid Id, Guid PartyId, string LifeRole, int
 
 public sealed record CoverView(Guid Id, Guid InsuredLifeId, string BenefitCode, decimal SumAssured, int TermYears, decimal Premium);
 
-public sealed record ProposalView(Guid Id, string ProposalNumber, string ProductCode, int ProductVersion, Guid ApplicantPartyId, string Status, string Currency,
+public sealed record ProposalView(Guid Id, string ProposalNumber, string ProductCode, int ProductVersion, Guid ApplicantPartyId, ProposalStatus Status, string Currency,
     string Frequency, DateOnly? InceptionDate, decimal? QuotedPremium, Guid? RatingRequestId, int? RatingVersion, string? EligibilityOutcome, string? RulesetCode,
     int? RulesetVersion, IReadOnlyList<InsuredLifeView> Lives, IReadOnlyList<CoverView> Covers, IReadOnlyList<BeneficiaryNomination> Nominations, long RowVersion)
 {
-    public static ProposalView From(LifeProposal p) => new(p.Id, p.ProposalNumber, p.ProductCode, p.ProductVersion, p.ApplicantPartyId, p.Status.ToString(), p.Currency,
+    public static ProposalView From(LifeProposal p) => new(p.Id, p.ProposalNumber, p.ProductCode, p.ProductVersion, p.ApplicantPartyId, p.Status, p.Currency,
         p.Frequency, p.InceptionDate, p.QuotedPremium, p.RatingRequestId, p.RatingVersion, p.EligibilityOutcome, p.RulesetCode, p.RulesetVersion,
         p.Lives.Select(l => new InsuredLifeView(l.Id, l.PartyId, l.LifeRole, l.AgeNext, l.SmokerStatus, l.OccupationCode)).ToList(),
         p.Covers.Select(c => new CoverView(c.Id, c.InsuredLifeId, c.BenefitCode, c.SumAssured, c.TermYears, c.Premium)).ToList(), p.BeneficiaryNominations, p.RowVersion);
 }
 
-public sealed record RequirementView(Guid Id, string EvidenceType, string Status, bool Mandatory, Guid? DocumentId, Guid? WaivedBy, string? WaiverReason);
+public sealed record RequirementView(Guid Id, string EvidenceType, [property: OneOf("REQUESTED", "RECEIVED", "WAIVED")] string Status, bool Mandatory, Guid? DocumentId, Guid? WaivedBy, string? WaiverReason);
 
-public sealed record CaseView(Guid Id, Guid ProposalId, string Status, string? RulesetCode, int? RulesetVersion, string? RuleOutcome, string? Outcome, string? DecisionCode,
+public sealed record CaseView(Guid Id, Guid ProposalId, CaseStatus Status, string? RulesetCode, int? RulesetVersion, string? RuleOutcome, string? Outcome, string? DecisionCode,
     string? DecisionReason, bool DecisionPending, Guid? DecidedBy, string? AuthorityRole, string? ReferredTo, IReadOnlyList<RequirementView> Requirements,
     IReadOnlyList<DecisionItemRequest> Items, long RowVersion)
 {
-    public static CaseView From(LifeUnderwritingCase c) => new(c.Id, c.ProposalId, c.Status.ToString(), c.RulesetCode, c.RulesetVersion, c.RuleOutcome, c.Outcome?.ToString(),
+    public static CaseView From(LifeUnderwritingCase c) => new(c.Id, c.ProposalId, c.Status, c.RulesetCode, c.RulesetVersion, c.RuleOutcome, c.Outcome?.ToString(),
         c.DecisionCode, c.DecisionReason, c.DecisionPending, c.DecidedBy, c.AuthorityRole, c.ReferredTo,
         c.Requirements.Select(r => new RequirementView(r.Id, r.EvidenceType, r.Status, r.Mandatory, r.DocumentId, r.WaivedBy, r.WaiverReason)).ToList(),
         c.Items.Select(i => i.ToRequest()).ToList(), c.RowVersion);
 }
 
 public sealed record BenefitView(Guid Id, Guid? InsuredLifeId, string BenefitCode, decimal SumAssured, decimal Premium, IReadOnlyList<string> ExclusionCodes,
-    DateOnly StartDate, DateOnly? EndDate, string Status);
+    DateOnly StartDate, DateOnly? EndDate, [property: OneOf("ACTIVE", "CLAIMED", "ENDED")] string Status);
 
 public sealed record BeneficiaryView(Guid PartyId, string RelationshipCode, decimal SharePct, DateOnly ValidFrom, DateOnly? ValidTo);
 
@@ -212,12 +212,12 @@ public sealed record ScheduleView(string Frequency, decimal Premium, DateOnly Ne
 public sealed record LapseView(string EventType, DateOnly EffectiveDate, string Reason);
 
 public sealed record PolicyView(Guid Id, string PolicyNumber, Guid ProposalId, string ProductCode, int ProductVersion, int RatingVersion, int? RulesetVersion,
-    Guid PolicyholderPartyId, string Status, DateOnly InceptionDate, DateOnly? TermEndDate, string Currency, Guid BillingAccountRef, string? IntermediaryCode,
+    Guid PolicyholderPartyId, LifePolicyStatus Status, DateOnly InceptionDate, DateOnly? TermEndDate, string Currency, Guid BillingAccountRef, string? IntermediaryCode,
     IReadOnlyList<InsuredLifeView> Lives, IReadOnlyList<BenefitView> Benefits, IReadOnlyList<BeneficiaryView> Beneficiaries, ScheduleView Schedule,
     IReadOnlyList<LapseView> LapseHistory, long RowVersion)
 {
     public static PolicyView From(LifePolicy p) => new(p.Id, p.PolicyNumber, p.ProposalId, p.ProductCode, p.ProductVersion, p.RatingVersion, p.RulesetVersion,
-        p.PolicyholderPartyId, p.Status.ToString(), p.InceptionDate, p.TermEndDate, p.Currency, p.BillingAccountRef, p.IntermediaryCode,
+        p.PolicyholderPartyId, p.Status, p.InceptionDate, p.TermEndDate, p.Currency, p.BillingAccountRef, p.IntermediaryCode,
         p.Lives.Select(l => new InsuredLifeView(l.Id, l.PartyId, l.LifeRole, l.EntryAge, "", null)).ToList(),
         p.Benefits.Select(b => new BenefitView(b.Id, b.InsuredLifeId, b.BenefitCode, b.SumAssured, b.Premium, b.ExclusionCodes ?? [], b.StartDate, b.EndDate, b.Status)).ToList(),
         p.Beneficiaries.Select(b => new BeneficiaryView(b.PartyId, b.RelationshipCode, b.SharePct, b.ValidFrom, b.ValidTo)).ToList(),
@@ -227,10 +227,10 @@ public sealed record PolicyView(Guid Id, string PolicyNumber, Guid ProposalId, s
 
 public sealed record LoanTransactionView(string Type, decimal Amount, DateOnly Date);
 
-public sealed record LoanView(Guid Id, string LoanNumber, Guid PolicyId, decimal Principal, string RateCode, decimal Balance, string Status, DateOnly IssuedAt,
+public sealed record LoanView(Guid Id, string LoanNumber, Guid PolicyId, decimal Principal, string RateCode, decimal Balance, LoanStatus Status, DateOnly IssuedAt,
     IReadOnlyList<LoanTransactionView> Transactions, long RowVersion)
 {
-    public static LoanView From(LifePolicyLoan l) => new(l.Id, l.LoanNumber, l.PolicyId, l.Principal, l.RateCode, l.Balance, l.Status.ToString(), l.IssuedAt,
+    public static LoanView From(LifePolicyLoan l) => new(l.Id, l.LoanNumber, l.PolicyId, l.Principal, l.RateCode, l.Balance, l.Status, l.IssuedAt,
         l.Transactions.Select(t => new LoanTransactionView(t.TxnType, t.Amount, t.TxnDate)).ToList(), l.RowVersion);
 }
 
@@ -239,22 +239,22 @@ public sealed record ClaimLineView(Guid PolicyBenefitId, decimal Amount);
 public sealed record ClaimPayeeView(Guid PartyId, Guid BankAccountId, decimal SharePct, decimal Amount);
 
 public sealed record LifeClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, string ClaimType, DateOnly EventDate, string? CauseCode, Guid ClaimantPartyId,
-    Guid InsuredLifeId, string Status, string Currency, decimal? AssessedAmount, decimal? ApprovedAmount, decimal PaidAmount, string? DecisionReason,
+    Guid InsuredLifeId, LifeClaimStatus Status, string Currency, decimal? AssessedAmount, decimal? ApprovedAmount, decimal PaidAmount, string? DecisionReason,
     string? DecisionRationale, bool ApprovalPending, IReadOnlyList<ClaimLineView> Lines, IReadOnlyList<ClaimPayeeView> Payees, long RowVersion)
 {
     public static LifeClaimView From(LifeClaim c) => new(c.Id, c.ClaimNumber, c.PolicyId, c.ClaimType, c.EventDate, c.CauseCode, c.ClaimantPartyId, c.InsuredLifeId,
-        c.Status.ToString(), c.Currency, c.AssessedAmount, c.ApprovedAmount, c.PaidAmount, c.DecisionReason, c.DecisionRationale, c.ApprovalPending,
+        c.Status, c.Currency, c.AssessedAmount, c.ApprovedAmount, c.PaidAmount, c.DecisionReason, c.DecisionRationale, c.ApprovalPending,
         c.Lines.Select(l => new ClaimLineView(l.PolicyBenefitId, l.Amount)).ToList(),
         c.Payees.Select(p => new ClaimPayeeView(p.PartyId, p.BankAccountId, p.SharePct, p.Amount)).ToList(), c.RowVersion);
 }
 
 public sealed record MemberView(Guid Id, Guid PartyId, string CategoryCode, decimal? AnnualSalary, decimal CoverAmount, DateOnly JoinedOn, DateOnly? LeftOn,
-    string EvidenceStatus, decimal? FreeCoverLimit);
+    [property: OneOf("NOT_REQUIRED", "REQUIRED", "ACCEPTED")] string EvidenceStatus, decimal? FreeCoverLimit);
 
-public sealed record SchemeView(Guid Id, string SchemeNumber, Guid EmployerPartyId, string ProductCode, int ProductVersion, string? SchemeType, string Status,
+public sealed record SchemeView(Guid Id, string SchemeNumber, Guid EmployerPartyId, string ProductCode, int ProductVersion, string? SchemeType, SchemeStatus Status,
     DateOnly? StartDate, DateOnly RenewalDate, string? Currency, IReadOnlyList<MemberView> Members, long RowVersion)
 {
-    public static SchemeView From(GroupScheme s) => new(s.Id, s.SchemeNumber, s.EmployerPartyId, s.ProductCode, s.ProductVersion, s.SchemeType, s.Status.ToString(),
+    public static SchemeView From(GroupScheme s) => new(s.Id, s.SchemeNumber, s.EmployerPartyId, s.ProductCode, s.ProductVersion, s.SchemeType, s.Status,
         s.StartDate, s.RenewalDate, s.Currency,
         s.Members.Select(m => new MemberView(m.Id, m.PartyId, m.CategoryCode, m.AnnualSalary, m.CoverAmount, m.JoinedOn, m.LeftOn, m.EvidenceStatus, m.FreeCoverLimit))
             .ToList(), s.RowVersion);

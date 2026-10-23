@@ -94,6 +94,11 @@ public static class ApiRegistration
             context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
             context.ProblemDetails.Extensions.TryAdd("traceId", context.HttpContext.TraceIdentifier);
             context.ProblemDetails.Extensions["correlationId"] = ErrorCorrelation.Ensure(context.HttpContext);
+            if (!context.ProblemDetails.Extensions.ContainsKey("code") && ErrorContract.CodeFor(context.ProblemDetails.Status ?? context.HttpContext.Response.StatusCode) is { } code)
+            {
+                context.ProblemDetails.Extensions["code"] = code;
+            }
+
             ProblemLocalisation.Apply(context.HttpContext, context.ProblemDetails);
         });
         services.AddScoped<RequestLanguage>();
@@ -191,9 +196,16 @@ public static class ApiRegistration
     {
         // Each endpoint belongs to exactly one document (ApiDocuments.For), whatever its API version group.
         options.ShouldInclude = api => ApiDocuments.For(api.ActionDescriptor.EndpointMetadata) == name;
+        options.CreateSchemaReferenceId = SchemaNames.For;
+        options.AddSchemaTransformer(StateEnums.Apply);
         options.AddDocumentTransformer((document, _, _) =>
         {
-            document.Info = new OpenApiInfo { Title = title, Version = "v1", Description = description };
+            document.Info = new OpenApiInfo
+            {
+                Title = title,
+                Version = "v1",
+                Description = description + " Every response carries X-Correlation-Id: the caller's when it sent a valid one, else a new one; errors repeat it as correlationId.",
+            };
 
             // No servers: the document must be the same wherever it is generated (build time, tests, runtime).
             document.Servers = [];
@@ -207,6 +219,7 @@ public static class ApiRegistration
                 Description = "OIDC access token carrying sub and tenant_id. Permissions come from IAM role assignments.",
             };
             document.Security = [new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference("bearer", document)] = [] }];
+            ErrorContract.Apply(document);
             return Task.CompletedTask;
         });
         options.AddOperationTransformer((operation, context, _) =>

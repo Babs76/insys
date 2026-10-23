@@ -41,6 +41,7 @@ public sealed class EscalationRules : StaticRecord<EscalationRulesInput>
 {
     public string RuleCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("SLA_BREACH", "AMOUNT_ABOVE", "MANUAL")]
     public string Trigger { get; set; } = "";
 
     public int Level { get; set; }
@@ -64,6 +65,7 @@ public sealed record EscalationRulesInput : StaticRecordInput
 {
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("SLA_BREACH", "AMOUNT_ABOVE", "MANUAL")]
     public string? Trigger { get; init; }
 
     public int? Level { get; init; }

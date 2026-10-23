@@ -41,6 +41,7 @@ public sealed class StatementTemplates : StaticRecord<StatementTemplatesInput>
 {
     public string Template { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "WEEKLY")]
     public string Frequency { get; set; } = "";
 
     public override void ApplyFields(StatementTemplatesInput input, IFieldProtector protector)
@@ -55,6 +56,7 @@ public sealed record StatementTemplatesInput : StaticRecordInput
 {
     public string? Template { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "WEEKLY")]
     public string? Frequency { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

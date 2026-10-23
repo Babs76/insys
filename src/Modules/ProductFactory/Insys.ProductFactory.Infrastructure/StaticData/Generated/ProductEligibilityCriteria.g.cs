@@ -43,10 +43,12 @@ public sealed class ProductEligibilityCriteria : StaticRecord<ProductEligibility
 
     public string Attribute { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("EQ", "NE", "LT", "LE", "GT", "GE", "IN", "BETWEEN")]
     public string Operator { get; set; } = "";
 
     public string Value { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("LAST_BIRTHDAY", "NEXT_BIRTHDAY", "NEAREST_BIRTHDAY")]
     public string? AgeBasis { get; set; }
 
     public override void ApplyFields(ProductEligibilityCriteriaInput input, IFieldProtector protector)
@@ -66,10 +68,12 @@ public sealed record ProductEligibilityCriteriaInput : StaticRecordInput
 
     public string? Attribute { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("EQ", "NE", "LT", "LE", "GT", "GE", "IN", "BETWEEN")]
     public string? Operator { get; init; }
 
     public string? Value { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("LAST_BIRTHDAY", "NEXT_BIRTHDAY", "NEAREST_BIRTHDAY")]
     public string? AgeBasis { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

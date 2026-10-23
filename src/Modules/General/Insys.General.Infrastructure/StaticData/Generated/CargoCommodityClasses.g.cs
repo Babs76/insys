@@ -43,6 +43,7 @@ public sealed class CargoCommodityClasses : StaticRecord<CargoCommodityClassesIn
 
     public int Hazard { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("CONTAINERISED", "BULK", "BREAKBULK")]
     public string? Packing { get; set; }
 
     public override void ApplyFields(CargoCommodityClassesInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record CargoCommodityClassesInput : StaticRecordInput
 
     public int? Hazard { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("CONTAINERISED", "BULK", "BREAKBULK")]
     public string? Packing { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

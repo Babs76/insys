@@ -64,7 +64,7 @@ internal sealed class DeadLetterQueries(IntegrationDbContext db) : IDeadLetterQu
         }
 
         var rows = await query.OrderBy(d => d.Id).Take(limit).ToListAsync(cancellationToken);
-        return rows.Select(d => new DeadLetterSummary(d.Id, d.Source.Value, d.MessageRef.Value, d.Status.ToString(), d.Attempts, d.FirstFailedAt)).ToList();
+        return rows.Select(d => new DeadLetterSummary(d.Id, d.Source.Value, d.MessageRef.Value, d.Status, d.Attempts, d.FirstFailedAt)).ToList();
     }
 
     public async Task<DeadLetterDetail?> Get(Guid id, CancellationToken cancellationToken)
@@ -76,7 +76,7 @@ internal sealed class DeadLetterQueries(IntegrationDbContext db) : IDeadLetterQu
         }
 
         using var payload = JsonDocument.Parse(d.Payload);
-        return new DeadLetterDetail(d.Id, d.Source.Value, d.MessageRef.Value, d.Status.ToString(), d.Attempts, d.FirstFailedAt, d.Error.Value,
+        return new DeadLetterDetail(d.Id, d.Source.Value, d.MessageRef.Value, d.Status, d.Attempts, d.FirstFailedAt, d.Error.Value,
             payload.RootElement.Clone(), d.ResolvedBy, d.RowVersion);
     }
 }

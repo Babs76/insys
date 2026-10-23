@@ -39,6 +39,7 @@ namespace Insys.Finance.Infrastructure.StaticData;
 /// <summary>Exchange rates and rate types: finance.ref_exchange_rates_and_rate_types. Scope GT, Tier 1, reference lifecycle.</summary>
 public sealed class ExchangeRatesAndRateTypes : StaticRecord<ExchangeRatesAndRateTypesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("SPOT", "MONTH_END", "BUDGET")]
     public string RateType { get; set; } = "";
 
     public string FromCurrency { get; set; } = "";
@@ -65,6 +66,7 @@ public sealed class ExchangeRatesAndRateTypes : StaticRecord<ExchangeRatesAndRat
 /// <summary>The fields a client sends for Exchange rates and rate types.</summary>
 public sealed record ExchangeRatesAndRateTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("SPOT", "MONTH_END", "BUDGET")]
     public string? RateType { get; init; }
 
     public string? FromCurrency { get; init; }

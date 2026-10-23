@@ -70,7 +70,7 @@ internal sealed class TenantQueries(TenancyDbContext db) : ITenantQueries
         }
 
         var rows = await query.OrderBy(t => t.Id).Take(limit).ToListAsync(cancellationToken);
-        return rows.Select(t => new TenantSummary(t.Id, t.TenantCode, t.LegalName, t.IsolationProfile.ToString(), t.Status.ToString(), t.RowVersion)).ToList();
+        return rows.Select(t => new TenantSummary(t.Id, t.TenantCode, t.LegalName, t.IsolationProfile.ToString(), t.Status, t.RowVersion)).ToList();
     }
 
     public async Task<TenantDetail?> Get(Guid tenantId, CancellationToken cancellationToken)
@@ -79,10 +79,10 @@ internal sealed class TenantQueries(TenancyDbContext db) : ITenantQueries
             .SingleOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
         return tenant is null
             ? null
-            : new TenantDetail(tenant.Id, tenant.TenantCode, tenant.LegalName, tenant.IsolationProfile.ToString(), tenant.Status.ToString(),
+            : new TenantDetail(tenant.Id, tenant.TenantCode, tenant.LegalName, tenant.IsolationProfile.ToString(), tenant.Status,
                 tenant.Onboarding?.CurrentStep, tenant.Onboarding?.Status, OnboardingSteps.All,
                 tenant.StatusChanges.OrderBy(c => c.ChangedAt)
-                    .Select(c => new StatusChangeView(c.FromStatus.ToString(), c.ToStatus.ToString(), c.Reason, c.ChangedBy, c.ChangedAt)).ToList(),
+                    .Select(c => new StatusChangeView(c.FromStatus, c.ToStatus, c.Reason, c.ChangedBy, c.ChangedAt)).ToList(),
                 tenant.RowVersion);
     }
 }
@@ -226,6 +226,6 @@ internal sealed class TenantProfiles([FromKeyedServices(TenancyDbContext.SchemaN
         await using var command = dataSource.CreateCommand("SELECT tenant_code, legal_name, status FROM tenant.tenant WHERE id = @id");
         command.Parameters.AddWithValue("id", tenantId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        return await reader.ReadAsync(cancellationToken) ? new TenantProfile(tenantId, reader.GetString(0), reader.GetString(1), reader.GetString(2)) : null;
+        return await reader.ReadAsync(cancellationToken) ? new TenantProfile(tenantId, reader.GetString(0), reader.GetString(1), UpperCaseEnumConverter<TenantStatus>.FromCode(reader.GetString(2)).ToString()) : null;
     }
 }

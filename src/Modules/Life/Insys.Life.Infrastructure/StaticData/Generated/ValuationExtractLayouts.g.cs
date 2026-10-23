@@ -43,6 +43,7 @@ public sealed class ValuationExtractLayouts : StaticRecord<ValuationExtractLayou
 
     public string[] Fields { get; set; } = [];
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY", "ANNUAL")]
     public string Frequency { get; set; } = "";
 
     public string Target { get; set; } = "";
@@ -63,6 +64,7 @@ public sealed record ValuationExtractLayoutsInput : StaticRecordInput
 
     public string[]? Fields { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY", "ANNUAL")]
     public string? Frequency { get; init; }
 
     public string? Target { get; init; }

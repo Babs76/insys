@@ -95,19 +95,19 @@ public interface IDistributionCodes
 public sealed record ClawbackView(Guid Id, string Reason, decimal Amount, Guid? StatementId);
 
 public sealed record EntitlementView(Guid Id, string IntermediaryCode, string SourceType, Guid SourceId, string SourceDomain, Guid PolicyRef, string ProductCode,
-    string PlanCode, int PlanVersion, decimal BasisAmount, decimal Rate, decimal Amount, string Currency, DateOnly DueDate, string Status, Guid? StatementId,
+    string PlanCode, int PlanVersion, decimal BasisAmount, decimal Rate, decimal Amount, string Currency, DateOnly DueDate, EntitlementStatus Status, Guid? StatementId,
     ClawbackView? Clawback, long RowVersion)
 {
     public static EntitlementView From(CommissionEntitlement e) => new(e.Id, e.IntermediaryCode, e.SourceType, e.SourceId, e.SourceDomain, e.PolicyRef, e.ProductCode,
-        e.PlanCode, e.PlanVersion, e.BasisAmount, e.Rate, e.Amount, e.Currency, e.DueDate, e.Status.ToString(), e.StatementId,
+        e.PlanCode, e.PlanVersion, e.BasisAmount, e.Rate, e.Amount, e.Currency, e.DueDate, e.Status, e.StatementId,
         e.Clawback is { } c ? new ClawbackView(c.Id, c.Reason, c.Amount, c.StatementId) : null, e.RowVersion);
 }
 
 public sealed record StatementView(Guid Id, string IntermediaryCode, string PeriodCode, string Currency, decimal GrossAmount, decimal TaxAmount, decimal NetAmount,
-    string Status, bool ApprovalPending, Guid? ApprovedBy, Guid? PayeePartyId, Guid? BankAccountId, Guid? PaymentRef, DateOnly? PaidOn, long RowVersion)
+    StatementStatus Status, bool ApprovalPending, Guid? ApprovedBy, Guid? PayeePartyId, Guid? BankAccountId, Guid? PaymentRef, DateOnly? PaidOn, long RowVersion)
 {
     public static StatementView From(CommissionStatement s) => new(s.Id, s.IntermediaryCode, s.PeriodCode, s.Currency, s.GrossAmount, s.TaxAmount, s.NetAmount,
-        s.Status.ToString(), s.ApprovalPending, s.ApprovedBy, s.PayeePartyId, s.BankAccountId, s.PaymentRef, s.PaidOn, s.RowVersion);
+        s.Status, s.ApprovalPending, s.ApprovedBy, s.PayeePartyId, s.BankAccountId, s.PaymentRef, s.PaidOn, s.RowVersion);
 }
 
 /// <summary>Command PrepareStatement for an intermediary, a period (yyyy-MM) and a currency; preparing a draft again recalculates it.</summary>

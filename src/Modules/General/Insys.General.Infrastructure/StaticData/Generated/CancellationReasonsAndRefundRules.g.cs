@@ -41,8 +41,10 @@ public sealed class CancellationReasonsAndRefundRules : StaticRecord<Cancellatio
 {
     public string ReasonCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("INSURED", "INSURER", "INTERMEDIARY")]
     public string Initiator { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PRO_RATA", "SHORT_PERIOD", "NONE")]
     public string RefundBasis { get; set; } = "";
 
     public decimal? Fee { get; set; }
@@ -61,8 +63,10 @@ public sealed record CancellationReasonsAndRefundRulesInput : StaticRecordInput
 {
     public string? ReasonCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("INSURED", "INSURER", "INTERMEDIARY")]
     public string? Initiator { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PRO_RATA", "SHORT_PERIOD", "NONE")]
     public string? RefundBasis { get; init; }
 
     public decimal? Fee { get; init; }

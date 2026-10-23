@@ -45,6 +45,7 @@ public sealed class UtilisationRules : StaticRecord<UtilisationRulesInput>
 
     public int Threshold { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ALERT", "REVIEW", "PEND")]
     public string Action { get; set; } = "";
 
     public override void ApplyFields(UtilisationRulesInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record UtilisationRulesInput : StaticRecordInput
 
     public int? Threshold { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ALERT", "REVIEW", "PEND")]
     public string? Action { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

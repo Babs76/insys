@@ -41,6 +41,7 @@ public sealed class PaymentMethods : StaticRecord<PaymentMethodsInput>
 {
     public string MethodCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("COLLECT", "PAY", "BOTH")]
     public string Direction { get; set; } = "";
 
     public string[] Currencies { get; set; } = [];
@@ -64,6 +65,7 @@ public sealed record PaymentMethodsInput : StaticRecordInput
 {
     public string? MethodCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("COLLECT", "PAY", "BOTH")]
     public string? Direction { get; init; }
 
     public string[]? Currencies { get; init; }

@@ -39,6 +39,7 @@ namespace Insys.Health.Infrastructure.StaticData;
 /// <summary>Authorisation validity periods: health.cfg_authorisation_validity_periods. Scope T, Tier 2, configuration lifecycle.</summary>
 public sealed class AuthorisationValidityPeriods : StaticRecord<AuthorisationValidityPeriodsInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("ADMISSION", "PROCEDURE", "SCAN", "MEDICATION")]
     public string ServiceType { get; set; } = "";
 
     public int DaysValid { get; set; }
@@ -53,6 +54,7 @@ public sealed class AuthorisationValidityPeriods : StaticRecord<AuthorisationVal
 /// <summary>The fields a client sends for Authorisation validity periods.</summary>
 public sealed record AuthorisationValidityPeriodsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("ADMISSION", "PROCEDURE", "SCAN", "MEDICATION")]
     public string? ServiceType { get; init; }
 
     public int? DaysValid { get; init; }

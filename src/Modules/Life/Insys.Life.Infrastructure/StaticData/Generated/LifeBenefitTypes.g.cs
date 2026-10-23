@@ -41,6 +41,7 @@ public sealed class LifeBenefitTypes : StaticRecord<LifeBenefitTypesInput>
 {
     public string Label { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("LUMP_SUM", "INCOME")]
     public string PayoutType { get; set; } = "";
 
     public override void ApplyFields(LifeBenefitTypesInput input, IFieldProtector protector)
@@ -55,6 +56,7 @@ public sealed record LifeBenefitTypesInput : StaticRecordInput
 {
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("LUMP_SUM", "INCOME")]
     public string? PayoutType { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

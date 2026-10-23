@@ -41,6 +41,7 @@ public sealed class RemittanceAdviceFormats : StaticRecord<RemittanceAdviceForma
 {
     public string FormatCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "PORTAL", "FILE")]
     public string Channel { get; set; } = "";
 
     public string Template { get; set; } = "";
@@ -58,6 +59,7 @@ public sealed record RemittanceAdviceFormatsInput : StaticRecordInput
 {
     public string? FormatCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "PORTAL", "FILE")]
     public string? Channel { get; init; }
 
     public string? Template { get; init; }

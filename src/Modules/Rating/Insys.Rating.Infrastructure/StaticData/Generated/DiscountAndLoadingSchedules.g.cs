@@ -39,8 +39,10 @@ namespace Insys.Rating.Infrastructure.StaticData;
 /// <summary>Discount and loading schedules: rating.cfg_discount_and_loading_schedules. Scope T, Tier 1, configuration lifecycle.</summary>
 public sealed class DiscountAndLoadingSchedules : StaticRecord<DiscountAndLoadingSchedulesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("DISCOUNT", "LOADING")]
     public string Type { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PERCENT", "AMOUNT")]
     public string Basis { get; set; } = "";
 
     public decimal Value { get; set; }
@@ -62,8 +64,10 @@ public sealed class DiscountAndLoadingSchedules : StaticRecord<DiscountAndLoadin
 /// <summary>The fields a client sends for Discount and loading schedules.</summary>
 public sealed record DiscountAndLoadingSchedulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("DISCOUNT", "LOADING")]
     public string? Type { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PERCENT", "AMOUNT")]
     public string? Basis { get; init; }
 
     public decimal? Value { get; init; }

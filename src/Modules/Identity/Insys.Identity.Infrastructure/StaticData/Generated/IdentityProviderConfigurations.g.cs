@@ -41,6 +41,7 @@ public sealed class IdentityProviderConfigurations : StaticRecord<IdentityProvid
 {
     public string IdpCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("OIDC", "SAML")]
     public string Protocol { get; set; } = "";
 
     public string MetadataUrl { get; set; } = "";
@@ -61,6 +62,7 @@ public sealed record IdentityProviderConfigurationsInput : StaticRecordInput
 {
     public string? IdpCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("OIDC", "SAML")]
     public string? Protocol { get; init; }
 
     public string? MetadataUrl { get; init; }

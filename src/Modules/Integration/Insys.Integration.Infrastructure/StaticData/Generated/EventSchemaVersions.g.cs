@@ -43,6 +43,7 @@ public sealed class EventSchemaVersions : StaticRecord<EventSchemaVersionsInput>
 
     public JsonElement Schema { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("BACKWARD", "FORWARD", "FULL", "NONE")]
     public string Compatibility { get; set; } = "";
 
     public override void ApplyFields(EventSchemaVersionsInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record EventSchemaVersionsInput : StaticRecordInput
 
     public JsonElement? Schema { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("BACKWARD", "FORWARD", "FULL", "NONE")]
     public string? Compatibility { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

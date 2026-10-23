@@ -47,6 +47,7 @@ public sealed class ProviderRegister : StaticRecord<ProviderRegisterInput>
 
     public JsonElement Locations { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED", "TERMINATED")]
     public string Status { get; set; } = "";
 
     public string? ProviderType { get; set; }
@@ -76,6 +77,7 @@ public sealed record ProviderRegisterInput : StaticRecordInput
 
     public JsonElement? Locations { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED", "TERMINATED")]
     public string? Status { get; init; }
 
     public string? ProviderType { get; init; }

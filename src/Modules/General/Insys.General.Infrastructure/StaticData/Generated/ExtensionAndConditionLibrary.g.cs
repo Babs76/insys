@@ -39,6 +39,7 @@ namespace Insys.General.Infrastructure.StaticData;
 /// <summary>Extension and condition library: general.cfg_extension_and_condition_library. Scope T, Tier 1, configuration lifecycle.</summary>
 public sealed class ExtensionAndConditionLibrary : StaticRecord<ExtensionAndConditionLibraryInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("EXTENSION", "CONDITION")]
     public string Type { get; set; } = "";
 
     public string Name { get; set; } = "";
@@ -59,6 +60,7 @@ public sealed class ExtensionAndConditionLibrary : StaticRecord<ExtensionAndCond
 /// <summary>The fields a client sends for Extension and condition library.</summary>
 public sealed record ExtensionAndConditionLibraryInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("EXTENSION", "CONDITION")]
     public string? Type { get; init; }
 
     public string? Name { get; init; }

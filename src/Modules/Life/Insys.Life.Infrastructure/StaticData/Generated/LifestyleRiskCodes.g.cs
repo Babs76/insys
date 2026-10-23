@@ -39,6 +39,7 @@ namespace Insys.Life.Infrastructure.StaticData;
 /// <summary>Lifestyle risk codes: life.ref_lifestyle_risk_codes. Scope T, Tier 1, reference lifecycle.</summary>
 public sealed class LifestyleRiskCodes : StaticRecord<LifestyleRiskCodesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("TOBACCO", "PURSUIT", "RESIDENCE", "TRAVEL")]
     public string Category { get; set; } = "";
 
     public string Label { get; set; } = "";
@@ -59,6 +60,7 @@ public sealed class LifestyleRiskCodes : StaticRecord<LifestyleRiskCodesInput>
 /// <summary>The fields a client sends for Lifestyle risk codes.</summary>
 public sealed record LifestyleRiskCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("TOBACCO", "PURSUIT", "RESIDENCE", "TRAVEL")]
     public string? Category { get; init; }
 
     public string? Label { get; init; }

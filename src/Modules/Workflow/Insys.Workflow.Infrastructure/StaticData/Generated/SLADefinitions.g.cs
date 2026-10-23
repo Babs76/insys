@@ -47,6 +47,7 @@ public sealed class SLADefinitions : StaticRecord<SLADefinitionsInput>
 
     public string Calendar { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("ESCALATE", "NOTIFY", "REASSIGN")]
     public string BreachAction { get; set; } = "";
 
     public override void ApplyFields(SLADefinitionsInput input, IFieldProtector protector)
@@ -70,6 +71,7 @@ public sealed record SLADefinitionsInput : StaticRecordInput
 
     public string? Calendar { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ESCALATE", "NOTIFY", "REASSIGN")]
     public string? BreachAction { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

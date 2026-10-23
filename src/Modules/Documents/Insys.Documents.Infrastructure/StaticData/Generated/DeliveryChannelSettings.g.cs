@@ -39,12 +39,14 @@ namespace Insys.Documents.Infrastructure.StaticData;
 /// <summary>Delivery channel settings: document.cfg_delivery_channel_settings. Scope T, Tier 2, configuration lifecycle.</summary>
 public sealed class DeliveryChannelSettings : StaticRecord<DeliveryChannelSettingsInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "POST", "PORTAL")]
     public string Channel { get; set; } = "";
 
     public string Provider { get; set; } = "";
 
     public string SenderIdentity { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "POST", "PORTAL")]
     public string? FallbackChannel { get; set; }
 
     public override void ApplyFields(DeliveryChannelSettingsInput input, IFieldProtector protector)
@@ -59,12 +61,14 @@ public sealed class DeliveryChannelSettings : StaticRecord<DeliveryChannelSettin
 /// <summary>The fields a client sends for Delivery channel settings.</summary>
 public sealed record DeliveryChannelSettingsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "POST", "PORTAL")]
     public string? Channel { get; init; }
 
     public string? Provider { get; init; }
 
     public string? SenderIdentity { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "POST", "PORTAL")]
     public string? FallbackChannel { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

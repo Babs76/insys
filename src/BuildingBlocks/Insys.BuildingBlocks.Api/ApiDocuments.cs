@@ -57,3 +57,41 @@ public static class ApiDocuments
             : Core;
     }
 }
+
+/// <summary>
+/// OpenAPI schema names (GAP-008). A type's own name, unless another INSYS type has the same name (Life's and General's
+/// ProposalStatus, say): then both are prefixed with their module, as LifeProposalStatus and GeneralProposalStatus.
+/// Without this the document generator keeps one schema per name, and the other module's shape silently disappears.
+/// </summary>
+public static class SchemaNames
+{
+    private static readonly Lazy<HashSet<string>> Ambiguous = new(() => AppDomain.CurrentDomain.GetAssemblies()
+        .Where(a => a.GetName().Name?.StartsWith("Insys.", StringComparison.Ordinal) == true)
+        .SelectMany(a =>
+        {
+            try
+            {
+                return a.GetExportedTypes();
+            }
+            catch (System.Reflection.ReflectionTypeLoadException e)
+            {
+                return e.Types.OfType<Type>();
+            }
+        })
+        .Where(t => !t.IsGenericType && !t.IsNested && Module(t) is not null)
+        .GroupBy(t => t.Name, StringComparer.Ordinal)
+        .Where(g => g.Select(Module).Distinct(StringComparer.Ordinal).Count() > 1)
+        .Select(g => g.Key)
+        .ToHashSet(StringComparer.Ordinal));
+
+    public static string? For(System.Text.Json.Serialization.Metadata.JsonTypeInfo type)
+    {
+        var name = Microsoft.AspNetCore.OpenApi.OpenApiOptions.CreateDefaultSchemaReferenceId(type);
+        var clr = Nullable.GetUnderlyingType(type.Type) ?? type.Type;
+        return name is not null && name == clr.Name && Ambiguous.Value.Contains(clr.Name) && Module(clr) is { } module ? module + name : name;
+    }
+
+    /// <summary>The module of an INSYS type (Insys.&lt;Module&gt;.…), or null outside the modules.</summary>
+    private static string? Module(Type type) =>
+        type.Namespace?.Split('.') is ["Insys", var module, ..] && module != "BuildingBlocks" ? module : null;
+}

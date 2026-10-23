@@ -88,15 +88,15 @@ public interface IDocumentRepository
     void Add(AccessRecord record);
 }
 
-public sealed record DeliveryView(Guid Id, string Channel, string Recipient, string Status, string? ProviderRef, DateTimeOffset? SentAt);
+public sealed record DeliveryView(Guid Id, string Channel, string Recipient, [property: OneOf("SENT", "FAILED")] string Status, string? ProviderRef, DateTimeOffset? SentAt);
 
 public sealed record LegalHoldView(Guid Id, string ReasonCode, Guid PlacedBy, DateTimeOffset PlacedAt, DateTimeOffset? ReleasedAt);
 
-public sealed record DocumentView(Guid Id, string CategoryCode, string Classification, string Status, string MimeType, long SizeBytes, string Sha256, string? TemplateCode,
+public sealed record DocumentView(Guid Id, string CategoryCode, string Classification, DocumentStatus Status, string MimeType, long SizeBytes, string Sha256, string? TemplateCode,
     int? TemplateVersion, string? ProductVersionRef, string BusinessRefType, Guid BusinessRefId, DateOnly? RetentionUntil, bool LegalHold, DateTimeOffset? DisposedAt,
     IReadOnlyList<DeliveryView> Deliveries, IReadOnlyList<LegalHoldView> Holds, long RowVersion)
 {
-    public static DocumentView From(Document d) => new(d.Id, d.CategoryCode, d.Classification, d.Status.ToString(), d.MimeType, d.SizeBytes, d.Sha256, d.TemplateCode,
+    public static DocumentView From(Document d) => new(d.Id, d.CategoryCode, d.Classification, d.Status, d.MimeType, d.SizeBytes, d.Sha256, d.TemplateCode,
         d.TemplateVersion, d.ProductVersionRef, d.BusinessRefType, d.BusinessRefId, d.RetentionUntil, d.LegalHold, d.DisposedAt,
         d.Deliveries.OrderBy(x => x.Id).Select(x => new DeliveryView(x.Id, x.Channel, x.Recipient, x.Status, x.ProviderRef, x.SentAt)).ToList(),
         d.Holds.OrderBy(h => h.Id).Select(h => new LegalHoldView(h.Id, h.ReasonCode, h.PlacedBy, h.PlacedAt, h.ReleasedAt)).ToList(), d.RowVersion);

@@ -39,6 +39,7 @@ namespace Insys.Payments.Infrastructure.StaticData;
 /// <summary>Payment release limits: payment.cfg_payment_release_limits. Scope T, Tier 1, configuration lifecycle.</summary>
 public sealed class PaymentReleaseLimits : StaticRecord<PaymentReleaseLimitsInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("CLAIM", "PROVIDER", "COMMISSION", "REFUND")]
     public string PaymentType { get; set; } = "";
 
     public string Role { get; set; } = "";
@@ -59,6 +60,7 @@ public sealed class PaymentReleaseLimits : StaticRecord<PaymentReleaseLimitsInpu
 /// <summary>The fields a client sends for Payment release limits.</summary>
 public sealed record PaymentReleaseLimitsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("CLAIM", "PROVIDER", "COMMISSION", "REFUND")]
     public string? PaymentType { get; init; }
 
     public string? Role { get; init; }

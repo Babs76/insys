@@ -225,6 +225,11 @@ internal static class Emit
                 "byte[]" => " = [];",
                 _ => "",
             };
+            if (field.Column.AllowedValues is { } entityValues)
+            {
+                s.AppendLine($"    [Insys.BuildingBlocks.Domain.OneOf({string.Join(", ", entityValues.Select(Names.Literal))})]");
+            }
+
             s.AppendLine($"    public {field.EntityType} {field.Property} {{ get; set; }}{initializer}");
             s.AppendLine();
         }
@@ -244,6 +249,11 @@ internal static class Emit
         s.AppendLine("{");
         foreach (var field in fields.Where(f => f.InputType.Length > 0))
         {
+            if (field.Column.AllowedValues is { } inputValues)
+            {
+                s.AppendLine($"    [Insys.BuildingBlocks.Domain.OneOf({string.Join(", ", inputValues.Select(Names.Literal))})]");
+            }
+
             s.AppendLine($"    public {field.InputType} {InputName(field)} {{ get; init; }}");
             s.AppendLine();
         }

@@ -41,6 +41,7 @@ public sealed class BenefitDependencyRules : StaticRecord<BenefitDependencyRules
 {
     public string Benefit { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("REQUIRES", "EXCLUDES")]
     public string Relation { get; set; } = "";
 
     public string TargetBenefit { get; set; } = "";
@@ -61,6 +62,7 @@ public sealed record BenefitDependencyRulesInput : StaticRecordInput
 {
     public string? Benefit { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("REQUIRES", "EXCLUDES")]
     public string? Relation { get; init; }
 
     public string? TargetBenefit { get; init; }

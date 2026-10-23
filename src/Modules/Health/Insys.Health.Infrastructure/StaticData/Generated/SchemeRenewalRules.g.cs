@@ -43,6 +43,7 @@ public sealed class SchemeRenewalRules : StaticRecord<SchemeRenewalRulesInput>
 
     public int NoticeDays { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("EXPERIENCE", "COMMUNITY", "BLENDED")]
     public string ReRatingBasis { get; set; } = "";
 
     public override void ApplyFields(SchemeRenewalRulesInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record SchemeRenewalRulesInput : StaticRecordInput
 
     public int? NoticeDays { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("EXPERIENCE", "COMMUNITY", "BLENDED")]
     public string? ReRatingBasis { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

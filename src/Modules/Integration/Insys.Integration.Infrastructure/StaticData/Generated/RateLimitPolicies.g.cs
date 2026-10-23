@@ -41,6 +41,7 @@ public sealed class RateLimitPolicies : StaticRecord<RateLimitPoliciesInput>
 {
     public string PolicyCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PARTNER", "PORTAL", "INTERNAL")]
     public string ClientClass { get; set; } = "";
 
     public string? ApiGroup { get; set; }
@@ -67,6 +68,7 @@ public sealed record RateLimitPoliciesInput : StaticRecordInput
 {
     public string? PolicyCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PARTNER", "PORTAL", "INTERNAL")]
     public string? ClientClass { get; init; }
 
     public string? ApiGroup { get; init; }

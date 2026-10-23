@@ -39,6 +39,7 @@ namespace Insys.ClaimsFramework.Infrastructure.StaticData;
 /// <summary>Claim decision reason codes: claims.ref_claim_decision_reason_codes. Scope T, Tier 2, reference lifecycle.</summary>
 public sealed class ClaimDecisionReasonCodes : StaticRecord<ClaimDecisionReasonCodesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("APPROVE", "PARTIAL", "DECLINE", "WITHDRAW")]
     public string DecisionType { get; set; } = "";
 
     public string CustomerWording { get; set; } = "";
@@ -53,6 +54,7 @@ public sealed class ClaimDecisionReasonCodes : StaticRecord<ClaimDecisionReasonC
 /// <summary>The fields a client sends for Claim decision reason codes.</summary>
 public sealed record ClaimDecisionReasonCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("APPROVE", "PARTIAL", "DECLINE", "WITHDRAW")]
     public string? DecisionType { get; init; }
 
     public string? CustomerWording { get; init; }

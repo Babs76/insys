@@ -39,6 +39,7 @@ namespace Insys.ClaimsFramework.Infrastructure.StaticData;
 /// <summary>Reserve types: claims.ref_reserve_types. Scope T, Tier 1, reference lifecycle.</summary>
 public sealed class ReserveTypes : StaticRecord<ReserveTypesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("INDEMNITY", "EXPENSE", "RECOVERY")]
     public string Category { get; set; } = "";
 
     public string PostingRule { get; set; } = "";
@@ -53,6 +54,7 @@ public sealed class ReserveTypes : StaticRecord<ReserveTypesInput>
 /// <summary>The fields a client sends for Reserve types.</summary>
 public sealed record ReserveTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("INDEMNITY", "EXPENSE", "RECOVERY")]
     public string? Category { get; init; }
 
     public string? PostingRule { get; init; }

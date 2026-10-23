@@ -63,11 +63,11 @@ public sealed class PrivilegedAccessOptions
 }
 
 public sealed record GrantView(Guid Id, Guid UserId, string Purpose, Guid RequestedBy, Guid? ApprovedBy, DateTimeOffset ValidFrom, DateTimeOffset ValidTo,
-    string Status, DateTimeOffset? DecidedAt, string? RejectionReason, long RowVersion);
+    GrantStatus Status, DateTimeOffset? DecidedAt, string? RejectionReason, long RowVersion);
 
 public sealed record ReviewItemView(Guid Id, Guid UserId, string RoleCode, string Decision, Guid? DecidedBy, DateTimeOffset? DecidedAt);
 
-public sealed record ReviewView(Guid Id, string Scope, Guid ReviewerId, DateOnly DueDate, string Status, int ItemsTotal, int ItemsRevoked,
+public sealed record ReviewView(Guid Id, string Scope, Guid ReviewerId, DateOnly DueDate, ReviewStatus Status, int ItemsTotal, int ItemsRevoked,
     IReadOnlyList<ReviewItemView> Items, long RowVersion);
 
 public interface IAccessQueries

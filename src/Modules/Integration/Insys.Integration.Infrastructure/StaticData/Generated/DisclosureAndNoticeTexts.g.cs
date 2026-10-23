@@ -49,6 +49,7 @@ public sealed class DisclosureAndNoticeTexts : StaticRecord<DisclosureAndNoticeT
 
     public int TextVersion { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("QUOTE", "PROPOSAL", "ISSUE", "CLAIM")]
     public string DisplayPoint { get; set; } = "";
 
     public override void ApplyFields(DisclosureAndNoticeTextsInput input, IFieldProtector protector)
@@ -75,6 +76,7 @@ public sealed record DisclosureAndNoticeTextsInput : StaticRecordInput
 
     public int? TextVersion { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("QUOTE", "PROPOSAL", "ISSUE", "CLAIM")]
     public string? DisplayPoint { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

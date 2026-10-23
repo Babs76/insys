@@ -41,6 +41,7 @@ public sealed class RiskClasses : StaticRecord<RiskClassesInput>
 {
     public string ClassCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string Domain { get; set; } = "";
 
     public string? RatingFactor { get; set; }
@@ -58,6 +59,7 @@ public sealed record RiskClassesInput : StaticRecordInput
 {
     public string? ClassCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
     public string? Domain { get; init; }
 
     public string? RatingFactor { get; init; }

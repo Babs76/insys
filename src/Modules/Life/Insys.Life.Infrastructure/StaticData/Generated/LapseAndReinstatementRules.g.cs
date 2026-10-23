@@ -45,6 +45,7 @@ public sealed class LapseAndReinstatementRules : StaticRecord<LapseAndReinstatem
 
     public string ReinstatementWindow { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "DECLARATION", "FULL_UNDERWRITING")]
     public string EvidenceRequired { get; set; } = "";
 
     public override void ApplyFields(LapseAndReinstatementRulesInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record LapseAndReinstatementRulesInput : StaticRecordInput
 
     public string? ReinstatementWindow { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "DECLARATION", "FULL_UNDERWRITING")]
     public string? EvidenceRequired { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

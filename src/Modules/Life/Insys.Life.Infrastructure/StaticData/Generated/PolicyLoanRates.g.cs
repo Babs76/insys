@@ -43,6 +43,7 @@ public sealed class PolicyLoanRates : StaticRecord<PolicyLoanRatesInput>
 
     public decimal Rate { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "ANNUAL")]
     public string Compounding { get; set; } = "";
 
     public override void ApplyFields(PolicyLoanRatesInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record PolicyLoanRatesInput : StaticRecordInput
 
     public decimal? Rate { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "ANNUAL")]
     public string? Compounding { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -41,6 +41,7 @@ public sealed class HealthWaitingPeriodRules : StaticRecord<HealthWaitingPeriodR
 {
     public string RuleCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("GENERAL", "CONDITION_SPECIFIC")]
     public string Type { get; set; } = "";
 
     public string Duration { get; set; } = "";
@@ -67,6 +68,7 @@ public sealed record HealthWaitingPeriodRulesInput : StaticRecordInput
 {
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("GENERAL", "CONDITION_SPECIFIC")]
     public string? Type { get; init; }
 
     public string? Duration { get; init; }

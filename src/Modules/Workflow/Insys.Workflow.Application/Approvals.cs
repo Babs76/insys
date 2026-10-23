@@ -65,7 +65,7 @@ public interface IAuthorityReader
     Task<bool> IsConfigured(string approvalType, DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record ApprovalView(Guid Id, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid? CheckerId, string Status,
+public sealed record ApprovalView(Guid Id, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid? CheckerId, ApprovalStatus Status,
     decimal? Amount, string? Currency, string? Reason, string? DecisionReason, DateTimeOffset RequestedAt, DateTimeOffset? DecidedAt, DateTimeOffset? ExpiresAt,
     string? SubjectHash, long RowVersion);
 

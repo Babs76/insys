@@ -45,6 +45,7 @@ public sealed class ValidationRuleSets : StaticRecord<ValidationRuleSetsInput>
 
     public string Expression { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("ERROR", "WARNING")]
     public string Severity { get; set; } = "";
 
     public string MessageKey { get; set; } = "";
@@ -68,6 +69,7 @@ public sealed record ValidationRuleSetsInput : StaticRecordInput
 
     public string? Expression { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ERROR", "WARNING")]
     public string? Severity { get; init; }
 
     public string? MessageKey { get; init; }

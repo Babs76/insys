@@ -49,8 +49,10 @@ public sealed class PlansAndOptions : StaticRecord<PlansAndOptionsInput>
 
     public string? ReferenceTariffScheduleCode { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("CALENDAR", "MEMBERSHIP_YEAR")]
     public string BenefitYear { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("REFERENCE_TARIFF", "PEND")]
     public string MemberClaimBasis { get; set; } = "";
 
     public override void ApplyFields(PlansAndOptionsInput input, IFieldProtector protector)
@@ -78,8 +80,10 @@ public sealed record PlansAndOptionsInput : StaticRecordInput
 
     public string? ReferenceTariffScheduleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("CALENDAR", "MEMBERSHIP_YEAR")]
     public string? BenefitYear { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("REFERENCE_TARIFF", "PEND")]
     public string? MemberClaimBasis { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -41,6 +41,7 @@ public sealed class VesselTypes : StaticRecord<VesselTypesInput>
 {
     public string Label { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("GT", "DWT", "LENGTH")]
     public string SizeMeasure { get; set; } = "";
 
     public override void ApplyFields(VesselTypesInput input, IFieldProtector protector)
@@ -55,6 +56,7 @@ public sealed record VesselTypesInput : StaticRecordInput
 {
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("GT", "DWT", "LENGTH")]
     public string? SizeMeasure { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

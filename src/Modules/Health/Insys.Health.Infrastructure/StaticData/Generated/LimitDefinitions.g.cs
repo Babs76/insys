@@ -41,10 +41,12 @@ public sealed class LimitDefinitions : StaticRecord<LimitDefinitionsInput>
 {
     public string Benefit { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("ANNUAL", "LIFETIME", "PER_EVENT")]
     public string Period { get; set; } = "";
 
     public decimal Amount { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PER_MEMBER", "PER_FAMILY")]
     public string Basis { get; set; } = "";
 
     public string? PlanCode { get; set; }
@@ -64,10 +66,12 @@ public sealed record LimitDefinitionsInput : StaticRecordInput
 {
     public string? Benefit { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ANNUAL", "LIFETIME", "PER_EVENT")]
     public string? Period { get; init; }
 
     public decimal? Amount { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PER_MEMBER", "PER_FAMILY")]
     public string? Basis { get; init; }
 
     public string? PlanCode { get; init; }

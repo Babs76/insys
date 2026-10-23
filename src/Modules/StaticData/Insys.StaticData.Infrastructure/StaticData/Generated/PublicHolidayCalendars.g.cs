@@ -47,6 +47,7 @@ public sealed class PublicHolidayCalendars : StaticRecord<PublicHolidayCalendars
 
     public string Name { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "NEXT_MONDAY_IF_SUNDAY")]
     public string? ObservedRule { get; set; }
 
     public override void ApplyFields(PublicHolidayCalendarsInput input, IFieldProtector protector)
@@ -70,6 +71,7 @@ public sealed record PublicHolidayCalendarsInput : StaticRecordInput
 
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("NONE", "NEXT_MONDAY_IF_SUNDAY")]
     public string? ObservedRule { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

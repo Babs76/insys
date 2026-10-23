@@ -39,6 +39,7 @@ namespace Insys.Audit.Infrastructure.StaticData;
 /// <summary>Audit retention policies: audit.cfg_audit_retention_policies. Scope GT, Tier 1, configuration lifecycle.</summary>
 public sealed class AuditRetentionPolicies : StaticRecord<AuditRetentionPoliciesInput>
 {
+    [Insys.BuildingBlocks.Domain.OneOf("SECURITY", "FINANCIAL", "OPERATIONAL")]
     public string EventClass { get; set; } = "";
 
     public string Jurisdiction { get; set; } = "";
@@ -56,6 +57,7 @@ public sealed class AuditRetentionPolicies : StaticRecord<AuditRetentionPolicies
 /// <summary>The fields a client sends for Audit retention policies.</summary>
 public sealed record AuditRetentionPoliciesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.OneOf("SECURITY", "FINANCIAL", "OPERATIONAL")]
     public string? EventClass { get; init; }
 
     public string? Jurisdiction { get; init; }

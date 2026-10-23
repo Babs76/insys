@@ -92,6 +92,47 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
         json.RootElement.GetProperty("components").GetProperty("securitySchemes").TryGetProperty("bearer", out _).ShouldBeTrue();
     }
 
+    /// <summary>GAP-005: the ProblemDetails extensions, and each error status as one shared response with its headers.</summary>
+    [Theory]
+    [MemberData(nameof(Documents))]
+    public async Task OpenApiDocument_DeclaresTheErrorContract_GAP005(string document)
+    {
+        using var json = JsonDocument.Parse(await Client().GetStringAsync($"/openapi/{document}.json"));
+        var components = json.RootElement.GetProperty("components");
+
+        var problem = components.GetProperty("schemas").GetProperty("ProblemDetails").GetProperty("properties");
+        foreach (var extension in new[] { "code", "errors", "correlationId", "traceId", "detailLanguage" })
+        {
+            problem.TryGetProperty(extension, out _).ShouldBeTrue(extension);
+        }
+
+        var responses = components.GetProperty("responses");
+        responses.GetProperty("Problem429").GetProperty("headers").TryGetProperty("Retry-After", out _).ShouldBeTrue();
+        responses.GetProperty("Problem503").GetProperty("headers").TryGetProperty("Retry-After", out _).ShouldBeTrue();
+        responses.EnumerateObject().Where(r => !r.Value.GetProperty("headers").TryGetProperty("X-Correlation-Id", out _)).ShouldBeEmpty();
+        json.RootElement.GetProperty("paths").EnumerateObject().SelectMany(p => p.Value.EnumerateObject())
+            .SelectMany(o => o.Value.GetProperty("responses").EnumerateObject())
+            .Where(r => r.Name[0] is '4' or '5' && !r.Value.TryGetProperty("$ref", out _)).ShouldBeEmpty();
+    }
+
+    /// <summary>GAP-008: same-named types of two modules get a schema each, and state fields are enums.</summary>
+    [Fact]
+    public async Task CoreDocument_KeepsSameNamedModuleTypesApart_AndDeclaresStateEnums_GAP008()
+    {
+        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        var schemas = core.RootElement.GetProperty("components").GetProperty("schemas");
+
+        foreach (var name in new[] { "LifeProposalStatus", "GeneralProposalStatus", "LifeProposalView", "GeneralProposalView" })
+        {
+            schemas.TryGetProperty(name, out _).ShouldBeTrue(name);
+        }
+
+        schemas.GetProperty("LifeProposalStatus").GetProperty("enum").EnumerateArray().Select(v => v.GetString()).ShouldContain("InUnderwriting");
+        schemas.GetProperty("ApprovalView").GetProperty("properties").GetProperty("status").GetProperty("$ref").GetString().ShouldBe("#/components/schemas/ApprovalStatus");
+        schemas.GetProperty("BankAccountView").GetProperty("properties").GetProperty("status").GetProperty("enum").EnumerateArray()
+            .Select(v => v.GetString()).ShouldBe(["PENDING_VERIFICATION", "ACTIVE", "SUPERSEDED", "REJECTED"]);
+    }
+
     [Fact]
     public async Task CoreDocument_HasNoStaticDataOperations()
     {

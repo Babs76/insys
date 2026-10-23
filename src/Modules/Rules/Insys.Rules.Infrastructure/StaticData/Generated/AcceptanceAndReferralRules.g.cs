@@ -45,6 +45,7 @@ public sealed class AcceptanceAndReferralRules : StaticRecord<AcceptanceAndRefer
 
     public decimal Threshold { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACCEPT", "REFER", "DECLINE")]
     public string Outcome { get; set; } = "";
 
     public string? ReferralQueue { get; set; }
@@ -68,6 +69,7 @@ public sealed record AcceptanceAndReferralRulesInput : StaticRecordInput
 
     public decimal? Threshold { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("ACCEPT", "REFER", "DECLINE")]
     public string? Outcome { get; init; }
 
     public string? ReferralQueue { get; init; }

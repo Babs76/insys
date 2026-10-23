@@ -41,6 +41,7 @@ public sealed class PaymentRunCalendars : StaticRecord<PaymentRunCalendarsInput>
 {
     public string RunCode { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("DAILY", "WEEKLY", "FORTNIGHTLY", "MONTHLY")]
     public string Frequency { get; set; } = "";
 
     public string CutOff { get; set; } = "";
@@ -61,6 +62,7 @@ public sealed record PaymentRunCalendarsInput : StaticRecordInput
 {
     public string? RunCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("DAILY", "WEEKLY", "FORTNIGHTLY", "MONTHLY")]
     public string? Frequency { get; init; }
 
     public string? CutOff { get; init; }

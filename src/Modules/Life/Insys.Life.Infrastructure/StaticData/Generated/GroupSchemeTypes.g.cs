@@ -41,6 +41,7 @@ public sealed class GroupSchemeTypes : StaticRecord<GroupSchemeTypesInput>
 {
     public string Label { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("COMPULSORY", "VOLUNTARY")]
     public string Participation { get; set; } = "";
 
     public int MinMembers { get; set; }
@@ -58,6 +59,7 @@ public sealed record GroupSchemeTypesInput : StaticRecordInput
 {
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("COMPULSORY", "VOLUNTARY")]
     public string? Participation { get; init; }
 
     public int? MinMembers { get; init; }

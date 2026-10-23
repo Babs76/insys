@@ -43,6 +43,7 @@ public sealed class PaymentStatusMappings : StaticRecord<PaymentStatusMappingsIn
 
     public string ProviderStatus { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("INITIATED", "PENDING", "SUCCEEDED", "FAILED", "REVERSED", "UNKNOWN")]
     public string PlatformStatus { get; set; } = "";
 
     public bool Final { get; set; }
@@ -63,6 +64,7 @@ public sealed record PaymentStatusMappingsInput : StaticRecordInput
 
     public string? ProviderStatus { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("INITIATED", "PENDING", "SUCCEEDED", "FAILED", "REVERSED", "UNKNOWN")]
     public string? PlatformStatus { get; init; }
 
     public bool? Final { get; init; }

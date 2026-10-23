@@ -45,6 +45,7 @@ public sealed class AllocationRules : StaticRecord<AllocationRulesInput>
 
     public decimal Tolerance { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("HOLD_AS_CREDIT", "REFUND", "ALLOCATE_TO_NEXT_DUE")]
     public string OverpaymentHandling { get; set; } = "";
 
     public override void ApplyFields(AllocationRulesInput input, IFieldProtector protector)
@@ -65,6 +66,7 @@ public sealed record AllocationRulesInput : StaticRecordInput
 
     public decimal? Tolerance { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("HOLD_AS_CREDIT", "REFUND", "ALLOCATE_TO_NEXT_DUE")]
     public string? OverpaymentHandling { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

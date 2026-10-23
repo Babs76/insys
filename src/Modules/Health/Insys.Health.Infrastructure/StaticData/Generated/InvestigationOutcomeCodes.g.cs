@@ -41,6 +41,7 @@ public sealed class InvestigationOutcomeCodes : StaticRecord<InvestigationOutcom
 {
     public string Label { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("RECOVER", "SUSPEND_PROVIDER", "REFER_TO_AUTHORITY", "NONE")]
     public string FollowUp { get; set; } = "";
 
     public override void ApplyFields(InvestigationOutcomeCodesInput input, IFieldProtector protector)
@@ -55,6 +56,7 @@ public sealed record InvestigationOutcomeCodesInput : StaticRecordInput
 {
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("RECOVER", "SUSPEND_PROVIDER", "REFER_TO_AUTHORITY", "NONE")]
     public string? FollowUp { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

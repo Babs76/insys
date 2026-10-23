@@ -47,6 +47,7 @@ public sealed class VehicleMakeModelAndVariantDirectory : StaticRecord<VehicleMa
 
     public string? Variant { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("SEDAN", "HATCH", "SUV", "LCV", "TRUCK", "MOTORCYCLE")]
     public string? BodyType { get; set; }
 
     public int YearFrom { get; set; }
@@ -76,6 +77,7 @@ public sealed record VehicleMakeModelAndVariantDirectoryInput : StaticRecordInpu
 
     public string? Variant { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("SEDAN", "HATCH", "SUV", "LCV", "TRUCK", "MOTORCYCLE")]
     public string? BodyType { get; init; }
 
     public int? YearFrom { get; init; }
