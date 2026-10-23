@@ -100,9 +100,11 @@ public static class InfrastructureRegistration
         }
 
         services.AddOptions<OutboxLagOptions>().Bind(configuration.GetSection("Outbox:Lag"));
+        // Outbox lag is reported on /health for alerting, not on /health/ready (GAP-034): readiness says whether this
+        // instance can serve requests, and one tenant's stuck event must not take the instance out of service for all.
         services.AddHealthChecks()
             .AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"])
-            .AddCheck<OutboxLagHealthCheck>("outbox-lag", tags: ["ready"]);
+            .AddCheck<OutboxLagHealthCheck>("outbox-lag");
         return services;
     }
 

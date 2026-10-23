@@ -47,6 +47,22 @@ Rules for both replay and discard:
 - A dead letter is resolved once. A second replay or discard answers 409 `INVALID_STATE_TRANSITION`.
 - A `webhook:` dead letter **cannot be replayed** (409). See [Failed webhooks](#failed-webhooks).
 
+### Events that need tenant configuration (GAP-034)
+
+Some consumers need tenant configuration, and fail until it exists. They are retried with back-off for about 43 minutes, then dead-lettered (`outbox:<schema>`). Add the configuration, then replay. What the General policy events need:
+
+| Event | Consumer | Needs, in the tenant |
+|---|---|---|
+| `GeneralPolicyIssued` | Billing | The policy's collection method (`billing.ref_collection_methods`) and billing frequency (`billing.ref_billing_frequencies`) in force |
+| `GeneralPolicyIssued` | Documents | A template assigned to the product for `POLICY_SCHEDULE` and `CERTIFICATE` (`product.cfg_product_template_assignments`), in force in the recipient's language chain |
+| `GeneralPolicyIssued` | Reinsurance, Analytics | The billing frequency in force |
+| `GeneralPolicyEndorsed` | Billing | The policy's premium schedule (from its issue) |
+| `GeneralPolicyEndorsed` | Documents, Reinsurance, Analytics | As for issue |
+| `GeneralPolicyCancelled` | Billing | The reason code, or `CANCELLATION`, in `billing.ref_adjustment_and_reversal_reason_codes` |
+| `GeneralRenewalInvited` | Documents | The renewal rule's invitation template in force in the policyholder's languages |
+
+Outbox lag is not part of readiness, so a stuck event does not take the instance out of service. ADR-022 (proposed) parks such deliveries and retries them once the configuration exists.
+
 ## Webhooks
 
 Partner subscriptions (`integration.cfg_webhook_subscriptions`) list the event types a partner receives.

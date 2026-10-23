@@ -7,7 +7,7 @@ None of the health endpoints needs a token, and none is rate-limited.
 | Endpoint | Checks | Use for |
 |---|---|---|
 | `/health/live` | Nothing beyond the process answering | Liveness probe: restart the process if it fails |
-| `/health/ready` | `postgres`, `outbox-lag`, `partitions`, `endpoints` | Readiness probe: stop sending traffic while it is Unhealthy |
+| `/health/ready` | `postgres`, `partitions`, `endpoints` | Readiness probe: stop sending traffic while it is Unhealthy. Only whether this instance can serve requests (GAP-034). |
 | `/health` | Every check, with its description and data | Dashboards and investigation |
 
 ### Startup and `endpoints`
@@ -24,7 +24,7 @@ Whether the database answers on the API role. If it fails, check the database, t
 
 ### `outbox-lag`
 
-The age of the oldest event that has not been published yet, across every module outbox.
+The age of the oldest event that has not been published yet, across every module outbox and tenant. It is on `/health` only, not on `/health/ready` (GAP-034): one tenant's event that keeps failing, say for missing billing configuration, must not take the instance out of service for every tenant. Alert on it instead.
 
 - Degraded above `Outbox:Lag:Warning` (1 minute by default). Unhealthy above `Outbox:Lag:Failure` (5 minutes).
 - The data gives `lagSeconds`, `pending` and `slowestOutbox`.
@@ -73,6 +73,7 @@ Look in the logs for repeated warnings about the same record ID, and for `… jo
 |---|---|---|
 | `/health/ready` Unhealthy | Probe | Any, for more than 2 minutes |
 | Outbox lag Degraded | `/health` data | More than 10 minutes in an hour |
+| Outbox lag Unhealthy | `/health` data | Any, for more than 5 minutes |
 | New dead letters | `GET /api/v1/integration/dead-letters?status=DeadLettered` [dead_letter.read] | Any |
 | Webhook deliveries FAILED | `GET /api/v1/integration/webhook-deliveries?status=Failed` [webhook_delivery.read] | Any |
 | Reconciliation exceptions open | `GET /api/v1/payments/reconciliation-exceptions` [reconciliation.read] | Older than one business day |

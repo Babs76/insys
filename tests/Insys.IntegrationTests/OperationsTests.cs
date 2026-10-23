@@ -44,8 +44,12 @@ public sealed class OperationsTests(DatabaseFixture fixture) : IClassFixture<Dat
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
+    /// <summary>
+    /// /health reports outbox lag, Degraded then Unhealthy, for alerting; readiness stays OK throughout (GAP-034), since
+    /// a stuck event is a messaging problem, not a reason to stop serving requests.
+    /// </summary>
     [Fact]
-    public async Task Readiness_ReportsOutboxLag_DegradedThenUnhealthy()
+    public async Task Health_ReportsOutboxLag_DegradedThenUnhealthy_WhileReadinessStaysOk_GAP034()
     {
         var client = _factory.CreateClient();
         (await client.GetAsync("/health/ready")).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -60,7 +64,8 @@ public sealed class OperationsTests(DatabaseFixture fixture) : IClassFixture<Dat
         var lag = await Lag(client);
         lag.GetProperty("status").GetString().ShouldBe("Unhealthy");
         lag.GetProperty("data").GetProperty("slowestOutbox").GetString().ShouldBe("audit");
-        (await client.GetAsync("/health/ready")).StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        (await client.GetAsync("/health")).StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        (await client.GetAsync("/health/ready")).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         await fixture.Database.ExecuteAsOwner("UPDATE audit.outbox_event SET published_at = now() WHERE id = @id", ("id", id));
         (await Lag(client)).GetProperty("status").GetString().ShouldBe("Healthy");
