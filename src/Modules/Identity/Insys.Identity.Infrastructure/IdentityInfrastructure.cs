@@ -67,6 +67,12 @@ public static class IdentityInfrastructure
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, PrivilegedRoleApprovalPolicy, IdentityDbContext>(IdentityDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, PrivilegedRoleApprovalPolicy, IdentityDbContext>(IdentityDbContext.SchemaName, "ApprovalRejected");
 
+        services.AddScoped<Application.Tenants.ITenantAdministrators, TenantAdministratorStore>();
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, Application.Tenants.TenantAdministratorApprovalPolicy, IdentityDbContext>(
+            IdentityDbContext.SchemaName, "ApprovalGranted");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, Application.Tenants.TenantAdministratorApprovalPolicy, IdentityDbContext>(
+            IdentityDbContext.SchemaName, "ApprovalRejected");
+
         services.AddScoped<IAccessRepository, AccessRepository>();
         services.AddScoped<IAccessQueries, AccessQueries>();
         services.AddIntegrationEventHandler<Contracts.AccessReviewCompleted, RevokeReviewedAccess, IdentityDbContext>(IdentityDbContext.SchemaName);

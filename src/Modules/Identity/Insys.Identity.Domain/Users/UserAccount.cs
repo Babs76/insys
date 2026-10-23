@@ -242,6 +242,19 @@ public sealed class UserAccount : AggregateRoot<Guid>
     public IEnumerable<RoleAssignment> EffectiveAssignments(DateOnly day) => _roleAssignments.Where(a => a.IsEffectiveOn(day));
 
     /// <summary>
+    /// A new tenant's first administrator (OQ-067): an active assignment approved by a second platform administrator.
+    /// assigned_by must be a user of the same tenant, so it is the user itself, as in the operator bootstrap (OQ-031);
+    /// the requesting platform administrator is on the tenant administrator request.
+    /// </summary>
+    public void GrantFirstAdministratorRole(string roleCode, DateOnly validFrom, Guid approvedBy, DateTimeOffset now)
+    {
+        var assignment = RoleAssignment.Create(Id, roleCode, validFrom, null, null, null, Id, pending: true);
+        assignment.Decide(approved: true, approvedBy, now);
+        _roleAssignments.Add(assignment);
+        Raise(new RoleAssigned(Id, roleCode, validFrom, null, now));
+    }
+
+    /// <summary>
     /// Command AssignRole. <paramref name="currentRoles"/> are the facts for the roles the user already holds today;
     /// the assignment is refused if it would combine permissions that a Block rule forbids together (SRS-002).
     /// </summary>
@@ -439,4 +452,10 @@ public static class IdentityErrorCodes
 
     [ErrorCode(409, "error.identity.review_incomplete")]
     public const string ReviewIncomplete = "REVIEW_INCOMPLETE";
+
+    [ErrorCode(409, "error.identity.tenant_not_onboarding")]
+    public const string TenantNotOnboarding = "TENANT_NOT_ONBOARDING";
+
+    [ErrorCode(409, "error.identity.tenant_has_users")]
+    public const string TenantHasUsers = "TENANT_HAS_USERS";
 }

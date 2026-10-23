@@ -28,6 +28,7 @@ using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.Identity.Api.StaticData;
 using Insys.Identity.Application.Access;
+using Insys.Identity.Application.Tenants;
 using Insys.Identity.Application.Users;
 using Insys.Identity.Domain.Access;
 using Insys.Identity.Contracts;
@@ -41,6 +42,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Insys.Identity.Api;
 
 public sealed record ProvisionUserRequest(string Username, string DisplayName, string IdpCode, string ExternalSubject, bool MfaEnrolled);
+
+/// <summary>A new tenant's first administrator (OQ-067): the user, and the permissions of the tenant's TENANT_ADMIN role.</summary>
+public sealed record ProvisionTenantAdministratorRequest(Guid TenantId, string Username, string DisplayName, string IdpCode, string ExternalSubject,
+    bool MfaEnrolled, string[] Permissions);
 
 public sealed record AssignRoleRequest(string RoleCode, DateOnly? ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches);
 
@@ -157,6 +162,7 @@ public sealed class IdentityModule : IModule
             .RequirePermission(IdentityPermissions.UserUpdate);
 
         MapAccess(api.MapGroup("/identity").WithTags(Name));
+        MapTenantAdministrators(api.MapGroup("/identity/tenant-administrators").WithTags(Name));
 
         MapStatus(users, "lock", UserStatusAction.Lock, "Lock a user");
         MapStatus(users, "unlock", UserStatusAction.Unlock, "Unlock a user");
@@ -312,5 +318,45 @@ public sealed class IdentityModule : IModule
             Concurrency.SetETag(http, version);
             return Results.NoContent();
         });
+    }
+
+    /// <summary>A new tenant's first administrator (OQ-067, GAP-019): requested and approved by two platform administrators.</summary>
+    private static void MapTenantAdministrators(RouteGroupBuilder requests)
+    {
+        requests.MapPost("/", async (ProvisionTenantAdministratorRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Send(new ProvisionTenantAdministrator(request.TenantId, request.Username, request.DisplayName, request.IdpCode,
+                    request.ExternalSubject, request.MfaEnrolled, request.Permissions ?? []), ct))
+                .ToHttp(id =>
+                {
+                    Concurrency.SetETag(http, 1);
+                    return Results.Created($"/api/v1/identity/tenant-administrators/{id}", new { id });
+                }))
+            .Produces<CreatedId>(StatusCodes.Status201Created)
+            .WithName("ProvisionTenantAdministrator")
+            .WithSummary("Request a new tenant's first administrator")
+            .WithDescription("Platform operator only, while the tenant is Onboarding and has no users. A second platform administrator approves it in "
+                + "Workflow (approval type TENANT_ADMINISTRATOR); then the tenant's TENANT_ADMIN role (with these permissions), the user and an active "
+                + "assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with "
+                + "externalSubject, whose token must carry the new tenant's tenant_id.")
+            .RequirePlatformPermission(IdentityPermissions.UserCreate)
+            .RequireIdempotencyKey();
+
+        requests.MapGet("/", async (Guid? tenantId, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListTenantAdministratorRequests(tenantId), ct)).ToHttp(items => Results.Ok(items)))
+            .Produces<IReadOnlyList<TenantAdministratorRequestView>>(StatusCodes.Status200OK)
+            .WithName("ListTenantAdministratorRequests")
+            .WithSummary("List first-administrator requests, optionally for one tenant")
+            .RequirePlatformPermission(IdentityPermissions.UserRead);
+
+        requests.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetTenantAdministratorRequest(id), ct)).ToHttp(request =>
+                {
+                    Concurrency.SetETag(http, request.RowVersion);
+                    return Results.Ok(request);
+                }))
+            .Produces<TenantAdministratorRequestView>(StatusCodes.Status200OK)
+            .WithName("GetTenantAdministratorRequest")
+            .WithSummary("Get a first-administrator request and its decision")
+            .RequirePlatformPermission(IdentityPermissions.UserRead);
     }
 }

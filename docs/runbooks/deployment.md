@@ -68,7 +68,7 @@ Both need PostgreSQL 18.
    - A person who works for two tenants has two Keycloak users, so that each token names one tenant (TEN-003).
    - Users cannot set or change it themselves.
 3. The tenant's administrator provisions the IAM user with that user's Keycloak `sub` as the external subject, and assigns roles (`POST /api/v1/identity/users`).
-4. The first administrator of a new tenant has no IAM administrator to provision them yet (OQ-067, Wave 0 GAP-019). Until the platform command exists, follow the interim step in the tenants runbook.
+4. The first administrator of a new tenant has no IAM administrator to provision them. Two platform administrators provision them instead (OQ-067); see the tenants runbook. Step 2 still comes first: the request names the Keycloak user's `sub`.
 
 ### In production
 

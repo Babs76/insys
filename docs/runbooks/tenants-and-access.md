@@ -18,13 +18,23 @@ The background jobs act only for active tenants.
 
 ### A new tenant's first administrator
 
-**There is no supported way to do this yet (OQ-067).**
+Two platform administrators provision it while the tenant is Onboarding, before it has any user (OQ-067, GAP-019).
 
-- Users are provisioned only in the caller's own tenant (the token's `tenant_id`).
-- A new tenant has no users, so no one can call the API for it.
-- The platform operator's bootstrap (`db/bootstrap/operator.sql`) covers only the operator tenant.
+1. **Create the Keycloak user.** In realm `insys`, create the user and set the `tenant_id` attribute to the new tenant's ID (admin console, or the admin REST API). Note the user's ID: it is the token's `sub`. See [deployment.md](deployment.md#how-a-tenants-users-get-their-tenant_id).
+2. **Request the administrator.** A platform administrator calls `POST /api/v1/identity/tenant-administrators` [platform: user.create] with:
+   - `tenantId`, `username`, `displayName`, `idpCode`, and `externalSubject` (the Keycloak user's ID from step 1);
+   - `mfaEnrolled`;
+   - `permissions`: the permissions of the tenant's `TENANT_ADMIN` role. Nothing in the specification fixes this list, so the two administrators agree it. At least `user.read`, `user.create` and `user.update` let the administrator add the tenant's other users.
+   It is refused when the tenant is not Onboarding (`TENANT_NOT_ONBOARDING`), already has users (`TENANT_HAS_USERS`), or already has a request waiting (`DUPLICATE_RECORD`).
+3. **Approve it.** A second platform administrator approves the Workflow approval (type `TENANT_ADMINISTRATOR`, business reference `TENANT_ADMIN_REQUEST`). They need `approval.read` and `approval.approve`, and a role named in `workflow.cfg_delegation_and_approval_authority` for transaction type `TENANT_ADMINISTRATOR` (WFL-004). The requester cannot approve their own request.
+4. **What approval does**, in one transaction:
+   - in the new tenant: the `TENANT_ADMIN` role definition in force (approved by the checker), the user (Invited), and an active assignment of `TENANT_ADMIN`, with `approved_by` the checker. The assignment's `assigned_by` is the user itself, because it must be a user of the same tenant, as in the operator bootstrap (OQ-031);
+   - in the operator tenant: the request becomes Provisioned and records the user.
+   Tenancy then completes the tenant's `ORGANISATION_AND_ACCESS` onboarding step, if it is the current step. Otherwise the operator completes it as usual.
+   A rejected request creates nothing.
+5. **Sign-in.** The tenant's users, its administrator included, can act once the tenant is Active (TEN-008). Allow up to 30 seconds after activation: a refused sign-in is cached for that long (ADR-006).
 
-Until OQ-067 is decided, an owner can insert the tenant's first administrator and role assignment the same way `operator.sql` does, for the new tenant's ID, as a recorded change. Every later user and privileged assignment then goes through the API and maker-checker.
+Follow a request with `GET /api/v1/identity/tenant-administrators/{id}` (or `?tenantId=` for a tenant's requests). Every later user and privileged assignment goes through the tenant's own administrators and maker-checker.
 
 ## Users and roles (IAM)
 

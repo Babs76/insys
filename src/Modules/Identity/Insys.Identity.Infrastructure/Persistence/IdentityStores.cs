@@ -130,6 +130,10 @@ internal sealed class IdentityEventMapper : IDomainEventMapper
 {
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
     {
+        Domain.Tenants.TenantAdministratorRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(
+            Contracts.IdentityApprovals.TenantAdministratorBusinessRefType, e.RequestId, Contracts.IdentityApprovals.TenantAdministratorApprovalType,
+            e.RequestedBy, null, null, $"First administrator {e.Username} for tenant {e.TargetTenantId}"),
+        Domain.Tenants.TenantAdministratorProvisioned e => new Contracts.TenantAdministratorProvisioned(e.TargetTenantId, e.UserId, e.RoleCode),
         Domain.Users.RoleAssigned e => new Contracts.RoleAssigned(e.UserId, e.RoleCode, e.ValidFrom, e.ValidTo),
         Domain.Users.RoleRevoked e => new Contracts.RoleRevoked(e.UserId, e.RoleCode),
         Domain.Users.PrivilegedRoleRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.IdentityApprovals.BusinessRefType, e.AssignmentId,

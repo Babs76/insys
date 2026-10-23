@@ -27657,6 +27657,177 @@
         "x-permission": "static_data.create"
       }
     },
+    "/api/v1/identity/tenant-administrators": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Request a new tenant\u0027s first administrator",
+        "description": "Platform operator only, while the tenant is Onboarding and has no users. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR); then the tenant\u0027s TENANT_ADMIN role (with these permissions), the user and an active assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with externalSubject, whose token must carry the new tenant\u0027s tenant_id.",
+        "operationId": "ProvisionTenantAdministrator",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvisionTenantAdministratorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedId"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "user.create"
+      },
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "List first-administrator requests, optionally for one tenant",
+        "operationId": "ListTenantAdministratorRequests",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TenantAdministratorRequestView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "user.read"
+      }
+    },
+    "/api/v1/identity/tenant-administrators/{id}": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Get a first-administrator request and its decision",
+        "operationId": "GetTenantAdministratorRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantAdministratorRequestView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "user.read"
+      }
+    },
     "/api/v1/audit/static/audit-retention-policies/global/{code}/versions": {
       "get": {
         "tags": [
@@ -45524,6 +45695,45 @@
           }
         }
       },
+      "ProvisionTenantAdministratorRequest": {
+        "required": [
+          "tenantId",
+          "username",
+          "displayName",
+          "idpCode",
+          "externalSubject",
+          "mfaEnrolled",
+          "permissions"
+        ],
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "idpCode": {
+            "type": "string"
+          },
+          "externalSubject": {
+            "type": "string"
+          },
+          "mfaEnrolled": {
+            "type": "boolean"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "PublicHolidayCalendars": {
         "type": "object",
         "properties": {
@@ -49176,6 +49386,103 @@
           }
         }
       },
+      "TenantAdministratorRequestStatus": {
+        "enum": [
+          "PendingApproval",
+          "Provisioned",
+          "Rejected"
+        ]
+      },
+      "TenantAdministratorRequestView": {
+        "required": [
+          "id",
+          "targetTenantId",
+          "username",
+          "displayName",
+          "idpCode",
+          "externalSubject",
+          "mfaEnrolled",
+          "roleCode",
+          "permissions",
+          "requestedBy",
+          "status",
+          "decidedBy",
+          "decidedAt",
+          "userId",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetTenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "idpCode": {
+            "type": "string"
+          },
+          "externalSubject": {
+            "type": "string"
+          },
+          "mfaEnrolled": {
+            "type": "boolean"
+          },
+          "roleCode": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requestedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantAdministratorRequestStatus"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "userId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "TenantDetail": {
         "required": [
           "id",
@@ -52040,6 +52347,9 @@
     },
     {
       "name": "Identity static data"
+    },
+    {
+      "name": "Identity"
     },
     {
       "name": "Audit static data"

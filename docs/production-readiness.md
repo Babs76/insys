@@ -25,7 +25,7 @@ What must be in place before the first production go-live. Each item names the d
 | Production Keycloak | Its own PostgreSQL database; at least two nodes (HA) on CCE; TLS on the issuer, so `RequireHttpsMetadata` stays true; the optimised production start (`start`), never `start-dev`; the realm imported once and then managed in Keycloak. |
 | MFA | Required for privileged roles (IAM-003). |
 | `insys-web` redirect URIs | Limited to the production origins. |
-| The first administrator of a new tenant | OQ-067 / GAP-019. |
+| The first administrator of a new tenant | Done 23 October 2026 (Wave 0, GAP-019): `POST /api/v1/identity/tenant-administrators`, approved by a second platform administrator. Before go-live: agree the `TENANT_ADMIN` permission list and configure approval authority for `TENANT_ADMINISTRATOR` (runbook). |
 
 ## Keys and secrets (ADR-018)
 

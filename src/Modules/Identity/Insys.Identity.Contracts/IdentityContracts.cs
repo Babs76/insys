@@ -71,4 +71,16 @@ public static class IdentityApprovals
     public const string BusinessRefType = "ROLE_ASSIGNMENT";
 
     public const string ApprovalType = "PRIVILEGED_ROLE";
+
+    /// <summary>A new tenant's first administrator (OQ-067), approved by a second platform administrator.</summary>
+    public const string TenantAdministratorBusinessRefType = "TENANT_ADMIN_REQUEST";
+
+    public const string TenantAdministratorApprovalType = "TENANT_ADMINISTRATOR";
 }
+
+/// <summary>
+/// A new tenant's first administrator exists (OQ-067). Published in the platform operator tenant; Tenancy completes the
+/// tenant's ORGANISATION_AND_ACCESS onboarding step when it is the current one.
+/// </summary>
+[IntegrationEvent("iam.TenantAdministratorProvisioned")]
+public sealed record TenantAdministratorProvisioned(Guid TargetTenantId, Guid UserId, string RoleCode) : IIntegrationEvent;

@@ -34,6 +34,7 @@ using Insys.BuildingBlocks.Contracts.Auditing;
 using Insys.BuildingBlocks.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -108,6 +109,38 @@ public abstract class ModuleDbContext(DbContextOptions options, ModuleDbContextD
         }
 
         _actingTenantId = tenantId;
+    }
+
+    /// <summary>
+    /// Runs <paramref name="work"/> as <paramref name="tenantId"/> inside the current transaction, then saves it and
+    /// returns to the caller's tenant: for a platform operator's approved change that writes a decision in the operator
+    /// tenant and its effect in another tenant atomically (OQ-067). The same rules as <see cref="ActAsTenant"/> apply.
+    /// Changes already made are saved first, so each tenant's rows are stamped with their own tenant.
+    /// </summary>
+    public async Task WithinTenant(Guid tenantId, Func<Task> work, CancellationToken cancellationToken)
+    {
+        if (!AllowsOperatorActingAsTenant || dependencies.Tenant.TenantId != dependencies.Platform.OperatorTenantId
+            || dependencies.Platform.OperatorTenantId == Guid.Empty)
+        {
+            throw new TenantMismatchException();
+        }
+
+        var transaction = Database.CurrentTransaction?.GetDbTransaction()
+            ?? throw new InvalidOperationException("WithinTenant runs inside the caller's transaction.");
+        await SaveChangesAsync(cancellationToken);
+        var previous = _actingTenantId;
+        _actingTenantId = tenantId;
+        await TenantSession.SetTenant(Database.GetDbConnection(), transaction, tenantId, cancellationToken);
+        try
+        {
+            await work();
+            await SaveChangesAsync(cancellationToken);
+        }
+        finally
+        {
+            _actingTenantId = previous;
+            await TenantSession.SetTenant(Database.GetDbConnection(), transaction, CurrentTenantId, cancellationToken);
+        }
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

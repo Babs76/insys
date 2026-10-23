@@ -26,6 +26,7 @@
  */
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.Identity.Domain.Access;
+using Insys.Identity.Domain.Tenants;
 using Insys.Identity.Domain.Users;
 using Insys.Identity.Infrastructure.StaticData;
 using Microsoft.EntityFrameworkCore;
@@ -45,6 +46,11 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     public DbSet<PrivilegedAccessGrant> Grants => Set<PrivilegedAccessGrant>();
 
     public DbSet<AccessReview> Reviews => Set<AccessReview>();
+
+    public DbSet<TenantAdministratorRequest> TenantAdministratorRequests => Set<TenantAdministratorRequest>();
+
+    /// <summary>A new tenant's first administrator is written as that tenant, once a second platform administrator approves (OQ-067).</summary>
+    protected override bool AllowsOperatorActingAsTenant => true;
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
@@ -76,6 +82,21 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             assignment.HasAuditColumns();
             assignment.Property(a => a.RoleCode).HasMaxLength(30);
             assignment.Property(a => a.Status).HasConversion(new UpperCaseEnumConverter<AssignmentStatus>()).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<TenantAdministratorRequest>(request =>
+        {
+            request.ToTable("tenant_administrator_request");
+            request.HasKey(r => new { r.TenantId, r.Id });
+            request.HasAuditColumns();
+            request.Ignore(r => r.DomainEvents);
+            request.Ignore(r => r.HasChanges);
+            request.Property(r => r.Username).HasMaxLength(120);
+            request.Property(r => r.DisplayName).HasMaxLength(120);
+            request.Property(r => r.IdpCode).HasMaxLength(15);
+            request.Property(r => r.ExternalSubject).HasMaxLength(120);
+            request.Property(r => r.Role).HasColumnName("role_code").HasMaxLength(30);
+            request.Property(r => r.Status).HasConversion(new UpperCaseEnumConverter<TenantAdministratorRequestStatus>()).HasMaxLength(20);
         });
 
         modelBuilder.Entity<PrivilegedAccessGrant>(grant =>

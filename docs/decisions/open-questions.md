@@ -38,7 +38,7 @@ Each item below needs a decision. The code follows the proposal shown until one 
 | OQ-064 | Compliance: metric formulas, returns as documents | ADR-015; a metric is the sum of its measure | Compliance |
 | OQ-065 | Analytics: Health projections, currencies in keys, claim cause codes | ADR-015 | Business intelligence |
 | OQ-066 | Integration: secret store and transport, resending a failed webhook, exposure currency | ADR-015; a failed webhook is discarded only | Architecture |
-| OQ-067 | The first administrator of a new tenant | Not built; proposal: a platform command with maker-checker | Security, Operations |
+| OQ-067 | The first administrator of a new tenant | Built as proposed (Wave 0, GAP-019): two platform administrators; the `TENANT_ADMIN` permission list is agreed per tenant, since no requirement fixes it | Security, Operations |
 | OQ-068 | Languages: which tenant language is the default, the form of `labels`, where API messages are translated, how documents choose a language | The first of `cfg_locale_defaults.languages` is the default; `labels` maps language code to text; translations live in the UI label bundles keyed by `message_key`; documents use the party's language, then the tenant default, then English (addendum) | Business, Compliance |
 | OQ-069 | How many database connections the API may open per instance, and whether to put a pooler in front of RDS | Three instances assumed; option A (about 116 per instance, RDS 16 GB) or B (about 232, RDS 32 GB), both at 45% of `max_connections`; PgBouncer only if load testing needs it | Architecture, Operations |
 
@@ -114,7 +114,7 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-064 | 6 | Compliance: return content and approval, report runs not defined | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
 | OQ-065 | 6 | Analytics: projection dimensions and the event history to rebuild from | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
 | OQ-066 | 6 | Integration, General renewal and exposure snapshot: smaller gaps | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
-| OQ-067 | 7 | The first administrator of a new tenant | Open |
+| OQ-067 | 7 | The first administrator of a new tenant | Resolved (proposal, built in Wave 0): pending business sign-off |
 | OQ-068 | 8 | Languages: tenant default, labels, message catalogue, document language | Resolved (proposal): `docs/specs/addenda/localisation.md`, pending business sign-off |
 | OQ-069 | 8 | Database connection capacity: 23 pools per API instance against the RDS limit | Starting assumption: 3 instances, about 116 each, RDS 16 GB; revisit after load testing |
 
@@ -636,6 +636,13 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Gap:** ProvisionUser and AssignRole act in the caller's own tenant, and a new tenant has no users, so nothing in the API can create its first administrator. The operator bootstrap covers only the operator tenant. Found while writing the tenants runbook.
 - **Current state:** not built. The runbook says an owner inserts the first administrator as `operator.sql` does, as a recorded change.
 - **Proposal:** a platform command, `ProvisionTenantAdministrator`, for the platform operator only, allowed while the tenant is Onboarding. It creates the tenant's first user and a TENANT_ADMIN role assignment, approved by a second platform administrator in Workflow (SRS-002), and completes the ORGANISATION_AND_ACCESS step.
+- **Built (Wave 0, GAP-019, pending business sign-off):** `POST /api/v1/identity/tenant-administrators` and V0026. Choices made in building it:
+  - Roles are tenant-scoped static data, so a new tenant has no `TENANT_ADMIN` role. The request carries the role's permissions, and the approval creates the role definition in force with them. No requirement fixes the list.
+  - The tenant must have no users yet.
+  - On approval, the new tenant's rows are written in the inbox transaction with row-level security switched to that tenant for that block only (`ModuleDbContext.WithinTenant`, operator callers only, in Identity and Tenancy).
+  - `assigned_by` is the new user itself, as in the operator bootstrap, because the schema requires a user of the same tenant. The requester is on the request, and the checker is `approved_by`.
+  - The administrator acts once the tenant is Active, like all its users.
+  - Keycloak: the user is created in Keycloak first, by a Keycloak administrator, with `tenant_id`; the request names its `sub`. INSYS does not call the Keycloak admin API.
 
 ### OQ-068 Languages and localisation (Phase 8, Workstream B)
 - **Sources:** SRS §1.3. Static data: `tenant.cfg_locale_defaults.languages`, `refdata.ref_languages`, `channel.ref_ui_label_and_translation_bundles`, `labels` on every static data table, and template and assignment languages. Also `party.individual.preferred_language`.

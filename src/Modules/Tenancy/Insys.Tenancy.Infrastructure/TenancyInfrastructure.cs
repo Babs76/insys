@@ -55,6 +55,7 @@ public static class TenancyInfrastructure
         services.AddSingleton<Insys.BuildingBlocks.Application.Localisation.ILanguageSettings>(sp => sp.GetRequiredService<TenantLanguageSettings>());
         services.AddIntegrationEventHandler<Insys.BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated, LocaleCachePolicy, TenancyDbContext>(
             TenancyDbContext.SchemaName, "LocaleDefaultsActivated");
+        services.AddIntegrationEventHandler<Identity.Contracts.TenantAdministratorProvisioned, OnboardingAccessPolicy, TenancyDbContext>(TenancyDbContext.SchemaName);
         return services;
     }
 }
