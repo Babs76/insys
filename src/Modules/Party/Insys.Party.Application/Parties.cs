@@ -9,6 +9,7 @@ using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.Party.Contracts;
 using Insys.Party.Domain.Parties;
+using Insys.StaticData.Contracts;
 using Microsoft.Extensions.Logging;
 
 namespace Insys.Party.Application;
@@ -79,6 +80,9 @@ public sealed record RegisterParty(IndividualData? Individual, OrganisationData?
 public sealed record UpdateIndividualDetails(Guid PartyId, IndividualData Details, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 public sealed record UpdateOrganisationDetails(Guid PartyId, OrganisationData Details, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+
+/// <summary>Command ChangePreferredLanguage: an ISO 639-1 code in the language register, or null to clear it (addendum §7).</summary>
+public sealed record ChangePreferredLanguage(Guid PartyId, string? Language, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 public sealed record AddAddress(Guid PartyId, AddressData Address, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
@@ -239,7 +243,8 @@ public sealed class IndividualValidator : AbstractValidator<IndividualData>
         RuleFor(i => i.GenderCode).MaximumLength(10);
         RuleFor(i => i.MaritalStatusCode).MaximumLength(15);
         RuleFor(i => i.Nationality).Length(2).When(i => i.Nationality is not null);
-        RuleFor(i => i.PreferredLanguage).Length(2).When(i => i.PreferredLanguage is not null);
+        RuleFor(i => i.PreferredLanguage).Matches("^[a-z]{2}$").WithMessage("preferredLanguage must be a two-letter lower-case ISO 639-1 code.")
+            .When(i => i.PreferredLanguage is not null);
     }
 }
 
@@ -258,6 +263,12 @@ public sealed class OrganisationValidator : AbstractValidator<OrganisationData>
 public sealed class UpdateIndividualDetailsValidator : AbstractValidator<UpdateIndividualDetails>
 {
     public UpdateIndividualDetailsValidator() => RuleFor(c => c.Details).SetValidator(new IndividualValidator());
+}
+
+public sealed class ChangePreferredLanguageValidator : AbstractValidator<ChangePreferredLanguage>
+{
+    public ChangePreferredLanguageValidator() =>
+        RuleFor(c => c.Language).Matches("^[a-z]{2}$").WithMessage("language must be a two-letter lower-case ISO 639-1 code.").When(c => c.Language is not null);
 }
 
 public sealed class UpdateOrganisationDetailsValidator : AbstractValidator<UpdateOrganisationDetails>
@@ -378,6 +389,21 @@ internal sealed class UpdateIndividualDetailsHandler(IPartyRepository parties, I
     {
         audit.Record(new AuditEntry("PARTY", "UpdateDetails", nameof(Domain.Parties.Party), command.PartyId.ToString()));
         return Parties.Change(parties, command.PartyId, command.ExpectedVersion, p => p.UpdateDetails(command.Details, clock.UtcNow), cancellationToken);
+    }
+}
+
+internal sealed class ChangePreferredLanguageHandler(IPartyRepository parties, ILanguageRegister languages, IClock clock, IAuditTrail audit)
+    : ICommandHandler<ChangePreferredLanguage, long>
+{
+    public async Task<Result<long>> Handle(ChangePreferredLanguage command, CancellationToken cancellationToken)
+    {
+        if (command.Language is { } language && !await languages.Exists(language, clock.UtcToday, cancellationToken))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, $"{language} is not a language in the register.");
+        }
+
+        audit.Record(new AuditEntry("PARTY", "ChangePreferredLanguage", nameof(Domain.Parties.Party), command.PartyId.ToString()));
+        return await Parties.Change(parties, command.PartyId, command.ExpectedVersion, p => p.ChangePreferredLanguage(command.Language, clock.UtcNow), cancellationToken);
     }
 }
 

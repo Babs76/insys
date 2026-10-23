@@ -79,12 +79,12 @@ public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, str
 [IntegrationEvent("general.GeneralPolicyEndorsed")]
 public sealed record GeneralPolicyEndorsed(Guid PolicyId, string PolicyNumber, Guid EndorsementId, string EndorsementNumber, DateOnly EffectiveDate,
     decimal NewAnnualPremium, decimal PremiumDelta, string Currency, string ProductCode, int ProductVersion, IReadOnlyList<string> DocumentTypes,
-    decimal? NewSumInsured = null) : IIntegrationEvent;
+    decimal? NewSumInsured = null, Guid? PolicyholderPartyId = null) : IIntegrationEvent;
 
 /// <summary>A renewal invitation is due: Documents generates it from <paramref name="TemplateCode"/> (general.cfg_renewal_rules.invitation_template).</summary>
 [IntegrationEvent("general.GeneralRenewalInvited")]
-public sealed record GeneralRenewalInvited(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, DateOnly PeriodEnd, string TemplateCode)
-    : IIntegrationEvent;
+public sealed record GeneralRenewalInvited(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, DateOnly PeriodEnd, string TemplateCode,
+    Guid? PolicyholderPartyId = null) : IIntegrationEvent;
 
 [IntegrationEvent("general.GeneralPolicyRenewed")]
 public sealed record GeneralPolicyRenewed(Guid PolicyId, string PolicyNumber, Guid RenewalPolicyId) : IIntegrationEvent;

@@ -11,16 +11,17 @@ namespace Insys.Documents.Application;
 /// Documents' reaction to Life's policies (process "Life proposal to policy": GenerateDocument, policy schedule), with
 /// the template assigned to the product. A failure is retried and then dead-lettered; the policy is never rolled back.
 /// </summary>
-public sealed class LifeDocumentPolicies(DocumentGenerator generator, ISellableProducts products, ITenantContext tenant, IClock clock)
+public sealed class LifeDocumentPolicies(DocumentGenerator generator, ISellableProducts products, DocumentLanguages languages, ITenantContext tenant, IClock clock)
     : IIntegrationEventHandler<LifePolicyIssued>
 {
     public const string PolicySchedule = "POLICY_SCHEDULE";
 
     public async Task Handle(LifePolicyIssued issued, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        var template = (await products.Templates(tenant.RequireTenantId(), issued.ProductCode, clock.UtcToday, cancellationToken))
-            .FirstOrDefault(t => t.DocumentType == PolicySchedule)
-            ?? throw new InvalidOperationException($"Product {issued.ProductCode} has no template assigned for {PolicySchedule}.");
+        // In the policyholder's language by the chain (docs/specs/addenda/localisation.md §5).
+        var chain = await languages.Chain(issued.PolicyholderPartyId, cancellationToken);
+        var template = DocumentLanguages.Pick(await products.Templates(tenant.RequireTenantId(), issued.ProductCode, clock.UtcToday, cancellationToken), PolicySchedule, chain)
+            ?? throw new InvalidOperationException($"Product {issued.ProductCode} has no template assigned for {PolicySchedule} in {string.Join(", ", chain)}.");
         var data = JsonSerializer.SerializeToElement(new Dictionary<string, object?>
         {
             ["policy_number"] = issued.PolicyNumber, ["product_code"] = issued.ProductCode, ["product_version"] = issued.ProductVersion,

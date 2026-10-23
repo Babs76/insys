@@ -6,9 +6,9 @@ using Npgsql;
 
 namespace Insys.Party.Infrastructure.Persistence;
 
-/// <summary>Bank accounts and birth dates for other modules, on the Party module's own connection: status, hash and last four digits.</summary>
+/// <summary>Bank accounts, birth dates and preferred languages for other modules, on the Party module's own connection: status, hash and last four digits.</summary>
 internal sealed class BankAccountQueries([FromKeyedServices(PartyDbContext.SchemaName)] NpgsqlDataSource dataSource, IFieldProtector protector)
-    : IBankAccounts, IBankAccountDetails, IPersonFacts
+    : IBankAccounts, IBankAccountDetails, IPersonFacts, IPartyLanguage
 {
     private const string Columns =
         "id, party_id, currency, status, account_number_hash, account_number_last4, account_number_enc, bank_code, branch_code, account_holder_name, account_type";
@@ -30,6 +30,10 @@ internal sealed class BankAccountQueries([FromKeyedServices(PartyDbContext.Schem
     public async Task<DateOnly?> BirthDate(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
         (await Query(tenantId, "SELECT birth_date FROM party.individual WHERE tenant_id = @t AND party_id = @id", partyId,
             r => (object)r.GetFieldValue<DateOnly>(0), cancellationToken)) as DateOnly?;
+
+    public async Task<string?> PreferredLanguage(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
+        (await Query(tenantId, "SELECT preferred_language FROM party.individual WHERE tenant_id = @t AND party_id = @id", partyId,
+            r => r.IsDBNull(0) ? null : r.GetString(0).Trim(), cancellationToken)) is { Length: > 0 } language ? language : null;
 
     private Task<T?> Read<T>(Guid tenantId, Guid bankAccountId, Func<NpgsqlDataReader, T?> map, CancellationToken cancellationToken) where T : class =>
         Query(tenantId, $"SELECT {Columns} FROM party.bank_account WHERE tenant_id = @t AND id = @id", bankAccountId, map, cancellationToken);

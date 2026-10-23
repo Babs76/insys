@@ -23,6 +23,7 @@ public static class DocumentsInfrastructure
         services.AddSingleton<IDocumentRenderer, PlainTextDocumentRenderer>();
         services.AddSingleton<IDocumentDelivery, StubDocumentDelivery>();
         services.AddScoped<DocumentGenerator>();
+        services.AddScoped<DocumentLanguages>();
         services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralPolicyIssued");
         services.AddIntegrationEventHandler<GeneralPolicyEndorsed, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralPolicyEndorsed");
         services.AddIntegrationEventHandler<GeneralRenewalInvited, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralRenewalInvited");

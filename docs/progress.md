@@ -14,7 +14,9 @@
 | 5 Other domains | Payee bank accounts (ADR-013), product columns, Health defaults (ADR-012), Life and Health | Done, accepted with follow-ups |
 | 5 review items 1–5 | Bank account verification in Workflow, skipped tests, underwriting authority, Health concurrency, OQ-061 | Done, accepted |
 | 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration; General auto-renewal and the exposure snapshot job | Done, accepted (CI green: 413564b) |
-| 7 Hardening | Security suite, OpenAPI review, performance smoke tests, README and runbooks | **Done, awaiting review** (23 Oct 2026) |
+| 7 Hardening | Security suite, OpenAPI review, performance smoke tests, README and runbooks | Done, accepted (CI green: 3f1092c) |
+| 8 Workstream A | Platform ADRs (016 to 020), functional coverage verified | Done, accepted (checkpoint A) |
+| 8 Workstream B | Languages: tenant languages, labels, localised ProblemDetails, documents, preferred language; CI split into three jobs | **Done, awaiting review** (23 Oct 2026) |
 
 ## Phase 1 review items
 
@@ -29,6 +31,20 @@
 4. **OpenAPI documents:** split into core, static-data and platform-operator. Each has its own snapshot in `docs/api`, and every endpoint is in exactly one.
 5. **Tier 2 maker-checker:** a per-tenant setting (V0008), on by default and audited. Tier 1 is always on.
 6. **Outbox relay lag:** reported on `/health` and `/health/ready` through `integration.outbox_lag` (V0009). Degraded after `Outbox:Lag:Warning` (1 minute); Unhealthy and not ready after `Outbox:Lag:Failure` (5 minutes).
+
+## Phase 8 Workstream B: languages (OQ-068, `docs/specs/addenda/localisation.md`)
+
+- **Tenant languages:** Tenancy serves `ILanguageSettings` from `cfg_locale_defaults.languages`. The first language is the default, and a tenant without locale defaults gets English.
+- **Request language:** `ExecutionScopeMiddleware` resolves it, only for a member of the tenant.
+  - It honours `Accept-Language` (quality, primary subtag) when the tenant supports the language, else uses the tenant default.
+  - The fallback chain is the request language, the tenant default, then English.
+  - Every `/api` response carries `Content-Language`.
+- **Static data:** reads return `displayLabel` and `displayLabelLanguage`, taken from `labels`, else from the table's `label` column. Writes refuse `labels` that are not `{code: text}`.
+- **ProblemDetails:** titles, and details where translated, come from the UI label bundles keyed by `message_key`, through Integration's `IMessageCatalogue`. The `code` never changes.
+- **Documents:** General, Life and Health generation picks the template in the party's language, then the tenant default, then English (`DocumentLanguages`). The language is recorded on the generation request. `GeneralPolicyEndorsed` and `GeneralRenewalInvited` now carry the policyholder.
+- **Party:** `PUT /api/v1/party/parties/{id}/preferred-language`, checked against the language register (Static Data's `ILanguageRegister`).
+- **Tests:** `LanguageChainTests` (4) and `LocalisationTests` (8).
+- **CI:** three parallel jobs, each limited to 30 minutes: unit and architecture; integration; sweeps and end to end.
 
 ## Phase 7: what exists (hardening)
 

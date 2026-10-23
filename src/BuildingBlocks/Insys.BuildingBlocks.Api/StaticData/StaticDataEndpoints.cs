@@ -1,10 +1,12 @@
 using System.Text;
+using Insys.BuildingBlocks.Application.Localisation;
 using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.BuildingBlocks.Api.StaticData;
 
@@ -42,7 +44,7 @@ public static class StaticDataEndpoints
             .WithMetadata(new StaticDataEndpointMetadata());
         var name = descriptor.EntityName;
 
-        group.MapGet("/", async (DateOnly? asAt, string? cursor, int? limit, StaticDataService<TDbContext> service, CancellationToken ct) =>
+        group.MapGet("/", async (DateOnly? asAt, string? cursor, int? limit, StaticDataService<TDbContext> service, HttpContext http, CancellationToken ct) =>
             {
                 var pageSize = Cursor.ClampLimit(limit);
                 if (!TryDecodeCode(cursor, out var afterCode))
@@ -51,7 +53,7 @@ public static class StaticDataEndpoints
                 }
 
                 var items = await service.ListInForce<TEntity>(descriptor, asAt ?? DateOnly.FromDateTime(DateTime.UtcNow), afterCode, pageSize, ct);
-                return Results.Ok(new CursorPage<TEntity>(items, items.Count == pageSize ? EncodeCode(items[^1].Code) : null));
+                return Results.Ok(new CursorPage<TEntity>(StaticLabels.Localise(items, Chain(http)), items.Count == pageSize ? EncodeCode(items[^1].Code) : null));
             })
             .Produces<CursorPage<TEntity>>(StatusCodes.Status200OK)
             .WithName($"List{Pascal(descriptor)}")
@@ -67,8 +69,7 @@ public static class StaticDataEndpoints
                     return Problems.For(ErrorCodes.NotFound, $"No {name} with this code is in force on that date.", StatusCodes.Status404NotFound);
                 }
 
-                Concurrency.SetETag(http, entity.RowVersion);
-                return Results.Ok(entity);
+                return Ok(http, entity);
             })
             .Produces<TEntity>(StatusCodes.Status200OK)
             .WithName($"Get{Pascal(descriptor)}")
@@ -91,8 +92,8 @@ public static class StaticDataEndpoints
             var suffix = global ? "Global" : "";
             var owner = global ? "global (platform administrators)" : "tenant";
 
-            scope.MapGet("/{code}/versions", async (string code, StaticDataService<TDbContext> service, CancellationToken ct) =>
-                    Results.Ok(await service.Versions<TEntity>(code, global, ct)))
+            scope.MapGet("/{code}/versions", async (string code, StaticDataService<TDbContext> service, HttpContext http, CancellationToken ct) =>
+                    Results.Ok(StaticLabels.Localise(await service.Versions<TEntity>(code, global, ct), Chain(http))))
                 .Produces<IReadOnlyList<TEntity>>(StatusCodes.Status200OK)
                 .WithName($"List{Pascal(d)}Versions{suffix}")
                 .WithSummary($"List every {owner} version of a {entityName} code")
@@ -107,7 +108,7 @@ public static class StaticDataEndpoints
                     (await service.CreateDraft<TEntity, TInput>(d, input, global, ct)).ToHttp(entity =>
                     {
                         Concurrency.SetETag(http, entity.RowVersion);
-                        return Results.Created($"{http.Request.Path.Value!.TrimEnd('/')}/{entity.Code}/versions/{entity.Version}", entity);
+                        return Results.Created($"{http.Request.Path.Value!.TrimEnd('/')}/{entity.Code}/versions/{entity.Version}", StaticLabels.Localise(entity, Chain(http)));
                     }))
                 .Produces<TEntity>(StatusCodes.Status201Created)
                 .WithName($"Create{Pascal(d)}Draft{suffix}")
@@ -174,8 +175,12 @@ public static class StaticDataEndpoints
     private static IResult Ok(HttpContext http, StaticRecord entity)
     {
         Concurrency.SetETag(http, entity.RowVersion);
-        return Results.Ok(entity);
+        return Results.Ok(StaticLabels.Localise(entity, Chain(http)));
     }
+
+    /// <summary>The request's language fallback chain (docs/specs/addenda/localisation.md §2).</summary>
+    private static IReadOnlyList<string> Chain(HttpContext http) =>
+        http.RequestServices.GetService<RequestLanguage>()?.Chain ?? [TenantLanguages.English];
 
     /// <summary>Endpoint names are global, and table names repeat across modules (for example AllocationRules), so the module is part of the name.</summary>
     private static string Pascal(StaticDataDescriptor descriptor) => descriptor.EntityType.Namespace!.Split('.')[1] + descriptor.EntityType.Name;

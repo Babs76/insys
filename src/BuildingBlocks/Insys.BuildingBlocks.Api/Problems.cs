@@ -1,9 +1,11 @@
+using Insys.BuildingBlocks.Application.Localisation;
 using Insys.BuildingBlocks.Domain;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.BuildingBlocks.Api;
 
@@ -90,5 +92,45 @@ public static class StandardProblems
         {
             endpoint.Metadata.Add(new ProducesResponseTypeMetadata(status, typeof(ProblemDetails), ContentTypes));
         }
+    }
+}
+
+/// <summary>
+/// Localises a ProblemDetails from the message catalogue (docs/specs/addenda/localisation.md §4, OQ-068): the title by
+/// the error code's message_key and the request's fallback chain; the detail only where the catalogue has one in the
+/// same language, else the server's English detail is kept and marked detailLanguage "en". The code never changes.
+/// Content-Language is the title's language; without catalogue text the built-in English stays.
+/// </summary>
+public static class ProblemLocalisation
+{
+    public static void Apply(HttpContext http, ProblemDetails problem)
+    {
+        if (http.RequestServices.GetService<RequestLanguage>() is not { } request
+            || !problem.Extensions.TryGetValue("code", out var value) || value is not string code)
+        {
+            return;
+        }
+
+        string? language = null;
+        foreach (var (each, texts) in request.Messages)
+        {
+            if (texts.Titles.TryGetValue(code, out var title))
+            {
+                problem.Title = title;
+                language = each;
+                if (texts.Details.TryGetValue(code, out var detail))
+                {
+                    problem.Detail = detail;
+                }
+                else if (problem.Detail is not null && each != TenantLanguages.English)
+                {
+                    problem.Extensions["detailLanguage"] = TenantLanguages.English;
+                }
+
+                break;
+            }
+        }
+
+        http.Response.Headers.ContentLanguage = language ?? TenantLanguages.English;
     }
 }

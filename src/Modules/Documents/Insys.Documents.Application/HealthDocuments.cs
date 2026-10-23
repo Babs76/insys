@@ -13,7 +13,7 @@ namespace Insys.Documents.Application;
 /// template version in force is used). Health attaches each to its remittance on DocumentGenerated. A failure is retried
 /// and then dead-lettered; the run is never rolled back.
 /// </summary>
-public sealed class HealthDocumentPolicies(DocumentGenerator generator, IDocumentCatalogue catalogue, IClock clock) : IIntegrationEventHandler<ProviderPaymentRunReleased>
+public sealed class HealthDocumentPolicies(DocumentGenerator generator, DocumentLanguages languages) : IIntegrationEventHandler<ProviderPaymentRunReleased>
 {
     public async Task Handle(ProviderPaymentRunReleased released, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -23,10 +23,11 @@ public sealed class HealthDocumentPolicies(DocumentGenerator generator, IDocumen
         }
 
         var code = configured.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
-        var template = await catalogue.AnyTemplate(code, clock.UtcToday, cancellationToken)
-                       ?? throw new InvalidOperationException($"Remittance advice template {code} is not in force; run {released.RunCode}'s advices were not generated.");
         foreach (var remittance in released.Remittances)
         {
+            // In the provider's language by the chain; a provider organisation has none, so the tenant default (addendum §5).
+            var template = await languages.Template(code, await languages.Chain(remittance.ProviderPartyId, cancellationToken), cancellationToken)
+                           ?? throw new InvalidOperationException($"Remittance advice template {code} is not in force in the tenant's languages; run {released.RunCode}'s advices were not generated.");
             var data = JsonSerializer.SerializeToElement(new Dictionary<string, object?>
             {
                 ["run_code"] = released.RunCode, ["provider_id"] = remittance.ProviderId, ["amount"] = remittance.Amount, ["currency"] = released.Currency,

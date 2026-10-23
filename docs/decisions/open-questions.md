@@ -39,6 +39,7 @@ Each item below needs a decision. The code follows the proposal shown until one 
 | OQ-065 | Analytics: Health projections, currencies in keys, claim cause codes | ADR-015 | Business intelligence |
 | OQ-066 | Integration: secret store and transport, resending a failed webhook, exposure currency | ADR-015; a failed webhook is discarded only | Architecture |
 | OQ-067 | The first administrator of a new tenant | Not built; proposal: a platform command with maker-checker | Security, Operations |
+| OQ-068 | Languages: which tenant language is the default, the form of `labels`, where API messages are translated, how documents choose a language | The first of `cfg_locale_defaults.languages` is the default; `labels` maps language code to text; translations live in the UI label bundles keyed by `message_key`; documents use the party's language, then the tenant default, then English (addendum) | Business, Compliance |
 
 Also pending business sign-off, though built as accepted: ADR-012 (Health adjudication), ADR-014 (commission) and ADR-015 (reinsurance, reporting, analytics and integration).
 
@@ -113,6 +114,7 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-065 | 6 | Analytics: projection dimensions and the event history to rebuild from | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
 | OQ-066 | 6 | Integration, General renewal and exposure snapshot: smaller gaps | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
 | OQ-067 | 7 | The first administrator of a new tenant | Open |
+| OQ-068 | 8 | Languages: tenant default, labels, message catalogue, document language | Resolved (proposal): `docs/specs/addenda/localisation.md`, pending business sign-off |
 
 ---
 
@@ -632,3 +634,15 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Gap:** ProvisionUser and AssignRole act in the caller's own tenant, and a new tenant has no users, so nothing in the API can create its first administrator. The operator bootstrap covers only the operator tenant. Found while writing the tenants runbook.
 - **Current state:** not built. The runbook says an owner inserts the first administrator as `operator.sql` does, as a recorded change.
 - **Proposal:** a platform command, `ProvisionTenantAdministrator`, for the platform operator only, allowed while the tenant is Onboarding. It creates the tenant's first user and a TENANT_ADMIN role assignment, approved by a second platform administrator in Workflow (SRS-002), and completes the ORGANISATION_AND_ACCESS step.
+
+### OQ-068 Languages and localisation (Phase 8, Workstream B)
+- **Sources:** SRS §1.3. Static data: `tenant.cfg_locale_defaults.languages`, `refdata.ref_languages`, `channel.ref_ui_label_and_translation_bundles`, `labels` on every static data table, and template and assignment languages. Also `party.individual.preferred_language`.
+- **Gap:** no requirement says which language is a tenant's default, what `labels` holds, where API message texts are translated, or how a document's language is chosen.
+- **Proposal (built, pending business sign-off):** `docs/specs/addenda/localisation.md`.
+  - The first configured language is the default.
+  - `Accept-Language` is honoured when the tenant supports the language. Otherwise the tenant default applies, then English.
+  - `labels` is `{language: text}`, and reads return `displayLabel` and `displayLabelLanguage`.
+  - ProblemDetails titles (and details, where translated) come from the UI label bundles keyed by the error code's `message_key`, and the code stays unchanged.
+  - Responses carry `Content-Language`.
+  - Documents are in the party's language, then the tenant default, then English.
+  - `PUT /api/v1/party/parties/{id}/preferred-language` sets an individual's preferred language.

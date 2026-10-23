@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using Asp.Versioning;
+using Insys.BuildingBlocks.Application.Localisation;
 using Insys.BuildingBlocks.Domain;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -37,7 +38,9 @@ public static class ApiRegistration
         {
             context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
             context.ProblemDetails.Extensions.TryAdd("traceId", context.HttpContext.TraceIdentifier);
+            ProblemLocalisation.Apply(context.HttpContext, context.ProblemDetails);
         });
+        services.AddScoped<RequestLanguage>();
         services.AddExceptionHandler<InsysExceptionHandler>();
         services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 

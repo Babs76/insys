@@ -202,6 +202,8 @@ public sealed class Individual : Entity<Guid>, ITenantScoped
     }
 
     internal void RecordDeath(DateOnly date) => DeceasedDate = date;
+
+    internal void ChangePreferredLanguage(string? language) => PreferredLanguage = language;
 }
 
 public sealed class Organisation : Entity<Guid>, ITenantScoped
@@ -574,6 +576,22 @@ public sealed class Party : AggregateRoot<Guid>
         Individual!.Apply(data);
         DisplayName = Name(data);
         return Changed("details", now);
+    }
+
+    /// <summary>
+    /// Command ChangePreferredLanguage for an individual (docs/specs/addenda/localisation.md §7, OQ-068); null clears it.
+    /// Organisations have no preferred language in the schema.
+    /// </summary>
+    public Result ChangePreferredLanguage(string? language, DateTimeOffset now)
+    {
+        var allowed = Changeable(PartyKind.Individual);
+        if (allowed.IsFailure)
+        {
+            return allowed;
+        }
+
+        Individual!.ChangePreferredLanguage(language);
+        return Changed("preferred_language", now);
     }
 
     /// <summary>Command UpdateDetails for an organisation.</summary>

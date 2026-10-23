@@ -20,6 +20,8 @@ public sealed record ContactPointRequest(string ChannelType, string Value, bool 
 /// <param name="Number">The document number. It is stored encrypted and never returned.</param>
 public sealed record IdentifierRequest(string DocType, string Country, string Number);
 
+public sealed record PreferredLanguageRequest(string? Language);
+
 public sealed record BankAccountRequest(string AccountNumber, string BankCode, string? BranchCode, string AccountHolderName, string AccountType, string Currency);
 
 public sealed record VerifyIdentifierRequest(string VerificationRef);
@@ -79,6 +81,14 @@ public sealed class PartyModule : IModule
             .RequireIfMatch()
             .WithName("PartyUpdateIndividual")
             .WithSummary("Update an individual's details")
+            .RequirePermission(PartyPermissions.PartyUpdate);
+
+        parties.MapPut("/{id:guid}/preferred-language", (Guid id, PreferredLanguageRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, v => dispatcher.Send(new ChangePreferredLanguage(id, r.Language, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("PartyChangePreferredLanguage")
+            .WithSummary("Set or clear an individual's preferred language, used for documents and notifications")
             .RequirePermission(PartyPermissions.PartyUpdate);
 
         parties.MapPut("/{id:guid}/organisation", (Guid id, OrganisationData r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

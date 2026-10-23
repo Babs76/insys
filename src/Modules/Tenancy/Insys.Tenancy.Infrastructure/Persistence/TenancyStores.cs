@@ -1,4 +1,5 @@
 using Insys.BuildingBlocks.Application.Context;
+using Insys.BuildingBlocks.Application.Localisation;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
@@ -7,6 +8,7 @@ using Insys.Tenancy.Application.Tenants;
 using Insys.Tenancy.Contracts;
 using Insys.Tenancy.Domain.Tenants;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -110,5 +112,42 @@ internal sealed class TenantBaseCurrency([FromKeyedServices(TenancyDbContext.Sch
         var currency = await command.ExecuteScalarAsync(cancellationToken) as string;
         await transaction.CommitAsync(cancellationToken);
         return currency;
+    }
+}
+
+/// <summary>
+/// A tenant's languages from its locale defaults in force; the first is the default (docs/specs/addenda/localisation.md
+/// §1, OQ-068). English only when none is in force. Cached for a minute, like the other per-request lookups.
+/// </summary>
+internal sealed class TenantLanguageSettings([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource, IMemoryCache cache, IClock clock)
+    : ILanguageSettings
+{
+    private static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(1);
+
+    public async Task<TenantLanguages> For(Guid tenantId, CancellationToken cancellationToken)
+    {
+        if (cache.TryGetValue(("tenant-languages", tenantId), out TenantLanguages? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT languages FROM tenant.cfg_locale_defaults
+            WHERE tenant_id = @t AND record_status = ANY(@statuses) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
+            ORDER BY version DESC LIMIT 1
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("statuses", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce);
+        command.Parameters.AddWithValue("day", clock.UtcToday);
+        var languages = await command.ExecuteScalarAsync(cancellationToken) is string[] list
+            ? list.Select(l => l.Trim().ToLowerInvariant()).Where(l => l.Length == 2).Distinct().ToList()
+            : [];
+        await transaction.CommitAsync(cancellationToken);
+        var result = languages.Count > 0 ? new TenantLanguages(languages) : TenantLanguages.EnglishOnly;
+        cache.Set(("tenant-languages", tenantId), result, CacheFor);
+        return result;
     }
 }

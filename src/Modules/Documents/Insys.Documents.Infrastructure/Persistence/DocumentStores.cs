@@ -47,13 +47,6 @@ internal sealed class DocumentCatalogue(DocumentsDbContext db) : IDocumentCatalo
         return template is null ? null : new TemplateDefinition(template.TemplateCode, template.Version, template.Language, template.DocumentType, template.BodyRef, template.MergeFields);
     }
 
-    public async Task<TemplateDefinition?> AnyTemplate(string templateCode, DateOnly day, CancellationToken cancellationToken)
-    {
-        var template = await InForce<DocumentTemplates>(day).Where(t => t.TemplateCode == templateCode).OrderByDescending(t => t.TenantId != null).ThenBy(t => t.Language)
-            .FirstOrDefaultAsync(cancellationToken);
-        return template is null ? null : new TemplateDefinition(template.TemplateCode, template.Version, template.Language, template.DocumentType, template.BodyRef, template.MergeFields);
-    }
-
     public async Task<DateOnly?> RetentionUntil(string categoryCode, string? jurisdiction, DateOnly created, CancellationToken cancellationToken)
     {
         var schedule = await InForce<RetentionSchedules>(created).Where(s => s.Category == categoryCode && s.Jurisdiction == jurisdiction)

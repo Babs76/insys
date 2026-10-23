@@ -20,6 +20,7 @@ public static class StaticDataInfrastructure
         services.AddScoped<IChangeRequestQueries, ChangeRequestQueries>();
         services.AddSingleton<Contracts.IStaticDataChangeLookup, StaticDataChangeLookup>();
         services.AddSingleton<Contracts.IHolidayCalendar, HolidayCalendar>();
+        services.AddSingleton<Contracts.ILanguageRegister, LanguageRegister>();
         var schema = StaticDataDbContext.SchemaName;
         services.AddIntegrationEventHandler<StaticDataChangeSubmitted, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "Submitted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ApprovalGranted");

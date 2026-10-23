@@ -33,3 +33,9 @@ public interface IHolidayCalendar
     /// <summary>Holidays in force between the two dates, inclusive; a Sunday holiday with the rule "Next Monday if Sunday" is observed on the Monday.</summary>
     Task<IReadOnlyList<DateOnly>> Holidays(Guid tenantId, string calendarCode, DateOnly from, DateOnly to, CancellationToken cancellationToken);
 }
+
+/// <summary>Public query interface: whether a language code is in the platform's language register (refdata.ref_languages) on a day.</summary>
+public interface ILanguageRegister
+{
+    Task<bool> Exists(string languageCode, DateOnly day, CancellationToken cancellationToken);
+}

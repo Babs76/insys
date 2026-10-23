@@ -22,6 +22,8 @@ public static class TenancyInfrastructure
         services.AddSingleton<ITenantDirectory, TenantDirectory>();
         services.AddSingleton<ITenantStatusQuery, TenantStatusQuery>();
         services.AddSingleton<ITenantBaseCurrency, TenantBaseCurrency>();
+        services.AddMemoryCache();
+        services.AddSingleton<Insys.BuildingBlocks.Application.Localisation.ILanguageSettings, TenantLanguageSettings>();
         return services;
     }
 }

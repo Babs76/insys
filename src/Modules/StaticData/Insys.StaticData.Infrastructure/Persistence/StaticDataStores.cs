@@ -154,3 +154,19 @@ internal sealed class HolidayCalendar([FromKeyedServices(StaticDataDbContext.Sch
         return days.Where(d => d >= from && d <= to).Distinct().Order().ToList();
     }
 }
+
+/// <summary>The language register: global reference data, readable without a tenant (V0002 read_all policy).</summary>
+internal sealed class LanguageRegister([FromKeyedServices(StaticDataDbContext.SchemaName)] NpgsqlDataSource dataSource) : Contracts.ILanguageRegister
+{
+    public async Task<bool> Exists(string languageCode, DateOnly day, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("""
+            SELECT EXISTS (SELECT 1 FROM refdata.ref_languages
+                           WHERE code = @code AND record_status = ANY(@statuses) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day))
+            """);
+        command.Parameters.AddWithValue("code", languageCode);
+        command.Parameters.AddWithValue("statuses", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Reference.InForce);
+        command.Parameters.AddWithValue("day", day);
+        return await command.ExecuteScalarAsync(cancellationToken) is true;
+    }
+}

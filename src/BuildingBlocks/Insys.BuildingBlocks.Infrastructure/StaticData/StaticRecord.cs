@@ -58,6 +58,15 @@ public abstract class StaticRecord
 
     public long RowVersion { get; set; }
 
+    /// <summary>
+    /// The display text in the request's language (docs/specs/addenda/localisation.md §3): from labels by the fallback
+    /// chain, else the table's own label column. Not stored; set when the record is returned.
+    /// </summary>
+    public string? DisplayLabel { get; set; }
+
+    /// <summary>The language of <see cref="DisplayLabel"/>; a table's own label column counts as English.</summary>
+    public string? DisplayLabelLanguage { get; set; }
+
     internal void ApplyCommon(StaticRecordInput input)
     {
         EffectiveFrom = input.EffectiveFrom ?? EffectiveFrom;
@@ -123,6 +132,7 @@ public abstract record StaticRecordInput
         errors.MaxLength("recordSource", RecordSource, 60);
         errors.MaxLength("recordSourceVersion", RecordSourceVersion, 30);
         errors.OneOf("recordClass", RecordClass, RecordClasses);
+        ValidateLabels(errors);
         if (EffectiveFrom is { } from && EffectiveTo is { } to && to <= from)
         {
             errors.Add("effectiveTo", "effectiveTo must be after effectiveFrom.");
@@ -133,6 +143,33 @@ public abstract record StaticRecordInput
     }
 
     protected abstract void ValidateFields(StaticFieldErrors errors);
+
+    /// <summary>labels holds display text only: an object from two-letter language code to text of at most 500 characters (addendum §3).</summary>
+    private void ValidateLabels(StaticFieldErrors errors)
+    {
+        if (Labels is not { } labels || labels.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        {
+            return;
+        }
+
+        if (labels.ValueKind != JsonValueKind.Object)
+        {
+            errors.Add("labels", "labels must be an object from language code to display text, for example {\"en\": \"Monthly\"}.");
+            return;
+        }
+
+        foreach (var label in labels.EnumerateObject())
+        {
+            if (label.Name.Length != 2 || !label.Name.All(char.IsAsciiLetterLower))
+            {
+                errors.Add("labels", $"{label.Name} is not a two-letter lower-case language code.");
+            }
+            else if (label.Value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(label.Value.GetString()) || label.Value.GetString()!.Length > 500)
+            {
+                errors.Add("labels", $"The {label.Name} label must be text of 1 to 500 characters.");
+            }
+        }
+    }
 }
 
 /// <summary>Field errors keyed by the JSON field name.</summary>
@@ -210,5 +247,7 @@ public static class StaticModel
         entity.Property(r => r.Labels).HasColumnType("jsonb");
         entity.Property(r => r.ExternalMappings).HasColumnType("jsonb");
         entity.Property(r => r.DisplayFlags).HasColumnType("jsonb");
+        entity.Ignore(r => r.DisplayLabel);
+        entity.Ignore(r => r.DisplayLabelLanguage);
     }
 }

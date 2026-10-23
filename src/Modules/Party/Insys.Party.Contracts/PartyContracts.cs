@@ -91,3 +91,12 @@ public interface IPersonFacts
 {
     Task<DateOnly?> BirthDate(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Public query interface: an individual's preferred language, for choosing a document or notification language
+/// (docs/specs/addenda/localisation.md §5); null for an organisation, an unknown party or none recorded.
+/// </summary>
+public interface IPartyLanguage
+{
+    Task<string?> PreferredLanguage(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
+}

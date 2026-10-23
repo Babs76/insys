@@ -23,6 +23,8 @@ public static class IntegrationInfrastructure
         services.AddScoped<IDeadLetterRepository, DeadLetterRepository>();
         services.AddScoped<IDeadLetterQueries, DeadLetterQueries>();
         services.AddScoped<IDeadLetterSink, DeadLetterSink>();
+        services.AddMemoryCache();
+        services.AddSingleton<Insys.BuildingBlocks.Application.Localisation.IMessageCatalogue, MessageCatalogue>();
         services.AddSingleton<Partners.StubPartnerAdapters>();
         services.AddSingleton<IReinsurerAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
         services.AddSingleton<IRegulatorAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());

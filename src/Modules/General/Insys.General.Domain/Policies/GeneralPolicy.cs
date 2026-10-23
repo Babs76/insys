@@ -33,12 +33,12 @@ public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, str
 
 public sealed record GeneralPolicyEndorsed(Guid PolicyId, string PolicyNumber, Guid EndorsementId, string EndorsementNumber, DateOnly EffectiveDate,
     decimal NewAnnualPremium, decimal PremiumDelta, string Currency, string ProductCode, int ProductVersion, IReadOnlyList<string> DocumentTypes, decimal NewSumInsured,
-    DateTimeOffset OccurredAt) : IDomainEvent;
+    DateTimeOffset OccurredAt, Guid? PolicyholderPartyId = null) : IDomainEvent;
 
 public sealed record GeneralPolicyRenewed(Guid PolicyId, string PolicyNumber, Guid RenewalPolicyId, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record GeneralRenewalInvited(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, DateOnly PeriodEnd, string TemplateCode,
-    DateTimeOffset OccurredAt) : IDomainEvent;
+    DateTimeOffset OccurredAt, Guid? PolicyholderPartyId = null) : IDomainEvent;
 
 public sealed record GeneralPolicyCancelled(Guid PolicyId, string PolicyNumber, string ReasonCode, DateOnly EffectiveDate, decimal RefundAmount, string Currency,
     string ProductCode, int ProductVersion, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -352,7 +352,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         }
 
         RenewalInvitedOn = today;
-        Raise(new GeneralRenewalInvited(Id, PolicyNumber, ProductCode, ProductVersion, PeriodEnd, templateCode, now));
+        Raise(new GeneralRenewalInvited(Id, PolicyNumber, ProductCode, ProductVersion, PeriodEnd, templateCode, now, PolicyholderPartyId));
         return Result.Success();
     }
 
@@ -483,7 +483,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
         SetPremium(endorsement.NewAnnualPremium!.Value);
         Raise(new GeneralPolicyEndorsed(Id, PolicyNumber, endorsement.Id, endorsement.EndorsementNumber, endorsement.EffectiveDate, AnnualPremium,
-            endorsement.PremiumDelta, Currency, ProductCode, ProductVersion, documentTypes, SumInsuredOn(endorsement.EffectiveDate), now));
+            endorsement.PremiumDelta, Currency, ProductCode, ProductVersion, documentTypes, SumInsuredOn(endorsement.EffectiveDate), now, PolicyholderPartyId));
         MarkChanged();
         return Result.Success();
     }

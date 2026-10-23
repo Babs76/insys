@@ -79,7 +79,11 @@ dotnet run --project tools/Insys.StaticData.Generator    # regenerate static dat
 | `Insys.EndToEndTests` | The six processes of `domain-model.json` with their compensations, and the Phase 6 enterprise flows |
 | Performance smoke tests | Rating, payment allocation and adjudication against the benefit accumulators, measured against NFR-002 and NFR-003. These are not load tests (NFR-015). |
 
-CI (`.github/workflows/ci.yml`) builds with warnings as errors, runs every suite, and fails if an OpenAPI document is not committed and current.
+CI (`.github/workflows/ci.yml`) builds with warnings as errors, then runs three jobs in parallel, each within 30 minutes:
+
+- unit and architecture tests, which also fail if an OpenAPI document is not committed and current;
+- integration tests;
+- the endpoint security sweeps and the end-to-end processes.
 
 ## Documentation
 

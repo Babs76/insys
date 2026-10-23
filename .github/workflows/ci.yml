@@ -9,10 +9,12 @@ on:
 permissions:
   contents: read
 
+# Three test jobs run in parallel, each well inside 30 minutes (checkpoint A): unit and architecture tests; integration
+# tests; and the endpoint security sweeps with the end-to-end processes. Each builds with warnings as errors.
 jobs:
-  build-and-test:
+  unit-and-architecture:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
@@ -31,14 +33,61 @@ jobs:
       - name: Restore
         run: dotnet restore Insys.slnx
 
-      # TreatWarningsAsErrors is set in Directory.Build.props. The host build also writes the OpenAPI document,
-      # which the contract tests compare with docs/api/openapi-v1.json.
+      # TreatWarningsAsErrors is set in Directory.Build.props. The host build also writes the OpenAPI documents.
       - name: Build
         run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
 
-      # Integration tests start postgres:18 with Testcontainers (Docker is available on ubuntu-latest).
-      - name: Test
-        run: dotnet test --solution Insys.slnx --no-build --configuration Release
+      # Every test project except the two that need PostgreSQL.
+      - name: Unit and architecture tests
+        run: |
+          for project in tests/Insys.*Tests/*.csproj; do
+            case "$project" in
+              */Insys.IntegrationTests/*|*/Insys.EndToEndTests/*) continue ;;
+            esac
+            dotnet test --project "$project" --no-build --configuration Release
+          done
 
       - name: OpenAPI documents are committed and current
         run: git diff --exit-code docs/api/
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Insys.slnx
+
+      - name: Build
+        run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
+
+      # Testcontainers starts postgres:18 (Docker is available on ubuntu-latest). The endpoint sweeps run in their own job.
+      - name: Integration tests
+        run: dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release -- --filter-not-class "*EndpointSecuritySweepTests"
+
+  sweeps-and-end-to-end:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Insys.slnx
+
+      - name: Build
+        run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
+
+      - name: Endpoint security sweeps (§27.4)
+        run: dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release -- --filter-class "*EndpointSecuritySweepTests"
+
+      - name: End-to-end processes
+        run: dotnet test --project tests/Insys.EndToEndTests --no-build --configuration Release

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
+using Insys.BuildingBlocks.Application.Localisation;
 using Insys.BuildingBlocks.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
 
 namespace Insys.BuildingBlocks.Api;
 
@@ -208,6 +210,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
         var subject = user.FindFirstValue(InsysClaims.Subject) ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
         var actor = subject ?? "anonymous";
         IEnumerable<string> permissions = [];
+        Guid? memberOf = null;
         if (tenantId is not null && subject is not null && context.RequestServices.GetService<IPrincipalResolver>() is { } resolver)
         {
             var principal = await resolver.Resolve(tenantId.Value, subject, context.RequestAborted);
@@ -215,12 +218,57 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
             {
                 actor = principal.UserId.ToString();
                 permissions = principal.Permissions;
+                memberOf = tenantId;
             }
         }
+
+        // The request language comes from the tenant's languages only for one of its own users (addendum §2), so a
+        // token for another tenant learns nothing about that tenant.
+        await RequestLanguageResolver.Initialise(context, memberOf);
 
         Guid? correlation = Guid.TryParse(context.Request.Headers[CorrelationHeader], out var c) ? c : null;
         scope.InitialiseForUser(tenantId, actor, permissions, correlation);
         context.Response.Headers[CorrelationHeader] = scope.CorrelationId.ToString();
         await next(context);
+    }
+}
+
+/// <summary>
+/// Resolves the request language (docs/specs/addenda/localisation.md §2, OQ-068) and loads the message catalogue texts of
+/// its fallback chain; every /api response carries Content-Language, which a localised ProblemDetails may override.
+/// </summary>
+public static class RequestLanguageResolver
+{
+    public static async Task Initialise(HttpContext context, Guid? tenantId)
+    {
+        if (context.RequestServices.GetService<RequestLanguage>() is not { } request)
+        {
+            return;
+        }
+
+        var tenant = tenantId is { } id && context.RequestServices.GetService<ILanguageSettings>() is { } settings
+            ? await settings.For(id, context.RequestAborted)
+            : TenantLanguages.EnglishOnly;
+        var language = LanguageChain.Resolve(LanguageChain.Parse(context.Request.Headers.AcceptLanguage), tenant);
+        var chain = LanguageChain.Chain(language, tenant);
+        var messages = new List<(string, MessageTexts)>();
+        if (context.RequestServices.GetService<IMessageCatalogue>() is { } catalogue)
+        {
+            foreach (var each in chain)
+            {
+                messages.Add((each, await catalogue.Texts(tenantId, each, context.RequestAborted)));
+            }
+        }
+
+        request.Initialise(language, chain, messages);
+        context.Response.OnStarting(() =>
+        {
+            if (context.Request.Path.StartsWithSegments("/api") && !context.Response.Headers.ContainsKey(HeaderNames.ContentLanguage))
+            {
+                context.Response.Headers.ContentLanguage = request.Language;
+            }
+
+            return Task.CompletedTask;
+        });
     }
 }

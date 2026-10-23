@@ -39,6 +39,23 @@ Within the same category, the baseline note was also wrong for these rows:
 | F055 | There is no GL export and no GL adapter. |
 | F062 | Limits are not enforced. |
 
+## Approved build plan for Workstream E (checkpoint A, 23 October 2026)
+
+Order: Workstreams B, C and D, then Wave 0, then Waves 1 to 6. After each wave, the three OpenAPI documents are regenerated and committed, and the wave report lists the contract changes.
+
+| Wave | Scope | Functions |
+|---|---|---|
+| 0 | SRS conformance and control fixes | F103 (SRS-003 branch and organisation scopes on reads and actions), F005 (channel transaction permissions), F009 (fraud indicators at registration in every domain), F062 (aggregation and risk limits at issue and endorsement, with alerts), F055 (GL export, §15.1, behind a GL adapter), F023 (renewal billing test); front-end enablement: `GET /api/v1/identity/me`, development CORS, a per-record history query |
+| 1 | Communications | F021, F031, F078, F095–F102 |
+| 2 | Cases | F010–F013, F032, F033, F050, F061, F066, F068–F073 |
+| 3 | Customer due diligence | F001–F003, F077 |
+| 4 | Renewal and premium | F006, F007, F015–F019, F022, F025–F027 |
+| 5a | Providers and care management | F028–F030, F034–F038, F048–F050 |
+| 5b | Benefit programmes | F039–F047, F083–F093 |
+| 6 | Finance and compliance | F052, F054, F057–F060, F063, F064, F076, F079, F094 |
+
+F050 (provider payment disputes) sits in both Wave 2 and Wave 5a: Wave 2 builds the shared case capability, and Wave 5a uses it for providers.
+
 | # | Area | Capability | Function | Baseline | Spec basis | Note | Verified status | Evidence (code, tests) |
 |---|---|---|---|---|---|---|---|---|
 | F001 | Customer Management | Identification | Verify Customer Identity | Partly | SRS §6.1 identity documents and verification references | Identifiers stored encrypted with a verification reference; no identity-verification provider integration **Verified:** Identifiers stored encrypted and unique; a verification reference is recorded by hand (`POST /party/parties/{id}/identifiers/{identifierId}/verify`, `VerifyIdentifier`), but no test covers that command and there is no verification provider. | Partial | `SharedServicesTests.Identifier_IsEncrypted_UniqueInTheTenant_AndNeverReturned_PTY005`, `PartyTests.Identifier_OfTheSameTypeAndCountry_IsAddedOnce` |
