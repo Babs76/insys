@@ -40,6 +40,7 @@ Each item below needs a decision. The code follows the proposal shown until one 
 | OQ-066 | Integration: secret store and transport, resending a failed webhook, exposure currency | ADR-015; a failed webhook is discarded only | Architecture |
 | OQ-067 | The first administrator of a new tenant | Not built; proposal: a platform command with maker-checker | Security, Operations |
 | OQ-068 | Languages: which tenant language is the default, the form of `labels`, where API messages are translated, how documents choose a language | The first of `cfg_locale_defaults.languages` is the default; `labels` maps language code to text; translations live in the UI label bundles keyed by `message_key`; documents use the party's language, then the tenant default, then English (addendum) | Business, Compliance |
+| OQ-069 | How many database connections the API may open per instance, and whether to put a pooler in front of RDS | Explicit pool sizes per module role (about 230 connections per instance); PgBouncer in transaction mode only if load testing needs more instances | Architecture, Operations |
 
 Also pending business sign-off, though built as accepted: ADR-012 (Health adjudication), ADR-014 (commission) and ADR-015 (reinsurance, reporting, analytics and integration).
 
@@ -115,6 +116,7 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-066 | 6 | Integration, General renewal and exposure snapshot: smaller gaps | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
 | OQ-067 | 7 | The first administrator of a new tenant | Open |
 | OQ-068 | 8 | Languages: tenant default, labels, message catalogue, document language | Resolved (proposal): `docs/specs/addenda/localisation.md`, pending business sign-off |
+| OQ-069 | 8 | Database connection capacity: 23 pools per API instance against the RDS limit | Open: sizing for load testing before go-live |
 
 ---
 
@@ -646,3 +648,44 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - Responses carry `Content-Language`.
   - Documents are in the party's language, then the tenant default, then English.
   - `PUT /api/v1/party/parties/{id}/preferred-language` sets an individual's preferred language.
+
+### OQ-069 Database connection capacity (Phase 8, 23 October 2026)
+- **Sources:** ADR-001 (one database role per module), ADR-006 (one API instance until permission evictions are shared), ADR-016 (RDS for PostgreSQL in af-south-1) and ADR-020 (load testing before go-live).
+- **What the code does:**
+  - Each API instance opens one Npgsql pool per module role, plus one for `insys_api`. That is **23 pools** (`db/roles/module_roles.csv`), and each is built from `ConnectionStrings:<module>` or the shared template.
+  - Npgsql's default `Maximum Pool Size` is 100, so one instance can open up to **2,300 connections**. Normal traffic opens far fewer: a request uses one or two modules' pools, and connections idle out after 300 s.
+  - The tests use 10 per pool.
+- **RDS limit:** Huawei's RDS for PostgreSQL FAQ gives the default `max_connections` as min((memory − shared_buffers) / 16 MB, 5,000).
+
+  | Memory | Default `max_connections` |
+  |---|---|
+  | 8 GB | 384 |
+  | 16 GB | 768 |
+  | 32 GB | 1,536 |
+  | 64 GB | 3,072 |
+
+  A few of these are reserved for the superuser and RDS's own agents. RDS for PostgreSQL has **no managed database proxy**; Huawei documents client-driver read/write splitting instead.
+- **Worst case against the limit:**
+
+  | API instances | Default pools (100 each) | Proposed pools (below) |
+  |---|---|---|
+  | 1 (today, ADR-006) | 2,300 | about 230 |
+  | 2 | 4,600 | about 460 |
+  | 4 | 9,200 | about 920 |
+
+  The migration runner and the background jobs share these pools; the jobs run in the same process.
+- **Proposal, to be confirmed by load testing (ADR-020):**
+  1. Set `Maximum Pool Size` explicitly in each module's connection string:
+     - 20 for the hot paths: `insys_api`, `insys_iam`, `insys_payment`, `insys_billing`, `insys_rating`, `insys_health`, `insys_general` and `insys_integration`;
+     - 5 for the rest.
+
+     That is about 230 per instance. Keep `Connection Idle Lifetime` at 300 s or less.
+  2. **Size RDS for 2× the planned peak.** A 32 GB instance (1,536) holds four instances with the proposed pools and leaves headroom for replicas, maintenance and the migration runner.
+  3. **Add PgBouncer** (transaction pooling, on CCE) only if load testing needs more instances or smaller RDS.
+     - It works with this design: the tenant is set with `set_config(..., true)`, which lasts only for the transaction.
+     - Npgsql needs `No Reset On Close=true`, and prepared statements must stay off or use PgBouncer 1.21's prepared-statement support.
+  4. **Alert** when connections pass 80% of `max_connections`, using RDS metrics in Cloud Eye.
+- **Decision needed:** the planned instance count, and the RDS instance class.
+- **Sources:**
+  - [Maximum number of connections, RDS for PostgreSQL FAQ](https://support.huaweicloud.com/intl/en-us/rds-pg_faq/rds_faq_0055.html)
+  - [Read/write splitting for RDS for PostgreSQL](https://support.huaweicloud.com/intl/en-us/rds-pg_faq/rds_faq_0017.html)

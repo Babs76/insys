@@ -45,7 +45,7 @@ Order: Workstreams B, C and D, then Wave 0, then Waves 1 to 6. After each wave, 
 
 | Wave | Scope | Functions |
 |---|---|---|
-| 0 | SRS conformance and control fixes | F103 (SRS-003 branch and organisation scopes on reads and actions), F005 (channel transaction permissions), F009 (fraud indicators at registration in every domain), F062 (aggregation and risk limits at issue and endorsement, with alerts), F055 (GL export, §15.1, behind a GL adapter), F023 (renewal billing test); front-end enablement: `GET /api/v1/identity/me`, development CORS, a per-record history query |
+| 0 | SRS conformance and control fixes | F103 (SRS-003 branch and organisation scopes on reads and actions), F005 (channel transaction permissions), F009 (fraud indicators at registration in every domain), F062 (aggregation and risk limits at issue and endorsement, with alerts), F055 (GL export, §15.1, behind a GL adapter), F023 (renewal billing test); front-end enablement (below) |
 | 1 | Communications | F021, F031, F078, F095–F102 |
 | 2 | Cases | F010–F013, F032, F033, F050, F061, F066, F068–F073 |
 | 3 | Customer due diligence | F001–F003, F077 |
@@ -53,6 +53,21 @@ Order: Workstreams B, C and D, then Wave 0, then Waves 1 to 6. After each wave, 
 | 5a | Providers and care management | F028–F030, F034–F038, F048–F050 |
 | 5b | Benefit programmes | F039–F047, F083–F093 |
 | 6 | Finance and compliance | F052, F054, F057–F060, F063, F064, F076, F079, F094 |
+
+### Wave 0 front-end enablement (the front-end session's `docs/backend-requests.md`, 23 October 2026)
+
+| Request | Change | Where |
+|---|---|---|
+| GAP-003 | `GET /api/v1/identity/me`: the user's profile, tenant, preferred language and effective permissions with their scopes | Wave 0 |
+| GAP-001 | Keycloak in `docker-compose.yml` with a public client `insys-web`: Authorization Code with PKCE, redirect URIs for `http://localhost:5173`, no secret, and the `tenant_id` mapper (ADR-017) | Workstream D |
+| GAP-004 | The OFT-ZA seed. A minimal seed (the tenant, its users per role, static data) comes first if the full one is further away | Workstream F, minimal seed early |
+| GAP-006 | `Retry-After` on every 429 | Wave 0 |
+| GAP-007 | The correlation ID in every error response, 500 included, both as the `X-Correlation-Id` header and in the ProblemDetails body | Wave 0 |
+| GAP-005 | The ProblemDetails extensions (`code`, `errors`, `correlationId`, `detailLanguage` and others) declared in the OpenAPI schemas | Wave 0 |
+| GAP-008 | Record state fields declared as enums in OpenAPI, matching `domain-model.json` | Wave 0 |
+| GAP-002 | Development CORS for `http://localhost:5173`, configurable; production stays same-origin | Wave 0 |
+| (none) | The HS256 development token accepted only in Development, with a test that any other environment rejects it. **Checked 23 October 2026: not enforced today.** `Authentication:DevelopmentSigningKey` is honoured in any environment where it is configured; only `appsettings.Development.json` sets it. The integration tests run as environment `Testing` and use it. *Proposal:* accept it only in Development and Testing, refuse to start with it in any other environment, and add the test. | Wave 0 |
+| (none) | A consistent per-record history query for the record action bar | Wave 0 |
 
 F050 (provider payment disputes) sits in both Wave 2 and Wave 5a: Wave 2 builds the shared case capability, and Wave 5a uses it for providers.
 
