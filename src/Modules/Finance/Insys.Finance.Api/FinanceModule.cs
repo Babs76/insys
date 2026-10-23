@@ -56,6 +56,7 @@ public sealed class FinanceModule : IModule
     {
         FinanceStaticDataEndpoints.MapStaticData(api);
         var finance = api.MapGroup("/finance").WithTags(Name);
+        MapGlExports(finance.MapGroup("/gl-exports"));
 
         finance.MapGet("/journals/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetJournal(id), ct)).ToHttp(Results.Ok))
@@ -125,4 +126,84 @@ public sealed class FinanceModule : IModule
             .RequirePermission(FinancePermissions.JournalReverse)
             .RequireIdempotencyKey();
     }
+
+    /// <summary>The general ledger export (F055; SRS §15.1).</summary>
+    private static void MapGlExports(RouteGroupBuilder exports)
+    {
+        exports.MapPost("/", async (GlExportRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Send(new ExportToGeneralLedger(r.LayoutCode, r.PeriodCode, r.FromDate, r.ToDate), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Created($"/api/v1/finance/gl-exports/{view.Id}", view);
+                }))
+            .Produces<GlExportView>(StatusCodes.Status201Created)
+            .WithName("FinanceExportToGeneralLedger")
+            .WithSummary("Export a date range's posted entries to the general ledger")
+            .WithDescription("The posted subledger entries with an accounting date in the range (within one period), summarised by accounting date, account and "
+                + "currency, are sent in the layout (CSV) through the GL adapter; the batch is Sent until the GL acknowledges or rejects it. A range that "
+                + "overlaps a batch of the layout that was not rejected is refused, so no entry is exported twice.")
+            .RequirePermission(FinancePermissions.GlExportCreate)
+            .RequireIdempotencyKey();
+
+        exports.MapGet("/", async (string? periodCode, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var afterId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var size = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListGlExports(periodCode, afterId, size), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<GlExportView>(items, items.Count == size ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<GlExportView>>(StatusCodes.Status200OK)
+            .WithName("FinanceListGlExports")
+            .WithSummary("List GL export batches, optionally for one period")
+            .RequirePermission(FinancePermissions.GlExportRead);
+
+        exports.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetGlExport(id), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                }))
+            .Produces<GlExportView>(StatusCodes.Status200OK)
+            .WithName("FinanceGetGlExport")
+            .WithSummary("Get a GL export batch")
+            .RequirePermission(FinancePermissions.GlExportRead);
+
+        exports.MapGet("/{id:guid}/content", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetGlExportContent(id), ct)).ToHttp(csv => Results.Text(csv, "text/csv")))
+            .Produces<string>(StatusCodes.Status200OK, "text/csv")
+            .WithName("FinanceGetGlExportContent")
+            .WithSummary("The batch as sent: CSV, rebuilt from the posted entries, which never change (FIN-002)")
+            .RequirePermission(FinancePermissions.GlExportRead);
+
+        exports.MapPost("/{id:guid}/acknowledgement", (Guid id, GlAcknowledgementRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new RecordGlAcknowledgement(id, r.Accepted, r.Reason, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("FinanceAcknowledgeGlExport")
+            .WithSummary("Record the GL's answer: acknowledged, or rejected with a reason (the range may then be exported again)")
+            .RequirePermission(FinancePermissions.GlExportUpdate);
+    }
+
+    private static async Task<IResult> Versioned(HttpContext http, Func<long, Task<BuildingBlocks.Domain.Result<long>>> send)
+    {
+        var expected = Concurrency.ExpectedVersion(http.Request);
+        if (expected.IsFailure)
+        {
+            return Problems.For(expected.Error);
+        }
+
+        return (await send(expected.Value)).ToHttp(version =>
+        {
+            Concurrency.SetETag(http, version);
+            return Results.NoContent();
+        });
+    }
 }
+
+public sealed record GlExportRequest(string LayoutCode, string PeriodCode, DateOnly FromDate, DateOnly ToDate);
+
+public sealed record GlAcknowledgementRequest(bool Accepted, string? Reason);

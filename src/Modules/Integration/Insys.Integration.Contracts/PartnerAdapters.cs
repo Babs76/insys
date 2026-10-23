@@ -48,3 +48,13 @@ public interface IRegulatorAdapter
 {
     Task<PartnerCallResult> SubmitReturn(Guid tenantId, string regulator, string returnCode, string periodCode, JsonElement values, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Adapter to the insurer's general ledger (SRS §15.1, §2.2: the GL itself stays outside). An export batch of summarised
+/// journal lines is sent through it; the stub accepts each and records the call (INT-006).
+/// </summary>
+public interface IGeneralLedgerAdapter
+{
+    Task<PartnerCallResult> SendGlExport(Guid tenantId, string layoutCode, string targetSystem, string periodCode, string content, CancellationToken cancellationToken);
+}
+

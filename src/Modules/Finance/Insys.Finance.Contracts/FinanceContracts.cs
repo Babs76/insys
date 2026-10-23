@@ -35,6 +35,9 @@ public static class FinancePermissions
     public const string PeriodRead = "accounting_period.read";
     public const string PeriodUpdate = "accounting_period.update";
     public const string PostingExceptionRead = "posting_exception.read";
+    public const string GlExportRead = "gl_export.read";
+    public const string GlExportCreate = "gl_export.create";
+    public const string GlExportUpdate = "gl_export.update";
 }
 
 public static class FinanceApprovals

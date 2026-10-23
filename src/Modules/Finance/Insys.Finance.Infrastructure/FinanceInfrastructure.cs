@@ -50,6 +50,7 @@ public static class FinanceInfrastructure
         services.AddScoped<IJournalRepository, JournalRepository>();
         services.AddScoped<IAccountingPeriods, AccountingPeriods>();
         services.AddScoped<IPostingExceptions, PostingExceptions>();
+        services.AddScoped<IGlExports, GlExports>();
         services.AddScoped<IPostingConfiguration, PostingConfiguration>();
         services.AddScoped<PostingService>();
         services.AddScoped<EventPoster>();

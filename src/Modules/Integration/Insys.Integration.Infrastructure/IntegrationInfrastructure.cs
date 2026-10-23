@@ -56,6 +56,7 @@ public static class IntegrationInfrastructure
         services.AddSingleton<Partners.StubPartnerAdapters>();
         services.AddSingleton<IReinsurerAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
         services.AddSingleton<IRegulatorAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
+        services.AddSingleton<IGeneralLedgerAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
 
         // Partner webhooks (INT-006): deliveries for every subscribed event, sent and retried by the webhook job.
         services.AddOptions<WebhookOptions>().BindConfiguration("Integration:Webhooks");

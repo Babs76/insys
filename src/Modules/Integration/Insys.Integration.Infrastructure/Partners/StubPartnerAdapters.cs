@@ -40,8 +40,12 @@ namespace Insys.Integration.Infrastructure.Partners;
 /// integration.external_call_log, on Integration's own connection. Only codes and references are logged, never content.
 /// </summary>
 internal sealed class StubPartnerAdapters([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IClock clock)
-    : IReinsurerAdapter, IRegulatorAdapter
+    : IReinsurerAdapter, IRegulatorAdapter, IGeneralLedgerAdapter
 {
+    public Task<PartnerCallResult> SendGlExport(Guid tenantId, string layoutCode, string targetSystem, string periodCode, string content,
+        CancellationToken cancellationToken) =>
+        Call(tenantId, layoutCode, "finance.SendGlExport", cancellationToken);
+
     public Task<PartnerCallResult> SendBordereau(Guid tenantId, string partnerCode, string treatyCode, string periodCode, string content,
         CancellationToken cancellationToken) =>
         Call(tenantId, partnerCode, "reinsurance.SendBordereau", cancellationToken);

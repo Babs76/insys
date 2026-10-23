@@ -15981,6 +15981,324 @@
         "x-permission": "provider_payment_run.update"
       }
     },
+    "/api/v1/finance/gl-exports": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Export a date range\u0027s posted entries to the general ledger",
+        "description": "The posted subledger entries with an accounting date in the range (within one period), summarised by accounting date, account and currency, are sent in the layout (CSV) through the GL adapter; the batch is Sent until the GL acknowledges or rejects it. A range that overlaps a batch of the layout that was not rejected is refused, so no entry is exported twice.",
+        "operationId": "FinanceExportToGeneralLedger",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinanceGlExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceGlExportView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "gl_export.create"
+      },
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "List GL export batches, optionally for one period",
+        "operationId": "FinanceListGlExports",
+        "parameters": [
+          {
+            "name": "periodCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfFinanceGlExportView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "gl_export.read"
+      }
+    },
+    "/api/v1/finance/gl-exports/{id}": {
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Get a GL export batch",
+        "operationId": "FinanceGetGlExport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceGlExportView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "gl_export.read"
+      }
+    },
+    "/api/v1/finance/gl-exports/{id}/content": {
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "The batch as sent: CSV, rebuilt from the posted entries, which never change (FIN-002)",
+        "operationId": "FinanceGetGlExportContent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "gl_export.read"
+      }
+    },
+    "/api/v1/finance/gl-exports/{id}/acknowledgement": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Record the GL\u0027s answer: acknowledged, or rejected with a reason (the range may then be exported again)",
+        "operationId": "FinanceAcknowledgeGlExport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinanceGlAcknowledgementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "gl_export.update"
+      }
+    },
     "/api/v1/finance/journals/{id}": {
       "get": {
         "tags": [
@@ -19889,6 +20207,7 @@
                 "GeneralPolicy",
                 "GeneralProposal",
                 "GeneralQuote",
+                "GlExportBatch",
                 "GroupScheme",
                 "HealthFraudCase",
                 "HealthMembership",
@@ -20288,6 +20607,7 @@
                 "GeneralPolicy",
                 "GeneralProposal",
                 "GeneralQuote",
+                "GlExportBatch",
                 "GroupScheme",
                 "HealthFraudCase",
                 "HealthMembership",
@@ -22143,6 +22463,27 @@
           }
         }
       },
+      "CursorPageOfFinanceGlExportView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinanceGlExportView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfGeneralClaimSummary": {
         "required": [
           "items",
@@ -23133,6 +23474,122 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "FinanceGlAcknowledgementRequest": {
+        "required": [
+          "accepted",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "FinanceGlExportRequest": {
+        "required": [
+          "layoutCode",
+          "periodCode",
+          "fromDate",
+          "toDate"
+        ],
+        "type": "object",
+        "properties": {
+          "layoutCode": {
+            "type": "string"
+          },
+          "periodCode": {
+            "type": "string"
+          },
+          "fromDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "toDate": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "FinanceGlExportStatus": {
+        "enum": [
+          "Sent",
+          "Acknowledged",
+          "Rejected"
+        ]
+      },
+      "FinanceGlExportView": {
+        "required": [
+          "id",
+          "layoutCode",
+          "periodCode",
+          "fromDate",
+          "toDate",
+          "lineCount",
+          "status",
+          "targetRef",
+          "rejectionReason",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "layoutCode": {
+            "type": "string"
+          },
+          "periodCode": {
+            "type": "string"
+          },
+          "fromDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "toDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "lineCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FinanceGlExportStatus"
+          },
+          "targetRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rejectionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },

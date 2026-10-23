@@ -71,7 +71,8 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         RatingPermissions.CalculationCreate, RatingPermissions.CalculationRead, BillingPermissions.AccountRead, BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate,
         PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackCreate,
         ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate, ClaimsPermissions.InstructionRead,
-        FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate, WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove,
+        FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate, FinancePermissions.GlExportRead, FinancePermissions.GlExportCreate,
+        FinancePermissions.GlExportUpdate, WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove,
         IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate, IntegrationPermissions.WebhookRead, IntegrationPermissions.WebhookUpdate, DocumentPermissions.DocumentRead,
         Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.BankAccountCreate, Insys.Party.Contracts.PartyPermissions.BankAccountRead,
         Insys.Party.Contracts.PartyPermissions.BankAccountVerify, DistributionPermissions.IntermediaryRead, DistributionPermissions.CommissionRead,
@@ -428,6 +429,44 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         invoiced.StatusCode.ShouldBe(HttpStatusCode.OK, await invoiced.Content.ReadAsStringAsync());
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @r AND document_type = 'INVOICE'", ("r", renewal)))
             .ShouldBe(1L);
+    }
+
+    /// <summary>
+    /// F055 (§15.1): the posted entries of a range go to the general ledger summarised by date, account and currency, through
+    /// the GL adapter; the batch is balanced, cannot be exported twice, and the GL's answer is recorded.
+    /// </summary>
+    [Fact]
+    public async Task PostedEntries_AreExportedToTheGeneralLedger_Summarised_Balanced_AndOnlyOnce_F055()
+    {
+        await IssuedPolicy(await Vehicle());
+        await _factory.DrainOutbox();
+        await Seed("finance.cfg_gl_export_layouts", "EFFECTIVE", "GL-EXP-01", ("layout_code", "GL-EXP-01"), ("target_system", "Insurer ERP"), ("format", "CSV"),
+            ("schedule", "DAILY"));
+
+        var exported = await _maker.Send(HttpMethod.Post, "/api/v1/finance/gl-exports",
+            new { layoutCode = "GL-EXP-01", periodCode = Month, fromDate = Today, toDate = Today }, idempotent: true);
+        exported.StatusCode.ShouldBe(HttpStatusCode.Created, await exported.Content.ReadAsStringAsync());
+        var batch = await exported.Json();
+        batch.GetProperty("status").GetString().ShouldBe("Sent");
+        var id = batch.GetProperty("id").GetGuid();
+        var lines = batch.GetProperty("lineCount").GetInt32();
+        lines.ShouldBeGreaterThan(0);
+
+        // The content: a header and one line per date, account and currency; debits equal credits.
+        var csv = (await (await _maker.GetAsync($"/api/v1/finance/gl-exports/{id}/content")).Content.ReadAsStringAsync()).TrimEnd('\n').Split('\n');
+        csv[0].ShouldBe("accounting_date,account_code,currency,debit,credit,entries");
+        csv.Length.ShouldBe(lines + 1);
+        var rows = csv.Skip(1).Select(l => l.Split(',')).ToList();
+        rows.Sum(r => decimal.Parse(r[3], System.Globalization.CultureInfo.InvariantCulture))
+            .ShouldBe(rows.Sum(r => decimal.Parse(r[4], System.Globalization.CultureInfo.InvariantCulture)));
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.external_call_log WHERE operation = 'finance.SendGlExport'")).ShouldBe(1L);
+
+        // Never twice; the GL's acknowledgement is recorded.
+        (await (await _maker.Send(HttpMethod.Post, "/api/v1/finance/gl-exports",
+            new { layoutCode = "GL-EXP-01", periodCode = Month, fromDate = Today, toDate = Today }, idempotent: true)).Code()).ShouldBe("GL_EXPORT_OVERLAPS");
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/finance/gl-exports/{id}/acknowledgement", new { accepted = true }, ifMatch: "\"1\""))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await Get($"/api/v1/finance/gl-exports/{id}")).GetProperty("status").GetString().ShouldBe("Acknowledged");
     }
 
     [Fact]

@@ -94,6 +94,20 @@ public sealed class FinanceDbContext(DbContextOptions<FinanceDbContext> options,
             period.Property(p => p.Status).HasConversion(new UpperCaseEnumConverter<PeriodStatus>()).HasMaxLength(12);
         });
 
+        modelBuilder.Entity<GlExportBatch>(batch =>
+        {
+            batch.ToTable("gl_export_batch");
+            batch.HasKey(b => new { b.TenantId, b.Id });
+            batch.HasAuditColumns();
+            batch.Ignore(b => b.DomainEvents);
+            batch.Ignore(b => b.HasChanges);
+            batch.Property(b => b.LayoutCode).HasMaxLength(15);
+            batch.Property(b => b.PeriodCode).HasColumnType("char(7)");
+            batch.Property(b => b.Status).HasConversion(new UpperCaseEnumConverter<GlExportStatus>()).HasMaxLength(12);
+            batch.Property(b => b.TargetRef).HasMaxLength(40);
+            batch.Property(b => b.RejectionReason).HasMaxLength(200);
+        });
+
         modelBuilder.Entity<PostingException>(exception =>
         {
             exception.ToTable("posting_exception");
