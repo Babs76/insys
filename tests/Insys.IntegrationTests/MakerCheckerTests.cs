@@ -123,8 +123,9 @@ public sealed class MakerCheckerTests(DatabaseFixture fixture) : IClassFixture<D
         var plain = await fixture.Database.RoleWithPermissions(Tenant, IntegrationPermissions.WebhookRead);
         var adminOne = _factory.ClientFor(Tenant, "admin-one");
 
-        var roles = (await (await adminOne.GetAsync("/api/v1/identity/roles")).Json()).EnumerateArray()
-            .ToDictionary(r => r.GetProperty("roleCode").GetString()!);
+        var roleList = await (await adminOne.GetAsync("/api/v1/identity/roles")).Json();
+        DocumentedSchema.ResponseProblems(roleList, "core", "ListRoles").ShouldBeEmpty();
+        var roles = roleList.EnumerateArray().ToDictionary(r => r.GetProperty("roleCode").GetString()!);
         Flags(roles[PrivilegedRole]).ShouldBe((true, true, true));
         Flags(roles[copied]).ShouldBe((true, false, true));
         Flags(roles[plain]).ShouldBe((false, false, false));
@@ -136,8 +137,9 @@ public sealed class MakerCheckerTests(DatabaseFixture fixture) : IClassFixture<D
         var user = await adminOne.GetAsync($"/api/v1/identity/users/{userId}");
         (await adminOne.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/assign-role", new { roleCode = PrivilegedRole }, ifMatch: user.ETag()))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        var assignments = (await (await adminOne.GetAsync($"/api/v1/identity/users/{userId}")).Json()).GetProperty("roleAssignments").EnumerateArray()
-            .ToDictionary(a => a.GetProperty("roleCode").GetString()!);
+        var flagged = await (await adminOne.GetAsync($"/api/v1/identity/users/{userId}")).Json();
+        DocumentedSchema.ResponseProblems(flagged, "core", "GetUser").ShouldBeEmpty();
+        var assignments = flagged.GetProperty("roleAssignments").EnumerateArray().ToDictionary(a => a.GetProperty("roleCode").GetString()!);
         Flags(assignments[PrivilegedRole]).ShouldBe((true, true, true));
         assignments[PrivilegedRole].GetProperty("status").GetString().ShouldBe("PendingApproval");
         Flags(assignments[plain]).ShouldBe((false, false, false));

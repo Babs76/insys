@@ -109,4 +109,20 @@ public sealed class OpenApiReviewTests
         Violations(o => HasHeader(o.Operation, "If-Match") && Responses(o.Operation)["412"] is null).ShouldBeEmpty();
         Operations().Count(o => HasHeader(o.Operation, "Idempotency-Key")).ShouldBeGreaterThan(100);
     }
+
+    /// <summary>
+    /// GAP-031: the response check finds a record documented with another module's shape. General's proposal (five
+    /// fields) passes against GeneralProposalView and fails against Life's LifeProposalView, as it was documented before.
+    /// </summary>
+    [Fact]
+    public void ResponseCheck_FindsARecordDocumentedWithAnotherModulesShape_GAP031()
+    {
+        using var proposal = System.Text.Json.JsonDocument.Parse("""
+            { "id": "0199f0a0-0000-7000-8000-000000000001", "quoteId": "0199f0a0-0000-7000-8000-000000000002", "status": "Submitted",
+              "submittedAt": "2026-10-23T10:00:00+00:00", "declarations": { "claims_last_3_years": 0 } }
+            """);
+
+        Insys.Testing.DocumentedSchema.Problems(proposal.RootElement, "core", "GeneralProposalView").ShouldBeEmpty();
+        Insys.Testing.DocumentedSchema.Problems(proposal.RootElement, "core", "LifeProposalView").ShouldNotBeEmpty();
+    }
 }

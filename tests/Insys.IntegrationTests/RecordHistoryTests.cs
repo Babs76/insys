@@ -54,7 +54,9 @@ public sealed class RecordHistoryTests(DatabaseFixture fixture) : IClassFixture<
 
         var page = await admin.GetAsync($"/api/v1/audit/records/UserAccount/{userId}");
         page.StatusCode.ShouldBe(HttpStatusCode.OK, await page.Content.ReadAsStringAsync());
-        var items = (await page.Json()).GetProperty("items").EnumerateArray().ToList();
+        var body = await page.Json();
+        DocumentedSchema.ResponseProblems(body, "core", "GetRecordHistory").ShouldBeEmpty();
+        var items = body.GetProperty("items").EnumerateArray().ToList();
         items.Count.ShouldBeGreaterThanOrEqualTo(2);
         items.Select(i => i.GetProperty("occurredAt").GetDateTimeOffset()).ShouldBeInOrder(SortDirection.Descending);
         items.ShouldAllBe(i => i.GetProperty("targetId").GetString() == userId.ToString());

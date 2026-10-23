@@ -63,6 +63,7 @@ public sealed class MeTests(DatabaseFixture fixture) : IClassFixture<DatabaseFix
         response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         response.Headers.ETag.ShouldNotBeNull();
         var me = await response.Json();
+        DocumentedSchema.ResponseProblems(me, "core", "GetMe").ShouldBeEmpty("GAP-031: the response matches its documented schema");
         me.GetProperty("userId").GetGuid().ShouldBe(userId);
         me.GetProperty("username").GetString().ShouldBe("me-clerk");
         var tenant = me.GetProperty("tenant");

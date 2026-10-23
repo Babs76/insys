@@ -242,6 +242,24 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await Journals("PAYMENT", payment)).Count.ShouldBe(2);
     }
 
+    /// <summary>
+    /// GAP-031: General's quote, proposal, policy and risk object responses match the schemas the core document gives
+    /// them. Before module-specific schema IDs, General's proposal and policy were documented with Life's shapes.
+    /// </summary>
+    [Fact]
+    public async Task GeneralResponses_MatchTheirDocumentedSchemas_GAP031()
+    {
+        var (policy, vehicle) = await IssuedPolicy();
+        var policyView = await Policy(policy);
+        var quote = await _db.ScalarAsOwner<Guid>("SELECT quote_id FROM general.policy WHERE id = @p", ("p", policy));
+        var proposal = await _db.ScalarAsOwner<Guid>("SELECT id FROM general.proposal WHERE quote_id = @q", ("q", quote));
+
+        ShouldMatchDocumented(policyView, "GeneralGetPolicy");
+        ShouldMatchDocumented(await (await _maker.GetAsync($"/api/v1/general/quotes/{quote}")).Json(), "GeneralGetQuote");
+        ShouldMatchDocumented(await (await _maker.GetAsync($"/api/v1/general/proposals/{proposal}")).Json(), "GeneralGetProposal");
+        ShouldMatchDocumented(await (await _maker.GetAsync($"/api/v1/general/risk-objects/{vehicle}")).Json(), "GeneralGetRiskObject");
+    }
+
     [Fact]
     public async Task GeneralClaimToSettlement_WithItsCompensations()
     {
@@ -264,6 +282,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var number = registered.GetProperty("claimNumber").GetString()!;
         number.ShouldStartWith("GEN-");
         registered.GetProperty("status").GetString().ShouldBe("Registered");
+        ShouldMatchDocumented(await Claim(claim), "GeneralGetClaim");
         (await _db.ScalarAsOwner<Guid>("SELECT domain_claim_id FROM claims.claim_register WHERE claim_number = @n", ("n", number))).ShouldBe(claim);
         (await (await _maker.PostAsync($"/api/v1/general/claims/{claim}/register", null)).Json()).GetProperty("claimNumber").GetString().ShouldBe(number);
 
@@ -580,6 +599,9 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
         return (await response.Json()).GetProperty("id").GetGuid();
     }
+
+    private static void ShouldMatchDocumented(JsonElement response, string operationId) =>
+        DocumentedSchema.ResponseProblems(response, "core", operationId).ShouldBeEmpty(operationId);
 
     private async Task<JsonElement> Policy(Guid id) => await (await _maker.GetAsync($"/api/v1/general/policies/{id}")).Json();
 

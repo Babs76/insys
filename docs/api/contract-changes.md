@@ -2,6 +2,21 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 0 batch 2 (branch `wave0-frontend-2`, not merged)
+
+### GAP-031: every module schema is named with its module
+
+- **Rule:** every type of a module now has a schema ID that starts with its module (`GeneralPolicyView`, `WorkflowApprovalView`, `IdentityMeView`, `StaticDataChangeStatus`), unless its name already does (`LifePolicyView`, `PartyView`). Generic types take their arguments' IDs (`CursorPageOfIdentityUserView`, `StaticDataImportOfBillingCollectionMethodsInput`). `ProblemDetails` and other types outside the modules keep their names.
+- **Effect:** every generated type name for a module type changes. JSON does not change. The full map, old to new for each document, is [`schema-renames-gap031.md`](schema-renames-gap031.md):
+  - `openapi-core.json`: 291 renamed;
+  - `openapi-platform-operator.json`: 199 renamed;
+  - `openapi-static-data.json`: 876 renamed;
+  - none dropped.
+- **Guards:**
+  - generating a document fails if two types would share an ID;
+  - an architecture test checks every type that can appear in a document;
+  - tests compare real responses (General quote, proposal, policy, risk object and claim; `/identity/me`, roles, users, tenants, tenant-administrator requests, record history) with their documented schemas: the same properties, documented types and enums.
+
 ## Wave 0: front-end enablement (23 October 2026)
 
 ### New endpoints

@@ -115,7 +115,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
             .Where(r => r.Name[0] is '4' or '5' && !r.Value.TryGetProperty("$ref", out _)).ShouldBeEmpty();
     }
 
-    /// <summary>GAP-008: same-named types of two modules get a schema each, and state fields are enums.</summary>
+    /// <summary>GAP-031: every module type is named with its module, so same-named types get a schema each; GAP-008: state fields are enums.</summary>
     [Fact]
     public async Task CoreDocument_KeepsSameNamedModuleTypesApart_AndDeclaresStateEnums_GAP008()
     {
@@ -128,8 +128,8 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
         }
 
         schemas.GetProperty("LifeProposalStatus").GetProperty("enum").EnumerateArray().Select(v => v.GetString()).ShouldContain("InUnderwriting");
-        schemas.GetProperty("ApprovalView").GetProperty("properties").GetProperty("status").GetProperty("$ref").GetString().ShouldBe("#/components/schemas/ApprovalStatus");
-        schemas.GetProperty("BankAccountView").GetProperty("properties").GetProperty("status").GetProperty("enum").EnumerateArray()
+        schemas.GetProperty("WorkflowApprovalView").GetProperty("properties").GetProperty("status").GetProperty("$ref").GetString().ShouldBe("#/components/schemas/WorkflowApprovalStatus");
+        schemas.GetProperty("PartyBankAccountView").GetProperty("properties").GetProperty("status").GetProperty("enum").EnumerateArray()
             .Select(v => v.GetString()).ShouldBe(["PENDING_VERIFICATION", "ACTIVE", "SUPERSEDED", "REJECTED"]);
     }
 

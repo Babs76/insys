@@ -90,6 +90,7 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         await _factory.DrainOutbox();
 
         var request = await (await one.GetAsync($"/api/v1/identity/tenant-administrators/{requestId}")).Json();
+        DocumentedSchema.ResponseProblems(request, "platform-operator", "GetTenantAdministratorRequest").ShouldBeEmpty();
         request.GetProperty("status").GetString().ShouldBe("Provisioned");
         var userId = request.GetProperty("userId").GetGuid();
         var checker = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND username = 'platform-two'", ("t", Operator));
@@ -104,7 +105,9 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
 
         // Tenancy completes the access step: the next one is current.
         var tenant = await one.GetAsync(tenantUrl);
-        (await tenant.Json()).GetProperty("onboardingStep").GetString().ShouldBe("FINANCIAL_FOUNDATIONS");
+        var tenantView = await tenant.Json();
+        DocumentedSchema.ResponseProblems(tenantView, "platform-operator", "GetTenant").ShouldBeEmpty();
+        tenantView.GetProperty("onboardingStep").GetString().ShouldBe("FINANCIAL_FOUNDATIONS");
 
         // The tenant's users act once it is active (TEN-008); then the administrator administers its users.
         var admin = _factory.ClientFor(tenantId, "firstadm-admin");

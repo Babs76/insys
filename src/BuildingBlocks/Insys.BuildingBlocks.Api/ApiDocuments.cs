@@ -59,39 +59,55 @@ public static class ApiDocuments
 }
 
 /// <summary>
-/// OpenAPI schema names (GAP-008). A type's own name, unless another INSYS type has the same name (Life's and General's
-/// ProposalStatus, say): then both are prefixed with their module, as LifeProposalStatus and GeneralProposalStatus.
-/// Without this the document generator keeps one schema per name, and the other module's shape silently disappears.
+/// OpenAPI schema names (GAP-031). Every module type is named with its module, unless its name already starts with it:
+/// General's PolicyView is GeneralPolicyView, Life's LifePolicyView stays as it is. A generic type is named from its
+/// arguments' names (CursorPageOfIdentityUserView). Types outside the modules (ProblemDetails, CursorPage) keep their
+/// own names. Two types never share a name: the generator would keep one schema for both and lose the other's shape,
+/// so <see cref="For"/> throws instead.
 /// </summary>
 public static class SchemaNames
 {
-    private static readonly Lazy<HashSet<string>> Ambiguous = new(() => AppDomain.CurrentDomain.GetAssemblies()
-        .Where(a => a.GetName().Name?.StartsWith("Insys.", StringComparison.Ordinal) == true)
-        .SelectMany(a =>
-        {
-            try
-            {
-                return a.GetExportedTypes();
-            }
-            catch (System.Reflection.ReflectionTypeLoadException e)
-            {
-                return e.Types.OfType<Type>();
-            }
-        })
-        .Where(t => !t.IsGenericType && !t.IsNested && Module(t) is not null)
-        .GroupBy(t => t.Name, StringComparer.Ordinal)
-        .Where(g => g.Select(Module).Distinct(StringComparer.Ordinal).Count() > 1)
-        .Select(g => g.Key)
-        .ToHashSet(StringComparer.Ordinal));
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Type> Assigned = new(StringComparer.Ordinal);
 
     public static string? For(System.Text.Json.Serialization.Metadata.JsonTypeInfo type)
     {
         var name = Microsoft.AspNetCore.OpenApi.OpenApiOptions.CreateDefaultSchemaReferenceId(type);
+        if (name is null)
+        {
+            return null;
+        }
+
         var clr = Nullable.GetUnderlyingType(type.Type) ?? type.Type;
-        return name is not null && name == clr.Name && Ambiguous.Value.Contains(clr.Name) && Module(clr) is { } module ? module + name : name;
+        var id = Id(clr) ?? name;
+        var owner = Assigned.GetOrAdd(id, clr);
+        if (owner != clr)
+        {
+            throw new InvalidOperationException($"Schema ID {id} would name both {owner.FullName} and {clr.FullName} (GAP-031).");
+        }
+
+        return id;
+    }
+
+    /// <summary>The schema ID of an INSYS type, or null where the generator's default applies.</summary>
+    public static string? Id(Type type)
+    {
+        type = Nullable.GetUnderlyingType(type) ?? type;
+        if (type.IsGenericType && !type.IsGenericTypeDefinition && type.Namespace?.StartsWith("Insys.", StringComparison.Ordinal) == true)
+        {
+            var definition = type.Name[..type.Name.IndexOf('`', StringComparison.Ordinal)];
+            return definition + "Of" + string.Join("And", type.GetGenericArguments().Select(a => Id(a) ?? a.Name));
+        }
+
+        if (Module(type) is not { } module || type.IsGenericType)
+        {
+            return null;
+        }
+
+        var name = type.IsNested ? type.DeclaringType!.Name + type.Name : type.Name;
+        return name.StartsWith(module, StringComparison.Ordinal) ? name : module + name;
     }
 
     /// <summary>The module of an INSYS type (Insys.&lt;Module&gt;.…), or null outside the modules.</summary>
-    private static string? Module(Type type) =>
-        type.Namespace?.Split('.') is ["Insys", var module, ..] && module != "BuildingBlocks" ? module : null;
+    public static string? Module(Type type) =>
+        type.Namespace?.Split('.') is ["Insys", var module, ..] && module is not ("BuildingBlocks" or "Api") ? module : null;
 }
