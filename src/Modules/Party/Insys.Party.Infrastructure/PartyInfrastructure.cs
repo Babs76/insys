@@ -44,6 +44,13 @@ public static class PartyInfrastructure
         services.AddDomainEventMapper<PartyEventMapper>(PartyDbContext.SchemaName);
         services.AddScoped<IPartyRepository, PartyRepository>();
         services.AddScoped<IPartySearch, PartySearchStore>();
+        services.AddScoped<ISearchLogRetention, SearchLogRetentionStore>();
+        services.AddOptions<SearchLogRetentionOptions>().BindConfiguration("Party:SearchLogRetention");
+        services.AddSingleton<SearchLogRetentionJob>();
+        if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)
+        {
+            services.AddHostedService<SearchLogRetentionService>();
+        }
         services.AddScoped<IPartyCodes, PartyCodes>();
         services.AddSingleton<BankAccountQueries>();
         services.AddSingleton<IBankAccounts>(sp => sp.GetRequiredService<BankAccountQueries>());

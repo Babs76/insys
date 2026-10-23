@@ -45,6 +45,7 @@ public static class AuditInfrastructure
         services.AddModuleHandlers<AuditDbContext>(typeof(ListAuditEvents).Assembly);
         services.AddScoped<IAuditEventQueries, AuditEventQueries>();
         services.AddScoped<IAuditSink, AuditSink>();
+        services.AddScoped<Contracts.IAuditRetention, Persistence.AuditRetention>();
         services.AddIntegrationEventHandler<SensitiveOperationRecorded, SensitiveOperationRecordedHandler, AuditDbContext>(AuditDbContext.SchemaName);
 
         services.AddOptions<PartitionOptions>().BindConfiguration("Audit:Partitions");

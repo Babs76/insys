@@ -411,6 +411,165 @@
         "x-permission": "webhook_delivery.update"
       }
     },
+    "/api/v1/party/search-log/holds": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Place a legal hold on the party search log: one searcher\u0027s entries (searchedBy) or the whole log",
+        "operationId": "PartyPlaceSearchLogHold",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartySearchLogHoldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedId"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "party_search_log.hold"
+      },
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "The legal holds on the party search log, active and released",
+        "operationId": "PartyListSearchLogHolds",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartySearchLogHoldView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "audit_event.read"
+      }
+    },
+    "/api/v1/party/search-log/holds/{id}/release": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Release a legal hold; the entries are deleted at the next retention run once past their period",
+        "operationId": "PartyReleaseSearchLogHold",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "party_search_log.hold"
+      }
+    },
     "/api/v1/party/parties/search": {
       "post": {
         "tags": [
@@ -20264,6 +20423,7 @@
                 "LossAssessment",
                 "MedicalClaim",
                 "Party",
+                "PartySearchLog",
                 "Payment",
                 "PayoutBatch",
                 "PostingException",
@@ -20281,6 +20441,7 @@
                 "ReportRun",
                 "RiskObject",
                 "RuleDecision",
+                "SearchLogHold",
                 "SimulationRun",
                 "StaticDataChange",
                 "Tenant",
@@ -20664,6 +20825,7 @@
                 "LossAssessment",
                 "MedicalClaim",
                 "Party",
+                "PartySearchLog",
                 "Payment",
                 "PayoutBatch",
                 "PostingException",
@@ -20681,6 +20843,7 @@
                 "ReportRun",
                 "RiskObject",
                 "RuleDecision",
+                "SearchLogHold",
                 "SimulationRun",
                 "StaticDataChange",
                 "Tenant",
@@ -31241,6 +31404,71 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "PartySearchLogHoldRequest": {
+        "required": [
+          "searchedBy",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "searchedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "PartySearchLogHoldView": {
+        "required": [
+          "id",
+          "searchedBy",
+          "reason",
+          "placedBy",
+          "placedAt",
+          "releasedBy",
+          "releasedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "searchedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "placedBy": {
+            "type": "string"
+          },
+          "placedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "releasedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "releasedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },

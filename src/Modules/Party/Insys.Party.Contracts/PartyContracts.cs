@@ -38,6 +38,9 @@ public static class PartyApprovals
 public static class PartyPermissions
 {
     public const string PartyRead = "party.read";
+
+    /// <summary>Place and release legal holds on the party search access log (OQ-073).</summary>
+    public const string SearchLogHold = "party_search_log.hold";
     public const string PartyCreate = "party.create";
     public const string PartyUpdate = "party.update";
 

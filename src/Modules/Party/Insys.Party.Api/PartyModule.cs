@@ -78,6 +78,8 @@ public sealed class PartyModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         AuditTargetTypes.Register(nameof(BankAccount));
+        AuditTargetTypes.Register(nameof(PartySearchLog));
+        MapSearchLogHolds(api.MapGroup("/party/search-log/holds").WithTags(Name));
         PartyStaticDataEndpoints.MapStaticData(api);
         var parties = api.MapGroup("/party/parties").WithTags(Name);
 
@@ -305,4 +307,31 @@ public sealed class PartyModule : IModule
             return Results.NoContent();
         });
     }
+
+    /// <summary>Legal holds on the party search access log (OQ-073): held entries are not deleted by retention.</summary>
+    private static void MapSearchLogHolds(RouteGroupBuilder holds)
+    {
+        holds.MapPost("/", async (SearchLogHoldRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new PlaceSearchLogHold(r.SearchedBy, r.Reason), ct)).ToHttp(id => Results.Created($"/api/v1/party/search-log/holds/{id}", new { id })))
+            .Produces<CreatedId>(StatusCodes.Status201Created)
+            .WithName("PartyPlaceSearchLogHold")
+            .WithSummary("Place a legal hold on the party search log: one searcher's entries (searchedBy) or the whole log")
+            .RequirePermission(PartyPermissions.SearchLogHold)
+            .RequireIdempotencyKey();
+
+        holds.MapGet("/", async (IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new ListSearchLogHolds(), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<SearchLogHoldView>>(StatusCodes.Status200OK)
+            .WithName("PartyListSearchLogHolds")
+            .WithSummary("The legal holds on the party search log, active and released")
+            .RequirePermission(Audit.Contracts.AuditPermissions.Read);
+
+        holds.MapPost("/{id:guid}/release", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new ReleaseSearchLogHold(id), ct)).ToHttp(_ => Results.NoContent()))
+            .Produces(StatusCodes.Status204NoContent)
+            .WithName("PartyReleaseSearchLogHold")
+            .WithSummary("Release a legal hold; the entries are deleted at the next retention run once past their period")
+            .RequirePermission(PartyPermissions.SearchLogHold);
+    }
 }
+
+public sealed record SearchLogHoldRequest(string? SearchedBy, string Reason);

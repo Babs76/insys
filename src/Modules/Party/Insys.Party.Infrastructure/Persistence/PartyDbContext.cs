@@ -47,6 +47,19 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
     {
         PartyStaticData.Configure(modelBuilder);
 
+        modelBuilder.Entity<SearchLogHold>(hold =>
+        {
+            hold.ToTable("search_log_hold");
+            hold.HasKey(h => new { h.TenantId, h.Id });
+            hold.HasAuditColumns();
+            hold.Ignore(h => h.DomainEvents);
+            hold.Ignore(h => h.HasChanges);
+            hold.Property(h => h.SearchedBy).HasMaxLength(80);
+            hold.Property(h => h.Reason).HasMaxLength(200);
+            hold.Property(h => h.PlacedBy).HasMaxLength(80);
+            hold.Property(h => h.ReleasedBy).HasMaxLength(80);
+        });
+
         modelBuilder.Entity<PartySearchLog>(log =>
         {
             log.ToTable("party_search_log");
