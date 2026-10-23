@@ -5,6 +5,8 @@ Usage: python3 tools/scaffold-module.py <Module> <primary schema> [<other owned 
 Existing files are never overwritten. Domain, Application and Contracts projects are added when the module is built.
 """
 import os
+import pathlib
+import subprocess
 import sys
 
 module, schema, *others = sys.argv[1:]
@@ -96,4 +98,6 @@ public sealed class {module}Module : IModule
     public void MapEndpoints(IEndpointRouteBuilder api) => {module}StaticDataEndpoints.MapStaticData(api);
 }}
 """)
+# The new files carry the source file header (tools/source-headers.py).
+subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name("source-headers.py")), "--apply"], check=True)
 print(f"scaffolded {module}")

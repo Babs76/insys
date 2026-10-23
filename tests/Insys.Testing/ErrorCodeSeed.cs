@@ -27,7 +27,7 @@ public static class ErrorCodeSeed
 
     public static string Generate()
     {
-        var s = new StringBuilder();
+        var s = new StringBuilder(SourceHeader.Render("Migrations"));
         s.Append("""
             -- =====================================================================
             -- GENERATED from the [ErrorCode] constants in the source code; do not edit.

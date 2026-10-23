@@ -26,6 +26,10 @@ jobs:
             echo "Conflict copies found:"; echo "$copies"; exit 1
           fi
 
+      # Every source file we own carries the OpenFactor header with its component (tools/source-header.txt).
+      - name: Source file headers
+        run: python3 tools/source-headers.py --check
+
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
