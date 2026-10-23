@@ -93,6 +93,7 @@ public static class ApiRegistration
         {
             context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
             context.ProblemDetails.Extensions.TryAdd("traceId", context.HttpContext.TraceIdentifier);
+            context.ProblemDetails.Extensions["correlationId"] = ErrorCorrelation.Ensure(context.HttpContext);
             ProblemLocalisation.Apply(context.HttpContext, context.ProblemDetails);
         });
         services.AddScoped<RequestLanguage>();
@@ -152,8 +153,14 @@ public static class ApiRegistration
             var permitsPerMinute = config.GetValue("RateLimiting:PermitsPerMinute", 1200);
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = (context, _) =>
-                new ValueTask(Problems.For(ErrorCodes.RateLimited, "Too many requests. Retry later.", StatusCodes.Status429TooManyRequests)
+            {
+                // Retry-After (GAP-006): when the limiter's window lets the tenant in again, else the window's length.
+                var retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var wait) ? wait : TimeSpan.FromMinutes(1);
+                context.HttpContext.Response.Headers.RetryAfter =
+                    Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return new ValueTask(Problems.For(ErrorCodes.RateLimited, "Too many requests. Retry later.", StatusCodes.Status429TooManyRequests)
                     .ExecuteAsync(context.HttpContext));
+            };
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     context.User.FindFirst(InsysClaims.TenantId)?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",

@@ -160,3 +160,33 @@ public static class ProblemLocalisation
         http.Response.Headers.ContentLanguage = language ?? TenantLanguages.English;
     }
 }
+
+/// <summary>
+/// The correlation ID of an error response (GAP-007), in the X-Correlation-Id header and the ProblemDetails body alike:
+/// the request's execution scope's ID, or, for an error written before the scope exists (the warm-up gate, say), the
+/// caller's X-Correlation-Id, else a new one.
+/// </summary>
+public static class ErrorCorrelation
+{
+    public static Guid Ensure(HttpContext http)
+    {
+        var scope = http.RequestServices.GetService<Insys.BuildingBlocks.Application.Context.ExecutionScope>();
+        Guid id;
+        if (scope is { IsInitialised: true })
+        {
+            id = scope.CorrelationId;
+        }
+        else if (!Guid.TryParse(http.Response.Headers[ExecutionScopeMiddleware.CorrelationHeader], out id)
+                 && !Guid.TryParse(http.Request.Headers[ExecutionScopeMiddleware.CorrelationHeader], out id))
+        {
+            id = Guid.CreateVersion7();
+        }
+
+        if (!http.Response.HasStarted)
+        {
+            http.Response.Headers[ExecutionScopeMiddleware.CorrelationHeader] = id.ToString();
+        }
+
+        return id;
+    }
+}
