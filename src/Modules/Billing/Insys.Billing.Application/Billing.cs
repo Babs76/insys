@@ -467,6 +467,7 @@ public sealed class BillingPolicies(IBillingRepository billing, IClock clock) :
     IIntegrationEventHandler<PaymentAllocated>,
     IIntegrationEventHandler<PaymentReversed>,
     IIntegrationEventHandler<PaymentSucceeded>,
+    IIntegrationEventHandler<PaymentInitiated>,
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>
 {
@@ -487,6 +488,16 @@ public sealed class BillingPolicies(IBillingRepository billing, IClock clock) :
             {
                 invoice.ReverseAllocation(allocation.Amount, clock.UtcToday);
             }
+        }
+    }
+
+    /// <summary>GAP-036: the refund shows its payout's ID from when the payout is created.</summary>
+    public async Task Handle(PaymentInitiated initiated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (initiated.BusinessRefType == BillingApprovals.RefundBusinessRefType && initiated.BusinessRefId is { } refundId
+            && await billing.Refund(refundId, cancellationToken) is { } refund)
+        {
+            refund.LinkPayment(initiated.PaymentId);
         }
     }
 

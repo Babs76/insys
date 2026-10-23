@@ -77,6 +77,10 @@ public sealed record PaymentFailed(Guid PaymentId, string PaymentRef, Direction 
 public sealed record PaymentOutcomeUnknown(Guid PaymentId, string PaymentRef, Direction Direction, string Purpose, decimal Amount, string Currency, DateTimeOffset OccurredAt)
     : IDomainEvent;
 
+/// <summary>A payment was created (GAP-036): the business record it serves can show it before it completes.</summary>
+public sealed record PaymentInitiated(Guid PaymentId, string PaymentRef, Direction Direction, string Purpose, decimal Amount, string Currency, string? BusinessRefType,
+    Guid? BusinessRefId, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record PaymentAllocated(Guid PaymentId, Guid AllocationId, Guid InvoiceId, decimal Amount, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record PaymentReversed(Guid PaymentId, string PaymentRef, Direction Direction, string Purpose, decimal Amount, string Currency, DateOnly ReversedOn,
@@ -235,6 +239,7 @@ public sealed class Payment : AggregateRoot<Guid>
             InitiatedAt = now,
             Status = PaymentStatus.Initiated,
         };
+        payment.Raise(new PaymentInitiated(payment.Id, payment.PaymentRef, direction, purpose, amount, payment.Currency, businessRefType, businessRefId, now));
         payment.MarkChanged();
         return payment;
     }
@@ -406,6 +411,10 @@ public static class PaymentErrorCodes
 
     [ErrorCode(401, "error.payment.callback_signature")]
     public const string CallbackSignatureInvalid = "CALLBACK_SIGNATURE_INVALID";
+
+    /// <summary>ADR-023: a callback ID the endpoint already received, inside the replay window.</summary>
+    [ErrorCode(409, "error.payment.callback_replayed")]
+    public const string CallbackReplayed = "CALLBACK_REPLAYED";
 
     [ErrorCode(409, "error.payment.batch_empty")]
     public const string BatchEmpty = "PAYOUT_BATCH_EMPTY";

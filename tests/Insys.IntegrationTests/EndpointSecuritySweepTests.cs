@@ -54,7 +54,9 @@ public sealed partial class EndpointSecuritySweepTests(DatabaseFixture fixture) 
         _factory = await fixture.Host(new Dictionary<string, string?> { ["RateLimiting:PermitsPerMinute"] = "1000000" });
         _ = _factory.CreateClient();
         _calls = Calls(_factory.Services.GetServices<EndpointDataSource>().SelectMany(s => s.Endpoints).OfType<RouteEndpoint>()
-            .Where(e => e.RoutePattern.RawText?.StartsWith("/api/", StringComparison.Ordinal) == true));
+            .Where(e => e.RoutePattern.RawText?.StartsWith("/api/", StringComparison.Ordinal) == true)
+            // A provider callback address takes no token; its key and signature are tested in ProviderCallbackTests (ADR-023).
+            .Where(e => e.Metadata.GetMetadata<SignedProviderCallbackMetadata>() is null));
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, Nobody);
 
         // Every read permission there is, and every platform permission, held in tenant A.

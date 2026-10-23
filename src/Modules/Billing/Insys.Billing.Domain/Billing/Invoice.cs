@@ -401,6 +401,16 @@ public sealed class RefundRequest : AggregateRoot<Guid>
         return result;
     }
 
+    /// <summary>The payout was created for this refund (GAP-036): its ID is known before it completes. No status change.</summary>
+    public void LinkPayment(Guid paymentId)
+    {
+        if (PaymentId is null && Status == RefundStatus.Approved)
+        {
+            PaymentId = paymentId;
+            MarkChanged();
+        }
+    }
+
     /// <summary>Transition "Payment succeeded".</summary>
     public Result MarkPaid(Guid paymentId)
     {

@@ -53,6 +53,9 @@ internal sealed class ClaimsRepository(ClaimsFrameworkDbContext db) : IClaimsRep
         return stored.Concat(added).Distinct().ToList();
     }
 
+    public async Task<IReadOnlyList<ClaimPaymentInstruction>> Instructions(string claimNumber, CancellationToken cancellationToken) =>
+        await db.Instructions.AsNoTracking().Where(i => i.ClaimNumber == claimNumber).OrderBy(i => i.Id).ToListAsync(cancellationToken);
+
     public Task<ClaimPaymentInstruction?> Instruction(Guid id, CancellationToken cancellationToken) =>
         db.Instructions.SingleOrDefaultAsync(i => i.Id == id, cancellationToken);
 

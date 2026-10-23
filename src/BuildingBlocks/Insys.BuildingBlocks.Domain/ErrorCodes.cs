@@ -61,6 +61,10 @@ public static class ErrorCodes
     [ErrorCode(403, "error.access.forbidden")]
     public const string Forbidden = "FORBIDDEN";
 
+    /// <summary>ADR-024: a business module's endpoint was called in the platform operator tenant.</summary>
+    [ErrorCode(403, "error.access.operator_tenant_not_business")]
+    public const string OperatorTenantNotBusiness = "OPERATOR_TENANT_NOT_BUSINESS";
+
     [ErrorCode(403, "error.access.tenant_context_missing")]
     public const string TenantContextMissing = "TENANT_CONTEXT_MISSING";
 

@@ -70,6 +70,7 @@ public sealed class FinanceModule : IModule
             .Produces<IReadOnlyList<JournalView>>(StatusCodes.Status200OK)
             .WithName("FinanceListJournals")
             .WithSummary("List the journals of a business record (FIN-001)")
+            .WithKnownValues("businessRefType", JournalReferenceTypes.Known, "The business record types Finance posts journals for (GAP-037).")
             .RequirePermission(FinancePermissions.JournalRead);
 
         finance.MapPost("/journals/{id:guid}/reverse", async (Guid id, ReverseJournalRequest r, IDispatcher dispatcher, CancellationToken ct) =>

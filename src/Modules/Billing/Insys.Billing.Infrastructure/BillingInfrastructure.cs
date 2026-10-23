@@ -54,6 +54,7 @@ public static class BillingInfrastructure
         services.AddIntegrationEventHandler<PaymentAllocated, BillingPolicies, BillingDbContext>(schema, "PaymentAllocated");
         services.AddIntegrationEventHandler<PaymentReversed, BillingPolicies, BillingDbContext>(schema, "PaymentReversed");
         services.AddIntegrationEventHandler<PaymentSucceeded, BillingPolicies, BillingDbContext>(schema, "PaymentSucceeded");
+        services.AddIntegrationEventHandler<PaymentInitiated, BillingPolicies, BillingDbContext>(schema, "PaymentInitiated");
         services.AddIntegrationEventHandler<ApprovalGranted, BillingPolicies, BillingDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, BillingPolicies, BillingDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyIssued");

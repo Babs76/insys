@@ -106,6 +106,7 @@ BEGIN
   -- The party search log's retention (OQ-073): the only way its rows change.
   GRANT EXECUTE ON FUNCTION party.minimise_search_log(timestamptz) TO insys_party;
   GRANT EXECUTE ON FUNCTION party.purge_search_log(timestamptz) TO insys_party;
+  GRANT EXECUTE ON FUNCTION payment.resolve_callback_endpoint(char) TO insys_payment;
 
   -- The API building block: idempotency keys only (INT-003, DBA-008).
   GRANT USAGE ON SCHEMA integration TO insys_api;

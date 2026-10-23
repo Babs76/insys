@@ -242,6 +242,17 @@ public static class EndpointSecurityExtensions
         where TBuilder : IEndpointConventionBuilder =>
         builder.RequireAuthorization(PermissionPolicyProvider.TenantMember).WithMetadata(new RequiredPermissionMetadata(SignedInUser));
 
+    /// <summary>The x-permission of a provider callback address: no token; the endpoint key and the signature authenticate (ADR-023).</summary>
+    public const string SignedProviderCallback = "signed provider callback";
+
+    /// <summary>
+    /// A provider callback address (ADR-023): anonymous to the token checks, because the endpoint key in its path and the
+    /// HMAC signature over the body authenticate the provider and give the tenant. The handler does those checks.
+    /// </summary>
+    public static TBuilder RequireSignedProviderCallback<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.AllowAnonymous().WithMetadata(new RequiredPermissionMetadata(SignedProviderCallback), new SignedProviderCallbackMetadata());
+
     /// <summary>A platform administration endpoint: the platform operator tenant only, holding the permission.</summary>
     public static TBuilder RequirePlatformPermission<TBuilder>(this TBuilder builder, string permission)
         where TBuilder : IEndpointConventionBuilder =>
@@ -251,6 +262,9 @@ public static class EndpointSecurityExtensions
 
 /// <summary>Endpoint metadata naming the permission, used by OpenAPI and the tests that check every endpoint has one.</summary>
 public sealed record RequiredPermissionMetadata(string Permission);
+
+/// <summary>Marks a provider callback address authenticated by its endpoint key and signature, not a token (ADR-023).</summary>
+public sealed record SignedProviderCallbackMetadata;
 
 /// <summary>Marks a platform administration endpoint.</summary>
 public sealed record PlatformOperatorEndpointMetadata;

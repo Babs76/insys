@@ -42,6 +42,8 @@ public static class PaymentPermissions
 
     /// <summary>Held by a payment provider's service client, to report payment statuses.</summary>
     public const string CallbackCreate = "payment_callback.create";
+    public const string CallbackEndpointRead = "payment_callback_endpoint.read";
+    public const string CallbackEndpointUpdate = "payment_callback_endpoint.update";
 }
 
 public static class PaymentApprovals
@@ -64,6 +66,26 @@ public static class PaymentPurposes
 [IntegrationEvent("payment.PaymentReceived")]
 public sealed record PaymentReceived(Guid PaymentId, string PaymentRef, string Purpose, decimal Amount, string Currency, DateOnly ValueDate,
     Guid? CounterpartyPartyId, string? BusinessRefType, Guid? BusinessRefId) : IIntegrationEvent;
+
+/// <summary>
+/// Business reference types a payment carries (GAP-037): an open set, since each module names its own, listed as known
+/// values on the payments lookup.
+/// </summary>
+public static class PaymentReferenceTypes
+{
+    public const string Invoice = "INVOICE";
+
+    public static readonly IReadOnlyList<string> Known =
+        [Invoice, "REFUND_REQUEST", "CLAIM_PAYMENT", "HEALTH_REMITTANCE", "COMMISSION_STATEMENT"];
+}
+
+/// <summary>
+/// A payment was created (GAP-036), before it is sent or completes: Billing and the Claims Framework record its ID on
+/// the refund or payment instruction it serves.
+/// </summary>
+[IntegrationEvent("payment.PaymentInitiated")]
+public sealed record PaymentInitiated(Guid PaymentId, string PaymentRef, string Direction, string Purpose, decimal Amount, string Currency, string? BusinessRefType,
+    Guid? BusinessRefId) : IIntegrationEvent;
 
 /// <summary>An outbound payment was confirmed by the provider. Never raised for an unknown outcome (PAY-005).</summary>
 [IntegrationEvent("payment.PaymentSucceeded")]

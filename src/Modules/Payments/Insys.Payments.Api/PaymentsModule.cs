@@ -32,6 +32,7 @@ using Insys.Payments.Application;
 using Insys.Payments.Contracts;
 using Insys.Payments.Domain.Payments;
 using Insys.Payments.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -56,6 +57,8 @@ public sealed record ImportStatementRequest(string AccountRef, StatementLine[] L
 /// <param name="ExternalRef">The provider's reference for the payment.</param>
 /// <param name="Status">The provider's own status code; mapped by payment.ref_payment_status_mappings.</param>
 public sealed record ProviderCallbackRequest(string ExternalRef, string Status);
+
+public sealed record IssueCallbackEndpointRequest(string ProviderCode, bool RequireClientToken = false);
 
 /// <summary>
 /// The Payments module: payments with idempotency (PAY-001), traceable status changes (PAY-002), provider callbacks,
@@ -87,6 +90,26 @@ public sealed class PaymentsModule : IModule
             .Produces<PaymentView>(StatusCodes.Status200OK)
             .WithName("PaymentsGet")
             .WithSummary("Get a payment with its status history (PAY-002) and allocations")
+            .RequirePermission(PaymentPermissions.PaymentRead);
+
+        payments.MapGet("/payments", async (string businessRefType, Guid businessRefId, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var afterId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListPayments(businessRefType, businessRefId, afterId, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<PaymentView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<PaymentView>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PaymentsList")
+            .WithSummary("The payments for a business record, oldest first (GAP-036)")
+            .WithDescription("A refund (REFUND_REQUEST), claim payment instruction (CLAIM_PAYMENT), invoice (INVOICE), remittance or commission statement. "
+                + "A payment is listed from when it is created, before it completes.")
+            .WithKnownValues("businessRefType", PaymentReferenceTypes.Known, "The business record types INSYS itself pays or collects for (GAP-037).")
             .RequirePermission(PaymentPermissions.PaymentRead);
 
         payments.MapPost("/payments/{id:guid}/resolve", async (Guid id, ResolveUnknownRequest r, IDispatcher dispatcher, CancellationToken ct) =>
@@ -139,6 +162,8 @@ public sealed class PaymentsModule : IModule
             .Accepts<ProviderCallbackRequest>("application/json")
             .RequirePermission(PaymentPermissions.CallbackCreate);
 
+        MapCallbackEndpoints(payments);
+
         payments.MapPost("/payout-batches", async (BuildBatchRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new BuildBatch(r.Purpose, r.Currency), ct)).ToHttp(view => Results.Created($"/api/v1/payments/payout-batches/{view.Id}", view)))
             .Produces<BatchView>(StatusCodes.Status201Created)
@@ -151,6 +176,14 @@ public sealed class PaymentsModule : IModule
             .Produces<BatchView>(StatusCodes.Status200OK)
             .WithName("PaymentsGetBatch")
             .WithSummary("Get a payout batch")
+            .RequirePermission(PaymentPermissions.PayoutRead);
+
+        payments.MapGet("/payout-batches/{id:guid}/payments", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListBatchPayments(id), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<PaymentView>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("PaymentsListBatchPayments")
+            .WithSummary("The payments in a payout batch (GAP-036)")
             .RequirePermission(PaymentPermissions.PayoutRead);
 
         payments.MapPost("/payout-batches/{id:guid}/release", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
@@ -188,5 +221,90 @@ public sealed class PaymentsModule : IModule
             .WithName("PaymentsResolveException")
             .WithSummary("Resolve an exception you are investigating; an unknown payment is resolved first")
             .RequirePermission(PaymentPermissions.ReconciliationUpdate);
+    }
+
+    /// <summary>ADR-023: provider callback addresses per tenant and provider, and the address providers call.</summary>
+    private static void MapCallbackEndpoints(RouteGroupBuilder payments)
+    {
+        payments.MapPost("/callbacks/{endpointKey}", async (string endpointKey, HttpContext http, ICallbackEndpointResolver resolver, IServiceScopeFactory scopes,
+                IAuthorizationService authorization, CancellationToken ct) =>
+            {
+                using var reader = new StreamReader(http.Request.Body);
+                var body = await reader.ReadToEndAsync(ct);
+
+                // One answer for an unknown key, a revoked endpoint, a bad signature or an old timestamp, so none can be told apart.
+                var refused = Problems.For(PaymentErrorCodes.CallbackSignatureInvalid, "The callback is not authenticated.", StatusCodes.Status401Unauthorized);
+                if (endpointKey.Length is < 20 or > 100 || await resolver.Resolve(CallbackKeys.Hash(endpointKey), ct) is not { } found)
+                {
+                    return refused;
+                }
+
+                // Optional extra (ADR-023 decision 4): a client-credentials token for this tenant holding payment_callback.create.
+                var clientToken = http.User.Identity?.IsAuthenticated == true
+                                  && http.User.FindFirst("tenant_id")?.Value == found.TenantId.ToString()
+                                  && (await authorization.AuthorizeAsync(http.User, PermissionPolicyProvider.Prefix + PaymentPermissions.CallbackCreate)).Succeeded;
+
+                // The tenant comes only from the key, and the handler accepts nothing without the signature keyed to that tenant and provider.
+                await using var scope = scopes.CreateAsyncScope();
+                scope.ServiceProvider.GetRequiredService<BuildingBlocks.Application.Context.ExecutionScope>()
+                    .InitialiseForService(found.TenantId, "payment-callback");
+                var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new ReceiveCallback(found.EndpointId, body,
+                    http.Request.Headers["X-Callback-Timestamp"], http.Request.Headers["X-Callback-Id"], http.Request.Headers["X-Signature"], clientToken), ct);
+                if (result.IsFailure)
+                {
+                    return Problems.For(result.Error);
+                }
+
+                return result.Value.Result switch
+                {
+                    CallbackResult.Applied => Results.Ok(result.Value.Payment),
+                    CallbackResult.Replayed => Problems.For(PaymentErrorCodes.CallbackReplayed, "This callback ID was already received.", StatusCodes.Status409Conflict),
+                    CallbackResult.Invalid => Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The callback needs externalRef and status.",
+                        StatusCodes.Status422UnprocessableEntity),
+                    CallbackResult.NoPayment => Problems.For(BuildingBlocks.Domain.ErrorCodes.NotFound, "No payment has this provider reference; the callback was recorded.",
+                        StatusCodes.Status404NotFound),
+                    _ => refused,
+                };
+            })
+            .Accepts<ProviderCallbackRequest>("application/json")
+            .Produces<PaymentView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PaymentsSignedCallback")
+            .WithSummary("A provider reports a payment's status at its callback address (ADR-023)")
+            .WithDescription("No bearer token. The endpoint key in the path names the tenant and provider. Headers: X-Callback-Timestamp (Unix seconds, within 5 minutes), "
+                + "X-Callback-Id (unique per callback; a repeat is refused) and X-Signature (HMAC-SHA256 of \"timestamp.callbackId.body\" under the endpoint's "
+                + "signing secret, hex in lower case).")
+            .RequireSignedProviderCallback();
+
+        var endpoints = payments.MapGroup("/callback-endpoints");
+
+        endpoints.MapGet("/", async (IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new ListCallbackEndpoints(), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<CallbackEndpointView>>(StatusCodes.Status200OK)
+            .WithName("PaymentsListCallbackEndpoints")
+            .WithSummary("The tenant's provider callback endpoints, without their keys or secrets (ADR-023)")
+            .RequirePermission(PaymentPermissions.CallbackEndpointRead);
+
+        endpoints.MapPost("/", async (IssueCallbackEndpointRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new IssueCallbackEndpoint(r.ProviderCode, r.RequireClientToken), ct))
+                    .ToHttp(issued => Results.Created($"/api/v1/payments/callback-endpoints/{issued.Endpoint.Id}", issued)))
+            .Produces<IssuedCallbackEndpoint>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PaymentsIssueCallbackEndpoint")
+            .WithSummary("Issue a provider's callback endpoint; an active one is rotated (ADR-023)")
+            .WithDescription("Returns the callback path with its endpoint key, and the signing secret, once: they are never shown again. The provider's current endpoint "
+                + "is still accepted until Payments:Callbacks:Overlap (7 days) has passed. Audited.")
+            .RequirePermission(PaymentPermissions.CallbackEndpointUpdate);
+
+        endpoints.MapPost("/{id:guid}/revoke", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new RevokeCallbackEndpoint(id), ct)).ToHttp(Results.Ok))
+            .Produces<CallbackEndpointView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName("PaymentsRevokeCallbackEndpoint")
+            .WithSummary("Revoke a callback endpoint at once, for a leaked key or secret. Audited (ADR-023)")
+            .RequirePermission(PaymentPermissions.CallbackEndpointUpdate);
     }
 }

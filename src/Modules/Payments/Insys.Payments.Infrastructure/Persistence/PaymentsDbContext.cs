@@ -49,6 +49,8 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
 
     public DbSet<ProviderCallback> Callbacks => Set<ProviderCallback>();
 
+    public DbSet<CallbackEndpoint> CallbackEndpoints => Set<CallbackEndpoint>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         PaymentsStaticData.Configure(modelBuilder);
@@ -141,6 +143,21 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
             line.Property(l => l.Currency).HasColumnType("char(3)");
             line.Property(l => l.Reference).HasMaxLength(80);
             line.Property(l => l.MatchStatus).HasMaxLength(12);
+        });
+
+        // ADR-023: the key is held only as its hash, and the secret only encrypted.
+        modelBuilder.Entity<CallbackEndpoint>(endpoint =>
+        {
+            endpoint.ToTable("callback_endpoint");
+            endpoint.HasKey(e => new { e.TenantId, e.Id });
+            endpoint.HasAuditColumns();
+            endpoint.Ignore(e => e.DomainEvents);
+            endpoint.Ignore(e => e.HasChanges);
+            endpoint.Property(e => e.ProviderCode).HasMaxLength(15);
+            endpoint.Property(e => e.KeyHash).HasMaxLength(64).IsFixedLength();
+            endpoint.Property(e => e.Status).HasConversion(new UpperCaseEnumConverter<CallbackEndpointStatus>()).HasMaxLength(10);
+            endpoint.Property(e => e.IssuedBy).HasMaxLength(80);
+            endpoint.Property(e => e.RevokedBy).HasMaxLength(80);
         });
 
         modelBuilder.Entity<ProviderCallback>(callback =>

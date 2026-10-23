@@ -131,6 +131,14 @@ public sealed class ClaimsFrameworkModule : IModule
             .WithSummary("Draft a claim payment within the approved amount; a repeat reference returns the same instruction (PAY-001)")
             .RequirePermission(ClaimsPermissions.InstructionCreate);
 
+        claims.MapGet("/claims/{claimNumber}/payment-instructions", async (string claimNumber, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListInstructions(claimNumber), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<InstructionView>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("ClaimsListInstructions")
+            .WithSummary("A claim's payment instructions, oldest first, each with its payment once created (GAP-036)")
+            .RequirePermission(ClaimsPermissions.InstructionRead);
+
         claims.MapGet("/payment-instructions/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetInstruction(id), ct)).ToHttp(Results.Ok))
             .Produces<InstructionView>(StatusCodes.Status200OK)

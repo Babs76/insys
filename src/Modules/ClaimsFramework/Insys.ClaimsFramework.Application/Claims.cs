@@ -52,6 +52,8 @@ public interface IClaimsRepository
 
     Task<ClaimPaymentInstruction?> Instruction(Guid id, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<ClaimPaymentInstruction>> Instructions(string claimNumber, CancellationToken cancellationToken);
+
     Task<ClaimPaymentInstruction?> Instruction(string claimNumber, string instructionRef, CancellationToken cancellationToken);
 
     void Add(ClaimRegistration registration);
@@ -157,6 +159,9 @@ public sealed record GetClaim(string ClaimNumber) : IQuery<ClaimView>;
 public sealed record GetFinancials(string ClaimNumber) : IQuery<FinancialsView>;
 
 public sealed record GetInstruction(Guid InstructionId) : IQuery<InstructionView>;
+
+/// <summary>GAP-036: a claim's payment instructions, oldest first.</summary>
+public sealed record ListInstructions(string ClaimNumber) : IQuery<IReadOnlyList<InstructionView>>;
 
 public sealed class AllocateClaimNumberValidator : AbstractValidator<AllocateClaimNumber>
 {
@@ -544,6 +549,14 @@ internal sealed class GetFinancialsHandler(IClaimsRepository claims) : IQueryHan
     }
 }
 
+internal sealed class ListInstructionsHandler(IClaimsRepository claims) : IQueryHandler<ListInstructions, IReadOnlyList<InstructionView>>
+{
+    public async Task<Result<IReadOnlyList<InstructionView>>> Handle(ListInstructions query, CancellationToken cancellationToken) =>
+        await claims.ByNumber(query.ClaimNumber, cancellationToken) is null
+            ? Error.NotFound(ErrorCodes.NotFound, "The claim was not found.")
+            : Result.Success<IReadOnlyList<InstructionView>>((await claims.Instructions(query.ClaimNumber, cancellationToken)).Select(InstructionView.From).ToList());
+}
+
 internal sealed class GetInstructionHandler(IClaimsRepository claims) : IQueryHandler<GetInstruction, InstructionView>
 {
     public async Task<Result<InstructionView>> Handle(GetInstruction query, CancellationToken cancellationToken) =>
@@ -558,6 +571,7 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<PaymentSucceeded>,
+    IIntegrationEventHandler<PaymentInitiated>,
     IIntegrationEventHandler<PaymentFailed>,
     IIntegrationEventHandler<Contracts.ClaimPaymentCompleted>,
     IIntegrationEventHandler<GeneralClaimApproved>,
@@ -569,6 +583,16 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
 
     public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.ApprovalId, rejected.SubjectHash, cancellationToken);
+
+    /// <summary>GAP-036: the instruction shows its payment's ID from when the payment is created.</summary>
+    public async Task Handle(PaymentInitiated initiated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (initiated.BusinessRefType == ClaimsApprovals.InstructionBusinessRefType && initiated.BusinessRefId is { } id
+            && await claims.Instruction(id, cancellationToken) is { } instruction)
+        {
+            instruction.LinkPayment(initiated.PaymentId);
+        }
+    }
 
     public Task Handle(PaymentSucceeded succeeded, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Outcome(succeeded.BusinessRefType, succeeded.BusinessRefId, true, succeeded.PaymentId, succeeded.ValueDate, cancellationToken);

@@ -44,7 +44,20 @@ internal static class Telemetry
             .ConfigureResource(resource => resource.AddService("insys-core-api"))
             .WithTracing(tracing =>
             {
-                tracing.AddAspNetCoreInstrumentation(options => options.Filter = context => !context.Request.Path.StartsWithSegments("/health"))
+                tracing.AddAspNetCoreInstrumentation(options =>
+                    {
+                        options.Filter = context => !context.Request.Path.StartsWithSegments("/health");
+
+                        // ADR-023: a provider callback's path holds its endpoint key, which is never recorded.
+                        options.EnrichWithHttpRequest = (activity, request) =>
+                        {
+                            if (request.Path.Value?.Contains("/payments/callbacks/", StringComparison.Ordinal) == true)
+                            {
+                                activity.SetTag("url.path", "/api/v1/payments/callbacks/{endpointKey}");
+                                activity.SetTag("url.full", null);
+                            }
+                        };
+                    })
                     .AddHttpClientInstrumentation()
                     .AddSource("Npgsql");
                 if (otlp)

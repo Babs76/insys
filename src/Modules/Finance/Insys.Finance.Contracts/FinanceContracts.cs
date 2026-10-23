@@ -91,3 +91,12 @@ public interface ILedgerBalances
 {
     Task<decimal> PeriodMovement(Guid tenantId, string accountCode, string periodCode, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// The business reference types journals carry (GAP-037): an open set, listed as known values on the journals lookup.
+/// They match what Finance's posting policies write.
+/// </summary>
+public static class JournalReferenceTypes
+{
+    public static readonly IReadOnlyList<string> Known = ["INVOICE", "PAYMENT", "CLAIM_MOVEMENT", "MEDICAL_CLAIM", "COMMISSION", "CESSION", "RI_RECOVERY"];
+}

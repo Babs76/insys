@@ -51,6 +51,7 @@ public static class ClaimsFrameworkInfrastructure
         services.AddIntegrationEventHandler<ApprovalGranted, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<PaymentSucceeded, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "PaymentSucceeded");
+        services.AddIntegrationEventHandler<PaymentInitiated, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "PaymentInitiated");
         services.AddIntegrationEventHandler<PaymentFailed, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "PaymentFailed");
         services.AddIntegrationEventHandler<ClaimPaymentCompleted, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ClaimPaymentCompleted");
         services.AddIntegrationEventHandler<GeneralClaimApproved, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "GeneralClaimApproved");

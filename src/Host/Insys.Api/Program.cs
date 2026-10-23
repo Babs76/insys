@@ -76,7 +76,8 @@ app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
 var v1 = app.MapInsysV1();
 foreach (var module in modules)
 {
-    module.MapEndpoints(v1);
+    // ADR-024: business modules refuse the operator tenant; platform modules are mapped as they are.
+    module.MapEndpoints(module.HoldsBusinessData ? ((RouteGroupBuilder)v1).MapGroup("").RefuseOperatorTenant() : v1);
 }
 
 app.Run();

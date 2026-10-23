@@ -36,6 +36,7 @@ using Insys.Payments.Domain.Payments;
 using Insys.Payments.Infrastructure.StaticData;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Payments.Infrastructure.Persistence;
 
@@ -54,6 +55,10 @@ internal sealed class PaymentRepository(PaymentsDbContext db) : IPaymentReposito
     public async Task<IReadOnlyList<Payment>> AwaitingBatch(string purpose, string currency, CancellationToken cancellationToken) =>
         await Payments().Where(p => p.Direction == Direction.Out && p.Status == PaymentStatus.Initiated && p.PayoutBatchId == null && p.Purpose == purpose
             && p.Currency == currency).OrderBy(p => p.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Payment>> ForBusinessRef(string businessRefType, Guid businessRefId, Guid? afterId, int limit, CancellationToken cancellationToken) =>
+        await Payments().Where(p => p.BusinessRefType == businessRefType && p.BusinessRefId == businessRefId && (afterId == null || p.Id.CompareTo(afterId.Value) > 0))
+            .OrderBy(p => p.Id).Take(limit).ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<Payment>> InBatch(Guid batchId, CancellationToken cancellationToken) =>
         await Payments().Where(p => p.PayoutBatchId == batchId).OrderBy(p => p.Id).ToListAsync(cancellationToken);
@@ -175,6 +180,8 @@ internal sealed class PaymentsEventMapper : IDomainEventMapper
         Domain.Payments.PaymentFailed e => new Contracts.PaymentFailed(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency, e.BusinessRefType,
             e.BusinessRefId, e.Reason),
         Domain.Payments.PaymentOutcomeUnknown e => new Contracts.PaymentOutcomeUnknown(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency),
+        Domain.Payments.PaymentInitiated e => new Contracts.PaymentInitiated(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency,
+            e.BusinessRefType, e.BusinessRefId),
         Domain.Payments.PaymentAllocated e => new Contracts.PaymentAllocated(e.PaymentId, e.AllocationId, e.InvoiceId, e.Amount, e.Currency),
         Domain.Payments.PaymentReversed e => new Contracts.PaymentReversed(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency, e.ReversedOn,
             e.Allocations.Select(a => new Contracts.ReversedAllocation(a.AllocationId, a.InvoiceId, a.Amount)).ToList(), e.Reason),
@@ -186,4 +193,51 @@ internal sealed class PaymentsEventMapper : IDomainEventMapper
     };
 
     private static string Upper(Direction direction) => direction.ToString().ToUpperInvariant();
+}
+
+internal sealed class CallbackEndpoints(PaymentsDbContext db) : ICallbackEndpoints
+{
+    public Task<CallbackEndpoint?> Get(Guid id, CancellationToken cancellationToken) => db.CallbackEndpoints.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<CallbackEndpoint>> All(CancellationToken cancellationToken) =>
+        await db.CallbackEndpoints.AsNoTracking().OrderBy(e => e.ProviderCode).ThenBy(e => e.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<CallbackEndpoint>> Active(string providerCode, CancellationToken cancellationToken) =>
+        await db.CallbackEndpoints.Where(e => e.ProviderCode == providerCode && e.Status == CallbackEndpointStatus.Active).ToListAsync(cancellationToken);
+
+    public void Add(CallbackEndpoint endpoint) => db.CallbackEndpoints.Add(endpoint);
+
+    public async Task<bool> TryRecordReceipt(Guid endpointId, string callbackId, DateTimeOffset now, CancellationToken cancellationToken) =>
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO payment.callback_receipt (tenant_id, id, endpoint_id, callback_id, received_at)
+            VALUES ({db.CurrentTenantId}, {Guid.CreateVersion7()}, {endpointId}, {callbackId}, {now})
+            ON CONFLICT (tenant_id, endpoint_id, callback_id) DO NOTHING
+            """, cancellationToken) == 1;
+
+    public Task PurgeReceipts(Guid endpointId, DateTimeOffset before, CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlInterpolatedAsync(
+            $"DELETE FROM payment.callback_receipt WHERE tenant_id = {db.CurrentTenantId} AND endpoint_id = {endpointId} AND received_at < {before}", cancellationToken);
+}
+
+/// <summary>The key-hash lookup across tenants, through payment.resolve_callback_endpoint (V0033), on the Payments role.</summary>
+internal sealed class CallbackEndpointResolver([FromKeyedServices(PaymentsDbContext.SchemaName)] Npgsql.NpgsqlDataSource dataSource) : ICallbackEndpointResolver
+{
+    public async Task<(Guid TenantId, Guid EndpointId)?> Resolve(string keyHash, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var command = new Npgsql.NpgsqlCommand("SELECT tenant_id, endpoint_id FROM payment.resolve_callback_endpoint(@hash)", connection, transaction);
+        command.Parameters.AddWithValue("hash", keyHash);
+        (Guid, Guid)? found = null;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                found = (reader.GetGuid(0), reader.GetGuid(1));
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return found;
+    }
 }

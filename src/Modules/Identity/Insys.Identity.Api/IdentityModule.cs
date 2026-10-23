@@ -64,6 +64,9 @@ public sealed class IdentityModule : IModule
 {
     public string Name => "Identity";
 
+    /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
+    public bool HoldsBusinessData => false;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddIdentityInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

@@ -48,14 +48,15 @@ public sealed class MigrationTests(DatabaseFixture fixture) : IClassFixture<Data
         // V0016: general.quote_risk and general.quote_coverage; V0018: party.bank_account; V0019: two Health static tables
         // (ADR-012) and life.claim_payee; V0021: analytics.event_log (ADR-015); V0023: integration.field_data_key (ADR-018);
         // V0026: iam.tenant_administrator_request (OQ-067); V0027: party.party_search_log (GAP-022); V0030: party.search_log_hold (OQ-073);
-        // V0031: integration.parked_delivery and integration.parking_setting (ADR-022); V0032: claims.fraud_evaluation (F009).
+        // V0031: integration.parked_delivery and integration.parking_setting (ADR-022); V0032: claims.fraud_evaluation (F009);
+        // V0033: payment.callback_endpoint and payment.callback_receipt (ADR-023).
         // Partitions excluded.
         var tables = await fixture.Database.ScalarAsOwner<long>("""
             SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition
               AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'test_mod')
             """);
-        tables.ShouldBe(154 + 252 + 23 + 3 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 1 + 2 + 1);
+        tables.ShouldBe(154 + 252 + 23 + 3 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 2);
     }
 
     [Fact]

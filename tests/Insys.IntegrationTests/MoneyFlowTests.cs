@@ -239,6 +239,14 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         await Approve(BillingApprovals.RefundBusinessRefType, refund);
         (await (await _maker.GetAsync($"/api/v1/billing/refunds/{refund}")).Json()).GetProperty("status").GetString().ShouldBe("Approved");
 
+        // GAP-036: the payout exists from approval, and the refund shows it before it is paid; it can be found from the refund.
+        await _factory.DrainOutbox();
+        var created = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @r", ("r", refund));
+        (await (await _maker.GetAsync($"/api/v1/billing/refunds/{refund}")).Json()).GetProperty("paymentId").GetGuid().ShouldBe(created);
+        var found = await (await _maker.GetAsync($"/api/v1/payments/payments?businessRefType={BillingApprovals.RefundBusinessRefType}&businessRefId={refund}")).Json();
+        ShouldMatchDocumented(found, "PaymentsList");
+        found.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid().ShouldBe(created);
+
         // The approved refund waits for a payout batch, which a second person approves before release.
         var built = await _maker.Send(HttpMethod.Post, "/api/v1/payments/payout-batches", new { purpose = PaymentPurposes.Refund, currency = "ZAR" }, idempotent: true);
         built.StatusCode.ShouldBe(HttpStatusCode.Created, await built.Content.ReadAsStringAsync());
@@ -247,6 +255,8 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         await _factory.DrainOutbox();
         await Approve(PaymentApprovals.PayoutBusinessRefType, batch);
         (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await (await _maker.GetAsync($"/api/v1/payments/payout-batches/{batch}/payments")).Json()).EnumerateArray().Select(p => p.GetProperty("id").GetGuid())
+            .ShouldBe([created]);
 
         var payout = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @r", ("r", refund));
         (await Callback(payout, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -278,6 +288,12 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         (await _maker.PostAsync($"/api/v1/claims/payment-instructions/{instruction}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
 
+        // GAP-036: the released instruction shows its payment before the payment completes, and the claim lists its instructions.
+        var created = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @i", ("i", instruction));
+        var instructions = await (await _maker.GetAsync($"/api/v1/claims/claims/{number}/payment-instructions")).Json();
+        ShouldMatchDocumented(instructions, "ClaimsListInstructions");
+        instructions.EnumerateArray().Single().GetProperty("paymentId").GetGuid().ShouldBe(created);
+
         var batch = (await (await _maker.Send(HttpMethod.Post, "/api/v1/payments/payout-batches", new { purpose = PaymentPurposes.ClaimPayout, currency = "ZAR" },
             idempotent: true)).Json()).GetProperty("id").GetGuid();
         await _factory.DrainOutbox();
@@ -295,6 +311,9 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         (await Journals("CLAIM_MOVEMENT", paidMovement)).Single().GetProperty("lines").EnumerateArray().First().GetProperty("postingRuleCode").GetString()
             .ShouldBe("PR-CLM-PAID");
     }
+
+    private static void ShouldMatchDocumented(JsonElement response, string operationId) =>
+        DocumentedSchema.ResponseProblems(response, "core", operationId).ShouldBeEmpty(operationId);
 
     private async Task<(Guid Account, Guid Invoice)> IssueInvoice(decimal instalment, Guid? payer = null)
     {

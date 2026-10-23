@@ -43,6 +43,9 @@ public sealed class AuditModule : IModule
 {
     public string Name => "Audit";
 
+    /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
+    public bool HoldsBusinessData => false;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddAuditInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

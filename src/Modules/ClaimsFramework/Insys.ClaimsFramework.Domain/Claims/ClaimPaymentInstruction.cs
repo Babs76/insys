@@ -241,6 +241,19 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
         return result;
     }
 
+    /// <summary>
+    /// The payment for this release was created (GAP-036): its ID is known before it completes. No status change; a
+    /// re-release clears it, so it is set again for the new attempt's payment.
+    /// </summary>
+    public void LinkPayment(Guid paymentId)
+    {
+        if (PaymentId is null && Status == InstructionStatus.Released)
+        {
+            PaymentId = paymentId;
+            MarkChanged();
+        }
+    }
+
     /// <summary>Command RecordOutcome: the payment succeeded (Paid, with a payment movement) or failed.</summary>
     public Result RecordOutcome(bool succeeded, Guid paymentId, string domain, DateOnly paidOn, DateTimeOffset now)
     {

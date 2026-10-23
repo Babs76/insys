@@ -54,6 +54,9 @@ public interface IPaymentRepository
 
     Task<IReadOnlyList<Payment>> InBatch(Guid batchId, CancellationToken cancellationToken);
 
+    /// <summary>The payments for one business record, oldest first (GAP-036).</summary>
+    Task<IReadOnlyList<Payment>> ForBusinessRef(string businessRefType, Guid businessRefId, Guid? afterId, int limit, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Guid>> PendingSince(DateTimeOffset before, int limit, CancellationToken cancellationToken);
 
     Task<PayoutBatch?> Batch(Guid id, CancellationToken cancellationToken);
@@ -168,6 +171,12 @@ public sealed record ResolveException(Guid ExceptionId) : ICommand<ExceptionView
 public sealed record GetPayment(Guid PaymentId) : IQuery<PaymentView>;
 
 public sealed record GetBatch(Guid BatchId) : IQuery<BatchView>;
+
+/// <summary>GAP-036: the payments for a business record (a refund, a claim payment instruction, an invoice), oldest first.</summary>
+public sealed record ListPayments(string BusinessRefType, Guid BusinessRefId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PaymentView>>;
+
+/// <summary>GAP-036: the payments in a payout batch.</summary>
+public sealed record ListBatchPayments(Guid BatchId) : IQuery<IReadOnlyList<PaymentView>>;
 
 public sealed record ListExceptions(string? Status, int Limit) : IQuery<IReadOnlyList<ExceptionView>>;
 
@@ -575,6 +584,27 @@ internal sealed class GetPaymentHandler(IPaymentRepository payments) : IQueryHan
 {
     public async Task<Result<PaymentView>> Handle(GetPayment query, CancellationToken cancellationToken) =>
         await payments.Get(query.PaymentId, cancellationToken) is { } p ? PaymentView.From(p) : Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
+}
+
+internal sealed class ListPaymentsHandler(IPaymentRepository payments) : IQueryHandler<ListPayments, IReadOnlyList<PaymentView>>, IQueryHandler<ListBatchPayments, IReadOnlyList<PaymentView>>
+{
+    public async Task<Result<IReadOnlyList<PaymentView>>> Handle(ListPayments query, CancellationToken cancellationToken) =>
+        Result.Success<IReadOnlyList<PaymentView>>((await payments.ForBusinessRef(query.BusinessRefType, query.BusinessRefId, query.AfterId, query.Limit, cancellationToken))
+            .Select(PaymentView.From).ToList());
+
+    public async Task<Result<IReadOnlyList<PaymentView>>> Handle(ListBatchPayments query, CancellationToken cancellationToken) =>
+        await payments.Batch(query.BatchId, cancellationToken) is null
+            ? Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.")
+            : Result.Success<IReadOnlyList<PaymentView>>((await payments.InBatch(query.BatchId, cancellationToken)).Select(PaymentView.From).ToList());
+}
+
+public sealed class ListPaymentsValidator : AbstractValidator<ListPayments>
+{
+    public ListPaymentsValidator()
+    {
+        RuleFor(q => q.BusinessRefType).NotEmpty().MaximumLength(30);
+        RuleFor(q => q.Limit).InclusiveBetween(1, 200);
+    }
 }
 
 internal sealed class GetBatchHandler(IPaymentRepository payments) : IQueryHandler<GetBatch, BatchView>

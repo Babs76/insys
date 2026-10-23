@@ -24,9 +24,14 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Api.StaticData;
+using Insys.BuildingBlocks.Application.Context;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Insys.BuildingBlocks.Api;
 
@@ -40,4 +45,44 @@ public interface IModule
 
     /// <summary>Maps the module's endpoints onto the versioned /api/v1 group.</summary>
     void MapEndpoints(IEndpointRouteBuilder api);
+
+    /// <summary>
+    /// Whether the module holds business data (ADR-024). A business module refuses the operator tenant: its endpoints answer
+    /// 403 OPERATOR_TENANT_NOT_BUSINESS there, except its static data and platform endpoints. Tenancy, Identity, Static
+    /// data, Audit, Integration and Workflow administer the platform and say false.
+    /// </summary>
+    bool HoldsBusinessData => true;
+}
+
+/// <summary>Marks an endpoint of a business module, which refuses the operator tenant (ADR-024).</summary>
+public sealed record OperatorTenantRefusedMetadata;
+
+public static class OperatorTenantRefusal
+{
+    /// <summary>
+    /// ADR-024: the group's endpoints refuse the operator tenant with 403 OPERATOR_TENANT_NOT_BUSINESS, reads as well as
+    /// changes, before the handler runs. Static data and platform endpoints are left open: global configuration is
+    /// maintained from the operator tenant (ADR-003).
+    /// </summary>
+    public static RouteGroupBuilder RefuseOperatorTenant(this RouteGroupBuilder group)
+    {
+        group.WithMetadata(new OperatorTenantRefusedMetadata());
+        group.AddEndpointFilter(async (context, next) =>
+        {
+            var http = context.HttpContext;
+            var metadata = http.GetEndpoint()?.Metadata;
+            if (metadata?.GetMetadata<StaticDataEndpointMetadata>() is null && metadata?.GetMetadata<PlatformOperatorEndpointMetadata>() is null)
+            {
+                var operatorTenant = http.RequestServices.GetRequiredService<IOptions<PlatformOptions>>().Value.OperatorTenantId;
+                if (operatorTenant != Guid.Empty && http.RequestServices.GetRequiredService<ITenantContext>().TenantId == operatorTenant)
+                {
+                    return Problems.For(Domain.ErrorCodes.OperatorTenantNotBusiness,
+                        "The platform operator tenant holds no business data; sign in to a business tenant (ADR-024).", StatusCodes.Status403Forbidden);
+                }
+            }
+
+            return await next(context);
+        });
+        return group;
+    }
 }
