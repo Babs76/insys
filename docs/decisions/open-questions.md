@@ -790,3 +790,13 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 
   Not built until approved.
 - **Resolved (23 October 2026):** `docs/specs/addenda/aggregation-limits.md` is signed off, and its build is planned (Wave 0b). The alert level (`Aggregation:AlertAt`) and the automatic reinstatement rule stay unset until they are chosen. **Closed.**
+
+### OQ-077 How a payment provider authenticates its callbacks (Phase 8 Wave 0, F5 finding 2, GAP-035)
+- **Sources:** PAY-003, PAY-005, TEN-002; ADR-017 (confidential clients for service integrations).
+- **Gap:** the callback endpoint needs a user's bearer token as well as the body's HMAC signature. A provider cannot hold a user token, the signing secret is one per provider for every tenant, and nothing stops a replay. The specifications do not say how a provider authenticates.
+- **Proposal (pending sign-off):** ADR-023. OAuth 2.0 client credentials, one Keycloak client per tenant and provider, whose service account is an IAM service identity holding only `payment_callback.create`; the signature stays mandatory, keyed per tenant and provider from the secret store, over a timestamp checked to 5 minutes; a WAF allow-list as defence in depth. Not built until approved.
+
+### OQ-078 Business use of the operator tenant (Phase 8 Wave 0, F5 finding 3)
+- **Sources:** TEN-001, TEN-002, TEN-007; ADR-003, ADR-017.
+- **Gap:** nothing stops a user of the operator tenant with business permissions from creating parties, policies, claims or payments there. The specifications do not say whether the operator tenant may hold business data.
+- **Proposal (pending sign-off):** ADR-024. Business modules refuse the operator tenant with 403 `OPERATOR_TENANT_NOT_BUSINESS`, reads as well as changes, through one endpoint filter per business module checked by a sweep test; Tenancy, Identity, Static data, Audit, Integration and Workflow stay open to it. Not built until approved.

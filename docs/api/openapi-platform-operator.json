@@ -2310,6 +2310,47 @@
         "x-permission": "static_data.create"
       }
     },
+    "/api/v1/integration/parked-deliveries/by-tenant": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Count parked deliveries per tenant and kind (platform operator)",
+        "description": "ADR-022 decision 5: for each active tenant, its parked deliveries by consumer, code and item, with the highest escalation level and the oldest.",
+        "operationId": "ListParkedDeliveriesByTenant",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationParkedDeliveryCount"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "dead_letter.read"
+      }
+    },
     "/api/v1/static-data/static/alert-rules-and-thresholds/global/{code}/versions": {
       "get": {
         "tags": [
@@ -38357,6 +38398,63 @@
           }
         }
       },
+      "IntegrationParkedDeliveryCount": {
+        "required": [
+          "tenantId",
+          "tenantCode",
+          "consumer",
+          "code",
+          "item",
+          "count",
+          "escalationLevel",
+          "oldestParkedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "consumer": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "item": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "escalationLevel": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "oldestParkedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "IntegrationRateLimitPolicies": {
         "type": "object",
         "properties": {
@@ -52384,6 +52482,9 @@
   "tags": [
     {
       "name": "Integration static data"
+    },
+    {
+      "name": "Integration"
     },
     {
       "name": "StaticData static data"

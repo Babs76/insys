@@ -275,6 +275,444 @@
         "x-permission": "dead_letter.update"
       }
     },
+    "/api/v1/integration/parked-deliveries": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "List parked, waiting and failing deliveries in the tenant",
+        "description": "ADR-022: each delivery\u0027s consumer, record, event type, missing configuration (code and item), parked since, attempts and escalation, filtered by status, code, consumer and record, with cursor pagination.",
+        "operationId": "ListParkedDeliveries",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/LedgerStatus"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "consumer",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "aggregateType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "aggregateId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfIntegrationParkedDeliveryView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "dead_letter.read"
+      }
+    },
+    "/api/v1/integration/parked-deliveries/{id}": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Get a parked delivery",
+        "description": "The ETag is required to discard it.",
+        "operationId": "GetParkedDelivery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationParkedDeliveryView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "dead_letter.read"
+      }
+    },
+    "/api/v1/integration/parked-deliveries/{id}/retry": {
+      "post": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Retry a parked delivery at the parking job\u0027s next pass",
+        "description": "ADR-022 decision 4, trigger 3. The consumer\u0027s inbox skips the event if it was already applied, so a retry never applies it twice.",
+        "operationId": "RetryParkedDelivery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationParkedRetryAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "dead_letter.update"
+      }
+    },
+    "/api/v1/integration/parked-deliveries/retry": {
+      "post": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Retry every parked delivery in the tenant for one code",
+        "operationId": "RetryParkedDeliveriesForCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationParkedRetryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationParkedRetryAccepted"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "dead_letter.update"
+      }
+    },
+    "/api/v1/integration/parked-deliveries/{id}/discard": {
+      "post": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Discard a delivery without delivering it, with a reason",
+        "description": "ADR-022 decision 6: never automatic; the reason is required and the discard is audited. Deliveries waiting behind it are then released.",
+        "operationId": "DiscardParkedDelivery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationParkedDiscardRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "dead_letter.update"
+      }
+    },
+    "/api/v1/integration/parking-setting": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Get the tenant\u0027s escalation of parked deliveries",
+        "description": "The defaults (isDefault true) until the tenant sets its own: the configuration owner role, the business calendar, and ISO 8601 business-time durations for money consumers (PT4H, then P1D) and all others (P1D, then P3D).",
+        "operationId": "GetParkingSetting",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationParkingSettingView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "dead_letter.read"
+      },
+      "put": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Set the tenant\u0027s escalation of parked deliveries",
+        "description": "Audited. If-Match is required once the tenant has its own setting.",
+        "operationId": "ChangeParkingSetting",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationParkingSettingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "parking_setting.update"
+      }
+    },
     "/api/v1/integration/webhook-deliveries": {
       "get": {
         "tags": [
@@ -20422,6 +20860,8 @@
                 "LifeUnderwritingCase",
                 "LossAssessment",
                 "MedicalClaim",
+                "ParkedDelivery",
+                "ParkingSetting",
                 "Party",
                 "PartySearchLog",
                 "Payment",
@@ -20824,6 +21264,8 @@
                 "LifeUnderwritingCase",
                 "LossAssessment",
                 "MedicalClaim",
+                "ParkedDelivery",
+                "ParkingSetting",
                 "Party",
                 "PartySearchLog",
                 "Payment",
@@ -21977,7 +22419,8 @@
           "registeredAt",
           "evidence",
           "fraudHits",
-          "communications"
+          "communications",
+          "fraudEvaluations"
         ],
         "type": "object",
         "properties": {
@@ -22022,6 +22465,12 @@
               "string"
             ],
             "format": "int32"
+          },
+          "fraudEvaluations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimsFrameworkFraudEvaluationView"
+            }
           }
         }
       },
@@ -22160,6 +22609,52 @@
                 "string"
               ],
               "format": "double"
+            }
+          }
+        }
+      },
+      "ClaimsFrameworkFraudEvaluationView": {
+        "required": [
+          "id",
+          "evaluatedAt",
+          "score",
+          "referred",
+          "indicatorsEvaluated",
+          "skipped"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "evaluatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "score": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "referred": {
+            "type": "boolean"
+          },
+          "indicatorsEvaluated": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimsFrameworkSkippedIndicatorView"
             }
           }
         }
@@ -22429,6 +22924,39 @@
           },
           "currency": {
             "type": "string"
+          }
+        }
+      },
+      "ClaimsFrameworkSkippedIndicatorView": {
+        "required": [
+          "indicatorCode",
+          "reason",
+          "missingFacts",
+          "errorCode"
+        ],
+        "type": "object",
+        "properties": {
+          "indicatorCode": {
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "MISSING_FACTS",
+              "EVALUATION_FAILED"
+            ],
+            "type": "string"
+          },
+          "missingFacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "errorCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -22825,6 +23353,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/IntegrationDeadLetterSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfIntegrationParkedDeliveryView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrationParkedDeliveryView"
             }
           },
           "nextCursor": {
@@ -28599,6 +29148,263 @@
           }
         }
       },
+      "IntegrationParkedDeliveryView": {
+        "required": [
+          "id",
+          "consumer",
+          "eventId",
+          "eventType",
+          "occurredAt",
+          "aggregateType",
+          "aggregateId",
+          "status",
+          "prerequisiteCode",
+          "prerequisiteItem",
+          "parkedAt",
+          "attempts",
+          "lastAttemptAt",
+          "escalationLevel",
+          "escalatedAt",
+          "nextEscalationAt",
+          "resolvedAt",
+          "discardedBy",
+          "discardReason",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "consumer": {
+            "type": "string"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "aggregateType": {
+            "type": "string"
+          },
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LedgerStatus"
+          },
+          "prerequisiteCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "prerequisiteItem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "parkedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "attempts": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lastAttemptAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "escalationLevel": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "escalatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "nextEscalationAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "discardedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "discardReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "IntegrationParkedDiscardRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "IntegrationParkedRetryAccepted": {
+        "required": [
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "IntegrationParkedRetryRequest": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "IntegrationParkingSettingRequest": {
+        "required": [
+          "configurationOwnerRole",
+          "calendarCode",
+          "moneyFirst",
+          "moneySecond",
+          "otherFirst",
+          "otherSecond"
+        ],
+        "type": "object",
+        "properties": {
+          "configurationOwnerRole": {
+            "type": "string"
+          },
+          "calendarCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "moneyFirst": {
+            "type": "string"
+          },
+          "moneySecond": {
+            "type": "string"
+          },
+          "otherFirst": {
+            "type": "string"
+          },
+          "otherSecond": {
+            "type": "string"
+          }
+        }
+      },
+      "IntegrationParkingSettingView": {
+        "required": [
+          "configurationOwnerRole",
+          "calendarCode",
+          "moneyFirst",
+          "moneySecond",
+          "otherFirst",
+          "otherSecond",
+          "isDefault",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "configurationOwnerRole": {
+            "type": "string"
+          },
+          "calendarCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "moneyFirst": {
+            "type": "string"
+          },
+          "moneySecond": {
+            "type": "string"
+          },
+          "otherFirst": {
+            "type": "string"
+          },
+          "otherSecond": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "IntegrationWebhookDeliveryStatus": {
         "enum": [
           "Pending",
@@ -28679,6 +29485,17 @@
         }
       },
       "JsonElement": {},
+      "LedgerStatus": {
+        "enum": [
+          "Parked",
+          "Waiting",
+          "Failing",
+          "Retrying",
+          "DeadLettered",
+          "Resolved",
+          "Discarded"
+        ]
+      },
       "LifeAlterationRequest": {
         "required": [
           "alterationCode",
@@ -31763,6 +32580,13 @@
             "type": "string"
           },
           "purpose": {
+            "enum": [
+              "PREMIUM",
+              "REFUND",
+              "CLAIM_PAYOUT",
+              "RECOVERY",
+              "COMMISSION"
+            ],
             "type": "string"
           },
           "paymentCount": {
@@ -31818,6 +32642,11 @@
         "type": "object",
         "properties": {
           "purpose": {
+            "enum": [
+              "REFUND",
+              "CLAIM_PAYOUT",
+              "COMMISSION"
+            ],
             "type": "string"
           },
           "currency": {
@@ -32015,6 +32844,13 @@
             "type": "string"
           },
           "purpose": {
+            "enum": [
+              "PREMIUM",
+              "REFUND",
+              "CLAIM_PAYOUT",
+              "RECOVERY",
+              "COMMISSION"
+            ],
             "type": "string"
           },
           "methodCode": {

@@ -37,6 +37,13 @@ dotnet run --project src/Host/Insys.Api
 - The API serves `/api/v1/…`. The OpenAPI documents are at `/openapi/{core|static-data|platform-operator}.json`, with committed copies in `docs/api/`.
 - Health endpoints: `/health/live` (process), `/health/ready` (database, outbox lag, partitions), `/health` (everything, with detail).
 - `appsettings.Development.json` holds local-only settings: the role connection template, a development token signing key and field protection keys. Never use them anywhere else.
+- **The payment simulator's callback secret (GAP-035)** is not in any committed file. Set it once in the API's user secrets, which live outside the repository:
+
+  ```bash
+  dotnet user-secrets --project src/Host/Insys.Api set "Payments:Providers:SIMULATOR:CallbackSecret" "<any local value>"
+  ```
+
+  Or set the environment variable `Payments__Providers__SIMULATOR__CallbackSecret`. Without it, every callback is refused with `CALLBACK_SIGNATURE_INVALID`. A callback signs its raw body with HMAC-SHA256 under this secret, hex-encoded in lower case, in `X-Signature`. It also needs a bearer token today; ADR-023 proposes replacing that with a provider credential.
 
 ## Configuration
 
@@ -49,7 +56,10 @@ dotnet run --project src/Host/Insys.Api
 | `FieldProtection:Keys`, `ActiveKeyId`, `HashKey` | AES-256-GCM keys for encrypted fields, and the HMAC key for lookups (OQ-020) | none |
 | `FieldProtection:Provider`, `Envelope:*` | `local` or `envelope` (DEW KMS data keys, cache, rotation; ADR-018) | local; 1 h cache, 90-day rotation |
 | `Huawei:Kms:*`, `Huawei:Obs:*` | DEW KMS and OBS settings; access keys from the secret store (ADR-016) | af-south-1 |
-| `Outbox:*` | Relay poll interval, batch size, attempts and back-off; lag warning and failure thresholds | 2 s, 100, 10, 5 s; 1 min, 5 min |
+| `Outbox:*` | Relay poll interval, batch size, attempts and back-off; lag warning and failure thresholds; each consumer attempt's time limit (ADR-022) | 2 s, 100, 10, 5 s; 1 min, 5 min; 30 s |
+| `Outbox:Parking:*` | Parked deliveries (ADR-022): job switch and interval, periodic retry, money consumers' schemas, default escalation | on, 5 s, 15 min; PT4H/P1D money, P1D/P3D others |
+| `Payments:Providers:<code>:CallbackSecret` | A provider's callback signing secret; user secrets or the environment locally, the secret store elsewhere (GAP-035) | none |
+| `Database:Pools:<role>`, `MaxConnections`, `Reserve`, `Instances`, `PoolWaitSeconds` | Connection pool per module role, checked at start-up against the server's limit (GAP-039) | see `docs/runbooks/deployment.md` |
 | `Idempotency:Retention` | How long Idempotency-Key results are kept | 24 h |
 | `RateLimiting:PermitsPerMinute` | Requests per minute per tenant | 1,200 |
 | `Commands:ConflictRetry:MaxAttempts` | Server-side retries of commands marked safe to repeat (ADR-012) | 3 |

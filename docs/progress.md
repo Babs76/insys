@@ -22,7 +22,8 @@
 | 8 Workstream D | DEW KMS envelope encryption, OBS document storage, Keycloak realm and compose service | Done, accepted |
 | 8 Wave 0 batch 1 (front end) | GAP-002, 003, 005, 006, 007, 008, 019, 020, 021, 025, 030 and per-record history; contract changes in `docs/api/contract-changes.md` | Done, merged (`844b668`) |
 | 8 Wave 0 batch 2 (front end) | GAP-031 (schema IDs), 034 (readiness; ADR-022 proposed), 022, 023, 024, 027, 029, 032, 033 and request 24 | Done, merged (`bcc8ebc`) |
-| 8 Wave 0 batch 3 | ADR-022 revision 2; Cloud Eye alarms; party search log access (OQ-073); F009, F023, F055 built; F103, F005, F062 proposals (OQ-074 to OQ-076) | **Done on `wave0-3`, awaiting review** (23 Oct 2026) |
+| 8 Wave 0 batch 3 | ADR-022 revision 2; Cloud Eye alarms; party search log access (OQ-073); F009, F023, F055 built; F103, F005, F062 proposals (OQ-074 to OQ-076) | **Merged, `8351b83`** (23 Oct 2026) |
+| 8 Wave 0 batch 4 | ADR-022 built (parking, order per record, escalation per tenant, attempt timeout) with GAP-038 payouts; F103 interim control; GAP-039 pools and 503; OQ-073 retention job; F009 skips recorded and alerted; GAP-035 documented, GAP-037 purposes; ADR-023 and ADR-024 proposed | **Done on `wave0-4`, awaiting review** (23 Oct 2026) |
 
 ## Phase 1 review items
 
