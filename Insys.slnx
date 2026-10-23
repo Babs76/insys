@@ -29,6 +29,7 @@
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/Insys.BuildingBlocks.Api/Insys.BuildingBlocks.Api.csproj" />
     <Project Path="src/BuildingBlocks/Insys.BuildingBlocks.Application/Insys.BuildingBlocks.Application.csproj" />
+    <Project Path="src/BuildingBlocks/Insys.BuildingBlocks.Cloud/Insys.BuildingBlocks.Cloud.csproj" />
     <Project Path="src/BuildingBlocks/Insys.BuildingBlocks.Contracts/Insys.BuildingBlocks.Contracts.csproj" />
     <Project Path="src/BuildingBlocks/Insys.BuildingBlocks.Domain/Insys.BuildingBlocks.Domain.csproj" />
     <Project Path="src/BuildingBlocks/Insys.BuildingBlocks.Infrastructure/Insys.BuildingBlocks.Infrastructure.csproj" />

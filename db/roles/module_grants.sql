@@ -31,7 +31,7 @@
 -- * Each module role has USAGE and DML on its own schemas only. The module and
 --   schema list is db/roles/module_roles.csv.
 -- * Insert-only tables get SELECT and INSERT only (DBA-009, DBA-016).
--- * insys_api (the API building block) may use only integration.idempotency_key.
+-- * insys_api (the API building block) may use only integration.idempotency_key and read and add field data keys.
 -- * insys_platform_admin may maintain static data tables and write module
 --   outboxes, for global static data changes only.
 -- * Default privileges give partitions created later by the owner (the Audit
@@ -105,6 +105,8 @@ BEGIN
   -- The API building block: idempotency keys only (INT-003, DBA-008).
   GRANT USAGE ON SCHEMA integration TO insys_api;
   GRANT SELECT, INSERT, UPDATE, DELETE ON integration.idempotency_key TO insys_api;
+  -- Envelope encryption's data key register (V0023, ADR-018): read and add, never change or remove.
+  GRANT SELECT, INSERT ON integration.field_data_key TO insys_api;
 
   -- Outbox relay lag for the health checks: counts and a timestamp only (V0009).
   GRANT EXECUTE ON FUNCTION integration.outbox_lag(smallint) TO insys_api;

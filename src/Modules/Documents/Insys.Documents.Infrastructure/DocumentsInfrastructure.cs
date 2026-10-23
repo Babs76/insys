@@ -36,7 +36,7 @@ namespace Insys.Documents.Infrastructure;
 
 public static class DocumentsInfrastructure
 {
-    public static IServiceCollection AddDocumentsInfrastructure(this IServiceCollection services)
+    public static IServiceCollection AddDocumentsInfrastructure(this IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
     {
         services.AddModuleDbContext<DocumentsDbContext>(DocumentsDbContext.SchemaName, "Documents");
         services.AddStaticData<DocumentsDbContext>(DocumentsDbContext.SchemaName, DocumentsStaticData.Descriptors);
@@ -45,7 +45,14 @@ public static class DocumentsInfrastructure
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<IDocumentCatalogue, DocumentCatalogue>();
         services.AddOptions<DocumentStorageOptions>().BindConfiguration("Documents:Storage");
-        services.AddSingleton<IDocumentStorage, FileSystemDocumentStorage>();
+        if (string.Equals(configuration["Documents:Storage:Provider"], "object-store", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<IDocumentStorage, ObjectStoreDocumentStorage>();
+        }
+        else
+        {
+            services.AddSingleton<IDocumentStorage, FileSystemDocumentStorage>();
+        }
         services.AddSingleton<IDocumentRenderer, PlainTextDocumentRenderer>();
         services.AddSingleton<IDocumentDelivery, StubDocumentDelivery>();
         services.AddScoped<DocumentGenerator>();

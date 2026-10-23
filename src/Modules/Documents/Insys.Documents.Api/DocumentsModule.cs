@@ -56,7 +56,7 @@ public sealed class DocumentsModule : IModule
 {
     public string Name => "Documents";
 
-    public void Register(IServiceCollection services, IConfiguration configuration) => services.AddDocumentsInfrastructure();
+    public void Register(IServiceCollection services, IConfiguration configuration) => services.AddDocumentsInfrastructure(configuration);
 
     public void MapEndpoints(IEndpointRouteBuilder api)
     {

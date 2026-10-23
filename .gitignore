@@ -8,3 +8,6 @@ TestResults/
 .DS_Store
 *.swp
 .env
+
+# Local Keycloak passwords (deploy/keycloak/keycloak.env.example)
+deploy/keycloak/keycloak.env

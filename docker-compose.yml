@@ -51,5 +51,25 @@ services:
       timeout: 5s
       retries: 20
 
+  # Local identity provider (ADR-017): realm "insys" from deploy/keycloak/insys-realm.json, with the public client
+  # insys-web (Authorization Code with PKCE, http://localhost:5173) and the tenant_id mapper. No password is stored in
+  # the repository: copy deploy/keycloak/keycloak.env.example to deploy/keycloak/keycloak.env (git ignores it), set
+  # both passwords, then:
+  #   docker compose --profile identity up -d keycloak
+  # Admin console: http://localhost:8080/admin (user admin). Issuer: http://localhost:8080/realms/insys
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.5
+    profiles: ["identity"]
+    command: ["start-dev", "--import-realm"]
+    env_file:
+      - path: deploy/keycloak/keycloak.env
+        required: true
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+    ports:
+      - "${INSYS_KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - ./deploy/keycloak/insys-realm.json:/opt/keycloak/data/import/insys-realm.json:ro
+
 volumes:
   insys-pgdata:

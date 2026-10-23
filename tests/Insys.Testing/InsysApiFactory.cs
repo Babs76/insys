@@ -60,6 +60,13 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
+
+        // UseSetting makes the test's settings visible while Program registers services, which some choices need
+        // (FieldProtection:Provider, Documents:Storage:Provider); the in-memory collection below covers options read later.
+        foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
+        {
+            builder.UseSetting(key, value);
+        }
         builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(TestTokens.HostSettings(Database)).AddInMemoryCollection(settings ?? new Dictionary<string, string?>()));
     }
 

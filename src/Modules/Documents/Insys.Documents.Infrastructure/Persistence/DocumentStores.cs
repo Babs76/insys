@@ -100,6 +100,9 @@ internal sealed class DocumentCatalogue(DocumentsDbContext db) : IDocumentCatalo
 
 public sealed class DocumentStorageOptions
 {
+    /// <summary>"filesystem" (development, the default) or "object-store" (Huawei Cloud OBS in production; ADR-016).</summary>
+    public string Provider { get; set; } = "filesystem";
+
     /// <summary>The folder the development storage writes to. TODO(spec): the production document store is not specified (OQ-056).</summary>
     public string Root { get; set; } = Path.Combine(Path.GetTempPath(), "insys-documents");
 }
@@ -167,6 +170,29 @@ internal sealed class PlainTextDocumentRenderer : IDocumentRenderer
 
         return (Encoding.UTF8.GetBytes(text.ToString()), "text/plain");
     }
+}
+
+/// <summary>
+/// Production storage in the object store (OBS): the same tenant-prefixed key layout as the development storage, and a
+/// key outside the calling tenant's prefix is refused (DOC-001, TEN-004).
+/// </summary>
+internal sealed class ObjectStoreDocumentStorage(Insys.BuildingBlocks.Application.Storage.IObjectStore store) : IDocumentStorage
+{
+    public async Task<StoredContent> Put(Guid tenantId, Guid documentId, byte[] content, string mimeType, CancellationToken cancellationToken)
+    {
+        var key = $"tenant/{tenantId:N}/documents/{documentId:N}";
+        await store.Put(key, content, mimeType, cancellationToken);
+        return new StoredContent(key, mimeType, content.LongLength, Convert.ToHexStringLower(SHA256.HashData(content)));
+    }
+
+    public Task<byte[]?> Get(Guid tenantId, string storageUri, CancellationToken cancellationToken) => store.Get(Own(tenantId, storageUri), cancellationToken);
+
+    public Task Delete(Guid tenantId, string storageUri, CancellationToken cancellationToken) => store.Delete(Own(tenantId, storageUri), cancellationToken);
+
+    private static string Own(Guid tenantId, string storageUri) =>
+        storageUri.StartsWith($"tenant/{tenantId:N}/", StringComparison.Ordinal) && !storageUri.Contains("..", StringComparison.Ordinal)
+            ? storageUri
+            : throw new UnauthorizedAccessException("The document belongs to another tenant's storage.");
 }
 
 /// <summary>Stand-in delivery: records a provider reference without sending. TODO(spec): delivery providers are configured per channel (OQ-056).</summary>

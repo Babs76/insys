@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Cloud;
 using Insys.Api.Platform;
 using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Infrastructure;
@@ -59,6 +60,7 @@ IModule[] modules =
 
 builder.AddInsysTelemetry();
 builder.Services.AddInsysInfrastructure(builder.Configuration);
+builder.Services.AddInsysCloud(builder.Configuration);
 builder.Services.AddInsysApi();
 foreach (var module in modules)
 {

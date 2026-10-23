@@ -18,7 +18,8 @@
 | 8 Workstream A | Platform ADRs (016 to 020), functional coverage verified | Done, accepted (checkpoint A) |
 | 8 Workstream B | Languages: tenant languages, labels, localised ProblemDetails, documents, preferred language; CI split into three jobs | Done, accepted |
 | 8 CI and startup | Shared test hosts, template databases, router warm-up gate with 503 NOT_READY, development signing key allow-list | Done (CI green: b6a9978) |
-| 8 Workstream C | Source file headers on 913 files, SourceHeaderTests and CI check, ADR-021 | **Done, awaiting review** (23 Oct 2026) |
+| 8 Workstream C | Source file headers on 913 files, SourceHeaderTests and CI check, ADR-021 | Done, accepted |
+| 8 Workstream D | DEW KMS envelope encryption, OBS document storage, Keycloak realm and compose service | **Done, awaiting review** (23 Oct 2026) |
 
 ## Phase 1 review items
 

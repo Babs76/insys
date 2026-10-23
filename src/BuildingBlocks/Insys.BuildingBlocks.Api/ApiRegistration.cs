@@ -45,12 +45,15 @@ namespace Insys.BuildingBlocks.Api;
 
 public sealed class InsysAuthenticationOptions
 {
-    /// <summary>The OIDC issuer. TODO(spec): the identity provider is an SRS §30 decision.</summary>
+    /// <summary>The OIDC issuer: the Keycloak realm (ADR-017), for example http://localhost:8080/realms/insys locally.</summary>
     public string? Authority { get; set; }
 
     public string? Audience { get; set; }
 
     public string? Issuer { get; set; }
+
+    /// <summary>Whether the issuer's metadata must be fetched over HTTPS; false only for a local Keycloak on http://localhost.</summary>
+    public bool RequireHttpsMetadata { get; set; } = true;
 
     /// <summary>
     /// A symmetric (HS256) signing key for local development and tests only. Ignored when Authority is set, and accepted
@@ -117,6 +120,7 @@ public static class ApiRegistration
             if (!string.IsNullOrWhiteSpace(auth.Authority))
             {
                 options.Authority = auth.Authority;
+                options.RequireHttpsMetadata = auth.RequireHttpsMetadata;
             }
             else if (!string.IsNullOrWhiteSpace(auth.DevelopmentSigningKey) && InsysAuthenticationOptions.AllowsDevelopmentKey(environment))
             {

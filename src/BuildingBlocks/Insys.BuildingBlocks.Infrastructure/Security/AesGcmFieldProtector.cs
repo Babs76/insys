@@ -33,6 +33,11 @@ namespace Insys.BuildingBlocks.Infrastructure.Security;
 
 public sealed class FieldProtectionOptions
 {
+    /// <summary>"local" (keys from configuration; development, tests and CI) or "envelope" (data keys from a KMS; ADR-018).</summary>
+    public string Provider { get; set; } = "local";
+
+    public EnvelopeOptions Envelope { get; set; } = new();
+
     /// <summary>Base64 256-bit encryption keys by key ID. Old keys stay here so existing values can be decrypted.</summary>
     public Dictionary<string, string> Keys { get; set; } = [];
 
@@ -43,61 +48,91 @@ public sealed class FieldProtectionOptions
 }
 
 /// <summary>
-/// AES-256-GCM encryption for the _enc columns and HMAC-SHA256 for the _hash columns (DBA-014).
-/// Stored layout: version (1 byte) | key ID length (1 byte) | key ID | nonce (12) | tag (16) | ciphertext.
+/// The stored layout of an encrypted field, shared by every provider: version (1 byte) | key ID length (1 byte) | key ID |
+/// nonce (12) | tag (16) | ciphertext, AES-256-GCM. The key ID says which key decrypts it.
 /// </summary>
-public sealed class AesGcmFieldProtector(IOptions<FieldProtectionOptions> options) : IFieldProtector
+public static class FieldCipher
 {
     private const byte FormatVersion = 1;
     private const int NonceSize = 12;
     private const int TagSize = 16;
 
-    public ProtectedValue Protect(string plaintext)
+    public static byte[] Encrypt(string keyId, byte[] key, string plaintext)
     {
-        ArgumentNullException.ThrowIfNull(plaintext);
-        var settings = options.Value;
-        var key = KeyFor(settings.ActiveKeyId);
-        var keyId = Encoding.ASCII.GetBytes(settings.ActiveKeyId);
+        var id = Encoding.ASCII.GetBytes(keyId);
+        if (id.Length is 0 or > 255)
+        {
+            throw new CryptographicException("A key ID is 1 to 255 ASCII characters.");
+        }
+
         var plain = Encoding.UTF8.GetBytes(plaintext);
-        var output = new byte[2 + keyId.Length + NonceSize + TagSize + plain.Length];
+        var output = new byte[2 + id.Length + NonceSize + TagSize + plain.Length];
         output[0] = FormatVersion;
-        output[1] = (byte)keyId.Length;
-        keyId.CopyTo(output, 2);
-        var offset = 2 + keyId.Length;
+        output[1] = (byte)id.Length;
+        id.CopyTo(output, 2);
+        var offset = 2 + id.Length;
         var nonce = output.AsSpan(offset, NonceSize);
         RandomNumberGenerator.Fill(nonce);
         using var aes = new AesGcm(key, TagSize);
         aes.Encrypt(nonce, plain, output.AsSpan(offset + NonceSize + TagSize), output.AsSpan(offset + NonceSize, TagSize));
-        return new ProtectedValue(output, Hash(plaintext), plaintext.Length <= 4 ? plaintext : plaintext[^4..]);
+        return output;
     }
 
-    public string Unprotect(byte[] encrypted)
+    public static string KeyIdOf(byte[] encrypted)
     {
         ArgumentNullException.ThrowIfNull(encrypted);
-        if (encrypted.Length < 2 || encrypted[0] != FormatVersion)
-        {
-            throw new CryptographicException("Unknown protected value format.");
-        }
+        return encrypted.Length < 2 || encrypted[0] != FormatVersion || encrypted.Length < 2 + encrypted[1] + NonceSize + TagSize
+            ? throw new CryptographicException("Unknown protected value format.")
+            : Encoding.ASCII.GetString(encrypted, 2, encrypted[1]);
+    }
 
-        var keyIdLength = encrypted[1];
-        var keyId = Encoding.ASCII.GetString(encrypted, 2, keyIdLength);
-        var offset = 2 + keyIdLength;
-        var cipherLength = encrypted.Length - offset - NonceSize - TagSize;
-        var plain = new byte[cipherLength];
-        using var aes = new AesGcm(KeyFor(keyId), TagSize);
+    public static string Decrypt(byte[] encrypted, byte[] key)
+    {
+        var offset = 2 + KeyIdOf(encrypted).Length;
+        var plain = new byte[encrypted.Length - offset - NonceSize - TagSize];
+        using var aes = new AesGcm(key, TagSize);
         aes.Decrypt(encrypted.AsSpan(offset, NonceSize), encrypted.AsSpan(offset + NonceSize + TagSize), encrypted.AsSpan(offset + NonceSize, TagSize), plain);
         return Encoding.UTF8.GetString(plain);
     }
 
-    public string Hash(string plaintext)
+    public static string Last4(string plaintext) => plaintext.Length <= 4 ? plaintext : plaintext[^4..];
+
+    public static string Hash(string hashKeyBase64, string plaintext)
     {
-        var key = Convert.FromBase64String(Required(options.Value.HashKey, "FieldProtection:HashKey"));
-        return Convert.ToHexStringLower(HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(plaintext)));
+        if (string.IsNullOrWhiteSpace(hashKeyBase64))
+        {
+            throw new CryptographicException("FieldProtection:HashKey is not configured.");
+        }
+
+        return Convert.ToHexStringLower(HMACSHA256.HashData(Convert.FromBase64String(hashKeyBase64), Encoding.UTF8.GetBytes(plaintext)));
     }
+}
+
+/// <summary>
+/// The local provider (FieldProtection:Provider "local", the default): AES-256-GCM keys from configuration for the _enc
+/// columns, and HMAC-SHA256 for the _hash columns (DBA-014). For development, tests and CI (ADR-018).
+/// </summary>
+public sealed class AesGcmFieldProtector(IOptions<FieldProtectionOptions> options) : IFieldProtector
+{
+    public ProtectedValue Protect(string plaintext)
+    {
+        ArgumentNullException.ThrowIfNull(plaintext);
+        var keyId = options.Value.ActiveKeyId;
+        return new ProtectedValue(FieldCipher.Encrypt(keyId, KeyFor(keyId), plaintext), Hash(plaintext), FieldCipher.Last4(plaintext));
+    }
+
+    public string Unprotect(byte[] encrypted) => FieldCipher.Decrypt(encrypted, KeyFor(FieldCipher.KeyIdOf(encrypted)));
+
+    public string Hash(string plaintext) => FieldCipher.Hash(options.Value.HashKey, plaintext);
 
     private byte[] KeyFor(string keyId)
     {
-        if (!options.Value.Keys.TryGetValue(Required(keyId, "FieldProtection:ActiveKeyId"), out var encoded))
+        if (string.IsNullOrWhiteSpace(keyId))
+        {
+            throw new CryptographicException("FieldProtection:ActiveKeyId is not configured.");
+        }
+
+        if (!options.Value.Keys.TryGetValue(keyId, out var encoded))
         {
             throw new CryptographicException($"Field protection key '{keyId}' is not configured.");
         }
@@ -105,7 +140,4 @@ public sealed class AesGcmFieldProtector(IOptions<FieldProtectionOptions> option
         var key = Convert.FromBase64String(encoded);
         return key.Length == 32 ? key : throw new CryptographicException("Field protection keys must be 256 bits.");
     }
-
-    private static string Required(string value, string name) =>
-        string.IsNullOrWhiteSpace(value) ? throw new CryptographicException($"{name} is not configured.") : value;
 }

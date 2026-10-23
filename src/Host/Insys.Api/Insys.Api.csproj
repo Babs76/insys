@@ -36,6 +36,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\Insys.BuildingBlocks.Api\Insys.BuildingBlocks.Api.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\Insys.BuildingBlocks.Cloud\Insys.BuildingBlocks.Cloud.csproj" />
     <ProjectReference Include="..\..\Modules\Integration\Insys.Integration.Api\Insys.Integration.Api.csproj" />
     <ProjectReference Include="..\..\Modules\StaticData\Insys.StaticData.Api\Insys.StaticData.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Party\Insys.Party.Api\Insys.Party.Api.csproj" />

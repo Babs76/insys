@@ -89,8 +89,7 @@ public static class InfrastructureRegistration
         services.AddOptions<IdempotencyOptions>().Bind(configuration.GetSection("Idempotency"));
         services.AddScoped<IIdempotencyStore, PostgresIdempotencyStore>();
 
-        services.AddOptions<FieldProtectionOptions>().Bind(configuration.GetSection("FieldProtection"));
-        services.AddSingleton<IFieldProtector, AesGcmFieldProtector>();
+        services.AddFieldProtection(configuration);
 
         services.AddOptions<OutboxOptions>().Bind(configuration.GetSection("Outbox"));
         services.AddSingleton<IEventBus, InProcessEventBus>();

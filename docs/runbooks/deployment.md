@@ -34,6 +34,77 @@ Both need PostgreSQL 18.
 4. Start the host. Check that `/health/ready` answers Healthy (see [monitoring.md](monitoring.md)).
 5. **Through the API, provision a second platform administrator** (`POST /api/v1/identity/users` and then `assign-role`). Until one exists, no static data change can be approved, because the checker must not be the maker (SDM-003, SRS-002).
 
+## Identity provider: Keycloak (ADR-017)
+
+### Locally
+
+1. Copy `deploy/keycloak/keycloak.env.example` to `deploy/keycloak/keycloak.env` (git ignores it) and set both passwords.
+2. Run `docker compose --profile identity up -d keycloak`. This imports the realm `insys` from `deploy/keycloak/insys-realm.json`. The admin console is at http://localhost:8080/admin.
+3. To sign in through Keycloak instead of the development token, set:
+   - `Authentication:Authority=http://localhost:8080/realms/insys`;
+   - `Authentication:Audience=insys-core-api`;
+   - `Authentication:RequireHttpsMetadata=false` (local only);
+   - an empty `Authentication:DevelopmentSigningKey`.
+4. The realm's `insys-admin` user has a fixed `sub`, `0199f000-0000-7000-8000-0000000000a1`, and the operator tenant `0199f000-0000-7000-8000-000000000001`. Bootstrap the operator with `--bootstrap-operator 0199f000-0000-7000-8000-000000000001 --admin-subject 0199f000-0000-7000-8000-0000000000a1`, so that user is the first platform administrator.
+
+### What the realm contains
+
+- **Clients:**
+  - `insys-core-api` is bearer-only: it is the audience of access tokens and signs nobody in.
+  - `insys-web` is a public client: Authorization Code with PKCE (S256), redirect `http://localhost:5173/*`, web origin `http://localhost:5173`, no secret, no direct password grant. Add the deployed front end's URLs when it is hosted.
+- **Client scopes:**
+  - `insys-api` adds the `tenant_id` claim (user attribute mapper) and the `insys-core-api` audience.
+  - `basic` adds `sub`.
+  - `insys-web` gets only these two, so its access tokens carry no profile, email or roles. Permissions come from IAM on every request.
+- **User profile:**
+  - `tenant_id` is a declarative user profile attribute that only administrators can view or edit. It never appears in the account console, and a user's own account update cannot change it.
+  - It must be a UUID.
+- **Access tokens** last 5 minutes. Revoking access in IAM takes effect on the next request (IAM-005); disabling the user in Keycloak stops new tokens.
+
+### How a tenant's users get their `tenant_id`
+
+1. The tenant exists in INSYS: the platform operator registers and onboards it (see [tenants-and-access.md](tenants-and-access.md)).
+2. A Keycloak administrator creates the user in realm `insys` and sets `tenant_id` to the tenant's ID, in the admin console or through the admin REST API.
+   - A person who works for two tenants has two Keycloak users, so that each token names one tenant (TEN-003).
+   - Users cannot set or change it themselves.
+3. The tenant's administrator provisions the IAM user with that user's Keycloak `sub` as the external subject, and assigns roles (`POST /api/v1/identity/users`).
+4. The first administrator of a new tenant has no IAM administrator to provision them yet (OQ-067, Wave 0 GAP-019). Until the platform command exists, follow the interim step in the tenants runbook.
+
+### In production
+
+Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and then managed in Keycloak. Also:
+
+- an HTTPS issuer, so `RequireHttpsMetadata` stays true;
+- MFA required for privileged roles (IAM-003);
+- the bootstrap administrator's password from the secret store;
+- `insys-web` redirect URIs limited to the production origins.
+
+## Field encryption keys: DEW KMS (ADR-018)
+
+- `FieldProtection:Provider` is `local` by default: keys from configuration, for development and CI.
+- Production uses `envelope`, with `FieldProtection:Envelope:Kms=dew`, and needs:
+  - `Huawei:Kms:Region` (`af-south-1`);
+  - `ProjectId`;
+  - `MasterKeyId`, the CMK's ID;
+  - `AccessKey` and `SecretKey`, from the secret store.
+- **The first data key** is created at startup and recorded in `integration.field_data_key`, which holds ciphertext only. Every encrypted value carries its data key's ID.
+- **Rotation:** a new data key is created after `FieldProtection:Envelope:RotateAfter` (90 days). New values use the newest key, and older values stay readable with theirs, so no rows are rewritten.
+- **KMS calls:**
+  - Decrypted data keys are held in memory for `DataKeyCacheDuration` (1 hour) and refreshed in the background every `RotationCheckInterval` (1 hour). Normal reads and writes make no KMS call.
+  - DEW is rate-limited per account. Throttled (429) and failed (5xx) calls are retried with exponential back-off from 200 ms, at most 6 attempts.
+- **Never schedule the CMK for deletion:** the data would become unreadable. Block it with a key policy.
+- **`HashKey` cannot be rotated in place** (OQ-020). Keep it in the secret store.
+
+## Document storage: OBS (ADR-016)
+
+- `Documents:Storage:Provider` is `filesystem` by default, for development.
+- Production uses `object-store`, with:
+  - `Huawei:Obs:ServiceUrl` (`https://obs.af-south-1.myhuaweicloud.com`);
+  - `Bucket`;
+  - `AccessKey` and `SecretKey`, from the secret store.
+- Objects are kept under `tenant/<tenant id>/documents/<document id>`, and a key outside the calling tenant's prefix is refused.
+- Enable bucket versioning and server-side encryption in OBS.
+
 ## Upgrades
 
 1. Read the new migrations (`db/migrations/V####__*.sql`) and the release's changes to `docs/api/`.

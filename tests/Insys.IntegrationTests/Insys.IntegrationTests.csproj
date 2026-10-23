@@ -32,6 +32,7 @@
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Testcontainers.Keycloak" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Insys.Testing\Insys.Testing.csproj" />

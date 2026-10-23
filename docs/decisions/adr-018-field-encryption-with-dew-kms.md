@@ -32,3 +32,13 @@ Keycloak (ADR-017) is not a key manager. Its vault holds only its own configurat
 - Production keeps no field encryption keys in configuration. It holds only the CMK ID, the data key ciphertexts and credentials for KMS (an IAM agency on ECS or CCE, not access keys).
 - A lost CMK makes the data unreadable. Scheduled deletion of the CMK must be blocked by policy, and the KMS key policy belongs in the security runbook.
 - Which .NET client to use, and its licence, are checked in Workstream D (CLAUDE.md, packages).
+
+## As built (Phase 8 Workstream D, 23 October 2026)
+- **The data key register** is the table `integration.field_data_key` (V0023), used through the API role: read and add only, ciphertext only.
+- **Rotation:** `DataKeyRotationService` creates the first key at startup and a new one after `RotateAfter`. An advisory lock means instances rotating together add one key.
+- **Caching:** `DataKeyRing` keeps decrypted keys for `DataKeyCacheDuration` and refreshes them in the background. A test shows 1,000 decryptions on a fresh instance make one KMS call (`EnvelopeFieldProtectorTests`).
+- **The DEW adapter** is in `Insys.BuildingBlocks.Cloud`, using Huawei's .NET SDK (`HuaweiCloud.SDK.Kms` 3.1.213, Apache-2.0).
+  - Retries follow Huawei's DEW best practice: back-off of 200 ms × 2ⁿ, at most 6 attempts, each wait capped at 5 s and jittered. They apply on 429 or the throttling message, 5xx, timeouts and lost connections.
+  - The per-second limit is given in DEW's throttling error. Huawei's documents name no fixed figure, so the design assumes a low one.
+  - The real-cloud test (`HuaweiCloudTests`) runs only with credentials.
+- **The data key format** is unchanged. The `datakey_cipher_length` sent to DecryptDatakey is the plaintext's 32 bytes, to confirm against the real service when the cloud test first runs.

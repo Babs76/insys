@@ -43,9 +43,12 @@ dotnet run --project src/Host/Insys.Api
 | Setting | Purpose | Default |
 |---|---|---|
 | `ConnectionStrings:Template` | Connection string with `{role}`, used by every module with its own role | none |
-| `Authentication:Authority`, `Audience` | The OIDC issuer and audience; tokens carry only `sub` and `tenant_id` | none, `insys-core-api` |
+| `Authentication:Authority`, `Audience`, `RequireHttpsMetadata` | The OIDC issuer (Keycloak realm, ADR-017) and audience; tokens carry only `sub` and `tenant_id` | none, `insys-core-api`, true |
+| `Authentication:DevelopmentSigningKey` | HS256 key for local tokens; refused outside Development and Testing | none |
 | `Platform:OperatorTenantId` | The platform operator tenant, the only one allowed on platform endpoints | none |
 | `FieldProtection:Keys`, `ActiveKeyId`, `HashKey` | AES-256-GCM keys for encrypted fields, and the HMAC key for lookups (OQ-020) | none |
+| `FieldProtection:Provider`, `Envelope:*` | `local` or `envelope` (DEW KMS data keys, cache, rotation; ADR-018) | local; 1 h cache, 90-day rotation |
+| `Huawei:Kms:*`, `Huawei:Obs:*` | DEW KMS and OBS settings; access keys from the secret store (ADR-016) | af-south-1 |
 | `Outbox:*` | Relay poll interval, batch size, attempts and back-off; lag warning and failure thresholds | 2 s, 100, 10, 5 s; 1 min, 5 min |
 | `Idempotency:Retention` | How long Idempotency-Key results are kept | 24 h |
 | `RateLimiting:PermitsPerMinute` | Requests per minute per tenant | 1,200 |
@@ -56,7 +59,7 @@ dotnet run --project src/Host/Insys.Api
 | `Integration:Webhooks:*` | Transport (`http` or `stub`), job switch, interval and timeout | http, on, 30 s, 10 s |
 | `Integration:Secrets:<ref>` | Webhook signing keys, standing in for a secret store | none |
 | `<Module>:Jobs:Enabled`, `Interval` | The daily jobs of Billing, Payments, General, Life, Health and Product Factory | on, 1 h |
-| `Documents:Storage:Root` | Folder of the development document store (OQ-056) | temp folder |
+| `Documents:Storage:Provider`, `Root` | `filesystem` (development) or `object-store` (OBS), and the development folder | filesystem, temp folder |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Exports traces, metrics and logs over OTLP when set | off |
 
 ## Build and test
