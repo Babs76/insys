@@ -13,8 +13,8 @@
 | 4 review items 1–5 | Approval subjects, payee details, inclusive periods, quote decline, arithmetic, cover start | Done, accepted |
 | 5 Other domains | Payee bank accounts (ADR-013), product columns, Health defaults (ADR-012), Life and Health | Done, accepted with follow-ups |
 | 5 review items 1–5 | Bank account verification in Workflow, skipped tests, underwriting authority, Health concurrency, OQ-061 | Done, accepted |
-| 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration; General auto-renewal and the exposure snapshot job | **Done, awaiting review** (23 Oct 2026) |
-| 7 Hardening | Security suite, OpenAPI review, performance, runbooks | Not started |
+| 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration; General auto-renewal and the exposure snapshot job | Done, accepted (CI green: 413564b) |
+| 7 Hardening | Security suite, OpenAPI review, performance smoke tests, README and runbooks | **Done, awaiting review** (23 Oct 2026) |
 
 ## Phase 1 review items
 
@@ -29,6 +29,33 @@
 4. **OpenAPI documents:** split into core, static-data and platform-operator. Each has its own snapshot in `docs/api`, and every endpoint is in exactly one.
 5. **Tier 2 maker-checker:** a per-tenant setting (V0008), on by default and audited. Tier 1 is always on.
 6. **Outbox relay lag:** reported on `/health` and `/health/ready` through `integration.outbox_lag` (V0009). Degraded after `Outbox:Lag:Warning` (1 minute); Unhealthy and not ready after `Outbox:Lag:Failure` (5 minutes).
+
+## Phase 7: what exists (hardening)
+
+- **§27.4 security suite** (integration tests, on the non-owner roles):
+  - `EndpointSecuritySweepTests` calls every API endpoint (more than 1,000 calls) without a token (401), without a tenant (403), without its permission (403) and with another tenant's token (403).
+  - Every changing endpoint is refused to a user holding every read permission (privilege escalation).
+  - Every platform endpoint is refused from a tenant, even with its permission.
+- **Cross-tenant data:** `CrossTenantSuiteTests`.
+  - Another tenant's records give 404 on reads, empty lists and searches, and 404 or 422 on changes, and are left unchanged.
+  - The permission and rating caches are kept per tenant.
+  - An event consumer acts only in its envelope's tenant.
+- **Row-level security:** `EveryTenantTable_HasRowLevelSecurityEnabledAndForced_WithATenantPolicy_TEN004` checks every table with `tenant_id`, except the platform-global ones.
+- **OpenAPI review:** `OpenApiReviewTests` checks that every operation:
+  - is named, summarised, tagged and permissioned;
+  - documents its success with a schema;
+  - documents 401, 403, 429 and 500, plus 404, 409 and 422 where they apply, as ProblemDetails;
+  - declares If-Match with 412 and 428.
+
+  To get there: `StandardProblems` on the v1 group, `RequireIfMatch()`, `.Produces<T>` on every module endpoint, and named records in place of anonymous bodies.
+- **Performance smoke tests** against NFR-002 and NFR-003 (`Latency`, `INSYS_LATENCY_LOG`). They cover rating, payment callback and allocation, and adjudication against the benefit accumulators, run one at a time and 8 at a time. These are not load tests.
+- **Fixes:**
+  - `References.Of`: references from the random end of a UUIDv7, not its timestamp (OQ-058).
+  - Replaying a `webhook:` dead letter is refused (OQ-066).
+- **Documentation:**
+  - the system `README.md`;
+  - `docs/runbooks/`: deployment, monitoring, dead letters and webhooks, tenants and access, money operations, static data, security incidents, backup and recovery;
+  - the still-open questions with their proposals, at the top of `docs/decisions/open-questions.md`, including the new OQ-067.
 
 ## Phase 6: what exists (enterprise)
 

@@ -35,6 +35,9 @@ public sealed record MergePartiesRequest(Guid SurvivorId, Guid MergedId, string 
 public sealed record ConsentRequest(string PurposeCode, string CaptureChannel, string? EvidenceRef);
 
 /// <summary>The Party module: people and organisations, their details, identifiers, relationships, roles and consent (SRS PTY-001 to PTY-005).</summary>
+/// <summary>The outcome of a merge: the merged party and the survivor it is now read through.</summary>
+public sealed record MergedParties(Guid MergedId, Guid SurvivorId);
+
 public sealed class PartyModule : IModule
 {
     public string Name => "Party";
@@ -52,6 +55,7 @@ public sealed class PartyModule : IModule
                     Concurrency.SetETag(http, 1);
                     return Results.Created($"/api/v1/party/parties/{id}", new { id });
                 }))
+            .Produces<CreatedId>(StatusCodes.Status201Created)
             .WithName("PartyRegisterParty")
             .WithSummary("Register an individual or an organisation")
             .WithDescription("Give exactly one of individual and organisation; the kind never changes (PTY-001).")
@@ -64,30 +68,39 @@ public sealed class PartyModule : IModule
                     Concurrency.SetETag(http, party.RowVersion);
                     return Results.Ok(party);
                 }))
+            .Produces<PartyView>(StatusCodes.Status200OK)
             .WithName("PartyGetParty")
             .WithSummary("Get a party with its addresses, contact points, identifiers (without numbers), roles and relationships")
             .RequirePermission(PartyPermissions.PartyRead);
 
         parties.MapPut("/{id:guid}/individual", (Guid id, IndividualData r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new UpdateIndividualDetails(id, r, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("PartyUpdateIndividual")
             .WithSummary("Update an individual's details")
             .RequirePermission(PartyPermissions.PartyUpdate);
 
         parties.MapPut("/{id:guid}/organisation", (Guid id, OrganisationData r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new UpdateOrganisationDetails(id, r, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("PartyUpdateOrganisation")
             .WithSummary("Update an organisation's details")
             .RequirePermission(PartyPermissions.PartyUpdate);
 
         parties.MapPost("/{id:guid}/addresses", (Guid id, AddressData r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new AddAddress(id, r, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("PartyAddAddress")
             .WithSummary("Add an address; it ends the current address of the same type")
             .RequirePermission(PartyPermissions.PartyUpdate);
 
         parties.MapPost("/{id:guid}/contact-points", (Guid id, ContactPointRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new AddContactPoint(id, r.ChannelType, r.Value, r.IsPrimary, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("PartyAddContactPoint")
             .WithSummary("Add a contact point")
             .RequirePermission(PartyPermissions.PartyUpdate);
@@ -95,6 +108,7 @@ public sealed class PartyModule : IModule
         parties.MapPost("/{id:guid}/bank-accounts", async (Guid id, BankAccountRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new AddBankAccount(id, r.AccountNumber, r.BankCode, r.BranchCode, r.AccountHolderName, r.AccountType, r.Currency), ct))
                 .ToHttp(v => Results.Created($"/api/v1/party/parties/{id}/bank-accounts", v)))
+            .Produces<BankAccountView>(StatusCodes.Status201Created)
             .WithName("PartyAddBankAccount")
             .WithSummary("Add a bank account, pending a second person's verification in Workflow; the party's current account in the currency is superseded")
             .WithDescription("The account number is encrypted at once and never returned: responses show its last four digits.")
@@ -103,6 +117,7 @@ public sealed class PartyModule : IModule
 
         parties.MapGet("/{id:guid}/bank-accounts", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListBankAccounts(id), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<BankAccountView>>(StatusCodes.Status200OK)
             .WithName("PartyListBankAccounts")
             .WithSummary("List a party's bank accounts, current and superseded, without their numbers")
             .RequirePermission(PartyPermissions.BankAccountRead);
@@ -118,6 +133,8 @@ public sealed class PartyModule : IModule
                         return Results.Created($"/api/v1/party/parties/{id}", new { id = identifierId });
                     });
             })
+            .RequireIfMatch()
+            .Produces<CreatedId>(StatusCodes.Status201Created)
             .WithName("PartyAddIdentifier")
             .WithSummary("Add an identity document number, unique per type and country in the tenant")
             .WithDescription("The number is checked against the document type's format, stored encrypted with a keyed hash, and never returned.")
@@ -125,54 +142,68 @@ public sealed class PartyModule : IModule
 
         parties.MapPost("/{id:guid}/identifiers/{identifierId:guid}/verify", (Guid id, Guid identifierId, VerifyIdentifierRequest r, IDispatcher dispatcher,
                 HttpContext http, CancellationToken ct) => Versioned(http, v => dispatcher.Send(new VerifyIdentifier(id, identifierId, r.VerificationRef, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("PartyVerifyIdentifier")
             .WithSummary("Record that an identifier was verified")
             .RequirePermission(PartyPermissions.PartyUpdate);
 
         parties.MapPost("/{id:guid}/relationships", (Guid id, RelationshipRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new RecordRelationship(id, r.ToPartyId, r.RelationshipCode, r.ValidFrom, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("PartyRecordRelationship")
             .WithSummary("Record a relationship from this party to another")
             .RequirePermission(PartyPermissions.PartyUpdate);
 
         parties.MapPost("/{id:guid}/roles", (Guid id, PartyRoleRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new AssignPartyRole(id, r.RoleCode, r.Domain, r.ContextType, r.ContextId, r.ValidFrom, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("PartyAssignRole")
             .WithSummary("Assign a role in a context; a party holds many roles (PTY-002)")
             .RequirePermission(PartyPermissions.PartyUpdate);
 
         parties.MapPost("/{id:guid}/death", (Guid id, DeathRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new RecordDeath(id, r.DeceasedDate, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("PartyRecordDeath")
             .WithSummary("Record an individual's death")
             .RequirePermission(PartyPermissions.PartyUpdate);
 
         parties.MapPost("/{id:guid}/anonymise", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new AnonymiseParty(id, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("PartyAnonymise")
             .WithSummary("Anonymise a deceased or dormant party whose retention has ended")
             .RequirePermission(PartyPermissions.PartyAnonymise);
 
         parties.MapGet("/{id:guid}/consents", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetConsents(id), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<ConsentView>>(StatusCodes.Status200OK)
             .WithName("PartyGetConsents")
             .WithSummary("The party's current consent per purpose")
             .RequirePermission(PartyPermissions.ConsentRead);
 
         parties.MapPost("/{id:guid}/consents/grant", async (Guid id, ConsentRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new GrantConsent(id, r.PurposeCode, r.CaptureChannel, r.EvidenceRef), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<ConsentView>>(StatusCodes.Status200OK)
             .WithName("PartyGrantConsent")
             .WithSummary("Record a consent; the ledger is append-only (PTY-005)")
             .RequirePermission(PartyPermissions.ConsentUpdate);
 
         parties.MapPost("/{id:guid}/consents/withdraw", async (Guid id, ConsentRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new WithdrawConsent(id, r.PurposeCode, r.CaptureChannel, r.EvidenceRef), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<ConsentView>>(StatusCodes.Status200OK)
             .WithName("PartyWithdrawConsent")
             .WithSummary("Record a withdrawal of consent")
             .RequirePermission(PartyPermissions.ConsentUpdate);
 
         api.MapGroup("/party/merges").WithTags(Name).MapPost("/", async (MergePartiesRequest r, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new MergeParties(r.SurvivorId, r.MergedId, r.Reason), ct)).ToHttp(id => Results.Ok(new { mergedId = id, survivorId = r.SurvivorId })))
+                (await dispatcher.Send(new MergeParties(r.SurvivorId, r.MergedId, r.Reason), ct)).ToHttp(id => Results.Ok(new MergedParties(id, r.SurvivorId))))
+            .Produces<MergedParties>(StatusCodes.Status200OK)
             .WithName("PartyMergeParties")
             .WithSummary("Merge a duplicate party into its survivor")
             .WithDescription("The merged party becomes read-only and points to the survivor; the merge is kept in an auditable history (PTY-004).")

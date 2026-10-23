@@ -139,6 +139,38 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         account.ShouldNotBe(Guid.Empty);
     }
 
+    /// <summary>
+    /// Performance smoke test of a hot path (Phase 7): a signed provider callback confirms a collection and allocates it to
+    /// its invoice. p95 within the standard operation target (NFR-002: 2 s), sequentially and 8 at a time.
+    /// </summary>
+    [Fact]
+    public async Task PaymentAllocation_StaysWithinTheStandardLatencyTarget_NFR002()
+    {
+        var invoices = new List<Guid>();
+        for (var i = 0; i < 60; i++)
+        {
+            invoices.Add((await IssueInvoice(100m + i)).Invoice);
+        }
+
+        await _factory.DrainOutbox();
+        var payments = new List<Guid>();
+        foreach (var invoice in invoices)
+        {
+            payments.Add(await CollectionFor(invoice));
+        }
+
+        var sequential = await Latency.Sequential("Payment callback and allocation, sequential", 5, 25, async i =>
+            (await Callback(payments[i < 0 ? -i - 1 : i + 5], "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK));
+        var concurrent = await Latency.Concurrent("Payment callback and allocation, 8 at a time", 30, 8, async i =>
+            (await Callback(payments[30 + i], "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK));
+
+        sequential.P95.ShouldBeLessThan(TimeSpan.FromSeconds(2), sequential.ToString());
+        concurrent.P95.ShouldBeLessThan(TimeSpan.FromSeconds(2), concurrent.ToString());
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(DISTINCT payment_id) FROM payment.payment_allocation WHERE payment_id = ANY(@p)", ("p", payments.ToArray())))
+            .ShouldBe(60L);
+    }
+
     [Fact]
     public async Task UnknownOutcome_IsNeverTreatedAsSucceeded_PAY005()
     {

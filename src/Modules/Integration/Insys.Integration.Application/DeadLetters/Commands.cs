@@ -54,6 +54,15 @@ internal sealed class ReplayMessageHandler(IDeadLetterRepository repository, IEv
         }
 
         var deadLetter = loaded.Value.DeadLetter;
+
+        // A failed webhook's payload is the webhook body, not an event envelope, and a failed delivery cannot become
+        // pending again (domain-model.json: Pending → Delivered or Failed only). TODO(spec): resending it (OQ-066).
+        if (deadLetter.Source.Value.StartsWith("webhook:", StringComparison.Ordinal))
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition,
+                "A failed webhook delivery cannot be replayed; discard it, or ask the partner to fetch the event (OQ-066).");
+        }
+
         audit.Record(new AuditEntry("DEAD_LETTER", "ReplayMessage", nameof(DeadLetter), deadLetter.Id.ToString()));
         var resolved = deadLetter.ReplayMessage(loaded.Value.OperatorId);
         if (resolved.IsFailure)

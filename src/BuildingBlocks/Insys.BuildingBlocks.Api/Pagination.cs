@@ -5,6 +5,9 @@ namespace Insys.BuildingBlocks.Api;
 /// <summary>A page of results with an opaque cursor for the next page.</summary>
 public sealed record CursorPage<T>(IReadOnlyList<T> Items, string? NextCursor);
 
+/// <summary>The body of a response that returns only a new resource's identifier.</summary>
+public sealed record CreatedId(Guid Id);
+
 /// <summary>
 /// Cursor pagination over UUIDv7 IDs, which sort by creation time. TODO(spec): page size limits are not specified.
 /// </summary>

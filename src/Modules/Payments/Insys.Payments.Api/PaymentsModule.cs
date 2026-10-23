@@ -49,6 +49,7 @@ public sealed class PaymentsModule : IModule
         payments.MapPost("/payments", async (InitiatePaymentRequest r, HttpContext http, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new InitiatePayment($"API:{http.Request.Headers["Idempotency-Key"]}", r.Direction, r.Purpose, r.MethodCode, r.Amount, r.Currency,
                     r.CounterpartyPartyId, r.BusinessRefType, r.BusinessRefId, r.BankAccountId), ct)).ToHttp(view => Results.Created($"/api/v1/payments/payments/{view.Id}", view)))
+            .Produces<PaymentView>(StatusCodes.Status201Created)
             .WithName("PaymentsInitiate")
             .WithSummary("Start a payment; its Idempotency-Key is also the payment's own key, so it never moves money twice (PAY-001)")
             .WithDescription("An inbound payment is sent to its provider at once; an outbound one waits for a payout batch.")
@@ -56,24 +57,28 @@ public sealed class PaymentsModule : IModule
             .RequireIdempotencyKey();
 
         payments.MapGet("/payments/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetPayment(id), ct)).ToHttp(Results.Ok))
+            .Produces<PaymentView>(StatusCodes.Status200OK)
             .WithName("PaymentsGet")
             .WithSummary("Get a payment with its status history (PAY-002) and allocations")
             .RequirePermission(PaymentPermissions.PaymentRead);
 
         payments.MapPost("/payments/{id:guid}/resolve", async (Guid id, ResolveUnknownRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ResolveUnknown(id, r.Succeeded, r.Evidence), ct)).ToHttp(Results.Ok))
+            .Produces<PaymentView>(StatusCodes.Status200OK)
             .WithName("PaymentsResolveUnknown")
             .WithSummary("Decide an unknown outcome from the evidence (PAY-005)")
             .RequirePermission(PaymentPermissions.PaymentResolve);
 
         payments.MapPost("/payments/{id:guid}/reverse", async (Guid id, ReversePaymentRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ReversePayment(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<PaymentView>(StatusCodes.Status200OK)
             .WithName("PaymentsReverse")
             .WithSummary("Reverse a succeeded payment and its allocations")
             .RequirePermission(PaymentPermissions.PaymentResolve);
 
         payments.MapPost("/payments/{id:guid}/allocate", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new AllocatePayment(id), ct)).ToHttp(Results.Ok))
+            .Produces<PaymentView>(StatusCodes.Status200OK)
             .WithName("PaymentsAllocate")
             .WithSummary("Allocate what is left of a received payment to its invoices (BIL-003); done automatically when it is received")
             .RequirePermission(PaymentPermissions.PaymentUpdate);
@@ -100,6 +105,7 @@ public sealed class PaymentsModule : IModule
                 return (await dispatcher.Send(new RecordProviderCallback(providerCode, callback.ExternalRef, callback.Status, body, http.Request.Headers["X-Signature"]), ct))
                     .ToHttp(Results.Ok);
             })
+            .Produces<PaymentView>(StatusCodes.Status200OK)
             .WithName("PaymentsProviderCallback")
             .WithSummary("A provider reports a payment's status, signed in the X-Signature header (HMAC-SHA256 of the body)")
             .WithDescription("Every callback is recorded. An invalid signature changes nothing; a status with no mapping makes the payment Unknown (PAY-005).")
@@ -108,24 +114,28 @@ public sealed class PaymentsModule : IModule
 
         payments.MapPost("/payout-batches", async (BuildBatchRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new BuildBatch(r.Purpose, r.Currency), ct)).ToHttp(view => Results.Created($"/api/v1/payments/payout-batches/{view.Id}", view)))
+            .Produces<BatchView>(StatusCodes.Status201Created)
             .WithName("PaymentsBuildBatch")
             .WithSummary("Batch the payouts waiting for a purpose and currency; a second person approves the batch in Workflow (SRS-002)")
             .RequirePermission(PaymentPermissions.PayoutCreate)
             .RequireIdempotencyKey();
 
         payments.MapGet("/payout-batches/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetBatch(id), ct)).ToHttp(Results.Ok))
+            .Produces<BatchView>(StatusCodes.Status200OK)
             .WithName("PaymentsGetBatch")
             .WithSummary("Get a payout batch")
             .RequirePermission(PaymentPermissions.PayoutRead);
 
         payments.MapPost("/payout-batches/{id:guid}/release", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ReleaseBatch(id), ct)).ToHttp(Results.Ok))
+            .Produces<BatchView>(StatusCodes.Status200OK)
             .WithName("PaymentsReleaseBatch")
             .WithSummary("Release an approved batch: each payment is sent to its provider")
             .RequirePermission(PaymentPermissions.PayoutRelease);
 
         payments.MapPost("/bank-statements", async (ImportStatementRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ImportStatement(r.AccountRef, r.Lines), ct)).ToHttp(Results.Ok))
+            .Produces<StatementResult>(StatusCodes.Status200OK)
             .WithName("PaymentsImportStatement")
             .WithSummary("Import bank statement lines and match them to payments (PAY-003); unmatched lines become reconciliation exceptions")
             .RequirePermission(PaymentPermissions.ReconciliationUpdate)
@@ -133,18 +143,21 @@ public sealed class PaymentsModule : IModule
 
         payments.MapGet("/reconciliation-exceptions", async (string? status, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListExceptions(status, Cursor.ClampLimit(limit)), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<ExceptionView>>(StatusCodes.Status200OK)
             .WithName("PaymentsListExceptions")
             .WithSummary("Unmatched and ambiguous items waiting for a person (PAY-005)")
             .RequirePermission(PaymentPermissions.ReconciliationRead);
 
         payments.MapPost("/reconciliation-exceptions/{id:guid}/assign", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new AssignException(id), ct)).ToHttp(Results.Ok))
+            .Produces<ExceptionView>(StatusCodes.Status200OK)
             .WithName("PaymentsAssignException")
             .WithSummary("Take an exception to investigate")
             .RequirePermission(PaymentPermissions.ReconciliationUpdate);
 
         payments.MapPost("/reconciliation-exceptions/{id:guid}/resolve", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ResolveException(id), ct)).ToHttp(Results.Ok))
+            .Produces<ExceptionView>(StatusCodes.Status200OK)
             .WithName("PaymentsResolveException")
             .WithSummary("Resolve an exception you are investigating; an unknown payment is resolved first")
             .RequirePermission(PaymentPermissions.ReconciliationUpdate);

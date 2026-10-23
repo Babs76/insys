@@ -46,7 +46,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackCreate,
         ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate, ClaimsPermissions.InstructionRead,
         FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate, WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove,
-        IntegrationPermissions.DeadLetterRead, IntegrationPermissions.WebhookRead, IntegrationPermissions.WebhookUpdate, DocumentPermissions.DocumentRead,
+        IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate, IntegrationPermissions.WebhookRead, IntegrationPermissions.WebhookUpdate, DocumentPermissions.DocumentRead,
         Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.BankAccountCreate, Insys.Party.Contracts.PartyPermissions.BankAccountRead,
         Insys.Party.Contracts.PartyPermissions.BankAccountVerify, DistributionPermissions.IntermediaryRead, DistributionPermissions.CommissionRead,
         DistributionPermissions.CommissionUpdate, DistributionPermissions.StatementRead, DistributionPermissions.StatementCreate, ReinsurancePermissions.CessionRead,
@@ -291,6 +291,13 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         var failed = deliveries.Single(d => d.GetProperty("subscriptionId").GetString() == "WH-2");
         (failed.GetProperty("status").GetString(), failed.GetProperty("attempt").GetInt32(), failed.GetProperty("httpStatus").GetInt32()).ShouldBe(("Failed", 2, 503));
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.dead_letter_message WHERE source = 'webhook:WH-2'")).ShouldBe(1L);
+
+        // A failed webhook is not an event envelope, so it cannot be replayed to the event consumers; it is discarded (OQ-066).
+        var webhookDeadLetter = await _db.ScalarAsOwner<Guid>("SELECT id FROM integration.dead_letter_message WHERE source = 'webhook:WH-2'");
+        var replay = await _maker.Send(HttpMethod.Post, $"/api/v1/integration/dead-letters/{webhookDeadLetter}/replay", ifMatch: "\"1\"");
+        (await replay.Code()).ShouldBe("INVALID_STATE_TRANSITION");
+        var discard = await _maker.Send(HttpMethod.Post, $"/api/v1/integration/dead-letters/{webhookDeadLetter}/discard", ifMatch: "\"1\"");
+        discard.StatusCode.ShouldBe(HttpStatusCode.NoContent, await discard.Content.ReadAsStringAsync());
 
         // PrepareBordereau for the month (one per treaty and period), sent through the reinsurer adapter, then agreed.
         var bordereau = await Created("/api/v1/reinsurance/bordereaux", new { layoutCode = "BX-QS1", periodCode = Month });

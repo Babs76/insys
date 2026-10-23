@@ -63,6 +63,29 @@ public sealed class ModuleRoleAndPartitionTests(DatabaseFixture fixture) : IClas
         privileges.ShouldBe(0);
     }
 
+    /// <summary>
+    /// SRS §27.4 at the database: every table with a tenant column, in every schema, is under a forced tenant policy
+    /// (TEN-004). Platform-global static data (scope G) is exempt: its check constraint keeps the tenant column NULL, so
+    /// it holds no tenant's data.
+    /// </summary>
+    [Fact]
+    public async Task EveryTenantTable_HasRowLevelSecurityEnabledAndForced_WithATenantPolicy_TEN004()
+    {
+        var unprotected = await fixture.Database.ScalarAsOwner<string>("""
+            SELECT coalesce(string_agg(n.nspname || '.' || c.relname, ', ' ORDER BY n.nspname, c.relname), '')
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped
+            WHERE c.relkind IN ('r', 'p') AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'test_mod')
+              AND NOT EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid = c.oid AND k.contype = 'c'
+                                AND pg_get_constraintdef(k.oid) = 'CHECK ((tenant_id IS NULL))')
+              AND (NOT c.relrowsecurity OR NOT c.relforcerowsecurity
+                   OR NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname = n.nspname AND p.tablename = c.relname
+                                    AND p.qual LIKE '%app.tenant_id%'))
+            """);
+        unprotected.ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task V0003Partitions_HaveRowLevelSecurityEnabledAndForced_WithTheTenantPolicy_DBA023()
     {

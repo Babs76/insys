@@ -40,18 +40,21 @@ public sealed class ClaimsFrameworkModule : IModule
 
         claims.MapPost("/claims", async (AllocateClaimNumber r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(r, ct)).ToHttp(view => Results.Created($"/api/v1/claims/claims/{view.ClaimNumber}", view)))
+            .Produces<ClaimView>(StatusCodes.Status201Created)
             .WithName("ClaimsAllocateNumber")
             .WithSummary("Register a domain claim and allocate its claim number; a repeat returns the same number (CLM-005)")
             .RequirePermission(ClaimsPermissions.ClaimCreate);
 
         claims.MapGet("/claims/{claimNumber}", async (string claimNumber, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetClaim(claimNumber), ct)).ToHttp(Results.Ok))
+            .Produces<ClaimView>(StatusCodes.Status200OK)
             .WithName("ClaimsGet")
             .WithSummary("Get a claim's registration, evidence and fraud indicator hits")
             .RequirePermission(ClaimsPermissions.ClaimRead);
 
         claims.MapPost("/claims/{claimNumber}/evidence-requests", async (string claimNumber, EvidenceRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new RequestEvidence(claimNumber, r.EvidenceType), ct)).ToHttp(Results.Ok))
+            .Produces<ClaimView>(StatusCodes.Status200OK)
             .WithName("ClaimsRequestEvidence")
             .WithSummary("Request evidence of a type")
             .RequirePermission(ClaimsPermissions.ClaimUpdate);
@@ -60,30 +63,35 @@ public sealed class ClaimsFrameworkModule : IModule
                 r.DocumentId is { } document
                     ? (await dispatcher.Send(new RecordEvidence(claimNumber, r.EvidenceType, document), ct)).ToHttp(Results.Ok)
                     : Results.Problem(statusCode: 400, title: "documentId is required."))
+            .Produces<ClaimView>(StatusCodes.Status200OK)
             .WithName("ClaimsRecordEvidence")
             .WithSummary("Record evidence received, as a stored document")
             .RequirePermission(ClaimsPermissions.ClaimUpdate);
 
         claims.MapPost("/claims/{claimNumber}/communications", async (string claimNumber, RecordCommunication r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(r with { ClaimNumber = claimNumber }, ct)).ToHttp(Results.Ok))
+            .Produces<ClaimView>(StatusCodes.Status200OK)
             .WithName("ClaimsRecordCommunication")
             .WithSummary("Record a communication on a claim")
             .RequirePermission(ClaimsPermissions.ClaimUpdate);
 
         claims.MapPost("/claims/{claimNumber}/fraud-evaluations", async (string claimNumber, JsonElement facts, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new EvaluateFraudIndicators(claimNumber, facts), ct)).ToHttp(Results.Ok))
+            .Produces<ClaimView>(StatusCodes.Status200OK)
             .WithName("ClaimsEvaluateFraud")
             .WithSummary("Evaluate the fraud indicators in force against the claim's facts")
             .RequirePermission(ClaimsPermissions.ClaimUpdate);
 
         claims.MapGet("/claims/{claimNumber}/financials", async (string claimNumber, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetFinancials(claimNumber), ct)).ToHttp(Results.Ok))
+            .Produces<FinancialsView>(StatusCodes.Status200OK)
             .WithName("ClaimsGetFinancials")
             .WithSummary("Get a claim's financial movements and outstanding reserves (CLM-004)")
             .RequirePermission(ClaimsPermissions.FinancialsRead);
 
         claims.MapPost("/claims/{claimNumber}/reserves", async (string claimNumber, ReserveRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new MoveReserve(claimNumber, r.Action, r.ReserveType, r.Amount, r.Currency), ct)).ToHttp(Results.Ok))
+            .Produces<FinancialsView>(StatusCodes.Status200OK)
             .WithName("ClaimsMoveReserve")
             .WithSummary("Set or change a reserve, or record a recovery; a reserve never goes below zero")
             .RequirePermission(ClaimsPermissions.FinancialsUpdate);
@@ -91,36 +99,42 @@ public sealed class ClaimsFrameworkModule : IModule
         claims.MapPost("/claims/{claimNumber}/payment-instructions", async (string claimNumber, DraftInstructionRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new DraftInstruction(claimNumber, r.InstructionRef, r.PayeePartyId, r.BankAccountId, r.Amount, r.ApprovedAmount, r.Currency, r.ReserveType), ct))
                 .ToHttp(view => Results.Created($"/api/v1/claims/payment-instructions/{view.Id}", view)))
+            .Produces<InstructionView>(StatusCodes.Status201Created)
             .WithName("ClaimsDraftInstruction")
             .WithSummary("Draft a claim payment within the approved amount; a repeat reference returns the same instruction (PAY-001)")
             .RequirePermission(ClaimsPermissions.InstructionCreate);
 
         claims.MapGet("/payment-instructions/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetInstruction(id), ct)).ToHttp(Results.Ok))
+            .Produces<InstructionView>(StatusCodes.Status200OK)
             .WithName("ClaimsGetInstruction")
             .WithSummary("Get a claim payment instruction")
             .RequirePermission(ClaimsPermissions.InstructionRead);
 
         claims.MapPost("/payment-instructions/{id:guid}/submit", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ChangeInstruction(id, InstructionAction.Submit), ct)).ToHttp(Results.Ok))
+            .Produces<InstructionView>(StatusCodes.Status200OK)
             .WithName("ClaimsSubmitInstruction")
             .WithSummary("Submit for a second person's approval in Workflow (SRS-002)")
             .RequirePermission(ClaimsPermissions.InstructionCreate);
 
         claims.MapPost("/payment-instructions/{id:guid}/release", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ChangeInstruction(id, InstructionAction.Release), ct)).ToHttp(Results.Ok))
+            .Produces<InstructionView>(StatusCodes.Status200OK)
             .WithName("ClaimsReleaseInstruction")
             .WithSummary("Release an approved instruction to Payments, within the outstanding reserve")
             .RequirePermission(ClaimsPermissions.InstructionRelease);
 
         claims.MapPost("/payment-instructions/{id:guid}/retry", async (Guid id, PayeeRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new RetryInstruction(id, r.PayeePartyId, r.BankAccountId), ct)).ToHttp(Results.Ok))
+            .Produces<InstructionView>(StatusCodes.Status200OK)
             .WithName("ClaimsRetryInstruction")
             .WithSummary("Release a failed instruction again, as a new payment; new payee or bank details are approved by a second person first (SRS-002)")
             .RequirePermission(ClaimsPermissions.InstructionRelease);
 
         claims.MapPost("/payment-instructions/{id:guid}/redirect", async (Guid id, PayeeRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new RedirectInstruction(id, r.PayeePartyId, r.BankAccountId), ct)).ToHttp(Results.Ok))
+            .Produces<InstructionView>(StatusCodes.Status200OK)
             .WithName("ClaimsRedirectInstruction")
             .WithSummary("Redirect an approved instruction to another payee or bank account; a second person approves it before release (SRS-002)")
             .RequirePermission(ClaimsPermissions.InstructionRelease);

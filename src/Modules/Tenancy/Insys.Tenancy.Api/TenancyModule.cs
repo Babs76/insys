@@ -46,6 +46,7 @@ public sealed class TenancyModule : IModule
                     return Results.Created($"/api/v1/tenancy/tenants/{id}", new { id });
                 });
             })
+            .Produces<CreatedId>(StatusCodes.Status201Created)
             .WithName("RegisterTenant")
             .WithSummary("Register a tenant")
             .WithDescription("Creates the tenant with a new immutable identifier (TEN-001) and starts its onboarding case (TEN-008).")
@@ -63,6 +64,7 @@ public sealed class TenancyModule : IModule
                 var result = await dispatcher.Query(new ListTenants(status, afterId, pageSize), ct);
                 return result.ToHttp(items => Results.Ok(new CursorPage<TenantSummary>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
+            .Produces<CursorPage<TenantSummary>>(StatusCodes.Status200OK)
             .WithName("ListTenants")
             .WithSummary("List tenants")
             .RequirePlatformPermission(TenancyPermissions.Read);
@@ -73,12 +75,15 @@ public sealed class TenancyModule : IModule
                     Concurrency.SetETag(http, tenant.RowVersion);
                     return Results.Ok(tenant);
                 }))
+            .Produces<TenantDetail>(StatusCodes.Status200OK)
             .WithName("GetTenant")
             .WithSummary("Get a tenant with its onboarding case and status history")
             .RequirePlatformPermission(TenancyPermissions.Read);
 
         tenants.MapPost("/{id:guid}/complete-onboarding-step", (Guid id, OnboardingStepRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new CompleteOnboardingStep(id, request.Step, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("CompleteOnboardingStep")
             .WithSummary("Complete the current onboarding step")
             .WithDescription("Steps follow the tenant load sequence in order; activation needs them all (TEN-008).")
@@ -91,6 +96,8 @@ public sealed class TenancyModule : IModule
 
         tenants.MapPost("/{id:guid}/change-isolation-profile", (Guid id, IsolationProfileRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new ChangeIsolationProfile(id, request.IsolationProfile, request.ApprovedMigrationRef, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("ChangeIsolationProfile")
             .WithSummary("Change a tenant's isolation profile")
             .WithDescription("Requires the reference of an approved data migration.")
@@ -100,6 +107,8 @@ public sealed class TenancyModule : IModule
     private static void MapStatus(RouteGroupBuilder tenants, string action, TenantStatusAction statusAction, string summary) =>
         tenants.MapPost($"/{{id:guid}}/{action}", (Guid id, TenantStatusRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new ChangeTenantStatus(id, statusAction, request.Reason, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName($"{statusAction}Tenant")
             .WithSummary(summary)
             .WithDescription("A reason is required and the change is kept in the status history (TEN-008).")

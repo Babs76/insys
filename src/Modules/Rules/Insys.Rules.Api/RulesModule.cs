@@ -32,6 +32,7 @@ public sealed class RulesModule : IModule
         decisions.MapPost("/", async (EvaluateRuleSetRequest request, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new EvaluateRuleSet(request.Kind, request.Code, request.SubjectType, request.SubjectId, request.Inputs), ct))
                 .ToHttp(view => Results.Created($"/api/v1/rules/decisions/{view.Id}", view)))
+            .Produces<RuleDecisionView>(StatusCodes.Status201Created)
             .WithName("RulesEvaluateRuleSet")
             .WithSummary("Evaluate a rule set and record the decision")
             .WithDescription("The most severe outcome among the rules that fire is the decision. A rule that cannot be evaluated, for example "
@@ -41,12 +42,14 @@ public sealed class RulesModule : IModule
 
         decisions.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetRuleDecision(id), ct)).ToHttp(Results.Ok))
+            .Produces<RuleDecisionView>(StatusCodes.Status200OK)
             .WithName("RulesGetDecision")
             .WithSummary("Get a recorded rule decision with its inputs")
             .RequirePermission(RulesPermissions.DecisionRead);
 
         decisions.MapGet("/", async (string subjectType, Guid subjectId, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListRuleDecisions(subjectType, subjectId, Cursor.ClampLimit(limit)), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<RuleDecisionView>>(StatusCodes.Status200OK)
             .WithName("RulesListDecisions")
             .WithSummary("List a subject's rule decisions, newest first")
             .RequirePermission(RulesPermissions.DecisionRead);

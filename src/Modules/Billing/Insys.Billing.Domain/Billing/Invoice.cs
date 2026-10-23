@@ -252,7 +252,7 @@ public sealed class Invoice : AggregateRoot<Guid>
         var invoice = new Invoice
         {
             Id = Guard.NotEmpty(id),
-            InvoiceNumber = (prefix + id.ToString("N")[..12].ToUpperInvariant()) is { Length: <= 20 } number ? number : id.ToString("N")[..20].ToUpperInvariant(),
+            InvoiceNumber = prefix.Length <= 8 ? References.Of(prefix, id, prefix.Length + 12) : References.Of("", id, 15),
             DocumentType = type,
             BillingAccountId = accountId,
             SourceDomain = sourceDomain,

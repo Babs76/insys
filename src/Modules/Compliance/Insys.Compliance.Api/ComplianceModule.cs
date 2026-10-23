@@ -33,17 +33,20 @@ public sealed class ComplianceModule : IModule
 
         compliance.MapPost("/returns", async (PrepareReturn r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(r, ct)).ToHttp(view => Results.Created($"/api/v1/compliance/returns/{view.Id}", view)))
+            .Produces<ReturnView>(StatusCodes.Status201Created)
             .WithName("CompliancePrepareReturn")
             .WithSummary("Prepare a regulatory return for the period it ends with, from its definition's field mapping; one per code and period")
             .RequirePermission(CompliancePermissions.ReturnCreate);
 
         compliance.MapGet("/returns", async (string? periodCode, ReturnStatus? status, IDispatcher d, CancellationToken ct) =>
                 (await d.Query(new ListReturns(periodCode, status), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<ReturnView>>(StatusCodes.Status200OK)
             .WithName("ComplianceListReturns")
             .WithSummary("Regulatory returns, by period or status")
             .RequirePermission(CompliancePermissions.ReturnRead);
 
         compliance.MapGet("/returns/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetReturn(id), ct)).ToHttp(Results.Ok))
+            .Produces<ReturnView>(StatusCodes.Status200OK)
             .WithName("ComplianceGetReturn")
             .WithSummary("A regulatory return and its values")
             .RequirePermission(CompliancePermissions.ReturnRead);
@@ -59,11 +62,13 @@ public sealed class ComplianceModule : IModule
 
         compliance.MapPost("/report-runs", async (RunReport r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(r, ct)).ToHttp(view => Results.Created($"/api/v1/compliance/report-runs/{view.Id}", view)))
+            .Produces<ReportRunView>(StatusCodes.Status201Created)
             .WithName("ComplianceRunReport")
             .WithSummary("Run a report in the catalogue, if your roles allow it; export only where the catalogue allows")
             .RequirePermission(CompliancePermissions.ReportCreate);
 
         compliance.MapGet("/report-runs/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetReportRun(id), ct)).ToHttp(Results.Ok))
+            .Produces<ReportRunView>(StatusCodes.Status200OK)
             .WithName("ComplianceGetReportRun")
             .WithSummary("A report run and its result")
             .RequirePermission(CompliancePermissions.ReportRead);
@@ -72,6 +77,7 @@ public sealed class ComplianceModule : IModule
     private static void Action(RouteGroupBuilder group, string route, ReturnAction action, string summary, string permission) =>
         group.MapPost($"/returns/{{id:guid}}/{route}", async (Guid id, ReturnReasonRequest? r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ChangeReturn(id, action, r?.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ReturnView>(StatusCodes.Status200OK)
             .WithName($"Compliance{action}Return")
             .WithSummary(summary)
             .RequirePermission(permission);

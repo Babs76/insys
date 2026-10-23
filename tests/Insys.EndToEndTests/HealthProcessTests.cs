@@ -311,6 +311,66 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.dead_letter_message")).ShouldBe(0L);
     }
 
+    /// <summary>
+    /// Performance smoke test of a hot path (Phase 7): adjudication against the benefit accumulators, which it locks and
+    /// consumes. p95 within the standard operation target (NFR-002: 2 s): one membership's claims in turn, and claims of
+    /// eight memberships eight at a time.
+    /// </summary>
+    [Fact]
+    public async Task Adjudication_AgainstTheBenefitAccumulators_StaysWithinTheStandardLatencyTarget_NFR002()
+    {
+        await Provider();
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var memberships = new List<(Guid Membership, Guid Principal)>();
+        for (var m = 0; m < 8; m++)
+        {
+            var principal = await _maker.RegisterPerson($"Smoke{m}");
+            memberships.Add((await Created("/api/v1/health/memberships", new
+            {
+                principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+                currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+            }), principal));
+        }
+
+        await _factory.DrainOutbox();
+        async Task<Guid> ValidatedClaim(int membership, int day)
+        {
+            var (id, principal) = memberships[membership];
+            var claim = await Created("/api/v1/health/claims", new
+            {
+                source = "PROVIDER", providerId = "PR-1", membershipId = id, patientPartyId = principal, serviceDate = Today.AddDays(-1 - day), formatCode = "API",
+                currency = "ZAR", lines = new[] { new { tariffCode = "0190", quantity = 1, claimedAmount = 300m } },
+            });
+            (await _maker.PostAsync($"/api/v1/health/claims/{claim}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+            return claim;
+        }
+
+        var inTurn = new List<Guid>();
+        for (var i = 0; i < 25; i++)
+        {
+            inTurn.Add(await ValidatedClaim(0, i));
+        }
+
+        var together = new List<Guid>();
+        for (var i = 0; i < 24; i++)
+        {
+            together.Add(await ValidatedClaim(i % 8, 30 + (i / 8)));
+        }
+
+        var adjudicator = _factory.ClientFor(Tenant, "health-administrator");
+        async Task Adjudicate(Guid claim)
+        {
+            var response = await adjudicator.PostAsync($"/api/v1/health/claims/{claim}/adjudicate", null);
+            response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        }
+
+        var sequential = await Latency.Sequential("Adjudication against the accumulators, sequential", 5, 20, i => Adjudicate(inTurn[i < 0 ? -i - 1 : i + 5]));
+        var concurrent = await Latency.Concurrent("Adjudication against the accumulators, 8 memberships at a time", 24, 8, i => Adjudicate(together[i]));
+
+        sequential.P95.ShouldBeLessThan(TimeSpan.FromSeconds(2), sequential.ToString());
+        concurrent.P95.ShouldBeLessThan(TimeSpan.FromSeconds(2), concurrent.ToString());
+    }
+
     /// <summary>ADR-012: accumulators are locked in one order and adjudication is retried on a conflict, so concurrent claims never overspend a shared pool.</summary>
     [Fact]
     public async Task ConcurrentClaims_AgainstOneFamilyLimit_NeverExceedIt_AndNeverDeadlock()

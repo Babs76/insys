@@ -45,6 +45,7 @@ public sealed class IdentityModule : IModule
                     Concurrency.SetETag(http, 1);
                     return Results.Created($"/api/v1/identity/users/{id}", new { id });
                 }))
+            .Produces<CreatedId>(StatusCodes.Status201Created)
             .WithName("ProvisionUser")
             .WithSummary("Provision a user")
             .WithDescription("The user is Invited until the first request with a token for the external subject.")
@@ -62,6 +63,7 @@ public sealed class IdentityModule : IModule
                 return (await dispatcher.Query(new ListUsers(afterId, pageSize), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<UserView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
+            .Produces<CursorPage<UserView>>(StatusCodes.Status200OK)
             .WithName("ListUsers")
             .WithSummary("List users")
             .RequirePermission(IdentityPermissions.UserRead);
@@ -72,6 +74,7 @@ public sealed class IdentityModule : IModule
                     Concurrency.SetETag(http, user.RowVersion);
                     return Results.Ok(user);
                 }))
+            .Produces<UserView>(StatusCodes.Status200OK)
             .WithName("GetUser")
             .WithSummary("Get a user with its role assignments")
             .RequirePermission(IdentityPermissions.UserRead);
@@ -79,6 +82,8 @@ public sealed class IdentityModule : IModule
         users.MapPost("/{id:guid}/assign-role", (Guid id, AssignRoleRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new AssignRole(id, request.RoleCode, request.ValidFrom, request.ValidTo, request.ScopeProducts,
                     request.ScopeBranches, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("AssignRole")
             .WithSummary("Assign a role")
             .WithDescription("Refused for roles with no version in force, MFA-required roles without MFA (IAM-003) and segregation-of-duties conflicts (SRS-002).")
@@ -86,6 +91,8 @@ public sealed class IdentityModule : IModule
 
         users.MapPost("/{id:guid}/revoke-role", (Guid id, RevokeRoleRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new RevokeRole(id, request.RoleCode, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("RevokeRole")
             .WithSummary("Revoke a role")
             .WithDescription("Takes effect on the user's next request (IAM-005).")
@@ -107,6 +114,7 @@ public sealed class IdentityModule : IModule
                     Concurrency.SetETag(http, 1);
                     return Results.Created($"/api/v1/identity/privileged-access/{id}", new { id });
                 }))
+            .Produces<CreatedId>(StatusCodes.Status201Created)
             .WithName("RequestAccess")
             .WithSummary("Request time-limited privileged access")
             .WithDescription("A purpose is recorded and the window is limited; someone other than the requester approves it (TEN-007).")
@@ -124,6 +132,7 @@ public sealed class IdentityModule : IModule
                 return (await dispatcher.Query(new ListGrants(status, afterId, pageSize), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<GrantView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
+            .Produces<CursorPage<GrantView>>(StatusCodes.Status200OK)
             .WithName("ListPrivilegedAccess")
             .WithSummary("List privileged access requests and grants")
             .RequirePermission(IdentityPermissions.PrivilegedAccessRead);
@@ -134,18 +143,23 @@ public sealed class IdentityModule : IModule
                     Concurrency.SetETag(http, grant.RowVersion);
                     return Results.Ok(grant);
                 }))
+            .Produces<GrantView>(StatusCodes.Status200OK)
             .WithName("GetPrivilegedAccess")
             .WithSummary("Get a privileged access request or grant")
             .RequirePermission(IdentityPermissions.PrivilegedAccessRead);
 
         grants.MapPost("/{id:guid}/approve", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new ApproveAccess(id, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("ApproveAccess")
             .WithSummary("Approve privileged access (not by the requester)")
             .RequirePermission(IdentityPermissions.PrivilegedAccessApprove);
 
         grants.MapPost("/{id:guid}/reject", (Guid id, RejectAccessRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new RejectAccess(id, request.Reason, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("RejectAccess")
             .WithSummary("Reject privileged access, with a reason")
             .RequirePermission(IdentityPermissions.PrivilegedAccessApprove);
@@ -157,6 +171,7 @@ public sealed class IdentityModule : IModule
                     Concurrency.SetETag(http, 1);
                     return Results.Created($"/api/v1/identity/access-reviews/{id}", new { id });
                 }))
+            .Produces<CreatedId>(StatusCodes.Status201Created)
             .WithName("StartReview")
             .WithSummary("Start an access review")
             .WithDescription("Takes a snapshot of the role assignments in scope (AllUsers or Privileged) as review items.")
@@ -174,6 +189,7 @@ public sealed class IdentityModule : IModule
                 return (await dispatcher.Query(new ListReviews(afterId, pageSize), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<ReviewView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
+            .Produces<CursorPage<ReviewView>>(StatusCodes.Status200OK)
             .WithName("ListAccessReviews")
             .WithSummary("List access reviews")
             .RequirePermission(IdentityPermissions.AccessReviewRead);
@@ -184,18 +200,23 @@ public sealed class IdentityModule : IModule
                     Concurrency.SetETag(http, review.RowVersion);
                     return Results.Ok(review);
                 }))
+            .Produces<ReviewView>(StatusCodes.Status200OK)
             .WithName("GetAccessReview")
             .WithSummary("Get an access review with its items")
             .RequirePermission(IdentityPermissions.AccessReviewRead);
 
         reviews.MapPost("/{id:guid}/items/{itemId:guid}/confirm", (Guid id, Guid itemId, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new DecideReviewItem(id, itemId, Confirm: true, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("ConfirmAccess")
             .WithSummary("Confirm a reviewed access")
             .RequirePermission(IdentityPermissions.AccessReviewUpdate);
 
         reviews.MapPost("/{id:guid}/items/{itemId:guid}/revoke", (Guid id, Guid itemId, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new DecideReviewItem(id, itemId, Confirm: false, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("RevokeAccess")
             .WithSummary("Revoke a reviewed access")
             .WithDescription("The role ends when the review completes (IAM-005).")
@@ -203,6 +224,8 @@ public sealed class IdentityModule : IModule
 
         reviews.MapPost("/{id:guid}/complete", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new CompleteReview(id, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("CompleteReview")
             .WithSummary("Complete an access review")
             .WithDescription("Every item must be confirmed or revoked first. Revoked roles end at once (IAM-005).")
@@ -212,6 +235,8 @@ public sealed class IdentityModule : IModule
     private static void MapStatus(RouteGroupBuilder users, string action, UserStatusAction statusAction, string summary) =>
         users.MapPost($"/{{id:guid}}/{action}", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new ChangeUserStatus(id, statusAction, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName($"{statusAction}User")
             .WithSummary(summary)
             .RequirePermission(IdentityPermissions.UserUpdate);

@@ -141,6 +141,19 @@ public static class ApiRegistration
                 operation.Extensions["x-permission"] = new Microsoft.OpenApi.JsonNodeExtension(System.Text.Json.Nodes.JsonValue.Create(permission.Permission));
             }
 
+            if (metadata.OfType<IfMatchRequiredMetadata>().Any())
+            {
+                operation.Parameters ??= [];
+                operation.Parameters.Add(new OpenApiParameter
+                {
+                    Name = "If-Match",
+                    In = ParameterLocation.Header,
+                    Required = true,
+                    Description = "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+                    Schema = new OpenApiSchema { Type = JsonSchemaType.String },
+                });
+            }
+
             if (metadata.OfType<IdempotentEndpointMetadata>().Any())
             {
                 operation.Parameters ??= [];
@@ -202,6 +215,8 @@ public static class ApiRegistration
     public static IEndpointRouteBuilder MapInsysV1(this WebApplication app)
     {
         var api = app.NewVersionedApi("Insys");
-        return api.MapGroup("/api/v{version:apiVersion}").HasApiVersion(new ApiVersion(1));
+        var v1 = api.MapGroup("/api/v{version:apiVersion}").HasApiVersion(new ApiVersion(1));
+        ((IEndpointConventionBuilder)v1).Finally(StandardProblems.Declare);
+        return v1;
     }
 }

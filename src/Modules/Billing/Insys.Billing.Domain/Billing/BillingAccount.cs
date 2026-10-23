@@ -251,7 +251,7 @@ public sealed class BillingAccount : AggregateRoot<Guid>
         var account = new BillingAccount
         {
             Id = Guard.NotEmpty(id),
-            AccountNumber = "BA-" + id.ToString("N")[..12].ToUpperInvariant(),
+            AccountNumber = References.Of("BA-", id, 15),
             PayerPartyId = Guard.NotEmpty(payerPartyId),
             Currency = Guard.MaxLength(Guard.NotNullOrWhiteSpace(currency), 3),
             CollectionMethod = Guard.MaxLength(Guard.NotNullOrWhiteSpace(collectionMethod), 15),

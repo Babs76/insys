@@ -53,6 +53,7 @@ public static class StaticDataEndpoints
                 var items = await service.ListInForce<TEntity>(descriptor, asAt ?? DateOnly.FromDateTime(DateTime.UtcNow), afterCode, pageSize, ct);
                 return Results.Ok(new CursorPage<TEntity>(items, items.Count == pageSize ? EncodeCode(items[^1].Code) : null));
             })
+            .Produces<CursorPage<TEntity>>(StatusCodes.Status200OK)
             .WithName($"List{Pascal(descriptor)}")
             .WithSummary($"List {name} in force")
             .WithDescription($"{name} records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).")
@@ -69,6 +70,7 @@ public static class StaticDataEndpoints
                 Concurrency.SetETag(http, entity.RowVersion);
                 return Results.Ok(entity);
             })
+            .Produces<TEntity>(StatusCodes.Status200OK)
             .WithName($"Get{Pascal(descriptor)}")
             .WithSummary($"Get the {name} version in force")
             .RequirePermission(StaticDataPermissions.Read);
@@ -91,6 +93,7 @@ public static class StaticDataEndpoints
 
             scope.MapGet("/{code}/versions", async (string code, StaticDataService<TDbContext> service, CancellationToken ct) =>
                     Results.Ok(await service.Versions<TEntity>(code, global, ct)))
+                .Produces<IReadOnlyList<TEntity>>(StatusCodes.Status200OK)
                 .WithName($"List{Pascal(d)}Versions{suffix}")
                 .WithSummary($"List every {owner} version of a {entityName} code")
                 .Secure(global, StaticDataPermissions.Read);
@@ -106,6 +109,7 @@ public static class StaticDataEndpoints
                         Concurrency.SetETag(http, entity.RowVersion);
                         return Results.Created($"{http.Request.Path.Value!.TrimEnd('/')}/{entity.Code}/versions/{entity.Version}", entity);
                     }))
+                .Produces<TEntity>(StatusCodes.Status201Created)
                 .WithName($"Create{Pascal(d)}Draft{suffix}")
                 .WithSummary($"Create a {owner} {entityName} draft")
                 .WithDescription("Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.")
@@ -120,6 +124,8 @@ public static class StaticDataEndpoints
                         ? Problems.For(expected.Error)
                         : (await service.EditDraft<TEntity, TInput>(d, code, versionNumber, expected.Value, input, global, ct)).ToHttp(entity => Ok(http, entity));
                 })
+                .Produces<TEntity>(StatusCodes.Status200OK)
+                .RequireIfMatch()
                 .WithName($"Edit{Pascal(d)}Draft{suffix}")
                 .WithSummary($"Edit a {owner} {entityName} draft")
                 .WithDescription("Only the maker edits a draft; approved versions are immutable (SDM-002).")
@@ -143,6 +149,8 @@ public static class StaticDataEndpoints
                     };
                     return result.ToHttp(entity => Ok(http, entity));
                 })
+                .Produces<TEntity>(StatusCodes.Status200OK)
+                .RequireIfMatch()
                 .WithName($"Change{Pascal(d)}Lifecycle{suffix}")
                 .WithSummary($"Submit, activate, deprecate or retire a {owner} {entityName} version")
                 .WithDescription("submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); "
@@ -151,6 +159,7 @@ public static class StaticDataEndpoints
 
             scope.MapPost("/imports", async (StaticDataImport<TInput> import, StaticDataService<TDbContext> service, CancellationToken ct) =>
                     (await service.Import<TEntity, TInput>(d, import.Lines, import.FileRef, global, ct)).ToHttp(count => Results.Ok(new StaticDataImportResult(count))))
+                .Produces<StaticDataImportResult>(StatusCodes.Status200OK)
                 .WithName($"Import{Pascal(d)}{suffix}")
                 .WithSummary($"Import {owner} {entityName} drafts, all or nothing")
                 .WithDescription("Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012).")

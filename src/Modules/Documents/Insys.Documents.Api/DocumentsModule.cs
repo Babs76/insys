@@ -40,6 +40,7 @@ public sealed class DocumentsModule : IModule
         documents.MapPost("/generate", async (GenerateDocumentRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Send(new GenerateDocument(r.TemplateCode, r.Language, r.CategoryCode, r.BusinessRefType, r.BusinessRefId, r.ProductVersionRef,
                     r.Jurisdiction, r.Data), ct)).ToHttp(view => Created(http, view)))
+            .Produces<DocumentView>(StatusCodes.Status201Created)
             .WithName("DocumentsGenerate")
             .WithSummary("Generate a document from the template version in force")
             .WithDescription("Records the template version and product version it was generated from (DOC-002). Every merge field of the template must be supplied.")
@@ -61,6 +62,7 @@ public sealed class DocumentsModule : IModule
                 return (await dispatcher.Send(new StoreDocument(r.CategoryCode, r.BusinessRefType, r.BusinessRefId, r.MimeType, content, r.ProductVersionRef,
                     r.Jurisdiction), ct)).ToHttp(view => Created(http, view));
             })
+            .Produces<DocumentView>(StatusCodes.Status201Created)
             .WithName("DocumentsStore")
             .WithSummary("Store an uploaded document in tenant-scoped storage (DOC-001)")
             .RequirePermission(DocumentPermissions.DocumentCreate)
@@ -68,6 +70,7 @@ public sealed class DocumentsModule : IModule
 
         documents.MapGet("/", async (string businessRefType, Guid businessRefId, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListDocuments(businessRefType, businessRefId), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<DocumentView>>(StatusCodes.Status200OK)
             .WithName("DocumentsList")
             .WithSummary("List the documents of a business reference")
             .RequirePermission(DocumentPermissions.DocumentRead);
@@ -78,12 +81,14 @@ public sealed class DocumentsModule : IModule
                     Concurrency.SetETag(http, view.RowVersion);
                     return Results.Ok(view);
                 }))
+            .Produces<DocumentView>(StatusCodes.Status200OK)
             .WithName("DocumentsGet")
             .WithSummary("Get a document's record (not its content)")
             .RequirePermission(DocumentPermissions.DocumentRead);
 
         documents.MapGet("/{id:guid}/content", async (Guid id, string? purpose, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ReadDocumentContent(id, purpose), ct)).ToHttp(content => Results.File(content.Content, content.MimeType)))
+            .Produces(StatusCodes.Status200OK, typeof(Stream), "application/octet-stream")
             .WithName("DocumentsReadContent")
             .WithSummary("Read a document's content")
             .WithDescription("Reading a confidential, personal or highly sensitive document needs a purpose and is recorded (DOC-003); a highly sensitive "
@@ -92,19 +97,22 @@ public sealed class DocumentsModule : IModule
 
         documents.MapPost("/{id:guid}/deliveries", async (Guid id, DeliverDocumentRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new DeliverDocument(id, r.Channel, r.Recipient), ct)).ToHttp(Results.Ok))
+            .Produces<DeliveryView>(StatusCodes.Status200OK)
             .WithName("DocumentsDeliver")
             .WithSummary("Deliver a document by a configured channel; every attempt is recorded")
             .RequirePermission(DocumentPermissions.DocumentDeliver)
             .RequireIdempotencyKey();
 
         documents.MapPost("/{id:guid}/legal-holds", async (Guid id, LegalHoldRequest r, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new PlaceLegalHold(id, r.ReasonCode), ct)).ToHttp(holdId => Results.Ok(new { id = holdId })))
+                (await dispatcher.Send(new PlaceLegalHold(id, r.ReasonCode), ct)).ToHttp(holdId => Results.Ok(new CreatedId(holdId))))
+            .Produces<CreatedId>(StatusCodes.Status200OK)
             .WithName("DocumentsPlaceLegalHold")
             .WithSummary("Place a legal hold; the document cannot be disposed of while it holds")
             .RequirePermission(DocumentPermissions.LegalHoldManage);
 
         documents.MapPost("/{id:guid}/legal-holds/{holdId:guid}/release", async (Guid id, Guid holdId, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ReleaseLegalHold(id, holdId), ct)).ToHttp(_ => Results.NoContent()))
+            .Produces(StatusCodes.Status204NoContent)
             .WithName("DocumentsReleaseLegalHold")
             .WithSummary("Release a legal hold")
             .RequirePermission(DocumentPermissions.LegalHoldManage);
@@ -120,6 +128,7 @@ public sealed class DocumentsModule : IModule
                         return Results.NoContent();
                     });
             })
+            .Produces(StatusCodes.Status204NoContent)
             .WithName("DocumentsDispose")
             .WithSummary("Dispose of a document after its retention date, when no legal hold applies")
             .RequirePermission(DocumentPermissions.DocumentDispose);

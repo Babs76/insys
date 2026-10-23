@@ -160,7 +160,7 @@ internal static class Users
 internal static class Numbers
 {
     /// <summary>TODO(spec): numbers are a prefix and an ID-based suffix; sequences and check digits need a counter (OQ-058).</summary>
-    public static string Of(string prefix, Guid id, int length) => (prefix + id.ToString("N").ToUpperInvariant())[..length];
+    public static string Of(string prefix, Guid id, int length) => References.Of(prefix, id, length);
 }
 
 public sealed record SchemeView(Guid Id, string SchemeNumber, string SponsorCode, string Status, DateOnly StartDate, DateOnly RenewalDate, string? Currency, long RowVersion)

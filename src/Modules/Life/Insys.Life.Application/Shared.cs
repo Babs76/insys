@@ -127,7 +127,7 @@ internal static class Products
 internal static class Numbers
 {
     /// <summary>TODO(spec): numbers are a prefix and an ID-based suffix; sequences and check digits need a counter (OQ-058).</summary>
-    public static string Of(string prefix, Guid id, int length) => (prefix + id.ToString("N").ToUpperInvariant())[..length];
+    public static string Of(string prefix, Guid id, int length) => References.Of(prefix, id, length);
 
     public static async Task<Result<string>> Policy(ILifeCodes codes, Guid id, DateOnly day, CancellationToken cancellationToken) =>
         await codes.PolicyNumberPrefix(day, cancellationToken) is { } prefix

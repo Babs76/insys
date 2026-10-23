@@ -140,7 +140,7 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
         var registration = new ClaimRegistration
         {
             Id = Guard.NotEmpty(id),
-            ClaimNumber = $"{prefix}-{id.ToString("N")[..12].ToUpperInvariant()}",
+            ClaimNumber = References.Of($"{prefix}-", id, prefix.Length + 13),
             Domain = Guard.MaxLength(Guard.NotNullOrWhiteSpace(domain), 10),
             DomainClaimId = Guard.NotEmpty(domainClaimId),
             PolicyRef = Guard.NotEmpty(policyRef),

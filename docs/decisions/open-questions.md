@@ -4,6 +4,46 @@ Gaps and conflicts found while building, with the sources involved and the resol
 
 Status: **Open** means a decision is needed; **Resolved** means decided (by review or ADR); **Resolved (proposal)** means the code follows the proposal shown and can change if it is rejected.
 
+## Still open at the end of Phase 7
+
+Each item below needs a decision. The code follows the proposal shown until one is made, and each is marked `TODO(spec)` where it applies.
+
+| ID | Decision needed | Proposal the code follows | Suggested owner |
+|---|---|---|---|
+| OQ-010 | Outbox retry limit and back-off | 10 attempts, 5 s doubling | Architecture |
+| OQ-011 | Idempotency key retention | 24 hours | Architecture |
+| OQ-012 | Page size limits | 50 by default, 200 at most | Architecture |
+| OQ-013 | API rate limits | 1,200 requests a minute per tenant | Architecture, with tenants' volumes |
+| OQ-016 | Whose calendar date "today" is | UTC; the tenant's `time_zone` is not yet used | Business |
+| OQ-020 | Field protection key custody | Keys from configuration; choose a KMS or HSM (SRS §30) | Security |
+| OQ-023 | Database server time zone | Every server runs in UTC (DBA-013) | Operations |
+| OQ-025 | Impact analysis and simulation before Tier 1 activation | None; test changes in a non-production tenant | Product |
+| OQ-030 | Data migration for an isolation profile change | A migration reference is required and recorded; no migration is built | Architecture |
+| OQ-035 | Static data composite business keys | The client sends `code` | Data governance |
+| OQ-036 | Published to Effective for generic configuration items | Both treated as in force; product versions are moved by their job | Data governance |
+| OQ-037 | Identity provider to `idp_code` mapping | Match on `external_subject`; a subject in two IdPs is refused | Security |
+| OQ-041 | Early revocation of a privileged access grant | Not reachable; revoke roles or disable the user | Security |
+| OQ-042 | Access reviews of service accounts | That scope is refused | Security |
+| OQ-043 | What a privileged access grant permits | Recorded and expired only; it confers no permissions | Security |
+| OQ-049 | Escalation targets and the AMOUNT_ABOVE and MANUAL triggers | The target role is the queue; those triggers are unused | Operations |
+| OQ-051 | How a rule set decides | The most severe outcome wins; eligibility is not assumed | Underwriting |
+| OQ-052 | Rating algorithm details | ADR-007, with the step order configurable; actuarial test cases needed | Actuarial |
+| OQ-054 | Party dormancy, retention, merge of roles, duplicate matching | Not built; anonymise is a permissioned command | Business, Compliance |
+| OQ-058 | Gap-free numbering, allocation rules, premium tax, provider outbox, Unknown timeout | ID-based references, oldest-due first, tax 0, Unknown after 24 h | Finance, Architecture |
+| OQ-059 | General: short-period refunds, reinstatement rules, valuation | Refused or as stated in OQ-059 | Underwriting |
+| OQ-060 | Health: edit rules (item 10), member claims (item 11) | ADR-012; item 11 configurable (`member_claim_basis`) | Business, Actuarial |
+| OQ-061 | Life and Health: utilisation measures, reversal recoveries, cover-changing alterations, loan disbursement, scheme renewal term, monthly frequency code, member contributions | Not built, or refused | Business |
+| OQ-062 | Commission: tax, overrides, negative statements | ADR-014; zero tax | Distribution, Finance |
+| OQ-063 | Reinsurance: stop loss, PML, Health cessions, ceded premium decrease, bordereaux as documents | ADR-015 | Reinsurance |
+| OQ-064 | Compliance: metric formulas, returns as documents | ADR-015; a metric is the sum of its measure | Compliance |
+| OQ-065 | Analytics: Health projections, currencies in keys, claim cause codes | ADR-015 | Business intelligence |
+| OQ-066 | Integration: secret store and transport, resending a failed webhook, exposure currency | ADR-015; a failed webhook is discarded only | Architecture |
+| OQ-067 | The first administrator of a new tenant | Not built; proposal: a platform command with maker-checker | Security, Operations |
+
+Also pending business sign-off, though built as accepted: ADR-012 (Health adjudication), ADR-014 (commission) and ADR-015 (reinsurance, reporting, analytics and integration).
+
+## All questions
+
 | ID | Phase | Topic | Status |
 |---|---|---|---|
 | OQ-001 | 4 | First domain to build | Resolved: General first (22 Oct 2026) |
@@ -72,6 +112,7 @@ Status: **Open** means a decision is needed; **Resolved** means decided (by revi
 | OQ-064 | 6 | Compliance: return content and approval, report runs not defined | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
 | OQ-065 | 6 | Analytics: projection dimensions and the event history to rebuild from | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
 | OQ-066 | 6 | Integration, General renewal and exposure snapshot: smaller gaps | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
+| OQ-067 | 7 | The first administrator of a new tenant | Open |
 
 ---
 
@@ -360,6 +401,7 @@ Each item is built as stated and marked `TODO(spec)` in code.
 - **Numbering:**
   - **Claim, invoice, payment and journal numbers** are the scheme's prefix plus an ID-based suffix. Sequences with check digits and reset rules (`sequence_length`, `reset_rule`, `check_digit`) need a gap-free counter per tenant, which is not specified.
   - **Claim registration** is unique per domain and domain claim (V0015), and a repeat returns the same number (CLM-005).
+  - **Phase 7 fix:** the ID-based suffix was taken from the start of a UUIDv7, which is its timestamp, so records created in the same millisecond could get the same reference (found by the adjudication smoke test as 409s on membership numbers). `References.Of` now takes the suffix from the random end of the ID, for every reference built this way (Health and Life numbers, General policies and quotes, claim registration, billing accounts and invoices). 5,000 IDs give 5,000 distinct references (`ReferencesTests`).
 - **Allocation:**
   - `billing.cfg_allocation_rules` (tolerance, overpayment handling) is not applied. A payment is allocated oldest-due first, never above the amount received. Anything left over stays unallocated on the payment.
   - The payments matching tolerance uses the lowest tolerance in force.
@@ -577,8 +619,15 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 ### OQ-066 Integration, General renewal and exposure: smaller gaps (Phase 6)
 **Accepted to build (23 October 2026), pending business sign-off:** ADR-015. Still open: the production secret store and transport, replaying a failed webhook (Failed has no transition in domain-model.json), the exposure snapshot's currency.
 
+**Phase 7:** replaying a `webhook:` dead letter used to deserialise the webhook body as an event envelope and publish it, which delivered nothing useful. It is now refused (409 `INVALID_STATE_TRANSITION`), and such a dead letter can only be discarded. *Proposal:* a replay of a failed webhook makes its delivery Pending again with its attempts reset (a new transition, Failed → Pending on ReplayMessage); the one-delivery-per-subscription-and-event constraint stays.
+
 1. **Webhooks.** *Proposal:* deliver the subscribed event types to the endpoint, signed with HMAC-SHA256 using the key named by `signing_key_ref` (resolved by a secret store stub); retry by the subscription's retry and dead-letter policy (exponential or fixed back-off); when retries are exhausted the delivery is Failed and dead-lettered.
 2. **Partner adapters.** Interfaces with stub implementations (reinsurer, regulator, general ledger), each call recorded in `integration.external_call_log`.
 3. **Renewal job (GEN-004).** *Proposal:* `notice_days` before the period end, a renewal invitation document (`invitation_template`); at the period end, an `auto_renew` policy without `re_rating` is renewed (RenewPolicy); one that needs re-rating gets an invitation only.
 4. **Exposure snapshot.** *Proposal:* a daily job sums the sum insured of in-force policies' risk objects by `risk_zone` (UNKNOWN when empty) and covered peril, as at the day.
 
+### OQ-067 The first administrator of a new tenant (Phase 7)
+- **Sources:** TEN-008 and OQ-029 (onboarding step ORGANISATION_AND_ACCESS); OQ-031 (the operator bootstrap).
+- **Gap:** ProvisionUser and AssignRole act in the caller's own tenant, and a new tenant has no users, so nothing in the API can create its first administrator. The operator bootstrap covers only the operator tenant. Found while writing the tenants runbook.
+- **Current state:** not built. The runbook says an owner inserts the first administrator as `operator.sql` does, as a recorded change.
+- **Proposal:** a platform command, `ProvisionTenantAdministrator`, for the platform operator only, allowed while the tenant is Onboarding. It creates the tenant's first user and a TENANT_ADMIN role assignment, approved by a second platform administrator in Workflow (SRS-002), and completes the ORGANISATION_AND_ACCESS step.

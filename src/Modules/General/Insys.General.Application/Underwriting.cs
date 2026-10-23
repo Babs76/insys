@@ -234,7 +234,7 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
 
         // A draft is valid only once issued, for the product's quote validity period; until then the date is today.
         var id = Guid.CreateVersion7();
-        var quote = GeneralQuote.CreateQuote(id, "GQ-" + id.ToString("N")[..12].ToUpperInvariant(), previous, product.Value, command.ProposerPartyId, command.IntermediaryCode,
+        var quote = GeneralQuote.CreateQuote(id, References.Of("GQ-", id, 15), previous, product.Value, command.ProposerPartyId, command.IntermediaryCode,
             command.Currency, command.PeriodStart, command.PeriodEnd, command.Risks, clock.UtcToday);
         if (quote.IsFailure)
         {

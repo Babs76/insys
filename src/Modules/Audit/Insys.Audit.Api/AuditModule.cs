@@ -34,6 +34,7 @@ public sealed class AuditModule : IModule
                 var result = await dispatcher.Query(new ListAuditEvents(targetType, targetId, actorId, afterId, pageSize), ct);
                 return result.ToHttp(items => Results.Ok(new CursorPage<AuditEventView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
+            .Produces<CursorPage<AuditEventView>>(StatusCodes.Status200OK)
             .WithName("ListAuditEvents")
             .WithSummary("List audit events")
             .WithDescription("The tenant's audit trail of sensitive operations and denied requests, newest first (IAM-006, TEN-005).")

@@ -71,7 +71,7 @@ internal static class PolicyNumbers
     /// <summary>TODO(spec): numbers are the scheme's prefix and an ID-based suffix; sequences and check digits need a counter (OQ-058).</summary>
     public static async Task<Result<string>> Next(IGeneralCodes codes, Guid id, DateOnly day, CancellationToken cancellationToken) =>
         await codes.PolicyNumberPrefix(day, cancellationToken) is { } prefix
-            ? (prefix + id.ToString("N").ToUpperInvariant())[..15]
+            ? References.Of(prefix, id, 15)
             : Error.Validation(GeneralErrorCodes.CodeNotInForce, "No General policy numbering scheme is in force.");
 }
 

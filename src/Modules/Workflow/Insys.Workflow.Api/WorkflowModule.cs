@@ -32,6 +32,9 @@ public sealed record CaseNoteRequest(string Note);
 public sealed record RejectChangeRequest(string Reason);
 
 /// <summary>The Workflow module: approvals with delegated authority (WFL-004), process instances, tasks, SLA timers and escalation.</summary>
+/// <summary>The static data change request a decision was made on.</summary>
+public sealed record StaticDataDecision(Guid ChangeRequestId);
+
 public sealed class WorkflowModule : IModule
 {
     public string Name => "Workflow";
@@ -59,6 +62,7 @@ public sealed class WorkflowModule : IModule
                 return (await dispatcher.Query(new ListApprovals(status, businessRefType, businessRefId, afterId, pageSize), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<ApprovalView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
+            .Produces<CursorPage<ApprovalView>>(StatusCodes.Status200OK)
             .WithName("WorkflowListApprovals")
             .WithSummary("List approvals")
             .RequirePermission(WorkflowPermissions.ApprovalRead);
@@ -69,12 +73,15 @@ public sealed class WorkflowModule : IModule
                     Concurrency.SetETag(http, approval.RowVersion);
                     return Results.Ok(approval);
                 }))
+            .Produces<ApprovalView>(StatusCodes.Status200OK)
             .WithName("WorkflowGetApproval")
             .WithSummary("Get an approval")
             .RequirePermission(WorkflowPermissions.ApprovalRead);
 
         approvals.MapPost("/{id:guid}/approve", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new Approve(id, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("WorkflowApprove")
             .WithSummary("Approve (not by the maker, within the checker's authority)")
             .WithDescription("The checker needs a role with authority for the approval type and, where there is an amount, a limit at least that amount (WFL-004).")
@@ -82,6 +89,8 @@ public sealed class WorkflowModule : IModule
 
         approvals.MapPost("/{id:guid}/reject", (Guid id, RejectApprovalRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new Reject(id, request.Reason, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("WorkflowReject")
             .WithSummary("Reject, with a reason")
             .RequirePermission(WorkflowPermissions.ApprovalApprove);
@@ -93,6 +102,7 @@ public sealed class WorkflowModule : IModule
                     Concurrency.SetETag(http, 1);
                     return Results.Created($"/api/v1/workflow/processes/{id}", new { id });
                 }))
+            .Produces<CreatedId>(StatusCodes.Status201Created)
             .WithName("WorkflowStartProcess")
             .WithSummary("Start a process from the workflow definition in force")
             .RequirePermission(WorkflowPermissions.ProcessCreate)
@@ -109,6 +119,7 @@ public sealed class WorkflowModule : IModule
                 return (await dispatcher.Query(new ListProcesses(businessRefType, businessRefId, afterId, pageSize), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<ProcessView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
+            .Produces<CursorPage<ProcessView>>(StatusCodes.Status200OK)
             .WithName("WorkflowListProcesses")
             .WithSummary("List process instances")
             .RequirePermission(WorkflowPermissions.ProcessRead);
@@ -119,6 +130,7 @@ public sealed class WorkflowModule : IModule
                     Concurrency.SetETag(http, process.RowVersion);
                     return Results.Ok(process);
                 }))
+            .Produces<ProcessView>(StatusCodes.Status200OK)
             .WithName("WorkflowGetProcess")
             .WithSummary("Get a process instance with its tasks and case notes")
             .RequirePermission(WorkflowPermissions.ProcessRead);
@@ -128,6 +140,8 @@ public sealed class WorkflowModule : IModule
             var verb = action.ToString().ToLowerInvariant();
             processes.MapPost($"/{{id:guid}}/{verb}", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                     Versioned(http, version => dispatcher.Send(new ChangeProcess(id, action, version), ct)))
+                .Produces(StatusCodes.Status204NoContent)
+                .RequireIfMatch()
                 .WithName($"Workflow{action}Process")
                 .WithSummary($"{action} a process")
                 .RequirePermission(WorkflowPermissions.ProcessUpdate);
@@ -135,18 +149,24 @@ public sealed class WorkflowModule : IModule
 
         processes.MapPost("/{id:guid}/notes", (Guid id, CaseNoteRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new AddCaseNote(id, request.Note, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("WorkflowAddCaseNote")
             .WithSummary("Add a case note")
             .RequirePermission(WorkflowPermissions.ProcessUpdate);
 
         processes.MapPost("/{id:guid}/tasks/{taskId:guid}/assign", (Guid id, Guid taskId, AssignTaskRequest request, IDispatcher dispatcher, HttpContext http,
                 CancellationToken ct) => Versioned(http, version => dispatcher.Send(new AssignTask(id, taskId, request.AssigneeId, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("WorkflowAssignTask")
             .WithSummary("Assign or reassign a task; without an assignee the caller takes it")
             .RequirePermission(WorkflowPermissions.ProcessUpdate);
 
         processes.MapPost("/{id:guid}/tasks/{taskId:guid}/complete", (Guid id, Guid taskId, CompleteTaskRequest request, IDispatcher dispatcher, HttpContext http,
                 CancellationToken ct) => Versioned(http, version => dispatcher.Send(new CompleteTask(id, taskId, request.ToState, request.Variables, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("WorkflowCompleteTask")
             .WithSummary("Complete a task and move the process along a defined transition")
             .WithDescription("The transition guard is evaluated on the variables, then the owning module's validation (by DomainValidation code) runs; either can refuse.")
@@ -158,12 +178,14 @@ public sealed class WorkflowModule : IModule
                     Concurrency.SetETag(http, version);
                     return Results.NoContent();
                 }))
+            .Produces(StatusCodes.Status204NoContent)
             .WithName("WorkflowEscalateTask")
             .WithSummary("Escalate a task to the next escalation level")
             .RequirePermission(WorkflowPermissions.ProcessUpdate);
 
         workflow.MapGet("/tasks", async (string? queueCode, Guid? assigneeId, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListOpenTasks(queueCode, assigneeId, Cursor.ClampLimit(limit)), ct)).ToHttp(items => Results.Ok(items)))
+            .Produces<IReadOnlyList<OpenTaskView>>(StatusCodes.Status200OK)
             .WithName("WorkflowListOpenTasks")
             .WithSummary("List open tasks by queue or assignee, earliest due first")
             .RequirePermission(WorkflowPermissions.ProcessRead);
@@ -179,6 +201,7 @@ public sealed class WorkflowModule : IModule
         var approve = group.MapPost("/{code}/versions/{versionNumber:int}/approve", (string module, string entity, string code, int versionNumber,
                 IEnumerable<ModuleStaticDataTables> modules, IStaticDataChangeLookup lookup, ITenantContext tenant, IDispatcher dispatcher, CancellationToken ct) =>
                 DecideStaticDataChange(modules, lookup, tenant, dispatcher, module, entity, code, versionNumber, global, approve: true, reason: null, ct))
+            .Produces<StaticDataDecision>(StatusCodes.Status200OK)
             .WithName($"ApproveStaticDataChange{suffix}")
             .WithSummary("Approve the pending change of a static data version")
             .WithDescription("The checker must not be the maker for Tier 1 and Tier 2 data (SDM-003). Workflow records the approval; the owning module then marks the version approved.");
@@ -187,6 +210,7 @@ public sealed class WorkflowModule : IModule
                 RejectChangeRequest request, IEnumerable<ModuleStaticDataTables> modules, IStaticDataChangeLookup lookup, ITenantContext tenant,
                 IDispatcher dispatcher, CancellationToken ct) =>
                 DecideStaticDataChange(modules, lookup, tenant, dispatcher, module, entity, code, versionNumber, global, approve: false, request.Reason, ct))
+            .Produces<StaticDataDecision>(StatusCodes.Status200OK)
             .WithName($"RejectStaticDataChange{suffix}")
             .WithSummary("Reject the pending change of a static data version; it returns to draft");
 
@@ -218,7 +242,7 @@ public sealed class WorkflowModule : IModule
         }
 
         return (await dispatcher.Send(new DecideByReference(StaticDataApprovals.BusinessRefType, changeRequestId, approve, reason), ct))
-            .ToHttp(_ => Results.Ok(new { changeRequestId }));
+            .ToHttp(_ => Results.Ok(new StaticDataDecision(changeRequestId)));
     }
 
     private static async Task<IResult> Versioned(HttpContext http, Func<long, Task<BuildingBlocks.Domain.Result<long>>> send)

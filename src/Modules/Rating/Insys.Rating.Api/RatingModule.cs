@@ -36,6 +36,7 @@ public sealed class RatingModule : IModule
                 (await dispatcher.Send(new CalculatePremium(r.RequestRef, r.SourceDomain, r.SubjectType, r.SubjectId,
                     new RatingRequest(r.ProductCode, r.ProductVersion, r.Currency, r.Frequency, r.RatingDate, r.Values)), ct))
                 .ToHttp(view => Results.Created($"/api/v1/rating/calculations/{view.Id}", view)))
+            .Produces<CalculationView>(StatusCodes.Status201Created)
             .WithName("RatingCalculatePremium")
             .WithSummary("Calculate a premium and record it with its breakdown")
             .WithDescription("Uses the rating configuration in force on the rating date (today by default). The record keeps the inputs, the product "
@@ -46,18 +47,21 @@ public sealed class RatingModule : IModule
         calculations.MapPost("/simulate", async (SimulatePremiumRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new SimulatePremium(new RatingRequest(r.ProductCode, r.ProductVersion, r.Currency, r.Frequency, r.RatingDate, r.Values)), ct))
                 .ToHttp(Results.Ok))
+            .Produces<SimulationView>(StatusCodes.Status200OK)
             .WithName("RatingSimulatePremium")
             .WithSummary("Rate without recording anything")
             .RequirePermission(RatingPermissions.Simulate);
 
         calculations.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetCalculation(id), ct)).ToHttp(Results.Ok))
+            .Produces<CalculationView>(StatusCodes.Status200OK)
             .WithName("RatingGetCalculation")
             .WithSummary("Get a recorded calculation with its breakdown")
             .RequirePermission(RatingPermissions.CalculationRead);
 
         calculations.MapGet("/", async (string subjectType, Guid subjectId, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListCalculations(subjectType, subjectId, Cursor.ClampLimit(limit)), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<CalculationView>>(StatusCodes.Status200OK)
             .WithName("RatingListCalculations")
             .WithSummary("List a subject's calculations, newest first")
             .RequirePermission(RatingPermissions.CalculationRead);

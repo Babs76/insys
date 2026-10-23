@@ -33,12 +33,14 @@ public sealed class FinanceModule : IModule
 
         finance.MapGet("/journals/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetJournal(id), ct)).ToHttp(Results.Ok))
+            .Produces<JournalView>(StatusCodes.Status200OK)
             .WithName("FinanceGetJournal")
             .WithSummary("Get a journal with its subledger entries and the posting rule versions used")
             .RequirePermission(FinancePermissions.JournalRead);
 
         finance.MapGet("/journals", async (string businessRefType, Guid businessRefId, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListJournals(businessRefType, businessRefId), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<JournalView>>(StatusCodes.Status200OK)
             .WithName("FinanceListJournals")
             .WithSummary("List the journals of a business record (FIN-001)")
             .RequirePermission(FinancePermissions.JournalRead);
@@ -46,6 +48,7 @@ public sealed class FinanceModule : IModule
         finance.MapPost("/journals/{id:guid}/reverse", async (Guid id, ReverseJournalRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ReverseJournal(id, r.AccountingDate, r.Reason), ct))
                 .ToHttp(view => Results.Created($"/api/v1/finance/journals/{view.Id}", view)))
+            .Produces<JournalView>(StatusCodes.Status201Created)
             .WithName("FinanceReverseJournal")
             .WithSummary("Reverse a journal: a new journal with debits and credits swapped (FIN-003)")
             .WithDescription("The original journal is never changed (FIN-002). The reversal is posted on its own accounting date, which must be in an open period.")
@@ -53,6 +56,7 @@ public sealed class FinanceModule : IModule
             .RequireIdempotencyKey();
 
         finance.MapGet("/periods", async (IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new ListPeriods(), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<PeriodView>>(StatusCodes.Status200OK)
             .WithName("FinanceListPeriods")
             .WithSummary("List accounting periods and their states")
             .RequirePermission(FinancePermissions.PeriodRead);
@@ -61,6 +65,7 @@ public sealed class FinanceModule : IModule
         {
             finance.MapPost($"/periods/{{periodCode}}/{route}", async (string periodCode, IDispatcher dispatcher, CancellationToken ct) =>
                     (await dispatcher.Send(new ChangePeriod(periodCode, action), ct)).ToHttp(Results.Ok))
+                .Produces<PeriodView>(StatusCodes.Status200OK)
                 .WithName($"FinancePeriod{action}")
                 .WithSummary(action switch
                 {
@@ -74,18 +79,21 @@ public sealed class FinanceModule : IModule
 
         finance.MapGet("/periods/{periodCode}/trial-balance", async (string periodCode, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetTrialBalance(periodCode), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<TrialBalanceLine>>(StatusCodes.Status200OK)
             .WithName("FinanceTrialBalance")
             .WithSummary("Debits, credits and balance per account and currency for a period")
             .RequirePermission(FinancePermissions.JournalRead);
 
         finance.MapGet("/posting-exceptions", async (string? status, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListPostingExceptions(status, Cursor.ClampLimit(limit)), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<PostingExceptionView>>(StatusCodes.Status200OK)
             .WithName("FinanceListPostingExceptions")
             .WithSummary("Business events that could not be posted (FIN-007)")
             .RequirePermission(FinancePermissions.PostingExceptionRead);
 
         finance.MapPost("/posting-exceptions/{id:guid}/retry", async (Guid id, RetryPostingRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new RetryPosting(id, r.AccountingDate), ct)).ToHttp(Results.Ok))
+            .Produces<PostingExceptionView>(StatusCodes.Status200OK)
             .WithName("FinanceRetryPosting")
             .WithSummary("Post a failed business event again, optionally on another accounting date")
             .RequirePermission(FinancePermissions.JournalReverse)

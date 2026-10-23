@@ -46,12 +46,14 @@ public sealed class StaticDataModule : IModule
                 return (await dispatcher.Query(new ListChangeRequests(status, entityCode, afterId, pageSize), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<ChangeRequestView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
+            .Produces<CursorPage<ChangeRequestView>>(StatusCodes.Status200OK)
             .WithName("ListChangeRequests")
             .WithSummary("List static data change requests")
             .RequirePermission(StaticDataGovernancePermissions.ChangeRequestRead);
 
         changes.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetChangeRequest(id), ct)).ToHttp(Results.Ok))
+            .Produces<ChangeRequestView>(StatusCodes.Status200OK)
             .WithName("GetChangeRequest")
             .WithSummary("Get a static data change request")
             .RequirePermission(StaticDataGovernancePermissions.ChangeRequestRead);
@@ -63,6 +65,7 @@ public sealed class StaticDataModule : IModule
                     Concurrency.SetETag(http, view.RowVersion);
                     return Results.Ok(view);
                 }))
+            .Produces<GovernanceSettingsView>(StatusCodes.Status200OK)
             .WithName("GetGovernanceSettings")
             .WithSummary("Get the tenant's static data governance settings")
             .WithDescription("Tier 1 maker-checker is always on; Tier 2 is on unless the tenant switches it off (SDM-003).")
@@ -82,6 +85,7 @@ public sealed class StaticDataModule : IModule
                     return Results.NoContent();
                 });
             })
+            .Produces(StatusCodes.Status204NoContent)
             .WithName("ChangeTier2MakerChecker")
             .WithSummary("Switch Tier 2 maker-checker on or off for the tenant")
             .WithDescription("Audited. Use the ETag from GET; it is \"0\" until the setting is first changed.")
@@ -98,6 +102,7 @@ public sealed class StaticDataModule : IModule
                 return (await dispatcher.Query(new ListImportBatches(afterId, pageSize), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<ImportBatchView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
+            .Produces<CursorPage<ImportBatchView>>(StatusCodes.Status200OK)
             .WithName("ListImportBatches")
             .WithSummary("List static data import batches and their rejected lines (SDM-012)")
             .RequirePermission(StaticDataGovernancePermissions.ChangeRequestRead);

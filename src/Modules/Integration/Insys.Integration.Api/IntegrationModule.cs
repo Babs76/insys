@@ -38,6 +38,7 @@ public sealed class IntegrationModule : IModule
                 var result = await dispatcher.Query(new ListDeadLetters(status, source, afterId, pageSize), ct);
                 return result.ToHttp(items => Results.Ok(new CursorPage<DeadLetterSummary>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
+            .Produces<CursorPage<DeadLetterSummary>>(StatusCodes.Status200OK)
             .WithName("ListDeadLetters")
             .WithSummary("List dead-lettered messages")
             .WithDescription("Messages whose delivery failed after all retries (INT-006), oldest first, with cursor pagination.")
@@ -54,6 +55,7 @@ public sealed class IntegrationModule : IModule
                     return Results.Ok(detail);
                 });
             })
+            .Produces<DeadLetterDetail>(StatusCodes.Status200OK)
             .WithName("GetDeadLetter")
             .WithSummary("Get a dead-lettered message")
             .WithDescription("Returns the dead letter with its original event envelope. The ETag is required to replay or discard it.")
@@ -73,12 +75,14 @@ public sealed class IntegrationModule : IModule
 
         webhooks.MapGet("/", async (WebhookDeliveryStatus? status, string? subscriptionId, Guid? after, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListDeliveries(status, subscriptionId, after, limit ?? 50), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<WebhookDeliveryView>>(StatusCodes.Status200OK)
             .WithName("ListWebhookDeliveries")
             .WithSummary("Partner webhook deliveries, by status or subscription, with their latest attempt (INT-006)")
             .RequirePermission(IntegrationPermissions.WebhookRead);
 
         webhooks.MapPost("/{id:guid}/retry", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new RetryDelivery(id), ct)).ToHttp(Results.Ok))
+            .Produces<WebhookDeliveryView>(StatusCodes.Status200OK)
             .WithName("RetryWebhookDelivery")
             .WithSummary("Attempt a pending delivery at the next run of the webhook job instead of at its back-off time")
             .RequirePermission(IntegrationPermissions.WebhookUpdate);
@@ -101,13 +105,12 @@ public sealed class IntegrationModule : IModule
                     return Results.NoContent();
                 });
             })
+            .RequireIfMatch()
             .WithName(name)
             .WithSummary(summary)
             .WithDescription(description)
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
-            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
             .RequirePermission(IntegrationPermissions.DeadLetterUpdate);
 }

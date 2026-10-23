@@ -46,6 +46,7 @@ public sealed class ProductFactoryModule : IModule
                     Concurrency.SetETag(http, 1);
                     return Results.Created($"/api/v1/product-factory/products/{view.ProductCode}/versions/1", view with { RowVersion = 1 });
                 }))
+            .Produces<ProductVersionView>(StatusCodes.Status201Created)
             .WithName("ProductRegisterProduct")
             .WithSummary("Register a product: version 1, in Draft")
             .WithDescription("The code is unique in the tenant and never reused; the family must be in the product taxonomy for the domain.")
@@ -59,6 +60,7 @@ public sealed class ProductFactoryModule : IModule
                     Concurrency.SetETag(http, 1);
                     return Results.Created($"/api/v1/product-factory/products/{productCode}/versions/{view.Version}", view with { RowVersion = 1 });
                 }))
+            .Produces<ProductVersionView>(StatusCodes.Status201Created)
             .WithName("ProductCreateDraftVersion")
             .WithSummary("Create the next version of a product as a draft copy of its latest version")
             .WithDescription("A change to a published product is always a new version (PRD-003). Only one version of a product is in progress at a time.")
@@ -67,6 +69,7 @@ public sealed class ProductFactoryModule : IModule
 
         versions.MapGet("/", async (string productCode, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListProductVersions(productCode), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<ProductVersionView>>(StatusCodes.Status200OK)
             .WithName("ProductListVersions")
             .WithSummary("List a product's versions, newest first")
             .RequirePermission(ProductPermissions.ProductRead);
@@ -77,6 +80,7 @@ public sealed class ProductFactoryModule : IModule
                     Concurrency.SetETag(http, view.RowVersion);
                     return Results.Ok(view);
                 }))
+            .Produces<ProductVersionView>(StatusCodes.Status200OK)
             .WithName("ProductGetVersion")
             .WithSummary("Get a product version")
             .RequirePermission(ProductPermissions.ProductRead);
@@ -84,6 +88,8 @@ public sealed class ProductFactoryModule : IModule
         versions.MapPut("/{versionNumber:int}", (string productCode, int versionNumber, EditConfigurationRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, expected => dispatcher.Send(new EditConfiguration(productCode, versionNumber, r.Name, r.Coverages, r.EffectiveFrom, expected, r.CoverStartsOn,
                     r.EligibilityRulesetCode, r.ReinstatementArrears), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("ProductEditConfiguration")
             .WithSummary("Edit a draft or validated version (a validated version returns to draft)")
             .WithDescription("Submitted, approved and published versions are immutable (PRD-002).")
@@ -91,6 +97,8 @@ public sealed class ProductFactoryModule : IModule
 
         versions.MapPost("/{versionNumber:int}/validate", (string productCode, int versionNumber, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, expected => dispatcher.Send(new ValidateVersion(productCode, versionNumber, expected), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("ProductValidateVersion")
             .WithSummary("Validate a draft: coverages in the library and of the product's domain, benefit dependencies, effective date (PRD-004, PRD-009)")
             .RequirePermission(ProductPermissions.ProductUpdate);
@@ -98,6 +106,7 @@ public sealed class ProductFactoryModule : IModule
         versions.MapPost("/{versionNumber:int}/simulations", async (string productCode, int versionNumber, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new RunSimulation(productCode, versionNumber), ct))
                 .ToHttp(view => Results.Created($"/api/v1/product-factory/products/{productCode}/versions/{versionNumber}/simulations", view)))
+            .Produces<SimulationRunView>(StatusCodes.Status201Created)
             .WithName("ProductRunSimulation")
             .WithSummary("Run the rating test case library against a validated version (PRD-005)")
             .WithDescription("Each case is rated as a dry run as at the version's effective date and compared with its expected premium and tolerance.")
@@ -106,12 +115,15 @@ public sealed class ProductFactoryModule : IModule
 
         versions.MapGet("/{versionNumber:int}/simulations", async (string productCode, int versionNumber, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListSimulationRuns(productCode, versionNumber), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<SimulationRunView>>(StatusCodes.Status200OK)
             .WithName("ProductListSimulations")
             .WithSummary("List a version's simulation runs, newest first")
             .RequirePermission(ProductPermissions.ProductRead);
 
         versions.MapPost("/{versionNumber:int}/submit", (string productCode, int versionNumber, SubmitForApprovalRequest r, IDispatcher dispatcher, HttpContext http,
                 CancellationToken ct) => Versioned(http, expected => dispatcher.Send(new SubmitForApproval(productCode, versionNumber, r.Reason, expected), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("ProductSubmitForApproval")
             .WithSummary("Submit a validated version for publication approval")
             .WithDescription("Needs a passed simulation of this configuration unless the tenant's approval settings say otherwise. Workflow then asks a "
@@ -120,12 +132,16 @@ public sealed class ProductFactoryModule : IModule
 
         versions.MapPost("/{versionNumber:int}/withdraw", (string productCode, int versionNumber, WithdrawVersionRequest r, IDispatcher dispatcher, HttpContext http,
                 CancellationToken ct) => Versioned(http, expected => dispatcher.Send(new WithdrawVersion(productCode, versionNumber, r.EffectiveTo, expected), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("ProductWithdrawVersion")
             .WithSummary("Withdraw an effective version from a date")
             .RequirePermission(ProductPermissions.ProductPublish);
 
         versions.MapPost("/{versionNumber:int}/retire", (string productCode, int versionNumber, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, expected => dispatcher.Send(new RetireVersion(productCode, versionNumber, expected), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("ProductRetireVersion")
             .WithSummary("Retire an effective version")
             .RequirePermission(ProductPermissions.ProductPublish);

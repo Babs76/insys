@@ -1,5 +1,6 @@
 using System.Globalization;
 using Insys.BuildingBlocks.Domain;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Net.Http.Headers;
 
@@ -35,4 +36,19 @@ public static class Concurrency
         current == expected
             ? Result.Success()
             : Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The resource has changed since it was read. Read it again and retry.");
+}
+
+/// <summary>Marks an endpoint that requires If-Match (the OpenAPI documents show the header and its 412 and 428 responses).</summary>
+public sealed record IfMatchRequiredMetadata;
+
+public static class ConcurrencyEndpointExtensions
+{
+    private static readonly string[] ProblemContentTypes = ["application/problem+json"];
+
+    /// <summary>Declares that the endpoint reads If-Match (DBA-011): 428 without it, 412 when it is stale.</summary>
+    public static TBuilder RequireIfMatch<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.WithMetadata(new IfMatchRequiredMetadata(),
+            new ProducesResponseTypeMetadata(StatusCodes.Status412PreconditionFailed, typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), ProblemContentTypes),
+            new ProducesResponseTypeMetadata(StatusCodes.Status428PreconditionRequired, typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), ProblemContentTypes));
 }
