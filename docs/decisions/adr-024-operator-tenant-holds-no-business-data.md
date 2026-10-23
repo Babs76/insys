@@ -1,6 +1,6 @@
 # ADR-024: The operator tenant administers the platform and holds no business data
 
-- **Status:** **Proposed** (23 October 2026), for sign-off. Nothing is built.
+- **Status:** **Accepted** (23 October 2026, signed off). Closes OQ-078. Built on `wave0-5`: `IModule.HoldsBusinessData`, and one endpoint filter (`RefuseOperatorTenant`) on every business module's routes, which leaves static data and platform endpoints open. Tested by `OperatorTenantTests`, which also checks every endpoint. Not merged until the front end's live tests have moved to a business tenant.
 - **Requirements:** TEN-001, TEN-002, TEN-007 (platform administration by the operator only), SRS-002, IAM-006
 - **Raised by:** the front end, F5 finding 3
 
@@ -11,7 +11,7 @@
   - the operator tenant's global static data would be mistaken for a business tenant's configuration;
   - operations views that list tenants (parked deliveries, dead letters, tenants) would show the operator as a business tenant.
 
-## Decision (proposed)
+## Decision
 
 ### The rule
 **Business modules refuse the operator tenant.** A request whose tenant is the operator tenant, to an endpoint of a business module, is refused with **403 `OPERATOR_TENANT_NOT_BUSINESS`**, a stable error code, before the handler runs. Reads are refused as well as changes, so that nothing suggests business data could exist there.
