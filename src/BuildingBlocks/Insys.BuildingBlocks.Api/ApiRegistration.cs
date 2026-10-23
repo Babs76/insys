@@ -73,6 +73,9 @@ public static class ApiRegistration
         // Bound when first used, so configuration added after registration (tests, environment overrides) applies.
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
         services.AddHostedService<DevelopmentSigningKeyGuard>();
+        services.AddSingleton<EndpointWarmup>();
+        services.AddHostedService<EndpointWarmupService>();
+        services.AddHealthChecks().AddCheck<EndpointWarmupHealthCheck>("endpoints", tags: ["ready"]);
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme).Configure<IConfiguration, IHostEnvironment>((options, config, environment) =>
         {
             var auth = config.GetSection("Authentication").Get<InsysAuthenticationOptions>() ?? new InsysAuthenticationOptions();
