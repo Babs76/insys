@@ -24,7 +24,9 @@ public static class IntegrationInfrastructure
         services.AddScoped<IDeadLetterQueries, DeadLetterQueries>();
         services.AddScoped<IDeadLetterSink, DeadLetterSink>();
         services.AddMemoryCache();
-        services.AddSingleton<Insys.BuildingBlocks.Application.Localisation.IMessageCatalogue, MessageCatalogue>();
+        services.AddSingleton<MessageCatalogue>();
+        services.AddSingleton<Insys.BuildingBlocks.Application.Localisation.IMessageCatalogue>(sp => sp.GetRequiredService<MessageCatalogue>());
+        services.AddIntegrationEventHandler<Insys.BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated, MessageCachePolicy, IntegrationDbContext>(IntegrationDbContext.SchemaName, "MessagesActivated");
         services.AddSingleton<Partners.StubPartnerAdapters>();
         services.AddSingleton<IReinsurerAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
         services.AddSingleton<IRegulatorAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());

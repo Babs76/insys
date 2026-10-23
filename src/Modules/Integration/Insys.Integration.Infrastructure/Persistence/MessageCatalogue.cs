@@ -1,5 +1,8 @@
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Localisation;
+using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Contracts;
+using Insys.BuildingBlocks.Contracts.StaticData;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Microsoft.Extensions.Caching.Memory;
@@ -13,15 +16,16 @@ namespace Insys.Integration.Infrastructure.Persistence;
 /// rows for every channel (channel_code empty), whose label_key is an error code's message_key ("title") or its
 /// message_key plus ".detail". A tenant's own rows replace the global ones. Cached for a minute per tenant and language.
 /// </summary>
-internal sealed class MessageCatalogue([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IMemoryCache cache, IClock clock)
+public sealed class MessageCatalogue([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IMemoryCache cache, IClock clock)
     : IMessageCatalogue
 {
     private const string DetailSuffix = ".detail";
     private static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(1);
+    private int _generation;
 
     public async Task<MessageTexts> Texts(Guid? tenantId, string language, CancellationToken cancellationToken)
     {
-        var key = ("message-texts", tenantId, language);
+        var key = ("message-texts", Volatile.Read(ref _generation), tenantId, language);
         if (cache.TryGetValue(key, out MessageTexts? cached) && cached is not null)
         {
             return cached;
@@ -63,5 +67,23 @@ internal sealed class MessageCatalogue([FromKeyedServices(IntegrationDbContext.S
         var texts = titles.Count == 0 && details.Count == 0 ? MessageTexts.None : new MessageTexts(titles, details);
         cache.Set(key, texts, CacheFor);
         return texts;
+    }
+
+    /// <summary>Every cached text is stale after a change to the catalogue, including a global one that serves all tenants.</summary>
+    public void Invalidate() => Interlocked.Increment(ref _generation);
+}
+
+/// <summary>Drops the cached message texts when a translation bundle or an error code version is activated.</summary>
+public sealed class MessageCachePolicy(MessageCatalogue catalogue) : IIntegrationEventHandler<StaticDataVersionActivated>
+{
+    public Task Handle(StaticDataVersionActivated activated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (activated.Record is { Schema: "channel", Table: "ref_ui_label_and_translation_bundles" }
+            or { Schema: IntegrationDbContext.SchemaName, Table: "ref_error_code_catalogue" })
+        {
+            catalogue.Invalidate();
+        }
+
+        return Task.CompletedTask;
     }
 }

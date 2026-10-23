@@ -2,6 +2,7 @@ using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Localisation;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
+using Insys.BuildingBlocks.Contracts.StaticData;
 using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.Tenancy.Application.Tenants;
@@ -119,7 +120,7 @@ internal sealed class TenantBaseCurrency([FromKeyedServices(TenancyDbContext.Sch
 /// A tenant's languages from its locale defaults in force; the first is the default (docs/specs/addenda/localisation.md
 /// §1, OQ-068). English only when none is in force. Cached for a minute, like the other per-request lookups.
 /// </summary>
-internal sealed class TenantLanguageSettings([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource, IMemoryCache cache, IClock clock)
+public sealed class TenantLanguageSettings([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource, IMemoryCache cache, IClock clock)
     : ILanguageSettings
 {
     private static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(1);
@@ -149,5 +150,21 @@ internal sealed class TenantLanguageSettings([FromKeyedServices(TenancyDbContext
         var result = languages.Count > 0 ? new TenantLanguages(languages) : TenantLanguages.EnglishOnly;
         cache.Set(("tenant-languages", tenantId), result, CacheFor);
         return result;
+    }
+
+    public void Invalidate(Guid tenantId) => cache.Remove(("tenant-languages", tenantId));
+}
+
+/// <summary>Drops a tenant's cached languages when a locale defaults version is activated, so the next request reads it.</summary>
+public sealed class LocaleCachePolicy(TenantLanguageSettings languages, ITenantContext tenant) : IIntegrationEventHandler<StaticDataVersionActivated>
+{
+    public Task Handle(StaticDataVersionActivated activated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (activated.Record is { Schema: TenancyDbContext.SchemaName, Table: "cfg_locale_defaults" })
+        {
+            languages.Invalidate(tenant.RequireTenantId());
+        }
+
+        return Task.CompletedTask;
     }
 }

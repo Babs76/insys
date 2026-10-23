@@ -23,7 +23,10 @@ public static class TenancyInfrastructure
         services.AddSingleton<ITenantStatusQuery, TenantStatusQuery>();
         services.AddSingleton<ITenantBaseCurrency, TenantBaseCurrency>();
         services.AddMemoryCache();
-        services.AddSingleton<Insys.BuildingBlocks.Application.Localisation.ILanguageSettings, TenantLanguageSettings>();
+        services.AddSingleton<TenantLanguageSettings>();
+        services.AddSingleton<Insys.BuildingBlocks.Application.Localisation.ILanguageSettings>(sp => sp.GetRequiredService<TenantLanguageSettings>());
+        services.AddIntegrationEventHandler<Insys.BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated, LocaleCachePolicy, TenancyDbContext>(
+            TenancyDbContext.SchemaName, "LocaleDefaultsActivated");
         return services;
     }
 }

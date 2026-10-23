@@ -4,6 +4,7 @@ using System.Text.Json;
 using Insys.BuildingBlocks.Api.StaticData;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
+using Insys.BuildingBlocks.Contracts.StaticData;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.General.Contracts;
 using Insys.Party.Contracts;
@@ -34,7 +35,7 @@ public sealed class LocalisationTests(DatabaseFixture fixture) : IClassFixture<D
     public async ValueTask InitializeAsync()
     {
         var db = fixture.Database;
-        _factory = new InsysApiFactory(db);
+        _factory = await fixture.Host();
         await db.UserWithPermissions(A, "lang-a", Permissions);
         await db.UserWithPermissions(B, "lang-b", Permissions);
         foreach (var (code, name) in new[] { ("en", "English"), ("af", "Afrikaans"), ("zu", "isiZulu"), ("xh", "isiXhosa") })
@@ -66,7 +67,7 @@ public sealed class LocalisationTests(DatabaseFixture fixture) : IClassFixture<D
             ("label_key", "error.resource.not_found.detail"), ("language", "zu"), ("text", "Akukho rekhodi elinale khodi."));
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task StaticDataLabel_IsInTheRequestedLanguage_WhenTheTenantSupportsIt()
@@ -138,6 +139,26 @@ public sealed class LocalisationTests(DatabaseFixture fixture) : IClassFixture<D
         var xhosa = await Get(A, "lang-a", "/api/v1/billing/static/billing-frequencies/WEEKLY", "xh");
         (await xhosa.Json()).GetProperty("code").GetString().ShouldBe("NOT_FOUND");
         xhosa.Content.Headers.ContentLanguage.ShouldBe(["en"]);
+    }
+
+    /// <summary>Catalogue texts are cached; activating a translation drops the cache, so the next request has it (no TTL wait).</summary>
+    [Fact]
+    public async Task ActivatedTranslation_ReplacesTheCachedText()
+    {
+        const string Url = "/api/v1/billing/static/billing-frequencies/WEEKLY";
+        (await (await Get(A, "lang-a", Url, "xh")).Json()).GetProperty("title").GetString().ShouldNotBe("Akufumanekanga.");
+
+        await fixture.Database.SeedStatic(A, "channel.ref_ui_label_and_translation_bundles", "ACTIVE", "NOT_FOUND-xh", From,
+            ("label_key", "error.resource.not_found"), ("language", "xh"), ("text", "Akufumanekanga."));
+        (await (await Get(A, "lang-a", Url, "xh")).Json()).GetProperty("title").GetString().ShouldNotBe("Akufumanekanga.", "still cached");
+
+        var record = new StaticRecordRef("channel", "ref_ui_label_and_translation_bundles", "ref_ui_label_and_translation_bundles", "integration",
+            "ui-label-and-translation-bundles", Guid.CreateVersion7(), "NOT_FOUND-xh", 1, false);
+        await _factory.Services.GetRequiredService<IEventBus>().Publish(new EventEnvelope(Guid.CreateVersion7(), A, "sdm.StaticDataVersionActivated", 1,
+            DateTimeOffset.UtcNow, "StaticRecord", record.RecordId, Guid.CreateVersion7(), null,
+            JsonSerializer.SerializeToElement(new StaticDataVersionActivated(null, record, From, null), ModuleDbContext.EventJson)), CancellationToken.None);
+
+        (await (await Get(A, "lang-a", Url, "xh")).Json()).GetProperty("title").GetString().ShouldBe("Akufumanekanga.");
     }
 
     [Fact]
