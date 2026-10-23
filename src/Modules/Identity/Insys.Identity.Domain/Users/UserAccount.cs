@@ -145,7 +145,13 @@ public sealed class Session : Entity<Guid>, ITenantScoped
 /// The role requires MFA, or holds a permission that an MFA-required role holds: assigning it needs a second person
 /// (SRS-002, OQ-038). Copying a privileged role's permissions into a new role does not avoid the approval.
 /// </param>
-public sealed record RoleFacts(string RoleCode, bool Exists, IReadOnlySet<string> Permissions, bool RequiresMfa, bool Privileged = false);
+public sealed record RoleFacts(string RoleCode, bool Exists, IReadOnlySet<string> Permissions, bool RequiresMfa, bool Privileged = false)
+{
+    /// <summary>The role definition's default scopes (null = all), where the definition gives them.</summary>
+    public string[]? ScopeProducts { get; init; }
+
+    public string[]? ScopeBranches { get; init; }
+}
 
 /// <summary>A segregation-of-duties rule (iam.cfg_segregation_of_duties_conflict_rules): Block or Warn.</summary>
 public sealed record DutyConflictRule(string PermissionA, string PermissionB, string Conflict);

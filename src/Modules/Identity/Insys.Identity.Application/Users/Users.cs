@@ -57,6 +57,9 @@ public interface IRolePolicyReader
 
     /// <summary>Roles that require MFA under the authentication policies in force (IAM-003): the privileged roles.</summary>
     Task<IReadOnlySet<string>> PrivilegedRoles(DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>Every role in force for the tenant (its own and the global ones it does not override), by role code.</summary>
+    Task<IReadOnlyList<RoleFacts>> AllRoles(DateOnly day, CancellationToken cancellationToken);
 }
 
 /// <summary>The per-request permission cache (OQ-014). Evicted after a change commits, and again when its event arrives.</summary>
@@ -66,8 +69,20 @@ public interface IPermissionCache
 }
 
 /// <param name="Status">PendingApproval for a privileged assignment waiting for a second person; only Active gives permissions.</param>
+/// <param name="Privileged">The role is privileged (OQ-038): in an authentication policy's MFA roles, or holding a permission such a role holds.</param>
+/// <param name="RequiresMfa">An authentication policy in force names the role in its MFA roles (IAM-003).</param>
+/// <param name="RequiresApproval">Assigning the role needs a second administrator's approval: true for every privileged role (OQ-038).</param>
 public sealed record RoleAssignmentView(Guid Id, string RoleCode, AssignmentStatus Status, DateOnly ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches,
-    Guid AssignedBy, Guid? ApprovedBy);
+    Guid AssignedBy, Guid? ApprovedBy, bool Privileged, bool RequiresMfa, bool RequiresApproval);
+
+/// <summary>
+/// A role the tenant can assign (GAP-021), with what assigning it involves: a privileged role needs MFA under the
+/// policies that name it and a second administrator's approval (OQ-038), so the assignment starts as PendingApproval.
+/// </summary>
+public sealed record RoleView(string RoleCode, bool Privileged, bool RequiresMfa, bool RequiresApproval, string[] Permissions, string[]? ScopeProducts,
+    string[]? ScopeBranches);
+
+public sealed record ListRoles : IQuery<IReadOnlyList<RoleView>>;
 
 public sealed record UserView(
     Guid Id, string Username, string DisplayName, string IdpCode, string? ExternalSubject, UserStatus Status, bool MfaEnrolled, DateTimeOffset? LastLoginAt,
@@ -281,6 +296,15 @@ internal sealed class ListUsersHandler(IUserQueries queries) : IQueryHandler<Lis
 {
     public async Task<Result<IReadOnlyList<UserView>>> Handle(ListUsers query, CancellationToken cancellationToken) =>
         Result.Success(await queries.List(query.AfterId, query.Limit, cancellationToken));
+}
+
+internal sealed class ListRolesHandler(IRolePolicyReader roles, IClock clock) : IQueryHandler<ListRoles, IReadOnlyList<RoleView>>
+{
+    public async Task<Result<IReadOnlyList<RoleView>>> Handle(ListRoles query, CancellationToken cancellationToken) =>
+        Result.Success<IReadOnlyList<RoleView>>((await roles.AllRoles(clock.UtcToday, cancellationToken))
+            .Select(r => new RoleView(r.RoleCode, r.Privileged, r.RequiresMfa, r.Privileged, [.. r.Permissions.Order(StringComparer.Ordinal)], r.ScopeProducts,
+                r.ScopeBranches))
+            .ToList());
 }
 
 internal sealed class GetUserHandler(IUserQueries queries) : IQueryHandler<GetUser, UserView>

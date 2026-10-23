@@ -111,6 +111,43 @@ public sealed class MakerCheckerTests(DatabaseFixture fixture) : IClassFixture<D
             ("u", operatorId), ("r", PrivilegedRole))).ShouldBe("ACTIVE");
     }
 
+    /// <summary>
+    /// GAP-021: roles and role assignments say whether the role is privileged, requires MFA and needs approval to assign,
+    /// so the UI can show the pending-approval outcome before submitting. A role holding a permission of an MFA role is
+    /// privileged without itself requiring MFA (OQ-038).
+    /// </summary>
+    [Fact]
+    public async Task RolesAndAssignments_SayWhetherTheRoleIsPrivileged_RequiresMfa_AndNeedsApproval_GAP021()
+    {
+        var copied = await fixture.Database.RoleWithPermissions(Tenant, IntegrationPermissions.DeadLetterUpdate);
+        var plain = await fixture.Database.RoleWithPermissions(Tenant, IntegrationPermissions.WebhookRead);
+        var adminOne = _factory.ClientFor(Tenant, "admin-one");
+
+        var roles = (await (await adminOne.GetAsync("/api/v1/identity/roles")).Json()).EnumerateArray()
+            .ToDictionary(r => r.GetProperty("roleCode").GetString()!);
+        Flags(roles[PrivilegedRole]).ShouldBe((true, true, true));
+        Flags(roles[copied]).ShouldBe((true, false, true));
+        Flags(roles[plain]).ShouldBe((false, false, false));
+        roles[PrivilegedRole].GetProperty("permissions").EnumerateArray().Select(p => p.GetString())
+            .ShouldBe([IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate]);
+
+        var userId = await fixture.Database.UserWithPermissions(Tenant, "flagged-user");
+        await fixture.Database.AssignRole(Tenant, userId, plain);
+        var user = await adminOne.GetAsync($"/api/v1/identity/users/{userId}");
+        (await adminOne.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/assign-role", new { roleCode = PrivilegedRole }, ifMatch: user.ETag()))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var assignments = (await (await adminOne.GetAsync($"/api/v1/identity/users/{userId}")).Json()).GetProperty("roleAssignments").EnumerateArray()
+            .ToDictionary(a => a.GetProperty("roleCode").GetString()!);
+        Flags(assignments[PrivilegedRole]).ShouldBe((true, true, true));
+        assignments[PrivilegedRole].GetProperty("status").GetString().ShouldBe("PendingApproval");
+        Flags(assignments[plain]).ShouldBe((false, false, false));
+
+        (await _factory.ClientFor(Tenant, "flagged-user").GetAsync("/api/v1/identity/roles")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        static (bool, bool, bool) Flags(System.Text.Json.JsonElement e) =>
+            (e.GetProperty("privileged").GetBoolean(), e.GetProperty("requiresMfa").GetBoolean(), e.GetProperty("requiresApproval").GetBoolean());
+    }
+
     [Fact]
     public async Task SwitchingTier2Off_NeedsASecondPersonsApproval_OQ046()
     {

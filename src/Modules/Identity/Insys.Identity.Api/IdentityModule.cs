@@ -84,6 +84,16 @@ public sealed class IdentityModule : IModule
             .WithSummary("Set or clear the signed-in user's preferred language (a language in the register)")
             .RequireSignedInUser();
 
+        api.MapGet("/identity/roles", async (IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListRoles(), ct)).ToHttp(roles => Results.Ok(roles)))
+            .WithTags(Name)
+            .Produces<IReadOnlyList<RoleView>>(StatusCodes.Status200OK)
+            .WithName("ListRoles")
+            .WithSummary("List the roles the tenant can assign")
+            .WithDescription("Each role says whether it is privileged, requires MFA and needs a second administrator's approval to assign (GAP-021, OQ-038). "
+                + "Assigning a role that needs approval creates a PendingApproval assignment that gives no permission until approved.")
+            .RequirePermission(IdentityPermissions.UserRead);
+
         var users = api.MapGroup("/identity/users").WithTags(Name);
 
         users.MapPost("/", async (ProvisionUserRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

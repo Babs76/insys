@@ -45,11 +45,11 @@ public sealed record MeTenant(Guid Id, string TenantCode, string Name, [property
 public sealed record MeLanguage(string? Preferred, string Request, string TenantDefault, IReadOnlyList<string> Supported);
 
 /// <summary>
-/// One of the caller's role assignments: its status, dates and scopes, whether the role is privileged (needs MFA and a
-/// second person's approval to assign; OQ-038), and the permissions it gives while active.
+/// One of the caller's role assignments: its status, dates and scopes, whether the role is privileged, requires MFA and
+/// needs a second person's approval to assign (OQ-038; every privileged role does), and the permissions it gives while active.
 /// </summary>
 public sealed record MeRole(string RoleCode, AssignmentStatus Status, DateOnly ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches,
-    bool InEffect, bool Privileged, bool RequiresMfa, IReadOnlyList<string> Permissions);
+    bool InEffect, bool Privileged, bool RequiresMfa, bool RequiresApproval, IReadOnlyList<string> Permissions);
 
 /// <summary>A scope a permission is held in: the products and branches of the assignment that gives it (null = all).</summary>
 public sealed record PermissionScope(string RoleCode, string[]? Products, string[]? Branches);
@@ -89,7 +89,7 @@ internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader role
         {
             var role = facts[a.RoleCode];
             var inEffect = a.Status == AssignmentStatus.Active && a.ValidFrom <= today && (a.ValidTo is null || a.ValidTo > today) && role.Exists;
-            return new MeRole(a.RoleCode, a.Status, a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, inEffect, role.Privileged, role.RequiresMfa,
+            return new MeRole(a.RoleCode, a.Status, a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, inEffect, role.Privileged, role.RequiresMfa, role.Privileged,
                 [.. role.Permissions.Order(StringComparer.Ordinal)]);
         }).ToList();
         var permissions = assignments.Where(a => a.InEffect)

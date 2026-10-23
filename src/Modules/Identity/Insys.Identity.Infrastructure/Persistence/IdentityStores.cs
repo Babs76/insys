@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
@@ -48,7 +49,7 @@ internal sealed class UserRepository(IdentityDbContext db) : IUserRepository
     public void Add(UserAccount user) => db.Users.Add(user);
 }
 
-internal sealed class UserQueries(IdentityDbContext db) : IUserQueries
+internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles, IClock clock) : IUserQueries
 {
     public async Task<IReadOnlyList<UserView>> List(Guid? afterId, int limit, CancellationToken cancellationToken)
     {
@@ -58,18 +59,25 @@ internal sealed class UserQueries(IdentityDbContext db) : IUserQueries
             query = query.Where(u => u.Id.CompareTo(afterId.Value) > 0);
         }
 
-        return (await query.OrderBy(u => u.Id).Take(limit).ToListAsync(cancellationToken)).Select(View).ToList();
+        return await Views(await query.OrderBy(u => u.Id).Take(limit).ToListAsync(cancellationToken), cancellationToken);
     }
 
     public async Task<UserView?> Get(Guid userId, CancellationToken cancellationToken) =>
-        await db.Users.AsNoTracking().Include(u => u.RoleAssignments).SingleOrDefaultAsync(u => u.Id == userId, cancellationToken) is { } user ? View(user) : null;
+        await db.Users.AsNoTracking().Include(u => u.RoleAssignments).SingleOrDefaultAsync(u => u.Id == userId, cancellationToken) is { } user
+            ? (await Views([user], cancellationToken))[0]
+            : null;
 
-    private static UserView View(UserAccount u) =>
-        new(u.Id, u.Username, u.DisplayName, u.IdpCode, u.ExternalSubject, u.Status, u.MfaEnrolled, u.LastLoginAt,
+    /// <summary>Each assignment says whether its role is privileged, needs MFA and needs approval to assign (GAP-021, OQ-038).</summary>
+    private async Task<IReadOnlyList<UserView>> Views(IReadOnlyList<UserAccount> users, CancellationToken cancellationToken)
+    {
+        var facts = (await roles.Roles(users.SelectMany(u => u.RoleAssignments).Select(a => a.RoleCode), clock.UtcToday, cancellationToken))
+            .ToDictionary(r => r.RoleCode, StringComparer.Ordinal);
+        return users.Select(u => new UserView(u.Id, u.Username, u.DisplayName, u.IdpCode, u.ExternalSubject, u.Status, u.MfaEnrolled, u.LastLoginAt,
             u.RoleAssignments.OrderBy(a => a.ValidFrom)
                 .Select(a => new RoleAssignmentView(a.Id, a.RoleCode, a.Status, a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, a.AssignedBy,
-                    a.ApprovedBy)).ToList(),
-            u.RowVersion);
+                    a.ApprovedBy, facts[a.RoleCode].Privileged, facts[a.RoleCode].RequiresMfa, facts[a.RoleCode].Privileged)).ToList(),
+            u.RowVersion)).ToList();
+    }
 }
 
 /// <summary>Role facts from iam static data in force (roles, authentication policies, segregation-of-duties rules).</summary>
@@ -91,7 +99,7 @@ internal sealed class RolePolicyReader(IdentityDbContext db) : IRolePolicyReader
         // A tenant's own role definition overrides a global one with the same code.
         return codes.Select(code => roles.Where(r => r.RoleCode == code).OrderBy(r => r.TenantId is null).FirstOrDefault() is { } role
                 ? new RoleFacts(code, true, role.Permissions.ToHashSet(StringComparer.Ordinal), mfaRoles.Contains(code),
-                    mfaRoles.Contains(code) || role.Permissions.Any(mfaPermissions.Contains))
+                    mfaRoles.Contains(code) || role.Permissions.Any(mfaPermissions.Contains)) { ScopeProducts = role.ScopeProducts, ScopeBranches = role.ScopeBranches }
                 : new RoleFacts(code, false, new HashSet<string>(), mfaRoles.Contains(code), mfaRoles.Contains(code)))
             .ToList();
     }
@@ -105,6 +113,13 @@ internal sealed class RolePolicyReader(IdentityDbContext db) : IRolePolicyReader
         var policies = await db.Set<AuthenticationAndSessionPolicies>().AsNoTracking().InForce(Descriptor<AuthenticationAndSessionPolicies>().Lifecycle, day)
             .ToListAsync(cancellationToken);
         return policies.SelectMany(p => p.MfaRequiredRoles).ToHashSet(StringComparer.Ordinal);
+    }
+
+    public async Task<IReadOnlyList<RoleFacts>> AllRoles(DateOnly day, CancellationToken cancellationToken)
+    {
+        var codes = await db.Set<RolesAndPermissionSets>().AsNoTracking().InForce(Descriptor<RolesAndPermissionSets>().Lifecycle, day)
+            .Select(r => r.RoleCode).Distinct().ToListAsync(cancellationToken);
+        return (await Roles(codes, day, cancellationToken)).OrderBy(r => r.RoleCode, StringComparer.Ordinal).ToList();
     }
 
     private static StaticDataDescriptor Descriptor<T>() => IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(T));

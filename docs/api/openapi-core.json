@@ -18097,6 +18097,47 @@
         "x-permission": "signed-in user"
       }
     },
+    "/api/v1/identity/roles": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "List the roles the tenant can assign",
+        "description": "Each role says whether it is privileged, requires MFA and needs a second administrator\u0027s approval to assign (GAP-021, OQ-038). Assigning a role that needs approval creates a PendingApproval assignment that gives no permission until approved.",
+        "operationId": "ListRoles",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentityRoleView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "user.read"
+      }
+    },
     "/api/v1/identity/users": {
       "post": {
         "tags": [
@@ -24548,6 +24589,56 @@
           }
         }
       },
+      "IdentityRoleView": {
+        "required": [
+          "roleCode",
+          "privileged",
+          "requiresMfa",
+          "requiresApproval",
+          "permissions",
+          "scopeProducts",
+          "scopeBranches"
+        ],
+        "type": "object",
+        "properties": {
+          "roleCode": {
+            "type": "string"
+          },
+          "privileged": {
+            "type": "boolean"
+          },
+          "requiresMfa": {
+            "type": "boolean"
+          },
+          "requiresApproval": {
+            "type": "boolean"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopeProducts": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopeBranches": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ImportStatementRequest": {
         "required": [
           "accountRef",
@@ -26148,6 +26239,7 @@
           "inEffect",
           "privileged",
           "requiresMfa",
+          "requiresApproval",
           "permissions"
         ],
         "type": "object",
@@ -26194,6 +26286,9 @@
             "type": "boolean"
           },
           "requiresMfa": {
+            "type": "boolean"
+          },
+          "requiresApproval": {
             "type": "boolean"
           },
           "permissions": {
@@ -27033,6 +27128,48 @@
           }
         }
       },
+      "PartyRoleView": {
+        "required": [
+          "id",
+          "roleCode",
+          "domain",
+          "contextType",
+          "contextId",
+          "validFrom",
+          "validTo"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roleCode": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "contextType": {
+            "type": "string"
+          },
+          "contextId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        }
+      },
       "PartyStatus": {
         "enum": [
           "Active",
@@ -27129,7 +27266,7 @@
           "roles": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/RoleView"
+              "$ref": "#/components/schemas/PartyRoleView"
             }
           },
           "relationships": {
@@ -29838,7 +29975,10 @@
           "scopeProducts",
           "scopeBranches",
           "assignedBy",
-          "approvedBy"
+          "approvedBy",
+          "privileged",
+          "requiresMfa",
+          "requiresApproval"
         ],
         "type": "object",
         "properties": {
@@ -29891,48 +30031,15 @@
               "string"
             ],
             "format": "uuid"
-          }
-        }
-      },
-      "RoleView": {
-        "required": [
-          "id",
-          "roleCode",
-          "domain",
-          "contextType",
-          "contextId",
-          "validFrom",
-          "validTo"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
           },
-          "roleCode": {
-            "type": "string"
+          "privileged": {
+            "type": "boolean"
           },
-          "domain": {
-            "type": "string"
+          "requiresMfa": {
+            "type": "boolean"
           },
-          "contextType": {
-            "type": "string"
-          },
-          "contextId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "validFrom": {
-            "type": "string",
-            "format": "date"
-          },
-          "validTo": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date"
+          "requiresApproval": {
+            "type": "boolean"
           }
         }
       },
