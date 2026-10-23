@@ -37,13 +37,8 @@ dotnet run --project src/Host/Insys.Api
 - The API serves `/api/v1/…`. The OpenAPI documents are at `/openapi/{core|static-data|platform-operator}.json`, with committed copies in `docs/api/`.
 - Health endpoints: `/health/live` (process), `/health/ready` (database, outbox lag, partitions), `/health` (everything, with detail).
 - `appsettings.Development.json` holds local-only settings: the role connection template, a development token signing key and field protection keys. Never use them anywhere else.
-- **The payment simulator's callback secret (GAP-035)** is not in any committed file. Set it once in the API's user secrets, which live outside the repository:
-
-  ```bash
-  dotnet user-secrets --project src/Host/Insys.Api set "Payments:Providers:SIMULATOR:CallbackSecret" "<any local value>"
-  ```
-
-  Or set the environment variable `Payments__Providers__SIMULATOR__CallbackSecret`. Without it, every callback is refused with `CALLBACK_SIGNATURE_INVALID`. A callback signs its raw body with HMAC-SHA256 under this secret, hex-encoded in lower case, in `X-Signature`. It also needs a bearer token today; ADR-023 proposes replacing that with a provider credential.
+- **Provider callbacks (ADR-023, GAP-035):** a provider calls its tenant's address, `POST /api/v1/payments/callbacks/{endpointKey}`, with no token. Issue an endpoint locally with `POST /api/v1/payments/callback-endpoints` `{ "providerCode": "SIMULATOR" }`; the response gives the path and signing secret once. Sign each callback with `X-Callback-Timestamp` (Unix seconds), `X-Callback-Id` (unique) and `X-Signature` = HMAC-SHA256 of `timestamp.callbackId.body`, hex in lower case. Keep the secret out of git: in user secrets, an environment variable or your shell, never a committed file. See `docs/runbooks/money-operations.md`.
+- **The old callback route** (`/payments/providers/{providerCode}/callbacks`, bearer token plus `Payments:Providers:<code>:CallbackSecret`) still works until the front end's simulator scripts have moved. Its secret also stays out of git: `dotnet user-secrets --project src/Host/Insys.Api set "Payments:Providers:SIMULATOR:CallbackSecret" "<value>"`, or `Payments__Providers__SIMULATOR__CallbackSecret`.
 
 ## Configuration
 
@@ -58,7 +53,8 @@ dotnet run --project src/Host/Insys.Api
 | `Huawei:Kms:*`, `Huawei:Obs:*` | DEW KMS and OBS settings; access keys from the secret store (ADR-016) | af-south-1 |
 | `Outbox:*` | Relay poll interval, batch size, attempts and back-off; lag warning and failure thresholds; each consumer attempt's time limit (ADR-022) | 2 s, 100, 10, 5 s; 1 min, 5 min; 30 s |
 | `Outbox:Parking:*` | Parked deliveries (ADR-022): job switch and interval, periodic retry, money consumers' schemas, default escalation | on, 5 s, 15 min; PT4H/P1D money, P1D/P3D others |
-| `Payments:Providers:<code>:CallbackSecret` | A provider's callback signing secret; user secrets or the environment locally, the secret store elsewhere (GAP-035) | none |
+| `Payments:Callbacks:Tolerance`, `Overlap` | Signed callbacks (ADR-023): timestamp window, and how long a rotated endpoint is still accepted | 5 min, 7 days |
+| `Payments:Providers:<code>:CallbackSecret` | The old callback route's signing secret, until it is removed; user secrets or the environment locally (GAP-035) | none |
 | `Database:Pools:<role>`, `MaxConnections`, `Reserve`, `Instances`, `PoolWaitSeconds` | Connection pool per module role, checked at start-up against the server's limit (GAP-039) | see `docs/runbooks/deployment.md` |
 | `Idempotency:Retention` | How long Idempotency-Key results are kept | 24 h |
 | `RateLimiting:PermitsPerMinute` | Requests per minute per tenant | 1,200 |

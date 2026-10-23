@@ -2474,88 +2474,6 @@
         "x-permission": "audit_event.read"
       }
     },
-    "/api/v1/identity/roles": {
-      "get": {
-        "tags": [
-          "Identity"
-        ],
-        "summary": "List the roles the tenant can assign",
-        "description": "Each role says whether it is privileged, requires MFA and needs a second administrator\u0027s approval to assign (GAP-021, OQ-038). Assigning a role that needs approval creates a PendingApproval assignment that gives no permission until approved.",
-        "operationId": "ListRoles",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/IdentityRoleView"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          }
-        },
-        "x-permission": "user.read"
-      }
-    },
-    "/api/v1/identity/role-assignments/scoped": {
-      "get": {
-        "tags": [
-          "Identity"
-        ],
-        "summary": "Role assignments with product or organisation scopes, for review (F103 interim control)",
-        "description": "Scopes are not enforced yet: these assignments give their role\u0027s permissions for every product and organisation. New scoped assignments are refused (SCOPES_NOT_ENFORCED) until enforcement is built (Wave 0b).",
-        "operationId": "IdentityListScopedAssignments",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/IdentityScopedAssignmentView"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          }
-        },
-        "x-permission": "user.read"
-      }
-    },
     "/api/v1/party/merges": {
       "post": {
         "tags": [
@@ -6484,6 +6402,91 @@
           }
         },
         "x-permission": "payment.create"
+      },
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "The payments for a business record, oldest first (GAP-036)",
+        "description": "A refund (REFUND_REQUEST), claim payment instruction (CLAIM_PAYMENT), invoice (INVOICE), remittance or commission statement. A payment is listed from when it is created, before it completes.",
+        "operationId": "PaymentsList",
+        "parameters": [
+          {
+            "name": "businessRefType",
+            "in": "query",
+            "description": "The business record types INSYS itself pays or collects for (GAP-037).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "INVOICE",
+              "REFUND_REQUEST",
+              "CLAIM_PAYMENT",
+              "HEALTH_REMITTANCE",
+              "COMMISSION_STATEMENT"
+            ]
+          },
+          {
+            "name": "businessRefId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPaymentsPaymentView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "payment.read"
       }
     },
     "/api/v1/payments/payments/{id}": {
@@ -6810,6 +6813,76 @@
         "x-permission": "payment_callback.create"
       }
     },
+    "/api/v1/payments/callbacks/{endpointKey}": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "A provider reports a payment\u0027s status at its callback address (ADR-023)",
+        "description": "No bearer token. The endpoint key in the path names the tenant and provider. Headers: X-Callback-Timestamp (Unix seconds, within 5 minutes), X-Callback-Id (unique per callback; a repeat is refused) and X-Signature (HMAC-SHA256 of \u0022timestamp.callbackId.body\u0022 under the endpoint\u0027s signing secret, hex in lower case).",
+        "operationId": "PaymentsSignedCallback",
+        "parameters": [
+          {
+            "name": "endpointKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentsProviderCallbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentsPaymentView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "signed provider callback"
+      }
+    },
     "/api/v1/payments/payout-batches": {
       "post": {
         "tags": [
@@ -6927,6 +7000,63 @@
           },
           "404": {
             "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "payout_batch.read"
+      }
+    },
+    "/api/v1/payments/payout-batches/{id}/payments": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "The payments in a payout batch (GAP-036)",
+        "operationId": "PaymentsListBatchPayments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentsPaymentView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
           }
         },
         "x-permission": "payout_batch.read"
@@ -7239,6 +7369,161 @@
           }
         },
         "x-permission": "reconciliation.update"
+      }
+    },
+    "/api/v1/payments/callback-endpoints": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "The tenant\u0027s provider callback endpoints, without their keys or secrets (ADR-023)",
+        "operationId": "PaymentsListCallbackEndpoints",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentsCallbackEndpointView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "payment_callback_endpoint.read"
+      },
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Issue a provider\u0027s callback endpoint; an active one is rotated (ADR-023)",
+        "description": "Returns the callback path with its endpoint key, and the signing secret, once: they are never shown again. The provider\u0027s current endpoint is still accepted until Payments:Callbacks:Overlap (7 days) has passed. Audited.",
+        "operationId": "PaymentsIssueCallbackEndpoint",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentsIssueCallbackEndpointRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentsIssuedCallbackEndpoint"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "payment_callback_endpoint.update"
+      }
+    },
+    "/api/v1/payments/callback-endpoints/{id}/revoke": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Revoke a callback endpoint at once, for a leaked key or secret. Audited (ADR-023)",
+        "operationId": "PaymentsRevokeCallbackEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentsCallbackEndpointView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "payment_callback_endpoint.update"
       }
     },
     "/api/v1/claims/claims": {
@@ -7815,6 +8100,60 @@
           }
         },
         "x-permission": "claim_payment.create"
+      },
+      "get": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "A claim\u0027s payment instructions, oldest first, each with its payment once created (GAP-036)",
+        "operationId": "ClaimsListInstructions",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClaimsFrameworkInstructionView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "claim_payment.read"
       }
     },
     "/api/v1/claims/payment-instructions/{id}": {
@@ -17002,10 +17341,20 @@
           {
             "name": "businessRefType",
             "in": "query",
+            "description": "The business record types Finance posts journals for (GAP-037).",
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "x-known-values": [
+              "INVOICE",
+              "PAYMENT",
+              "CLAIM_MOVEMENT",
+              "MEDICAL_CLAIM",
+              "COMMISSION",
+              "CESSION",
+              "RI_RECOVERY"
+            ]
           },
           {
             "name": "businessRefId",
@@ -19529,6 +19878,88 @@
         "x-permission": "signed-in user"
       }
     },
+    "/api/v1/identity/roles": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "List the roles the tenant can assign",
+        "description": "Each role says whether it is privileged, requires MFA and needs a second administrator\u0027s approval to assign (GAP-021, OQ-038). Assigning a role that needs approval creates a PendingApproval assignment that gives no permission until approved.",
+        "operationId": "ListRoles",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentityRoleView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "user.read"
+      }
+    },
+    "/api/v1/identity/role-assignments/scoped": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Role assignments with product or organisation scopes, for review (F103 interim control)",
+        "description": "Scopes are not enforced yet: these assignments give their role\u0027s permissions for every product and organisation. New scoped assignments are refused (SCOPES_NOT_ENFORCED) until enforcement is built (Wave 0b).",
+        "operationId": "IdentityListScopedAssignments",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentityScopedAssignmentView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "user.read"
+      }
+    },
     "/api/v1/identity/users": {
       "post": {
         "tags": [
@@ -20828,6 +21259,7 @@
                 "BenefitAccumulator",
                 "BillingAccount",
                 "Bordereau",
+                "CallbackEndpoint",
                 "Cession",
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
@@ -21232,6 +21664,7 @@
                 "BenefitAccumulator",
                 "BillingAccount",
                 "Bordereau",
+                "CallbackEndpoint",
                 "Cession",
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
@@ -23416,6 +23849,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PartySummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfPaymentsPaymentView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentsPaymentView"
             }
           },
           "nextCursor": {
@@ -32654,6 +33108,71 @@
           }
         }
       },
+      "PaymentsCallbackEndpointStatus": {
+        "enum": [
+          "Active",
+          "Retiring",
+          "Revoked"
+        ]
+      },
+      "PaymentsCallbackEndpointView": {
+        "required": [
+          "id",
+          "providerCode",
+          "status",
+          "requireClientToken",
+          "issuedAt",
+          "issuedBy",
+          "retiresAt",
+          "revokedAt",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerCode": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PaymentsCallbackEndpointStatus"
+          },
+          "requireClientToken": {
+            "type": "boolean"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "issuedBy": {
+            "type": "string"
+          },
+          "retiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "PaymentsDirection": {
         "enum": [
           "In",
@@ -32798,6 +33317,44 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "PaymentsIssueCallbackEndpointRequest": {
+        "required": [
+          "providerCode"
+        ],
+        "type": "object",
+        "properties": {
+          "providerCode": {
+            "type": "string"
+          },
+          "requireClientToken": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "PaymentsIssuedCallbackEndpoint": {
+        "required": [
+          "endpoint",
+          "callbackPath",
+          "endpointKey",
+          "signingSecret"
+        ],
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "$ref": "#/components/schemas/PaymentsCallbackEndpointView"
+          },
+          "callbackPath": {
+            "type": "string"
+          },
+          "endpointKey": {
+            "type": "string"
+          },
+          "signingSecret": {
+            "type": "string"
           }
         }
       },
@@ -34896,9 +35453,6 @@
       "name": "Party"
     },
     {
-      "name": "Identity"
-    },
-    {
       "name": "ProductFactory"
     },
     {
@@ -34945,6 +35499,9 @@
     },
     {
       "name": "Analytics"
+    },
+    {
+      "name": "Identity"
     },
     {
       "name": "Audit"

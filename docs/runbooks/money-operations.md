@@ -33,6 +33,23 @@ An Unknown payment is never assumed to have succeeded. It raises an UNKNOWN_OUTC
 
 A succeeded payment that turns out to be wrong is reversed with `POST /api/v1/payments/payments/{id}/reverse` [payment.resolve], together with its allocations. It is never edited.
 
+## Provider callback endpoints (ADR-023)
+
+A provider reports payment outcomes to its tenant's callback address, `POST /api/v1/payments/callbacks/{endpointKey}`, with no token. The endpoint key names the tenant and provider; the signature proves the provider.
+
+- **Issue:** `POST /api/v1/payments/callback-endpoints` `{ "providerCode": "<code>", "requireClientToken": false }` [`payment_callback_endpoint.update`]. The response holds the callback path (with its key) and the signing secret, **once**. Give both to the provider through its secure onboarding channel, never by email or chat. Neither can be shown again; if lost, rotate.
+- **What the provider sends:**
+  - `X-Callback-Timestamp`: Unix seconds;
+  - `X-Callback-Id`: unique per callback;
+  - `X-Signature`: HMAC-SHA256 of `timestamp.callbackId.body` under the secret, hex in lower case.
+
+  A timestamp more than 5 minutes off is refused, and so is a repeated ID (409 `CALLBACK_REPLAYED`).
+- **Rotate:** issue again for the same provider. The current endpoint becomes `Retiring` and is still accepted for 7 days (`Payments:Callbacks:Overlap`), so the provider can move. After that it is refused.
+- **Revoke** at once, for a leak: `POST /api/v1/payments/callback-endpoints/{id}/revoke`. Then issue a new one.
+- **Optional client credentials:** for a provider that supports them, set `requireClientToken`. The provider must then also send a Keycloak client-credentials token for the tenant, from a confidential client whose service account holds only `payment_callback.create` (ADR-017).
+- **Firewall:** allow the callback path only from each provider's published addresses at the WAF, as a second layer.
+- **Refusals** are logged by endpoint ID only (never the key, secret or signature), and recorded in `payment.provider_callback` with `signature_valid = false` when the key was known.
+
 ## Bank statements and reconciliation (PAY-003)
 
 1. Import the statement: `POST /api/v1/payments/bank-statements` [reconciliation.update], with `{ accountRef, lines: [...] }`. The lines are matched to payments within the matching tolerance in force (the lowest one, OQ-058).

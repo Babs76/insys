@@ -23,7 +23,8 @@
 | 8 Wave 0 batch 1 (front end) | GAP-002, 003, 005, 006, 007, 008, 019, 020, 021, 025, 030 and per-record history; contract changes in `docs/api/contract-changes.md` | Done, merged (`844b668`) |
 | 8 Wave 0 batch 2 (front end) | GAP-031 (schema IDs), 034 (readiness; ADR-022 proposed), 022, 023, 024, 027, 029, 032, 033 and request 24 | Done, merged (`bcc8ebc`) |
 | 8 Wave 0 batch 3 | ADR-022 revision 2; Cloud Eye alarms; party search log access (OQ-073); F009, F023, F055 built; F103, F005, F062 proposals (OQ-074 to OQ-076) | **Merged, `8351b83`** (23 Oct 2026) |
-| 8 Wave 0 batch 4 | ADR-022 built (parking, order per record, escalation per tenant, attempt timeout) with GAP-038 payouts; F103 interim control; GAP-039 pools and 503; OQ-073 retention job; F009 skips recorded and alerted; GAP-035 documented, GAP-037 purposes; ADR-023 and ADR-024 proposed | **Done on `wave0-4`, awaiting review** (23 Oct 2026) |
+| 8 Wave 0 batch 4 | ADR-022 built (parking, order per record, escalation per tenant, attempt timeout) with GAP-038 payouts; F103 interim control; GAP-039 pools and 503; OQ-073 retention job; F009 skips recorded and alerted; GAP-035 documented, GAP-037 purposes; ADR-023 and ADR-024 proposed | **Merged, `5ae047e`** (23 Oct 2026) |
+| 8 Wave 0 batch 5 | ADR-022 for Billing, Reinsurance, Documents and Analytics; GAP-036 payment lookups and `paymentId` at creation; GAP-037 known values; ADR-024 operator tenant refused; ADR-023 revision 2 built (endpoint keys, signed callbacks); parked-delivery alarms in Cloud Eye | **Done on `wave0-5`, awaiting the front end's move to a business tenant** (23 Oct 2026) |
 
 ## Phase 1 review items
 
