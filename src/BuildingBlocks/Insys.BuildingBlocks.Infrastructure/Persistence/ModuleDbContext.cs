@@ -197,6 +197,28 @@ public abstract class ModuleDbContext(DbContextOptions options, ModuleDbContextD
     }
 
     /// <summary>Publishes audit entries as <see cref="SensitiveOperationRecorded"/> events through this module's outbox.</summary>
+    /// <summary>The audit event type of the entries that make every change to a record part of its history.</summary>
+    public const string RecordChanged = "RECORD_CHANGED";
+
+    /// <summary>
+    /// The audit entries a successful unit of work adds for record history (Wave 0): one per aggregate it adds or
+    /// changes, named by the aggregate's type and ID, unless the handler's own entries already name that record. So a
+    /// record's history (audit events by target type and ID) has every change to it, not only the sensitive ones
+    /// (IAM-006). The entries carry no details, so no personal data.
+    /// </summary>
+    public IReadOnlyList<AuditEntry> RecordChanges(string operation, IReadOnlyCollection<AuditEntry> explicitEntries)
+    {
+        ChangeTracker.DetectChanges();
+        return ChangeTracker.Entries()
+            .Where(e => e.Entity is IAggregateRoot aggregate
+                && (e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted || aggregate.HasChanges))
+            .Select(e => (Type: e.Entity.GetType().Name, Id: e.Metadata.FindProperty("Id") is { } id ? e.Property(id.Name).CurrentValue?.ToString() ?? "" : ""))
+            .Where(t => t.Id.Length > 0 && !explicitEntries.Any(x => x.TargetType == t.Type && x.TargetId == t.Id))
+            .Distinct()
+            .Select(t => new AuditEntry(RecordChanged, operation.Length <= 40 ? operation : operation[..40], t.Type, t.Id))
+            .ToList();
+    }
+
     public void PublishAudit(IEnumerable<AuditEntry> entries, AuditOutcome outcome)
     {
         var now = dependencies.Clock.UtcNow;

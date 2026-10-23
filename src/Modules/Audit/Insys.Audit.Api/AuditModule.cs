@@ -66,5 +66,26 @@ public sealed class AuditModule : IModule
             .WithDescription("The tenant's audit trail of sensitive operations and denied requests, newest first (IAM-006, TEN-005).")
             .Produces<CursorPage<AuditEventView>>()
             .RequirePermission(AuditPermissions.Read);
+
+        api.MapGroup("/audit/records").WithTags(Name).MapGet("/{targetType}/{targetId}", async (string targetType, string targetId, string? cursor, int? limit,
+                IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var afterId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                var result = await dispatcher.Query(new ListAuditEvents(targetType, targetId, null, afterId, pageSize), ct);
+                return result.ToHttp(items => Results.Ok(new CursorPage<AuditEventView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<AuditEventView>>(StatusCodes.Status200OK)
+            .WithName("GetRecordHistory")
+            .WithSummary("Get a record's history")
+            .WithDescription("Every change to one record, newest first, for the record action bar. targetType is the record's aggregate type as the "
+                + "API names it (UserAccount, Tenant, Party, LifePolicy ...) and targetId its ID. Each command or event policy that adds or changes the "
+                + "record leaves an entry: its own audit entry (IAM-006), or a RECORD_CHANGED entry naming the command. Failed attempts at audited "
+                + "operations are included with their outcome.")
+            .RequirePermission(AuditPermissions.Read);
     }
 }

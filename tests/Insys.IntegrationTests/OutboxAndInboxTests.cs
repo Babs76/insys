@@ -165,6 +165,24 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
         (await fixture.Database.ScalarAsOwner<long>("SELECT row_version FROM test_mod.widget WHERE id = @id", ("id", id))).ShouldBe(2);
     }
 
+    /// <summary>
+    /// Record history (Wave 0): every command that changes a record leaves an audit entry for it. A handler's own entry
+    /// stands for its record; a command with none gets a RECORD_CHANGED entry naming the command.
+    /// </summary>
+    [Fact]
+    public async Task EveryChangeToARecord_IsInItsHistory_OnceEach()
+    {
+        var id = (await _services.Send(DatabaseFixture.TenantA, new CreateWidget("historic"))).Value;
+        (await _services.Send(DatabaseFixture.TenantA, new RenameWidget(id, 1, "renamed"))).IsSuccess.ShouldBeTrue();
+        await _services.GetRequiredService<OutboxProcessor>().ProcessOnce(CancellationToken.None);
+
+        var history = await fixture.Database.ScalarAsOwner<string>("""
+            SELECT string_agg(event_type || ':' || operation, ',' ORDER BY occurred_at, operation) FROM audit.audit_event
+            WHERE tenant_id = @t AND target_type = 'Widget' AND target_id = @id AND outcome = 'SUCCESS'
+            """, ("t", DatabaseFixture.TenantA), ("id", id.ToString()));
+        history.ShouldBe("WIDGET:CreateWidget,RECORD_CHANGED:RenameWidget");
+    }
+
     [Fact]
     public async Task Relay_PublishesToConsumer_WithEnvelopeTenant_AndSetsPublishedAt()
     {

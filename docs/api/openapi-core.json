@@ -19493,6 +19493,87 @@
         },
         "x-permission": "audit_event.read"
       }
+    },
+    "/api/v1/audit/records/{targetType}/{targetId}": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "Get a record\u0027s history",
+        "description": "Every change to one record, newest first, for the record action bar. targetType is the record\u0027s aggregate type as the API names it (UserAccount, Tenant, Party, LifePolicy ...) and targetId its ID. Each command or event policy that adds or changes the record leaves an entry: its own audit entry (IAM-006), or a RECORD_CHANGED entry naming the command. Failed attempts at audited operations are included with their outcome.",
+        "operationId": "GetRecordHistory",
+        "parameters": [
+          {
+            "name": "targetType",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "targetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfAuditEventView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "audit_event.read"
+      }
     }
   },
   "components": {

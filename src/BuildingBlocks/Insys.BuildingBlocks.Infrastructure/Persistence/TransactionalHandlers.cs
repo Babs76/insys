@@ -93,7 +93,8 @@ public sealed class TransactionalCommandHandler<TCommand, TResult, TDbContext>(
                 }
                 else
                 {
-                    db.PublishAudit(auditTrail.TakeAll(), AuditOutcome.Success);
+                    var entries = auditTrail.TakeAll();
+                    db.PublishAudit([.. entries, .. db.RecordChanges(typeof(TCommand).Name, entries)], AuditOutcome.Success);
                     await db.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
                 }
