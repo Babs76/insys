@@ -54,6 +54,7 @@ public static class GeneralInfrastructure
         services.AddModuleHandlers<GeneralDbContext>(typeof(CreateQuote).Assembly);
         services.AddDomainEventMapper<GeneralEventMapper>(schema);
         services.AddScoped<IGeneralRepository, GeneralRepository>();
+        services.AddScoped<IGeneralLists, GeneralLists>();
         services.AddScoped<IGeneralCodes, GeneralCodes>();
         services.AddSingleton<Distribution.Contracts.IPolicyDistribution, GeneralPolicyDistribution>();
         services.AddIntegrationEventHandler<PremiumCalculated, GeneralPolicies, GeneralDbContext>(schema, "PremiumCalculated");

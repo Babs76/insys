@@ -1937,7 +1937,7 @@
           "ProductFactory"
         ],
         "summary": "List products",
-        "description": "The tenant\u0027s products by product code, each with its latest version and that version\u0027s status, and the version in force (Published or Effective) if any. Filter by domain and by the latest version\u0027s status; cursor paging (GAP-023).",
+        "description": "The tenant\u0027s products by product code, each with its latest version and that version\u0027s status, and the version in force (Published or Effective) if any. Filter by domain and by the latest version\u0027s status; cursor paging (GAP-023). A General product\u0027s line is its class code, or its family code when it has no class.",
         "operationId": "ProductListProducts",
         "parameters": [
           {
@@ -4412,10 +4412,17 @@
           {
             "name": "businessRefType",
             "in": "query",
+            "description": "The business reference the documents are filed under. INSYS files the documents it generates under the known values (x-known-values); a document stored or generated through the API may carry another type (at most 30 characters).",
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "x-known-values": [
+              "GENERAL_POLICY",
+              "GENERAL_ENDORSEMENT",
+              "LIFE_POLICY",
+              "HEALTH_REMITTANCE"
+            ]
           },
           {
             "name": "businessRefId",
@@ -10266,7 +10273,7 @@
           "General"
         ],
         "summary": "Create a quote, or (fromQuoteId) the next version of one",
-        "description": "Rate it through Rating (POST /api/v1/rating/calculations with subjectType GENERAL_QUOTE and the quote\u0027s id); the recorded calculation is attached to the quote (PRD-008).",
+        "description": "Rate it through Rating (POST /api/v1/rating/calculations with subjectType GENERAL_QUOTE and the quote\u0027s id); the recorded calculation is attached to the quote (PRD-008). A General product\u0027s line is its class code, or its family code when it has no class; panels, perils and approved lines are matched on it.",
         "operationId": "GeneralCreateQuote",
         "parameters": [
           {
@@ -10327,6 +10334,77 @@
           }
         },
         "x-permission": "general_quote.create"
+      },
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "List quotes, by proposer or quote number (GAP-032)",
+        "operationId": "GeneralListQuotes",
+        "parameters": [
+          {
+            "name": "proposerPartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "quoteNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralQuoteSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "general_quote.read"
       }
     },
     "/api/v1/general/quotes/{id}": {
@@ -10953,6 +11031,77 @@
         },
         "x-permission": "general_policy.create",
         "x-eventual-effects": "Billing (account, premium schedule, first invoice), Documents (policy schedule, certificate), Reinsurance (cession) and Analytics follow; each needs its tenant configuration (docs/runbooks/dead-letters-and-webhooks.md)."
+      },
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "List policies, by policyholder or policy number (GAP-032)",
+        "operationId": "GeneralListPolicies",
+        "parameters": [
+          {
+            "name": "policyholderPartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "policyNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralPolicySummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "general_policy.read"
       }
     },
     "/api/v1/general/policies/{id}": {
@@ -11470,6 +11619,77 @@
           }
         },
         "x-permission": "general_claim.create"
+      },
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "List claims, by policy or claim number (GAP-032)",
+        "operationId": "GeneralListClaims",
+        "parameters": [
+          {
+            "name": "policyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "claimNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralClaimSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "general_claim.read"
       }
     },
     "/api/v1/general/claims/{id}": {
@@ -21841,6 +22061,69 @@
           }
         }
       },
+      "CursorPageOfGeneralClaimSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralClaimSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfGeneralPolicySummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralPolicySummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfGeneralQuoteSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralQuoteSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfIdentityGrantView": {
         "required": [
           "items",
@@ -23235,6 +23518,48 @@
           "Reopened"
         ]
       },
+      "GeneralClaimSummary": {
+        "required": [
+          "id",
+          "claimNumber",
+          "policyId",
+          "coverageCode",
+          "lossDate",
+          "notifiedAt",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "coverageCode": {
+            "type": "string"
+          },
+          "lossDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "notifiedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GeneralClaimStatus"
+          }
+        }
+      },
       "GeneralClaimView": {
         "required": [
           "id",
@@ -23843,6 +24168,58 @@
           "Renewed"
         ]
       },
+      "GeneralPolicySummary": {
+        "required": [
+          "id",
+          "policyNumber",
+          "productCode",
+          "policyholderPartyId",
+          "status",
+          "periodStart",
+          "periodEnd",
+          "annualPremium",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyNumber": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "policyholderPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GeneralPolicyStatus"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "annualPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
       "GeneralPolicyView": {
         "required": [
           "id",
@@ -24023,6 +24400,73 @@
           "Expired",
           "Declined"
         ]
+      },
+      "GeneralQuoteSummary": {
+        "required": [
+          "id",
+          "quoteNumber",
+          "quoteVersion",
+          "productCode",
+          "proposerPartyId",
+          "status",
+          "validUntil",
+          "periodStart",
+          "periodEnd",
+          "premium",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quoteNumber": {
+            "type": "string"
+          },
+          "quoteVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "proposerPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GeneralQuoteStatus"
+          },
+          "validUntil": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "premium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
       },
       "GeneralQuoteView": {
         "required": [

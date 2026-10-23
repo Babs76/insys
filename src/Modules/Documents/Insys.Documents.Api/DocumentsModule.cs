@@ -98,6 +98,9 @@ public sealed class DocumentsModule : IModule
                 (await dispatcher.Query(new ListDocuments(businessRefType, businessRefId), ct)).ToHttp(Results.Ok))
             .Produces<IReadOnlyList<DocumentView>>(StatusCodes.Status200OK)
             .WithName("DocumentsList")
+            .WithKnownValues("businessRefType", DocumentReferenceTypes.Known,
+                "The business reference the documents are filed under. INSYS files the documents it generates under the known values (x-known-values); "
+                + "a document stored or generated through the API may carry another type (at most 30 characters).")
             .WithSummary("List the documents of a business reference")
             .RequirePermission(DocumentPermissions.DocumentRead);
 

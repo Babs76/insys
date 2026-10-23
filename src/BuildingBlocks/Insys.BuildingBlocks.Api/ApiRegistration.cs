@@ -239,6 +239,17 @@ public static class ApiRegistration
                 targetType.Enum = [.. AuditTargetTypes.All().Select(t => (System.Text.Json.Nodes.JsonNode)System.Text.Json.Nodes.JsonValue.Create(t))];
             }
 
+            foreach (var known in metadata.OfType<KnownValuesMetadata>())
+            {
+                if (operation.Parameters?.FirstOrDefault(p => p.Name == known.Parameter) is OpenApiParameter parameter)
+                {
+                    parameter.Extensions ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiExtension>();
+                    parameter.Extensions[KnownValuesExtensions.Extension] = new Microsoft.OpenApi.JsonNodeExtension(
+                        new System.Text.Json.Nodes.JsonArray([.. known.Values.Select(v => (System.Text.Json.Nodes.JsonNode)System.Text.Json.Nodes.JsonValue.Create(v))]));
+                    parameter.Description = known.Description;
+                }
+            }
+
             if (metadata.OfType<EventualEffectsMetadata>().FirstOrDefault() is { } eventual)
             {
                 operation.Extensions ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiExtension>();

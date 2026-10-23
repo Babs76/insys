@@ -133,6 +133,18 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
             .Select(v => v.GetString()).ShouldBe(["PENDING_VERIFICATION", "ACTIVE", "SUPERSEDED", "REJECTED"]);
     }
 
+    /// <summary>GAP-033: the business reference types INSYS files documents under are declared on the documents list.</summary>
+    [Fact]
+    public async Task DocumentsList_DeclaresTheKnownBusinessReferenceTypes_GAP033()
+    {
+        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        var parameter = core.RootElement.GetProperty("paths").GetProperty("/api/v1/documents/documents").GetProperty("get").GetProperty("parameters")
+            .EnumerateArray().Single(p => p.GetProperty("name").GetString() == "businessRefType");
+
+        parameter.GetProperty("x-known-values").EnumerateArray().Select(v => v.GetString())
+            .ShouldBe(["GENERAL_POLICY", "GENERAL_ENDORSEMENT", "LIFE_POLICY", "HEALTH_REMITTANCE"]);
+    }
+
     [Fact]
     public async Task CoreDocument_HasNoStaticDataOperations()
     {

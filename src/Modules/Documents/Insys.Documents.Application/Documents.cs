@@ -127,6 +127,19 @@ public sealed record GetDocument(Guid DocumentId) : IQuery<DocumentView>;
 
 public sealed record ListDocuments(string BusinessRefType, Guid BusinessRefId) : IQuery<IReadOnlyList<DocumentView>>;
 
+/// <summary>
+/// The business reference types INSYS files the documents it generates under (GAP-033): a General policy and endorsement,
+/// a Life policy, a Health remittance. A stored or generated document may carry another type, so this is not a closed list.
+/// </summary>
+public static class DocumentReferenceTypes
+{
+    public static readonly IReadOnlyList<string> Known =
+    [
+        General.Contracts.GeneralDocuments.PolicyRefType, General.Contracts.GeneralDocuments.EndorsementRefType, Life.Contracts.LifeDocuments.PolicyRefType,
+        Health.Contracts.HealthReferences.RemittanceRefType,
+    ];
+}
+
 public sealed class GenerateDocumentValidator : AbstractValidator<GenerateDocument>
 {
     public GenerateDocumentValidator()

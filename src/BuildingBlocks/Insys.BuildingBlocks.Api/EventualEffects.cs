@@ -44,3 +44,19 @@ public static class EventualEffectsExtensions
         where TBuilder : IEndpointConventionBuilder =>
         builder.WithMetadata(new EventualEffectsMetadata(effects));
 }
+
+/// <summary>
+/// Values a free-text parameter is known to take, which the documents list as x-known-values (GAP-033): not an enum,
+/// because other values are allowed, but the ones INSYS itself uses.
+/// </summary>
+public sealed record KnownValuesMetadata(string Parameter, IReadOnlyList<string> Values, string Description);
+
+public static class KnownValuesExtensions
+{
+    public const string Extension = "x-known-values";
+
+    public static TBuilder WithKnownValues<TBuilder>(this TBuilder builder, string parameter, IReadOnlyList<string> values, string description)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.WithMetadata(new KnownValuesMetadata(parameter, values, description));
+}
+

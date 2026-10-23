@@ -258,6 +258,19 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         ShouldMatchDocumented(await (await _maker.GetAsync($"/api/v1/general/quotes/{quote}")).Json(), "GeneralGetQuote");
         ShouldMatchDocumented(await (await _maker.GetAsync($"/api/v1/general/proposals/{proposal}")).Json(), "GeneralGetProposal");
         ShouldMatchDocumented(await (await _maker.GetAsync($"/api/v1/general/risk-objects/{vehicle}")).Json(), "GeneralGetRiskObject");
+
+        // GAP-032: the lists find them by party and by number.
+        var policyNumber = policyView.GetProperty("policyNumber").GetString();
+        var holder = policyView.GetProperty("policyholderPartyId").GetGuid();
+        var byNumber = await (await _maker.GetAsync($"/api/v1/general/policies?policyNumber={policyNumber}")).Json();
+        ShouldMatchDocumented(byNumber, "GeneralListPolicies");
+        byNumber.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid().ShouldBe(policy);
+        (await (await _maker.GetAsync($"/api/v1/general/policies?policyholderPartyId={holder}")).Json()).GetProperty("items").EnumerateArray()
+            .Select(p => p.GetProperty("id").GetGuid()).ShouldContain(policy);
+        var proposer = (await (await _maker.GetAsync($"/api/v1/general/quotes/{quote}")).Json()).GetProperty("proposerPartyId").GetGuid();
+        var quotes = await (await _maker.GetAsync($"/api/v1/general/quotes?proposerPartyId={proposer}")).Json();
+        ShouldMatchDocumented(quotes, "GeneralListQuotes");
+        quotes.GetProperty("items").EnumerateArray().Select(q => q.GetProperty("id").GetGuid()).ShouldContain(quote);
     }
 
     [Fact]
@@ -283,6 +296,11 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         number.ShouldStartWith("GEN-");
         registered.GetProperty("status").GetString().ShouldBe("Registered");
         ShouldMatchDocumented(await Claim(claim), "GeneralGetClaim");
+        var claims = await (await _maker.GetAsync($"/api/v1/general/claims?claimNumber={number}")).Json();
+        ShouldMatchDocumented(claims, "GeneralListClaims");
+        claims.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid().ShouldBe(claim);
+        (await (await _maker.GetAsync($"/api/v1/general/claims?policyId={policy}")).Json()).GetProperty("items").EnumerateArray()
+            .Select(c => c.GetProperty("id").GetGuid()).ShouldContain(claim);
         (await _db.ScalarAsOwner<Guid>("SELECT domain_claim_id FROM claims.claim_register WHERE claim_number = @n", ("n", number))).ShouldBe(claim);
         (await (await _maker.PostAsync($"/api/v1/general/claims/{claim}/register", null)).Json()).GetProperty("claimNumber").GetString().ShouldBe(number);
 

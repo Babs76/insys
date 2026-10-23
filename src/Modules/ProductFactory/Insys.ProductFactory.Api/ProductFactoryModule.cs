@@ -94,7 +94,8 @@ public sealed class ProductFactoryModule : IModule
             .WithName("ProductListProducts")
             .WithSummary("List products")
             .WithDescription("The tenant's products by product code, each with its latest version and that version's status, and the version in force "
-                + "(Published or Effective) if any. Filter by domain and by the latest version's status; cursor paging (GAP-023).")
+                + "(Published or Effective) if any. Filter by domain and by the latest version's status; cursor paging (GAP-023). A General product's line "
+                + "is its class code, or its family code when it has no class.")
             .RequirePermission(ProductPermissions.ProductRead);
 
         var versions = products.MapGroup("/{productCode}/versions");

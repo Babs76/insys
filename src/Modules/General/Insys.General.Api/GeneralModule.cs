@@ -119,8 +119,13 @@ public sealed class GeneralModule : IModule
         general.MapPost("/quotes", async (CreateQuote r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/general/quotes/{v.Id}", v)))
             .Produces<QuoteView>(StatusCodes.Status201Created)
             .WithName("GeneralCreateQuote").WithSummary("Create a quote, or (fromQuoteId) the next version of one")
-            .WithDescription("Rate it through Rating (POST /api/v1/rating/calculations with subjectType GENERAL_QUOTE and the quote's id); the recorded calculation is attached to the quote (PRD-008).")
+            .WithDescription("Rate it through Rating (POST /api/v1/rating/calculations with subjectType GENERAL_QUOTE and the quote's id); the recorded calculation is attached to the quote (PRD-008). "
+                + "A General product's line is its class code, or its family code when it has no class; panels, perils and approved lines are matched on it.")
             .RequirePermission(GeneralPermissions.QuoteCreate).RequireIdempotencyKey();
+        general.MapGet("/quotes", async (Guid? proposerPartyId, string? quoteNumber, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListQuotes(proposerPartyId, quoteNumber, after, size), ct), q => q.Id))
+            .Produces<CursorPage<QuoteSummary>>(StatusCodes.Status200OK)
+            .WithName("GeneralListQuotes").WithSummary("List quotes, by proposer or quote number (GAP-032)").RequirePermission(GeneralPermissions.QuoteRead);
         general.MapGet("/quotes/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetQuote(id), ct)).ToHttp(Results.Ok))
             .Produces<QuoteView>(StatusCodes.Status200OK)
             .WithName("GeneralGetQuote").WithSummary("Get a quote version with its risks and referrals").RequirePermission(GeneralPermissions.QuoteRead);
@@ -168,6 +173,10 @@ public sealed class GeneralModule : IModule
             .WithEventualEffects("Billing (account, premium schedule, first invoice), Documents (policy schedule, certificate), Reinsurance (cession) "
                 + "and Analytics follow; each needs its tenant configuration (docs/runbooks/dead-letters-and-webhooks.md).")
             .RequirePermission(GeneralPermissions.PolicyCreate).RequireIdempotencyKey();
+        general.MapGet("/policies", async (Guid? policyholderPartyId, string? policyNumber, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPolicies(policyholderPartyId, policyNumber, after, size), ct), p => p.Id))
+            .Produces<CursorPage<PolicySummary>>(StatusCodes.Status200OK)
+            .WithName("GeneralListPolicies").WithSummary("List policies, by policyholder or policy number (GAP-032)").RequirePermission(GeneralPermissions.PolicyRead);
         general.MapGet("/policies/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPolicy(id), ct)).ToHttp(Results.Ok))
             .Produces<PolicyView>(StatusCodes.Status200OK)
             .WithName("GeneralGetPolicy").WithSummary("Get a policy with its risks, coverages and cancellations").RequirePermission(GeneralPermissions.PolicyRead);
@@ -208,6 +217,10 @@ public sealed class GeneralModule : IModule
         general.MapPost("/claims", async (NotifyLoss r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/general/claims/{v.Id}", v)))
             .Produces<ClaimView>(StatusCodes.Status201Created)
             .WithName("GeneralNotifyLoss").WithSummary("Notify a loss (first notification)").RequirePermission(GeneralPermissions.ClaimCreate).RequireIdempotencyKey();
+        general.MapGet("/claims", async (Guid? policyId, string? claimNumber, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListClaims(policyId, claimNumber, after, size), ct), c => c.Id))
+            .Produces<CursorPage<ClaimSummary>>(StatusCodes.Status200OK)
+            .WithName("GeneralListClaims").WithSummary("List claims, by policy or claim number (GAP-032)").RequirePermission(GeneralPermissions.ClaimRead);
         general.MapGet("/claims/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetClaim(id), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)
             .WithName("GeneralGetClaim").WithSummary("Get a claim").RequirePermission(GeneralPermissions.ClaimRead);
@@ -293,5 +306,17 @@ public sealed class GeneralModule : IModule
             .Produces<RecoveryView>(StatusCodes.Status200OK)
             .WithName("GeneralRecordRecovery").WithSummary("Record money recovered; it becomes a claim financial movement (CLM-004)")
             .RequirePermission(GeneralPermissions.RecoveryUpdate).RequireIdempotencyKey();
+    }
+
+    /// <summary>A cursor page of a list query (GAP-032).</summary>
+    private static async Task<IResult> Page<T>(string? cursor, int? limit, Func<Guid?, int, Task<BuildingBlocks.Domain.Result<IReadOnlyList<T>>>> query, Func<T, Guid> id)
+    {
+        if (!Cursor.TryDecode(cursor, out var after))
+        {
+            return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+        }
+
+        var size = Cursor.ClampLimit(limit);
+        return (await query(after, size)).ToHttp(items => Results.Ok(new CursorPage<T>(items, items.Count == size ? Cursor.Encode(id(items[^1])) : null)));
     }
 }
