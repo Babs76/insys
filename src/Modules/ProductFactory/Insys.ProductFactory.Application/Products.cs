@@ -133,6 +133,22 @@ public sealed record ListProductVersions(string ProductCode) : IQuery<IReadOnlyL
 
 public sealed record ListSimulationRuns(string ProductCode, int Version) : IQuery<IReadOnlyList<SimulationRunView>>;
 
+/// <summary>
+/// A product in the product list (GAP-023): its latest version and that version's status, and the version in force
+/// (Published or Effective), if any. FamilyCode and ClassCode are the latest version's; a General product's line is
+/// its class code, or its family code when it has no class.
+/// </summary>
+public sealed record ProductSummary(string ProductCode, string Name, ProductDomain Domain, string? FamilyCode, string? ClassCode, int LatestVersion,
+    ProductVersionStatus LatestStatus, DateOnly EffectiveFrom, DateOnly? EffectiveTo, int? InForceVersion);
+
+/// <summary>Query ListProducts (GAP-023): the tenant's products by code, optionally by domain and by their latest version's status.</summary>
+public sealed record ListProducts(ProductDomain? Domain, ProductVersionStatus? Status, string? AfterCode, int Limit) : IQuery<IReadOnlyList<ProductSummary>>;
+
+public interface IProductList
+{
+    Task<IReadOnlyList<ProductSummary>> List(ProductDomain? domain, ProductVersionStatus? status, string? afterCode, int limit, CancellationToken cancellationToken);
+}
+
 public sealed record VersionsDueToBecomeEffective(DateOnly Today) : IQuery<IReadOnlyList<Guid>>;
 
 public sealed class RegisterProductValidator : AbstractValidator<RegisterProduct>
@@ -374,6 +390,12 @@ internal sealed class ListProductVersionsHandler(IProductVersionRepository versi
 {
     public async Task<Result<IReadOnlyList<ProductVersionView>>> Handle(ListProductVersions query, CancellationToken cancellationToken) =>
         (await versions.Versions(query.ProductCode, cancellationToken)).Select(ProductVersionView.From).ToList();
+}
+
+internal sealed class ListProductsHandler(IProductList products) : IQueryHandler<ListProducts, IReadOnlyList<ProductSummary>>
+{
+    public async Task<Result<IReadOnlyList<ProductSummary>>> Handle(ListProducts query, CancellationToken cancellationToken) =>
+        Result.Success(await products.List(query.Domain, query.Status, query.AfterCode, query.Limit, cancellationToken));
 }
 
 internal sealed class ListSimulationRunsHandler(ISimulationRuns runs) : IQueryHandler<ListSimulationRuns, IReadOnlyList<SimulationRunView>>

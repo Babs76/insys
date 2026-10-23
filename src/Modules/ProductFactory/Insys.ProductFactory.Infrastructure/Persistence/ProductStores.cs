@@ -215,3 +215,42 @@ internal static class ProductEventMapper
 
     private static string Upper(ProductDomain domain) => domain.ToString().ToUpperInvariant();
 }
+
+/// <summary>The product list (GAP-023): one row per product code, from its latest version, among the tenant's own rows.</summary>
+internal sealed class ProductList(ProductFactoryDbContext db) : IProductList
+{
+    private static readonly string[] InForce = ["PUBLISHED", "EFFECTIVE"];
+
+    public async Task<IReadOnlyList<ProductSummary>> List(ProductDomain? domain, ProductVersionStatus? status, string? afterCode, int limit,
+        CancellationToken cancellationToken)
+    {
+        var rows = db.Set<ProductDefinitionsAndVersions>().AsNoTracking().Where(r => r.TenantId != null);
+        var latest = rows.Where(r => r.Version == rows.Where(x => x.Code == r.Code).Max(x => x.Version));
+        if (domain is { } d)
+        {
+            var code = d.ToString().ToUpperInvariant();
+            latest = latest.Where(r => r.Domain.ToUpper() == code);
+        }
+
+        if (status is { } s)
+        {
+            var code = UpperCaseEnumConverter<ProductVersionStatus>.ToCode(s);
+            latest = latest.Where(r => r.RecordStatus == code);
+        }
+
+        if (afterCode is not null)
+        {
+            latest = latest.Where(r => string.Compare(r.Code, afterCode) > 0);
+        }
+
+        var page = await latest.OrderBy(r => r.Code).Take(limit)
+            .Select(r => new
+            {
+                r.Code, r.Name, r.Domain, r.FamilyCode, r.ClassCode, r.Version, r.RecordStatus, r.EffectiveFrom, r.EffectiveTo,
+                InForceVersion = rows.Where(x => x.Code == r.Code && InForce.Contains(x.RecordStatus)).Max(x => (int?)x.Version),
+            })
+            .ToListAsync(cancellationToken);
+        return page.Select(r => new ProductSummary(r.Code, r.Name, Enum.Parse<ProductDomain>(r.Domain, ignoreCase: true), r.FamilyCode, r.ClassCode, r.Version,
+            UpperCaseEnumConverter<ProductVersionStatus>.FromCode(r.RecordStatus), r.EffectiveFrom, r.EffectiveTo, r.InForceVersion)).ToList();
+    }
+}

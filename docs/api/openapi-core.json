@@ -1931,6 +1931,77 @@
           }
         },
         "x-permission": "product.create"
+      },
+      "get": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "List products",
+        "description": "The tenant\u0027s products by product code, each with its latest version and that version\u0027s status, and the version in force (Published or Effective) if any. Filter by domain and by the latest version\u0027s status; cursor paging (GAP-023).",
+        "operationId": "ProductListProducts",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ProductFactoryProductDomain"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ProductFactoryProductVersionStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfProductFactoryProductSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "product.read"
       }
     },
     "/api/v1/product-factory/products/{productCode}/versions": {
@@ -21233,6 +21304,27 @@
           }
         }
       },
+      "CursorPageOfProductFactoryProductSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductFactoryProductSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfWorkflowApprovalView": {
         "required": [
           "items",
@@ -30212,6 +30304,75 @@
           "General",
           "Health"
         ]
+      },
+      "ProductFactoryProductSummary": {
+        "required": [
+          "productCode",
+          "name",
+          "domain",
+          "familyCode",
+          "classCode",
+          "latestVersion",
+          "latestStatus",
+          "effectiveFrom",
+          "effectiveTo",
+          "inForceVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "domain": {
+            "$ref": "#/components/schemas/ProductFactoryProductDomain"
+          },
+          "familyCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "classCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "latestVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "latestStatus": {
+            "$ref": "#/components/schemas/ProductFactoryProductVersionStatus"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "inForceVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
       },
       "ProductFactoryProductVersionStatus": {
         "enum": [

@@ -45,6 +45,7 @@ public static class ProductFactoryInfrastructure
         services.AddStaticData<ProductFactoryDbContext>(schema, ProductFactoryStaticData.Descriptors);
         services.AddModuleHandlers<ProductFactoryDbContext>(typeof(RegisterProduct).Assembly);
         services.AddScoped<IProductVersionRepository, ProductVersionRepository>();
+        services.AddScoped<IProductList, ProductList>();
         services.AddScoped<ISimulationRuns, SimulationRunStore>();
         services.AddScoped<IProductCatalogue, ProductCatalogue>();
         services.AddSingleton<ISellableProducts, SellableProducts>();

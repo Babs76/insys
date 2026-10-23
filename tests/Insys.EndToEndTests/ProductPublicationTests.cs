@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Net;
+using System.Text.Json;
 using Insys.BuildingBlocks.Api.StaticData;
 using Insys.ProductFactory.Contracts;
 using Insys.ProductFactory.Domain.Products;
@@ -103,6 +104,12 @@ public sealed class ProductPublicationTests(PostgresServer server) : IAsyncLifet
         registered.StatusCode.ShouldBe(HttpStatusCode.Created);
         (await Status(maker, v1)).ShouldBe("Draft");
 
+        // The product list (GAP-023): the latest version and its status; nothing in force yet.
+        var listed = await ListedProduct(maker);
+        (listed.GetProperty("latestVersion").GetInt32(), listed.GetProperty("latestStatus").GetString(), listed.GetProperty("inForceVersion").ValueKind)
+            .ShouldBe((1, "Draft", JsonValueKind.Null));
+        (await ListedProduct(maker, "?domain=Life")).ValueKind.ShouldBe(JsonValueKind.Undefined);
+
         // Compensation: validation errors keep the version in Draft.
         var invalid = await (await maker.Send(HttpMethod.Post, $"{v1}/validate", ifMatch: "\"1\"")).Json();
         invalid.GetProperty("code").GetString().ShouldBe(ProductErrorCodes.ValidationFailed);
@@ -158,6 +165,7 @@ public sealed class ProductPublicationTests(PostgresServer server) : IAsyncLifet
         await _factory.DrainOutbox();
         var published = await (await maker.GetAsync(v1)).Json();
         published.GetProperty("status").GetString().ShouldBe("Published");
+        (await ListedProduct(maker, "?status=Published")).GetProperty("inForceVersion").GetInt32().ShouldBe(1);
         published.GetProperty("approvedBy").GetString().ShouldBe(_checker.ToString());
         (await Events("product", "product.ProductVersionApproved")).ShouldBe(1);
         (await Events("product", "product.ProductVersionPublished")).ShouldBe(1);
@@ -201,4 +209,12 @@ public sealed class ProductPublicationTests(PostgresServer server) : IAsyncLifet
             INSERT INTO {table} (tenant_id, code, version, effective_from, record_status, created_by, change_reason, {columns})
             VALUES (@t, @code, 1, current_date - 1, '{(reference ? "ACTIVE" : "EFFECTIVE")}', 'seed', 'test seed', {values})
             """, ("t", Tenant), ("code", code));
+
+    /// <summary>The product in the product list (GAP-023), checked against its documented schema; Undefined when not listed.</summary>
+    private static async Task<JsonElement> ListedProduct(HttpClient client, string query = "?domain=General")
+    {
+        var page = await (await client.GetAsync($"/api/v1/product-factory/products{query}")).Json();
+        DocumentedSchema.ResponseProblems(page, "core", "ProductListProducts").ShouldBeEmpty();
+        return page.GetProperty("items").EnumerateArray().FirstOrDefault(p => p.GetProperty("productCode").GetString() == Product);
+    }
 }

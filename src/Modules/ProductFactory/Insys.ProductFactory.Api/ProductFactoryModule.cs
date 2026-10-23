@@ -79,6 +79,24 @@ public sealed class ProductFactoryModule : IModule
             .RequirePermission(ProductPermissions.ProductCreate)
             .RequireIdempotencyKey();
 
+        products.MapGet("/", async (ProductDomain? domain, ProductVersionStatus? status, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecodeKey(cursor, out var afterCode))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListProducts(domain, status, afterCode, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<ProductSummary>(items, items.Count == pageSize ? Cursor.EncodeKey(items[^1].ProductCode) : null)));
+            })
+            .Produces<CursorPage<ProductSummary>>(StatusCodes.Status200OK)
+            .WithName("ProductListProducts")
+            .WithSummary("List products")
+            .WithDescription("The tenant's products by product code, each with its latest version and that version's status, and the version in force "
+                + "(Published or Effective) if any. Filter by domain and by the latest version's status; cursor paging (GAP-023).")
+            .RequirePermission(ProductPermissions.ProductRead);
+
         var versions = products.MapGroup("/{productCode}/versions");
         versions.MapPost("/", async (string productCode, CreateDraftVersionRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Send(new CreateDraftVersion(productCode, r.EffectiveFrom), ct)).ToHttp(view =>

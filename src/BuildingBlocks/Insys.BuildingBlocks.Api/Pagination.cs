@@ -69,5 +69,27 @@ public static class Cursor
         }
     }
 
+    /// <summary>A cursor over a text key, for lists ordered by a code rather than an ID (the product list, GAP-023).</summary>
+    public static string EncodeKey(string lastKey) => Base64Url.EncodeToString(System.Text.Encoding.UTF8.GetBytes(lastKey));
+
+    public static bool TryDecodeKey(string? cursor, out string? afterKey)
+    {
+        afterKey = null;
+        if (string.IsNullOrEmpty(cursor))
+        {
+            return true;
+        }
+
+        try
+        {
+            afterKey = System.Text.Encoding.UTF8.GetString(Base64Url.DecodeFromChars(cursor));
+            return afterKey.Length is > 0 and <= 200;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
     public static int ClampLimit(int? limit) => limit is null or < 1 ? DefaultLimit : Math.Min(limit.Value, MaxLimit);
 }
