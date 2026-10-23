@@ -12,6 +12,19 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
 {
     public TestDatabase Database { get; } = database;
 
+    /// <summary>
+    /// Starts the host and waits for its endpoint warm-up before any client is made, as readiness makes production wait:
+    /// otherwise the warm-up and the first request build the same endpoints at the same time.
+    /// </summary>
+    protected override Microsoft.Extensions.Hosting.IHost CreateHost(Microsoft.Extensions.Hosting.IHostBuilder builder)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var host = base.CreateHost(builder);
+        host.Services.GetRequiredService<Insys.BuildingBlocks.Api.EndpointWarmup>().Completed.GetAwaiter().GetResult();
+        ColdStart = stopwatch.Elapsed;
+        return host;
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
@@ -49,14 +62,12 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
     /// <summary>Starts the host and waits until every endpoint is built (EndpointWarmup), so no test request pays for it.</summary>
     public async Task<InsysApiFactory> Warm()
     {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         _ = Server;
         await Services.GetRequiredService<Insys.BuildingBlocks.Api.EndpointWarmup>().Completed;
-        ColdStart = stopwatch.Elapsed;
         return this;
     }
 
-    /// <summary>How long the host took from start until its endpoints were built (set by <see cref="Warm"/>).</summary>
+    /// <summary>How long the host took from start until its endpoints were built.</summary>
     public TimeSpan? ColdStart { get; private set; }
 
     /// <summary>

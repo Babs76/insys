@@ -34,7 +34,7 @@ public sealed class DevelopmentSigningKeyTests
         var bearer = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>().Get(JwtBearerDefaults.AuthenticationScheme);
         (bearer.TokenValidationParameters.IssuerSigningKey is not null).ShouldBe(allowed);
 
-        var guard = provider.GetServices<IHostedService>().OfType<DevelopmentSigningKeyGuard>().Single();
+        var guard = ActivatorUtilities.CreateInstance<DevelopmentSigningKeyGuard>(provider);
         if (allowed)
         {
             await guard.StartAsync(CancellationToken.None);
