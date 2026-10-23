@@ -80,11 +80,13 @@ public sealed class ModuleRoleAndPartitionTests(DatabaseFixture fixture) : IClas
     }
 
     [Fact]
-    public async Task ApiRole_CanUseOnlyIdempotencyKeys_INT003()
+    public async Task ApiRole_CanUseOnlyIdempotencyKeys_AndReadAndAddFieldDataKeys_INT003()
     {
+        // Idempotency keys (INT-003), and the envelope encryption register (V0023, ADR-018): read and add, never change or remove.
         var privileges = await fixture.Database.ScalarAsOwner<long>("""
             SELECT count(*) FROM information_schema.role_table_grants
             WHERE grantee = 'insys_api' AND NOT (table_schema = 'integration' AND table_name = 'idempotency_key')
+              AND NOT (table_schema = 'integration' AND table_name = 'field_data_key' AND privilege_type IN ('SELECT', 'INSERT'))
             """);
         privileges.ShouldBe(0);
     }
