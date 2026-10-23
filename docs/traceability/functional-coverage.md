@@ -58,19 +58,19 @@ Order: Workstreams B, C and D, then Wave 0, then Waves 1 to 6. After each wave, 
 
 | Request | Change | Where |
 |---|---|---|
-| GAP-003 | `GET /api/v1/identity/me`: the user's profile, tenant, preferred language and effective permissions with their scopes | Wave 0 |
+| GAP-003 | `GET /api/v1/identity/me`: the user's profile, tenant, preferred language and effective permissions with their scopes | Wave 0: done 23 October 2026 |
 | GAP-001 | Keycloak in `docker-compose.yml` with a public client `insys-web`: Authorization Code with PKCE, redirect URIs for `http://localhost:5173`, no secret, and the `tenant_id` mapper (ADR-017) | Workstream D |
 | GAP-004 | The OFT-ZA seed. A minimal seed (the tenant, its users per role, static data) comes first if the full one is further away | Workstream F, minimal seed early |
-| GAP-006 | `Retry-After` on every 429 | Wave 0 |
-| GAP-007 | The correlation ID in every error response, 500 included, both as the `X-Correlation-Id` header and in the ProblemDetails body | Wave 0 |
-| GAP-005 | The ProblemDetails extensions (`code`, `errors`, `correlationId`, `detailLanguage` and others) declared in the OpenAPI schemas | Wave 0 |
-| GAP-008 | Record state fields declared as enums in OpenAPI, matching `domain-model.json` | Wave 0 |
-| GAP-002 | Development CORS for `http://localhost:5173`, configurable; production stays same-origin | Wave 0 |
+| GAP-006 | `Retry-After` on every 429 | Wave 0: done 23 October 2026 |
+| GAP-007 | The correlation ID in every error response, 500 included, both as the `X-Correlation-Id` header and in the ProblemDetails body | Wave 0: done 23 October 2026 |
+| GAP-005 | The ProblemDetails extensions (`code`, `errors`, `correlationId`, `detailLanguage` and others) declared in the OpenAPI schemas | Wave 0: done 23 October 2026 |
+| GAP-008 | Record state fields declared as enums in OpenAPI, matching `domain-model.json` | Wave 0: done 23 October 2026 |
+| GAP-002 | Development CORS for `http://localhost:5173`, configurable; production stays same-origin | Wave 0: done 23 October 2026 |
 | (none) | The HS256 development token accepted only in Development, with a test that any other environment rejects it. **Checked 23 October 2026: not enforced today.** `Authentication:DevelopmentSigningKey` is honoured in any environment where it is configured; only `appsettings.Development.json` sets it. The integration tests run as environment `Testing` and use it. *Proposal:* accept it only in Development and Testing, refuse to start with it in any other environment, and add the test. | Wave 0 |
-| (none) | A consistent per-record history query for the record action bar | Wave 0 |
-| GAP-020 | Revocation (IAM-005). **Checked 23 October 2026:** `RevokeRole` sets `valid_to = today` and leaves the status `ACTIVE`. Permission queries treat `valid_to` as exclusive (`valid_to > today`), so the assignment stops applying from the next request; `IdentityTests.RevokedRole_DeniesTheNextRequestWithTheSameToken_IAM005` proves it. *To do:* an explicit ended status (`REVOKED`) with `revoked_at` and `revoked_by` (a new migration, since V0013's CHECK allows only `PENDING_APPROVAL`, `ACTIVE` and `REJECTED`), and tests that cover later on the same day and an assignment that starts and ends the same day | Wave 0 |
-| GAP-021 | Role responses state whether a role is privileged, requires MFA, and needs approval to assign (OQ-038's rule), so the UI can show the pending-approval behaviour before submitting | Wave 0 |
-| GAP-019 | OQ-067: a platform-operator command that creates a new tenant's first administrator, approved by a second platform administrator | Wave 0 |
+| (none) | A consistent per-record history query for the record action bar: `GET /api/v1/audit/records/{targetType}/{targetId}`, and every change leaves an audit entry | Wave 0: done 23 October 2026 |
+| GAP-020 | Revocation (IAM-005). **Checked 23 October 2026:** `RevokeRole` sets `valid_to = today` and leaves the status `ACTIVE`. Permission queries treat `valid_to` as exclusive (`valid_to > today`), so the assignment stops applying from the next request; `IdentityTests.RevokedRole_DeniesTheNextRequestWithTheSameToken_IAM005` proves it. *To do:* an explicit ended status (`REVOKED`) with `revoked_at` and `revoked_by` (a new migration, since V0013's CHECK allows only `PENDING_APPROVAL`, `ACTIVE` and `REJECTED`), and tests that cover later on the same day and an assignment that starts and ends the same day | Wave 0: done 23 October 2026 |
+| GAP-021 | Role responses state whether a role is privileged, requires MFA, and needs approval to assign (OQ-038's rule), so the UI can show the pending-approval behaviour before submitting | Wave 0: done 23 October 2026 |
+| GAP-019 | OQ-067: a platform-operator command that creates a new tenant's first administrator, approved by a second platform administrator | Wave 0: done 23 October 2026 |
 
 F050 (provider payment disputes) sits in both Wave 2 and Wave 5a: Wave 2 builds the shared case capability, and Wave 5a uses it for providers.
 

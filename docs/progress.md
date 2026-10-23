@@ -19,7 +19,8 @@
 | 8 Workstream B | Languages: tenant languages, labels, localised ProblemDetails, documents, preferred language; CI split into three jobs | Done, accepted |
 | 8 CI and startup | Shared test hosts, template databases, router warm-up gate with 503 NOT_READY, development signing key allow-list | Done (CI green: b6a9978) |
 | 8 Workstream C | Source file headers on 913 files, SourceHeaderTests and CI check, ADR-021 | Done, accepted |
-| 8 Workstream D | DEW KMS envelope encryption, OBS document storage, Keycloak realm and compose service | **Done, awaiting review** (23 Oct 2026) |
+| 8 Workstream D | DEW KMS envelope encryption, OBS document storage, Keycloak realm and compose service | Done, accepted |
+| 8 Wave 0 (front end) | GAP-002, 003, 005, 006, 007, 008, 019, 020, 021 and per-record history; contract changes in `docs/api/contract-changes.md` | **Done, awaiting review** (23 Oct 2026) |
 
 ## Phase 1 review items
 
