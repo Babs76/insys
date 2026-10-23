@@ -17,6 +17,25 @@ What changed in the API contract, newest first, so the front end can sync. The O
   - an architecture test checks every type that can appear in a document;
   - tests compare real responses (General quote, proposal, policy, risk object and claim; `/identity/me`, roles, users, tenants, tenant-administrator requests, record history) with their documented schemas: the same properties, documented types and enums.
 
+### New endpoints
+
+| Endpoint | Permission | Item |
+|---|---|---|
+| `POST /api/v1/party/parties/search` | `party.read` | GAP-022: by name (3+ characters), exact identifier (type, country, number), role in effect, status; summaries with cursor paging. POST so that an identifier number is never in a URL. Every search is written to the party access log, with an identifier by hash only. |
+| `GET /api/v1/product-factory/products` | `product.read` | GAP-023: one row per product: latest version, its status and dates, family and class codes, the version in force; by domain and status; cursor by product code |
+| `GET /api/v1/general/quotes` | `general_quote.read` | GAP-032: by proposer or quote number |
+| `GET /api/v1/general/policies` | `general_policy.read` | GAP-032: by policyholder or policy number |
+| `GET /api/v1/general/claims` | `general_claim.read` | GAP-032: by policy or claim number |
+
+### Changed behaviour and contract
+
+- **Readiness (GAP-034):** `/health/ready` no longer includes outbox lag. One tenant's stuck event no longer takes the instance out of service. Outbox lag stays on `/health` for alerts. What each consumer of the General policy events needs is in `docs/runbooks/dead-letters-and-webhooks.md`. Parking such events (ADR-022) is proposed, not built.
+- **Rating test cases (GAP-024):** a draft whose `inputs` lack a three-letter `currency` or a `frequency` is refused, with 422 and `errors.inputs`.
+- **Asynchronous effects (GAP-027):** operations whose follow-ups complete through events carry `x-eventual-effects` and a sentence in their description: static data submit, Workflow approve and reject, product submit, General policy issue, role assignment, and first-administrator requests. Responses stay 200, 201 or 204, because the operation's own change is committed when it responds.
+- **Audit target types (GAP-029):** `targetType` on `ListAuditEvents` and `GetRecordHistory` is an enum of every aggregate type, the static data entity codes, `BankAccount`, `ClaimFinancials` and `Endpoint`, as stored (30 characters).
+- **Document reference types (GAP-033):** `businessRefType` on the documents list has `x-known-values`: `GENERAL_POLICY`, `GENERAL_ENDORSEMENT`, `LIFE_POLICY`, `HEALTH_REMITTANCE`. A stored document may carry another type.
+- **General product line (request 24):** a General product's line is its class code, or its family code when it has no class. The quote and product list descriptions say so.
+
 ## Wave 0: front-end enablement (23 October 2026)
 
 ### New endpoints

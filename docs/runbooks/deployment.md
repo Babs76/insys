@@ -70,6 +70,21 @@ Both need PostgreSQL 18.
 3. The tenant's administrator provisions the IAM user with that user's Keycloak `sub` as the external subject, and assigns roles (`POST /api/v1/identity/users`).
 4. The first administrator of a new tenant has no IAM administrator to provision them. Two platform administrators provision them instead (OQ-067); see the tenants runbook. Step 2 still comes first: the request names the Keycloak user's `sub`.
 
+### Users for tests and personas (front-end request 23)
+
+The realm ships one user, `insys-admin`. Persona users per tenant (a maker, a checker, an administrator) come with the OFT-ZA seed (Workstream F, GAP-004), together with their IAM users and roles. Until then, a test creates its own users through the Keycloak admin REST API. For example, locally:
+
+```bash
+TOKEN=$(curl -s -d grant_type=password -d client_id=admin-cli -d username=admin -d "password=$KC_BOOTSTRAP_ADMIN_PASSWORD" \
+  http://localhost:8080/realms/master/protocol/openid-connect/token | jq -r .access_token)
+curl -si -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' http://localhost:8080/admin/realms/insys/users -d '{
+  "username": "acme-maker", "enabled": true, "email": "acme-maker@example.test", "emailVerified": true, "firstName": "Acme", "lastName": "Maker",
+  "attributes": { "tenant_id": ["<the tenant ID>"] },
+  "credentials": [{ "type": "password", "value": "<a test password>", "temporary": false }] }'
+```
+
+The `Location` header ends with the new user's ID: the token's `sub`. Provision the IAM user with it as the external subject (`POST /api/v1/identity/users`), or, for a new tenant's first administrator, request one (`POST /api/v1/identity/tenant-administrators`). A user who works in two tenants needs two Keycloak users (TEN-003).
+
 ### In production
 
 Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and then managed in Keycloak. Also:

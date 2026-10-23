@@ -20,7 +20,8 @@
 | 8 CI and startup | Shared test hosts, template databases, router warm-up gate with 503 NOT_READY, development signing key allow-list | Done (CI green: b6a9978) |
 | 8 Workstream C | Source file headers on 913 files, SourceHeaderTests and CI check, ADR-021 | Done, accepted |
 | 8 Workstream D | DEW KMS envelope encryption, OBS document storage, Keycloak realm and compose service | Done, accepted |
-| 8 Wave 0 (front end) | GAP-002, 003, 005, 006, 007, 008, 019, 020, 021 and per-record history; contract changes in `docs/api/contract-changes.md` | **Done, awaiting review** (23 Oct 2026) |
+| 8 Wave 0 batch 1 (front end) | GAP-002, 003, 005, 006, 007, 008, 019, 020, 021, 025, 030 and per-record history; contract changes in `docs/api/contract-changes.md` | Done, merged (`844b668`) |
+| 8 Wave 0 batch 2 (front end) | GAP-031 (schema IDs), 034 (readiness; ADR-022 proposed), 022, 023, 024, 027, 029, 032, 033 and request 24 | **Done on `wave0-frontend-2`, awaiting the go-ahead to merge** (23 Oct 2026) |
 
 ## Phase 1 review items
 
