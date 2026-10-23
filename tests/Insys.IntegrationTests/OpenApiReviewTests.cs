@@ -45,8 +45,23 @@ public sealed class OpenApiReviewTests
             var root = JsonNode.Parse(File.ReadAllText(Path.Combine(RepositoryPaths.Root, "docs", "api", $"openapi-{document}.json")))!.AsObject();
             return root["paths"]!.AsObject().SelectMany(path => path.Value!.AsObject()
                 .Where(m => Methods.Contains(m.Key))
-                .Select(m => (document, path.Key, m.Key, m.Value!.AsObject())));
+                .Select(m => (document, path.Key, m.Key, Resolved(root, m.Value!.AsObject()))));
         });
+
+    /// <summary>The operation with each shared response (GAP-005: "$ref": "#/components/responses/Problem404") in place.</summary>
+    private static JsonObject Resolved(JsonObject root, JsonObject operation)
+    {
+        var copy = operation.DeepClone().AsObject();
+        foreach (var (status, response) in (copy["responses"]?.AsObject() ?? []).ToList())
+        {
+            if (response?["$ref"]?.GetValue<string>() is { } reference && reference.StartsWith("#/components/responses/", StringComparison.Ordinal))
+            {
+                copy["responses"]![status] = root["components"]!["responses"]![reference["#/components/responses/".Length..]]!.DeepClone();
+            }
+        }
+
+        return copy;
+    }
 
     private static List<string> Violations(Func<(string Document, string Path, string Method, JsonObject Operation), bool> broken) =>
         Operations().Where(broken).Select(o => $"{o.Document}: {o.Method.ToUpperInvariant()} {o.Path}").ToList();
