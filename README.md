@@ -94,6 +94,7 @@ CI (`.github/workflows/ci.yml`) builds with warnings as errors, then runs three 
 |---|---|
 | `docs/progress.md` | What each phase built |
 | `docs/decisions/` | Architecture decisions (ADR-001 to ADR-015) and the open questions, with the proposal each follows |
+| `docs/production-readiness.md` | What must be in place before the first production go-live |
 | `docs/runbooks/` | Operating procedures: deployment, monitoring, dead letters, tenants and access, money operations, static data, incidents, backup |
 | `docs/api/` | The committed OpenAPI documents |
 | `docs/specs/`, `docs/srs/` | The specifications this was built from (sources of truth, in `CLAUDE.md` order) |
