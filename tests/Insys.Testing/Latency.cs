@@ -43,6 +43,16 @@ public static class Latency
         return Report(name, [.. timings]);
     }
 
+    /// <summary>A measured figure for the record, written like the latency reports.</summary>
+    public static void Note(string line)
+    {
+        Xunit.TestContext.Current.TestOutputHelper?.WriteLine(line);
+        if (Environment.GetEnvironmentVariable("INSYS_LATENCY_LOG") is { Length: > 0 } log)
+        {
+            File.AppendAllText(log, line + Environment.NewLine);
+        }
+    }
+
     private static LatencyReport Report(string name, List<TimeSpan> timings)
     {
         var sorted = timings.OrderBy(t => t).ToList();

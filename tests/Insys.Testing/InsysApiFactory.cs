@@ -45,4 +45,30 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
 
         return total;
     }
+
+    /// <summary>Starts the host and waits until every endpoint is built (EndpointWarmup), so no test request pays for it.</summary>
+    public async Task<InsysApiFactory> Warm()
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        _ = Server;
+        await Services.GetRequiredService<Insys.BuildingBlocks.Api.EndpointWarmup>().Completed;
+        ColdStart = stopwatch.Elapsed;
+        return this;
+    }
+
+    /// <summary>How long the host took from start until its endpoints were built (set by <see cref="Warm"/>).</summary>
+    public TimeSpan? ColdStart { get; private set; }
+
+    /// <summary>
+    /// Returns a shared host to the state a fresh one has between tests: in-memory caches (permissions, rating, languages,
+    /// messages) emptied, and the stub webhook transport's recorded requests cleared.
+    /// </summary>
+    public void ResetState()
+    {
+        (Services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>() as Microsoft.Extensions.Caching.Memory.MemoryCache)?.Clear();
+        Services.GetService<Insys.Integration.Infrastructure.Webhooks.StubWebhookTransport>()?.Received.Clear();
+    }
+
+    /// <summary>The number of endpoints, for checking that no test changed the host's routing.</summary>
+    public int EndpointCount => Services.GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>().Sum(source => source.Endpoints.Count);
 }

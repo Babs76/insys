@@ -26,7 +26,7 @@ public sealed class GeneralTenantIsolationTests(DatabaseFixture fixture) : IClas
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "general-a", All);
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "general-none");
         (_risk, _quote, _policy, _claim) = (Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());
@@ -46,7 +46,7 @@ public sealed class GeneralTenantIsolationTests(DatabaseFixture fixture) : IClas
             ("qn", "GQ-" + _quote.ToString("N")[..12]), ("pn", "GP-" + _policy.ToString("N")[..12]));
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task AnotherTenantsRecords_AreNotFound_TEN002()

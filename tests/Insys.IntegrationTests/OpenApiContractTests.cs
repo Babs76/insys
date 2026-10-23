@@ -17,13 +17,9 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
 
     private InsysApiFactory _factory = null!;
 
-    public ValueTask InitializeAsync()
-    {
-        _factory = new InsysApiFactory(fixture.Database);
-        return ValueTask.CompletedTask;
-    }
+    public async ValueTask InitializeAsync() => _factory = await fixture.Host();
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     /// <summary>The static data document has over 1 400 paths; building it takes longer than HttpClient's default 100 seconds on CI runners.</summary>
     private HttpClient Client()

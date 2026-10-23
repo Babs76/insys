@@ -22,7 +22,7 @@ public sealed class BankAccountTests(DatabaseFixture fixture) : IClassFixture<Da
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         var db = fixture.Database;
         var clerk = await db.UserWithPermissions(DatabaseFixture.TenantA, "bank-clerk", [PartyPermissions.PartyCreate, PartyPermissions.PartyRead,
             PartyPermissions.BankAccountCreate, PartyPermissions.BankAccountRead, PartyPermissions.BankAccountVerify, .. Approving]);
@@ -43,7 +43,7 @@ public sealed class BankAccountTests(DatabaseFixture fixture) : IClassFixture<Da
         _approverWithoutVerify = _factory.ClientFor(DatabaseFixture.TenantA, "bank-approver-no-verify");
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task AccountNumber_IsEncryptedAtRest_AndNeverReturnedOrPublished()

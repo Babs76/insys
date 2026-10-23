@@ -45,7 +45,7 @@ public sealed class CrossTenantSuiteTests(DatabaseFixture fixture) : IClassFixtu
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         await fixture.Database.UserWithPermissions(A, "cross-a", Permissions);
         await fixture.Database.UserWithPermissions(B, "cross-b", Permissions);
         _a = _factory.ClientFor(A, "cross-a");
@@ -57,7 +57,7 @@ public sealed class CrossTenantSuiteTests(DatabaseFixture fixture) : IClassFixtu
         }
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task AnotherTenantsRecords_AreNeitherRead_NorFound_NorChanged_ThroughTheApi_TEN004()

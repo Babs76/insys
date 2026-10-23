@@ -23,7 +23,7 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         await fixture.Database.UserWithPermissions(TenantA, "shared-user", All);
         var assessor = await fixture.Database.UserWithPermissions(TenantA, "claims-assessor", All);
         await Static("document.ref_document_categories", "MEDICAL_EVIDENCE", "category_code, label, classification, domain, allowed_roles",
@@ -55,7 +55,7 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
         await Static("document.ref_legal_hold_reason_codes", "LITIGATION", "label, authority_role", "'Pending litigation', 'COMPLIANCE_OFFICER'", reference: true);
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task RuleDecision_IsRecordedWithItsVersionAndInputs_AndAFailedEvaluationRecordsNothing_LIF002()

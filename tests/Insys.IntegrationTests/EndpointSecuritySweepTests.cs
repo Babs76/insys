@@ -25,7 +25,7 @@ public sealed partial class EndpointSecuritySweepTests(DatabaseFixture fixture) 
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database, new Dictionary<string, string?> { ["RateLimiting:PermitsPerMinute"] = "1000000" });
+        _factory = await fixture.Host(new Dictionary<string, string?> { ["RateLimiting:PermitsPerMinute"] = "1000000" });
         _ = _factory.CreateClient();
         _calls = Calls(_factory.Services.GetServices<EndpointDataSource>().SelectMany(s => s.Endpoints).OfType<RouteEndpoint>()
             .Where(e => e.RoutePattern.RawText?.StartsWith("/api/", StringComparison.Ordinal) == true));
@@ -39,7 +39,7 @@ public sealed partial class EndpointSecuritySweepTests(DatabaseFixture fixture) 
                 .Select(c => c.Endpoint.Metadata.GetMetadata<RequiredPermissionMetadata>()!.Permission).Distinct()]);
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void TheSweep_CoversEveryApiEndpoint()

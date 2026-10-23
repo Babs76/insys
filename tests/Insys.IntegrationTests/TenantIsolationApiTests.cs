@@ -22,7 +22,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         _operatorUserId = await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, Operator,
             IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate);
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, Reader, IntegrationPermissions.DeadLetterRead);
@@ -35,7 +35,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
         _tenantBRow = await SeedDeadLetter(DatabaseFixture.TenantB);
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task NoToken_Is401()

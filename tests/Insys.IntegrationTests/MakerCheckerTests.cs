@@ -26,7 +26,7 @@ public sealed class MakerCheckerTests(DatabaseFixture fixture) : IClassFixture<D
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         var db = fixture.Database;
         await db.UserWithPermissions(Tenant, "admin-one", AdminPermissions);
         var second = await db.UserWithPermissions(Tenant, "admin-two", AdminPermissions);
@@ -54,7 +54,7 @@ public sealed class MakerCheckerTests(DatabaseFixture fixture) : IClassFixture<D
             """, ("t", Tenant), ("code", "AUTH-" + approverRole[..12]), ("role", approverRole));
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task PrivilegedRole_IsPendingAndGivesNoPermission_UntilASecondPersonApproves_OQ038()

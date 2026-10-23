@@ -16,7 +16,7 @@ public sealed class RatingPerformanceSmokeTests(DatabaseFixture fixture) : IClas
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database, new Dictionary<string, string?> { ["RateLimiting:PermitsPerMinute"] = "100000" });
+        _factory = await fixture.Host(new Dictionary<string, string?> { ["RateLimiting:PermitsPerMinute"] = "100000" });
         await fixture.Database.UserWithPermissions(Tenant, "rating-smoke", RatingPermissions.CalculationCreate, RatingPermissions.CalculationRead);
         _client = _factory.ClientFor(Tenant, "rating-smoke");
         var from = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30);
@@ -38,7 +38,7 @@ public sealed class RatingPerformanceSmokeTests(DatabaseFixture fixture) : IClas
             ("currency", "ZAR"), ("step", 0.01m), ("method", "HALF_UP"), ("stage", "FINAL_PREMIUM"));
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task PremiumCalculation_StaysWithinTheRatingLatencyTarget_NFR003()

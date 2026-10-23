@@ -41,7 +41,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         var db = fixture.Database;
         await db.UserWithPermissions(Tenant, "money-maker", Permissions);
         var checker = await db.UserWithPermissions(Tenant, "money-checker", Permissions);
@@ -106,7 +106,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
             ("domain", "GENERAL"), ("prefix", "GEN"), ("sequence_length", 8));
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Premium_IsBilledCollectedAllocatedAndPosted_WithTheRuleVersionInForceOnTheAccountingDate()

@@ -27,14 +27,14 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "maker-a", All);
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "checker-a", All);
         await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, "op-maker", All);
         await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, "op-checker", All);
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Tier1Change_NeedsADifferentChecker_ThenActivates_SDM003()

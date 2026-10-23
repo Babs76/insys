@@ -1,8 +1,11 @@
 using System.Net;
 using System.Text.Json;
+using Insys.BuildingBlocks.Api;
 using Insys.Testing;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Insys.IntegrationTests;
 
@@ -11,13 +14,9 @@ public sealed class OperationsTests(DatabaseFixture fixture) : IClassFixture<Dat
 {
     private InsysApiFactory _factory = null!;
 
-    public ValueTask InitializeAsync()
-    {
-        _factory = new InsysApiFactory(fixture.Database);
-        return ValueTask.CompletedTask;
-    }
+    public async ValueTask InitializeAsync() => _factory = await fixture.Host();
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Readiness_ReportsOutboxLag_DegradedThenUnhealthy()
@@ -39,6 +38,20 @@ public sealed class OperationsTests(DatabaseFixture fixture) : IClassFixture<Dat
 
         await fixture.Database.ExecuteAsOwner("UPDATE audit.outbox_event SET published_at = now() WHERE id = @id", ("id", id));
         (await Lag(client)).GetProperty("status").GetString().ShouldBe("Healthy");
+    }
+
+    /// <summary>A new instance builds its endpoints at startup and is ready only then; the times are reported for the cold-start record.</summary>
+    [Fact]
+    public async Task Readiness_WaitsForTheEndpointWarmup_AndReportsItsDuration()
+    {
+        var warmup = await _factory.Services.GetRequiredService<EndpointWarmup>().Completed;
+        var check = (await (await _factory.CreateClient().GetAsync("/health")).Json()).GetProperty("checks").GetProperty("endpoints");
+
+        check.GetProperty("status").GetString().ShouldBe("Healthy");
+        check.GetProperty("data").GetProperty("warmupMilliseconds").GetDouble().ShouldBe(Math.Round(warmup.TotalMilliseconds));
+        (await new EndpointWarmupHealthCheck(new EndpointWarmup()).CheckHealthAsync(null!)).Status.ShouldBe(HealthStatus.Unhealthy);
+        Latency.Note($"Cold start: endpoints built {warmup.TotalMilliseconds:F0} ms after host start; test host start to ready {_factory.ColdStart?.TotalMilliseconds:F0} ms "
+            + $"({_factory.EndpointCount} endpoints)");
     }
 
     [Fact]

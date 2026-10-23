@@ -13,12 +13,12 @@ public sealed class TenancyTests(DatabaseFixture fixture) : IClassFixture<Databa
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, OperatorAdmin,
             TenancyPermissions.Read, TenancyPermissions.Create, TenancyPermissions.Update);
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Onboarding_ThenActivation_ThenSuspension_BlocksTheTenantsUsers_TEN008()

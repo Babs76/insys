@@ -24,13 +24,13 @@ public sealed class AccessTests(DatabaseFixture fixture) : IClassFixture<Databas
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         _requester = await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "access-requester", AccessPermissions);
         _approver = await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "access-approver", AccessPermissions);
         _beneficiary = await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "support-engineer");
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task PrivilegedAccess_IsApprovedBySomeoneOtherThanTheRequester_TEN007()

@@ -23,7 +23,7 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         var db = fixture.Database;
         var t = DatabaseFixture.TenantA;
         _maker = await db.UserWithPermissions(t, "wf-maker", All);
@@ -48,7 +48,7 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         await Static("cfg_escalation_rules", "ESC1", "rule_code, trigger, level, target_role", "'ESC1', 'SLA_BREACH', 1, 'SUPERVISORS'");
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Approval_IsDecidedBySomeoneElse_WithinTheirAuthority_WFL004()

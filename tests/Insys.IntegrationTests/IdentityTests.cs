@@ -13,12 +13,12 @@ public sealed class IdentityTests(DatabaseFixture fixture) : IClassFixture<Datab
 
     public async ValueTask InitializeAsync()
     {
-        _factory = new InsysApiFactory(fixture.Database);
+        _factory = await fixture.Host();
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, Admin,
             IdentityPermissions.UserRead, IdentityPermissions.UserCreate, IdentityPermissions.UserUpdate);
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task RevokedRole_DeniesTheNextRequestWithTheSameToken_IAM005()
