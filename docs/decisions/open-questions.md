@@ -15,7 +15,7 @@ Each item below needs a decision. The code follows the proposal shown until one 
 | OQ-012 | Page size limits | 50 by default, 200 at most | Architecture |
 | OQ-013 | API rate limits | 1,200 requests a minute per tenant | Architecture, with tenants' volumes |
 | OQ-016 | Whose calendar date "today" is | UTC; the tenant's `time_zone` is not yet used | Business |
-| OQ-020 | Field protection key custody | Keys from configuration; choose a KMS or HSM (SRS §30) | Security |
+| OQ-020 | Field protection key custody | DEW KMS envelope encryption decided (ADR-018), to build in Phase 8 Workstream D; rotating the lookup hash key is still open | Security |
 | OQ-023 | Database server time zone | Every server runs in UTC (DBA-013) | Operations |
 | OQ-025 | Impact analysis and simulation before Tier 1 activation | None; test changes in a non-production tenant | Product |
 | OQ-030 | Data migration for an isolation profile change | A migration reference is required and recorded; no migration is built | Architecture |
@@ -65,7 +65,7 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-017 | 0 | Event type names | Resolved (proposal) |
 | OQ-018 | 0 | Missing If-Match | Resolved (proposal) |
 | OQ-019 | 0 | Replay delivers before commit | Resolved (proposal) |
-| OQ-020 | 0 | Field protection key custody | Open |
+| OQ-020 | 0 | Field protection key custody | Partly resolved: DEW KMS (ADR-018); hash key rotation open |
 | OQ-021 | 0 | Test server version | Resolved: CI-equivalent runs on postgres:18 |
 | OQ-022 | 1 | The tenant register has no row_version | Resolved (proposal): V0006 |
 | OQ-023 | 1 | Server time zone and partition bounds | Open |
@@ -189,6 +189,7 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 
 ### OQ-020 Field protection key custody
 - **Open:** keys are read from configuration until a KMS or HSM is chosen (SRS §30).
+- **Phase 8 decision (ADR-018):** Huawei Cloud DEW KMS in af-south-1, with envelope encryption: data keys are encrypted by a KMS master key, and each value keeps its key ID. The local provider stays for development and CI. **Still open:** rotating `HashKey`, which means recomputing every `_hash` column.
 
 ### OQ-021 Test server version
 - **Resolved:** the full suite runs on Testcontainers `postgres:18`. GitHub Actions is blocked on the account, so CI-equivalent runs are local for now.
