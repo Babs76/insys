@@ -1,6 +1,6 @@
 # Addendum: product and organisation scopes on permissions (F103, SRS-003)
 
-**Proposed, pending business sign-off** (ADR-019). Recorded as OQ-074. Nothing in it is built yet.
+**Signed off 23 October 2026** (ADR-019); closes OQ-074. Planned as Wave 0b.
 
 - **Basis:**
   - SRS-003: "Permissions MUST be restricted to authorised tenants and, where configured, to specific products, branches, organisations, and transaction categories."

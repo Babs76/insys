@@ -1918,6 +1918,47 @@
         "x-permission": "user.read"
       }
     },
+    "/api/v1/identity/role-assignments/scoped": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Role assignments with product or organisation scopes, for review (F103 interim control)",
+        "description": "Scopes are not enforced yet: these assignments give their role\u0027s permissions for every product and organisation. New scoped assignments are refused (SCOPES_NOT_ENFORCED) until enforcement is built (Wave 0b).",
+        "operationId": "IdentityListScopedAssignments",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentityScopedAssignmentView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "user.read"
+      }
+    },
     "/api/v1/party/merges": {
       "post": {
         "tags": [
@@ -19076,7 +19117,7 @@
           "Identity"
         ],
         "summary": "Assign a role",
-        "description": "Refused for roles with no version in force, MFA-required roles without MFA (IAM-003) and segregation-of-duties conflicts (SRS-002). Completes asynchronously (GAP-027): for a privileged role (requiresApproval), the PRIVILEGED_ROLE approval appears in Workflow; the assignment stays PendingApproval until it is decided.",
+        "description": "Refused for roles with no version in force, MFA-required roles without MFA (IAM-003), segregation-of-duties conflicts (SRS-002), and, until product and organisation scopes are enforced (F103), any assignment with scopes (SCOPES_NOT_ENFORCED). Completes asynchronously (GAP-027): for a privileged role (requiresApproval), the PRIVILEGED_ROLE approval appears in Workflow; the assignment stays PendingApproval until it is decided.",
         "operationId": "AssignRole",
         "parameters": [
           {
@@ -27744,6 +27785,10 @@
               "string"
             ],
             "format": "int64"
+          },
+          "scopesEnforced": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -28126,6 +28171,68 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "IdentityScopedAssignmentView": {
+        "required": [
+          "assignmentId",
+          "userId",
+          "username",
+          "roleCode",
+          "status",
+          "scopeProducts",
+          "scopeBranches",
+          "validFrom",
+          "validTo"
+        ],
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "roleCode": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IdentityAssignmentStatus"
+          },
+          "scopeProducts": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopeBranches": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         }
       },

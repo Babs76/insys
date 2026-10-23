@@ -85,12 +85,24 @@ public sealed record RoleView(string RoleCode, bool Privileged, bool RequiresMfa
 
 public sealed record ListRoles : IQuery<IReadOnlyList<RoleView>>;
 
+/// <summary>A role assignment made with scopes before they were refused (F103 interim control), for review.</summary>
+public sealed record ScopedAssignmentView(Guid AssignmentId, Guid UserId, string Username, string RoleCode, AssignmentStatus Status, string[]? ScopeProducts,
+    string[]? ScopeBranches, DateOnly ValidFrom, DateOnly? ValidTo);
+
+/// <summary>
+/// Query ListScopedAssignments (F103 interim control): every assignment with product or organisation scopes, which give
+/// their role's permissions without the scope until enforcement is built. Review them: revoke, or keep knowing the scope has no effect.
+/// </summary>
+public sealed record ListScopedAssignments : IQuery<IReadOnlyList<ScopedAssignmentView>>;
+
 public sealed record UserView(
     Guid Id, string Username, string DisplayName, string IdpCode, string? ExternalSubject, UserStatus Status, bool MfaEnrolled, DateTimeOffset? LastLoginAt,
     IReadOnlyList<RoleAssignmentView> RoleAssignments, long RowVersion);
 
 public interface IUserQueries
 {
+    Task<IReadOnlyList<ScopedAssignmentView>> ScopedAssignments(CancellationToken cancellationToken);
+
     Task<IReadOnlyList<UserView>> List(Guid? afterId, int limit, CancellationToken cancellationToken);
 
     Task<UserView?> Get(Guid userId, CancellationToken cancellationToken);
@@ -209,6 +221,16 @@ internal sealed class AssignRoleHandler(IUserRepository users, IRolePolicyReader
         var held = user.Value.EffectiveAssignments(today).Select(a => a.RoleCode).ToList();
         var roles = await policy.Roles([command.RoleCode, .. held], today, cancellationToken);
         var role = roles.FirstOrDefault(r => r.RoleCode == command.RoleCode) ?? new RoleFacts(command.RoleCode, false, new HashSet<string>(), false);
+
+        // F103 interim control: until product and organisation scopes are enforced (docs/specs/addenda/access-scopes.md, Wave 0b),
+        // a scope would have no effect, so nobody may rely on one. The role's own default scopes count too.
+        if (command.ScopeProducts is { Length: > 0 } || command.ScopeBranches is { Length: > 0 } || role.ScopeProducts is { Length: > 0 }
+            || role.ScopeBranches is { Length: > 0 })
+        {
+            return Error.Validation(IdentityErrorCodes.ScopesNotEnforced,
+                "Product and organisation scopes are not enforced yet (F103), so a scoped role assignment is refused. Assign the role without scopes.");
+        }
+
         var rules = await policy.ConflictRules(today, cancellationToken);
         audit.Record(new AuditEntry("IDENTITY", "AssignRole", nameof(UserAccount), command.UserId.ToString(),
             new Dictionary<string, string?> { ["role"] = command.RoleCode }));
@@ -297,6 +319,12 @@ internal sealed class ListUsersHandler(IUserQueries queries) : IQueryHandler<Lis
 {
     public async Task<Result<IReadOnlyList<UserView>>> Handle(ListUsers query, CancellationToken cancellationToken) =>
         Result.Success(await queries.List(query.AfterId, query.Limit, cancellationToken));
+}
+
+internal sealed class ListScopedAssignmentsHandler(IUserQueries queries) : IQueryHandler<ListScopedAssignments, IReadOnlyList<ScopedAssignmentView>>
+{
+    public async Task<Result<IReadOnlyList<ScopedAssignmentView>>> Handle(ListScopedAssignments query, CancellationToken cancellationToken) =>
+        Result.Success(await queries.ScopedAssignments(cancellationToken));
 }
 
 internal sealed class ListRolesHandler(IRolePolicyReader roles, IClock clock) : IQueryHandler<ListRoles, IReadOnlyList<RoleView>>

@@ -1,6 +1,6 @@
 # Addendum: aggregation and risk limits at issue and endorsement (F062)
 
-**Proposed, pending business sign-off** (ADR-019). Recorded as OQ-076. Nothing in it is built yet.
+**Signed off 23 October 2026** (ADR-019); closes OQ-076. Planned as Wave 0b.
 
 - **Basis:** static data
   - `general.cfg_aggregation_zones_and_limits`: zone, peril, `max_exposure`, currency;

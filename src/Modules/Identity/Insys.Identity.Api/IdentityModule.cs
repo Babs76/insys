@@ -99,6 +99,16 @@ public sealed class IdentityModule : IModule
                 + "Assigning a role that needs approval creates a PendingApproval assignment that gives no permission until approved.")
             .RequirePermission(IdentityPermissions.UserRead);
 
+        api.MapGet("/identity/role-assignments/scoped", async (IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListScopedAssignments(), ct)).ToHttp(items => Results.Ok(items)))
+            .WithTags(Name)
+            .Produces<IReadOnlyList<ScopedAssignmentView>>(StatusCodes.Status200OK)
+            .WithName("IdentityListScopedAssignments")
+            .WithSummary("Role assignments with product or organisation scopes, for review (F103 interim control)")
+            .WithDescription("Scopes are not enforced yet: these assignments give their role's permissions for every product and organisation. New "
+                + "scoped assignments are refused (SCOPES_NOT_ENFORCED) until enforcement is built (Wave 0b).")
+            .RequirePermission(IdentityPermissions.UserRead);
+
         var users = api.MapGroup("/identity/users").WithTags(Name);
 
         users.MapPost("/", async (ProvisionUserRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
@@ -149,7 +159,8 @@ public sealed class IdentityModule : IModule
             .RequireIfMatch()
             .WithName("AssignRole")
             .WithSummary("Assign a role")
-            .WithDescription("Refused for roles with no version in force, MFA-required roles without MFA (IAM-003) and segregation-of-duties conflicts (SRS-002).")
+            .WithDescription("Refused for roles with no version in force, MFA-required roles without MFA (IAM-003), segregation-of-duties conflicts (SRS-002), "
+                + "and, until product and organisation scopes are enforced (F103), any assignment with scopes (SCOPES_NOT_ENFORCED).")
             .WithEventualEffects("for a privileged role (requiresApproval), the PRIVILEGED_ROLE approval appears in Workflow; the assignment stays "
                 + "PendingApproval until it is decided.")
             .RequirePermission(IdentityPermissions.UserUpdate);

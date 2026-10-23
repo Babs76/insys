@@ -67,6 +67,13 @@ internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles,
             ? (await Views([user], cancellationToken))[0]
             : null;
 
+    public async Task<IReadOnlyList<ScopedAssignmentView>> ScopedAssignments(CancellationToken cancellationToken) =>
+        (await db.Users.AsNoTracking().Include(u => u.RoleAssignments).Where(u => u.RoleAssignments.Any(a => a.ScopeProducts != null || a.ScopeBranches != null))
+            .ToListAsync(cancellationToken))
+        .SelectMany(u => u.RoleAssignments.Where(a => a.ScopeProducts is { Length: > 0 } || a.ScopeBranches is { Length: > 0 })
+            .Select(a => new ScopedAssignmentView(a.Id, u.Id, u.Username, a.RoleCode, a.Status, a.ScopeProducts, a.ScopeBranches, a.ValidFrom, a.ValidTo)))
+        .OrderBy(a => a.Username, StringComparer.Ordinal).ThenBy(a => a.RoleCode, StringComparer.Ordinal).ToList();
+
     /// <summary>Each assignment says whether its role is privileged, needs MFA and needs approval to assign (GAP-021, OQ-038).</summary>
     private async Task<IReadOnlyList<UserView>> Views(IReadOnlyList<UserAccount> users, CancellationToken cancellationToken)
     {

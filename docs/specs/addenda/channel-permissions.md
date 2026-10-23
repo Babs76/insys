@@ -1,6 +1,6 @@
 # Addendum: channel transaction permissions (F005)
 
-**Proposed, pending business sign-off** (ADR-019). Recorded as OQ-075. Nothing in it is built yet.
+**Signed off 23 October 2026** (ADR-019); closes OQ-075. Planned as Wave 0b.
 
 - **Basis:** static data
   - `channel.cfg_channel_definitions`: `channel_code`, `audience` (Staff, Broker, Customer, Provider, Partner), `enabled_products`, `enabled_transactions`;
