@@ -145,20 +145,24 @@ public sealed class LocalisationTests(DatabaseFixture fixture) : IClassFixture<D
     [Fact]
     public async Task ActivatedTranslation_ReplacesTheCachedText()
     {
-        const string Url = "/api/v1/billing/static/billing-frequencies/WEEKLY";
-        (await (await Get(A, "lang-a", Url, "xh")).Json()).GetProperty("title").GetString().ShouldNotBe("Akufumanekanga.");
+        // VALIDATION_FAILED in isiXhosa, which no other test here reads, so the new row affects no other test.
+        var invalid = new { code = "BIWEEKLY", label = "Bi-weekly", periodsPerYear = 26, changeReason = "test", labels = new { english = "Bi-weekly" } };
+        async Task<string?> Title() =>
+            (await (await Client(A, "lang-a", "xh").Send(HttpMethod.Post, "/api/v1/billing/static/billing-frequencies", invalid, idempotent: true)).Json())
+            .GetProperty("title").GetString();
 
-        await fixture.Database.SeedStatic(A, "channel.ref_ui_label_and_translation_bundles", "ACTIVE", "NOT_FOUND-xh", From,
-            ("label_key", "error.resource.not_found"), ("language", "xh"), ("text", "Akufumanekanga."));
-        (await (await Get(A, "lang-a", Url, "xh")).Json()).GetProperty("title").GetString().ShouldNotBe("Akufumanekanga.", "still cached");
+        (await Title()).ShouldNotBe("Isicelo asivumelekanga.");
+        await fixture.Database.SeedStatic(A, "channel.ref_ui_label_and_translation_bundles", "ACTIVE", "VALIDATION_FAILED-xh", From,
+            ("label_key", "error.request.validation_failed"), ("language", "xh"), ("text", "Isicelo asivumelekanga."));
+        (await Title()).ShouldNotBe("Isicelo asivumelekanga.", "still cached");
 
         var record = new StaticRecordRef("channel", "ref_ui_label_and_translation_bundles", "ref_ui_label_and_translation_bundles", "integration",
-            "ui-label-and-translation-bundles", Guid.CreateVersion7(), "NOT_FOUND-xh", 1, false);
+            "ui-label-and-translation-bundles", Guid.CreateVersion7(), "VALIDATION_FAILED-xh", 1, false);
         await _factory.Services.GetRequiredService<IEventBus>().Publish(new EventEnvelope(Guid.CreateVersion7(), A, "sdm.StaticDataVersionActivated", 1,
             DateTimeOffset.UtcNow, "StaticRecord", record.RecordId, Guid.CreateVersion7(), null,
             JsonSerializer.SerializeToElement(new StaticDataVersionActivated(null, record, From, null), ModuleDbContext.EventJson)), CancellationToken.None);
 
-        (await (await Get(A, "lang-a", Url, "xh")).Json()).GetProperty("title").GetString().ShouldBe("Akufumanekanga.");
+        (await Title()).ShouldBe("Isicelo asivumelekanga.");
     }
 
     [Fact]

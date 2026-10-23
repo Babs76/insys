@@ -23,7 +23,7 @@ public sealed class IdempotencyTests(DatabaseFixture fixture) : IClassFixture<Da
 
     public async ValueTask InitializeAsync()
     {
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(TestTokens.HostSettings(fixture.Database));
         builder.Services.AddInsysInfrastructure(builder.Configuration);

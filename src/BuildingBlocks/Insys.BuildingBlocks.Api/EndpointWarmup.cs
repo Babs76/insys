@@ -27,15 +27,28 @@ public sealed class EndpointWarmup
 }
 
 /// <summary>Builds every endpoint once at startup, off the startup path, and records how long it took.</summary>
-public sealed class EndpointWarmupService(EndpointWarmup warmup, IEnumerable<EndpointDataSource> sources, ILogger<EndpointWarmupService> logger)
-    : BackgroundService
+public sealed class EndpointWarmupService(EndpointWarmup warmup, IEnumerable<EndpointDataSource> sources, IHostApplicationLifetime lifetime,
+    ILogger<EndpointWarmupService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await Task.Yield();
+        // The endpoint data sources are connected when the server builds its pipeline, after the hosted services start:
+        // read them only once the application has started, or there is nothing to build yet.
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using (lifetime.ApplicationStarted.Register(() => started.TrySetResult()))
+        await using (stoppingToken.Register(() => started.TrySetCanceled()))
+        {
+            await started.Task;
+        }
+
         try
         {
             var count = sources.Sum(source => source.Endpoints.Count);
+            if (count == 0)
+            {
+                throw new InvalidOperationException("No endpoints were found to build.");
+            }
+
             warmup.Complete();
             logger.LogInformation("{EndpointCount} endpoints built; ready {ElapsedMilliseconds} ms after host start", count,
                 Math.Round((await warmup.Completed).TotalMilliseconds));
