@@ -68,7 +68,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         GeneralPermissions.RiskRead, GeneralPermissions.RiskCreate, GeneralPermissions.QuoteRead, GeneralPermissions.QuoteCreate, GeneralPermissions.QuoteUpdate, GeneralPermissions.QuoteUnderwrite,
         GeneralPermissions.PolicyRead, GeneralPermissions.PolicyCreate, GeneralPermissions.PolicyUpdate, GeneralPermissions.PolicyCancel, GeneralPermissions.ClaimRead,
         GeneralPermissions.ClaimCreate, GeneralPermissions.ClaimUpdate, GeneralPermissions.ClaimDecide, GeneralPermissions.AssessmentUpdate,
-        RatingPermissions.CalculationCreate, RatingPermissions.CalculationRead, BillingPermissions.AccountRead, BillingPermissions.InvoiceRead,
+        RatingPermissions.CalculationCreate, RatingPermissions.CalculationRead, BillingPermissions.AccountRead, BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate,
         PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackCreate,
         ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate, ClaimsPermissions.InstructionRead,
         FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate, WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove,
@@ -392,7 +392,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
     }
 
     [Fact]
-    public async Task RenewalJob_InvitesThenRenewsByItself_AndTheExposureSnapshotSumsByZoneAndPeril_GEN004()
+    public async Task RenewalJob_InvitesThenRenewsByItself_AndTheExposureSnapshotSumsByZoneAndPeril_AndTheRenewalIsBilled_GEN004_F023()
     {
         var vehicle = await Vehicle(riskZone: "CPT1");
         var policy = await IssuedPolicy(vehicle);
@@ -417,6 +417,17 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         await _factory.DrainOutbox();
         (await Get($"/api/v1/general/policies/{policy}")).GetProperty("status").GetString().ShouldBe("Renewed");
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM general.policy WHERE renewal_of_id = @p", ("p", policy))).ShouldBe(1L);
+
+        // F023: the renewal is billed. It is issued as a new policy, so Billing schedules its premium on the policy's billing
+        // account, and invoices each instalment when it is due: the first on the renewal's first day.
+        var renewal = await _db.ScalarAsOwner<Guid>("SELECT id FROM general.policy WHERE renewal_of_id = @p", ("p", policy));
+        var account = await _db.ScalarAsOwner<Guid>("SELECT billing_account_id FROM billing.invoice WHERE policy_ref = @p LIMIT 1", ("p", policy));
+        (await _db.ScalarAsOwner<Guid>("SELECT billing_account_id FROM billing.premium_schedule WHERE policy_ref = @r", ("r", renewal))).ShouldBe(account);
+        var renewalStart = await _db.ScalarAsOwner<DateOnly>("SELECT period_start FROM general.policy WHERE id = @r", ("r", renewal));
+        var invoiced = await _maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/invoices", new { asOf = renewalStart }, idempotent: true);
+        invoiced.StatusCode.ShouldBe(HttpStatusCode.OK, await invoiced.Content.ReadAsStringAsync());
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @r AND document_type = 'INVOICE'", ("r", renewal)))
+            .ShouldBe(1L);
     }
 
     [Fact]

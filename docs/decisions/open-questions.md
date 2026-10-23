@@ -121,6 +121,7 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-071 | 8 | A rules dry run that records no decision | Open: proposal for the product configuration wave |
 | OQ-072 | 8 | How long a parked event delivery may wait before it is escalated, and who owns the escalation | Open: ADR-022 proposes 1 business day, per tenant |
 | OQ-073 | 8 | Retention of the party search access log | Open: no period in the SRS or static data |
+| OQ-074 | 8 | Product and organisation scopes on permissions (F103, SRS-003): which records, assignment, hierarchy, reads, transaction categories | Open: proposal `docs/specs/addenda/access-scopes.md`; product scopes are stored but not enforced today |
 
 ---
 
@@ -750,3 +751,12 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - (b) Give it a retention period of its own in static data.
 
   Either is a business decision. It belongs with OQ-054's party retention.
+
+### OQ-074 Product and organisation scopes on permissions (Phase 8 Wave 0, F103)
+- **Sources:** SRS-003; `tenant.mst_organisation_structure`; `scope_products` and `scope_branches` on roles and role assignments.
+- **Gap:**
+  - No transactional record carries a branch or organisation.
+  - The specifications do not say how a record gets one, whether a scope covers the nodes below it, how scopes apply to reads, or what a transaction category is.
+  - Product scopes are stored and shown on `/identity/me`, but not enforced: a product-scoped role gives its permissions for every product.
+- **Proposal (pending business sign-off):** `docs/specs/addenda/access-scopes.md`. Not built until approved, because it changes every domain module's repositories and adds a column to each scoped record.
+
