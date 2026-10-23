@@ -19,6 +19,7 @@ public sealed class PostgresServer : IAsyncLifetime
     public const string TestModuleRole = "insys_test_mod";
     private readonly SemaphoreSlim _migrationLock = new(1, 1);
     private PostgreSqlContainer? _container;
+    private (string Name, MigrationResult Result)? _template;
 
     public string AdminConnectionString { get; private set; } = "";
 
@@ -83,26 +84,43 @@ public sealed class PostgresServer : IAsyncLifetime
         return new NpgsqlConnectionStringBuilder(AdminConnectionString) { Database = name, Pooling = false }.ConnectionString;
     }
 
-    /// <summary>Creates an empty database, applies every migration as the owner and grants the non-owner app role.</summary>
+    /// <summary>
+    /// A freshly migrated database: a copy of a template database that is migrated once per server (every migration as the
+    /// owner, then the module role grants). Copying is much faster than migrating each test class's database, and keeps the
+    /// heavy DDL of the migrations out of the time other test classes run.
+    /// </summary>
     public async Task<TestDatabase> CreateMigratedDatabase()
     {
-        var owner = await CreateEmptyDatabase();
-        var name = new NpgsqlConnectionStringBuilder(owner).Database!;
-        var runner = new MigrationRunner(owner);
-
-        // Migrations create cluster-wide roles (V0002 creates insys_platform_admin). Test classes run in parallel,
-        // so apply them one database at a time; concurrent CREATE ROLE races even behind IF NOT EXISTS.
+        var name = $"insys_test_{Guid.NewGuid():N}"[..30];
         MigrationResult result;
         await _migrationLock.WaitAsync();
         try
         {
-            result = await runner.Migrate(RepositoryPaths.Migrations);
-            await runner.ApplyRoles(RepositoryPaths.Roles, RolePassword);
+            if (_template is null)
+            {
+                // Migrations create cluster-wide roles (V0002 creates insys_platform_admin), so they run once, here.
+                var templateOwner = await CreateEmptyDatabase();
+                var runner = new MigrationRunner(templateOwner);
+                var migrated = await runner.Migrate(RepositoryPaths.Migrations);
+                await runner.ApplyRoles(RepositoryPaths.Roles, RolePassword);
+                NpgsqlConnection.ClearAllPools();
+                _template = (new NpgsqlConnectionStringBuilder(templateOwner).Database!, migrated);
+            }
+
+            result = _template.Value.Result;
+
+            // FILE_COPY copies the template's files; one copy at a time, as a template may have no other session.
+            await using var connection = new NpgsqlConnection(AdminConnectionString);
+            await connection.OpenAsync();
+            await using var create = new NpgsqlCommand($"CREATE DATABASE {name} TEMPLATE {_template.Value.Name} STRATEGY FILE_COPY", connection);
+            await create.ExecuteNonQueryAsync();
         }
         finally
         {
             _migrationLock.Release();
         }
+
+        var owner = new NpgsqlConnectionStringBuilder(AdminConnectionString) { Database = name, Pooling = false }.ConnectionString;
 
         // Small pools that release idle connections quickly keep many short-lived test hosts within the server's limit.
         var template = new NpgsqlConnectionStringBuilder(AdminConnectionString)
