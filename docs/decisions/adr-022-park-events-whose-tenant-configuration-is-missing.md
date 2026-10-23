@@ -1,8 +1,8 @@
 # ADR-022: Park an event whose tenant configuration is missing, instead of retrying it as a failure
 
-- **Status:** Proposed, revision 2 (Phase 8 Wave 0, GAP-034, 23 October 2026), for approval. Readiness (decision 1) is built. Parking (decisions 2 to 6) is not.
+- **Status:** **Accepted** (revision 3, 23 October 2026). Revision 2 was approved for building with three additions: GAP-038 payouts (decision 7), a time limit on each delivery attempt (decision 8), and escalation per tenant (decision 6, OQ-072 decided). Readiness (decision 1) is built; parking is built on `wave0-4`.
 - **Date:** 23 October 2026
-- **Requirements:** INT-005 (duplicate delivery tolerated), INT-006 (controlled retry, monitoring and recovery), TEN-004 (tenant isolation), NFR-001 (availability), NFR-012 (observability)
+- **Requirements:** INT-005 (duplicate delivery tolerated), INT-006 (controlled retry, monitoring and recovery), PAY-001 (payments traceable), TEN-004 (tenant isolation), NFR-001 (availability), NFR-012 (observability)
 
 ## Context
 
@@ -89,14 +89,32 @@ The full table is in `docs/runbooks/dead-letters-and-webhooks.md`. Retrying cann
   - The same is logged once per tenant and code when it first parks, as a structured event (`ParkedDeliveryRaised`) that the log alarm in Cloud Eye matches on.
   - The alert names the tenant and the missing configuration, never a party or payload.
 
-### 6. Escalation: how long a delivery may stay parked
-- **The rule.** A delivery parked longer than `Outbox:Parking:EscalateAfter` is escalated:
-  - `escalated_at` is set, and `/health` turns Unhealthy for that tenant's line;
-  - the alert repeats with "escalated";
-  - a Workflow task is raised for the tenant's operations queue, so it has an owner and an SLA (WFL).
+### 6. Escalation, per tenant (OQ-072, decided 23 October 2026)
+- **Immediately.** Every park alerts platform operations (the `/health` line and the `ParkedDeliveryRaised` log event) and is listed per tenant (decision 5).
+- **Then, by consumer class.** Each tenant can configure these; until it does, the defaults below apply.
 
-  It is never dead-lettered for missing configuration: the work stays owed until it is done or an operator withdraws it.
-- **The period.** Nothing in the SRS or static data sets it. `integration.cfg_retry_and_dead_letter_policies` governs retries (attempts, back-off, delays), not parking. It is raised as **OQ-072**. This ADR proposes a platform default of **1 business day**, overridable per tenant, pending business sign-off. It does not choose the value in code until then.
+| Class | First escalation | Second escalation |
+|---|---|---|
+| Money: Billing, Payments, Finance, claim payments (Claims Framework), commission (Distribution), reinsurance | A Workflow task to the tenant's configuration-owner role after **4 business hours** | The tenant administrator and the platform operator, after **1 business day** |
+| All other consumers | After **1 business day** | After **3 business days** |
+
+- **Business time.**
+  - If the tenant has a working calendar, business time follows it. That is a calendar in `workflow.ref_business_calendars` (working days, hours, holiday calendar, time zone), named in the tenant's parking settings.
+  - Otherwise business time is Monday to Friday, 08:00 to 17:00, in the tenant's time zone (`tenant.cfg_locale_defaults.time_zone`), or Africa/Johannesburg when it has none.
+  - It is computed with Workflow's `BusinessCalendar`, through a Workflow contract.
+- **Where it is configured.** A per-tenant parking setting holds the configuration-owner role, the calendar code and the four durations. It is changed by a tenant administrator, and audited.
+- **Never dropped.** A parked delivery is never dropped or dead-lettered automatically, however long it waits. Discarding one is a manual action (`POST …/parked-deliveries/{id}/discard`, `dead_letter.update`) that needs a reason, and it is audited.
+
+### 7. Payouts that cannot start are parked (GAP-038; resolves the payout item of OQ-058)
+A released claim payment, refund, commission statement or remittance becomes a payout in Payments. Today, if no payout method (or provider) is in force for its currency, it is **skipped with a log line, and the money is never paid**. Now Payments' consumer throws `PrerequisiteMissingException(PAYOUT_METHOD_NOT_IN_FORCE, <currency>)`, so the delivery is parked under this ADR:
+- it is visible per tenant;
+- it is alerted at once and escalated on the money schedule;
+- it is retried when a payout method is published.
+
+The payment is created then, exactly once.
+
+### 8. A time limit on each delivery attempt
+Each consumer's attempt runs under `Outbox:AttemptTimeout` (30 seconds by default). An attempt that overruns is cancelled and counts as a failure, retried with back-off. A slow failure in one tenant therefore costs every tenant's relay pass at most that long, not the full length of a remote timeout.
 
 ## Consequences
 - An instance stays in service whatever one tenant's configuration is (TEN-004, NFR-001).
@@ -114,5 +132,6 @@ The full table is in `docs/runbooks/dead-letters-and-webhooks.md`. Retrying cann
 - **Reusing `dead_letter_message` for parked deliveries** (revision 1): dead letters have no record key or waiting state, so order could not be kept. A separate table keeps the two meanings apart.
 - **Skipping the work:** this loses billing or documents without anyone knowing.
 
-## Open questions
-- **OQ-072:** how long a delivery may stay parked before it is escalated (proposed: 1 business day, per tenant), and who owns the escalation queue.
+## Decided questions
+- **OQ-072** (decided 23 October 2026): escalation per tenant, as in decision 6.
+- **OQ-058, payouts** (resolved by decision 7): a payout that cannot start is parked, not skipped.

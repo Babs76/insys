@@ -46,6 +46,7 @@ Order: Workstreams B, C and D, then Wave 0, then Waves 1 to 6. After each wave, 
 | Wave | Scope | Functions |
 |---|---|---|
 | 0 | SRS conformance and control fixes | F103 (SRS-003 branch and organisation scopes on reads and actions), F005 (channel transaction permissions), F009 (fraud indicators at registration in every domain), F062 (aggregation and risk limits at issue and endorsement, with alerts), F055 (GL export, §15.1, behind a GL adapter), F023 (renewal billing test); front-end enablement (below) |
+| 0b | Signed-off controls (23 October 2026) | F103 (access scopes, `addenda/access-scopes.md`), F005 (channel permissions, `addenda/channel-permissions.md`), F062 (aggregation and risk limits, `addenda/aggregation-limits.md`), in that order. Product-scoped role assignments stay refused until F103's enforcement is merged. |
 | 1 | Communications | F021, F031, F078, F095–F102 |
 | 2 | Cases | F010–F013, F032, F033, F050, F061, F066, F068–F073 |
 | 3 | Customer due diligence | F001–F003, F077 |

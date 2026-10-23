@@ -119,11 +119,11 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-069 | 8 | Database connection capacity: 23 pools per API instance against the RDS limit | Starting assumption: 3 instances, about 116 each, RDS 16 GB; revisit after load testing |
 | OQ-070 | 8 | Document content purposes: free text or a code list | Open: free text today |
 | OQ-071 | 8 | A rules dry run that records no decision | Open: proposal for the product configuration wave |
-| OQ-072 | 8 | How long a parked event delivery may wait before it is escalated, and who owns the escalation | Open: ADR-022 proposes 1 business day, per tenant |
-| OQ-073 | 8 | Retention of the party search access log | Open: no period in the SRS or static data |
-| OQ-074 | 8 | Product and organisation scopes on permissions (F103, SRS-003): which records, assignment, hierarchy, reads, transaction categories | Open: proposal `docs/specs/addenda/access-scopes.md`; product scopes are stored but not enforced today |
-| OQ-075 | 8 | Channel transaction permissions (F005): how a request's channel is known, what a transaction type is, approval on a channel | Open: proposal `docs/specs/addenda/channel-permissions.md` |
-| OQ-076 | 8 | Aggregation and risk limits (F062): effect at quote issue and endorsement, the alert level, aggregate claims limits and reinstatement | Open: proposal `docs/specs/addenda/aggregation-limits.md` |
+| OQ-072 | 8 | How long a parked event delivery may wait before it is escalated, and who owns the escalation | Decided 23 Oct 2026: per tenant; money consumers 4 business hours then 1 business day, others 1 then 3 business days; never dropped (ADR-022 decision 6) |
+| OQ-073 | 8 | Retention of the party search access log | Decided 23 Oct 2026: Security class; full for 12 months, then minimised; deleted after 5 years; legal hold overrides |
+| OQ-074 | 8 | Product and organisation scopes on permissions (F103, SRS-003) | Resolved 23 Oct 2026: `docs/specs/addenda/access-scopes.md` signed off; scoped role assignments refused until enforcement is merged |
+| OQ-075 | 8 | Channel transaction permissions (F005) | Resolved 23 Oct 2026: `docs/specs/addenda/channel-permissions.md` signed off |
+| OQ-076 | 8 | Aggregation and risk limits (F062) | Resolved 23 Oct 2026: `docs/specs/addenda/aggregation-limits.md` signed off |
 
 ---
 
@@ -427,7 +427,7 @@ Each item is built as stated and marked `TODO(spec)` in code.
 - **Payment timeouts:**
   - **Unknown after 24 hours:** a pending payment with no answer becomes Unknown after `Payments:Jobs:UnknownAfter` (default 24 hours, not specified). Unknown goes to a reconciliation exception and a person, never to success (PAY-005).
   - **Unmatched statement lines** become reconciliation exceptions too.
-- **Payouts:** a payout with no PAY method in force for its currency is skipped and logged. It should raise an exception for a person.
+- **Payouts:** a payout with no PAY method in force for its currency was skipped and logged. **Resolved (ADR-022 decision 7, GAP-038):** it is parked, alerted and escalated on the money schedule, and retried when a payout method is published.
 - **Transaction types:** Finance maps events to its own codes, for example PREMIUM_DUE, PAYMENT_RECEIVED and CLAIM_PAID (`TransactionTypes`). `finance.ref_transaction_types` is not yet checked against them.
 - **Schedules:** open-ended premium schedules generate instalments one year ahead; how far ahead is not specified.
 - **Claim payment above the remaining reserve:** a reserve can be lowered after a payment is released. If the payment then exceeds the remaining reserve when it completes, it is not recorded as a movement; it needs an exception queue.
@@ -736,6 +736,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Sources:** INT-006 (controlled retry, monitoring and recovery); WFL (tasks and SLAs).
 - **Gap:** ADR-022 parks a delivery whose tenant configuration is missing, instead of dead-lettering it. Nothing sets how long it may stay parked before someone must act, or who that is. `integration.cfg_retry_and_dead_letter_policies` governs retries (attempts, back-off, delays), not parking.
 - **Proposal (pending business sign-off):** escalate after 1 business day by the tenant's business calendar, overridable per tenant, with a Workflow task in the tenant's operations queue.
+- **Decided (23 October 2026, Ade):** configured per tenant, with these defaults. Every park alerts platform operations at once and is listed per tenant. Money consumers: a Workflow task to the tenant's configuration-owner role after 4 business hours, then the tenant administrator and the platform operator after 1 business day. Other consumers: after 1 business day, then 3. Business hours come from the tenant's calendar in `workflow.ref_business_calendars`, else Monday to Friday 08:00 to 17:00 in the tenant's time zone. A parked event is never dropped or dead-lettered automatically: discarding one is manual, needs a reason and is audited. **Closed:** ADR-022 decision 6.
 
 ### OQ-073 Retention of the party search access log (Phase 8 Wave 0, GAP-022)
 - **Sources:** PTY-003, PTY-005 (authorised purposes, privacy); IAM-006 (audit); OQ-054 (party retention, open).
@@ -753,6 +754,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - (b) Give it a retention period of its own in static data.
 
   Either is a business decision. It belongs with OQ-054's party retention.
+- **Decided (23 October 2026, Ade):** the `Security` class, configured per tenant in `audit.cfg_audit_retention_policies`. Full entries are kept for 12 months. After that the plain-text name filter is removed, keeping who, when, the filter types, the identifier hash and the result count. Entries are deleted 5 years after the search date, and a legal hold overrides deletion. **Basis:** aligned with the FICA s23 and LTIA PPR rule 16.4(b) five-year minimums, and POPIA s14 minimisation; compliance to confirm before go-live. Built as the party search log retention job (general retention, OQ-054, is still open). **Closed.**
 
 ### OQ-074 Product and organisation scopes on permissions (Phase 8 Wave 0, F103)
 - **Sources:** SRS-003; `tenant.mst_organisation_structure`; `scope_products` and `scope_branches` on roles and role assignments.
@@ -761,11 +763,13 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - The specifications do not say how a record gets one, whether a scope covers the nodes below it, how scopes apply to reads, or what a transaction category is.
   - Product scopes are stored and shown on `/identity/me`, but not enforced: a product-scoped role gives its permissions for every product.
 - **Proposal (pending business sign-off):** `docs/specs/addenda/access-scopes.md`. Not built until approved, because it changes every domain module's repositories and adds a column to each scoped record.
+- **Resolved (23 October 2026):** `docs/specs/addenda/access-scopes.md` is signed off, and its build is planned (Wave 0b). Until enforcement is merged, role assignments with product or organisation scopes are refused (`SCOPES_NOT_ENFORCED`), existing ones are listed for review, and `/identity/me` marks scopes as not enforced. **Closed.**
 
 ### OQ-075 Channel transaction permissions (Phase 8 Wave 0, F005)
 - **Sources:** static data `channel.cfg_channel_definitions` and `channel.cfg_channel_transaction_permissions`; domain model (a Life proposal's product on its channel).
 - **Gap:** no code reads either table. The specifications do not say how a request's channel is known (a channel in the body cannot be trusted), what a `transaction_type` is, or what `requires_approval` means where a command has no approval flow.
 - **Proposal (pending business sign-off):** `docs/specs/addenda/channel-permissions.md`. The channel comes from the token's OAuth client, which needs a new `client_ids` field. Transaction types are permission codes. It is enforced on domain commands. Not built until approved.
+- **Resolved (23 October 2026):** `docs/specs/addenda/channel-permissions.md` is signed off, and its build is planned (Wave 0b). **Closed.**
 
 ### OQ-076 Aggregation and risk limits (Phase 8 Wave 0, F062)
 - **Sources:** static data `general.cfg_aggregation_zones_and_limits` and `general.cfg_aggregate_limit_definitions`; GEN-008; the exposure snapshot (ADR-015).
@@ -780,4 +784,4 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - settlement stops at the claims aggregate, with reinstatement as proposed there.
 
   Not built until approved.
-
+- **Resolved (23 October 2026):** `docs/specs/addenda/aggregation-limits.md` is signed off, and its build is planned (Wave 0b). The alert level (`Aggregation:AlertAt`) and the automatic reinstatement rule stay unset until they are chosen. **Closed.**
