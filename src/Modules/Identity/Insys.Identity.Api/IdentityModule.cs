@@ -46,6 +46,8 @@ public sealed record AssignRoleRequest(string RoleCode, DateOnly? ValidFrom, Dat
 
 public sealed record RevokeRoleRequest(string RoleCode);
 
+public sealed record PreferredLanguageRequest(string? Language);
+
 public sealed record RequestAccessRequest(Guid UserId, string Purpose, DateTimeOffset ValidFrom, DateTimeOffset ValidTo);
 
 public sealed record RejectAccessRequest(string Reason);
@@ -62,6 +64,26 @@ public sealed class IdentityModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         IdentityStaticDataEndpoints.MapStaticData(api);
+        var me = api.MapGroup("/identity/me").WithTags(Name);
+        me.MapGet("/", async (IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetMe(), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                }))
+            .Produces<MeView>(StatusCodes.Status200OK)
+            .WithName("GetMe")
+            .WithSummary("The signed-in user: profile, tenant, languages, role assignments and effective permissions with their scopes (GAP-003)")
+            .RequireSignedInUser();
+
+        me.MapPut("/preferred-language", (PreferredLanguageRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, v => dispatcher.Send(new ChangeMyPreferredLanguage(request.Language, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("ChangeMyPreferredLanguage")
+            .WithSummary("Set or clear the signed-in user's preferred language (a language in the register)")
+            .RequireSignedInUser();
+
         var users = api.MapGroup("/identity/users").WithTags(Name);
 
         users.MapPost("/", async (ProvisionUserRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

@@ -195,6 +195,9 @@ public sealed class UserAccount : AggregateRoot<Guid>
 
     public DateTimeOffset? LastLoginAt { get; private set; }
 
+    /// <summary>The user's preferred language (ISO 639-1), or null for the tenant's default (V0024; GAP-003).</summary>
+    public string? PreferredLanguage { get; private set; }
+
     public IReadOnlyList<RoleAssignment> RoleAssignments => _roleAssignments;
 
     public IReadOnlyList<Session> Sessions => _sessions;
@@ -336,6 +339,19 @@ public sealed class UserAccount : AggregateRoot<Guid>
     public Result LockUser() => Transition(UserTrigger.LockUser);
 
     public Result UnlockUser() => Transition(UserTrigger.UnlockUser);
+
+    /// <summary>The user sets or clears their own preferred language; a two-letter code checked against the register by the caller.</summary>
+    public Result ChangePreferredLanguage(string? language)
+    {
+        if (language is not null && (language.Length != 2 || !language.All(char.IsAsciiLetterLower)))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "language must be a two-letter lower-case ISO 639-1 code.");
+        }
+
+        PreferredLanguage = language;
+        MarkChanged();
+        return Result.Success();
+    }
 
     /// <summary>Command DisableUser: open sessions are revoked and the user can no longer act (IAM-005).</summary>
     public Result DisableUser(DateTimeOffset now)

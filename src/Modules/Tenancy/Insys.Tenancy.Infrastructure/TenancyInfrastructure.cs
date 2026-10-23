@@ -48,6 +48,7 @@ public static class TenancyInfrastructure
         services.AddSingleton<ITenantDirectory, TenantDirectory>();
         services.AddSingleton<ITenantStatusQuery, TenantStatusQuery>();
         services.AddSingleton<ITenantBaseCurrency, TenantBaseCurrency>();
+        services.AddSingleton<ITenantProfiles, TenantProfiles>();
         services.AddMemoryCache();
         services.AddSingleton<IStaticRecordValidator, LocaleDefaultsValidator>();
         services.AddSingleton<TenantLanguageSettings>();

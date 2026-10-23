@@ -61,6 +61,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             user.Property(u => u.DisplayName).HasMaxLength(120);
             user.Property(u => u.IdpCode).HasMaxLength(15);
             user.Property(u => u.ExternalSubject).HasMaxLength(120);
+            user.Property(u => u.PreferredLanguage).HasMaxLength(2);
             user.Property(u => u.Status).HasConversion(new UpperCaseEnumConverter<UserStatus>()).HasMaxLength(12);
             user.HasMany(u => u.RoleAssignments).WithOne().HasForeignKey(a => new { a.TenantId, a.UserId });
             user.Navigation(u => u.RoleAssignments).UsePropertyAccessMode(PropertyAccessMode.Field);

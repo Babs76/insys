@@ -90,16 +90,17 @@ public sealed partial class EndpointSecuritySweepTests(DatabaseFixture fixture) 
         (await Refusals(client, _calls, HttpStatusCode.Forbidden)).ShouldBeEmpty();
     }
 
+    /// <summary>Every endpoint names a permission, except those about the caller (/identity/me), which any user of the tenant may use.</summary>
     [Fact]
     public async Task EveryEndpoint_WithoutItsPermission_Is403_IAM007() =>
-        (await Refusals(Client(DatabaseFixture.TenantA, Nobody), _calls, HttpStatusCode.Forbidden)).ShouldBeEmpty();
+        (await Refusals(Client(DatabaseFixture.TenantA, Nobody), _calls.Where(c => !SignedInUserOnly(c.Endpoint)), HttpStatusCode.Forbidden)).ShouldBeEmpty();
 
     /// <summary>A user holding every read permission reaches no endpoint that changes anything (privilege escalation).</summary>
     [Fact]
     public async Task EveryChangingEndpoint_IsRefusedToAUserWithEveryReadPermission_PrivilegeEscalation()
     {
         var changes = _calls.Where(c => !c.Endpoint.Metadata.GetMetadata<RequiredPermissionMetadata>()!.Permission.EndsWith(".read", StringComparison.Ordinal)
-                                        && c.Endpoint.Metadata.GetMetadata<PlatformOperatorEndpointMetadata>() is null).ToList();
+                                        && c.Endpoint.Metadata.GetMetadata<PlatformOperatorEndpointMetadata>() is null && !SignedInUserOnly(c.Endpoint)).ToList();
         changes.Count.ShouldBeGreaterThan(500);
         (await Refusals(Client(DatabaseFixture.TenantA, Reader), changes, HttpStatusCode.Forbidden)).ShouldBeEmpty();
     }
@@ -120,6 +121,9 @@ public sealed partial class EndpointSecuritySweepTests(DatabaseFixture fixture) 
         platform.ShouldNotBeEmpty();
         (await Refusals(Client(DatabaseFixture.TenantA, PlatformInTenant), platform, HttpStatusCode.Forbidden)).ShouldBeEmpty();
     }
+
+    private static bool SignedInUserOnly(RouteEndpoint endpoint) =>
+        endpoint.Metadata.GetMetadata<RequiredPermissionMetadata>()!.Permission == EndpointSecurityExtensions.SignedInUser;
 
     private HttpClient Client(Guid? tenant, string subject)
     {

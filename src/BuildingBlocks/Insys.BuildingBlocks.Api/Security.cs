@@ -60,6 +60,30 @@ public sealed record PermissionRequirement(string Permission) : IAuthorizationRe
 /// <summary>The caller must belong to the platform operator tenant (platform administration, TEN-007).</summary>
 public sealed class PlatformOperatorRequirement : IAuthorizationRequirement;
 
+/// <summary>The token's subject must be an IAM user of the token's tenant (an endpoint about the caller, such as /identity/me).</summary>
+public sealed class TenantMemberRequirement : IAuthorizationRequirement
+{
+    /// <summary>The HttpContext item ExecutionScopeMiddleware sets when the subject resolved to a user of the tenant.</summary>
+    public static readonly object MemberItem = new();
+}
+
+public sealed class TenantMemberRequirementHandler(IHttpContextAccessor http) : AuthorizationHandler<TenantMemberRequirement>
+{
+    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, TenantMemberRequirement requirement)
+    {
+        if (http.HttpContext?.Items.ContainsKey(TenantMemberRequirement.MemberItem) == true)
+        {
+            context.Succeed(requirement);
+        }
+        else
+        {
+            context.Fail(new AuthorizationFailureReason(this, ErrorCodes.Forbidden));
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
 public sealed class PlatformOperatorRequirementHandler(ITenantContext tenant, IOptions<PlatformOptions> platform) : AuthorizationHandler<PlatformOperatorRequirement>
 {
     public const string FailureReason = "PLATFORM_OPERATOR_REQUIRED";
@@ -118,6 +142,7 @@ public sealed class PermissionPolicyProvider(IOptions<AuthorizationOptions> opti
 {
     public const string Prefix = "perm:";
     public const string PlatformPrefix = "platform:";
+    public const string TenantMember = "tenant-member";
 
     public override async Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
@@ -127,6 +152,11 @@ public sealed class PermissionPolicyProvider(IOptions<AuthorizationOptions> opti
                 .RequireAuthenticatedUser()
                 .AddRequirements(new TenantRequirement(), new PermissionRequirement(policyName[Prefix.Length..]))
                 .Build();
+        }
+
+        if (policyName == TenantMember)
+        {
+            return new AuthorizationPolicyBuilder().RequireAuthenticatedUser().AddRequirements(new TenantRequirement(), new TenantMemberRequirement()).Build();
         }
 
         if (policyName.StartsWith(PlatformPrefix, StringComparison.Ordinal))
@@ -204,6 +234,14 @@ public static class EndpointSecurityExtensions
         builder.RequireAuthorization(PermissionPolicyProvider.Prefix + permission)
             .WithMetadata(new RequiredPermissionMetadata(permission));
 
+    /// <summary>The x-permission of an endpoint about the caller: any user of the tenant, without a permission of its own.</summary>
+    public const string SignedInUser = "signed-in user";
+
+    /// <summary>An endpoint about the caller (their own profile, say): any IAM user of the token's tenant may call it, and nobody else.</summary>
+    public static TBuilder RequireSignedInUser<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.RequireAuthorization(PermissionPolicyProvider.TenantMember).WithMetadata(new RequiredPermissionMetadata(SignedInUser));
+
     /// <summary>A platform administration endpoint: the platform operator tenant only, holding the permission.</summary>
     public static TBuilder RequirePlatformPermission<TBuilder>(this TBuilder builder, string permission)
         where TBuilder : IEndpointConventionBuilder =>
@@ -245,6 +283,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
                 actor = principal.UserId.ToString();
                 permissions = principal.Permissions;
                 memberOf = tenantId;
+                context.Items[TenantMemberRequirement.MemberItem] = true;
             }
         }
 

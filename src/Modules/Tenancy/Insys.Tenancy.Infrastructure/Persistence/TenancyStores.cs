@@ -218,3 +218,14 @@ internal sealed class LocaleDefaultsValidator : IStaticRecordValidator
             ? new Dictionary<string, string[]> { ["defaultLanguage"] = [$"Must be one of: {string.Join(", ", locale.Languages)}."] }
             : new Dictionary<string, string[]>();
 }
+
+internal sealed class TenantProfiles([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantProfiles
+{
+    public async Task<TenantProfile?> Get(Guid tenantId, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("SELECT tenant_code, legal_name, status FROM tenant.tenant WHERE id = @id");
+        command.Parameters.AddWithValue("id", tenantId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? new TenantProfile(tenantId, reader.GetString(0), reader.GetString(1), reader.GetString(2)) : null;
+    }
+}

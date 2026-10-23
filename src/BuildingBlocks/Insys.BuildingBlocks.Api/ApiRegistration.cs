@@ -132,6 +132,8 @@ public static class ApiRegistration
         services.AddScoped<IAuthorizationHandler, TenantRequirementHandler>();
         services.AddScoped<IAuthorizationHandler, PermissionRequirementHandler>();
         services.AddScoped<IAuthorizationHandler, PlatformOperatorRequirementHandler>();
+        services.AddHttpContextAccessor();
+        services.AddScoped<IAuthorizationHandler, TenantMemberRequirementHandler>();
         services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler, ProblemAuthorizationResultHandler>();
         services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().AddRequirements(new TenantRequirement()).Build());

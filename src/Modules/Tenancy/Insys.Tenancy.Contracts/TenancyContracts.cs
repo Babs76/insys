@@ -51,3 +51,12 @@ public interface ITenantBaseCurrency
 {
     Task<string?> BaseCurrency(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
 }
+
+/// <summary>A tenant as other modules show it: its code, legal name and status.</summary>
+public sealed record TenantProfile(Guid Id, string TenantCode, string LegalName, string Status);
+
+/// <summary>Public query interface: a tenant's profile, read on the Tenancy module's own connection; null for an unknown tenant.</summary>
+public interface ITenantProfiles
+{
+    Task<TenantProfile?> Get(Guid tenantId, CancellationToken cancellationToken);
+}
