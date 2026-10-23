@@ -7,13 +7,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Insys.Testing;
 
 /// <summary>The real API host (Program) against a migrated test database, connecting as the non-owner role, with any extra settings.</summary>
-public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<string, string?>? settings = null) : WebApplicationFactory<Program>
+/// <param name="environment">The host environment; Testing unless a test checks environment-specific behaviour.</param>
+public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<string, string?>? settings = null, string environment = "Testing") : WebApplicationFactory<Program>
 {
     public TestDatabase Database { get; } = database;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(environment);
         builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(TestTokens.HostSettings(Database)).AddInMemoryCollection(settings ?? new Dictionary<string, string?>()));
     }
 

@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 
@@ -25,8 +26,33 @@ public sealed class InsysAuthenticationOptions
 
     public string? Issuer { get; set; }
 
-    /// <summary>A symmetric signing key for local development and tests only. Ignored when Authority is set.</summary>
+    /// <summary>
+    /// A symmetric (HS256) signing key for local development and tests only. Ignored when Authority is set, and accepted
+    /// only in the environments of <see cref="DevelopmentKeyEnvironments"/>: anywhere else the host refuses to start.
+    /// </summary>
     public string? DevelopmentSigningKey { get; set; }
+
+    /// <summary>The explicit allow-list of environments in which the development signing key may be used.</summary>
+    public static readonly IReadOnlyList<string> DevelopmentKeyEnvironments = ["Development", "Testing"];
+
+    public static bool AllowsDevelopmentKey(IHostEnvironment environment) =>
+        DevelopmentKeyEnvironments.Any(name => string.Equals(environment.EnvironmentName, name, StringComparison.Ordinal));
+}
+
+/// <summary>Refuses to start a host that has a development signing key configured outside the allow-list.</summary>
+public sealed class DevelopmentSigningKeyGuard(IConfiguration configuration, IHostEnvironment environment) : IHostedService
+{
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        var key = configuration["Authentication:DevelopmentSigningKey"];
+        return !string.IsNullOrWhiteSpace(key) && !InsysAuthenticationOptions.AllowsDevelopmentKey(environment)
+            ? throw new InvalidOperationException(
+                $"Authentication:DevelopmentSigningKey is configured in the {environment.EnvironmentName} environment. It is allowed only in "
+                + $"{string.Join(" and ", InsysAuthenticationOptions.DevelopmentKeyEnvironments)}; remove it and configure Authentication:Authority.")
+            : Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 public static class ApiRegistration
@@ -46,7 +72,8 @@ public static class ApiRegistration
 
         // Bound when first used, so configuration added after registration (tests, environment overrides) applies.
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
-        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme).Configure<IConfiguration>((options, config) =>
+        services.AddHostedService<DevelopmentSigningKeyGuard>();
+        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme).Configure<IConfiguration, IHostEnvironment>((options, config, environment) =>
         {
             var auth = config.GetSection("Authentication").Get<InsysAuthenticationOptions>() ?? new InsysAuthenticationOptions();
             options.MapInboundClaims = false;
@@ -63,7 +90,7 @@ public static class ApiRegistration
             {
                 options.Authority = auth.Authority;
             }
-            else if (!string.IsNullOrWhiteSpace(auth.DevelopmentSigningKey))
+            else if (!string.IsNullOrWhiteSpace(auth.DevelopmentSigningKey) && InsysAuthenticationOptions.AllowsDevelopmentKey(environment))
             {
                 options.TokenValidationParameters.IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(auth.DevelopmentSigningKey));
             }
