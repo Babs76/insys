@@ -36,4 +36,7 @@ public static class IntegrationPermissions
     public const string DeadLetterUpdate = "dead_letter.update";
     public const string WebhookRead = "webhook_delivery.read";
     public const string WebhookUpdate = "webhook_delivery.update";
+
+    /// <summary>A tenant's escalation of parked deliveries (ADR-022 decision 6); changed by a tenant administrator.</summary>
+    public const string ParkingSettingUpdate = "parking_setting.update";
 }

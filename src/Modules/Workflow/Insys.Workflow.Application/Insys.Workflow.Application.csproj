@@ -26,6 +26,8 @@
 -->
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="..\..\Integration\Insys.Integration.Contracts\Insys.Integration.Contracts.csproj" />
+    <ProjectReference Include="..\..\ClaimsFramework\Insys.ClaimsFramework.Contracts\Insys.ClaimsFramework.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Application\Insys.BuildingBlocks.Application.csproj" />
     <ProjectReference Include="..\Insys.Workflow.Domain\Insys.Workflow.Domain.csproj" />
     <ProjectReference Include="..\Insys.Workflow.Contracts\Insys.Workflow.Contracts.csproj" />

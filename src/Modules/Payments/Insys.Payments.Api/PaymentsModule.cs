@@ -48,7 +48,8 @@ public sealed record ResolveUnknownRequest(bool Succeeded, string Evidence);
 
 public sealed record ReversePaymentRequest(string Reason);
 
-public sealed record BuildBatchRequest(string Purpose, string Currency);
+public sealed record BuildBatchRequest(
+    [property: BuildingBlocks.Domain.OneOf(PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Commission)] string Purpose, string Currency);
 
 public sealed record ImportStatementRequest(string AccountRef, StatementLine[] Lines);
 

@@ -85,6 +85,23 @@ public sealed record ProcessDefinition(string ProcessCode, int Version, IReadOnl
         string.Concat(state.ToUpperInvariant().Select(c => char.IsAsciiLetterOrDigit(c) ? c : '_')).Trim('_');
 }
 
+/// <summary>
+/// Processes the platform defines in code rather than in workflow.cfg_workflow_definitions: one-step work items other
+/// modules ask for through events. PARKED_DELIVERY is ADR-022's escalation of a parked delivery to a role.
+/// </summary>
+public static class BuiltInProcesses
+{
+    public static readonly ProcessDefinition ParkedDelivery = new("PARKED_DELIVERY", 1, ["RESOLVE", "RESOLVED"],
+        [new TransitionDefinition("RESOLVE", "RESOLVED", null)], null);
+
+    /// <summary>A review of configuration that could not be used (F009: a fraud indicator skipped on a claim).</summary>
+    public static readonly ProcessDefinition ConfigurationReview = new("CONFIG_REVIEW", 1, ["REVIEW", "REVIEWED"],
+        [new TransitionDefinition("REVIEW", "REVIEWED", null)], null);
+
+    public static ProcessDefinition? Find(string processCode, int? version) =>
+        new[] { ParkedDelivery, ConfigurationReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+}
+
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>
 public sealed record TaskRouting(string QueueCode, string? SlaCode, DateTimeOffset DueAt);
 

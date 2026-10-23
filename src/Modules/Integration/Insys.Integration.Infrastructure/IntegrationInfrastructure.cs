@@ -53,6 +53,21 @@ public static class IntegrationInfrastructure
         services.AddSingleton<MessageCatalogue>();
         services.AddSingleton<Insys.BuildingBlocks.Application.Localisation.IMessageCatalogue>(sp => sp.GetRequiredService<MessageCatalogue>());
         services.AddIntegrationEventHandler<Insys.BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated, MessageCachePolicy, IntegrationDbContext>(IntegrationDbContext.SchemaName, "MessagesActivated");
+
+        // ADR-022: the delivery ledger, its job and its operations view. Registered after the building blocks' default.
+        services.AddOptions<Parking.ParkingOptions>().BindConfiguration("Outbox:Parking");
+        services.AddSingleton<IDeliveryLedger, Parking.PostgresDeliveryLedger>();
+        services.AddSingleton<Parking.ParkingJob>();
+        services.AddScoped<Application.Parking.IParkedDeliveryStore, Parking.ParkedDeliveryStore>();
+        services.AddSingleton<IConfigurationOwner, Parking.ConfigurationOwner>();
+        services.AddIntegrationEventHandler<Insys.BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated, Parking.RetryParkedOnConfiguration, IntegrationDbContext>(
+            IntegrationDbContext.SchemaName, "ParkedRetry");
+        services.AddHealthChecks().AddCheck<Parking.ParkedDeliveriesHealthCheck>("parked-deliveries");
+        if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
+        {
+            services.AddHostedService<Parking.ParkingJobService>();
+        }
+
         services.AddSingleton<Partners.StubPartnerAdapters>();
         services.AddSingleton<IReinsurerAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
         services.AddSingleton<IRegulatorAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());

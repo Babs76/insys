@@ -116,6 +116,15 @@ The payment is created then, exactly once.
 ### 8. A time limit on each delivery attempt
 Each consumer's attempt runs under `Outbox:AttemptTimeout` (30 seconds by default). An attempt that overruns is cancelled and counts as a failure, retried with back-off. A slow failure in one tenant therefore costs every tenant's relay pass at most that long, not the full length of a remote timeout.
 
+## How it is built (`wave0-4`)
+- **Building blocks:** `PrerequisiteMissingException`; `IEventBus.Deliver` returns each consumer's outcome (`Processed`, `Parked`, `Waiting`, `Skipped`, `Failed`) and `DeliverTo` delivers to one consumer; `IDeliveryLedger` is checked once per event for its record; `Outbox:AttemptTimeout` (30 s) bounds each attempt.
+- **Integration:** `integration.parked_delivery` and `integration.parking_setting` (V0031); the ledger; the parking job (`Outbox:Parking:*`, every 5 s) that recovers retries left by a stopped instance, retries due deliveries, releases waiting ones nothing blocks, dead-letters a delivery it retries after `Outbox:MaxAttempts` consecutive failures, and escalates; the `parked-deliveries` health check; the endpoints in decision 5 and the parking setting.
+- **Escalation is per kind**, not per delivery: one task for all of a tenant's deliveries to one consumer missing the same code and item, so a hundred parked policies make one task, not a hundred. The task is a Workflow built-in one-step process, `PARKED_DELIVERY`, raised through `integration.ParkedDeliveryEscalated`.
+- **The platform operator's part of the second escalation** is the `/health` check turning Unhealthy and the `ParkedDeliveryEscalated` error log, which the Cloud Eye alarm matches. It is not a Workflow task in the operator tenant: a consumer acts only in its event's tenant (TEN-004), so it cannot create a task in another.
+- **Configuration published** (`StaticDataVersionActivated`) retries the parked deliveries of the tenant it was published in. Global static data is published in the operator tenant, so the other tenants' deliveries wait for the periodic check (`Outbox:Parking:RetryInterval`, 15 minutes) or a manual retry.
+- **Consumers changed so far:** Payments' payouts (decision 7). Billing, Documents, Reinsurance and Analytics still fail as before until each throws `PrerequisiteMissingException`; their failures now keep order per record.
+- **Tests:** `ParkedDeliveryTests` (order kept per record; retried after configuration is published; never applied twice on replay, repeated retry or a stopped instance; failures keep order; attempt timeout; escalation and health; discard with a reason) and `PayoutParkingTests` (GAP-038 end to end, with the Workflow task).
+
 ## Consequences
 - An instance stays in service whatever one tenant's configuration is (TEN-004, NFR-001).
 - Order per record is kept for each consumer. It is not kept today.

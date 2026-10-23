@@ -143,14 +143,14 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
         var w2 = await db2.Widgets.SingleAsync(w => w.Id == id);
         await tx2.CommitAsync();
 
-        w1.Rename("one");
+        w1.Rename("one", DateTimeOffset.UtcNow);
         await using (var save1 = await db1.Database.BeginTransactionAsync())
         {
             await db1.SaveChangesAsync();
             await save1.CommitAsync();
         }
 
-        w2.Rename("two");
+        w2.Rename("two", DateTimeOffset.UtcNow);
         await using var save2 = await db2.Database.BeginTransactionAsync();
         await Should.ThrowAsync<DbUpdateConcurrencyException>(() => db2.SaveChangesAsync());
     }
@@ -209,7 +209,7 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
         await _services.GetRequiredService<IEventBus>().Publish(envelope, CancellationToken.None);
 
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM test_mod.consumption WHERE widget_id = @id", ("id", id))).ShouldBe(1);
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM test_mod.inbox_message WHERE event_id = @e", ("e", envelope.EventId))).ShouldBe(1);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM test_mod.inbox_message WHERE event_id = @e AND consumer = 'test_mod.WidgetCreatedConsumer'", ("e", envelope.EventId))).ShouldBe(1);
     }
 
     [Fact]

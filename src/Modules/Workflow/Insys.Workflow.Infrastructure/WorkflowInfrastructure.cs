@@ -55,10 +55,13 @@ public static class WorkflowInfrastructure
         services.AddScoped<IAuthorityReader>(sp => sp.GetRequiredService<WorkflowConfiguration>());
         services.AddScoped<ApprovalDecision>();
         services.AddScoped<TaskEscalation>();
+        services.AddScoped<Contracts.IBusinessTime, BusinessTime>();
 
         services.AddIntegrationEventHandler<ApprovalRequested, RequestApprovalPolicy, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<ApprovalWithdrawn, WithdrawApprovalPolicy, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Contracts.SlaBreached, EscalateOnSlaBreach, WorkflowDbContext>(schema);
+        services.AddIntegrationEventHandler<Integration.Contracts.ParkedDeliveryEscalated, OpenParkedDeliveryTask, WorkflowDbContext>(schema);
+        services.AddIntegrationEventHandler<ClaimsFramework.Contracts.FraudIndicatorsNotEvaluated, OpenConfigurationReviewTask, WorkflowDbContext>(schema);
 
         services.AddSingleton<WorkflowJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)

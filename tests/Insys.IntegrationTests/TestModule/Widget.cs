@@ -43,6 +43,11 @@ public sealed record WidgetCreatedDomainEvent(Guid WidgetId, string Name, DateTi
 [IntegrationEvent("test_mod.WidgetCreated")]
 public sealed record WidgetCreated(Guid WidgetId) : IIntegrationEvent;
 
+public sealed record WidgetRenamedDomainEvent(Guid WidgetId, string Name, DateTimeOffset OccurredAt) : IDomainEvent;
+
+[IntegrationEvent("test_mod.WidgetRenamed")]
+public sealed record WidgetRenamed(Guid WidgetId, string Name) : IIntegrationEvent;
+
 public sealed class Widget : AggregateRoot<Guid>
 {
     private Widget()
@@ -58,9 +63,10 @@ public sealed class Widget : AggregateRoot<Guid>
         return widget;
     }
 
-    public void Rename(string name)
+    public void Rename(string name, DateTimeOffset now)
     {
         Name = name;
+        Raise(new WidgetRenamedDomainEvent(Id, name, now));
         MarkChanged();
     }
 }
@@ -112,6 +118,7 @@ public sealed class WidgetEventMapper : IDomainEventMapper
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
     {
         WidgetCreatedDomainEvent created => new WidgetCreated(created.WidgetId),
+        WidgetRenamedDomainEvent renamed => new WidgetRenamed(renamed.WidgetId, renamed.Name),
         _ => null,
     };
 }
@@ -139,7 +146,7 @@ public sealed class CreateWidgetHandler(TestDbContext db, IClock clock, IAuditTr
     }
 }
 
-public sealed class RenameWidgetHandler(TestDbContext db) : ICommandHandler<RenameWidget, long>
+public sealed class RenameWidgetHandler(TestDbContext db, IClock clock) : ICommandHandler<RenameWidget, long>
 {
     public async Task<Result<long>> Handle(RenameWidget command, CancellationToken cancellationToken)
     {
@@ -154,15 +161,61 @@ public sealed class RenameWidgetHandler(TestDbContext db) : ICommandHandler<Rena
             return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "Changed.");
         }
 
-        widget.Rename(command.Name);
+        widget.Rename(command.Name, clock.UtcNow);
         return widget.RowVersion + 1;
     }
 }
 
-/// <summary>Controls the consumer from tests.</summary>
+/// <summary>Controls the consumers from tests.</summary>
 public sealed class ConsumerSwitch
 {
     public volatile bool Fail;
+
+    /// <summary>Widgets whose configuration the ledger consumer finds missing: it parks their events (ADR-022).</summary>
+    public readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, bool> Missing = new();
+
+    /// <summary>Widgets whose events the ledger consumer fails as a fault, not as missing configuration.</summary>
+    public readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, bool> Failing = new();
+
+    /// <summary>Widgets whose events the ledger consumer handles too slowly for the attempt timeout.</summary>
+    public readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, bool> Slow = new();
+}
+
+/// <summary>
+/// A second consumer of the widget events, for the delivery ledger (ADR-022): it records each event it applies, in
+/// order, in test_mod.ledger_consumption, and parks, fails or stalls on the widgets the switch names.
+/// </summary>
+public sealed class WidgetLedgerConsumer(TestDbContext db, ConsumerSwitch consumerSwitch) : IIntegrationEventHandler<WidgetCreated>, IIntegrationEventHandler<WidgetRenamed>
+{
+    public const string MissingCode = "WIDGET_COLOUR_NOT_IN_FORCE";
+
+    public Task Handle(WidgetCreated integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Apply(integrationEvent.WidgetId, "created", envelope, cancellationToken);
+
+    public Task Handle(WidgetRenamed integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Apply(integrationEvent.WidgetId, integrationEvent.Name, envelope, cancellationToken);
+
+    private async Task Apply(Guid widgetId, string what, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (consumerSwitch.Missing.ContainsKey(widgetId))
+        {
+            throw new PrerequisiteMissingException(MissingCode, "BLUE");
+        }
+
+        if (consumerSwitch.Failing.ContainsKey(widgetId))
+        {
+            throw new InvalidOperationException("Ledger consumer told to fail.");
+        }
+
+        if (consumerSwitch.Slow.ContainsKey(widgetId))
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+        }
+
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO test_mod.ledger_consumption (tenant_id, event_id, widget_id, what) VALUES ({envelope.TenantId}, {envelope.EventId}, {widgetId}, {what})",
+            cancellationToken);
+    }
 }
 
 public sealed class WidgetCreatedConsumer(TestDbContext db, IExecutionContext execution, ConsumerSwitch consumerSwitch) : IIntegrationEventHandler<WidgetCreated>

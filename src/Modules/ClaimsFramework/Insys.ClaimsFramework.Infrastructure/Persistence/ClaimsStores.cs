@@ -66,7 +66,7 @@ internal sealed class ClaimsRepository(ClaimsFrameworkDbContext db) : IClaimsRep
     public void Add(ClaimPaymentInstruction instruction) => db.Instructions.Add(instruction);
 
     private IQueryable<ClaimRegistration> Claims() =>
-        db.Claims.Include(c => c.Evidence).Include(c => c.Communications).Include(c => c.FraudHits).AsSplitQuery();
+        db.Claims.Include(c => c.Evidence).Include(c => c.Communications).Include(c => c.FraudHits).Include(c => c.FraudEvaluations).AsSplitQuery();
 }
 
 internal sealed class ClaimsCodes(ClaimsFrameworkDbContext db) : IClaimsCodes
@@ -108,6 +108,8 @@ internal sealed class ClaimsEventMapper : IDomainEventMapper
     {
         ClaimNumberAllocated e => new Contracts.ClaimNumberAllocated(e.ClaimNumber, e.Domain, e.DomainClaimId, e.PolicyRef),
         FraudIndicatorRaised e => new Contracts.FraudIndicatorRaised(e.ClaimNumber, e.IndicatorCode, e.Score, e.Referred),
+        FraudIndicatorsSkipped e => new Contracts.FraudIndicatorsNotEvaluated(e.EvaluationId, e.ClaimNumber,
+            e.Skipped.Select(s => new Contracts.SkippedFraudIndicator(s.IndicatorCode, s.Reason, s.MissingFacts, s.ErrorCode)).ToList()),
         ClaimReserveChanged e => new Contracts.ClaimReserveChanged(e.MovementId, e.ClaimNumber, e.Domain, e.ReserveType, e.Change, e.Outstanding, e.Currency, e.MovementDate),
         ClaimRecoveryRecorded e => new Contracts.ClaimRecoveryRecorded(e.MovementId, e.ClaimNumber, e.Domain, e.ReserveType, e.Amount, e.Currency, e.MovementDate),
         ClaimPaymentInstructed e => new Contracts.ClaimPaymentInstructed(e.InstructionId, e.ClaimNumber, e.Domain, e.PayeePartyId, e.BankAccountId, e.Amount, e.Currency,

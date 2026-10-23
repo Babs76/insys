@@ -26,6 +26,7 @@
 -->
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="..\..\Tenancy\Insys.Tenancy.Contracts\Insys.Tenancy.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Infrastructure\Insys.BuildingBlocks.Infrastructure.csproj" />
     <ProjectReference Include="..\Insys.Workflow.Application\Insys.Workflow.Application.csproj" />
   </ItemGroup>

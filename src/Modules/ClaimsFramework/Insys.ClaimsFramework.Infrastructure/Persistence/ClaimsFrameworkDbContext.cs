@@ -66,6 +66,8 @@ public sealed class ClaimsFrameworkDbContext(DbContextOptions<ClaimsFrameworkDbC
             claim.Navigation(c => c.Communications).UsePropertyAccessMode(PropertyAccessMode.Field);
             claim.HasMany(c => c.FraudHits).WithOne().HasForeignKey(e => new { e.TenantId, e.ClaimNumber }).HasPrincipalKey(c => new { c.TenantId, c.ClaimNumber });
             claim.Navigation(c => c.FraudHits).UsePropertyAccessMode(PropertyAccessMode.Field);
+            claim.HasMany(c => c.FraudEvaluations).WithOne().HasForeignKey(e => new { e.TenantId, e.ClaimNumber }).HasPrincipalKey(c => new { c.TenantId, c.ClaimNumber });
+            claim.Navigation(c => c.FraudEvaluations).UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 
         modelBuilder.Entity<EvidenceItem>(evidence =>
@@ -86,6 +88,19 @@ public sealed class ClaimsFrameworkDbContext(DbContextOptions<ClaimsFrameworkDbC
             communication.Property(c => c.ClaimNumber).HasMaxLength(25);
             communication.Property(c => c.Direction).HasMaxLength(8);
             communication.Property(c => c.Channel).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<FraudEvaluationRecord>(evaluation =>
+        {
+            evaluation.ToTable("fraud_evaluation");
+            evaluation.HasKey(e => new { e.TenantId, e.Id });
+            evaluation.HasAuditColumns(updatable: false);
+            evaluation.Property(e => e.ClaimNumber).HasMaxLength(25);
+            evaluation.Property(e => e.Skipped).HasColumnType("jsonb").HasConversion(
+                new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<IReadOnlyList<SkippedIndicator>, string>(
+                    v => SkippedJson.Write(v), v => SkippedJson.Read(v)),
+                new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<IReadOnlyList<SkippedIndicator>>(
+                    (a, b) => SkippedJson.Write(a!) == SkippedJson.Write(b!), v => v.Count, v => SkippedJson.Read(SkippedJson.Write(v))));
         });
 
         modelBuilder.Entity<FraudIndicatorHit>(hit =>
@@ -135,4 +150,15 @@ public sealed class ClaimsFrameworkDbContext(DbContextOptions<ClaimsFrameworkDbC
             instruction.Ignore(i => i.Payee);
         });
     }
+}
+
+/// <summary>The skipped indicators of a fraud evaluation as jsonb (F009).</summary>
+internal static class SkippedJson
+{
+    private static readonly System.Text.Json.JsonSerializerOptions Options = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    public static string Write(IReadOnlyList<SkippedIndicator> skipped) => System.Text.Json.JsonSerializer.Serialize(skipped, Options);
+
+    public static IReadOnlyList<SkippedIndicator> Read(string json) =>
+        System.Text.Json.JsonSerializer.Deserialize<List<SkippedIndicator>>(json, Options) ?? [];
 }

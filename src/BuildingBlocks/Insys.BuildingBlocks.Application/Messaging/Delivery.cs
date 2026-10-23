@@ -1,0 +1,133 @@
+/*
+ * ============================================================================
+ * OPENFACTOR TECHNOLOGY GROUP
+ * CONFIDENTIAL AND PROPRIETARY SOFTWARE
+ * ============================================================================
+ * Copyright (c) 2026 OpenFactor Technology Group.
+ * All rights reserved.
+ * PRODUCT       : INSYS
+ * COMPONENT     : BuildingBlocks.Application
+ * CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+ * This source code and its associated documentation contain confidential and
+ * proprietary information belonging to OpenFactor Technology Group or its
+ * applicable intellectual property rights holder.
+ * This material is provided solely for authorised development, maintenance,
+ * operation or evaluation purposes, as applicable. No person may reproduce,
+ * modify, distribute, disclose, publish or otherwise use this material except
+ * as expressly permitted by an applicable written agreement or licence.
+ * No ownership rights or licence to any intellectual property are granted
+ * by the inclusion of this notice, except as expressly provided in an
+ * applicable written agreement or licence.
+ * Third-party software, open-source components and customer-owned materials
+ * remain subject to their respective ownership rights and applicable licences
+ * or agreements.
+ * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+ * ============================================================================
+ */
+using Insys.BuildingBlocks.Contracts;
+
+namespace Insys.BuildingBlocks.Application.Messaging;
+
+/// <summary>
+/// Thrown by a consumer when the tenant lacks configuration it needs, for example BILLING_FREQUENCY_NOT_IN_FORCE with
+/// item MONTHLY. The delivery is parked instead of retried as a failure, and retried when configuration is published
+/// (ADR-022). The code and item name configuration only, never a party or payload value.
+/// </summary>
+public sealed class PrerequisiteMissingException(string code, string? item = null)
+    : Exception($"Prerequisite {code}{(item is null ? "" : " " + item)} is missing.")
+{
+    public string Code { get; } = code.Length <= 60 ? code : throw new ArgumentException("A prerequisite code is at most 60 characters.", nameof(code));
+
+    public string? Item { get; } = item is null || item.Length <= 80 ? item : item[..80];
+}
+
+public enum DeliveryStatus
+{
+    /// <summary>The consumer handled the event, or had already handled it (its inbox).</summary>
+    Processed,
+
+    /// <summary>The consumer's configuration is missing; the delivery is in the ledger.</summary>
+    Parked,
+
+    /// <summary>An earlier delivery for the same record to this consumer is parked or failing; this one waits behind it.</summary>
+    Waiting,
+
+    /// <summary>The ledger is already retrying, has resolved or has discarded this delivery.</summary>
+    Skipped,
+
+    /// <summary>The consumer failed; the delivery is retried with back-off.</summary>
+    Failed,
+}
+
+/// <summary>One consumer's outcome for one event.</summary>
+public sealed record ConsumerDelivery(string Consumer, DeliveryStatus Status, Exception? Error = null, string? Code = null, string? Item = null);
+
+public enum LedgerStatus
+{
+    Parked,
+    Waiting,
+    Failing,
+    Retrying,
+    DeadLettered,
+    Resolved,
+    Discarded,
+}
+
+/// <summary>A delivery the ledger holds: one consumer and one event.</summary>
+public sealed record LedgerEntry(string Consumer, Guid EventId, LedgerStatus Status)
+{
+    /// <summary>Whether a later delivery for the same record to the same consumer must wait behind this one.</summary>
+    public bool Blocks => Status is LedgerStatus.Parked or LedgerStatus.Waiting or LedgerStatus.Failing or LedgerStatus.Retrying or LedgerStatus.DeadLettered;
+}
+
+/// <summary>
+/// The record of deliveries that did not simply succeed (ADR-022): parked for missing configuration, waiting behind an
+/// earlier delivery for the same record, or failing. Implemented by the Integration module (integration.parked_delivery);
+/// without it, a missing prerequisite is retried as a failure and order per record is not kept.
+/// </summary>
+public interface IDeliveryLedger
+{
+    bool Enabled { get; }
+
+    /// <summary>The open deliveries for the event's record (tenant, aggregate type and ID), and any for this event.</summary>
+    Task<IReadOnlyList<LedgerEntry>> ForRecord(EventEnvelope envelope, CancellationToken cancellationToken);
+
+    Task Park(EventEnvelope envelope, string consumer, string code, string? item, CancellationToken cancellationToken);
+
+    Task Wait(EventEnvelope envelope, string consumer, CancellationToken cancellationToken);
+
+    /// <param name="ledgerOwned">True when the ledger retries it (a released or retried delivery); false when the outbox does.</param>
+    Task Failing(EventEnvelope envelope, string consumer, bool ledgerOwned, CancellationToken cancellationToken);
+
+    Task Resolve(EventEnvelope envelope, string consumer, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Claims the record's earliest waiting delivery to the consumer, when nothing ahead of it still blocks, and marks it
+    /// retrying. Null when there is none, or another instance has it.
+    /// </summary>
+    Task<EventEnvelope?> ClaimNextWaiting(Guid tenantId, string consumer, string aggregateType, Guid aggregateId, CancellationToken cancellationToken);
+
+    /// <summary>The outbox gave up on the event: these consumers' failing deliveries are dead-lettered and still block.</summary>
+    Task DeadLettered(EventEnvelope envelope, IEnumerable<string> consumers, CancellationToken cancellationToken);
+}
+
+/// <summary>No ledger: every delivery goes ahead, and a missing prerequisite is a failure.</summary>
+public sealed class NoDeliveryLedger : IDeliveryLedger
+{
+    public bool Enabled => false;
+
+    public Task<IReadOnlyList<LedgerEntry>> ForRecord(EventEnvelope envelope, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<LedgerEntry>>([]);
+
+    public Task Park(EventEnvelope envelope, string consumer, string code, string? item, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task Wait(EventEnvelope envelope, string consumer, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task Failing(EventEnvelope envelope, string consumer, bool ledgerOwned, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task Resolve(EventEnvelope envelope, string consumer, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<EventEnvelope?> ClaimNextWaiting(Guid tenantId, string consumer, string aggregateType, Guid aggregateId, CancellationToken cancellationToken) =>
+        Task.FromResult<EventEnvelope?>(null);
+
+    public Task DeadLettered(EventEnvelope envelope, IEnumerable<string> consumers, CancellationToken cancellationToken) => Task.CompletedTask;
+}

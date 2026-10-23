@@ -93,6 +93,7 @@ public static class InfrastructureRegistration
 
         services.AddOptions<OutboxOptions>().Bind(configuration.GetSection("Outbox"));
         services.AddSingleton<IEventBus, InProcessEventBus>();
+        services.TryAddSingleton<IDeliveryLedger, NoDeliveryLedger>();
         services.AddSingleton<OutboxProcessor>();
         if (!IsBuildTimeDocumentGeneration)
         {

@@ -71,6 +71,7 @@ public static class TestTokens
         ["Authentication:Audience"] = Audience,
         ["Authentication:DevelopmentSigningKey"] = SigningKey,
         ["Outbox:RelayEnabled"] = "false",
+        ["Outbox:Parking:JobEnabled"] = "false",
         ["Workflow:TimersEnabled"] = "false",
         ["Billing:Jobs:Enabled"] = "false",
         ["Payments:Jobs:Enabled"] = "false",

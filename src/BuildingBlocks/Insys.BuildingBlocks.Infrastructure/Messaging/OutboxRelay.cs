@@ -53,6 +53,9 @@ public sealed class OutboxOptions
 
     /// <summary>Back-off before attempt n is BaseBackoff × 2^(n−1).</summary>
     public TimeSpan BaseBackoff { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>The time limit on each consumer's attempt (ADR-022 decision 8); an overrun is a failure.</summary>
+    public TimeSpan AttemptTimeout { get; set; } = TimeSpan.FromSeconds(30);
 }
 
 /// <summary>
@@ -65,6 +68,7 @@ public sealed class OutboxProcessor(
     IEnumerable<OutboxSchema> schemas,
     ITenantDirectory tenants,
     IEventBus bus,
+    IDeliveryLedger ledger,
     IServiceScopeFactory scopeFactory,
     IClock clock,
     IOptions<OutboxOptions> options,
@@ -131,23 +135,38 @@ public sealed class OutboxProcessor(
             using var payload = JsonDocument.Parse(row.Payload);
             var envelope = new EventEnvelope(row.Id, tenantId, row.EventType, row.EventVersion, row.OccurredAt, row.AggregateType,
                 row.AggregateId, row.CorrelationId, row.CausationId, payload.RootElement.Clone());
+            Exception? failure;
+            IReadOnlyList<string> failedConsumers = [];
             try
             {
-                await bus.Publish(envelope, cancellationToken);
-                await MarkPublished(connection, transaction, schema, tenantId, row.Id, cancellationToken);
-                published++;
+                // The event is published once no consumer is failing: a parked or waiting consumer is the ledger's (ADR-022).
+                var failed = (await bus.Deliver(envelope, cancellationToken)).Where(d => d.Status == DeliveryStatus.Failed).ToList();
+                failedConsumers = failed.Select(f => f.Consumer).ToList();
+                failure = failed.Count == 0 ? null : new AggregateException(failed.Select(f => f.Error!));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                var attempts = (short)(row.PublishAttempts + 1);
-                await MarkFailed(connection, transaction, schema, tenantId, row.Id, attempts, cancellationToken);
-                if (attempts >= settings.MaxAttempts)
-                {
-                    logger.LogError("Outbox event {EventId} in {Schema} is dead-lettered after {Attempts} attempts", row.Id, schema, attempts);
+                failure = ex;
+            }
 
-                    // TODO(spec): the outbox has no first-failure column, so the row's creation time stands in for it.
-                    await DeadLetter(envelope, schema, ex, attempts, row.CreatedAt, cancellationToken);
-                }
+            if (failure is null)
+            {
+                await MarkPublished(connection, transaction, schema, tenantId, row.Id, cancellationToken);
+                published++;
+                continue;
+            }
+
+            var attempts = (short)(row.PublishAttempts + 1);
+            await MarkFailed(connection, transaction, schema, tenantId, row.Id, attempts, cancellationToken);
+            if (attempts >= settings.MaxAttempts)
+            {
+                logger.LogError("Outbox event {EventId} in {Schema} is dead-lettered after {Attempts} attempts", row.Id, schema, attempts);
+
+                // TODO(spec): the outbox has no first-failure column, so the row's creation time stands in for it.
+                await DeadLetter(envelope, schema, failure, attempts, row.CreatedAt, cancellationToken);
+
+                // Later events for the record keep waiting behind the dead letter until it is replayed (ADR-022 decision 3).
+                await ledger.DeadLettered(envelope, failedConsumers, cancellationToken);
             }
         }
 

@@ -32,12 +32,30 @@ namespace Insys.BuildingBlocks.Application.Messaging;
 /// <summary>Delivers an event to its subscribers. In-process for now; a broker adapter can replace it (MESSAGE_BROKER).</summary>
 public interface IEventBus
 {
-    Task Publish(EventEnvelope envelope, CancellationToken cancellationToken);
+    /// <summary>Delivers the event to every consumer and returns each consumer's outcome (ADR-022).</summary>
+    Task<IReadOnlyList<ConsumerDelivery>> Deliver(EventEnvelope envelope, CancellationToken cancellationToken);
+
+    /// <summary>Delivers the event to one consumer only: a retry or release from the delivery ledger (ADR-022).</summary>
+    Task<ConsumerDelivery> DeliverTo(EventEnvelope envelope, string consumer, CancellationToken cancellationToken);
+}
+
+public static class EventBusExtensions
+{
+    /// <summary>Delivers the event and throws when any consumer failed. A parked or waiting consumer is not a failure.</summary>
+    public static async Task Publish(this IEventBus bus, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var failures = (await bus.Deliver(envelope, cancellationToken)).Where(d => d.Status == DeliveryStatus.Failed).ToList();
+        if (failures.Count > 0)
+        {
+            throw new AggregateException($"{failures.Count} consumer(s) failed for event {envelope.EventId}.", failures.Select(f => f.Error!));
+        }
+    }
 }
 
 /// <summary>
 /// A policy in a consuming module. Runs inside the consumer's transaction after the inbox has recorded the event,
-/// so a duplicate delivery is skipped (INT-005, DBA-007). Throw to have the event retried.
+/// so a duplicate delivery is skipped (INT-005, DBA-007). Throw to have the event retried; throw
+/// <see cref="PrerequisiteMissingException"/> when the tenant's configuration is missing, to have it parked (ADR-022).
 /// </summary>
 public interface IIntegrationEventHandler<in TEvent>
     where TEvent : IIntegrationEvent

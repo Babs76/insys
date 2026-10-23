@@ -256,6 +256,45 @@ public sealed class ClaimsTests
         (evaluation.Score, claim.FraudHits.Single().IndicatorCode).ShouldBe((40, "EARLY_CLAIM"));
     }
 
+    /// <summary>
+    /// F009: the evaluation is kept on the claim with each skipped indicator and why (the facts it lacked, or the
+    /// evaluation's error), and the skip is raised for the configuration owner. Names and codes only, never a fact's value.
+    /// </summary>
+    [Fact]
+    public void FraudEvaluation_RecordsWhyEachIndicatorWasSkipped_AndRaisesItForTheConfigurationOwner_F009()
+    {
+        var claim = Claim();
+        var evaluation = claim.EvaluateFraudIndicators(
+            [
+                new("LIFE_ONLY", Expression.Parse("sum_assured > 1 and smoker = true").Value, 10, 100),
+                new("BAD_TYPES", Expression.Parse("description > 5").Value, 10, 100),
+                new("EARLY_CLAIM", Expression.Parse("days_since_inception < 30").Value, 40, 100),
+            ],
+            new Dictionary<string, object?> { ["days_since_inception"] = 5m, ["description"] = "Rear-ended at a robot" }, Now);
+
+        var recorded = claim.FraudEvaluations.Single();
+        recorded.Id.ShouldBe(evaluation.Id);
+        (recorded.Score, recorded.Referred, recorded.IndicatorsEvaluated).ShouldBe((40, false, (short)1));
+        recorded.Skipped.Select(s => (s.IndicatorCode, s.Reason)).ShouldBe([("LIFE_ONLY", SkipReasons.MissingFacts), ("BAD_TYPES", SkipReasons.EvaluationFailed)]);
+        recorded.Skipped[0].MissingFacts.ShouldBe(["smoker", "sum_assured"]);
+        recorded.Skipped[1].ErrorCode.ShouldNotBeNullOrWhiteSpace();
+        recorded.Skipped.ShouldAllBe(s => !s.MissingFacts.Contains("Rear-ended at a robot"));
+
+        var raised = claim.DomainEvents.OfType<FraudIndicatorsSkipped>().Single();
+        (raised.EvaluationId, raised.Skipped.Count).ShouldBe((evaluation.Id, 2));
+    }
+
+    [Fact]
+    public void FraudEvaluation_WithNothingSkipped_IsRecorded_AndRaisesNoAlert_F009()
+    {
+        var claim = Claim();
+        claim.EvaluateFraudIndicators([new("EARLY_CLAIM", Expression.Parse("days_since_inception < 30").Value, 40, 100)],
+            new Dictionary<string, object?> { ["days_since_inception"] = 5m }, Now);
+
+        claim.FraudEvaluations.Single().Skipped.ShouldBeEmpty();
+        claim.DomainEvents.OfType<FraudIndicatorsSkipped>().ShouldBeEmpty();
+    }
+
     [Fact]
     public void Evidence_FulfilsAnOpenRequest()
     {

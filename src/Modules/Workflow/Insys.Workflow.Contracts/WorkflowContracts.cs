@@ -65,3 +65,14 @@ public interface IApprovalAuthoritySource
     Task<IReadOnlyList<ApprovalAuthority>> For(Guid tenantId, string businessRefType, Guid businessRefId, IReadOnlyCollection<string> roleCodes, DateOnly day,
         CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Public query interface: business time in a tenant. On the named calendar (workflow.ref_business_calendars) when it is
+/// in force, otherwise Monday to Friday, 08:00 to 17:00, in the tenant's time zone (tenant.cfg_locale_defaults), or
+/// Africa/Johannesburg when it has none (ADR-022 decision 6). Whole days in the duration are working days.
+/// </summary>
+public interface IBusinessTime
+{
+    /// <param name="isoDuration">An ISO 8601 duration such as PT4H or P1D.</param>
+    Task<DateTimeOffset> Add(Guid tenantId, string? calendarCode, DateTimeOffset start, string isoDuration, CancellationToken cancellationToken);
+}

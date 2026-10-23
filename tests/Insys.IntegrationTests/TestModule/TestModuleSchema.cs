@@ -44,12 +44,15 @@ public static class TestModuleSchema
         CREATE TABLE test_mod.consumption (
           tenant_id uuid NOT NULL, id uuid NOT NULL, event_id uuid NOT NULL, widget_id uuid NOT NULL, actor varchar(80) NOT NULL,
           CONSTRAINT pk_consumption PRIMARY KEY (tenant_id, id));
+        CREATE TABLE test_mod.ledger_consumption (
+          tenant_id uuid NOT NULL, seq bigint GENERATED ALWAYS AS IDENTITY, event_id uuid NOT NULL, widget_id uuid NOT NULL, what varchar(40) NOT NULL,
+          CONSTRAINT pk_ledger_consumption PRIMARY KEY (tenant_id, seq));
         CREATE TABLE test_mod.outbox_event (LIKE integration.outbox_event INCLUDING ALL);
         CREATE TABLE test_mod.inbox_message (LIKE integration.inbox_message INCLUDING ALL);
         DO $$
         DECLARE t text;
         BEGIN
-          FOREACH t IN ARRAY ARRAY['test_mod.widget', 'test_mod.consumption', 'test_mod.outbox_event', 'test_mod.inbox_message'] LOOP
+          FOREACH t IN ARRAY ARRAY['test_mod.widget', 'test_mod.consumption', 'test_mod.ledger_consumption', 'test_mod.outbox_event', 'test_mod.inbox_message'] LOOP
             EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
             EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', t);
             EXECUTE format($p$CREATE POLICY tenant_isolation ON %s
@@ -59,5 +62,6 @@ public static class TestModuleSchema
         END $$;
         GRANT USAGE ON SCHEMA test_mod TO {PostgresServer.TestModuleRole};
         GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA test_mod TO {PostgresServer.TestModuleRole};
+        GRANT USAGE ON ALL SEQUENCES IN SCHEMA test_mod TO {PostgresServer.TestModuleRole};
         """);
 }

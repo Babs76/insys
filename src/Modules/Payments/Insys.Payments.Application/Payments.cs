@@ -109,7 +109,7 @@ public sealed record StatusChangeView(PaymentStatus From, PaymentStatus To, stri
 
 public sealed record AllocationView(Guid Id, Guid InvoiceId, decimal Amount, string Currency, DateTimeOffset AllocatedAt, Guid? ReversedById);
 
-public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, string Purpose, string MethodCode, string ProviderCode, decimal Amount, string Currency,
+public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission)] string Purpose, string MethodCode, string ProviderCode, decimal Amount, string Currency,
     PaymentStatus Status, string? ExternalRef, string IdempotencyKey, DateOnly? ValueDate, string? BusinessRefType, Guid? BusinessRefId, Guid? PayoutBatchId,
     IReadOnlyList<StatusChangeView> History, IReadOnlyList<AllocationView> Allocations)
 {
@@ -119,7 +119,7 @@ public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, s
         p.Allocations.Select(a => new AllocationView(a.Id, a.InvoiceId, a.Amount, a.Currency, a.AllocatedAt, a.ReversedById)).ToList());
 }
 
-public sealed record BatchView(Guid Id, string BatchRef, string Purpose, int PaymentCount, decimal TotalAmount, string Currency, BatchStatus Status, Guid? BuiltBy,
+public sealed record BatchView(Guid Id, string BatchRef, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission)] string Purpose, int PaymentCount, decimal TotalAmount, string Currency, BatchStatus Status, Guid? BuiltBy,
     Guid? ApprovedBy, Guid? ReleasedBy)
 {
     public static BatchView From(PayoutBatch b) => new(b.Id, b.BatchRef, b.Purpose, b.PaymentCount, b.TotalAmount, b.Currency, b.Status, b.BuiltBy,
@@ -601,6 +601,16 @@ internal sealed class PendingPaymentsHandler(IPaymentRepository payments) : IQue
 /// received payments; raise a reconciliation exception for every unknown outcome (PAY-005); settle a batch when all its
 /// payments are final.
 /// </summary>
+/// <summary>Configuration a payout needs, named when its delivery is parked (ADR-022 decision 7, GAP-038).</summary>
+public static class PaymentPrerequisites
+{
+    /// <summary>No payout method in force for the currency (the item).</summary>
+    public const string PayoutMethodNotInForce = "PAYOUT_METHOD_NOT_IN_FORCE";
+
+    /// <summary>No provider in the register supports the payout method (the item).</summary>
+    public const string ProviderNotInForce = "PAYOUT_PROVIDER_NOT_IN_FORCE";
+}
+
 public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter starter, IPaymentCodes codes, IAllocationPlanner planner, ITenantContext tenant,
     IClock clock) :
     IIntegrationEventHandler<InvoiceIssued>,
@@ -679,11 +689,23 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     private async Task Payout(string key, string purpose, decimal amount, string currency, Guid? payee, string businessRefType, Guid businessRefId, Guid bankAccountId,
         CancellationToken cancellationToken)
     {
-        if (await codes.PayoutMethod(currency, clock.UtcToday, cancellationToken) is { } method)
+        // GAP-038, ADR-022 decision 7: a payout that cannot start is parked, visible and escalated, never skipped. It is
+        // retried when a payout method or provider is published, and the payment is then created once (its idempotency key).
+        if (await codes.PayoutMethod(currency, clock.UtcToday, cancellationToken) is not { } method)
         {
-            // TODO(spec): a payout with no method or provider for its currency is not started; it needs an exception queue (OQ-058).
-            await starter.Start(new InitiatePayment(key, Direction.Out, purpose, method, amount, currency, payee, businessRefType, businessRefId, bankAccountId),
-                cancellationToken);
+            throw new PrerequisiteMissingException(PaymentPrerequisites.PayoutMethodNotInForce, currency);
+        }
+
+        var started = await starter.Start(new InitiatePayment(key, Direction.Out, purpose, method, amount, currency, payee, businessRefType, businessRefId, bankAccountId),
+            cancellationToken);
+        if (started.IsFailure)
+        {
+            throw started.Error.Code switch
+            {
+                PaymentErrorCodes.CodeNotInForce => new PrerequisiteMissingException(PaymentPrerequisites.PayoutMethodNotInForce, currency),
+                PaymentErrorCodes.NoProvider => new PrerequisiteMissingException(PaymentPrerequisites.ProviderNotInForce, method),
+                _ => new InvalidOperationException($"The payout could not start: {started.Error.Code}."),
+            };
         }
     }
 

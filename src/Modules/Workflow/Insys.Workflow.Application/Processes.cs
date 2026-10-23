@@ -367,3 +367,74 @@ public sealed class EscalateOnSlaBreach(IProcessRepository processes, TaskEscala
         }
     }
 }
+
+/// <summary>
+/// Opens a task for the target role when parked deliveries escalate (ADR-022 decision 6), on the built-in one-step
+/// process PARKED_DELIVERY. One task per escalation level and kind; a repeat of the event is skipped by the inbox.
+/// </summary>
+public sealed class OpenParkedDeliveryTask(IProcessRepository processes, IClock clock, IAuditTrail audit)
+    : IIntegrationEventHandler<Integration.Contracts.ParkedDeliveryEscalated>
+{
+    public Task Handle(Integration.Contracts.ParkedDeliveryEscalated escalated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ParkedDelivery, Integration.Contracts.ParkedDeliveryEscalated.BusinessRefType,
+            escalated.ParkedDeliveryId, _ => new TaskRouting(escalated.TargetRole, null, escalated.DueAt), clock.UtcNow);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
+            new Dictionary<string, string?>
+            {
+                ["process"] = $"{BuiltInProcesses.ParkedDelivery.ProcessCode}@{BuiltInProcesses.ParkedDelivery.Version}",
+                ["level"] = escalated.Level.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["queue"] = escalated.TargetRole,
+                ["prerequisite"] = escalated.Code,
+            }));
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// F009: fraud indicators skipped on a claim open a configuration review task for the tenant's configuration owner role,
+/// due in one business day, on the built-in process CONFIG_REVIEW. One open task per indicator: a later claim that
+/// skips the same indicator while its review is open adds no task.
+/// </summary>
+public sealed class OpenConfigurationReviewTask(IProcessRepository processes, IProcessQueries queries, Integration.Contracts.IConfigurationOwner owner,
+    Contracts.IBusinessTime businessTime, ITenantContext tenant, IClock clock, IAuditTrail audit)
+    : IIntegrationEventHandler<ClaimsFramework.Contracts.FraudIndicatorsNotEvaluated>
+{
+    public const string FraudIndicatorRefType = "FRAUD_INDICATOR";
+
+    public async Task Handle(ClaimsFramework.Contracts.FraudIndicatorsNotEvaluated skipped, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var tenantId = tenant.RequireTenantId();
+        var role = await owner.Role(tenantId, cancellationToken);
+        var now = clock.UtcNow;
+        foreach (var indicator in skipped.Skipped.Select(s => s.IndicatorCode).Distinct(StringComparer.Ordinal))
+        {
+            var reference = ReferenceFor(indicator);
+            if ((await queries.List(FraudIndicatorRefType, reference, null, 20, cancellationToken)).Any(p => p.Status == ProcessStatus.Running))
+            {
+                continue;
+            }
+
+            var due = await businessTime.Add(tenantId, null, now, "P1D", cancellationToken);
+            var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ConfigurationReview, FraudIndicatorRefType, reference,
+                _ => new TaskRouting(role, null, due), now);
+            processes.Add(process.Value);
+            audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
+                new Dictionary<string, string?>
+                {
+                    ["process"] = $"{BuiltInProcesses.ConfigurationReview.ProcessCode}@{BuiltInProcesses.ConfigurationReview.Version}",
+                    ["indicator"] = indicator,
+                    ["queue"] = role,
+                    ["evaluation"] = skipped.EvaluationId.ToString(),
+                }));
+        }
+    }
+
+    /// <summary>A stable business reference for an indicator code, so its open review can be found again.</summary>
+    public static Guid ReferenceFor(string indicatorCode)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{FraudIndicatorRefType}:{indicatorCode}"));
+        return new Guid(hash.AsSpan(0, 16));
+    }
+}

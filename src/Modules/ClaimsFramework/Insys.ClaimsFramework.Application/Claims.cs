@@ -78,12 +78,21 @@ public sealed record EvidenceView(string EvidenceType, [property: OneOf("REQUEST
 
 public sealed record FraudHitView(string IndicatorCode, int Score, bool Referred, DateTimeOffset EvaluatedAt);
 
+/// <summary>An indicator a screening skipped (F009): the facts it lacked, or the evaluation's error code.</summary>
+public sealed record SkippedIndicatorView(string IndicatorCode, [property: OneOf(SkipReasons.MissingFacts, SkipReasons.EvaluationFailed)] string Reason,
+    IReadOnlyList<string> MissingFacts, string? ErrorCode);
+
+/// <summary>One screening of the claim against the fraud indicators in force, with what it skipped and why (F009).</summary>
+public sealed record FraudEvaluationView(Guid Id, DateTimeOffset EvaluatedAt, int Score, bool Referred, int IndicatorsEvaluated, IReadOnlyList<SkippedIndicatorView> Skipped);
+
 public sealed record ClaimView(Guid Id, string ClaimNumber, string Domain, Guid DomainClaimId, Guid PolicyRef, DateTimeOffset RegisteredAt,
-    IReadOnlyList<EvidenceView> Evidence, IReadOnlyList<FraudHitView> FraudHits, int Communications)
+    IReadOnlyList<EvidenceView> Evidence, IReadOnlyList<FraudHitView> FraudHits, int Communications, IReadOnlyList<FraudEvaluationView> FraudEvaluations)
 {
     public static ClaimView From(ClaimRegistration c) => new(c.Id, c.ClaimNumber, c.Domain, c.DomainClaimId, c.PolicyRef, c.RegisteredAt,
         c.Evidence.Select(e => new EvidenceView(e.EvidenceType, e.Status, e.DocumentId, e.RequestedAt, e.ReceivedAt)).ToList(),
-        c.FraudHits.Select(h => new FraudHitView(h.IndicatorCode, h.Score, h.Referred, h.EvaluatedAt)).ToList(), c.Communications.Count);
+        c.FraudHits.Select(h => new FraudHitView(h.IndicatorCode, h.Score, h.Referred, h.EvaluatedAt)).ToList(), c.Communications.Count,
+        c.FraudEvaluations.OrderBy(e => e.EvaluatedAt).Select(e => new FraudEvaluationView(e.Id, e.EvaluatedAt, e.Score, e.Referred, e.IndicatorsEvaluated,
+            e.Skipped.Select(s => new SkippedIndicatorView(s.IndicatorCode, s.Reason, s.MissingFacts, s.ErrorCode)).ToList())).ToList());
 }
 
 public sealed record MovementView(Guid Id, string MovementType, string ReserveType, decimal Amount, string Currency, DateTimeOffset MovementAt);
@@ -300,9 +309,9 @@ internal sealed class EvaluateFraudIndicatorsHandler(IClaimsRepository claims, I
             ? command.Facts.EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value.Clone(), StringComparer.Ordinal)
             : new Dictionary<string, object?>();
         var evaluation = claim.Value.EvaluateFraudIndicators(indicators.Value, facts, clock.UtcNow);
-        if (evaluation.NotEvaluated.Count > 0)
+        if (evaluation.Skipped.Count > 0)
         {
-            // Codes only: the facts may describe the claim.
+            // Codes only: the facts may describe the claim. The evaluation records the skips, and FraudIndicatorsNotEvaluated tells the configuration owner.
             logger.LogWarning("Fraud indicators {Indicators} could not be evaluated on claim {ClaimNumber}", string.Join(", ", evaluation.NotEvaluated),
                 command.ClaimNumber);
         }

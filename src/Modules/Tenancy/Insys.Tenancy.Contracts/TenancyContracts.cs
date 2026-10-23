@@ -52,6 +52,12 @@ public interface ITenantBaseCurrency
     Task<string?> BaseCurrency(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
 }
 
+/// <summary>Public query interface: the tenant's IANA time zone on a day (tenant.cfg_locale_defaults), or null when none is in force.</summary>
+public interface ITenantTimeZone
+{
+    Task<string?> TimeZone(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+}
+
 /// <summary>A tenant as other modules show it: its code, legal name and status (Onboarding, Active, Suspended or Terminated).</summary>
 public sealed record TenantProfile(Guid Id, string TenantCode, string LegalName, string Status);
 

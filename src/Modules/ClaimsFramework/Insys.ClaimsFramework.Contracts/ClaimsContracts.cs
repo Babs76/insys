@@ -49,6 +49,16 @@ public static class ClaimsApprovals
 [IntegrationEvent("claims.ClaimNumberAllocated")]
 public sealed record ClaimNumberAllocated(string ClaimNumber, string Domain, Guid DomainClaimId, Guid PolicyRef) : IIntegrationEvent;
 
+/// <summary>An indicator skipped on a claim, and why (F009): MISSING_FACTS with the facts' names, or EVALUATION_FAILED with the error code.</summary>
+public sealed record SkippedFraudIndicator(string IndicatorCode, string Reason, IReadOnlyList<string> MissingFacts, string? ErrorCode);
+
+/// <summary>
+/// Fraud indicators could not be evaluated on a claim (F009). Workflow opens a configuration review task for the
+/// tenant's configuration owner role, one per indicator while it stays open.
+/// </summary>
+[IntegrationEvent("claims.FraudIndicatorsNotEvaluated")]
+public sealed record FraudIndicatorsNotEvaluated(Guid EvaluationId, string ClaimNumber, IReadOnlyList<SkippedFraudIndicator> Skipped) : IIntegrationEvent;
+
 [IntegrationEvent("claims.FraudIndicatorRaised")]
 public sealed record FraudIndicatorRaised(string ClaimNumber, string IndicatorCode, int Score, bool Referred) : IIntegrationEvent;
 

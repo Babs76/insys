@@ -290,6 +290,9 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // of inception) below its referral threshold, so it is recorded without referring the claim.
         await Seed("claims.cfg_fraud_indicator_definitions", "EFFECTIVE", "E2E-EARLY-GEN", ("indicator_code", "EARLY_CLAIM"), ("logic", "days_since_inception < 30"),
             ("score", 10), ("referral_threshold", 100), ("referral_queue", "FRAUD"));
+        // This one needs a fact General does not give, so it is skipped: recorded with why, and the configuration owner is told.
+        await Seed("claims.cfg_fraud_indicator_definitions", "EFFECTIVE", "E2E-SUM-GEN", ("indicator_code", "HIGH_SUM_ASSURED"), ("logic", "sum_assured > 1000000"),
+            ("score", 50), ("referral_threshold", 100), ("referral_queue", "FRAUD"));
         var claim = await Created("/api/v1/general/claims", new
         {
             policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC",
@@ -302,6 +305,15 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         ShouldMatchDocumented(await Claim(claim), "GeneralGetClaim");
         (await _db.ScalarAsOwner<string>("SELECT indicator_code || ':' || referred FROM claims.fraud_indicator_hit WHERE claim_number = @n", ("n", number)))
             .ShouldBe("EARLY_CLAIM:false", customMessage: "F009: fraud indicators are evaluated at registration");
+        (await _db.ScalarAsOwner<string>("""
+            SELECT s ->> 'indicatorCode' || ':' || (s ->> 'reason') || ':' || (s -> 'missingFacts' ->> 0)
+            FROM claims.fraud_evaluation e CROSS JOIN jsonb_array_elements(e.skipped) s WHERE e.claim_number = @n
+            """, ("n", number))).ShouldBe("HIGH_SUM_ASSURED:MISSING_FACTS:sum_assured", customMessage: "F009: a skipped indicator is recorded with why");
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<string>("""
+            SELECT t.queue_code FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
+            WHERE p.process_code = 'CONFIG_REVIEW' AND p.business_ref_type = 'FRAUD_INDICATOR'
+            """)).ShouldBe("TENANT_ADMIN", customMessage: "F009: the configuration owner gets a review task, not only a log line");
         var claims = await (await _maker.GetAsync($"/api/v1/general/claims?claimNumber={number}")).Json();
         ShouldMatchDocumented(claims, "GeneralListClaims");
         claims.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid().ShouldBe(claim);

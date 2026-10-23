@@ -36,8 +36,60 @@ public sealed record FraudIndicatorRaised(string ClaimNumber, string IndicatorCo
 /// <summary>A fraud indicator (claims.cfg_fraud_indicator_definitions): a condition, its score, and the total score that refers a claim.</summary>
 public sealed record FraudIndicator(string IndicatorCode, Expression Logic, int Score, int ReferralThreshold);
 
+/// <summary>Why an indicator was skipped (F009): a fact its condition needs was not given, or the condition could not be evaluated.</summary>
+public static class SkipReasons
+{
+    public const string MissingFacts = "MISSING_FACTS";
+    public const string EvaluationFailed = "EVALUATION_FAILED";
+}
+
+/// <summary>
+/// An indicator that could not be evaluated, and why: the names of the facts it lacked, or the evaluation's error code.
+/// Names and codes only, never a fact's value.
+/// </summary>
+public sealed record SkippedIndicator(string IndicatorCode, string Reason, IReadOnlyList<string> MissingFacts, string? ErrorCode);
+
 /// <summary>An evaluation's total score, and the indicators that could not be evaluated on the claim's facts (F009).</summary>
-public sealed record FraudEvaluation(int Score, IReadOnlyList<string> NotEvaluated);
+public sealed record FraudEvaluation(Guid Id, int Score, IReadOnlyList<SkippedIndicator> Skipped)
+{
+    public IReadOnlyList<string> NotEvaluated => Skipped.Select(s => s.IndicatorCode).ToList();
+}
+
+/// <summary>Fraud indicators were skipped on a claim (F009): the tenant's configuration owner is told, not only the log.</summary>
+public sealed record FraudIndicatorsSkipped(Guid EvaluationId, string ClaimNumber, IReadOnlyList<SkippedIndicator> Skipped, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>
+/// Entity FraudEvaluationRecord (claims.fraud_evaluation, V0032): each screening of a claim, with its score and the
+/// indicators it skipped and why (F009). Append-only.
+/// </summary>
+public sealed class FraudEvaluationRecord : Entity<Guid>, ITenantScoped
+{
+    private FraudEvaluationRecord()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public string ClaimNumber { get; private set; } = "";
+
+    public DateTimeOffset EvaluatedAt { get; private set; }
+
+    public int Score { get; private set; }
+
+    public bool Referred { get; private set; }
+
+    public short IndicatorsEvaluated { get; private set; }
+
+    public IReadOnlyList<SkippedIndicator> Skipped { get; private set; } = [];
+
+    internal static FraudEvaluationRecord Create(Guid id, string claimNumber, int score, bool referred, int evaluated, IReadOnlyList<SkippedIndicator> skipped,
+        DateTimeOffset now) =>
+        new()
+        {
+            Id = id, ClaimNumber = claimNumber, Score = score, Referred = referred, IndicatorsEvaluated = checked((short)evaluated), Skipped = skipped,
+            EvaluatedAt = now,
+        };
+}
 
 /// <summary>Entity EvidenceItem (claims.claim_evidence).</summary>
 public sealed class EvidenceItem : Entity<Guid>, ITenantScoped
@@ -139,6 +191,7 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
     private readonly List<EvidenceItem> _evidence = [];
     private readonly List<Communication> _communications = [];
     private readonly List<FraudIndicatorHit> _fraudHits = [];
+    private readonly List<FraudEvaluationRecord> _fraudEvaluations = [];
 
     private ClaimRegistration()
     {
@@ -159,6 +212,8 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
     public IReadOnlyList<Communication> Communications => _communications;
 
     public IReadOnlyList<FraudIndicatorHit> FraudHits => _fraudHits;
+
+    public IReadOnlyList<FraudEvaluationRecord> FraudEvaluations => _fraudEvaluations;
 
     /// <summary>
     /// Command AllocateClaimNumber. TODO(spec): numbers are the scheme's prefix and an ID-based suffix; sequence
@@ -217,18 +272,26 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
     /// Command EvaluateFraudIndicators: every indicator whose condition holds is recorded; when their total score reaches
     /// an indicator's referral threshold, the claim is referred. An indicator that cannot be evaluated on these facts (a
     /// fact its domain does not give, say, since the indicators are shared by the domains) is skipped and reported, so
-    /// that it never stops the others from screening the claim (F009).
+    /// that it never stops the others from screening the claim. The evaluation is recorded with what it skipped and why,
+    /// and a skip raises FraudIndicatorsSkipped for the configuration owner (F009).
     /// </summary>
     public FraudEvaluation EvaluateFraudIndicators(IReadOnlyList<FraudIndicator> indicators, IReadOnlyDictionary<string, object?> facts, DateTimeOffset now)
     {
         var hits = new List<FraudIndicator>();
-        var notEvaluated = new List<string>();
+        var skipped = new List<SkippedIndicator>();
         foreach (var indicator in indicators)
         {
-            var holds = indicator.Logic.Variables.All(facts.ContainsKey) ? indicator.Logic.Evaluate(facts) : null;
-            if (holds is null || holds.IsFailure)
+            var missing = indicator.Logic.Variables.Where(v => !facts.ContainsKey(v)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+            if (missing.Count > 0)
             {
-                notEvaluated.Add(indicator.IndicatorCode);
+                skipped.Add(new SkippedIndicator(indicator.IndicatorCode, SkipReasons.MissingFacts, missing, null));
+                continue;
+            }
+
+            var holds = indicator.Logic.Evaluate(facts);
+            if (holds.IsFailure)
+            {
+                skipped.Add(new SkippedIndicator(indicator.IndicatorCode, SkipReasons.EvaluationFailed, [], holds.Error.Code));
             }
             else if (holds.Value)
             {
@@ -244,8 +307,16 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
             Raise(new FraudIndicatorRaised(ClaimNumber, hit.IndicatorCode, hit.Score, referred, now));
         }
 
+        var evaluation = FraudEvaluationRecord.Create(Guid.CreateVersion7(), ClaimNumber, total, hits.Any(h => total >= h.ReferralThreshold),
+            indicators.Count - skipped.Count, skipped, now);
+        _fraudEvaluations.Add(evaluation);
+        if (skipped.Count > 0)
+        {
+            Raise(new FraudIndicatorsSkipped(evaluation.Id, ClaimNumber, skipped, now));
+        }
+
         MarkChanged();
-        return new FraudEvaluation(total, notEvaluated);
+        return new FraudEvaluation(evaluation.Id, total, skipped);
     }
 }
 

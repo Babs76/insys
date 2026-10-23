@@ -47,7 +47,9 @@ public static class TenancyInfrastructure
         services.AddScoped<ITenantQueries, TenantQueries>();
         services.AddSingleton<ITenantDirectory, TenantDirectory>();
         services.AddSingleton<ITenantStatusQuery, TenantStatusQuery>();
-        services.AddSingleton<ITenantBaseCurrency, TenantBaseCurrency>();
+        services.AddSingleton<TenantLocaleDefaults>();
+        services.AddSingleton<ITenantBaseCurrency>(sp => sp.GetRequiredService<TenantLocaleDefaults>());
+        services.AddSingleton<ITenantTimeZone>(sp => sp.GetRequiredService<TenantLocaleDefaults>());
         services.AddSingleton<ITenantProfiles, TenantProfiles>();
         services.AddMemoryCache();
         services.AddSingleton<IStaticRecordValidator, LocaleDefaultsValidator>();

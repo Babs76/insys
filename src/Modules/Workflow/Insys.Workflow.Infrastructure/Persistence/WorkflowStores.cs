@@ -36,6 +36,8 @@ using Insys.Workflow.Domain.Processes;
 using Insys.Workflow.Infrastructure.StaticData;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.StaticData.Contracts;
+using Insys.Tenancy.Contracts;
+using Insys.Workflow.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -187,6 +189,11 @@ internal sealed class WorkflowConfiguration(WorkflowDbContext db, IOptions<Workf
 {
     public async Task<Result<ProcessDefinition>> Definition(string processCode, int? version, DateOnly day, CancellationToken cancellationToken)
     {
+        if (BuiltInProcesses.Find(processCode, version) is { } builtIn)
+        {
+            return builtIn;
+        }
+
         var definitions = db.Set<WorkflowDefinitions>().AsNoTracking();
         var row = version is { } v
             ? await definitions.Where(d => d.ProcessCode == processCode && d.Version == v && d.TenantId != null).SingleOrDefaultAsync(cancellationToken)
@@ -236,7 +243,7 @@ internal sealed class WorkflowConfiguration(WorkflowDbContext db, IOptions<Workf
     /// The business calendars the SLAs name, with their public holidays for the next 400 days (OQ-049). An SLA whose
     /// calendar is not in force runs on the clock, and the gap is logged.
     /// </summary>
-    private async Task<Dictionary<string, BusinessCalendar>> Calendars(string[] codes, DateOnly day, CancellationToken cancellationToken)
+    internal async Task<Dictionary<string, BusinessCalendar>> Calendars(string[] codes, DateOnly day, CancellationToken cancellationToken)
     {
         var result = new Dictionary<string, BusinessCalendar>(StringComparer.Ordinal);
         var rows = await db.Set<BusinessCalendars>().AsNoTracking().InForce(Descriptor<BusinessCalendars>().Lifecycle, day)
@@ -320,7 +327,7 @@ internal sealed class WorkflowConfiguration(WorkflowDbContext db, IOptions<Workf
     }
 
     /// <summary>The SLA due time: on its business calendar when there is one (days are working days), otherwise on the clock.</summary>
-    private static DateTimeOffset Due(DateTimeOffset now, string isoDuration, BusinessCalendar? calendar)
+    internal static DateTimeOffset Due(DateTimeOffset now, string isoDuration, BusinessCalendar? calendar)
     {
         var period = PeriodPattern.NormalizingIso.Parse(isoDuration).GetValueOrThrow();
         if (calendar is null)
@@ -335,6 +342,41 @@ internal sealed class WorkflowConfiguration(WorkflowDbContext db, IOptions<Workf
     }
 
     private static StaticDataDescriptor Descriptor<T>() => WorkflowStaticData.Descriptors.Single(d => d.EntityType == typeof(T));
+}
+
+/// <summary>
+/// Business time in the current tenant (ADR-022 decision 6): the named calendar when in force, else Monday to Friday,
+/// 08:00 to 17:00, in the tenant's time zone.
+/// </summary>
+internal sealed class BusinessTime(WorkflowConfiguration configuration, ITenantTimeZone timeZones, ITenantContext tenant, BuildingBlocks.Application.Context.IClock clock) : IBusinessTime
+{
+    public const string DefaultTimeZone = "Africa/Johannesburg";
+
+    public async Task<DateTimeOffset> Add(Guid tenantId, string? calendarCode, DateTimeOffset start, string isoDuration, CancellationToken cancellationToken)
+    {
+        if (tenant.RequireTenantId() != tenantId)
+        {
+            throw new InvalidOperationException("Business time is read in the tenant's own scope (TEN-004).");
+        }
+
+        BusinessCalendar? calendar = null;
+        if (!string.IsNullOrWhiteSpace(calendarCode))
+        {
+            calendar = (await configuration.Calendars([calendarCode], clock.UtcToday, cancellationToken)).GetValueOrDefault(calendarCode);
+        }
+
+        if (calendar is null)
+        {
+            var zone = await timeZones.TimeZone(tenantId, clock.UtcToday, cancellationToken);
+            var inZone = Default(string.IsNullOrWhiteSpace(zone) ? DefaultTimeZone : zone);
+            calendar = inZone.IsSuccess ? inZone.Value : Default(DefaultTimeZone).Value;
+        }
+
+        return WorkflowConfiguration.Due(start, isoDuration, calendar);
+    }
+
+    private static Result<BusinessCalendar> Default(string timeZone) =>
+        BusinessCalendar.Create("DEFAULT", ["Mon", "Tue", "Wed", "Thu", "Fri"], "08:00-17:00", timeZone, []);
 }
 
 internal sealed class WorkflowEventMapper : IDomainEventMapper

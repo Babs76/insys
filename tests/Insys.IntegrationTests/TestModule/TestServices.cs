@@ -60,6 +60,8 @@ public static class TestServices
         services.AddDomainEventMapper<WidgetEventMapper>(TestDbContext.SchemaName);
         services.AddSingleton<ConsumerSwitch>();
         services.AddIntegrationEventHandler<WidgetCreated, WidgetCreatedConsumer, TestDbContext>(TestDbContext.SchemaName);
+        services.AddIntegrationEventHandler<WidgetCreated, WidgetLedgerConsumer, TestDbContext>(TestDbContext.SchemaName);
+        services.AddIntegrationEventHandler<WidgetRenamed, WidgetLedgerConsumer, TestDbContext>(TestDbContext.SchemaName);
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
     }
 
