@@ -122,6 +122,8 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-072 | 8 | How long a parked event delivery may wait before it is escalated, and who owns the escalation | Open: ADR-022 proposes 1 business day, per tenant |
 | OQ-073 | 8 | Retention of the party search access log | Open: no period in the SRS or static data |
 | OQ-074 | 8 | Product and organisation scopes on permissions (F103, SRS-003): which records, assignment, hierarchy, reads, transaction categories | Open: proposal `docs/specs/addenda/access-scopes.md`; product scopes are stored but not enforced today |
+| OQ-075 | 8 | Channel transaction permissions (F005): how a request's channel is known, what a transaction type is, approval on a channel | Open: proposal `docs/specs/addenda/channel-permissions.md` |
+| OQ-076 | 8 | Aggregation and risk limits (F062): effect at quote issue and endorsement, the alert level, aggregate claims limits and reinstatement | Open: proposal `docs/specs/addenda/aggregation-limits.md` |
 
 ---
 
@@ -759,4 +761,23 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - The specifications do not say how a record gets one, whether a scope covers the nodes below it, how scopes apply to reads, or what a transaction category is.
   - Product scopes are stored and shown on `/identity/me`, but not enforced: a product-scoped role gives its permissions for every product.
 - **Proposal (pending business sign-off):** `docs/specs/addenda/access-scopes.md`. Not built until approved, because it changes every domain module's repositories and adds a column to each scoped record.
+
+### OQ-075 Channel transaction permissions (Phase 8 Wave 0, F005)
+- **Sources:** static data `channel.cfg_channel_definitions` and `channel.cfg_channel_transaction_permissions`; domain model (a Life proposal's product on its channel).
+- **Gap:** no code reads either table. The specifications do not say how a request's channel is known (a channel in the body cannot be trusted), what a `transaction_type` is, or what `requires_approval` means where a command has no approval flow.
+- **Proposal (pending business sign-off):** `docs/specs/addenda/channel-permissions.md`. The channel comes from the token's OAuth client, which needs a new `client_ids` field. Transaction types are permission codes. It is enforced on domain commands. Not built until approved.
+
+### OQ-076 Aggregation and risk limits (Phase 8 Wave 0, F062)
+- **Sources:** static data `general.cfg_aggregation_zones_and_limits` and `general.cfg_aggregate_limit_definitions`; GEN-008; the exposure snapshot (ADR-015).
+- **Gap:** no code reads either table. Undefined:
+  - whether exceeding a zone limit blocks, refers or only alerts;
+  - from what level to alert;
+  - how claims aggregates reinstate.
+- **Proposal (pending business sign-off):** `docs/specs/addenda/aggregation-limits.md`:
+  - quotes over a zone limit are referred to an underwriter;
+  - endorsements over it need approval;
+  - an alert level is set once it is chosen;
+  - settlement stops at the claims aggregate, with reinstatement as proposed there.
+
+  Not built until approved.
 
