@@ -49,6 +49,7 @@ public static class TenancyInfrastructure
         services.AddSingleton<ITenantStatusQuery, TenantStatusQuery>();
         services.AddSingleton<ITenantBaseCurrency, TenantBaseCurrency>();
         services.AddMemoryCache();
+        services.AddSingleton<IStaticRecordValidator, LocaleDefaultsValidator>();
         services.AddSingleton<TenantLanguageSettings>();
         services.AddSingleton<Insys.BuildingBlocks.Application.Localisation.ILanguageSettings>(sp => sp.GetRequiredService<TenantLanguageSettings>());
         services.AddIntegrationEventHandler<Insys.BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated, LocaleCachePolicy, TenancyDbContext>(

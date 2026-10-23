@@ -49,6 +49,8 @@ public sealed class LocaleDefaults : StaticRecord<LocaleDefaultsInput>
 
     public string Country { get; set; } = "";
 
+    public string DefaultLanguage { get; set; } = "";
+
     public override void ApplyFields(LocaleDefaultsInput input, IFieldProtector protector)
     {
         Tenant = input.Tenant!;
@@ -56,6 +58,7 @@ public sealed class LocaleDefaults : StaticRecord<LocaleDefaultsInput>
         Languages = input.Languages!;
         TimeZone = input.TimeZone!;
         Country = input.Country!;
+        DefaultLanguage = input.DefaultLanguage!;
     }
 }
 
@@ -72,6 +75,8 @@ public sealed record LocaleDefaultsInput : StaticRecordInput
 
     public string? Country { get; init; }
 
+    public string? DefaultLanguage { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("tenant", Tenant);
@@ -83,5 +88,7 @@ public sealed record LocaleDefaultsInput : StaticRecordInput
         errors.MaxLength("timeZone", TimeZone, 80);
         errors.Required("country", Country);
         errors.MaxLength("country", Country, 80);
+        errors.Required("defaultLanguage", DefaultLanguage);
+        errors.MaxLength("defaultLanguage", DefaultLanguage, 80);
     }
 }

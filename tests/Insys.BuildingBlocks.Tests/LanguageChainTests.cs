@@ -33,8 +33,9 @@ namespace Insys.BuildingBlocks.Tests;
 /// <summary>The request language and its fallback chain (docs/specs/addenda/localisation.md §1 to §3, OQ-068).</summary>
 public sealed class LanguageChainTests
 {
-    private static readonly TenantLanguages SouthAfrica = new(["en", "af", "zu", "xh"]);
-    private static readonly TenantLanguages AfrikaansFirst = new(["af", "en"]);
+    private static readonly TenantLanguages SouthAfrica = new(["en", "af", "zu", "xh"], "en");
+    // The default is a setting, not the first in the list: English is listed first here.
+    private static readonly TenantLanguages AfrikaansFirst = new(["en", "af"], "af");
 
     [Fact]
     public void AcceptLanguage_IsReadByQuality_PrimarySubtagOnly_IgnoringWildcardsAndRefusals()
@@ -51,7 +52,7 @@ public sealed class LanguageChainTests
         LanguageChain.Resolve(["fr"], AfrikaansFirst).ShouldBe("af");
         LanguageChain.Resolve([], AfrikaansFirst).ShouldBe("af");
         LanguageChain.Resolve(["af"], TenantLanguages.EnglishOnly).ShouldBe("en");
-        new TenantLanguages([]).Default.ShouldBe("en");
+        TenantLanguages.EnglishOnly.Default.ShouldBe("en");
     }
 
     [Fact]

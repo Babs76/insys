@@ -8,7 +8,9 @@
 ## 1. A tenant's languages
 
 - A tenant's **supported languages** are the `languages` list of its `cfg_locale_defaults` record in force.
-- The **first entry is the tenant's default language.** *(Proposal: the catalogue has no separate default field.)*
+- The tenant's **default language** is set explicitly in `default_language` (V0022), and it must be one of the tenant's languages.
+  - Creating, editing or importing a locale defaults version with any other value is refused, with a field error on `defaultLanguage`. The database refuses it too (`cfg_locale_defaults_default_in_languages`).
+  - Neither the catalogue nor the SRS has this field. *(Proposal: added on review of checkpoint B.)*
 - A tenant with no locale defaults in force supports English only, and its default is English.
 - Language codes are ISO 639-1, two lower-case letters, and must be in `refdata.ref_languages`.
 

@@ -29,16 +29,14 @@ using System.Globalization;
 namespace Insys.BuildingBlocks.Application.Localisation;
 
 /// <summary>
-/// A tenant's supported languages (tenant.cfg_locale_defaults.languages in force). The first is the tenant's default
-/// (docs/specs/addenda/localisation.md §1, OQ-068). A tenant without locale defaults supports English only.
+/// A tenant's supported languages and its default (tenant.cfg_locale_defaults in force: languages and default_language,
+/// which is one of them; docs/specs/addenda/localisation.md §1, OQ-068). A tenant without locale defaults has English only.
 /// </summary>
-public sealed record TenantLanguages(IReadOnlyList<string> Supported)
+public sealed record TenantLanguages(IReadOnlyList<string> Supported, string Default)
 {
     public const string English = "en";
 
-    public static readonly TenantLanguages EnglishOnly = new([English]);
-
-    public string Default => Supported.Count > 0 ? Supported[0] : English;
+    public static readonly TenantLanguages EnglishOnly = new([English], English);
 
     public bool Supports(string language) => Supported.Contains(language, StringComparer.Ordinal);
 }

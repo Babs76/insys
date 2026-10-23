@@ -70,9 +70,9 @@ public sealed class LocalisationTests(DatabaseFixture fixture) : IClassFixture<D
         }
 
         await db.SeedStatic(A, "tenant.cfg_locale_defaults", "EFFECTIVE", "LOCALE", From, ("tenant", "A"), ("base_currency", "ZAR"),
-            ("languages", new[] { "en", "af", "zu", "xh" }), ("time_zone", "Africa/Johannesburg"), ("country", "ZA"));
+            ("languages", new[] { "en", "af", "zu", "xh" }), ("default_language", "en"), ("time_zone", "Africa/Johannesburg"), ("country", "ZA"));
         await db.SeedStatic(B, "tenant.cfg_locale_defaults", "EFFECTIVE", "LOCALE", From, ("tenant", "B"), ("base_currency", "ZAR"),
-            ("languages", new[] { "af", "en" }), ("time_zone", "Africa/Johannesburg"), ("country", "ZA"));
+            ("languages", new[] { "en", "af" }), ("default_language", "af"), ("time_zone", "Africa/Johannesburg"), ("country", "ZA"));
 
         // Static data: one frequency translated into three languages, one with English only, one with no labels at all.
         foreach (var tenant in new[] { A, B })
@@ -200,6 +200,22 @@ public sealed class LocalisationTests(DatabaseFixture fixture) : IClassFixture<D
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         response.Content.Headers.ContentLanguage.ShouldBe(["en"]);
+    }
+
+    /// <summary>The default language is an explicit setting that must be one of the tenant's languages (V0022, addendum §1).</summary>
+    [Fact]
+    public async Task DefaultLanguage_MustBeOneOfTheTenantsLanguages()
+    {
+        var response = await Client(A, "lang-a", null).Send(HttpMethod.Post, "/api/v1/tenancy/static/locale-defaults", new
+        {
+            code = "LOCALE-NEXT", tenant = "A", baseCurrency = "ZAR", languages = new[] { "en", "af" }, defaultLanguage = "zu",
+            timeZone = "Africa/Johannesburg", country = "ZA", changeReason = "test",
+        }, idempotent: true);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await response.Json()).GetProperty("errors").GetProperty("defaultLanguage").EnumerateArray().Single().GetString().ShouldBe("Must be one of: en, af.");
+        await Should.ThrowAsync<Npgsql.PostgresException>(() => fixture.Database.SeedStatic(A, "tenant.cfg_locale_defaults", "DRAFT", "LOCALE-BAD", From.AddDays(400),
+            ("tenant", "A"), ("base_currency", "ZAR"), ("languages", new[] { "en" }), ("default_language", "af"), ("time_zone", "Africa/Johannesburg"), ("country", "ZA")));
     }
 
     [Fact]

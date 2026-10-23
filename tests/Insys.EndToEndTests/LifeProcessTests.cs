@@ -158,7 +158,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
             ("t", Tenant));
         await Seed("claims.ref_reserve_types", "ACTIVE", "INDEMNITY", ("category", "INDEMNITY"), ("posting_rule", "PR-CLM-UP"));
         await Seed("claims.cfg_claim_numbering_schemes", "EFFECTIVE", "LIFE", ("domain", "LIFE"), ("prefix", "LIF"), ("sequence_length", 8));
-        await Seed("tenant.cfg_locale_defaults", "EFFECTIVE", "LOCALE-A", ("tenant", "A"), ("base_currency", "ZAR"), ("languages", new[] { "en" }),
+        await Seed("tenant.cfg_locale_defaults", "EFFECTIVE", "LOCALE-A", ("tenant", "A"), ("base_currency", "ZAR"), ("languages", new[] { "en" }), ("default_language", "en"),
             ("time_zone", "Africa/Johannesburg"), ("country", "ZA"));
         foreach (var account in new[] { "1100", "1200", "2100", "4000", "5000" })
         {

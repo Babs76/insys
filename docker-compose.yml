@@ -25,7 +25,7 @@
 # Local development database: PostgreSQL 18.
 #   docker compose up -d postgres
 #   INSYS_ROLE_PASSWORD=insys_local dotnet run --project tools/Insys.DbMigrator -- \
-#     --connection "Host=localhost;Port=5432;Database=insys;Username=insys_owner;Password=insys_owner_local" --roles db/roles \
+#     --connection "Host=localhost;Port=55433;Database=insys;Username=insys_owner;Password=insys_owner_local" --roles db/roles \
 #     --bootstrap-operator 0199f000-0000-7000-8000-000000000001 --admin-subject <your IdP subject>
 #   dotnet run --project src/Host/Insys.Api
 # The owner runs migrations; each module connects as its own non-owner role without BYPASSRLS (DBA-002, DBA-004),
@@ -39,9 +39,9 @@ services:
       POSTGRES_USER: insys_owner
       POSTGRES_PASSWORD: insys_owner_local
     ports:
-      # Set INSYS_PG_PORT if 5432 is taken (for example by a local PostgreSQL), and point
-      # ConnectionStrings__Template at the same port.
-      - "${INSYS_PG_PORT:-5432}:5432"
+      # 55433 on the host, as in appsettings.Development.json, so a local PostgreSQL on 5432 does not clash.
+      # Set INSYS_PG_PORT to use another port, and point ConnectionStrings__Template at it.
+      - "${INSYS_PG_PORT:-55433}:5432"
     volumes:
       # PostgreSQL 18 images keep data under /var/lib/postgresql/<major>/docker.
       - insys-pgdata:/var/lib/postgresql

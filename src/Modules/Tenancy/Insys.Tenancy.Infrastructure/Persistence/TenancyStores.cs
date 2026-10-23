@@ -31,6 +31,8 @@ using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Contracts.StaticData;
 using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
+using Insys.Tenancy.Infrastructure.StaticData;
+using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Tenancy.Application.Tenants;
 using Insys.Tenancy.Contracts;
 using Insys.Tenancy.Domain.Tenants;
@@ -143,8 +145,8 @@ internal sealed class TenantBaseCurrency([FromKeyedServices(TenancyDbContext.Sch
 }
 
 /// <summary>
-/// A tenant's languages from its locale defaults in force; the first is the default (docs/specs/addenda/localisation.md
-/// §1, OQ-068). English only when none is in force. Cached for a minute, like the other per-request lookups.
+/// A tenant's languages and default language from its locale defaults in force (docs/specs/addenda/localisation.md §1,
+/// OQ-068). English only when none is in force. Cached for a minute, like the other per-request lookups.
 /// </summary>
 public sealed class TenantLanguageSettings([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource, IMemoryCache cache, IClock clock)
     : ILanguageSettings
@@ -162,23 +164,32 @@ public sealed class TenantLanguageSettings([FromKeyedServices(TenancyDbContext.S
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT languages FROM tenant.cfg_locale_defaults
+            SELECT languages, default_language FROM tenant.cfg_locale_defaults
             WHERE tenant_id = @t AND record_status = ANY(@statuses) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
             ORDER BY version DESC LIMIT 1
             """, connection, transaction);
         command.Parameters.AddWithValue("t", tenantId);
         command.Parameters.AddWithValue("statuses", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce);
         command.Parameters.AddWithValue("day", clock.UtcToday);
-        var languages = await command.ExecuteScalarAsync(cancellationToken) is string[] list
-            ? list.Select(l => l.Trim().ToLowerInvariant()).Where(l => l.Length == 2).Distinct().ToList()
-            : [];
+        var result = TenantLanguages.EnglishOnly;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                var languages = reader.GetFieldValue<string[]>(0).Select(Normalise).Where(l => l.Length == 2).Distinct().ToList();
+                var preferred = Normalise(reader.GetString(1));
+                result = languages.Contains(preferred) ? new TenantLanguages(languages, preferred) : TenantLanguages.EnglishOnly;
+            }
+        }
+
         await transaction.CommitAsync(cancellationToken);
-        var result = languages.Count > 0 ? new TenantLanguages(languages) : TenantLanguages.EnglishOnly;
         cache.Set(("tenant-languages", tenantId), result, CacheFor);
         return result;
     }
 
     public void Invalidate(Guid tenantId) => cache.Remove(("tenant-languages", tenantId));
+
+    private static string Normalise(string language) => language.Trim().ToLowerInvariant();
 }
 
 /// <summary>Drops a tenant's cached languages when a locale defaults version is activated, so the next request reads it.</summary>
@@ -193,4 +204,17 @@ public sealed class LocaleCachePolicy(TenantLanguageSettings languages, ITenantC
 
         return Task.CompletedTask;
     }
+}
+
+/// <summary>A locale defaults version's default language must be one of its languages (V0022; addendum §1).</summary>
+internal sealed class LocaleDefaultsValidator : IStaticRecordValidator
+{
+    public string Schema => TenancyDbContext.SchemaName;
+
+    public string Table => "cfg_locale_defaults";
+
+    public IReadOnlyDictionary<string, string[]> Validate(StaticRecord record) =>
+        record is LocaleDefaults locale && !locale.Languages.Contains(locale.DefaultLanguage, StringComparer.Ordinal)
+            ? new Dictionary<string, string[]> { ["defaultLanguage"] = [$"Must be one of: {string.Join(", ", locale.Languages)}."] }
+            : new Dictionary<string, string[]>();
 }

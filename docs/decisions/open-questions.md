@@ -116,7 +116,7 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-066 | 6 | Integration, General renewal and exposure snapshot: smaller gaps | Resolved (proposal): ADR-015, accepted to build 23 Oct 2026, pending business sign-off |
 | OQ-067 | 7 | The first administrator of a new tenant | Open |
 | OQ-068 | 8 | Languages: tenant default, labels, message catalogue, document language | Resolved (proposal): `docs/specs/addenda/localisation.md`, pending business sign-off |
-| OQ-069 | 8 | Database connection capacity: 23 pools per API instance against the RDS limit | Open: sizing for load testing before go-live |
+| OQ-069 | 8 | Database connection capacity: 23 pools per API instance against the RDS limit | Starting assumption: 3 instances, about 116 each, RDS 16 GB; revisit after load testing |
 
 ---
 
@@ -701,7 +701,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - **Option A** is cheaper. Under a burst, requests wait for a pooled connection; Npgsql waits up to its 15-second `Timeout`, then fails with an error. Load testing must check the hot pools under peak.
   - **Option B** doubles every pool and the RDS class, at higher cost.
   - Either option needs ADR-006's single-instance guard lifted first: permission evictions must be shared between instances.
-- **Decision needed:** option A or B, confirmed by load testing (ADR-020).
+- **Starting assumption, recorded 23 October 2026: option A.** Three API instances, about 116 connections per instance (the option A pool sizes), on the RDS 16 GB class (768 connections). To be revisited after load testing (ADR-020).
 - **Sources:**
   - [Maximum number of connections, RDS for PostgreSQL FAQ](https://support.huaweicloud.com/intl/en-us/rds-pg_faq/rds_faq_0055.html)
   - [Read/write splitting for RDS for PostgreSQL](https://support.huaweicloud.com/intl/en-us/rds-pg_faq/rds_faq_0017.html)

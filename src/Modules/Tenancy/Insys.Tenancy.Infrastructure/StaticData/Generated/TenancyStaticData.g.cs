@@ -75,6 +75,7 @@ public static class TenancyStaticData
             entity.Property(x => x.Languages).HasColumnName("languages");
             entity.Property(x => x.TimeZone).HasColumnName("time_zone").HasMaxLength(80);
             entity.Property(x => x.Country).HasColumnName("country").HasMaxLength(80);
+            entity.Property(x => x.DefaultLanguage).HasColumnName("default_language").HasMaxLength(80);
         });
         modelBuilder.Entity<OperationalLimits>(entity =>
         {

@@ -86,7 +86,8 @@ public sealed class StaticDataService<TDbContext>(
     IExecutionContext execution,
     IClock clock,
     IFieldProtector protector,
-    IEnumerable<IStaticChangeGuard> guards)
+    IEnumerable<IStaticChangeGuard> guards,
+    IEnumerable<IStaticRecordValidator> validators)
     where TDbContext : ModuleDbContext
 {
     public async Task<IReadOnlyList<TEntity>> ListInForce<TEntity>(StaticDataDescriptor descriptor, DateOnly asAt, string? afterCode, int limit,
@@ -126,7 +127,7 @@ public sealed class StaticDataService<TDbContext>(
         where TInput : StaticRecordInput =>
         Write<TEntity>(global, "CreateDraft", descriptor, async (db, audit) =>
         {
-            var checks = CheckWrite(descriptor, input, global);
+            var checks = CheckWrite<TEntity, TInput>(descriptor, input);
             if (checks is not null)
             {
                 return checks;
@@ -163,7 +164,7 @@ public sealed class StaticDataService<TDbContext>(
         where TInput : StaticRecordInput =>
         Write<TEntity>(global, "EditDraft", descriptor, async (db, audit) =>
         {
-            var checks = CheckWrite(descriptor, input, global);
+            var checks = CheckWrite<TEntity, TInput>(descriptor, input);
             if (checks is not null)
             {
                 return checks;
@@ -339,7 +340,7 @@ public sealed class StaticDataService<TDbContext>(
         for (var i = 0; i < lines.Count; i++)
         {
             var scopeError = CheckScope(descriptor, global);
-            foreach (var (field, messages) in lines[i].Validate())
+            foreach (var (field, messages) in lines[i].Validate().Concat(ValidateRecord<TEntity, TInput>(descriptor, lines[i])))
             {
                 errors.AddRange(messages.Select(m => new ImportLineError(i + 1, field, m)));
             }
@@ -529,10 +530,34 @@ public sealed class StaticDataService<TDbContext>(
                 ? Error.Forbidden(StaticDataErrorCodes.ScopeNotAllowed, $"{descriptor.EntityName} is platform-global (scope G); only platform administrators change it.")
                 : null;
 
-    private static Error? CheckWrite(StaticDataDescriptor descriptor, StaticRecordInput input, bool global)
+    private Error? CheckWrite<TEntity, TInput>(StaticDataDescriptor descriptor, TInput input)
+        where TEntity : StaticRecord<TInput>, new()
+        where TInput : StaticRecordInput
     {
         var errors = input.Validate();
+        if (errors.Count == 0)
+        {
+            errors = ValidateRecord<TEntity, TInput>(descriptor, input);
+        }
+
         return errors.Count > 0 ? Error.Validation(ErrorCodes.ValidationFailed, "The static data record is not valid.", errors) : null;
+    }
+
+    /// <summary>A module's own rules across a table's fields (IStaticRecordValidator), checked on a probe built from the input.</summary>
+    private IReadOnlyDictionary<string, string[]> ValidateRecord<TEntity, TInput>(StaticDataDescriptor descriptor, TInput input)
+        where TEntity : StaticRecord<TInput>, new()
+        where TInput : StaticRecordInput
+    {
+        var applicable = validators.Where(v => v.Schema == descriptor.Schema && v.Table == descriptor.Table).ToList();
+        if (applicable.Count == 0 || input.Validate().Count > 0)
+        {
+            return new Dictionary<string, string[]>();
+        }
+
+        var probe = new TEntity();
+        probe.ApplyCommon(input);
+        probe.ApplyFields(input, protector);
+        return applicable.SelectMany(v => v.Validate(probe)).GroupBy(e => e.Key).ToDictionary(g => g.Key, g => g.SelectMany(e => e.Value).ToArray());
     }
 
     /// <summary>The module context for tenant rows (shared with the request), or a new platform administrator context for global rows.</summary>

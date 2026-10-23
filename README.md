@@ -29,7 +29,7 @@ INSYS Core is a multi-tenant insurance administration platform for Life, General
 ```bash
 docker compose up -d postgres
 INSYS_ROLE_PASSWORD=insys_local dotnet run --project tools/Insys.DbMigrator -- \
-  --connection "Host=localhost;Port=5432;Database=insys;Username=insys_owner;Password=insys_owner_local" --roles db/roles \
+  --connection "Host=localhost;Port=55433;Database=insys;Username=insys_owner;Password=insys_owner_local" --roles db/roles \
   --bootstrap-operator 0199f000-0000-7000-8000-000000000001 --admin-subject <your IdP subject>
 dotnet run --project src/Host/Insys.Api
 ```

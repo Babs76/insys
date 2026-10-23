@@ -85,7 +85,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         }
 
         await Seed("tenant.cfg_locale_defaults", "EFFECTIVE", "LOCALE-A", 1, Today.AddDays(-90), null,
-            ("tenant", "A"), ("base_currency", "ZAR"), ("languages", new[] { "en" }), ("time_zone", "Africa/Johannesburg"), ("country", "ZA"));
+            ("tenant", "A"), ("base_currency", "ZAR"), ("languages", new[] { "en" }), ("default_language", "en"), ("time_zone", "Africa/Johannesburg"), ("country", "ZA"));
 
         // Finance: accounts, an open period covering today, and posting rules. PREMIUM_DUE has three versions: one
         // that has ended, the one in force today, and a later one not yet in force.

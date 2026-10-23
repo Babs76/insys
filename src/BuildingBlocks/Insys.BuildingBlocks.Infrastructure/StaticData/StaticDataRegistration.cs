@@ -57,6 +57,20 @@ public interface IStaticChangeGuard
     Result Check(StaticRecord proposed, StaticRecord? current);
 }
 
+/// <summary>
+/// A module's own rule across a static data table's fields (the generated input checks each field alone), checked when a
+/// draft is created or edited and on import, so a record the database would refuse is a field error instead.
+/// </summary>
+public interface IStaticRecordValidator
+{
+    string Schema { get; }
+
+    string Table { get; }
+
+    /// <summary>Errors by JSON field name; empty when the record is valid.</summary>
+    IReadOnlyDictionary<string, string[]> Validate(StaticRecord record);
+}
+
 /// <summary>Every static data table in the platform, for platform-wide checks.</summary>
 public sealed record ModuleStaticDataTables(string ModuleRoute, IReadOnlyList<StaticDataDescriptor> Descriptors);
 
