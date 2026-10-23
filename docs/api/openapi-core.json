@@ -1795,6 +1795,129 @@
         "x-permission": "consent.update"
       }
     },
+    "/api/v1/party/search-log": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "The party search access log, newest first",
+        "description": "Who searched for parties, when, with which filters and how many results (GAP-022, PTY-005). For audit roles only: audit_event.read, not party.read. An identifier filter is shown as document type, country and keyed hash. Retention: OQ-073.",
+        "operationId": "PartyListSearches",
+        "parameters": [
+          {
+            "name": "searchedBy",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartySearchLogEntry"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "audit_event.read"
+      }
+    },
+    "/api/v1/identity/roles": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "List the roles the tenant can assign",
+        "description": "Each role says whether it is privileged, requires MFA and needs a second administrator\u0027s approval to assign (GAP-021, OQ-038). Assigning a role that needs approval creates a PendingApproval assignment that gives no permission until approved.",
+        "operationId": "ListRoles",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentityRoleView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "user.read"
+      }
+    },
     "/api/v1/party/merges": {
       "post": {
         "tags": [
@@ -18450,47 +18573,6 @@
         "x-permission": "signed-in user"
       }
     },
-    "/api/v1/identity/roles": {
-      "get": {
-        "tags": [
-          "Identity"
-        ],
-        "summary": "List the roles the tenant can assign",
-        "description": "Each role says whether it is privileged, requires MFA and needs a second administrator\u0027s approval to assign (GAP-021, OQ-038). Assigning a role that needs approval creates a PendingApproval assignment that gives no permission until approved.",
-        "operationId": "ListRoles",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/IdentityRoleView"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          }
-        },
-        "x-permission": "user.read"
-      }
-    },
     "/api/v1/identity/users": {
       "post": {
         "tags": [
@@ -22198,6 +22280,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/IntegrationDeadLetterSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfPartySearchLogEntry": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartySearchLogEntry"
             }
           },
           "nextCursor": {
@@ -30505,6 +30608,78 @@
           }
         }
       },
+      "PartySearchLogEntry": {
+        "required": [
+          "id",
+          "searchedAt",
+          "searchedBy",
+          "nameFilter",
+          "identifierDocType",
+          "identifierCountry",
+          "identifierHash",
+          "roleFilter",
+          "statusFilter",
+          "resultCount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "searchedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "searchedBy": {
+            "type": "string"
+          },
+          "nameFilter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "identifierDocType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "identifierCountry": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "identifierHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "roleFilter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "statusFilter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resultCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "PartySearchRequest": {
         "required": [
           "name",
@@ -33093,6 +33268,9 @@
       "name": "Party"
     },
     {
+      "name": "Identity"
+    },
+    {
       "name": "ProductFactory"
     },
     {
@@ -33139,9 +33317,6 @@
     },
     {
       "name": "Analytics"
-    },
-    {
-      "name": "Identity"
     },
     {
       "name": "Audit"

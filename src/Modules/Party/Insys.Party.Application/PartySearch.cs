@@ -65,6 +65,14 @@ public sealed class SearchPartiesValidator : AbstractValidator<SearchParties>
 /// </summary>
 public sealed record PartySummary(Guid Id, PartyKind Kind, string DisplayName, PartyStatus Status, IReadOnlyList<string> Roles);
 
+/// <summary>A party search in the access log, for audit roles (GAP-022): the identifier as document type, country and keyed hash only.</summary>
+public sealed record PartySearchLogEntry(Guid Id, DateTimeOffset SearchedAt, string SearchedBy, string? NameFilter, string? IdentifierDocType,
+    string? IdentifierCountry, string? IdentifierHash, string? RoleFilter, string? StatusFilter, int ResultCount);
+
+/// <summary>Query ListPartySearches: the access log, newest first, by who searched and when.</summary>
+public sealed record ListPartySearches(string? SearchedBy, DateTimeOffset? From, DateTimeOffset? To, Guid? BeforeId, int Limit)
+    : IQuery<IReadOnlyList<PartySearchLogEntry>>;
+
 public interface IPartySearch
 {
     /// <summary>Parties matching every given filter, by ID after <paramref name="afterId"/>.</summary>
@@ -72,6 +80,14 @@ public interface IPartySearch
         DateOnly today, Guid? afterId, int limit, CancellationToken cancellationToken);
 
     void Log(PartySearchLog entry);
+
+    Task<IReadOnlyList<PartySearchLogEntry>> Searches(ListPartySearches query, CancellationToken cancellationToken);
+}
+
+internal sealed class ListPartySearchesHandler(IPartySearch search) : IQueryHandler<ListPartySearches, IReadOnlyList<PartySearchLogEntry>>
+{
+    public async Task<Result<IReadOnlyList<PartySearchLogEntry>>> Handle(ListPartySearches query, CancellationToken cancellationToken) =>
+        Result.Success(await search.Searches(query, cancellationToken));
 }
 
 internal sealed class SearchPartiesHandler(IPartySearch search, IFieldProtector protector, IExecutionContext execution, IClock clock)

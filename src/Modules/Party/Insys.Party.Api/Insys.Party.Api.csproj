@@ -31,5 +31,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Api\Insys.BuildingBlocks.Api.csproj" />
     <ProjectReference Include="..\Insys.Party.Infrastructure\Insys.Party.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Audit\Insys.Audit.Contracts\Insys.Audit.Contracts.csproj" />
   </ItemGroup>
 </Project>

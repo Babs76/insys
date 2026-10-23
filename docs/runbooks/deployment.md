@@ -120,6 +120,37 @@ Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and t
 - Objects are kept under `tenant/<tenant id>/documents/<document id>`, and a key outside the calling tenant's prefix is refused.
 - Enable bucket versioning and server-side encryption in OBS.
 
+## Health alarms: Cloud Eye (GAP-034)
+
+Readiness (`/health/ready`) says only whether an instance can serve requests: database, audit partitions, router. The load balancer and CCE use it to stop sending traffic, so it never alarms on its own. Outbox lag, and any other check that is not about serving requests, is on `/health` only. Since GAP-034 that is the only place a stuck event shows, so `/health` must be alarmed on.
+
+### What to send to Cloud Eye
+A probe reads `/health` on every API instance once a minute and reports custom metrics to Cloud Eye (namespace `INSYS.Health`, dimension `instance`):
+
+| Metric | Value |
+|---|---|
+| `health_status` | 0 Healthy, 1 Degraded, 2 Unhealthy (the `status` of `/health`) |
+| `outbox_lag_seconds` | `checks.outbox-lag.data.lagSeconds` |
+| `outbox_pending` | `checks.outbox-lag.data.pending` |
+
+The probe runs as a CCE CronJob with `curl` and `jq`. It calls `/health` through the instance's pod address, not the load balancer, so that each instance is seen. It reports through the Cloud Eye custom metric API, authenticated by the node's IAM agency, never an access key pair (see `docs/production-readiness.md`).
+
+### Alarm rules
+Create the alarm rules on the custom metrics, and notify the operations SMN topic:
+
+| Alarm | Rule | Severity |
+|---|---|---|
+| `/health` Unhealthy | `health_status` = 2 for 5 consecutive periods (5 minutes) | Critical |
+| `/health` Degraded | `health_status` ≥ 1 for 10 periods in any hour | Major |
+| Outbox lag | `outbox_lag_seconds` > 300 for 5 periods | Critical |
+| Probe silent | `health_status` has no data for 5 periods | Major: the probe or the instance is down |
+
+Also alarm on the load balancer's backend health (`/health/ready`): unhealthy backends for more than 2 minutes, Critical.
+
+When `/health` alarms, its `checks` say which check and why. For outbox lag, see `slowestOutbox` and follow `docs/runbooks/monitoring.md` (outbox lag) and `docs/runbooks/dead-letters-and-webhooks.md` (events that need tenant configuration).
+
+The thresholds match `docs/runbooks/monitoring.md`. They are starting values: no requirement sets them (NFR-012 asks for alerts, not values).
+
 ## Upgrades
 
 1. Read the new migrations (`db/migrations/V####__*.sql`) and the release's changes to `docs/api/`.

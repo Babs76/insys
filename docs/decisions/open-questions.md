@@ -119,6 +119,8 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-069 | 8 | Database connection capacity: 23 pools per API instance against the RDS limit | Starting assumption: 3 instances, about 116 each, RDS 16 GB; revisit after load testing |
 | OQ-070 | 8 | Document content purposes: free text or a code list | Open: free text today |
 | OQ-071 | 8 | A rules dry run that records no decision | Open: proposal for the product configuration wave |
+| OQ-072 | 8 | How long a parked event delivery may wait before it is escalated, and who owns the escalation | Open: ADR-022 proposes 1 business day, per tenant |
+| OQ-073 | 8 | Retention of the party search access log | Open: no period in the SRS or static data |
 
 ---
 
@@ -727,3 +729,24 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Current state:** recording every evaluation is intended for decisions made in business processes.
 - **Proposal:** `POST /api/v1/rules/decisions/simulate`, which evaluates without recording, for authoring and product simulation. It belongs with the product configuration work, not Wave 0, because the front end can already test through recorded evaluations.
 
+### OQ-072 Escalating a parked event delivery (Phase 8 Wave 0, ADR-022)
+- **Sources:** INT-006 (controlled retry, monitoring and recovery); WFL (tasks and SLAs).
+- **Gap:** ADR-022 parks a delivery whose tenant configuration is missing, instead of dead-lettering it. Nothing sets how long it may stay parked before someone must act, or who that is. `integration.cfg_retry_and_dead_letter_policies` governs retries (attempts, back-off, delays), not parking.
+- **Proposal (pending business sign-off):** escalate after 1 business day by the tenant's business calendar, overridable per tenant, with a Workflow task in the tenant's operations queue.
+
+### OQ-073 Retention of the party search access log (Phase 8 Wave 0, GAP-022)
+- **Sources:** PTY-003, PTY-005 (authorised purposes, privacy); IAM-006 (audit); OQ-054 (party retention, open).
+- **What exists:**
+  - Static data has `audit.cfg_audit_retention_policies`: a period per event class (`Security`, `Financial`, `Operational`) and jurisdiction. Its values are tenant configuration, and none are defined.
+  - `document.cfg_retention_schedules` covers documents only.
+  - Nothing enforces audit retention yet.
+- **Gap:** `party.party_search_log` records who searched for parties, with which filters. Neither the SRS nor static data gives it a period or says which retention class it belongs to.
+- **Current state:**
+  - Kept indefinitely, and nothing is deleted.
+  - Readable only through `GET /api/v1/party/search-log`, which needs `audit_event.read` (the audit roles).
+  - Insert-only for the Party module's database role.
+- **Options:**
+  - (a) Treat it as a `Security` audit record, retained by that class's period for the tenant's jurisdiction.
+  - (b) Give it a retention period of its own in static data.
+
+  Either is a business decision. It belongs with OQ-054's party retention.

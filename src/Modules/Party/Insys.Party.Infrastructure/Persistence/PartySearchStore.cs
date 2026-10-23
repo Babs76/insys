@@ -78,4 +78,33 @@ internal sealed class PartySearchStore(PartyDbContext db) : IPartySearch
     }
 
     public void Log(PartySearchLog entry) => db.Set<PartySearchLog>().Add(entry);
+
+    public async Task<IReadOnlyList<PartySearchLogEntry>> Searches(ListPartySearches query, CancellationToken cancellationToken)
+    {
+        var log = db.Set<PartySearchLog>().AsNoTracking();
+        if (query.SearchedBy is { } who)
+        {
+            log = log.Where(l => l.SearchedBy == who);
+        }
+
+        if (query.From is { } from)
+        {
+            log = log.Where(l => l.SearchedAt >= from);
+        }
+
+        if (query.To is { } to)
+        {
+            log = log.Where(l => l.SearchedAt < to);
+        }
+
+        if (query.BeforeId is { } before)
+        {
+            log = log.Where(l => l.Id.CompareTo(before) < 0);
+        }
+
+        return await log.OrderByDescending(l => l.Id).Take(query.Limit)
+            .Select(l => new PartySearchLogEntry(l.Id, l.SearchedAt, l.SearchedBy, l.NameFilter, l.IdentifierDocType, l.IdentifierCountry, l.IdentifierHash,
+                l.RoleFilter, l.StatusFilter, l.ResultCount))
+            .ToListAsync(cancellationToken);
+    }
 }

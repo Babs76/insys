@@ -98,6 +98,25 @@ public sealed class PartySearchTests(DatabaseFixture fixture) : IClassFixture<Da
         (await fixture.Database.ScalarAsOwner<string>("SELECT searched_by FROM party.party_search_log WHERE name_filter = 'Loggable' LIMIT 1")).ShouldNotBeNullOrEmpty();
     }
 
+    /// <summary>The access log is read by audit roles only (audit_event.read), never with party.read alone.</summary>
+    [Fact]
+    public async Task TheAccessLog_IsReadByAuditRolesOnly()
+    {
+        await Search(new { identifier = new { docType = "NATIONAL_ID", country = "ZA", number = Number } });
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "search-auditor", Insys.Audit.Contracts.AuditPermissions.Read);
+        var auditor = _factory.ClientFor(DatabaseFixture.TenantA, "search-auditor");
+
+        (await _clerk.GetAsync("/api/v1/party/search-log")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        var page = await auditor.GetAsync("/api/v1/party/search-log");
+        page.StatusCode.ShouldBe(HttpStatusCode.OK, await page.Content.ReadAsStringAsync());
+        var body = await page.Content.ReadAsStringAsync();
+        body.ShouldNotContain(Number);
+        using var json = System.Text.Json.JsonDocument.Parse(body);
+        var entry = json.RootElement.GetProperty("items").EnumerateArray().First(e => e.GetProperty("identifierDocType").GetString() == "NATIONAL_ID");
+        entry.GetProperty("identifierHash").GetString()!.Length.ShouldBe(64);
+        DocumentedSchema.ResponseProblems(json.RootElement, "core", "PartyListSearches").ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task ASearchNeedsAFilter_AndANameOfThreeCharacters()
     {

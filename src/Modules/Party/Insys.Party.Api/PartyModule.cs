@@ -101,6 +101,26 @@ public sealed class PartyModule : IModule
                 + "and the number of results, with an identifier by its keyed hash only. POST, so the identifier number is never in a URL.")
             .RequirePermission(PartyPermissions.PartyRead);
 
+        api.MapGet("/party/search-log", async (string? searchedBy, DateTimeOffset? from, DateTimeOffset? to, string? cursor, int? limit, IDispatcher dispatcher,
+                CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var beforeId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListPartySearches(searchedBy, from, to, beforeId, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<PartySearchLogEntry>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .WithTags(Name)
+            .Produces<CursorPage<PartySearchLogEntry>>(StatusCodes.Status200OK)
+            .WithName("PartyListSearches")
+            .WithSummary("The party search access log, newest first")
+            .WithDescription("Who searched for parties, when, with which filters and how many results (GAP-022, PTY-005). For audit roles only: "
+                + "audit_event.read, not party.read. An identifier filter is shown as document type, country and keyed hash. Retention: OQ-073.")
+            .RequirePermission(Audit.Contracts.AuditPermissions.Read);
+
         parties.MapPost("/", async (RegisterPartyRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Send(new RegisterParty(r.Individual, r.Organisation), ct)).ToHttp(id =>
                 {

@@ -37,6 +37,13 @@ What must be in place before the first production go-live. Each item names the d
 | Lookup hash key | Kept in DEW CSMS. It cannot be rotated in place (OQ-020). |
 | DEW rate limit | Unconfirmed: Huawei's DEW "Before You Start" page (dew_02_0052), as summarised by a web tool, gives about 20 calls per second per account. The data key cache does not depend on the figure. |
 
+## Monitoring (NFR-012)
+
+| Item | Detail |
+|---|---|
+| `/health` alarms in Cloud Eye | The probe, custom metrics and alarm rules in `docs/runbooks/deployment.md` (Health alarms). In the af-south-1 console, confirm that Cloud Eye custom metrics and alarm rules on them are available, and that the probe's IAM agency may report metrics. |
+| Load balancer health check | On `/health/ready`, with an alarm on unhealthy backends. |
+
 ## Database
 
 | Item | Detail |

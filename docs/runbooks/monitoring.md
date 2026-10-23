@@ -71,7 +71,8 @@ Look in the logs for repeated warnings about the same record ID, and for `… jo
 
 | Signal | Source | Suggested threshold |
 |---|---|---|
-| `/health/ready` Unhealthy | Probe | Any, for more than 2 minutes |
+| `/health/ready` Unhealthy | Load balancer backend health | Any, for more than 2 minutes |
+| `/health` Unhealthy | Probe (Cloud Eye, `docs/runbooks/deployment.md`) | Any, for more than 5 minutes |
 | Outbox lag Degraded | `/health` data | More than 10 minutes in an hour |
 | Outbox lag Unhealthy | `/health` data | Any, for more than 5 minutes |
 | New dead letters | `GET /api/v1/integration/dead-letters?status=DeadLettered` [dead_letter.read] | Any |
