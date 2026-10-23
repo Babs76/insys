@@ -117,6 +117,8 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-067 | 7 | The first administrator of a new tenant | Resolved (proposal, built in Wave 0): pending business sign-off |
 | OQ-068 | 8 | Languages: tenant default, labels, message catalogue, document language | Resolved (proposal): `docs/specs/addenda/localisation.md`, pending business sign-off |
 | OQ-069 | 8 | Database connection capacity: 23 pools per API instance against the RDS limit | Starting assumption: 3 instances, about 116 each, RDS 16 GB; revisit after load testing |
+| OQ-070 | 8 | Document content purposes: free text or a code list | Open: free text today |
+| OQ-071 | 8 | A rules dry run that records no decision | Open: proposal for the product configuration wave |
 
 ---
 
@@ -712,3 +714,16 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Sources:**
   - [Maximum number of connections, RDS for PostgreSQL FAQ](https://support.huaweicloud.com/intl/en-us/rds-pg_faq/rds_faq_0055.html)
   - [Read/write splitting for RDS for PostgreSQL](https://support.huaweicloud.com/intl/en-us/rds-pg_faq/rds_faq_0017.html)
+
+### OQ-070 Document content purposes (Phase 8 Wave 0, front-end request 14, GAP-026)
+- **Sources:** DOC-001, DOC-003 (access to sensitive documents is auditable), DOC-004.
+- **Gap:** reading a sensitive document's content needs a `purpose`, which the access log records. No requirement and no static data table lists the allowed purposes, so it is free text (at most 60 characters). The front end asks for an enumeration.
+- **Current state:** free text. The OpenAPI says so.
+- **Proposal (pending business sign-off):** a tenant static data list of document access purposes, which `ReadDocumentContent` validates against. Its codes are a business decision, so none are invented here.
+
+### OQ-071 A rules dry run (Phase 8 Wave 0, front-end request 16, GAP-028)
+- **Sources:** PRD-005 (simulation and test cases before publication), CLM-003 and LIF-002 (decisions traceable).
+- **Gap:** every rule evaluation records a decision. Rating has `simulate`, which records nothing; Rules has no equivalent, so testing a rule set leaves recorded decisions.
+- **Current state:** recording every evaluation is intended for decisions made in business processes.
+- **Proposal:** `POST /api/v1/rules/decisions/simulate`, which evaluates without recording, for authoring and product simulation. It belongs with the product configuration work, not Wave 0, because the front end can already test through recorded evaluations.
+
