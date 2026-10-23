@@ -16,7 +16,9 @@
 | 6 Enterprise | Distribution, Reinsurance, Compliance, Analytics, Integration; General auto-renewal and the exposure snapshot job | Done, accepted (CI green: 413564b) |
 | 7 Hardening | Security suite, OpenAPI review, performance smoke tests, README and runbooks | Done, accepted (CI green: 3f1092c) |
 | 8 Workstream A | Platform ADRs (016 to 020), functional coverage verified | Done, accepted (checkpoint A) |
-| 8 Workstream B | Languages: tenant languages, labels, localised ProblemDetails, documents, preferred language; CI split into three jobs | **Done, awaiting review** (23 Oct 2026) |
+| 8 Workstream B | Languages: tenant languages, labels, localised ProblemDetails, documents, preferred language; CI split into three jobs | Done, accepted |
+| 8 CI and startup | Shared test hosts, template databases, router warm-up gate with 503 NOT_READY, development signing key allow-list | Done (CI green: b6a9978) |
+| 8 Workstream C | Source file headers on 913 files, SourceHeaderTests and CI check, ADR-021 | **Done, awaiting review** (23 Oct 2026) |
 
 ## Phase 1 review items
 
