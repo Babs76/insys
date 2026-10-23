@@ -40,7 +40,7 @@ Each item below needs a decision. The code follows the proposal shown until one 
 | OQ-066 | Integration: secret store and transport, resending a failed webhook, exposure currency | ADR-015; a failed webhook is discarded only | Architecture |
 | OQ-067 | The first administrator of a new tenant | Not built; proposal: a platform command with maker-checker | Security, Operations |
 | OQ-068 | Languages: which tenant language is the default, the form of `labels`, where API messages are translated, how documents choose a language | The first of `cfg_locale_defaults.languages` is the default; `labels` maps language code to text; translations live in the UI label bundles keyed by `message_key`; documents use the party's language, then the tenant default, then English (addendum) | Business, Compliance |
-| OQ-069 | How many database connections the API may open per instance, and whether to put a pooler in front of RDS | Explicit pool sizes per module role (about 230 connections per instance); PgBouncer in transaction mode only if load testing needs more instances | Architecture, Operations |
+| OQ-069 | How many database connections the API may open per instance, and whether to put a pooler in front of RDS | Three instances assumed; option A (about 116 per instance, RDS 16 GB) or B (about 232, RDS 32 GB), both at 45% of `max_connections`; PgBouncer only if load testing needs it | Architecture, Operations |
 
 Also pending business sign-off, though built as accepted: ADR-012 (Health adjudication), ADR-014 (commission) and ADR-015 (reinsurance, reporting, analytics and integration).
 
@@ -685,7 +685,23 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
      - It works with this design: the tenant is set with `set_config(..., true)`, which lasts only for the transaction.
      - Npgsql needs `No Reset On Close=true`, and prepared statements must stay off or use PgBouncer 1.21's prepared-statement support.
   4. **Alert** when connections pass 80% of `max_connections`, using RDS metrics in Cloud Eye.
-- **Decision needed:** the planned instance count, and the RDS instance class.
+- **Starting assumption (23 October 2026, pending load testing): three API instances.** There are two options for the hosting decision. Sizes are `Maximum Pool Size` per module role, set in each role's connection string.
+
+  | Roles | Option A: about 120 per instance | Option B: about 230 per instance |
+  |---|---|---|
+  | Hot: `insys_api`, `insys_iam`, `insys_payment`, `insys_billing`, `insys_rating`, `insys_health`, `insys_general`, `insys_integration` (8) | 8 each = 64 | 15 each = 120 |
+  | Medium: `insys_party`, `insys_product`, `insys_claims`, `insys_life`, `insys_finance`, `insys_workflow`, `insys_document` (7) | 4 each = 28 | 8 each = 56 |
+  | Low: `insys_sdm`, `insys_rules`, `insys_commission`, `insys_reinsurance`, `insys_reporting`, `insys_analytics`, `insys_tenant`, `insys_audit` (8) | 3 each = 24 | 7 each = 56 |
+  | **Per instance** | **116** | **232** |
+  | **Three instances** | **348** | **696** |
+  | RDS class and default `max_connections` | 16 GB, 768 | 32 GB, 1,536 |
+  | Share of the limit used | 45% | 45% |
+
+  - Both leave the same share of the limit free, for a fourth instance during a rolling deployment, the migration runner, RDS agents and read replicas.
+  - **Option A** is cheaper. Under a burst, requests wait for a pooled connection; Npgsql waits up to its 15-second `Timeout`, then fails with an error. Load testing must check the hot pools under peak.
+  - **Option B** doubles every pool and the RDS class, at higher cost.
+  - Either option needs ADR-006's single-instance guard lifted first: permission evictions must be shared between instances.
+- **Decision needed:** option A or B, confirmed by load testing (ADR-020).
 - **Sources:**
   - [Maximum number of connections, RDS for PostgreSQL FAQ](https://support.huaweicloud.com/intl/en-us/rds-pg_faq/rds_faq_0055.html)
   - [Read/write splitting for RDS for PostgreSQL](https://support.huaweicloud.com/intl/en-us/rds-pg_faq/rds_faq_0017.html)
