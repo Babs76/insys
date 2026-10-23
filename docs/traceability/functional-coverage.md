@@ -27,17 +27,17 @@ Each row was checked against the code at commit `e7a474e` and against the passin
 | F038 | Partly | Missing | The SRS lists it, but nothing is built. |
 | F064 | Built | Partial | Built for documents only; party retention is open (OQ-054). |
 | F101 | Not specified | Partial | Claim communications can be recorded, but nothing is sent. |
-| F103 | Built | Configurable only | The organisation structure is static data that no code reads, and branch scopes are not enforced. |
+| F103 | Built | Configurable only | The organisation structure is static data that no code reads, and branch scopes are not enforced. **Wave 0 (23 October 2026):** proposal `docs/specs/addenda/access-scopes.md` (OQ-074), pending sign-off. Product scopes are stored but not enforced today. |
 
 Within the same category, the baseline note was also wrong for these rows:
 
 | Row | Correction |
 |---|---|
-| F005 | Channel permissions are not enforced at all. |
+| F005 | Channel permissions are not enforced at all. **Wave 0 (23 October 2026):** proposal `docs/specs/addenda/channel-permissions.md` (OQ-075), pending sign-off. |
 | F009 | Fraud is evaluated on request, not at registration. **Corrected in Wave 0 (23 October 2026):** wrong. General and Life evaluate the Claims Framework indicators at registration (`IClaimRegistry`, since Phase 4), and Health evaluates its own at submission. The real gap: one indicator that could not be evaluated (a fact its domain does not give) stopped the Claims Framework screening the claim at all, silently. Fixed, and covered end to end. |
 | F023 | Renewals are billed through `GeneralPolicyIssued`, but no test proves it. **Wave 0 (23 October 2026):** proved end to end (`EnterpriseProcessTests.RenewalJob_…_AndTheRenewalIsBilled_GEN004_F023`). |
-| F055 | There is no GL export and no GL adapter. |
-| F062 | Limits are not enforced. |
+| F055 | There is no GL export and no GL adapter. **Wave 0 (23 October 2026):** built. `POST /api/v1/finance/gl-exports` summarises the posted entries of a range by date, account and currency, and sends them through `IGeneralLedgerAdapter` (a stub, like the other partner adapters). Ranges are never exported twice, and the GL acknowledges or rejects each batch (V0029). CSV only: the API and fixed-width formats have no field definitions. The layout's schedule is not run by a job yet. |
+| F062 | Limits are not enforced. **Wave 0 (23 October 2026):** proposal `docs/specs/addenda/aggregation-limits.md` (OQ-076), pending sign-off. |
 
 ## Approved build plan for Workstream E (checkpoint A, 23 October 2026)
 
