@@ -55,6 +55,11 @@ public sealed class InsysExceptionHandler(IProblemDetailsService problemDetails,
         }
 
         httpContext.Response.StatusCode = status;
+        if (code == ErrorCodes.DatabaseBusy)
+        {
+            httpContext.Response.Headers.RetryAfter = DatabaseBusyRetryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         return await problemDetails.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
@@ -68,8 +73,16 @@ public sealed class InsysExceptionHandler(IProblemDetailsService problemDetails,
         });
     }
 
+    /// <summary>How long a client should wait after DATABASE_BUSY.</summary>
+    public const int DatabaseBusyRetryAfterSeconds = 2;
+
     public static (int Status, string Code, string Message) Classify(Exception exception)
     {
+        if (IsDatabaseBusy(exception))
+        {
+            return (503, ErrorCodes.DatabaseBusy, "The database is busy. Retry shortly.");
+        }
+
         var postgres = exception as PostgresException ?? exception.InnerException as PostgresException;
         return exception switch
         {
@@ -80,6 +93,30 @@ public sealed class InsysExceptionHandler(IProblemDetailsService problemDetails,
             _ when postgres is not null => ClassifyPostgres(postgres),
             _ => (500, ErrorCodes.InternalError, "An unexpected error occurred."),
         };
+    }
+
+    /// <summary>
+    /// GAP-039: no pooled connection was free within the pool's wait (Npgsql gives up with a timeout), or PostgreSQL refused a
+    /// new connection: too many connections (53300), a resource limit (53400), or the server not accepting them (57P03).
+    /// Anywhere in the exception chain, since EF wraps them.
+    /// </summary>
+    public static bool IsDatabaseBusy(Exception exception)
+    {
+        for (var e = exception; e is not null; e = e.InnerException)
+        {
+            if (e is PostgresException { SqlState: PostgresErrorCodes.TooManyConnections or PostgresErrorCodes.ConfigurationLimitExceeded
+                or PostgresErrorCodes.CannotConnectNow })
+            {
+                return true;
+            }
+
+            if (e is NpgsqlException { InnerException: TimeoutException } && e.Message.Contains("pool", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static (int, string, string) ClassifyPostgres(PostgresException postgres) => postgres.SqlState switch

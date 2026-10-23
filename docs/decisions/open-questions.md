@@ -719,6 +719,11 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Sources:**
   - [Maximum number of connections, RDS for PostgreSQL FAQ](https://support.huaweicloud.com/intl/en-us/rds-pg_faq/rds_faq_0055.html)
   - [Read/write splitting for RDS for PostgreSQL](https://support.huaweicloud.com/intl/en-us/rds-pg_faq/rds_faq_0017.html)
+- **Built (Wave 0, GAP-039, 23 October 2026):**
+  - The option A pool sizes are the defaults (`DatabasePools`, 116 per instance).
+  - A startup guard checks them against `Database:MaxConnections` (less `Database:Reserve`, divided by `Database:Instances`).
+  - A busy pool or database answers 503 `DATABASE_BUSY`.
+  - The arithmetic is in `docs/runbooks/deployment.md`.
 
 ### OQ-070 Document content purposes (Phase 8 Wave 0, front-end request 14, GAP-026)
 - **Sources:** DOC-001, DOC-003 (access to sensitive documents is auditable), DOC-004.

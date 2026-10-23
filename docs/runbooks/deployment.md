@@ -120,6 +120,31 @@ Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and t
 - Objects are kept under `tenant/<tenant id>/documents/<document id>`, and a key outside the calling tenant's prefix is refused.
 - Enable bucket versioning and server-side encryption in OBS.
 
+## Database connections (GAP-039, OQ-069)
+
+Each API instance opens one connection pool per module database role, 23 in all. Their maxima must fit the database's `max_connections`, less a reserve, shared between the instances.
+
+| Pools (`DatabasePools`, OQ-069 option A) | Roles | Maximum each | Total |
+|---|---|---|---|
+| Hot: `insys_api`, `insys_iam`, `insys_payment`, `insys_billing`, `insys_rating`, `insys_health`, `insys_general`, `insys_integration` | 8 | 8 | 64 |
+| Medium: `insys_party`, `insys_product`, `insys_claims`, `insys_life`, `insys_finance`, `insys_workflow`, `insys_document` | 7 | 4 | 28 |
+| Low: `insys_sdm`, `insys_rules`, `insys_commission`, `insys_reinsurance`, `insys_reporting`, `insys_analytics`, `insys_tenant`, `insys_audit` | 8 | 3 | 24 |
+| **Per instance** | 23 | | **116** |
+
+**The rule:** 116 ≤ (`max_connections` − reserve) ÷ instances.
+
+| Where | `max_connections` | Reserve | Instances | Share per instance | Fits |
+|---|---|---|---|---|---|
+| Local compose | 150 | 20 | 1 | 130 | Yes |
+| Default PostgreSQL | 100 | 20 | 1 | 80 | **No**: the front end's GAP-039 |
+| RDS 16 GB (OQ-069 starting assumption) | 768 | 20 | 3 | 249 | Yes |
+| RDS 16 GB, during a rolling deployment | 768 | 20 | 4 | 187 | Yes |
+
+- **The guard.** Set `Database:MaxConnections`, `Database:Reserve` (default 20) and `Database:Instances` (the most that run at once, a rolling deployment's extra one included). An instance whose pools do not fit refuses to start, with the arithmetic in the error.
+- **Changing a pool.** `Database:Pools:<role>` overrides a pool. So does `Maximum Pool Size` in that role's connection string, which takes second place.
+- **When pools are busy.** A request that waits longer than `Database:PoolWaitSeconds` (Npgsql's `Timeout`, 15 s by default) for a connection gets **503 `DATABASE_BUSY`** with `Retry-After: 2`, as does one that PostgreSQL refuses (too many connections). It never gets a 500, and the instance keeps answering.
+- **Production values.** `MaxConnections` 768, `Reserve` 20, `Instances` 4 (three plus a rolling deployment), to be confirmed by load testing (ADR-020).
+
 ## Health alarms: Cloud Eye (GAP-034)
 
 Readiness (`/health/ready`) says only whether an instance can serve requests: database, audit partitions, router. The load balancer and CCE use it to stop sending traffic, so it never alarms on its own. Outbox lag, and any other check that is not about serving requests, is on `/health` only. Since GAP-034 that is the only place a stuck event shows, so `/health` must be alarmed on.

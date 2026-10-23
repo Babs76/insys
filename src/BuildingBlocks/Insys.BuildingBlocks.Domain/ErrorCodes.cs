@@ -103,6 +103,10 @@ public static class ErrorCodes
     [ErrorCode(503, "error.service.not_ready", retryable: true)]
     public const string NotReady = "NOT_READY";
 
+    /// <summary>No database connection was free in time, or the database refused more (GAP-039). Retry after Retry-After.</summary>
+    [ErrorCode(503, "error.service.database_busy", retryable: true)]
+    public const string DatabaseBusy = "DATABASE_BUSY";
+
     [ErrorCode(500, "error.internal", retryable: true)]
     public const string InternalError = "INTERNAL_ERROR";
 

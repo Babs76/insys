@@ -96,6 +96,7 @@ public static class InfrastructureRegistration
         services.AddSingleton<OutboxProcessor>();
         if (!IsBuildTimeDocumentGeneration)
         {
+            services.AddHostedService<DatabasePoolGuard>();
             services.AddHostedService<OutboxRelayService>();
         }
 
@@ -140,10 +141,21 @@ public static class InfrastructureRegistration
                 connectionString = template.Replace("{role}", roleName, StringComparison.Ordinal);
             }
 
-            return string.IsNullOrWhiteSpace(connectionString)
-                ? throw new InvalidOperationException($"Neither ConnectionStrings:{connectionName} nor ConnectionStrings:Template is configured.")
-                : new NpgsqlDataSourceBuilder(connectionString).UseNodaTime().Build();
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException($"Neither ConnectionStrings:{connectionName} nor ConnectionStrings:Template is configured.");
+            }
+
+            var builder = new NpgsqlDataSourceBuilder(connectionString);
+            builder.ConnectionStringBuilder.MaxPoolSize = DatabasePools.MaxPoolSize(configuration, roleName, connectionString);
+            if (configuration.GetValue<int?>("Database:PoolWaitSeconds") is { } wait)
+            {
+                builder.ConnectionStringBuilder.Timeout = wait;
+            }
+
+            return builder.UseNodaTime().Build();
         });
+        DatabasePools.Roles.Add(roleName);
         return services;
     }
 
