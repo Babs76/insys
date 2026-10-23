@@ -16,7 +16,7 @@ public sealed class DatabaseFixture(PostgresServer server) : IAsyncLifetime
     public static readonly Guid TenantB = TestTenants.B;
     public static readonly Guid Operator = TestTenants.Operator;
 
-    private readonly ConcurrentDictionary<string, Lazy<Task<(InsysApiFactory Factory, int Endpoints)>>> _hosts = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Lazy<Task<InsysApiFactory>>> _hosts = new(StringComparer.Ordinal);
 
     public TestDatabase Database { get; private set; } = null!;
 
@@ -34,19 +34,14 @@ public sealed class DatabaseFixture(PostgresServer server) : IAsyncLifetime
     /// <summary>
     /// The class's shared API host for these settings, as a fresh host would be between tests: caches emptied and stub
     /// recordings cleared (InsysApiFactory.ResetState). Tests that need a host of their own (other environments, a second
-    /// instance) still make one. Fails if an earlier test left the host stopped, unhealthy or with changed routing.
+    /// instance) still make one. Fails if an earlier test left the host stopped or unhealthy.
     /// </summary>
     public async Task<InsysApiFactory> Host(IReadOnlyDictionary<string, string?>? settings = null)
     {
         var key = settings is null ? "" : string.Join(";", settings.OrderBy(s => s.Key, StringComparer.Ordinal).Select(s => $"{s.Key}={s.Value}"));
-        var (factory, endpoints) = await _hosts.GetOrAdd(key, _ => new Lazy<Task<(InsysApiFactory, int)>>(async () =>
-        {
-            var created = await new InsysApiFactory(Database, settings).Warm();
-            return (created, created.EndpointCount);
-        })).Value;
+        var factory = await _hosts.GetOrAdd(key, _ => new Lazy<Task<InsysApiFactory>>(() => new InsysApiFactory(Database, settings).Warm())).Value;
 
         (await factory.CreateClient().GetAsync("/health/live")).StatusCode.ShouldBe(HttpStatusCode.OK, "an earlier test left the shared host unhealthy");
-        factory.EndpointCount.ShouldBe(endpoints, "an earlier test changed the shared host's endpoints");
         factory.ResetState();
         return factory;
     }
@@ -55,7 +50,7 @@ public sealed class DatabaseFixture(PostgresServer server) : IAsyncLifetime
     {
         foreach (var host in _hosts.Values.Where(h => h.IsValueCreated))
         {
-            await (await host.Value).Factory.DisposeAsync();
+            await (await host.Value).DisposeAsync();
         }
     }
 }

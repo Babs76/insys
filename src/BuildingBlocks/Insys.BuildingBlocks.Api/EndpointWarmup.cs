@@ -1,5 +1,8 @@
 using System.Diagnostics;
-using Microsoft.AspNetCore.Routing;
+using System.Globalization;
+using Insys.BuildingBlocks.Domain;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -7,16 +10,17 @@ using Microsoft.Extensions.Logging;
 namespace Insys.BuildingBlocks.Api;
 
 /// <summary>
-/// Whether the API's endpoints are built. The first read of the endpoint data sources compiles every Minimal API request
-/// delegate (about 2,300, most of them generated static data endpoints), which takes seconds of CPU; until it is done a
-/// new instance answers its first request late. Warm-up does it at startup, and readiness waits for it.
+/// Whether the router is built. Routing builds its matcher on the first request, compiling every Minimal API request
+/// delegate (about 2,300, most of them generated static data endpoints) synchronously, and every other request waits
+/// behind it; on a busy two-core machine that took longer than a client's timeout. The warm-up gate builds it once at
+/// startup and holds requests off until then.
 /// </summary>
 public sealed class EndpointWarmup
 {
     private readonly TaskCompletionSource<TimeSpan> _completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly long _started = Stopwatch.GetTimestamp();
 
-    /// <summary>Completes, once every endpoint is built, with the time from host start (when this is created) until then.</summary>
+    /// <summary>Completes, once the router is built, with the time from host start (when this is created) until then.</summary>
     public Task<TimeSpan> Completed => _completed.Task;
 
     public bool IsComplete => _completed.Task.IsCompletedSuccessfully;
@@ -26,50 +30,77 @@ public sealed class EndpointWarmup
     internal void Fail(Exception exception) => _completed.TrySetException(exception);
 }
 
-/// <summary>Builds every endpoint once at startup, off the startup path, and records how long it took.</summary>
-public sealed class EndpointWarmupService(EndpointWarmup warmup, IEnumerable<EndpointDataSource> sources, IHostApplicationLifetime lifetime,
-    ILogger<EndpointWarmupService> logger) : BackgroundService
+/// <summary>
+/// The first middleware, ahead of routing. When the application has started it sends one internal liveness request
+/// through the rest of the pipeline, which builds the real router once. Until that completes, liveness is answered here
+/// (the process is alive) and every other request gets an immediate 503 NOT_READY with Retry-After, never a wait.
+/// </summary>
+public sealed class WarmupGateMiddleware
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public const string LivenessPath = "/health/live";
+    private const int RetryAfterSeconds = 2;
+    private static readonly object WarmupRequest = new();
+
+    private readonly RequestDelegate _next;
+    private readonly EndpointWarmup _warmup;
+
+    public WarmupGateMiddleware(RequestDelegate next, EndpointWarmup warmup, IServiceScopeFactory scopes, IHostApplicationLifetime lifetime,
+        ILogger<WarmupGateMiddleware> logger)
     {
-        // The endpoint data sources are connected when the server builds its pipeline, after the hosted services start:
-        // read them only once the application has started, or there is nothing to build yet.
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using (lifetime.ApplicationStarted.Register(() => started.TrySetResult()))
-        await using (stoppingToken.Register(() => started.TrySetCanceled()))
+        _next = next;
+        _warmup = warmup;
+        lifetime.ApplicationStarted.Register(() => _ = Task.Run(() => Warm(scopes, logger)));
+    }
+
+    public Task InvokeAsync(HttpContext context)
+    {
+        if (_warmup.IsComplete || context.Items.ContainsKey(WarmupRequest))
         {
-            await started.Task;
+            return _next(context);
         }
 
+        if (context.Request.Path.Equals(LivenessPath, StringComparison.OrdinalIgnoreCase))
+        {
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            context.Response.ContentType = "text/plain";
+            return context.Response.WriteAsync("Healthy");
+        }
+
+        context.Response.Headers.RetryAfter = RetryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+        return Problems.For(ErrorCodes.NotReady, "The instance is starting; retry shortly.", StatusCodes.Status503ServiceUnavailable).ExecuteAsync(context);
+    }
+
+    private async Task Warm(IServiceScopeFactory scopes, ILogger logger)
+    {
         try
         {
-            var count = sources.Sum(source => source.Endpoints.Count);
-            if (count == 0)
-            {
-                throw new InvalidOperationException("No endpoints were found to build.");
-            }
-
-            warmup.Complete();
-            logger.LogInformation("{EndpointCount} endpoints built; ready {ElapsedMilliseconds} ms after host start", count,
-                Math.Round((await warmup.Completed).TotalMilliseconds));
+            await using var scope = scopes.CreateAsyncScope();
+            var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+            context.Items[WarmupRequest] = true;
+            context.Request.Method = HttpMethods.Get;
+            context.Request.Path = LivenessPath;
+            context.Response.Body = Stream.Null;
+            await _next(context);
+            _warmup.Complete();
+            logger.LogInformation("Router built; ready {ElapsedMilliseconds} ms after host start", Math.Round((await _warmup.Completed).TotalMilliseconds));
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
-            warmup.Fail(ex);
-            logger.LogError("Endpoint warm-up failed: {ExceptionType}", ex.GetType().Name);
+            _warmup.Fail(ex);
+            logger.LogError("Router warm-up failed: {ExceptionType}", ex.GetType().Name);
         }
     }
 }
 
-/// <summary>Readiness: Unhealthy until the endpoints are built, so a new instance never takes traffic cold.</summary>
+/// <summary>Readiness: Unhealthy until the router is built, so a new instance never takes traffic cold.</summary>
 public sealed class EndpointWarmupHealthCheck(EndpointWarmup warmup) : IHealthCheck
 {
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
         Task.FromResult(warmup.Completed switch
         {
-            { IsCompletedSuccessfully: true } done => HealthCheckResult.Healthy($"Endpoints built {done.Result.TotalMilliseconds:F0} ms after host start.",
+            { IsCompletedSuccessfully: true } done => HealthCheckResult.Healthy($"Router built {done.Result.TotalMilliseconds:F0} ms after host start.",
                 new Dictionary<string, object> { ["warmupMilliseconds"] = Math.Round(done.Result.TotalMilliseconds) }),
-            { IsFaulted: true } => HealthCheckResult.Unhealthy("Endpoint warm-up failed."),
-            _ => HealthCheckResult.Unhealthy("Endpoints are still being built."),
+            { IsFaulted: true } => HealthCheckResult.Unhealthy("Router warm-up failed."),
+            _ => HealthCheckResult.Unhealthy("The router is still being built."),
         });
 }

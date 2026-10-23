@@ -7,8 +7,16 @@ None of the health endpoints needs a token, and none is rate-limited.
 | Endpoint | Checks | Use for |
 |---|---|---|
 | `/health/live` | Nothing beyond the process answering | Liveness probe: restart the process if it fails |
-| `/health/ready` | `postgres`, `outbox-lag`, `partitions` | Readiness probe: stop sending traffic while it is Unhealthy |
+| `/health/ready` | `postgres`, `outbox-lag`, `partitions`, `endpoints` | Readiness probe: stop sending traffic while it is Unhealthy |
 | `/health` | Every check, with its description and data | Dashboards and investigation |
+
+### Startup and `endpoints`
+
+A new instance builds its router once at startup: about 2,300 endpoints, roughly 6 to 7 seconds on a busy development machine.
+
+- Until the router is built, `/health/live` answers 200, and every other request gets an immediate 503 with `Retry-After: 2` and `code: NOT_READY`. Nothing waits.
+- Readiness turns healthy when the build is done. The `endpoints` check reports how long it took (`warmupMilliseconds`).
+- Allow at least 30 seconds before the first readiness failure counts.
 
 ### `postgres`
 

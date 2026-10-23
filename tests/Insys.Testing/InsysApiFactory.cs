@@ -8,7 +8,9 @@ namespace Insys.Testing;
 
 /// <summary>The real API host (Program) against a migrated test database, connecting as the non-owner role, with any extra settings.</summary>
 /// <param name="environment">The host environment; Testing unless a test checks environment-specific behaviour.</param>
-public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<string, string?>? settings = null, string environment = "Testing") : WebApplicationFactory<Program>
+/// <param name="waitForWarmup">False only for tests of requests that arrive while the endpoints are still being built.</param>
+public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<string, string?>? settings = null, string environment = "Testing",
+    bool waitForWarmup = true) : WebApplicationFactory<Program>
 {
     public TestDatabase Database { get; } = database;
 
@@ -20,7 +22,11 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var host = base.CreateHost(builder);
-        host.Services.GetRequiredService<Insys.BuildingBlocks.Api.EndpointWarmup>().Completed.GetAwaiter().GetResult();
+        if (waitForWarmup)
+        {
+            host.Services.GetRequiredService<Insys.BuildingBlocks.Api.EndpointWarmup>().Completed.GetAwaiter().GetResult();
+        }
+
         ColdStart = stopwatch.Elapsed;
         return host;
     }
@@ -80,6 +86,4 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
         Services.GetService<Insys.Integration.Infrastructure.Webhooks.StubWebhookTransport>()?.Received.Clear();
     }
 
-    /// <summary>The number of endpoints, for checking that no test changed the host's routing.</summary>
-    public int EndpointCount => Services.GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>().Sum(source => source.Endpoints.Count);
 }

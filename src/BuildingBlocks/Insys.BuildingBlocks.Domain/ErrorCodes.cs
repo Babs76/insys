@@ -74,6 +74,9 @@ public static class ErrorCodes
     [ErrorCode(429, "error.request.rate_limited", retryable: true)]
     public const string RateLimited = "RATE_LIMITED";
 
+    [ErrorCode(503, "error.service.not_ready", retryable: true)]
+    public const string NotReady = "NOT_READY";
+
     [ErrorCode(500, "error.internal", retryable: true)]
     public const string InternalError = "INTERNAL_ERROR";
 

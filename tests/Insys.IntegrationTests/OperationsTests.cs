@@ -50,8 +50,7 @@ public sealed class OperationsTests(DatabaseFixture fixture) : IClassFixture<Dat
         check.GetProperty("status").GetString().ShouldBe("Healthy");
         check.GetProperty("data").GetProperty("warmupMilliseconds").GetDouble().ShouldBe(Math.Round(warmup.TotalMilliseconds));
         (await new EndpointWarmupHealthCheck(new EndpointWarmup()).CheckHealthAsync(null!)).Status.ShouldBe(HealthStatus.Unhealthy);
-        Latency.Note($"Cold start: endpoints built {warmup.TotalMilliseconds:F0} ms after host start; test host start to ready {_factory.ColdStart?.TotalMilliseconds:F0} ms "
-            + $"({_factory.EndpointCount} endpoints)");
+        Latency.Note($"Cold start: router built {warmup.TotalMilliseconds:F0} ms after host start; test host start to ready {_factory.ColdStart?.TotalMilliseconds:F0} ms");
     }
 
     [Fact]

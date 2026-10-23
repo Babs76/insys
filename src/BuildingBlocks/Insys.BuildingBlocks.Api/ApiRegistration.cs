@@ -74,7 +74,6 @@ public static class ApiRegistration
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
         services.AddHostedService<DevelopmentSigningKeyGuard>();
         services.AddSingleton<EndpointWarmup>();
-        services.AddHostedService<EndpointWarmupService>();
         services.AddHealthChecks().AddCheck<EndpointWarmupHealthCheck>("endpoints", tags: ["ready"]);
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme).Configure<IConfiguration, IHostEnvironment>((options, config, environment) =>
         {
@@ -204,9 +203,14 @@ public static class ApiRegistration
         });
     }
 
-    /// <summary>Adds the middleware in order: errors, authentication, execution scope, rate limiting, authorisation.</summary>
+    /// <summary>
+    /// Adds the middleware in order: the warm-up gate, routing, errors, authentication, execution scope, rate limiting,
+    /// authorisation. The gate comes before routing, which builds the router on the first request it sees.
+    /// </summary>
     public static WebApplication UseInsysApi(this WebApplication app)
     {
+        app.UseMiddleware<WarmupGateMiddleware>();
+        app.UseRouting();
         app.UseExceptionHandler();
         app.UseStatusCodePages();
         app.UseAuthentication();

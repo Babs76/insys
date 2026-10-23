@@ -42,6 +42,7 @@ public sealed class IdempotencyTests(DatabaseFixture fixture) : IClassFixture<Da
             .RequirePermission("widget.create")
             .RequireIdempotencyKey();
         await _app.StartAsync();
+        await _app.Services.GetRequiredService<EndpointWarmup>().Completed;
     }
 
     public async ValueTask DisposeAsync() => await _app.DisposeAsync();
