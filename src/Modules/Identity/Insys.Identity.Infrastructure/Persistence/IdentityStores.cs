@@ -88,7 +88,7 @@ internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles,
                 .Select(a => new RoleAssignmentView(a.Id, a.RoleCode, a.Status, a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, a.AssignedBy,
                     a.ApprovedBy, facts[a.RoleCode].Privileged, facts[a.RoleCode].RequiresMfa, facts[a.RoleCode].Privileged, a.RevokedAt, a.RevokedBy))
                 .ToList(),
-            u.RowVersion)).ToList();
+            u.RowVersion, u.Email)).ToList();
     }
 }
 
@@ -150,6 +150,9 @@ internal sealed class IdentityEventMapper : IDomainEventMapper
         Domain.Users.PrivilegedRoleRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.IdentityApprovals.BusinessRefType, e.AssignmentId,
             Contracts.IdentityApprovals.ApprovalType, e.AssignedBy, null, null, $"Assign {e.RoleCode} to user {e.UserId}"),
         Domain.Users.UserDisabled e => new Contracts.UserDisabled(e.UserId),
+        Domain.Users.UserReenabled e => new Contracts.UserReenabled(e.UserId),
+        Domain.Users.UserIdentityRequested e => new Contracts.UserIdentityRequested(e.UserId),
+        Domain.Users.UserInvitationRequested e => new Contracts.UserInvitationRequested(e.UserId, e.Actions),
         Domain.Users.SubjectLinkRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.IdentityApprovals.SubjectLinkBusinessRefType, e.LinkId,
             Contracts.IdentityApprovals.SubjectLinkApprovalType, e.RequestedBy, null, null, $"Link user {e.UserId} to {e.Kind} {e.Key} (external user)"),
         Domain.Users.SubjectLinkChanged e => new Contracts.SubjectLinkChanged(e.UserId),

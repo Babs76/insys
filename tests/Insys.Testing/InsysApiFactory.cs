@@ -30,6 +30,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Insys.Testing;
 
@@ -37,7 +38,7 @@ namespace Insys.Testing;
 /// <param name="environment">The host environment; Testing unless a test checks environment-specific behaviour.</param>
 /// <param name="waitForWarmup">False only for tests of requests that arrive while the endpoints are still being built.</param>
 public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<string, string?>? settings = null, string environment = "Testing",
-    bool waitForWarmup = true, TimeProvider? time = null) : WebApplicationFactory<Program>
+    bool waitForWarmup = true, TimeProvider? time = null, Microsoft.Extensions.Logging.ILoggerProvider? logs = null) : WebApplicationFactory<Program>
 {
     public TestDatabase Database { get; } = database;
 
@@ -69,6 +70,12 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
             builder.UseSetting(key, value);
         }
         builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(TestTokens.HostSettings(Database)).AddInMemoryCollection(settings ?? new Dictionary<string, string?>()));
+
+        // Captured logs, for tests that check what is never logged.
+        if (logs is not null)
+        {
+            builder.ConfigureLogging(logging => logging.AddProvider(logs));
+        }
 
         // A fixed clock, for business date tests (ADR-025): every IClock and token check in the host reads it.
         if (time is not null)

@@ -59,6 +59,18 @@ public sealed record RoleRevoked(Guid UserId, string RoleCode) : IIntegrationEve
 [IntegrationEvent("iam.UserDisabled")]
 public sealed record UserDisabled(Guid UserId) : IIntegrationEvent;
 
+/// <summary>An unlocked user may sign in again; its Keycloak user is enabled again (keycloak-user-provisioning §5).</summary>
+[IntegrationEvent("iam.UserReenabled")]
+public sealed record UserReenabled(Guid UserId) : IIntegrationEvent;
+
+/// <summary>A user of INSYS's own realm waits for its Keycloak user (keycloak-user-provisioning §4). Carries no personal data (INT-007).</summary>
+[IntegrationEvent("iam.UserIdentityRequested")]
+public sealed record UserIdentityRequested(Guid UserId) : IIntegrationEvent;
+
+/// <summary>Keycloak's required-actions email is to be sent to the user (UPDATE_PASSWORD, CONFIGURE_TOTP).</summary>
+[IntegrationEvent("iam.UserInvitationRequested")]
+public sealed record UserInvitationRequested(Guid UserId, IReadOnlyList<string> Actions) : IIntegrationEvent;
+
 /// <summary>Public query interface: the roles a user holds today, for approval authority (WFL-004). Read on Identity's own connection.</summary>
 public interface IUserRoleQuery
 {

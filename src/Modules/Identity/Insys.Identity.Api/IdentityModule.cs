@@ -41,11 +41,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Identity.Api;
 
-public sealed record ProvisionUserRequest(string Username, string DisplayName, string IdpCode, string ExternalSubject, bool MfaEnrolled);
+/// <param name="ExternalSubject">For a federated identity provider: the user's subject there. Not given for INSYS's own realm (idpCode KEYCLOAK).</param>
+/// <param name="Email">For INSYS's own realm: INSYS creates the Keycloak user and Keycloak sends the invitation here.</param>
+public sealed record ProvisionUserRequest(string Username, string DisplayName, string IdpCode, string? ExternalSubject, bool MfaEnrolled, string? Email = null);
 
 /// <summary>A new tenant's first administrator (OQ-067): the user, and the permissions of the tenant's TENANT_ADMIN role.</summary>
-public sealed record ProvisionTenantAdministratorRequest(Guid TenantId, string Username, string DisplayName, string IdpCode, string ExternalSubject,
-    bool MfaEnrolled, string[] Permissions);
+public sealed record ProvisionTenantAdministratorRequest(Guid TenantId, string Username, string DisplayName, string IdpCode, string? ExternalSubject,
+    bool MfaEnrolled, string[] Permissions, string? Email = null);
 
 public sealed record SubjectLinkRequest(Domain.Users.SubjectKind Kind, Guid? PartyId, string? IntermediaryCode, string? ProviderId);
 
@@ -118,7 +120,7 @@ public sealed class IdentityModule : IModule
         var users = api.MapGroup("/identity/users").WithTags(Name);
 
         users.MapPost("/", async (ProvisionUserRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
-                (await dispatcher.Send(new ProvisionUser(request.Username, request.DisplayName, request.IdpCode, request.ExternalSubject, request.MfaEnrolled), ct))
+                (await dispatcher.Send(new ProvisionUser(request.Username, request.DisplayName, request.IdpCode, request.ExternalSubject, request.MfaEnrolled, request.Email), ct))
                 .ToHttp(id =>
                 {
                     Concurrency.SetETag(http, 1);
@@ -127,9 +129,23 @@ public sealed class IdentityModule : IModule
             .Produces<CreatedId>(StatusCodes.Status201Created)
             .WithName("ProvisionUser")
             .WithSummary("Provision a user")
-            .WithDescription("The user is Invited until the first request with a token for the external subject.")
+            .WithDescription("For INSYS's own realm (idpCode KEYCLOAK) give email and no externalSubject: the user is PendingIdentity until INSYS has created its "
+                + "Keycloak user, then Invited (Keycloak emails it to set a password, and a one-time code with mfaEnrolled) until its first sign-in. For a "
+                + "federated identity provider give externalSubject: the user is Invited until the first request with a token for it. A user with no roles "
+                + "can sign in, and do nothing until a role is assigned.")
+            .WithEventualEffects("for INSYS's own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the "
+                + "creation is parked (KEYCLOAK_UNAVAILABLE) and retried.")
             .RequirePermission(IdentityPermissions.UserCreate)
             .RequireIdempotencyKey();
+
+        users.MapPost("/{id:guid}/resend-invitation", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new ResendInvitation(id, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("ResendInvitation")
+            .WithSummary("Send Keycloak's invitation email again, to a user of INSYS's own realm who has not signed in yet")
+            .WithEventualEffects("Keycloak sends the email; if it cannot be reached, sending is parked (KEYCLOAK_UNAVAILABLE) and retried.")
+            .RequirePermission(IdentityPermissions.UserUpdate);
 
         users.MapGet("/", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
             {
@@ -370,7 +386,7 @@ public sealed class IdentityModule : IModule
     {
         requests.MapPost("/", async (ProvisionTenantAdministratorRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Send(new ProvisionTenantAdministrator(request.TenantId, request.Username, request.DisplayName, request.IdpCode,
-                    request.ExternalSubject, request.MfaEnrolled, request.Permissions ?? []), ct))
+                    request.ExternalSubject, request.MfaEnrolled, request.Permissions ?? [], request.Email), ct))
                 .ToHttp(id =>
                 {
                     Concurrency.SetETag(http, 1);

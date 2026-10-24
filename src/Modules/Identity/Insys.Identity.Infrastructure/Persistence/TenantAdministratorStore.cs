@@ -65,8 +65,10 @@ internal sealed class TenantAdministratorStore(IdentityDbContext db, IClock cloc
     {
         var now = clock.UtcNow;
         var today = clock.UtcToday;
-        var user = UserAccount.ProvisionUser(Guid.CreateVersion7(), request.Username, request.DisplayName, request.IdpCode, request.ExternalSubject,
-            request.MfaEnrolled);
+        // INSYS's own realm: the user waits for its Keycloak user, which Identity's consumer creates (keycloak-user-provisioning §1).
+        var user = request.IdpCode == UserAccount.OwnRealm
+            ? UserAccount.ProvisionUserInOwnRealm(Guid.CreateVersion7(), request.Username, request.DisplayName, request.Email!, request.MfaEnrolled, now)
+            : UserAccount.ProvisionUser(Guid.CreateVersion7(), request.Username, request.DisplayName, request.IdpCode, request.ExternalSubject!, request.MfaEnrolled);
         await db.WithinTenant(request.TargetTenantId, async () =>
         {
             if (await db.Users.AnyAsync(cancellationToken))

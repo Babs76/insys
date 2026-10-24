@@ -59,6 +59,7 @@ dotnet run --project src/Host/Insys.Api
 | `Claims:Payments:HeldReleaseRole` | The role whose queue gets a held claim payment's task | CLAIMS_MANAGER |
 | `Testing:DailyJobRunner:Enabled` | Test only: `POST /api/v1/testing/daily-jobs` runs the daily jobs as of a date; refused outside Development and Testing (ADR-025) | off |
 | `Payments:Callbacks:Tolerance`, `Overlap` | Signed callbacks (ADR-023): timestamp window, and how long a rotated endpoint is still accepted | 5 min, 7 days |
+| `Identity:Keycloak:BaseUrl`, `Realm`, `ClientId`, `ClientSecret`, `InvitationLifespan`, `Timeout` | INSYS creates the Keycloak users of realm `insys` through the service client (keycloak-user-provisioning); the secret from the secret store or user secrets, never in git. Empty `BaseUrl`: creations park until set | none, insys, insys-user-admin, none, 72 h, 10 s |
 | `Database:Pools:<role>`, `MaxConnections`, `Reserve`, `Instances`, `PoolWaitSeconds` | Connection pool per module role, checked at start-up against the server's limit (GAP-039) | see `docs/runbooks/deployment.md` |
 | `Idempotency:Retention` | How long Idempotency-Key results are kept | 24 h |
 | `RateLimiting:PermitsPerMinute` | Requests per minute per tenant | 1,200 |

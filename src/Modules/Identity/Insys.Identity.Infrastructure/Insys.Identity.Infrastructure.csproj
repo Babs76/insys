@@ -26,6 +26,7 @@
 -->
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Infrastructure\Insys.BuildingBlocks.Infrastructure.csproj" />
     <ProjectReference Include="..\Insys.Identity.Application\Insys.Identity.Application.csproj" />
     <ProjectReference Include="..\..\Tenancy\Insys.Tenancy.Contracts\Insys.Tenancy.Contracts.csproj" />

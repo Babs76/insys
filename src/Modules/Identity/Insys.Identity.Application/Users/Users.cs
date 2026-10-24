@@ -100,7 +100,7 @@ public sealed record ListScopedAssignments : IQuery<IReadOnlyList<ScopedAssignme
 
 public sealed record UserView(
     Guid Id, string Username, string DisplayName, string IdpCode, string? ExternalSubject, UserStatus Status, bool MfaEnrolled, DateTimeOffset? LastLoginAt,
-    IReadOnlyList<RoleAssignmentView> RoleAssignments, long RowVersion);
+    IReadOnlyList<RoleAssignmentView> RoleAssignments, long RowVersion, string? Email = null);
 
 public interface IUserQueries
 {
@@ -111,7 +111,15 @@ public interface IUserQueries
     Task<UserView?> Get(Guid userId, CancellationToken cancellationToken);
 }
 
-public sealed record ProvisionUser(string Username, string DisplayName, string IdpCode, string ExternalSubject, bool MfaEnrolled) : ICommand<Guid>;
+/// <summary>
+/// Command ProvisionUser. For INSYS's own realm (idpCode KEYCLOAK) INSYS creates the Keycloak user: email is required, no
+/// external subject is given, and the user is PendingIdentity until it is linked (keycloak-user-provisioning). For a
+/// federated identity provider the external subject is required, and nothing is created in Keycloak (OQ-037).
+/// </summary>
+public sealed record ProvisionUser(string Username, string DisplayName, string IdpCode, string? ExternalSubject, bool MfaEnrolled, string? Email = null) : ICommand<Guid>;
+
+/// <summary>Command ResendInvitation: Keycloak's required-actions email again, for a user of INSYS's own realm who has not signed in.</summary>
+public sealed record ResendInvitation(Guid UserId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 public sealed record AssignRole(Guid UserId, string RoleCode, DateOnly? ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches,
     long ExpectedVersion) : ICommand<long>, IVersionedCommand;
@@ -139,7 +147,10 @@ public sealed class ProvisionUserValidator : AbstractValidator<ProvisionUser>
         RuleFor(c => c.Username).NotEmpty().MaximumLength(120);
         RuleFor(c => c.DisplayName).NotEmpty().MaximumLength(120);
         RuleFor(c => c.IdpCode).NotEmpty().MaximumLength(15);
-        RuleFor(c => c.ExternalSubject).NotEmpty().MaximumLength(120);
+        RuleFor(c => c.ExternalSubject).NotEmpty().MaximumLength(120).When(c => c.IdpCode != UserAccount.OwnRealm);
+        RuleFor(c => c.ExternalSubject).Empty().When(c => c.IdpCode == UserAccount.OwnRealm)
+            .WithMessage("INSYS creates the Keycloak user of its own realm; give its email, not an external subject.");
+        RuleFor(c => c.Email).NotEmpty().MaximumLength(254).EmailAddress().When(c => c.IdpCode == UserAccount.OwnRealm);
     }
 }
 
@@ -179,7 +190,7 @@ internal static class Administrator
     }
 }
 
-internal sealed class ProvisionUserHandler(IUserRepository users, IExecutionContext execution, IAuditTrail audit) : ICommandHandler<ProvisionUser, Guid>
+internal sealed class ProvisionUserHandler(IUserRepository users, IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<ProvisionUser, Guid>
 {
     public async Task<Result<Guid>> Handle(ProvisionUser command, CancellationToken cancellationToken)
     {
@@ -194,8 +205,9 @@ internal sealed class ProvisionUserHandler(IUserRepository users, IExecutionCont
             return Error.Conflict(IdentityErrorCodes.UsernameTaken, "Another user in this tenant has this username.");
         }
 
-        var user = UserAccount.ProvisionUser(Guid.CreateVersion7(), command.Username, command.DisplayName, command.IdpCode, command.ExternalSubject,
-            command.MfaEnrolled);
+        var user = command.IdpCode == UserAccount.OwnRealm
+            ? UserAccount.ProvisionUserInOwnRealm(Guid.CreateVersion7(), command.Username, command.DisplayName, command.Email!, command.MfaEnrolled, clock.UtcNow)
+            : UserAccount.ProvisionUser(Guid.CreateVersion7(), command.Username, command.DisplayName, command.IdpCode, command.ExternalSubject!, command.MfaEnrolled);
         users.Add(user);
         audit.Record(new AuditEntry("IDENTITY", "ProvisionUser", nameof(UserAccount), user.Id.ToString(),
             new Dictionary<string, string?> { ["idp"] = command.IdpCode }));
@@ -294,8 +306,8 @@ internal sealed class ChangeUserStatusHandler(IUserRepository users, IExecutionC
         audit.Record(new AuditEntry("IDENTITY", $"{command.Action}User", nameof(UserAccount), command.UserId.ToString()));
         var result = command.Action switch
         {
-            UserStatusAction.Lock => user.Value.LockUser(),
-            UserStatusAction.Unlock => user.Value.UnlockUser(),
+            UserStatusAction.Lock => user.Value.LockUser(clock.UtcNow),
+            UserStatusAction.Unlock => user.Value.UnlockUser(clock.UtcNow),
             _ => user.Value.DisableUser(clock.UtcNow),
         };
         if (result.IsFailure)
@@ -362,5 +374,33 @@ public sealed class PrivilegedRoleApprovalPolicy(IUserRepository users, IClock c
         {
             linked.DecideSubjectLink(assignmentId, approved, checkerId, clock.UtcNow);
         }
+    }
+}
+
+internal sealed class ResendInvitationHandler(IUserRepository users, IExecutionContext execution, IClock clock, IAuditTrail audit)
+    : ICommandHandler<ResendInvitation, long>
+{
+    public async Task<Result<long>> Handle(ResendInvitation command, CancellationToken cancellationToken)
+    {
+        var administrator = Administrator.Require(execution);
+        if (administrator.IsFailure)
+        {
+            return administrator.Error;
+        }
+
+        var user = await Administrator.Load(users, command.UserId, command.ExpectedVersion, cancellationToken);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        var result = user.Value.ResendInvitation(clock.UtcNow);
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        audit.Record(new AuditEntry("IDENTITY", "ResendInvitation", nameof(UserAccount), command.UserId.ToString()));
+        return user.Value.RowVersion + 1;
     }
 }

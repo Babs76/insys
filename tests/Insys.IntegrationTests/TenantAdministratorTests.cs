@@ -172,6 +172,33 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         (await refused.Code()).ShouldBe("TENANT_NOT_ONBOARDING");
     }
 
+    [Fact]
+    public async Task AFirstAdministratorOfInsysOwnRealm_GivesAnEmail_AndWaitsForItsKeycloakUser_KeycloakProvisioning()
+    {
+        var one = _factory.ClientFor(Operator, "platform-one");
+        var two = _factory.ClientFor(Operator, "platform-two");
+        var (tenantId, _) = await RegisterTenantAtAccessStep(one, "OWNREALM");
+        var body = new
+        {
+            tenantId, username = "own-admin", displayName = "Own Administrator", idpCode = "KEYCLOAK", email = "own.admin@example.com", mfaEnrolled = true,
+            permissions = new[] { IdentityPermissions.UserRead },
+        };
+        var requested = await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", body, idempotent: true);
+        requested.StatusCode.ShouldBe(HttpStatusCode.Created, await requested.Content.ReadAsStringAsync());
+        await _factory.DrainOutbox();
+        var requestId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM iam.tenant_administrator_request WHERE target_tenant_id = @t", ("t", tenantId));
+        (await two.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{await Approval(one, requestId)}/approve", ifMatch: "\"1\"")).StatusCode
+            .ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+
+        // This host has no Keycloak: the user waits, unable to sign in, and its creation is parked to be retried.
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status || ' ' || coalesce(external_subject, '-') || ' ' || email FROM iam.user_account WHERE tenant_id = @t",
+            ("t", tenantId))).ShouldBe("PENDING_IDENTITY - own.admin@example.com");
+        (await fixture.Database.ScalarAsOwner<string>(
+                "SELECT prerequisite_code FROM integration.parked_delivery WHERE tenant_id = @t AND consumer = 'iam.KeycloakProvisioning.UserIdentityRequested'", ("t", tenantId)))
+            .ShouldBe("KEYCLOAK_UNAVAILABLE");
+    }
+
     private static object Request(Guid tenantId, string username) => new
     {
         tenantId,

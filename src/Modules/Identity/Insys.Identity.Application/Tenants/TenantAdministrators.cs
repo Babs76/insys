@@ -45,8 +45,9 @@ namespace Insys.Identity.Application.Tenants;
 /// administrator while the tenant is Onboarding. The user signs in with the identity provider's subject, whose token
 /// carries the new tenant's tenant_id. Permissions are the TENANT_ADMIN role's permissions in the new tenant.
 /// </summary>
-public sealed record ProvisionTenantAdministrator(Guid TargetTenantId, string Username, string DisplayName, string IdpCode, string ExternalSubject,
-    bool MfaEnrolled, string[] Permissions) : ICommand<Guid>;
+/// <param name="Email">For INSYS's own realm (idpCode KEYCLOAK): INSYS creates the Keycloak user on approval and sends the invitation here.</param>
+public sealed record ProvisionTenantAdministrator(Guid TargetTenantId, string Username, string DisplayName, string IdpCode, string? ExternalSubject,
+    bool MfaEnrolled, string[] Permissions, string? Email = null) : ICommand<Guid>;
 
 public sealed class ProvisionTenantAdministratorValidator : AbstractValidator<ProvisionTenantAdministrator>
 {
@@ -56,14 +57,17 @@ public sealed class ProvisionTenantAdministratorValidator : AbstractValidator<Pr
         RuleFor(c => c.Username).NotEmpty().MaximumLength(120);
         RuleFor(c => c.DisplayName).NotEmpty().MaximumLength(120);
         RuleFor(c => c.IdpCode).NotEmpty().MaximumLength(15);
-        RuleFor(c => c.ExternalSubject).NotEmpty().MaximumLength(120);
+        RuleFor(c => c.ExternalSubject).NotEmpty().MaximumLength(120).When(c => c.IdpCode != UserAccount.OwnRealm);
+        RuleFor(c => c.ExternalSubject).Empty().When(c => c.IdpCode == UserAccount.OwnRealm)
+            .WithMessage("INSYS creates the Keycloak user of its own realm; give its email, not an external subject.");
+        RuleFor(c => c.Email).NotEmpty().MaximumLength(254).EmailAddress().When(c => c.IdpCode == UserAccount.OwnRealm);
         RuleFor(c => c.Permissions).NotEmpty();
         RuleForEach(c => c.Permissions).NotEmpty().MaximumLength(80);
     }
 }
 
 /// <summary>A request for a new tenant's first administrator and its decision.</summary>
-public sealed record TenantAdministratorRequestView(Guid Id, Guid TargetTenantId, string Username, string DisplayName, string IdpCode, string ExternalSubject,
+public sealed record TenantAdministratorRequestView(Guid Id, Guid TargetTenantId, string Username, string DisplayName, string IdpCode, string? ExternalSubject,
     bool MfaEnrolled, string RoleCode, string[] Permissions, Guid RequestedBy, TenantAdministratorRequestStatus Status, Guid? DecidedBy,
     DateTimeOffset? DecidedAt, Guid? UserId, long RowVersion)
 {
@@ -133,7 +137,7 @@ internal sealed class ProvisionTenantAdministratorHandler(ITenantAdministrators 
         }
 
         var request = TenantAdministratorRequest.Create(command.TargetTenantId, command.Username, command.DisplayName, command.IdpCode, command.ExternalSubject,
-            command.MfaEnrolled, command.Permissions, requester.Value, clock.UtcNow);
+            command.MfaEnrolled, command.Permissions, requester.Value, clock.UtcNow, command.Email);
         administrators.Add(request);
         audit.Record(new AuditEntry("IDENTITY", "ProvisionTenantAdministrator", nameof(TenantAdministratorRequest), request.Id.ToString(),
             new Dictionary<string, string?> { ["tenant"] = target.TenantCode, ["username"] = command.Username }));

@@ -60,7 +60,11 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
     public string IdpCode { get; private set; } = "";
 
     /// <summary>The identity provider's subject for the user (Keycloak: the user's ID), whose token carries the new tenant's tenant_id.</summary>
-    public string ExternalSubject { get; private set; } = "";
+    /// <summary>The subject at a federated identity provider; null for INSYS's own realm, where INSYS creates the Keycloak user.</summary>
+    public string? ExternalSubject { get; private set; }
+
+    /// <summary>For INSYS's own realm: where Keycloak sends the invitation (keycloak-user-provisioning §1).</summary>
+    public string? Email { get; private set; }
 
     public bool MfaEnrolled { get; private set; }
 
@@ -79,8 +83,8 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
     /// <summary>The user created in the new tenant, once provisioned.</summary>
     public Guid? UserId { get; private set; }
 
-    public static TenantAdministratorRequest Create(Guid targetTenantId, string username, string displayName, string idpCode, string externalSubject,
-        bool mfaEnrolled, IEnumerable<string> permissions, Guid requestedBy, DateTimeOffset now)
+    public static TenantAdministratorRequest Create(Guid targetTenantId, string username, string displayName, string idpCode, string? externalSubject,
+        bool mfaEnrolled, IEnumerable<string> permissions, Guid requestedBy, DateTimeOffset now, string? email = null)
     {
         var request = new TenantAdministratorRequest
         {
@@ -89,7 +93,8 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
             Username = Guard.MaxLength(Guard.NotNullOrWhiteSpace(username), 120),
             DisplayName = Guard.MaxLength(Guard.NotNullOrWhiteSpace(displayName), 120),
             IdpCode = Guard.MaxLength(Guard.NotNullOrWhiteSpace(idpCode), 15),
-            ExternalSubject = Guard.MaxLength(Guard.NotNullOrWhiteSpace(externalSubject), 120),
+            ExternalSubject = externalSubject is null ? null : Guard.MaxLength(Guard.NotNullOrWhiteSpace(externalSubject), 120),
+            Email = email is null ? null : Guard.MaxLength(Guard.NotNullOrWhiteSpace(email), 254),
             MfaEnrolled = mfaEnrolled,
             Permissions = [.. permissions.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)],
             RequestedBy = Guard.NotEmpty(requestedBy),

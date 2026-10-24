@@ -98,6 +98,15 @@ public static class IdentityInfrastructure
                 admins > 0 ? [] : ["TENANT_ADMIN"])];
         });
         services.AddSingleton<Contracts.IStaffRoles, Persistence.StaffRoles>();
+        // INSYS creates the Keycloak users of its own realm (keycloak-user-provisioning).
+        services.AddOptions<Keycloak.KeycloakOptions>().BindConfiguration("Identity:Keycloak");
+        services.AddHttpClient("keycloak-admin");
+        services.AddSingleton<Keycloak.IKeycloakAdmin, Keycloak.KeycloakAdmin>();
+        services.AddIntegrationEventHandler<Contracts.UserIdentityRequested, Keycloak.KeycloakProvisioning, IdentityDbContext>(IdentityDbContext.SchemaName, "UserIdentityRequested");
+        services.AddIntegrationEventHandler<Contracts.UserInvitationRequested, Keycloak.KeycloakProvisioning, IdentityDbContext>(IdentityDbContext.SchemaName,
+            "UserInvitationRequested");
+        services.AddIntegrationEventHandler<Contracts.UserDisabled, Keycloak.KeycloakProvisioning, IdentityDbContext>(IdentityDbContext.SchemaName, "UserDisabled");
+        services.AddIntegrationEventHandler<Contracts.UserReenabled, Keycloak.KeycloakProvisioning, IdentityDbContext>(IdentityDbContext.SchemaName, "UserReenabled");
         return services;
     }
 }

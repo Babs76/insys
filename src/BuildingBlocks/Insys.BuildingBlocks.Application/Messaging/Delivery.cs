@@ -68,6 +68,15 @@ public static class PrerequisiteCodes
     /// <summary>Item: the treaty code, or the error code when no single treaty is at fault.</summary>
     public const string TreatyNotApplicable = "TREATY_NOT_APPLICABLE";
 
+    /// <summary>Item: the realm (insys). Keycloak's admin API could not be reached or failed (keycloak-user-provisioning §4).</summary>
+    public const string KeycloakUnavailable = "KEYCLOAK_UNAVAILABLE";
+
+    /// <summary>Item: username or email. The realm already has a user with it, in another tenant; the operator resolves it.</summary>
+    public const string KeycloakUserConflict = "KEYCLOAK_USER_CONFLICT";
+
+    /// <summary>Item: the realm. The user exists and is linked, but Keycloak could not send its invitation email.</summary>
+    public const string KeycloakEmailUnsent = "KEYCLOAK_EMAIL_UNSENT";
+
     /// <summary>Item: the days overdue that no arrears ageing bucket (billing.cfg_arrears_ageing_buckets) covers, for example "1".</summary>
     public const string ArrearsAgeingBucketNotInForce = "ARREARS_AGEING_BUCKET_NOT_IN_FORCE";
 }

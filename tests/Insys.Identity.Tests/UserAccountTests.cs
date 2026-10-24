@@ -44,9 +44,31 @@ public sealed class UserAccountTests
     public void UserAccount_Lifecycle_MatchesDomainModel()
     {
         var implemented = UserAccount.Lifecycle.Transitions.Select(t => $"{t.From}-{t.Trigger}->{t.To}").OrderBy(t => t, StringComparer.Ordinal).ToList();
-        var specified = DomainModelSpec.Transitions("iam", "UserAccount").Select(t => t.Replace("First sign-in", "FirstSignIn", StringComparison.Ordinal)).ToList();
+        var specified = DomainModelSpec.Transitions("iam", "UserAccount").Select(t => t.Replace("First sign-in", "FirstSignIn", StringComparison.Ordinal))
+            // Added by the signed-off keycloak-user-provisioning addendum (§4): a user of INSYS's own realm waits for its Keycloak user.
+            .Concat(["PendingIdentity-LinkIdentity->Invited", "PendingIdentity-DisableUser->Disabled"]).OrderBy(t => t, StringComparer.Ordinal).ToList();
 
         implemented.ShouldBe(specified);
+    }
+
+    [Fact]
+    public void OwnRealmUser_WaitsForItsKeycloakUser_ThenIsInvited_AndCanBeInvitedAgain_KeycloakProvisioning()
+    {
+        var user = UserAccount.ProvisionUserInOwnRealm(Guid.CreateVersion7(), "new.admin", "New Admin", "new.admin@example.com", mfa: true, Now);
+        (user.Status, user.ExternalSubject, user.IdpCode).ShouldBe((UserStatus.PendingIdentity, (string?)null, UserAccount.OwnRealm));
+        user.DomainEvents.OfType<UserIdentityRequested>().ShouldHaveSingleItem();
+        user.ResendInvitation(Now).IsFailure.ShouldBeTrue("nothing to resend before the Keycloak user exists");
+
+        user.LinkIdentity("kc-123", Now).IsSuccess.ShouldBeTrue();
+        (user.Status, user.ExternalSubject).ShouldBe((UserStatus.Invited, "kc-123"));
+        user.DomainEvents.OfType<UserInvitationRequested>().Single().Actions.ShouldBe(["UPDATE_PASSWORD", "CONFIGURE_TOTP"]);
+        user.LinkIdentity("kc-other", Now).IsSuccess.ShouldBeTrue("a replay changes nothing");
+        user.ExternalSubject.ShouldBe("kc-123");
+
+        user.ResendInvitation(Now).IsSuccess.ShouldBeTrue();
+        user.DomainEvents.OfType<UserInvitationRequested>().Count().ShouldBe(2);
+        user.RecordSignIn(Now).IsSuccess.ShouldBeTrue();
+        user.ResendInvitation(Now).IsFailure.ShouldBeTrue("once signed in, there is no invitation to resend");
     }
 
     [Fact]
@@ -136,7 +158,7 @@ public sealed class UserAccountTests
     public void InvitedUser_CannotBeLockedOrDisabled_IsInvalidStateTransition(UserStatus _, string action)
     {
         var user = User();
-        var result = action == "Lock" ? user.LockUser() : user.DisableUser(Now);
+        var result = action == "Lock" ? user.LockUser(Now) : user.DisableUser(Now);
 
         result.Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
     }
@@ -146,12 +168,12 @@ public sealed class UserAccountTests
     {
         var user = User();
         user.RecordSignIn(Now);
-        user.LockUser().IsSuccess.ShouldBeTrue();
+        user.LockUser(Now).IsSuccess.ShouldBeTrue();
 
         user.DisableUser(Now).IsSuccess.ShouldBeTrue();
         user.Status.ShouldBe(UserStatus.Disabled);
-        user.DomainEvents.OfType<UserDisabled>().ShouldHaveSingleItem();
-        user.UnlockUser().Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        user.DomainEvents.OfType<UserDisabled>().Count().ShouldBe(2, "locking stops access too (keycloak-user-provisioning §5), and so does disabling");
+        user.UnlockUser(Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
     }
 
     [Fact]

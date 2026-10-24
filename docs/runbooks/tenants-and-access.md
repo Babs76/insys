@@ -20,17 +20,17 @@ The background jobs act only for active tenants.
 
 Two platform administrators provision it while the tenant is Onboarding, before it has any user (OQ-067, GAP-019).
 
-1. **Create the Keycloak user.** In realm `insys`, create the user and set the `tenant_id` attribute to the new tenant's ID (admin console, or the admin REST API). Note the user's ID: it is the token's `sub`. See [deployment.md](deployment.md#how-a-tenants-users-get-their-tenant_id).
+1. **INSYS's own realm needs no manual Keycloak step:** INSYS creates the Keycloak user on approval (keycloak-user-provisioning). For a federated identity provider, the user exists there already; note its subject.
 2. **Request the administrator.** A platform administrator calls `POST /api/v1/identity/tenant-administrators` [platform: user.create] with:
-   - `tenantId`, `username`, `displayName`, `idpCode`, and `externalSubject` (the Keycloak user's ID from step 1);
+   - `tenantId`, `username`, `displayName`, `idpCode`, and either `email` (realm `insys`, `idpCode` `KEYCLOAK`) or `externalSubject` (a federated identity provider);
    - `mfaEnrolled`;
    - `permissions`: the permissions of the tenant's `TENANT_ADMIN` role. Nothing in the specification fixes this list, so the two administrators agree it. At least `user.read`, `user.create` and `user.update` let the administrator add the tenant's other users.
    It is refused when the tenant is not Onboarding (`TENANT_NOT_ONBOARDING`), already has users (`TENANT_HAS_USERS`), or already has a request waiting (`DUPLICATE_RECORD`).
 3. **Approve it.** A second platform administrator approves the Workflow approval (type `TENANT_ADMINISTRATOR`, business reference `TENANT_ADMIN_REQUEST`). They need `approval.read` and `approval.approve`, and a role named in `workflow.cfg_delegation_and_approval_authority` for transaction type `TENANT_ADMINISTRATOR` (WFL-004). The requester cannot approve their own request.
 4. **What approval does**, in one transaction:
-   - in the new tenant: the `TENANT_ADMIN` role definition in force (approved by the checker), the user (Invited), and an active assignment of `TENANT_ADMIN`, with `approved_by` the checker. The assignment's `assigned_by` is the user itself, because it must be a user of the same tenant, as in the operator bootstrap (OQ-031);
+   - in the new tenant: the `TENANT_ADMIN` role definition in force (approved by the checker), the user (Invited; for realm `insys`, PendingIdentity until its Keycloak user exists, see below), and an active assignment of `TENANT_ADMIN`, with `approved_by` the checker. The assignment's `assigned_by` is the user itself, because it must be a user of the same tenant, as in the operator bootstrap (OQ-031);
    - in the operator tenant: the request becomes Provisioned and records the user.
-   Tenancy then completes the tenant's `ORGANISATION_AND_ACCESS` onboarding step, if it is the current step. Otherwise the operator completes it as usual.
+   Tenancy then completes the tenant's `ORGANISATION_AND_ACCESS` onboarding step, if it is the current step and the step's other readiness checks pass (roles, organisation structure, authentication policy, channels). Otherwise the operator completes it once they do (`GET /api/v1/tenancy/tenants/{id}/readiness` shows what is missing).
    A rejected request creates nothing.
 5. **Sign-in.** The tenant's users, its administrator included, can act once the tenant is Active (TEN-008). Allow up to 30 seconds after activation: a refused sign-in is cached for that long (ADR-006).
 
@@ -47,8 +47,16 @@ Follow a request with `GET /api/v1/identity/tenant-administrators/{id}` (or `?te
 
 ## Users and roles (IAM)
 
-- **Provisioning.** A user is provisioned (`POST /api/v1/identity/users` [user.create]) with the IdP subject they will sign in with.
-  - The user is Invited until their first request, which makes them Active.
+- **Provisioning.** A user is provisioned with `POST /api/v1/identity/users` [user.create].
+  - **INSYS's own realm** (`idpCode` `KEYCLOAK`): give `email`, not `externalSubject`. INSYS creates the Keycloak user, with the user's tenant in `tenant_id`, and links it. Meanwhile the user is PendingIdentity and cannot sign in.
+  - **The Keycloak username** is `<tenant code>.<username>` in lower case, for example `oft-za.jane.doe`. One realm serves every tenant, and Keycloak usernames are unique per realm.
+  - **Sign-in is by that username,** not by email: one person may be a user in several tenants, as separate Keycloak users with the same email. So the realm allows duplicate emails, and Keycloak then switches login by email off.
+  - **The invitation:** Keycloak emails the user a link to set a password (and a one-time code with `mfaEnrolled`). The link is valid for `Identity:Keycloak:InvitationLifespan` (72 hours; Keycloak's own default is 12). `POST …/{id}/resend-invitation` [user.update] sends it again while the user has not signed in.
+  - **When Keycloak cannot be reached,** creating the user, or sending its email, is a parked delivery (`KEYCLOAK_UNAVAILABLE`, `KEYCLOAK_EMAIL_UNSENT`), retried by the parking job. A Keycloak username already used by another tenant's user parks with `KEYCLOAK_USER_CONFLICT`: choose another INSYS username, or link the right user.
+  - **A federated identity provider:** give `externalSubject`; nothing is created in Keycloak.
+  - The user is Invited until their first request, which makes them Active. With no roles, they can sign in and do nothing until a role is assigned.
+- **Locking, unlocking and disabling** a user of realm `insys` disables or re-enables its Keycloak user and ends its sessions, as well as stopping it in INSYS at once.
+- **The service client `insys-user-admin`** (client credentials, `manage-users`, `view-users`, `query-users`): its secret is generated by Keycloak and kept in the secret store, read as `Identity:Keycloak:ClientSecret`. To rotate it, regenerate it in Keycloak (Clients → insys-user-admin → Credentials), update the secret store, and restart the API; parked deliveries are retried after.
   - Tokens carry only `sub` and `tenant_id`. Everything else comes from the user's role assignments.
 - **Assigning a role.** `POST /api/v1/identity/users/{id}/assign-role` [user.update].
   - An ordinary role applies at once.

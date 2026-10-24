@@ -31,6 +31,8 @@ namespace Insys.Identity.Domain.Users;
 /// <summary>States from domain-model.json (iam › UserAccount), stored upper-case in iam.user_account.status.</summary>
 public enum UserStatus
 {
+    /// <summary>Provisioned in INSYS's own realm, waiting for its Keycloak user (keycloak-user-provisioning §4): it cannot sign in yet.</summary>
+    PendingIdentity,
     Invited,
     Active,
     Locked,
@@ -39,6 +41,7 @@ public enum UserStatus
 
 public enum UserTrigger
 {
+    LinkIdentity,
     FirstSignIn,
     LockUser,
     UnlockUser,
@@ -262,6 +265,15 @@ public sealed record PrivilegedRoleRequested(Guid UserId, Guid AssignmentId, str
 
 public sealed record UserDisabled(Guid UserId, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>An unlocked user may sign in again: its Keycloak user is enabled again (keycloak-user-provisioning §5).</summary>
+public sealed record UserReenabled(Guid UserId, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>A user of INSYS's own realm needs its Keycloak user (keycloak-user-provisioning §4).</summary>
+public sealed record UserIdentityRequested(Guid UserId, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>Keycloak's required-actions email is to be sent: UPDATE_PASSWORD, and CONFIGURE_TOTP for a user who needs MFA.</summary>
+public sealed record UserInvitationRequested(Guid UserId, IReadOnlyList<string> Actions, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>
 /// The UserAccount aggregate. Identities and permissions are tenant-scoped (IAM-001); conflicting permissions are
 /// never held together (SRS-002); privileged roles require MFA (IAM-003); revocation takes effect at once (IAM-005).
@@ -269,6 +281,8 @@ public sealed record UserDisabled(Guid UserId, DateTimeOffset OccurredAt) : IDom
 public sealed class UserAccount : AggregateRoot<Guid>
 {
     public static readonly StateMachine<UserStatus, UserTrigger> Lifecycle = new StateMachine<UserStatus, UserTrigger>()
+        .Allow(UserStatus.PendingIdentity, UserTrigger.LinkIdentity, UserStatus.Invited)
+        .Allow(UserStatus.PendingIdentity, UserTrigger.DisableUser, UserStatus.Disabled)
         .Allow(UserStatus.Invited, UserTrigger.FirstSignIn, UserStatus.Active)
         .Allow(UserStatus.Active, UserTrigger.LockUser, UserStatus.Locked)
         .Allow(UserStatus.Locked, UserTrigger.UnlockUser, UserStatus.Active)
@@ -292,6 +306,9 @@ public sealed class UserAccount : AggregateRoot<Guid>
 
     /// <summary>The token's sub claim at that identity provider.</summary>
     public string? ExternalSubject { get; private set; }
+
+    /// <summary>Where Keycloak sends the invitation, for users of INSYS's own realm (keycloak-user-provisioning §2).</summary>
+    public string? Email { get; private set; }
 
     public UserStatus Status { get; private set; }
 
@@ -512,9 +529,87 @@ public sealed class UserAccount : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    public Result LockUser() => Transition(UserTrigger.LockUser);
+    /// <summary>Command LockUser: temporary. The user's Keycloak user is disabled too and its sessions ended (keycloak-user-provisioning §5).</summary>
+    public Result LockUser(DateTimeOffset now)
+    {
+        var result = Transition(UserTrigger.LockUser);
+        if (result.IsSuccess)
+        {
+            Raise(new UserDisabled(Id, now));
+        }
 
-    public Result UnlockUser() => Transition(UserTrigger.UnlockUser);
+        return result;
+    }
+
+    public Result UnlockUser(DateTimeOffset now)
+    {
+        var result = Transition(UserTrigger.UnlockUser);
+        if (result.IsSuccess)
+        {
+            Raise(new UserReenabled(Id, now));
+        }
+
+        return result;
+    }
+
+    /// <summary>The IdP code of INSYS's own realm (ADR-017): INSYS creates these users in Keycloak itself.</summary>
+    public const string OwnRealm = "KEYCLOAK";
+
+    /// <summary>
+    /// Command ProvisionUser for INSYS's own realm (keycloak-user-provisioning §1, §4): the user waits in PendingIdentity,
+    /// unable to sign in, until Identity's consumer has created its Keycloak user and linked it. With
+    /// <paramref name="mfa"/>, the invitation has the user set up a one-time code, which Keycloak requires before the first
+    /// sign-in completes; so the user counts as enrolled for roles that require MFA (IAM-003).
+    /// </summary>
+    public static UserAccount ProvisionUserInOwnRealm(Guid id, string username, string displayName, string email, bool mfa, DateTimeOffset now)
+    {
+        var user = new UserAccount
+        {
+            Id = Guard.NotEmpty(id),
+            Username = Guard.MaxLength(Guard.NotNullOrWhiteSpace(username), 120),
+            DisplayName = Guard.MaxLength(Guard.NotNullOrWhiteSpace(displayName), 120),
+            IdpCode = OwnRealm,
+            Email = Guard.MaxLength(Guard.NotNullOrWhiteSpace(email), 254),
+            MfaEnrolled = mfa,
+            Status = UserStatus.PendingIdentity,
+        };
+        user.Raise(new UserIdentityRequested(id, now));
+        return user;
+    }
+
+    /// <summary>
+    /// The Keycloak user exists: its id becomes the external subject, the user is Invited, and the invitation email is
+    /// asked for. A user already linked is left as it is (a replayed event, INT-005).
+    /// </summary>
+    public Result LinkIdentity(string externalSubject, DateTimeOffset now)
+    {
+        if (Status != UserStatus.PendingIdentity)
+        {
+            return Result.Success();
+        }
+
+        var result = Transition(UserTrigger.LinkIdentity);
+        if (result.IsSuccess)
+        {
+            ExternalSubject = Guard.MaxLength(Guard.NotNullOrWhiteSpace(externalSubject), 120);
+            Raise(new UserInvitationRequested(Id, Invitation.Actions(MfaEnrolled), now));
+        }
+
+        return result;
+    }
+
+    /// <summary>Command ResendInvitation: a new required-actions email, while the user has not signed in yet (keycloak-user-provisioning).</summary>
+    public Result ResendInvitation(DateTimeOffset now)
+    {
+        if (IdpCode != OwnRealm || Status != UserStatus.Invited)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "An invitation is sent again only to a user of INSYS's own realm who has not signed in yet.");
+        }
+
+        Raise(new UserInvitationRequested(Id, Invitation.Actions(MfaEnrolled), now));
+        MarkChanged();
+        return Result.Success();
+    }
 
     /// <summary>The user sets or clears their own preferred language; a two-letter code checked against the register by the caller.</summary>
     public Result ChangePreferredLanguage(string? language)
@@ -558,6 +653,15 @@ public sealed class UserAccount : AggregateRoot<Guid>
         MarkChanged();
         return Result.Success();
     }
+}
+
+/// <summary>The Keycloak required actions INSYS asks for (keycloak-user-provisioning §2).</summary>
+public static class Invitation
+{
+    public const string UpdatePassword = "UPDATE_PASSWORD";
+    public const string ConfigureTotp = "CONFIGURE_TOTP";
+
+    public static IReadOnlyList<string> Actions(bool mfa) => mfa ? [UpdatePassword, ConfigureTotp] : [UpdatePassword];
 }
 
 public static class IdentityErrorCodes
