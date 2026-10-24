@@ -135953,6 +135953,15 @@
           "currency": {
             "type": "string"
           },
+          "alertAtPct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -136150,6 +136159,15 @@
               "null",
               "string"
             ]
+          },
+          "alertAtPct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           },
           "code": {
             "type": "string"
@@ -153818,6 +153836,12 @@
             ],
             "type": "string"
           },
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -154036,6 +154060,12 @@
               "PEND",
               null
             ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "productCode": {
             "type": [
               "null",
               "string"

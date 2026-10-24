@@ -36,6 +36,7 @@ using Insys.Health.Domain.Adjudication;
 using Insys.Health.Domain.Benefits;
 using Insys.Health.Domain.Members;
 using Insys.Party.Contracts;
+using Insys.ProductFactory.Contracts;
 using Insys.Tenancy.Contracts;
 
 namespace Insys.Health.Application;
@@ -150,25 +151,32 @@ internal sealed class GetHealthSchemeHandler(IHealthRepository health) : IQueryH
 }
 
 internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit,
-    ITenantContext tenant, IExecutionContext execution, IOrganisationStructure organisation) : ICommandHandler<EnrolHealthMember, MembershipView>
+    ITenantContext tenant, IExecutionContext execution, IOrganisationStructure organisation, ISellableProducts products) : ICommandHandler<EnrolHealthMember, MembershipView>
 {
     public async Task<Result<MembershipView>> Handle(EnrolHealthMember command, CancellationToken cancellationToken)
     {
         var day = businessDate.Today;
+        if (await codes.Plan(command.PlanCode, command.OptionCode, day, cancellationToken) is not { } planDefinition)
+        {
+            return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.PlanCode}/{command.OptionCode} is not a plan option in force.");
+        }
 
-        // F103 (addenda/access-scopes.md §2): the owning node. Health records have no product to scope by (OQ-080).
+        // The plan's product must be a Health product on sale on the start date (addenda/health-plan-products.md §3).
+        var product = await HealthProducts.OnSale(products, tenant.RequireTenantId(), planDefinition, command.StartDate, cancellationToken);
+        if (product.IsFailure)
+        {
+            return product.Error;
+        }
+
+        // F103 (addenda/access-scopes.md §2): the owning node, and the product, in the caller's scope.
         var nodes = await organisation.Nodes(tenant.RequireTenantId(), day, cancellationToken);
-        var node = execution.PlaceNew(null, command.OrgNodeCode, nodes.Select(n => n.NodeCode).ToList(), OrganisationNodes.Root(nodes));
+        var node = execution.PlaceNew(product.Value.Code, command.OrgNodeCode, nodes.Select(n => n.NodeCode).ToList(), OrganisationNodes.Root(nodes));
         if (node.IsFailure)
         {
             return node.Error;
         }
 
-        if (await codes.Plan(command.PlanCode, command.OptionCode, day, cancellationToken) is not { } plan)
-        {
-            return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.PlanCode}/{command.OptionCode} is not a plan option in force.");
-        }
-
+        var plan = planDefinition;
         ContributionRate? rate = null;
         if (command.SchemeId is { } schemeId)
         {
@@ -217,7 +225,7 @@ internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealth
         var membership = HealthMembership.EnrolMember(id, Numbers.Of(prefix, id, 12), command.PrincipalPartyId, command.SchemeId, command.MemberCategory,
             new PlanOption(plan.Terms.PlanCode, plan.Terms.OptionCode, plan.Version), command.StartDate, waiting,
             new ContributionBilling(command.PayerPartyId ?? command.PrincipalPartyId, command.BillingAccountId ?? Guid.CreateVersion7(), command.CollectionMethod, rate), command.Currency, day,
-            clock.UtcNow, node.Value);
+            clock.UtcNow, node.Value, product.Value.Code, product.Value.Version);
         if (membership.IsFailure)
         {
             return membership.Error;
@@ -340,7 +348,8 @@ internal sealed class RemoveHealthDependantHandler(IHealthRepository health, IHe
     }
 }
 
-internal sealed class ChangeHealthPlanHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<ChangeHealthPlan, MembershipView>
+internal sealed class ChangeHealthPlanHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IAuditTrail audit, ISellableProducts products,
+    ITenantContext tenant, IExecutionContext execution) : ICommandHandler<ChangeHealthPlan, MembershipView>
 {
     public async Task<Result<MembershipView>> Handle(ChangeHealthPlan command, CancellationToken cancellationToken)
     {
@@ -354,8 +363,25 @@ internal sealed class ChangeHealthPlanHandler(IHealthRepository health, IHealthC
             return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.PlanCode}/{command.OptionCode} is not a plan option in force.");
         }
 
+        // The new plan's product is on sale on the effective date, and within the caller's scope (addenda/health-plan-products.md §3, F103).
+        var product = await HealthProducts.OnSale(products, tenant.RequireTenantId(), plan, command.EffectiveDate, cancellationToken);
+        if (product.IsFailure)
+        {
+            return product.Error;
+        }
+
+        if (!execution.CurrentScope.Allows(product.Value.Code, membership.OrgNodeCode))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "The new plan's product is outside your scope.");
+        }
+
         audit.Record(new AuditEntry("HEALTH", "ChangePlan", nameof(HealthMembership), membership.Id.ToString()));
         var result = membership.ChangePlan(new PlanOption(plan.Terms.PlanCode, plan.Terms.OptionCode, plan.Version), command.EffectiveDate, command.Reason);
+        if (result.IsSuccess)
+        {
+            membership.UseProduct(product.Value.Code, product.Value.Version);
+        }
+
         return result.IsFailure ? result.Error : MembershipView.From(membership);
     }
 }
@@ -421,5 +447,23 @@ internal sealed class CheckEligibilityHandler(IHealthRepository health, IHealthC
         audit.Record(new AuditEntry("HEALTH", "CheckEligibility", nameof(EligibilityDecision), decision.Id.ToString()));
         return new EligibilityView(decision.Id, decision.MemberNumber, decision.DependantSuffix, decision.ProviderId, decision.ServiceType, decision.ResponseCode, outcome,
             decision.DecidedAt);
+    }
+}
+
+/// <summary>The Product Factory product a plan is sold as (addenda/health-plan-products.md §3).</summary>
+internal static class HealthProducts
+{
+    /// <summary>The plan's product and version on sale on the day; none for a plan that names no product yet (OQ-080 fail-safe).</summary>
+    public static async Task<Result<(string? Code, int? Version)>> OnSale(ISellableProducts products, Guid tenantId, PlanDefinition plan, DateOnly day,
+        CancellationToken cancellationToken)
+    {
+        if (plan.ProductCode is not { } code)
+        {
+            return ((string?)null, (int?)null);
+        }
+
+        return await products.Sellable(tenantId, code, null, day, cancellationToken) is { Domain: "HEALTH" } product
+            ? (product.ProductCode, (int?)product.Version)
+            : Error.Validation(HealthErrorCodes.ProductNotAvailable, $"{code}, the product of plan {plan.Terms.PlanCode}, is not a Health product on sale on {day:yyyy-MM-dd}.");
     }
 }

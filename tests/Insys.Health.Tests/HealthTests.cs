@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Domain;
 using Insys.Health.Domain;
 using Insys.Health.Domain.Adjudication;
@@ -32,6 +33,8 @@ using Insys.Health.Domain.Care;
 using Insys.Health.Domain.Members;
 using Insys.Health.Domain.Payments;
 using Insys.Testing;
+
+using Application = Insys.Health.Application;
 
 namespace Insys.Health.Tests;
 
@@ -210,6 +213,40 @@ public sealed class HealthTests
         claim.AdjudicateClaim(resolved, Now).IsSuccess.ShouldBeTrue();
         (claim.Status, claim.TotalPaid).ShouldBe((MedicalClaimStatus.Adjudicated, 900m));
         claim.ApproveForPayment(Principal, Now).IsSuccess.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// F103: a payment run is seen by its remittances whose claims are all in the caller's scope (by their memberships), so a
+    /// remittance mixing branches is left out; acting on the run needs every claim in scope.
+    /// </summary>
+    [Fact]
+    public void PaymentRun_ShowsOnlyRemittancesWhoseClaimsAreAllInScope_F103()
+    {
+        Guid a = Guid.CreateVersion7(), b = Guid.CreateVersion7();
+        var memberships = new Dictionary<Guid, Application.MembershipScope>
+        {
+            [a] = new("HM-A", "HLT-PROD", "BR-A"),
+            [b] = new("HM-B", "HLT-PROD", "BR-B"),
+        };
+        MedicalClaim Claim(string source, string? provider, Guid membership) =>
+            MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC", source, provider, membership, Principal, Today, "API", "ZAR", null, [new ClaimLineRequest("0300", null, 1, 100m, null)], Now).Value;
+        var claims = new[]
+        {
+            Claim(ClaimSources.Provider, "PR-1", a), Claim(ClaimSources.Provider, "PR-2", b), Claim(ClaimSources.Provider, "PR-3", a), Claim(ClaimSources.Provider, "PR-3", b),
+            Claim(ClaimSources.Member, null, a),
+        };
+        var run = ProviderPaymentRun.OpenRun(Guid.CreateVersion7(), "PRV-WEEKLY", "ZAR", Now);
+        run.CutOffRun(Now);
+        run.CalculateRun([.. new[] { "PR-1", "PR-2", "PR-3", "HM-A" }.Select(p => new RemittanceRequest(p, Guid.CreateVersion7(), Guid.CreateVersion7(), 100m, 1))], Principal, Now);
+        var branchA = new AccessScope([new PermissionGrant(null, new HashSet<string> { "BR-A" })]);
+
+        var (visible, partly) = Application.RunVisibility.Of(run.Remittances, claims, memberships, branchA);
+
+        visible.Select(r => r.ProviderId).ShouldBe(["PR-1", "HM-A"], "PR-3 pays a branch-B claim too");
+        partly.ShouldBeTrue();
+        Application.RunVisibility.CoversAll(claims, memberships, branchA).ShouldBeFalse();
+        Application.RunVisibility.CoversAll(claims.Where(c => c.MembershipId == a), memberships, branchA).ShouldBeTrue();
+        Application.RunVisibility.Of(run.Remittances, claims, memberships, AccessScope.Unrestricted).Partly.ShouldBeFalse();
     }
 
     [Fact]

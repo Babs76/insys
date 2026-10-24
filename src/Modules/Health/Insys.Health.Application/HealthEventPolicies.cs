@@ -189,6 +189,14 @@ public sealed record HealthDueWork(IReadOnlyList<Guid> AuthorisationsToExpire, I
 
 public sealed record FindHealthDueWork(DateOnly Day, int Limit) : IQuery<HealthDueWork>;
 
+/// <summary>Memberships with no product take their plan's, once it names one (addenda/health-plan-products.md §4).</summary>
+public sealed record AssignPlanProducts(DateOnly Day) : ICommand<int>;
+
+internal sealed class AssignPlanProductsHandler(IHealthRepository health) : ICommandHandler<AssignPlanProducts, int>
+{
+    public async Task<Result<int>> Handle(AssignPlanProducts command, CancellationToken cancellationToken) => await health.AssignPlanProducts(command.Day, cancellationToken);
+}
+
 public enum HealthDueAction
 {
     ExpireAuthorisation,

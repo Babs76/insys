@@ -47,12 +47,15 @@ public sealed class AggregationZonesAndLimits : StaticRecord<AggregationZonesAnd
 
     public string Currency { get; set; } = "";
 
+    public decimal? AlertAtPct { get; set; }
+
     public override void ApplyFields(AggregationZonesAndLimitsInput input, IFieldProtector protector)
     {
         Zone = input.Zone!;
         Peril = input.Peril!;
         MaxExposure = input.MaxExposure.GetValueOrDefault();
         Currency = input.Currency!;
+        AlertAtPct = input.AlertAtPct;
     }
 }
 
@@ -66,6 +69,8 @@ public sealed record AggregationZonesAndLimitsInput : StaticRecordInput
     public decimal? MaxExposure { get; init; }
 
     public string? Currency { get; init; }
+
+    public decimal? AlertAtPct { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

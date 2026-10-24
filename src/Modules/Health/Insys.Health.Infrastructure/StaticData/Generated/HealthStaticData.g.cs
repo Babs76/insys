@@ -269,6 +269,7 @@ public static class HealthStaticData
             entity.Property(x => x.ReferenceTariffScheduleCode).HasColumnName("reference_tariff_schedule_code").HasMaxLength(15);
             entity.Property(x => x.BenefitYear).HasColumnName("benefit_year").HasMaxLength(15);
             entity.Property(x => x.MemberClaimBasis).HasColumnName("member_claim_basis").HasMaxLength(20);
+            entity.Property(x => x.ProductCode).HasColumnName("product_code").HasMaxLength(15);
         });
         modelBuilder.Entity<PreauthorisationRequiredLists>(entity =>
         {

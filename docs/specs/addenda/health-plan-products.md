@@ -1,6 +1,8 @@
 # Addendum: linking Health plans to Product Factory products
 
-**Signed off 24 October 2026** (Ade); answers OQ-080. Planned in Wave 0b after F062; OQ-080 closes when it is merged.
+**Signed off 24 October 2026** (Ade); answers OQ-080. **Built in Wave 0b batch 4**, with two choices:
+- **Checked at enrolment, not on submit:** "the product exists with domain `HEALTH`" is checked at enrolment and plan change, where the product must be on sale, not when the plan option is submitted. A tenant sets up its plans (`DOMAIN_REFERENCE_DATA`) before it publishes its products (`PRODUCT_FACTORY`), and the static data checks run without a tenant's other modules.
+- **The error code** is `HEALTH_PRODUCT_NOT_AVAILABLE`, as Life and General each have their own.
 
 - **Basis:**
   - SRS-003 (access by product and organisation) and `addenda/access-scopes.md`;
@@ -29,7 +31,7 @@
 - **What stays in Health's own static data:** contributions (`health.cfg_contribution_rules`), benefit limits, tariffs, networks and waiting periods. A Health product has no rating tables, so publishing it does not need rating test cases.
 
 ### 3. Enrolment and plan changes
-- **Enrolment:** the plan option's product must be on sale to the tenant on the start date (the Product Factory's sellable products, as Life and General use). The membership records the product code and version. Otherwise it is refused with `PRODUCT_NOT_AVAILABLE` (existing code).
+- **Enrolment:** the plan option's product must be on sale to the tenant on the start date (the Product Factory's sellable products, as Life and General use). The membership records the product code and version. Otherwise it is refused with `HEALTH_PRODUCT_NOT_AVAILABLE`.
 - **Plan change:** the new plan's product must be on sale on the effective date. A change to a plan of another product changes the membership's product, and the caller's scope must cover the new product too (F103 creation rule).
 - **Following the membership:** preauthorisations, medical claims, cases, Billing schedules and approvals take the membership's product, as they already take its node.
 
@@ -45,7 +47,7 @@
 
 ## Tests (when built)
 - Submitting a plan option whose product is missing, not `HEALTH`, or differs from the plan's other options is refused.
-- Enrolling on a plan whose product is not on sale is refused with `PRODUCT_NOT_AVAILABLE`.
+- Enrolling on a plan whose product is not on sale is refused with `HEALTH_PRODUCT_NOT_AVAILABLE`.
 - A membership and its claims, preauthorisations and Billing schedule carry the plan's product.
 - A user scoped to that product sees them; a user scoped to another product does not; a user scoped to a node sees them by node as today.
 - A plan with no product: its memberships stay hidden from product-scoped users, and `/health` reports the plan.

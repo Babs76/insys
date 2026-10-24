@@ -29225,6 +29225,10 @@
           },
           "currency": {
             "type": "string"
+          },
+          "partlyInScope": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -29238,7 +29242,8 @@
           "claimCount",
           "totalAmount",
           "remittances",
-          "rowVersion"
+          "rowVersion",
+          "partlyInScope"
         ],
         "type": "object",
         "properties": {
@@ -29288,6 +29293,9 @@
               "string"
             ],
             "format": "int64"
+          },
+          "partlyInScope": {
+            "type": "boolean"
           }
         }
       },

@@ -55,6 +55,8 @@ public sealed class PlansAndOptions : StaticRecord<PlansAndOptionsInput>
     [Insys.BuildingBlocks.Domain.OneOf("REFERENCE_TARIFF", "PEND")]
     public string MemberClaimBasis { get; set; } = "";
 
+    public string? ProductCode { get; set; }
+
     public override void ApplyFields(PlansAndOptionsInput input, IFieldProtector protector)
     {
         PlanCode = input.PlanCode!;
@@ -64,6 +66,7 @@ public sealed class PlansAndOptions : StaticRecord<PlansAndOptionsInput>
         ReferenceTariffScheduleCode = input.ReferenceTariffScheduleCode;
         BenefitYear = input.BenefitYear!;
         MemberClaimBasis = input.MemberClaimBasis!;
+        ProductCode = input.ProductCode;
     }
 }
 
@@ -86,6 +89,8 @@ public sealed record PlansAndOptionsInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.OneOf("REFERENCE_TARIFF", "PEND")]
     public string? MemberClaimBasis { get; init; }
 
+    public string? ProductCode { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("planCode", PlanCode);
@@ -103,5 +108,6 @@ public sealed record PlansAndOptionsInput : StaticRecordInput
         errors.Required("memberClaimBasis", MemberClaimBasis);
         errors.MaxLength("memberClaimBasis", MemberClaimBasis, 20);
         errors.OneOf("memberClaimBasis", MemberClaimBasis, ["REFERENCE_TARIFF", "PEND"]);
+        errors.MaxLength("productCode", ProductCode, 15);
     }
 }

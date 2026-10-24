@@ -350,6 +350,18 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<string>("SELECT reason FROM workflow.approval WHERE business_ref_id = @e", ("e", endorsement)))!
             .ShouldContain("exceeds aggregation limit ZHAIL/HAIL");
+
+        // The daily alert: approved, the policy holds 200 000 of the 150 000 limit, past the 80% default. A limit with its own
+        // level (99%) in another zone with no exposure raises nothing.
+        await Seed("general.cfg_aggregation_zones_and_limits", "EFFECTIVE", "ZL-FLOOD", ("zone", "ZFLOOD"), ("peril", "FLOOD"), ("max_exposure", 1_000m),
+            ("currency", "ZAR"), ("alert_at_pct", 99m));
+        await Decide(GeneralApprovals.EndorsementBusinessRefType, endorsement, approve: true);
+        await _db.UserWithPermissions(Tenant, "job-runner", "daily_job.run");
+        var run = await _factory.ClientFor(Tenant, "job-runner").PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = Today });
+        run.StatusCode.ShouldBe(HttpStatusCode.OK, await run.Content.ReadAsStringAsync());
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(payload::jsonb ->> 'zone', ',') FROM general.outbox_event WHERE event_type = 'general.AggregationLimitApproached'
+            """)).ShouldBe("ZHAIL", "raised once, for the zone past its alert level");
     }
 
     private async Task<Guid> Vehicle() => await Created("/api/v1/general/risk-objects", new
@@ -569,6 +581,22 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var instructed = await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).Json();
         instructed.GetProperty("status").GetString().ShouldBe("Released");
         instructed.GetProperty("amount").GetDecimal().ShouldBe(35_000m);
+
+        // F062 §2: 35 000 of the coverage's 40 000 aggregate is used. A second loss on it settling 10 000 is refused.
+        var secondClaim = await Created("/api/v1/general/claims", new
+        {
+            policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC", description = "Hail damage",
+        });
+        (await _maker.PostAsync($"/api/v1/general/claims/{secondClaim}/register", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{secondClaim}/assessor", new { assessorPartyId = Assessor })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var secondAssessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{secondClaim}/assessments")).Json()).EnumerateArray().Single().GetProperty("id").GetGuid();
+        (await _maker.PostAsync($"/api/v1/general/assessments/{secondAssessment}/start", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsJsonAsync($"/api/v1/general/assessments/{secondAssessment}/report", new { assessedAmount = 15_000m })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsync($"/api/v1/general/assessments/{secondAssessment}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var overAggregate = await _maker.PostAsJsonAsync($"/api/v1/general/claims/{secondClaim}/settlement", settlement);
+        overAggregate.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await overAggregate.Code()).ShouldBe("AGGREGATE_LIMIT_EXCEEDED");
 
         // The settlement approval covered this payee and account, so it stands in for the instruction's approval
         // (ADR-009). The account number appears in no event, approval or claim, only its keyed hash and id.

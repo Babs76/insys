@@ -30,7 +30,8 @@ using Insys.General.Domain;
 namespace Insys.General.Application;
 
 /// <summary>A zone and peril's maximum exposure (general.cfg_aggregation_zones_and_limits).</summary>
-public sealed record ZoneLimit(string Zone, string Peril, decimal MaxExposure, string Currency);
+/// <param name="AlertAtPct">The limit's own alert level, as a percentage; null uses the platform default.</param>
+public sealed record ZoneLimit(string Zone, string Peril, decimal MaxExposure, string Currency, decimal? AlertAtPct = null);
 
 /// <summary>A coverage's aggregate claims limit (general.cfg_aggregate_limit_definitions).</summary>
 public sealed record AggregateLimit(string Coverage, string Period, decimal Amount, string? Reinstatement);
@@ -44,10 +45,11 @@ public sealed record ZoneLimitExceeded(string Zone, string Peril, decimal Exposu
 public sealed class AggregationOptions
 {
     /// <summary>
-    /// The share of a zone and peril's limit (0 to 1) at which AggregationLimitApproached is raised, once a day, from the
-    /// exposure snapshot (F062 §1). A business choice (OQ-076): unset until chosen, and nothing is raised meanwhile.
+    /// The default share of a zone and peril's limit (0 to 1) at which AggregationLimitApproached is raised, once a day,
+    /// from the exposure snapshot (F062 §1): 80%, decided 24 October 2026. A tenant sets its own on each limit
+    /// (alert_at_pct). Empty in configuration, no alert is raised for limits without their own level.
     /// </summary>
-    public decimal? AlertAt { get; set; }
+    public decimal? AlertAt { get; set; } = 0.8m;
 }
 
 /// <summary>

@@ -33,6 +33,14 @@ public static class HealthErrorCodes
     [ErrorCode(422, "error.health.code_not_in_force")]
     public const string CodeNotInForce = "HEALTH_CODE_NOT_IN_FORCE";
 
+    /// <summary>The plan's product is not a Health product on sale on the day (addenda/health-plan-products.md §3).</summary>
+    [ErrorCode(422, "error.health.product_not_available")]
+    public const string ProductNotAvailable = "HEALTH_PRODUCT_NOT_AVAILABLE";
+
+    /// <summary>A plan option names no product, or not the product its plan's other options name (addenda/health-plan-products.md §1).</summary>
+    [ErrorCode(422, "error.health.plan_product_invalid")]
+    public const string PlanProductInvalid = "HEALTH_PLAN_PRODUCT_INVALID";
+
     [ErrorCode(422, "error.health.dependant_not_eligible")]
     public const string DependantNotEligible = "DEPENDANT_NOT_ELIGIBLE";
 

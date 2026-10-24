@@ -232,7 +232,7 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
 internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
 {
     public async Task<IReadOnlyList<ZoneLimit>> ZoneLimits(DateOnly day, CancellationToken cancellationToken) =>
-        await InForce<AggregationZonesAndLimits>(day).Select(l => new ZoneLimit(l.Zone, l.Peril, l.MaxExposure, l.Currency)).ToListAsync(cancellationToken);
+        await InForce<AggregationZonesAndLimits>(day).Select(l => new ZoneLimit(l.Zone, l.Peril, l.MaxExposure, l.Currency, l.AlertAtPct)).ToListAsync(cancellationToken);
 
     public async Task<AggregateLimit?> AggregateLimit(string coverage, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<AggregateLimitDefinitions>(day).Where(l => l.Coverage == coverage).OrderByDescending(l => l.Version)

@@ -49,7 +49,9 @@ public sealed record UtilisationCaseSummary(Guid Id, Guid MembershipId, string R
 /// <summary>A fraud case: <c>SubjectType</c> CLAIM with the medical claim's number as <c>SubjectRef</c>.</summary>
 public sealed record FraudCaseSummary(Guid Id, string SubjectType, string SubjectRef, IReadOnlyList<string> IndicatorCodes, FraudStatus Status, DateTimeOffset OpenedAt);
 
-public sealed record PaymentRunSummary(Guid Id, string RunCode, DateTimeOffset CutOff, int ClaimCount, decimal TotalAmount, RunStatus Status, string Currency);
+/// <param name="PartlyInScope">True when the run also pays claims outside the caller's scope: the count and total are of the claims in scope (F103).</param>
+public sealed record PaymentRunSummary(Guid Id, string RunCode, DateTimeOffset CutOff, int ClaimCount, decimal TotalAmount, RunStatus Status, string Currency,
+    bool PartlyInScope = false);
 
 public sealed record ListMemberships(Guid? PrincipalPartyId, string? MemberNumber, Guid? SchemeId, MembershipStatus? Status, Guid? AfterId, int Limit)
     : IQuery<IReadOnlyList<MembershipSummary>>;

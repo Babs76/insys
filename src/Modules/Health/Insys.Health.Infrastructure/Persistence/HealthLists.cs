@@ -37,11 +37,11 @@ namespace Insys.Health.Infrastructure.Persistence;
 /// </summary>
 internal sealed class HealthLists(HealthDbContext db, IExecutionContext execution) : IHealthLists
 {
-    private IQueryable<Guid> MembershipsInScope => db.Memberships.AsNoTracking().InScope(execution.CurrentScope, _ => null, m => m.OrgNodeCode).Select(m => m.Id);
+    private IQueryable<Guid> MembershipsInScope => db.Memberships.AsNoTracking().InScope(execution.CurrentScope, m => m.ProductCode, m => m.OrgNodeCode).Select(m => m.Id);
 
     public async Task<IReadOnlyList<MembershipSummary>> Memberships(ListMemberships q, CancellationToken cancellationToken)
     {
-        var rows = db.Memberships.AsNoTracking().InScope(execution.CurrentScope, _ => null, m => m.OrgNodeCode);
+        var rows = db.Memberships.AsNoTracking().InScope(execution.CurrentScope, m => m.ProductCode, m => m.OrgNodeCode);
         if (q.PrincipalPartyId is { } party) rows = rows.Where(m => m.PrincipalPartyId == party);
         if (q.MemberNumber is { } number) rows = rows.Where(m => m.MemberNumber == number);
         if (q.SchemeId is { } scheme) rows = rows.Where(m => m.SchemeId == scheme);
@@ -117,8 +117,29 @@ internal sealed class HealthLists(HealthDbContext db, IExecutionContext executio
         if (q.RunCode is { } code) rows = rows.Where(r => r.RunCode == code);
         if (q.Status is { } status) rows = rows.Where(r => r.Status == status);
         if (q.AfterId is { } after) rows = rows.Where(r => r.Id.CompareTo(after) > 0);
-        return await rows.OrderBy(r => r.Id).Take(q.Limit)
-            .Select(r => new PaymentRunSummary(r.Id, r.RunCode, r.CutOff, r.ClaimCount, r.TotalAmount, r.Status, r.Currency))
-            .ToListAsync(cancellationToken);
+        if (execution.CurrentScope.IsUnrestricted)
+        {
+            return await rows.OrderBy(r => r.Id).Take(q.Limit)
+                .Select(r => new PaymentRunSummary(r.Id, r.RunCode, r.CutOff, r.ClaimCount, r.TotalAmount, r.Status, r.Currency))
+                .ToListAsync(cancellationToken);
+        }
+
+        // F103: a run partly in scope counts only its remittances in scope; one with none in scope is left out.
+        var summaries = new List<PaymentRunSummary>();
+        foreach (var run in await rows.Include(r => r.Remittances).OrderBy(r => r.Id).Take(q.Limit).ToListAsync(cancellationToken))
+        {
+            var claims = await db.Claims.AsNoTracking().Where(c => c.PaymentRunId == run.Id).ToListAsync(cancellationToken);
+            var ids = claims.Select(c => c.MembershipId).Distinct().ToList();
+            var memberships = await db.Memberships.AsNoTracking().Where(m => ids.Contains(m.Id))
+                .ToDictionaryAsync(m => m.Id, m => new MembershipScope(m.MemberNumber, m.ProductCode, m.OrgNodeCode), cancellationToken);
+            var (visible, partly) = RunVisibility.Of(run.Remittances, claims, memberships, execution.CurrentScope);
+            if (visible.Count > 0 || run.Remittances.Count == 0)
+            {
+                summaries.Add(new PaymentRunSummary(run.Id, run.RunCode, run.CutOff, partly ? visible.Sum(r => r.ClaimCount) : run.ClaimCount,
+                    partly ? visible.Sum(r => r.Amount) : run.TotalAmount, run.Status, run.Currency, partly));
+            }
+        }
+
+        return summaries;
     }
 }

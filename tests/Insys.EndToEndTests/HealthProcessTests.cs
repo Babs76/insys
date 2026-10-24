@@ -192,6 +192,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     [Fact]
     public async Task HealthCareToProviderPayment_EnrolsAuthorisesAdjudicatesAndPaysTheProvider_WithItsCompensations_HLT002_HLT009()
     {
+        await Organisation();
         // The provider is a party with a verified bank account (ADR-013).
         var providerParty = await _maker.RegisterPerson("Specialist");
         var providerAccount = await _maker.AddVerifiedBankAccount(_checker, _factory, providerParty, "7700889911");
@@ -210,7 +211,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var enrolment = new
         {
             principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
-            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "CONTRACT" },
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "CONTRACT" }, orgNodeCode = "ORG-BR-A",
         };
         (await (await _maker.Send(HttpMethod.Post, "/api/v1/health/memberships", enrolment, idempotent: true)).Code()).ShouldBe("DEPENDANT_NOT_ELIGIBLE");
         var membership = await Created("/api/v1/health/memberships", enrolment with { facts = new { employment_type = "PERMANENT" } });
@@ -289,6 +290,14 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (calculated.GetProperty("totalAmount").GetDecimal(), calculated.GetProperty("claimCount").GetInt32()).ShouldBe((900m, 1));
         calculated.GetProperty("remittances")[0].GetProperty("bankAccountId").GetGuid().ShouldBe(providerAccount);
         await _factory.DrainOutbox();
+
+        // F103: the run pays a branch-A member's claim. A branch-B user cannot see or release it; a user covering branch A sees all of it.
+        var branchB = await ScopedClient("run-branch-b", "ORG-BR-B");
+        var north = await ScopedClient("run-north", "ORG-NORTH");
+        (await branchB.GetAsync($"/api/v1/health/payment-runs/{run}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await branchB.PostAsync($"/api/v1/health/payment-runs/{run}/release", null)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var seen = await (await north.GetAsync($"/api/v1/health/payment-runs/{run}")).Json();
+        (seen.GetProperty("partlyInScope").GetBoolean(), seen.GetProperty("totalAmount").GetDecimal()).ShouldBe((false, 900m));
         (await (await _maker.PostAsync($"/api/v1/health/payment-runs/{run}/release", null)).Code()).ShouldBe("INVALID_STATE_TRANSITION");
         await Decide(HealthApprovals.RunBusinessRefType, run);
         (await _maker.PostAsync($"/api/v1/health/payment-runs/{run}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -315,6 +324,11 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.SimulatorCallback(_db, payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         (await Get($"/api/v1/health/payment-runs/{run}")).GetProperty("status").GetString().ShouldBe("Reconciled");
+
+        // The remittance's payment follows its claims' branch too.
+        var byRemittance = $"/api/v1/payments/payments?businessRefType={HealthReferences.RemittanceRefType}&businessRefId={remittance}";
+        (await (await branchB.GetAsync(byRemittance)).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+        (await (await north.GetAsync(byRemittance)).Json()).GetProperty("items").GetArrayLength().ShouldBe(1);
 
         // Compensation: a reversed claim gives its benefit use back.
         (await _maker.PostAsJsonAsync($"/api/v1/health/claims/{claim}/reverse", new { reason = "BILLED_IN_ERROR" })).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -518,6 +532,68 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             lines = new[] { new { procedureCode = "0300", quantity = 1, requestedAmount = 1_200m } },
         });
 
+    /// <summary>
+    /// addenda/health-plan-products.md: a plan names its Product Factory product. Enrolment needs it on sale and records it,
+    /// so product scopes reach Health. A membership on a plan with no product takes it once a version names one; until
+    /// then /health lists the plan.
+    /// </summary>
+    [Fact]
+    public async Task HealthPlans_AreSoldAsProducts_AndProductScopesReachTheirMemberships_OQ080()
+    {
+        await _db.ExecuteAsOwner("""
+            INSERT INTO product.cfg_product_definitions_and_versions (tenant_id, id, code, version, effective_from, record_status, created_by, change_reason,
+                                                                     product_code, domain, name, coverages, family_code, class_code, cover_starts_on)
+            VALUES (@t, gen_random_uuid(), 'HLT-PROD', 1, @from, 'PUBLISHED', 'seed', 'published', 'HLT-PROD', 'HEALTH', 'Comprehensive', @coverages, 'HEALTH', 'MEDICAL', 'ISSUE')
+            """, ("t", Tenant), ("from", Today.AddYears(-1)), ("coverages", new[] { "SPECIALIST" }));
+        (string, object)[] Plan(string plan, string? product) => new[] { ("plan_code", (object)plan), ("option_code", "A"), ("benefit_schedule", "BS-CORE"), ("network", "NET-A"),
+            ("reference_tariff_schedule_code", "REF"), ("benefit_year", "CALENDAR"), ("product_code", (object?)product ?? DBNull.Value) };
+        await Seed("health.cfg_plans_and_options", "EFFECTIVE", "HLT-PRD-A", Plan("HLT-PRD", "HLT-PROD"));
+        await Seed("health.cfg_plans_and_options", "EFFECTIVE", "HLT-OFF-A", Plan("HLT-OFF", "HLT-NONE"));
+        // A plan without a product until tomorrow, when its next version names one.
+        await _db.SeedStatic(Tenant, "health.cfg_plans_and_options", "EFFECTIVE", "HLT-LATE-A", 1, Today.AddYears(-1), Today.AddDays(1), Plan("HLT-LATE", null));
+        await _db.SeedStatic(Tenant, "health.cfg_plans_and_options", "EFFECTIVE", "HLT-LATE-A", 2, Today.AddDays(1), null, Plan("HLT-LATE", "HLT-PROD"));
+
+        var principal = await _maker.RegisterPerson("Individual");
+        object Enrolment(string plan) => new { principalPartyId = principal, planCode = plan, optionCode = "A", startDate = Today, currency = "ZAR", collectionMethod = "DEBIT_ORDER" };
+        var membership = await Created("/api/v1/health/memberships", Enrolment("HLT-PRD"));
+        (await _db.ScalarAsOwner<string>("SELECT product_code FROM health.membership WHERE id = @m", ("m", membership))).ShouldBe("HLT-PROD");
+        (await (await _maker.Send(HttpMethod.Post, "/api/v1/health/memberships", Enrolment("HLT-OFF"), idempotent: true)).Code()).ShouldBe("HEALTH_PRODUCT_NOT_AVAILABLE");
+
+        // Product scopes now reach Health.
+        foreach (var (subject, product, status) in new[] { ("hlt-own-product", "HLT-PROD", HttpStatusCode.OK), ("hlt-other-product", "OTHER", HttpStatusCode.NotFound) })
+        {
+            var user = await _db.UserWithPermissions(Tenant, subject, Permissions);
+            await _db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = ARRAY[@p] WHERE user_id = @u", ("p", product), ("u", user));
+            (await _factory.ClientFor(Tenant, subject).GetAsync($"/api/v1/health/memberships/{membership}")).StatusCode.ShouldBe(status, subject);
+        }
+
+        // A plan with no product is listed on /health; its membership takes the product once the next version names one.
+        var check = (await (await _factory.CreateClient().GetAsync("/health")).Json()).GetProperty("checks").GetProperty("health-plan-products");
+        check.GetProperty("status").GetString().ShouldBe("Degraded");
+        check.GetProperty("description").GetString()!.ShouldContain("HLT-LATE");
+        var late = await Created("/api/v1/health/memberships", Enrolment("HLT-LATE"));
+        (await _db.ScalarAsOwner<string>("SELECT product_code FROM health.membership WHERE id = @m", ("m", late))).ShouldBeNull();
+        await _db.UserWithPermissions(Tenant, "hlt-jobs", "daily_job.run");
+        (await _factory.ClientFor(Tenant, "hlt-jobs").PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = Today.AddDays(1) })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _db.ScalarAsOwner<string>("SELECT product_code FROM health.membership WHERE id = @m", ("m", late))).ShouldBe("HLT-PROD");
+    }
+
+    private async Task Organisation()
+    {
+        foreach (var (code, type, parent) in new[] { ("ORG-ROOT", "LEGAL_ENTITY", (string?)null), ("ORG-NORTH", "REGION", "ORG-ROOT"), ("ORG-BR-A", "BRANCH", "ORG-NORTH"),
+                     ("ORG-BR-B", "BRANCH", "ORG-ROOT") })
+        {
+            await Seed("tenant.mst_organisation_structure", "ACTIVE", code, ("node_code", code), ("type", type), ("parent", (object?)parent ?? DBNull.Value), ("name", code));
+        }
+    }
+
+    private async Task<HttpClient> ScopedClient(string subject, string orgNode)
+    {
+        var user = await _db.UserWithPermissions(Tenant, subject, Permissions);
+        await _db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_branches = ARRAY[@n] WHERE user_id = @u", ("n", orgNode), ("u", user));
+        return _factory.ClientFor(Tenant, subject);
+    }
+
     private Task<Guid> Claim(Guid membership, Guid patient, decimal claimed) =>
         Created("/api/v1/health/claims", new
         {
@@ -566,12 +642,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     [Fact]
     public async Task ScopedAssignments_SeeOnlyMembershipsWithinTheirOrganisation_AndProductScopesReachNone_F103_OQ080()
     {
-        foreach (var (code, type, parent) in new[] { ("ORG-ROOT", "LEGAL_ENTITY", (string?)null), ("ORG-NORTH", "REGION", "ORG-ROOT"), ("ORG-BR-A", "BRANCH", "ORG-NORTH"),
-                     ("ORG-BR-B", "BRANCH", "ORG-ROOT") })
-        {
-            await Seed("tenant.mst_organisation_structure", "ACTIVE", code, ("node_code", code), ("type", type), ("parent", (object?)parent ?? DBNull.Value), ("name", code));
-        }
-
+        await Organisation();
         var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
         var schemeNumber = (await Get($"/api/v1/health/schemes/{scheme}")).GetProperty("schemeNumber").GetString()!;
         await Seed("health.cfg_contribution_rules", "EFFECTIVE", "CR-SCOPE", ("scheme", schemeNumber), ("member_category", "ALL_STAFF"), ("rate", 1_000m), ("employer_share", 0m));

@@ -94,6 +94,7 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             membership.Property(m => m.MemberNumber).HasMaxLength(12);
             membership.Property(m => m.PlanCode).HasMaxLength(15);
             membership.Property(m => m.OrgNodeCode).HasMaxLength(15);
+            membership.Property(m => m.ProductCode).HasMaxLength(15);
             membership.Property(m => m.ChannelCode).HasMaxLength(12);
             membership.Property(m => m.OptionCode).HasMaxLength(10);
             membership.Property(m => m.Status).HasConversion(new UpperCaseEnumConverter<MembershipStatus>()).HasMaxLength(12);

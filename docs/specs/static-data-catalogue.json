@@ -5531,6 +5531,13 @@
      "logicalType": "Ref Currency",
      "mandatory": true,
      "sample": "ZAR"
+    },
+    {
+     "name": "alert_at_pct",
+     "logicalType": "Decimal(5,2)",
+     "mandatory": false,
+     "sample": "80.00",
+     "note": "Added by addenda/aggregation-limits.md §1 (F062): the share of max_exposure at which AggregationLimitApproached is raised; empty uses the platform default (80%)."
     }
    ]
   },
@@ -6669,6 +6676,13 @@
    "provenance": "S",
    "basis": "HLT-001",
    "fields": [
+    {
+     "name": "product_code",
+     "logicalType": "Ref Product",
+     "mandatory": false,
+     "sample": "HLT-COMPREHENSIVE",
+     "note": "Added by addenda/health-plan-products.md §1: the Product Factory product (domain HEALTH) the plan is sold as; every option of a plan names the same one. Required for new versions."
+    },
     {
      "name": "plan_code",
      "logicalType": "Code(15)",

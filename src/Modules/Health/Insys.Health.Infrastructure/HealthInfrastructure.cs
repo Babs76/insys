@@ -52,6 +52,10 @@ public static class HealthInfrastructure
         services.AddModuleHandlers<HealthDbContext>(typeof(EnrolHealthMember).Assembly);
         services.AddDomainEventMapper<HealthEventMapper>(schema);
         services.AddScoped<IHealthRepository, HealthRepository>();
+        services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticSetGuard, PlanProductsGuard>();
+        services.AddSingleton<BuildingBlocks.Contracts.IBusinessRecordScopes, HealthRemittanceScopes>();
+        services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, PaymentRunApprovalScopes>();
+        services.AddHealthChecks().AddCheck<PlanProductsHealthCheck>("health-plan-products");
         services.AddScoped<IHealthCodes, HealthCodes>();
         services.AddScoped<IHealthLists, HealthLists>();
         services.AddScoped<BenefitContexts>();
@@ -96,6 +100,12 @@ public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory ten
         {
             // The tenant's business date (GAP-044, ADR-025).
             var day = businessDates.TodayFor(tenantId);
+            await using (var scope = Scope(tenantId))
+            {
+                var assigned = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new AssignPlanProducts(day), cancellationToken);
+                done += assigned.IsSuccess ? assigned.Value : 0;
+            }
+
             HealthDueWork work;
             await using (var scope = Scope(tenantId))
             {

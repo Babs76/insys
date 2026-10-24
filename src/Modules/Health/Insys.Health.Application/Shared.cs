@@ -36,6 +36,15 @@ namespace Insys.Health.Application;
 
 public interface IHealthRepository
 {
+    /// <summary>The memberships' numbers, products and nodes, for scoping the claims a payment run pays (F103).</summary>
+    Task<IReadOnlyDictionary<Guid, MembershipScope>> MembershipScopes(IReadOnlyCollection<Guid> membershipIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Memberships with no product take their plan option's, once a version in force names one (addenda/health-plan-products.md §4).
+    /// Returns how many were given one.
+    /// </summary>
+    Task<int> AssignPlanProducts(DateOnly day, CancellationToken cancellationToken);
+
     Task<HealthScheme?> Scheme(Guid id, CancellationToken cancellationToken);
 
     Task<HealthMembership?> Membership(Guid id, CancellationToken cancellationToken);
@@ -102,7 +111,8 @@ public interface IHealthRepository
 }
 
 /// <summary>A plan option in force and the version of its row.</summary>
-public sealed record PlanDefinition(PlanTerms Terms, int Version);
+/// <param name="ProductCode">The Product Factory product the plan is sold as (addenda/health-plan-products.md); null for a plan that names none yet.</param>
+public sealed record PlanDefinition(PlanTerms Terms, int Version, string? ProductCode = null);
 
 /// <summary>A scheme member category: the plan it maps to and its eligibility rule (health.cfg_scheme_member_categories).</summary>
 public sealed record SchemeCategory(string CategoryCode, string Plan, string EligibilityRule);
@@ -255,10 +265,51 @@ public sealed record FraudCaseView(Guid Id, string SubjectType, string SubjectRe
 
 public sealed record RemittanceView(Guid Id, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, int ClaimCount, Guid? PaymentId, DateOnly? PaidOn);
 
+/// <param name="PartlyInScope">
+/// True when the run also pays claims outside the caller's scope (F103): only the remittances whose claims are all in scope
+/// are listed, and the count and total are of those, so no other branch's or product's figures show through the run.
+/// </param>
 public sealed record PaymentRunView(Guid Id, string RunCode, DateTimeOffset CutOff, RunStatus Status, string Currency, int ClaimCount, decimal TotalAmount,
-    IReadOnlyList<RemittanceView> Remittances, long RowVersion)
+    IReadOnlyList<RemittanceView> Remittances, long RowVersion, bool PartlyInScope)
 {
-    public static PaymentRunView From(ProviderPaymentRun r) => new(r.Id, r.RunCode, r.CutOff, r.Status, r.Currency, r.ClaimCount, r.TotalAmount,
-        r.Remittances.Select(x => new RemittanceView(x.Id, x.ProviderId, x.ProviderPartyId, x.BankAccountId, x.Amount, x.ClaimCount, x.PaymentId, x.PaidOn)).ToList(),
-        r.RowVersion);
+    public static PaymentRunView From(ProviderPaymentRun r) => Of(r, r.Remittances, false);
+
+    public static PaymentRunView Of(ProviderPaymentRun r, IReadOnlyList<RemittanceAdvice> visible, bool partly) => new(r.Id, r.RunCode, r.CutOff, r.Status, r.Currency,
+        partly ? visible.Sum(x => x.ClaimCount) : r.ClaimCount, partly ? visible.Sum(x => x.Amount) : r.TotalAmount,
+        visible.Select(x => new RemittanceView(x.Id, x.ProviderId, x.ProviderPartyId, x.BankAccountId, x.Amount, x.ClaimCount, x.PaymentId, x.PaidOn)).ToList(),
+        r.RowVersion, partly);
+}
+
+/// <summary>A membership's number, product and node: what scopes the claims a payment run pays (F103).</summary>
+public sealed record MembershipScope(string MemberNumber, string? ProductCode, string? OrgNodeCode);
+
+/// <summary>
+/// What of a provider payment run a caller may see (F103): a remittance pays many members' claims, so it is in scope
+/// only when all its claims are (by their memberships' product and node). Building or releasing a run needs all its claims in scope.
+/// </summary>
+public static class RunVisibility
+{
+    public static (IReadOnlyList<RemittanceAdvice> Visible, bool Partly) Of(IReadOnlyList<RemittanceAdvice> remittances, IReadOnlyList<MedicalClaim> claims,
+        IReadOnlyDictionary<Guid, MembershipScope> memberships, AccessScope scope)
+    {
+        if (scope.IsUnrestricted)
+        {
+            return (remittances, false);
+        }
+
+        var visible = remittances.Where(r => claims.Where(c => Pays(r, c, memberships)).ToList() is { Count: > 0 } paid && paid.All(c => Covered(c, memberships, scope))).ToList();
+        return (visible, visible.Count < remittances.Count);
+    }
+
+    public static bool CoversAll(IEnumerable<MedicalClaim> claims, IReadOnlyDictionary<Guid, MembershipScope> memberships, AccessScope scope) =>
+        scope.IsUnrestricted || claims.All(c => Covered(c, memberships, scope));
+
+    private static bool Covered(MedicalClaim claim, IReadOnlyDictionary<Guid, MembershipScope> memberships, AccessScope scope) =>
+        memberships.TryGetValue(claim.MembershipId, out var m) && scope.Allows(m.ProductCode, m.OrgNodeCode);
+
+    /// <summary>A member's own claims are remitted under their member number; a provider's under its provider ID.</summary>
+    private static bool Pays(RemittanceAdvice remittance, MedicalClaim claim, IReadOnlyDictionary<Guid, MembershipScope> memberships) =>
+        claim.Source == ClaimSources.Member
+            ? memberships.TryGetValue(claim.MembershipId, out var m) && m.MemberNumber == remittance.ProviderId
+            : claim.ProviderId == remittance.ProviderId;
 }

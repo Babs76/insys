@@ -243,8 +243,8 @@ internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCod
 }
 
 /// <summary>
-/// The day's exposure snapshot, then the F062 §1 alert: a zone and peril at or above General:Aggregation:AlertAt of its
-/// limit raises AggregationLimitApproached and a warning, once for the day. Nothing is raised while AlertAt is unset (OQ-076).
+/// The day's exposure snapshot, then the F062 §1 alert: a zone and peril at or above its alert level (the limit's own
+/// alert_at_pct, else General:Aggregation:AlertAt, 80%) raises AggregationLimitApproached and a warning, once for the day.
 /// </summary>
 internal sealed class RefreshExposureSnapshotHandler(IGeneralRepository general, IGeneralCodes codes, IOptions<AggregationOptions> options, IClock clock,
     ILogger<RefreshExposureSnapshotHandler> logger) : ICommandHandler<RefreshExposureSnapshot, int>
@@ -252,16 +252,14 @@ internal sealed class RefreshExposureSnapshotHandler(IGeneralRepository general,
     public async Task<BuildingBlocks.Domain.Result<int>> Handle(RefreshExposureSnapshot command, CancellationToken cancellationToken)
     {
         var rows = await general.RefreshExposure(command.Day, clock.UtcNow, cancellationToken);
-        if (options.Value.AlertAt is { } alertAt)
+        var limits = await codes.ZoneLimits(command.Day, cancellationToken);
+        foreach (var (zone, peril, sumInsured, currency) in await general.Snapshot(command.Day, cancellationToken))
         {
-            var limits = await codes.ZoneLimits(command.Day, cancellationToken);
-            foreach (var (zone, peril, sumInsured, currency) in await general.Snapshot(command.Day, cancellationToken))
+            if (limits.FirstOrDefault(l => l.Zone == zone && l.Peril == peril && l.Currency == currency) is { } limit
+                && (limit.AlertAtPct / 100m ?? options.Value.AlertAt) is { } alertAt && sumInsured >= alertAt * limit.MaxExposure)
             {
-                if (limits.FirstOrDefault(l => l.Zone == zone && l.Peril == peril && l.Currency == currency) is { } limit && sumInsured >= alertAt * limit.MaxExposure)
-                {
-                    logger.LogWarning("Aggregation limit approached: {Zone}/{Peril} at {Exposure} of {Limit} {Currency}", zone, peril, sumInsured, limit.MaxExposure, currency);
-                    general.PublishLimitApproached(zone, peril, sumInsured, limit.MaxExposure, currency, command.Day, clock.UtcNow);
-                }
+                logger.LogWarning("Aggregation limit approached: {Zone}/{Peril} at {Exposure} of {Limit} {Currency}", zone, peril, sumInsured, limit.MaxExposure, currency);
+                general.PublishLimitApproached(zone, peril, sumInsured, limit.MaxExposure, currency, command.Day, clock.UtcNow);
             }
         }
 

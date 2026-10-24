@@ -2,7 +2,33 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 0b batch 3 (branch `wave0b-3`, not merged): claim payouts scoped; F062 aggregation limits
+## Wave 0b batch 4 (branch `wave0b-4`, not merged): Health products; Health payment runs scoped; F062 follow-ups
+
+### Changed requests
+- **Health plan options** (`/api/v1/health/static/plans-and-options`) gain `productCode`: the Product Factory product (domain `HEALTH`) the plan is sold as.
+  - A new version must name one, and every option of a plan names the same one; otherwise submitting it is refused with 422 `HEALTH_PLAN_PRODUCT_INVALID`.
+- **General aggregation zone limits** (`/api/v1/general/static/aggregation-zones-and-limits`) gain an optional `alertAtPct`, the limit's own alert level.
+
+### Changed responses
+- **Health `PaymentRunView`** gains `partlyInScope`. When a run also pays claims outside the caller's scope, only the remittances whose claims are all in scope are listed, and `claimCount` and `totalAmount` are of those.
+- **`PaymentRunSummary`** (the run list) gains `partlyInScope`.
+
+### Changed behaviour
+- **Health enrolment and plan changes:** the plan's product must be a Health product on sale on the date, else 422 `HEALTH_PRODUCT_NOT_AVAILABLE`. The membership records it.
+- **Product scopes now reach Health:**
+  - memberships, their claims, preauthorisations and cases, and their Billing schedules are scoped by the plan's product as well as the node;
+  - a plan change to another product needs that product in the caller's scope;
+  - memberships on plans that name no product yet stay outside product scopes until the plan's next version names one, when the daily job gives them the product;
+  - `/health` lists such plans (`health-plan-products`).
+- **Health payment runs follow their claims' branch and product (F103):**
+  - a remittance is in scope when all the claims it pays are;
+  - a run with none in scope is not found;
+  - cutting off, calculating and releasing need all the run's claims in scope (403 `OUT_OF_SCOPE`);
+  - the run's approval is scoped when its claims share one product and node;
+  - payments of a remittance (`HEALTH_REMITTANCE`) follow it in `/payments` and payout batches.
+- **The F062 alert** is on by default, at 80% of each limit, or the limit's own `alertAtPct`.
+
+## Wave 0b batch 3 (merged, `cd2d78d`): claim payouts scoped; F062 aggregation limits
 
 ### Changed responses
 - **Payments `BatchView`** gains `partlyInScope`. When a payout batch also pays records outside the caller's scope, `paymentCount` and `totalAmount` are of the payments in scope only.

@@ -1,6 +1,6 @@
 # Addendum: access for external users (broker, provider and member portals)
 
-**Proposed 24 October 2026, for sign-off. Not built.**
+**Signed off 24 October 2026** (Ade), with the two additions in §6 and the open points decided as proposed. Planned in Wave 0b after Health products.
 
 - **Basis:**
   - SRS-003 (access by product, organisation and relationship);
@@ -64,12 +64,23 @@ External users get portal views of the records they can read, not the staff view
 - **The order of checks** on each request: permission (IAM), then channel (F005), then product and branch scope (F103, which a tenant may also give portal roles), then relationship scope (§2), then the portal view (§4).
 - **Staff endpoints** (static data, administration, approvals, Workflow queues) are refused to external users with 403, whatever permissions their roles hold.
 
-### 6. Tests (when built)
+### 6. Added at sign-off (24 October 2026)
+- **No duplicate answers to a portal (POPIA).**
+  - **The check:** a party a portal user registers, for example a broker's new client, is checked for duplicates as staff registrations are: the identifier hash, or a close name match with the same date of birth.
+  - **On a match:** the portal user never gets a duplicate error. The registration is accepted as pending and goes to staff review (a Workflow task, `PARTY_MATCH_REVIEW`), where staff link it to the existing party or confirm a new one.
+  - **The response** is the same either way ("received, pending review"), so a portal user cannot learn that someone is already a client of the tenant.
+- **MFA:**
+  - **Broker and provider portal users** must use MFA. Each portal client has its own authentication policy (`iam.cfg_authentication_and_session_policies`, by client) with MFA required, and a token from those clients without MFA (`amr`/`acr` showing no second factor) is refused.
+  - **For member portal users,** MFA is a tenant setting on the member portal's policy.
+
+### 7. Tests (when built)
 - A broker cannot see another broker's client's quote, policy, claim or invoice: 404 by ID, absent from lists.
 - A provider cannot read another provider's medical claim or remittance, or submit a claim as another provider.
 - A member cannot open another member's policy or membership, including by guessing its ID (404), and cannot notify a claim on it (403).
 - Portal views carry none of the fields in §4 (a schema sweep, and a check of each portal response).
 - A link pending approval gives nothing; an ended link stops access on the next request.
+- A portal registration matching an existing party gets the same answer as a new one, and a staff review task; no duplicate error.
+- A broker or provider portal token without MFA is refused.
 - An external user on `insys-web` is refused; a staff user is unaffected.
 
 ## Where it belongs
@@ -86,7 +97,7 @@ External users get portal views of the records they can read, not the staff view
 - **Keycloak:** one client per portal, and the portal channels in each tenant's onboarding (onboarding readiness §5).
 - **Front end:** the portal apps use their own clients and the portal views.
 
-## Open points for sign-off
-- **Servicing intermediary:** the policy's current intermediary is proposed for both selling and servicing (§2).
-- **Beneficiaries:** whether a Life beneficiary who is not the policyholder may see anything before a claim. Proposed: no.
-- **Broker hierarchies:** whether a broker firm's principal sees its sub-brokers' clients (Distribution has a hierarchy). Proposed: yes, through the intermediary hierarchy, as a branch covers its descendants.
+## Decided at sign-off
+- **Servicing intermediary:** the policy's current intermediary is both the selling and the servicing intermediary (§2).
+- **Beneficiaries:** a Life beneficiary who is not the policyholder sees nothing before a claim.
+- **Broker hierarchies:** a broker firm's principal sees its sub-brokers' clients through the intermediary hierarchy, as a branch covers its descendants.

@@ -1,6 +1,6 @@
 # Addendum: creating Keycloak users for INSYS's own realm
 
-**Proposed 24 October 2026, for sign-off. Not built.**
+**Signed off 24 October 2026** (Ade). Planned in Wave 0b with onboarding readiness. To settle when it is built, and report before merging: the username convention in the shared realm, how one person is a user in several tenants (with what Keycloak supports cited), a resend-invitation command, the invitation link's lifespan, and that a user with no roles signs in but can do nothing.
 
 - **Basis:**
   - ADR-017 (Keycloak, realm `insys`; tokens carry `sub` and `tenant_id`; `tenant_id` is an admin-only user attribute);

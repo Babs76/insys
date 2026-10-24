@@ -86,7 +86,7 @@ public sealed record HealthSchemeRenewed(Guid SchemeId, string SchemeNumber, Dat
 
 public sealed record HealthMemberEnrolled(Guid MembershipId, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode,
     DateOnly StartDate, Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, string Currency, decimal? MonthlyContribution, decimal? EmployerContribution,
-    Guid? SponsorPartyId, DateTimeOffset OccurredAt, string? OrgNodeCode = null)
+    Guid? SponsorPartyId, DateTimeOffset OccurredAt, string? OrgNodeCode = null, string? ProductCode = null)
     : IDomainEvent;
 
 /// <summary>The membership's status or its members changed; <paramref name="MonthlyContribution"/> is the contribution from <paramref name="EffectiveDate"/>.</summary>
@@ -288,6 +288,21 @@ public sealed class HealthMembership : AggregateRoot<Guid>
 
     public Guid? SchemeId { get; private set; }
 
+    /// <summary>
+    /// The Product Factory product and version the membership is on: its plan's (addenda/health-plan-products.md §3). It
+    /// scopes the membership and what follows it (F103). Null for a plan that names no product yet (OQ-080 fail-safe).
+    /// </summary>
+    public string? ProductCode { get; private set; }
+
+    public int? ProductVersion { get; private set; }
+
+    /// <summary>The product the membership is on, from enrolment or a plan change, or from its plan once the plan names one.</summary>
+    public void UseProduct(string? productCode, int? version)
+    {
+        ProductCode = productCode is null ? null : Guard.MaxLength(productCode, 15);
+        ProductVersion = productCode is null ? null : version;
+    }
+
     public string PlanCode { get; private set; } = "";
 
     public string OptionCode { get; private set; } = "";
@@ -329,11 +344,13 @@ public sealed class HealthMembership : AggregateRoot<Guid>
     /// <summary>Command EnrolMember: the principal on a plan option, with the waiting periods in force now, fixed from here.</summary>
     public static Result<HealthMembership> EnrolMember(Guid id, string memberNumber, Guid principalPartyId, Guid? schemeId, string? memberCategory, PlanOption plan,
         DateOnly startDate, IReadOnlyList<WaitingPeriod> waitingPeriods, ContributionBilling billing, string currency, DateOnly today, DateTimeOffset now,
-        string? orgNodeCode = null)
+        string? orgNodeCode = null, string? productCode = null, int? productVersion = null)
     {
         var membership = new HealthMembership
         {
             OrgNodeCode = orgNodeCode is null ? null : Guard.MaxLength(orgNodeCode, 15),
+            ProductCode = productCode is null ? null : Guard.MaxLength(productCode, 15),
+            ProductVersion = productCode is null ? null : productVersion,
             Id = id, MemberNumber = Guard.MaxLength(memberNumber, 12), PrincipalPartyId = Guard.NotEmpty(principalPartyId), SchemeId = schemeId,
             MemberCategory = memberCategory, PlanCode = Guard.MaxLength(plan.PlanCode, 15), OptionCode = Guard.MaxLength(plan.OptionCode, 10),
             PlanVersion = plan.PlanVersion, Status = MembershipStatus.Pending, StartDate = startDate, WaitingPeriods = [.. waitingPeriods],
@@ -342,7 +359,7 @@ public sealed class HealthMembership : AggregateRoot<Guid>
         membership._events.Add(MembershipEvent.Create(id, "ENROL", startDate, "ENROLMENT"));
         membership.Raise(new HealthMemberEnrolled(id, membership.MemberNumber, principalPartyId, schemeId, plan.PlanCode, plan.OptionCode, startDate,
             billing.PayerPartyId, billing.BillingAccountRef, billing.CollectionMethod, currency, billing.Rate?.MemberPerMember, billing.Rate?.EmployerPerMember,
-            billing.Rate?.SponsorPartyId, now, membership.OrgNodeCode));
+            billing.Rate?.SponsorPartyId, now, membership.OrgNodeCode, membership.ProductCode));
         if (startDate <= today)
         {
             membership.Fire(MembershipTrigger.StartDateReached);

@@ -99,6 +99,7 @@ public static class GeneralStaticData
             entity.Property(x => x.Peril).HasColumnName("peril").HasMaxLength(80);
             entity.Property(x => x.MaxExposure).HasColumnName("max_exposure").HasPrecision(18, 2);
             entity.Property(x => x.Currency).HasColumnName("currency").HasMaxLength(80);
+            entity.Property(x => x.AlertAtPct).HasColumnName("alert_at_pct").HasPrecision(5, 2);
         });
         modelBuilder.Entity<CancellationReasonsAndRefundRules>(entity =>
         {

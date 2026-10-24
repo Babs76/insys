@@ -3,7 +3,7 @@
 **Signed off 23 October 2026** (ADR-019); closes OQ-076. **Built in Wave 0b batch 3** (24 October 2026):
 - **Zone limits:** a quote over one is referred with reason `AGG_LIMIT` (the referral reason column holds 15 characters), and issues once an underwriter approves.
 - **Endorsements:** the approval request names the limit exceeded.
-- **The alert:** setting `General:Aggregation:AlertAt` enables it.
+- **The alert:** on at 80% of each limit by default (24 October 2026), or the limit's own `alert_at_pct` (each tenant's limits are its own static data); the platform default is `General:Aggregation:AlertAt`.
 - **Settlement:** over the remaining aggregate it is refused.
 - **Reinstatement:** automatic and on-request reinstatement are not defined, so every aggregate stops settlement when used up, as `NONE` does, until the rule is chosen.
 

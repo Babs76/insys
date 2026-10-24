@@ -43,7 +43,7 @@ public sealed class DailyJobRunnerOptions
 
 public sealed record DailyJobsRequest(DateOnly AsOf);
 
-public sealed record DailyJobsRun(DateOnly AsOf, int ProductVersions, int Invoiced, int Aged, int General, int Life, int Health, int EventsDelivered);
+public sealed record DailyJobsRun(DateOnly AsOf, int ProductVersions, int Invoiced, int Aged, int General, int Life, int Health, int EventsDelivered, int ExposureRows = 0);
 
 /// <summary>
 /// Runs the daily jobs for one tenant as if its business date were <c>asOf</c> (ADR-025, front-end request 40), so that
@@ -63,10 +63,11 @@ public sealed class DailyJobRunner(IServiceProvider services, OutboxProcessor re
         var (invoiced, aged) = await Create<BillingJobs>(tenant).Run(cancellationToken);
         events += await Drain(cancellationToken);
         var general = await Create<GeneralJobs>(tenant).Run(cancellationToken);
+        var exposure = await Create<GeneralJobs>(tenant).RefreshExposure(cancellationToken); // with the F062 alert
         var life = await Create<LifeJobs>(tenant).Run(cancellationToken);
         var health = await Create<HealthJobs>(tenant).Run(cancellationToken);
         events += await Drain(cancellationToken);
-        return new DailyJobsRun(asOf, products, invoiced, aged, general, life, health, events);
+        return new DailyJobsRun(asOf, products, invoiced, aged, general, life, health, events, exposure);
     }
 
     private T Create<T>(ITenantDirectory tenant) => ActivatorUtilities.CreateInstance<T>(services, tenant);

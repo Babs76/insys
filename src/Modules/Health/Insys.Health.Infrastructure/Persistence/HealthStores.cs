@@ -45,9 +45,9 @@ namespace Insys.Health.Infrastructure.Persistence;
 /// <summary>
 /// Health's records, each checked against the caller's scope for the endpoint's permission as it is loaded (F103,
 /// addenda/access-scopes.md §4): outside it, a read finds nothing (404) and an action is refused (403 OUT_OF_SCOPE).
-/// Memberships carry the node; preauthorisations, medical claims, utilisation cases and fraud cases follow theirs. Health
-/// records have no product (OQ-080). Schemes and provider payment runs span members and are not scoped. Jobs and
-/// consumers are unrestricted.
+/// Memberships carry the product and node; preauthorisations, medical claims, utilisation cases and fraud cases follow
+/// theirs. A membership on a plan with no product yet has none, and is outside every product scope (OQ-080). Schemes are
+/// not scoped; provider payment runs are scoped by their claims (Runs). Jobs and consumers are unrestricted.
 /// </summary>
 internal sealed class HealthRepository(HealthDbContext db, IExecutionContext execution) : IHealthRepository
 {
@@ -58,6 +58,26 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
 
     public async Task<HealthMembership?> MembershipByNumber(string memberNumber, CancellationToken cancellationToken) =>
         Scoped(await Memberships().SingleOrDefaultAsync(m => m.MemberNumber == memberNumber, cancellationToken));
+
+    public async Task<IReadOnlyDictionary<Guid, MembershipScope>> MembershipScopes(IReadOnlyCollection<Guid> membershipIds, CancellationToken cancellationToken) =>
+        await db.Memberships.AsNoTracking().Where(m => membershipIds.Contains(m.Id))
+            .ToDictionaryAsync(m => m.Id, m => new MembershipScope(m.MemberNumber, m.ProductCode, m.OrgNodeCode), cancellationToken);
+
+    public async Task<int> AssignPlanProducts(DateOnly day, CancellationToken cancellationToken)
+    {
+        var plans = (await db.Set<PlansAndOptions>().AsNoTracking()
+                .InForce(HealthStaticData.Descriptors.Single(d => d.EntityType == typeof(PlansAndOptions)).Lifecycle, day)
+                .Where(p => p.ProductCode != null).Select(p => new { p.PlanCode, p.OptionCode, p.ProductCode, p.Version }).ToListAsync(cancellationToken))
+            .GroupBy(p => (p.PlanCode, p.OptionCode)).Select(g => g.MaxBy(p => p.Version)!).ToList();
+        var assigned = 0;
+        foreach (var plan in plans)
+        {
+            assigned += await db.Memberships.Where(m => m.ProductCode == null && m.PlanCode == plan.PlanCode && m.OptionCode == plan.OptionCode)
+                .ExecuteUpdateAsync(set => set.SetProperty(m => m.ProductCode, plan.ProductCode), cancellationToken);
+        }
+
+        return assigned;
+    }
 
     public async Task LockBenefits(Guid membershipId, CancellationToken cancellationToken)
     {
@@ -172,7 +192,7 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
 
     public void Add(ProviderPaymentRun run) => db.Runs.Add(run);
 
-    private HealthMembership? Scoped(HealthMembership? membership) => execution.InScope(membership, null, membership?.OrgNodeCode);
+    private HealthMembership? Scoped(HealthMembership? membership) => execution.InScope(membership, membership?.ProductCode, membership?.OrgNodeCode);
 
     private async Task<T?> OfMembership<T>(T? record, Guid? membershipId, CancellationToken cancellationToken)
         where T : class
@@ -182,8 +202,8 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
             return record;
         }
 
-        var node = await db.Memberships.AsNoTracking().Where(m => m.Id == id).Select(m => m.OrgNodeCode).SingleOrDefaultAsync(cancellationToken);
-        return execution.InScope(record, null, node);
+        var owner = await db.Memberships.AsNoTracking().Where(m => m.Id == id).Select(m => new { m.ProductCode, m.OrgNodeCode }).SingleOrDefaultAsync(cancellationToken);
+        return execution.InScope(record, owner?.ProductCode, owner?.OrgNodeCode);
     }
 
     private IQueryable<HealthMembership> Memberships() => db.Memberships.Include(m => m.Dependants).Include(m => m.Events).AsSplitQuery();
@@ -196,7 +216,8 @@ internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
 
     public async Task<PlanDefinition?> Plan(string planCode, string optionCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<PlansAndOptions>(day).Where(p => p.PlanCode == planCode && p.OptionCode == optionCode).OrderByDescending(p => p.Version)
-            .Select(p => new PlanDefinition(new PlanTerms(p.PlanCode, p.OptionCode, p.BenefitSchedule, p.Network, p.ReferenceTariffScheduleCode, p.BenefitYear, p.MemberClaimBasis), p.Version))
+            .Select(p => new PlanDefinition(new PlanTerms(p.PlanCode, p.OptionCode, p.BenefitSchedule, p.Network, p.ReferenceTariffScheduleCode, p.BenefitYear, p.MemberClaimBasis), p.Version,
+                p.ProductCode))
             .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<SchemeCategory?> SchemeCategory(string categoryCode, DateOnly day, CancellationToken cancellationToken) =>
@@ -305,7 +326,7 @@ internal sealed class HealthEventMapper : IDomainEventMapper
         Domain.Members.HealthSchemeRenewed e => new Contracts.HealthSchemeRenewed(e.SchemeId, e.SchemeNumber, e.RenewalDate),
         Domain.Members.HealthMemberEnrolled e => new Contracts.HealthMemberEnrolled(e.MembershipId, e.MemberNumber, e.PrincipalPartyId, e.SchemeId, e.PlanCode, e.OptionCode,
             e.StartDate, e.PayerPartyId, e.BillingAccountRef, e.CollectionMethod, e.Currency, e.MonthlyContribution, e.EmployerContribution, e.SponsorPartyId,
-            e.OrgNodeCode),
+            e.OrgNodeCode, e.ProductCode),
         Domain.Members.HealthMemberStatusChanged e => new Contracts.HealthMemberStatusChanged(e.MembershipId, e.MemberNumber, e.Status, e.EffectiveDate,
             e.MonthlyContribution, e.EmployerContribution),
         Domain.Members.DependantAdded e => new Contracts.DependantAdded(e.MembershipId, e.MemberNumber, e.DependantId, e.PartyId, e.Suffix, e.StartDate, e.MonthlyContribution,

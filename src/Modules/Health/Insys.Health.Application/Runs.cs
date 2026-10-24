@@ -112,6 +112,12 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
 
             var claims = (await health.ClaimsForRun(run.CutOff, run.Currency, cancellationToken))
                 .Where(c => (c.Source == ClaimSources.Member || c.ProviderId is not null) && (c.TotalPaid ?? 0) > 0).ToList();
+
+            // F103: a run pays every claim ready for it, so it is calculated only by a caller covering them all.
+            if (!RunVisibility.CoversAll(claims, await health.MembershipScopes(claims.Select(c => c.MembershipId).Distinct().ToList(), cancellationToken), execution.CurrentScope))
+            {
+                return Error.Forbidden(ErrorCodes.OutOfScope, "Some claims ready for payment are outside your scope, so you cannot calculate the run.");
+            }
             var remittances = new List<RemittanceRequest>();
             foreach (var group in claims.Where(c => c.Source == ClaimSources.Member).GroupBy(c => c.MembershipId))
             {
@@ -166,16 +172,42 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
             return Error.NotFound(ErrorCodes.NotFound, "The payment run was not found.");
         }
 
+        // F103: acting on a run acts on all of it, so the caller covers every claim it pays (one with none in scope is not found).
+        var claims = await health.ClaimsInRun(run.Id, cancellationToken);
+        var memberships = await health.MembershipScopes(claims.Select(c => c.MembershipId).Distinct().ToList(), cancellationToken);
+        if (!RunVisibility.CoversAll(claims, memberships, execution.CurrentScope))
+        {
+            return RunVisibility.Of(run.Remittances, claims, memberships, execution.CurrentScope).Visible.Count == 0
+                ? Error.NotFound(ErrorCodes.NotFound, "The payment run was not found.")
+                : Error.Forbidden(ErrorCodes.OutOfScope, "The run also pays claims outside your scope.");
+        }
+
         audit.Record(new AuditEntry("HEALTH", operation, nameof(ProviderPaymentRun), run.Id.ToString()));
         var result = await change(run);
         return result.IsFailure ? result.Error : PaymentRunView.From(run);
     }
 }
 
-internal sealed class GetPaymentRunHandler(IHealthRepository health) : IQueryHandler<GetPaymentRun, PaymentRunView>
+/// <summary>A run, with only its remittances in the caller's scope; one with none in scope is not found (F103).</summary>
+internal sealed class GetPaymentRunHandler(IHealthRepository health, IExecutionContext execution) : IQueryHandler<GetPaymentRun, PaymentRunView>
 {
-    public async Task<Result<PaymentRunView>> Handle(GetPaymentRun query, CancellationToken cancellationToken) =>
-        await health.Run(query.RunId, cancellationToken) is { } run ? PaymentRunView.From(run) : Error.NotFound(ErrorCodes.NotFound, "The payment run was not found.");
+    public async Task<Result<PaymentRunView>> Handle(GetPaymentRun query, CancellationToken cancellationToken)
+    {
+        if (await health.Run(query.RunId, cancellationToken) is not { } run)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The payment run was not found.");
+        }
+
+        if (execution.CurrentScope.IsUnrestricted)
+        {
+            return PaymentRunView.From(run);
+        }
+
+        var claims = await health.ClaimsInRun(run.Id, cancellationToken);
+        var (visible, partly) = RunVisibility.Of(run.Remittances, claims,
+            await health.MembershipScopes(claims.Select(c => c.MembershipId).Distinct().ToList(), cancellationToken), execution.CurrentScope);
+        return visible.Count == 0 && run.Remittances.Count > 0 ? Error.NotFound(ErrorCodes.NotFound, "The payment run was not found.") : PaymentRunView.Of(run, visible, partly);
+    }
 }
 
 internal sealed class CaseHandlers(IHealthRepository health, IExecutionContext execution, IClock clock, IAuditTrail audit) :
