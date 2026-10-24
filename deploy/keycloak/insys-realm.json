@@ -25,7 +25,7 @@
   "clientScopes": [
     {
       "name": "basic",
-      "description": "OpenID Connect scope for the subject and authentication time (Keycloak's built-in basic scope).",
+      "description": "OpenID Connect scope for the subject, authentication time and the authentication methods used (amr; external-user access §6).",
       "protocol": "openid-connect",
       "attributes": {
         "include.in.token.scope": "false",
@@ -51,6 +51,17 @@
             "user.session.note": "AUTH_TIME",
             "claim.name": "auth_time",
             "jsonType.label": "long",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "consentRequired": false,
+          "config": {
             "access.token.claim": "true",
             "id.token.claim": "true",
             "introspection.token.claim": "true"
@@ -141,6 +152,102 @@
         "insys-api"
       ],
       "optionalClientScopes": []
+    },
+    {
+      "clientId": "broker-portal",
+      "name": "INSYS broker portal",
+      "description": "Brokers (external-user access): Authorization Code with PKCE, password and one-time code. Redirect URIs here are local development; each environment sets its own.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "fullScopeAllowed": false,
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+      "rootUrl": "http://localhost:5173",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "insys-api"
+      ],
+      "optionalClientScopes": [],
+      "authenticationFlowBindingOverrides": {
+        "browser": "6d1f6a0e-7c1b-4d47-9b3a-0b5b2f6a1001"
+      }
+    },
+    {
+      "clientId": "provider-portal",
+      "name": "INSYS provider portal",
+      "description": "Health providers (external-user access): Authorization Code with PKCE, password and one-time code. Redirect URIs here are local development; each environment sets its own.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "fullScopeAllowed": false,
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+      "rootUrl": "http://localhost:5173",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "insys-api"
+      ],
+      "optionalClientScopes": [],
+      "authenticationFlowBindingOverrides": {
+        "browser": "6d1f6a0e-7c1b-4d47-9b3a-0b5b2f6a1001"
+      }
+    },
+    {
+      "clientId": "member-portal",
+      "name": "INSYS member portal",
+      "description": "Members (external-user access): Authorization Code with PKCE; a one-time code when set up, required where the tenant's policy says. Redirect URIs here are local development.",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "fullScopeAllowed": false,
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+      "rootUrl": "http://localhost:5173",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "insys-api"
+      ],
+      "optionalClientScopes": [],
+      "authenticationFlowBindingOverrides": {
+        "browser": "6d1f6a0e-7c1b-4d47-9b3a-0b5b2f6a1003"
+      }
     }
   ],
   "users": [
@@ -172,6 +279,146 @@
         ]
       },
       "requiredActions": []
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "portal-mfa-browser",
+      "description": "Broker and provider portals: password and a one-time code, always (external-user access §6). Each step names its amr value.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "auth-cookie"
+        },
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": true,
+          "flowAlias": "portal-mfa-forms"
+        }
+      ],
+      "id": "6d1f6a0e-7c1b-4d47-9b3a-0b5b2f6a1001"
+    },
+    {
+      "alias": "portal-mfa-forms",
+      "description": "Password, then a one-time code.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "auth-username-password-form",
+          "authenticatorConfig": "amr-pwd"
+        },
+        {
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "auth-otp-form",
+          "authenticatorConfig": "amr-otp"
+        }
+      ],
+      "id": "6d1f6a0e-7c1b-4d47-9b3a-0b5b2f6a1002"
+    },
+    {
+      "alias": "member-browser",
+      "description": "Member portal: password, and a one-time code when the member has set one up. Whether MFA is required is the tenant's setting in INSYS (iam.cfg_authentication_and_session_policies), checked from amr.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "auth-cookie"
+        },
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": true,
+          "flowAlias": "member-forms"
+        }
+      ],
+      "id": "6d1f6a0e-7c1b-4d47-9b3a-0b5b2f6a1003"
+    },
+    {
+      "alias": "member-forms",
+      "description": "Password, then a one-time code if configured.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "auth-username-password-form",
+          "authenticatorConfig": "amr-pwd"
+        },
+        {
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": true,
+          "flowAlias": "member-otp"
+        }
+      ],
+      "id": "6d1f6a0e-7c1b-4d47-9b3a-0b5b2f6a1004"
+    },
+    {
+      "alias": "member-otp",
+      "description": "A one-time code, for members who set one up.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "conditional-user-configured"
+        },
+        {
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "auth-otp-form",
+          "authenticatorConfig": "amr-otp"
+        }
+      ],
+      "id": "6d1f6a0e-7c1b-4d47-9b3a-0b5b2f6a1005"
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "amr-pwd",
+      "config": {
+        "default.reference.value": "pwd"
+      }
+    },
+    {
+      "alias": "amr-otp",
+      "config": {
+        "default.reference.value": "otp"
+      }
     }
   ]
 }
