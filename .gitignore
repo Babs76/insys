@@ -11,3 +11,4 @@ TestResults/
 
 # Local Keycloak passwords (deploy/keycloak/keycloak.env.example)
 deploy/keycloak/keycloak.env
+.claude/worktrees/
