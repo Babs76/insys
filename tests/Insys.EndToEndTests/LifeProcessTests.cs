@@ -439,6 +439,17 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         var refused = await northClient.PostAsync($"/api/v1/life/proposals/{inB}/withdraw", null);
         refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await refused.Code()).ShouldBe("OUT_OF_SCOPE");
+
+        // Billing follows the policy: its schedule and invoices carry the policy's product and node, and so do not reach the North user.
+        (await _db.ScalarAsOwner<string>("SELECT product_code || '@' || org_node_code FROM billing.premium_schedule WHERE policy_ref = @p", ("p", policyInB)))
+            .ShouldBe($"{Product}@ORG-BR-B");
+        var invoice = await _db.ScalarAsOwner<Guid>("SELECT id FROM billing.invoice WHERE policy_ref = @p ORDER BY id LIMIT 1", ("p", policyInB));
+        var account = await _db.ScalarAsOwner<Guid>("SELECT billing_account_id FROM billing.invoice WHERE id = @i", ("i", invoice));
+        (await _db.ScalarAsOwner<string>("SELECT org_node_code FROM billing.invoice WHERE id = @i", ("i", invoice))).ShouldBe("ORG-BR-B");
+        (await northClient.GetAsync($"/api/v1/billing/invoices/{invoice}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await northClient.GetAsync($"/api/v1/billing/accounts/{account}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await northClient.GetAsync($"/api/v1/billing/accounts/{account}/invoices")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await _maker.GetAsync($"/api/v1/billing/invoices/{invoice}")).StatusCode.ShouldBe(HttpStatusCode.OK, "an unscoped user still reads it");
     }
 
     private static int Ages(DateOnly on)

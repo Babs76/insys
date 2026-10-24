@@ -55,7 +55,8 @@ public sealed record BillingArrangement(Guid BillingAccountRef, Guid PayerPartyI
 public sealed record CancellationRule(string ReasonCode, string Initiator, string RefundBasis, decimal Fee);
 
 public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, BillingArrangement Billing,
-    string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd, Guid? RenewalOfId, decimal SumInsured, DateTimeOffset OccurredAt) : IDomainEvent;
+    string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd, Guid? RenewalOfId, decimal SumInsured, DateTimeOffset OccurredAt, string? OrgNodeCode = null)
+    : IDomainEvent;
 
 public sealed record GeneralPolicyEndorsed(Guid PolicyId, string PolicyNumber, Guid EndorsementId, string EndorsementNumber, DateOnly EffectiveDate,
     decimal NewAnnualPremium, decimal PremiumDelta, string Currency, string ProductCode, int ProductVersion, IReadOnlyList<string> DocumentTypes, decimal NewSumInsured,
@@ -612,7 +613,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     private Result<GeneralPolicy> Issued(DateOnly today, DateTimeOffset now)
     {
         Raise(new GeneralPolicyIssued(Id, PolicyNumber, ProductCode, ProductVersion, PolicyholderPartyId, Billing, Currency, AnnualPremium, PeriodStart, PeriodEnd,
-            RenewalOfId, SumInsuredOn(PeriodStart), now));
+            RenewalOfId, SumInsuredOn(PeriodStart), now, OrgNodeCode));
         if (PeriodStart <= today && CoverMayStart)
         {
             Fire(PolicyTrigger.PeriodStarts);

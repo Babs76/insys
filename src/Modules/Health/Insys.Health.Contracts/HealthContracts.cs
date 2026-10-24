@@ -85,7 +85,7 @@ public sealed record HealthSchemeRenewed(Guid SchemeId, string SchemeNumber, Dat
 [IntegrationEvent("health.HealthMemberEnrolled")]
 public sealed record HealthMemberEnrolled(Guid MembershipId, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode,
     DateOnly StartDate, Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, string Currency, decimal? MonthlyContribution,
-    decimal? EmployerContribution = null, Guid? SponsorPartyId = null) : IIntegrationEvent;
+    decimal? EmployerContribution = null, Guid? SponsorPartyId = null, string? OrgNodeCode = null) : IIntegrationEvent;
 
 /// <summary>The membership's status or its members changed; a new monthly contribution applies from <paramref name="EffectiveDate"/> when given.</summary>
 [IntegrationEvent("health.HealthMemberStatusChanged")]

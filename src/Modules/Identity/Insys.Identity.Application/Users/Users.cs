@@ -222,15 +222,6 @@ internal sealed class AssignRoleHandler(IUserRepository users, IRolePolicyReader
         var roles = await policy.Roles([command.RoleCode, .. held], today, cancellationToken);
         var role = roles.FirstOrDefault(r => r.RoleCode == command.RoleCode) ?? new RoleFacts(command.RoleCode, false, new HashSet<string>(), false);
 
-        // F103 interim control: until product and organisation scopes are enforced (docs/specs/addenda/access-scopes.md, Wave 0b),
-        // a scope would have no effect, so nobody may rely on one. The role's own default scopes count too.
-        if (command.ScopeProducts is { Length: > 0 } || command.ScopeBranches is { Length: > 0 } || role.ScopeProducts is { Length: > 0 }
-            || role.ScopeBranches is { Length: > 0 })
-        {
-            return Error.Validation(IdentityErrorCodes.ScopesNotEnforced,
-                "Product and organisation scopes are not enforced yet (F103), so a scoped role assignment is refused. Assign the role without scopes.");
-        }
-
         var rules = await policy.ConflictRules(today, cancellationToken);
         audit.Record(new AuditEntry("IDENTITY", "AssignRole", nameof(UserAccount), command.UserId.ToString(),
             new Dictionary<string, string?> { ["role"] = command.RoleCode }));

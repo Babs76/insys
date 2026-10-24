@@ -127,6 +127,20 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
     /// <summary>The product version billed, carried on the invoices (BIL-002; V0015).</summary>
     public string ProductVersionRef { get; internal set; } = "";
 
+    /// <summary>
+    /// The product and organisation node of the policy or membership billed, carried on the invoices: they scope the
+    /// schedule, its invoices and its account (F103, addenda/access-scopes.md §1). A schedule created by hand has neither.
+    /// </summary>
+    public string? ProductCode { get; private set; }
+
+    public string? OrgNodeCode { get; private set; }
+
+    public void ScopeTo(string? productCode, string? orgNodeCode)
+    {
+        ProductCode = productCode is null ? null : Guard.MaxLength(productCode, 15);
+        OrgNodeCode = orgNodeCode is null ? null : Guard.MaxLength(orgNodeCode, 15);
+    }
+
     internal static PremiumSchedule Create(Guid accountId, string sourceDomain, Guid policyRef, BillingFrequency frequency, DateOnly start, DateOnly? end, decimal amount,
         string currency)
     {

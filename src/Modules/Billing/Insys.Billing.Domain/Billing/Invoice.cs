@@ -140,6 +140,11 @@ public sealed class Invoice : AggregateRoot<Guid>
 
     public string ProductVersionRef { get; private set; } = "";
 
+    /// <summary>The schedule's product and organisation node (F103); a credit note keeps its invoice's.</summary>
+    public string? ProductCode { get; private set; }
+
+    public string? OrgNodeCode { get; private set; }
+
     public DateOnly IssueDate { get; private set; }
 
     public DateOnly DueDate { get; private set; }
@@ -179,6 +184,7 @@ public sealed class Invoice : AggregateRoot<Guid>
 
         var invoice = New(id, prefix, DocumentType.Invoice, account.Id, schedule.SourceDomain, schedule.PolicyRef, schedule.ProductVersionRef, issueDate,
             instalments.Min(i => i.DueDate) < issueDate ? issueDate : instalments.Min(i => i.DueDate), account.Currency, null);
+        (invoice.ProductCode, invoice.OrgNodeCode) = (schedule.ProductCode, schedule.OrgNodeCode);
         foreach (var instalment in instalments.OrderBy(i => i.DueDate))
         {
             invoice._lines.Add(InvoiceLine.Create(id, (short)(invoice._lines.Count + 1), "PREMIUM", $"Premium due {instalment.DueDate:yyyy-MM-dd}", instalment.Amount));
@@ -210,6 +216,7 @@ public sealed class Invoice : AggregateRoot<Guid>
         }
 
         var credit = New(creditNoteId, prefix, DocumentType.CreditNote, BillingAccountId, SourceDomain, PolicyRef, ProductVersionRef, issueDate, issueDate, Currency, Id);
+        (credit.ProductCode, credit.OrgNodeCode) = (ProductCode, OrgNodeCode);
         credit._lines.Add(InvoiceLine.Create(creditNoteId, 1, "CREDIT", $"Credit for {InvoiceNumber} ({reason.Code})", amount));
         credit.NetAmount = amount;
         credit.TotalAmount = amount;

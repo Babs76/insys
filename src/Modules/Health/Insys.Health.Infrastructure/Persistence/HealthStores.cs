@@ -304,7 +304,8 @@ internal sealed class HealthEventMapper : IDomainEventMapper
     {
         Domain.Members.HealthSchemeRenewed e => new Contracts.HealthSchemeRenewed(e.SchemeId, e.SchemeNumber, e.RenewalDate),
         Domain.Members.HealthMemberEnrolled e => new Contracts.HealthMemberEnrolled(e.MembershipId, e.MemberNumber, e.PrincipalPartyId, e.SchemeId, e.PlanCode, e.OptionCode,
-            e.StartDate, e.PayerPartyId, e.BillingAccountRef, e.CollectionMethod, e.Currency, e.MonthlyContribution, e.EmployerContribution, e.SponsorPartyId),
+            e.StartDate, e.PayerPartyId, e.BillingAccountRef, e.CollectionMethod, e.Currency, e.MonthlyContribution, e.EmployerContribution, e.SponsorPartyId,
+            e.OrgNodeCode),
         Domain.Members.HealthMemberStatusChanged e => new Contracts.HealthMemberStatusChanged(e.MembershipId, e.MemberNumber, e.Status, e.EffectiveDate,
             e.MonthlyContribution, e.EmployerContribution),
         Domain.Members.DependantAdded e => new Contracts.DependantAdded(e.MembershipId, e.MemberNumber, e.DependantId, e.PartyId, e.Suffix, e.StartDate, e.MonthlyContribution,

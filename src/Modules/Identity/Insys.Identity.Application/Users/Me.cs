@@ -61,11 +61,11 @@ public sealed record MePermission(string Permission, IReadOnlyList<PermissionSco
 
 /// <summary>GET /api/v1/identity/me (GAP-003): who the caller is, in which tenant and language, and what they may do.</summary>
 /// <param name="ScopesEnforced">
-/// False until product and organisation scopes are enforced (F103, Wave 0b): a permission held through a scoped
-/// assignment applies to every product and organisation, so a client must not rely on the scopes shown.
+/// True: product and organisation scopes are enforced (F103), so a permission held only through scoped assignments
+/// reaches only the records in those scopes. Kept for clients that checked it during the interim control.
 /// </param>
 public sealed record MeView(Guid UserId, string Username, string DisplayName, UserStatus Status, bool MfaEnrolled, MeTenant Tenant, MeLanguage Language,
-    IReadOnlyList<MeRole> Roles, IReadOnlyList<MePermission> Permissions, long RowVersion, bool ScopesEnforced = false);
+    IReadOnlyList<MeRole> Roles, IReadOnlyList<MePermission> Permissions, long RowVersion, bool ScopesEnforced = true);
 
 public sealed record GetMe : IQuery<MeView>;
 

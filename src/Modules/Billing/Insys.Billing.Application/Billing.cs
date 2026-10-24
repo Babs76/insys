@@ -433,10 +433,19 @@ internal sealed class GetInvoiceHandler(IBillingRepository billing) : IQueryHand
         await billing.Invoice(query.InvoiceId, cancellationToken) is { } i ? InvoiceView.From(i) : Error.NotFound(ErrorCodes.NotFound, "The invoice was not found.");
 }
 
-internal sealed class ListInvoicesHandler(IBillingRepository billing) : IQueryHandler<ListInvoices, IReadOnlyList<InvoiceView>>
+/// <summary>An account's invoices: those in the caller's scope, of an account in scope (F103).</summary>
+internal sealed class ListInvoicesHandler(IBillingRepository billing, IExecutionContext execution) : IQueryHandler<ListInvoices, IReadOnlyList<InvoiceView>>
 {
-    public async Task<Result<IReadOnlyList<InvoiceView>>> Handle(ListInvoices query, CancellationToken cancellationToken) =>
-        (await billing.Invoices(query.AccountId, cancellationToken)).Select(InvoiceView.From).ToList();
+    public async Task<Result<IReadOnlyList<InvoiceView>>> Handle(ListInvoices query, CancellationToken cancellationToken)
+    {
+        if (!execution.CurrentScope.IsUnrestricted && await billing.Account(query.AccountId, cancellationToken) is null)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The billing account was not found.");
+        }
+
+        return (await billing.Invoices(query.AccountId, cancellationToken)).Where(i => execution.CurrentScope.Allows(i.ProductCode, i.OrgNodeCode))
+            .Select(InvoiceView.From).ToList();
+    }
 }
 
 internal sealed class GetRefundHandler(IBillingRepository billing) : IQueryHandler<GetRefund, RefundView>

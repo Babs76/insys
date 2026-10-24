@@ -33,26 +33,52 @@ using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
+using Insys.BuildingBlocks.Application.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 namespace Insys.Billing.Infrastructure.Persistence;
 
-internal sealed class BillingRepository(BillingDbContext db) : IBillingRepository
+/// <summary>
+/// Billing's records, checked against the caller's scope for the endpoint's permission as they are loaded (F103,
+/// addenda/access-scopes.md §1, §4): an invoice by its product and node; an account, and its refunds, when any of its
+/// schedules is in scope. Outside it, a read finds nothing (404) and an action is refused (403 OUT_OF_SCOPE). Jobs and
+/// consumers are unrestricted.
+/// </summary>
+internal sealed class BillingRepository(BillingDbContext db, IExecutionContext execution) : IBillingRepository
 {
-    public Task<BillingAccount?> Account(Guid id, CancellationToken cancellationToken) =>
-        db.Accounts.Include(a => a.Schedules).ThenInclude(s => s.Instalments).Include(a => a.Arrears).AsSplitQuery()
+    public async Task<BillingAccount?> Account(Guid id, CancellationToken cancellationToken)
+    {
+        var account = await db.Accounts.Include(a => a.Schedules).ThenInclude(s => s.Instalments).Include(a => a.Arrears).AsSplitQuery()
             .SingleOrDefaultAsync(a => a.Id == id, cancellationToken);
+        return account is null || execution.CurrentScope.IsUnrestricted || account.Schedules.Any(s => execution.CurrentScope.Allows(s.ProductCode, s.OrgNodeCode))
+            ? account
+            : execution.InScope(account, null, null);
+    }
 
-    public Task<Invoice?> Invoice(Guid id, CancellationToken cancellationToken) =>
-        db.Invoices.Include(i => i.Lines).Include(i => i.Adjustments).SingleOrDefaultAsync(i => i.Id == id, cancellationToken);
+    public async Task<Invoice?> Invoice(Guid id, CancellationToken cancellationToken)
+    {
+        var invoice = await db.Invoices.Include(i => i.Lines).Include(i => i.Adjustments).SingleOrDefaultAsync(i => i.Id == id, cancellationToken);
+        return execution.InScope(invoice, invoice?.ProductCode, invoice?.OrgNodeCode);
+    }
 
     public async Task<IReadOnlyList<Invoice>> Invoices(Guid accountId, CancellationToken cancellationToken) =>
         await db.Invoices.Include(i => i.Lines).Include(i => i.Adjustments).Where(i => i.BillingAccountId == accountId).OrderBy(i => i.DueDate).ThenBy(i => i.Id)
             .ToListAsync(cancellationToken);
 
-    public Task<RefundRequest?> Refund(Guid id, CancellationToken cancellationToken) => db.Refunds.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+    public async Task<RefundRequest?> Refund(Guid id, CancellationToken cancellationToken)
+    {
+        var refund = await db.Refunds.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+        if (refund is null || execution.CurrentScope.IsUnrestricted)
+        {
+            return refund;
+        }
+
+        var inScope = await db.Set<PremiumSchedule>().AsNoTracking().Where(s => s.BillingAccountId == refund.BillingAccountId)
+            .InScope(execution.CurrentScope, s => s.ProductCode, s => s.OrgNodeCode).AnyAsync(cancellationToken);
+        return inScope ? refund : execution.InScope(refund, null, null);
+    }
 
     public async Task<BillingAccount?> AccountForPolicy(string sourceDomain, Guid policyRef, CancellationToken cancellationToken) =>
         await db.Set<PremiumSchedule>().AsNoTracking().Where(s => s.SourceDomain == sourceDomain && s.PolicyRef == policyRef).Select(s => (Guid?)s.BillingAccountId)

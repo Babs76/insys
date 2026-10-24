@@ -20753,8 +20753,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Role assignments with product or organisation scopes, for review (F103 interim control)",
-        "description": "Scopes are not enforced yet: these assignments give their role\u0027s permissions for every product and organisation. New scoped assignments are refused (SCOPES_NOT_ENFORCED) until enforcement is built (Wave 0b).",
+        "summary": "Role assignments with product or organisation scopes, for review (F103)",
+        "description": "Each gives its role\u0027s permissions only for the records of its products and organisation nodes (with the nodes below them).",
         "operationId": "IdentityListScopedAssignments",
         "responses": {
           "200": {
@@ -20974,7 +20974,7 @@
           "Identity"
         ],
         "summary": "Assign a role",
-        "description": "Refused for roles with no version in force, MFA-required roles without MFA (IAM-003), segregation-of-duties conflicts (SRS-002), and, until product and organisation scopes are enforced (F103), any assignment with scopes (SCOPES_NOT_ENFORCED). Completes asynchronously (GAP-027): for a privileged role (requiresApproval), the PRIVILEGED_ROLE approval appears in Workflow; the assignment stays PendingApproval until it is decided.",
+        "description": "Refused for roles with no version in force, MFA-required roles without MFA (IAM-003) and segregation-of-duties conflicts (SRS-002). Product and organisation scopes limit the role\u0027s permissions to those records (F103). Completes asynchronously (GAP-027): for a privileged role (requiresApproval), the PRIVILEGED_ROLE approval appears in Workflow; the assignment stays PendingApproval until it is decided.",
         "operationId": "AssignRole",
         "parameters": [
           {
@@ -23668,6 +23668,18 @@
           "policyRef": {
             "type": "string",
             "format": "uuid"
+          },
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "orgNodeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -28630,6 +28642,12 @@
                 "$ref": "#/components/schemas/JsonElement"
               }
             ]
+          },
+          "orgNodeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -30345,7 +30363,7 @@
           },
           "scopesEnforced": {
             "type": "boolean",
-            "default": false
+            "default": true
           }
         }
       },
@@ -31645,6 +31663,12 @@
             "items": {
               "$ref": "#/components/schemas/LifeBeneficiaryNomination"
             }
+          },
+          "orgNodeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -33462,6 +33486,12 @@
           },
           "currency": {
             "type": "string"
+          },
+          "orgNodeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

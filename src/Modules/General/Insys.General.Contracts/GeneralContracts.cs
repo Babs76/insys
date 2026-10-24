@@ -96,7 +96,7 @@ public sealed record GeneralQuoteExpired(Guid QuoteId, string QuoteNumber, int Q
 [IntegrationEvent("general.GeneralPolicyIssued")]
 public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, Guid PayerPartyId,
     Guid BillingAccountRef, string BillingFrequency, string CollectionMethod, string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd,
-    Guid? RenewalOfId, decimal? SumInsured = null) : IIntegrationEvent;
+    Guid? RenewalOfId, decimal? SumInsured = null, string? OrgNodeCode = null) : IIntegrationEvent;
 
 /// <summary>
 /// An endorsement was applied: Billing amends the schedule from the effective date; Documents generates the endorsement

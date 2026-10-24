@@ -121,6 +121,8 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
             throw new InvalidOperationException($"Member {enrolled.MemberNumber} cannot be scheduled: {schedule.Error.Message}");
         }
 
+        schedule.Value.ScopeTo(null, enrolled.OrgNodeCode); // F103: Health has no product (OQ-080)
+
         await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken);
     }
 

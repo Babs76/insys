@@ -217,13 +217,12 @@ internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealth
         var membership = HealthMembership.EnrolMember(id, Numbers.Of(prefix, id, 12), command.PrincipalPartyId, command.SchemeId, command.MemberCategory,
             new PlanOption(plan.Terms.PlanCode, plan.Terms.OptionCode, plan.Version), command.StartDate, waiting,
             new ContributionBilling(command.PayerPartyId ?? command.PrincipalPartyId, command.BillingAccountId ?? Guid.CreateVersion7(), command.CollectionMethod, rate), command.Currency, day,
-            clock.UtcNow);
+            clock.UtcNow, node.Value);
         if (membership.IsFailure)
         {
             return membership.Error;
         }
 
-        membership.Value.PlaceAt(node.Value);
         health.Add(membership.Value);
         audit.Record(new AuditEntry("HEALTH", "EnrolMember", nameof(HealthMembership), id.ToString()));
         return MembershipView.From(membership.Value);

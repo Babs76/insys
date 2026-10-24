@@ -71,7 +71,7 @@ public sealed record AlterationType(string Code, IReadOnlyList<string> AllowedSt
 
 public sealed record LifePolicyIssued(Guid PolicyId, string PolicyNumber, Guid ProposalId, string ProductCode, int ProductVersion, int RatingVersion,
     Guid PolicyholderPartyId, LifeBillingArrangement Billing, string Currency, decimal Premium, DateOnly InceptionDate, DateOnly? TermEndDate, decimal SumAssured,
-    DateTimeOffset OccurredAt) : IDomainEvent;
+    DateTimeOffset OccurredAt, string? OrgNodeCode = null) : IDomainEvent;
 
 public sealed record LifePolicyChanged(Guid PolicyId, string PolicyNumber, string ChangeType, DateOnly EffectiveDate, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -439,7 +439,7 @@ public sealed class LifePolicy : AggregateRoot<Guid>
         policy.TermEndDate = policy._benefits.Max(b => b.EndDate);
         policy._schedules.Add(LifePremiumSchedule.Create(id, proposal.Frequency, proposal.QuotedPremium!.Value, inception));
         policy.Raise(new LifePolicyIssued(id, policy.PolicyNumber, proposal.Id, policy.ProductCode, policy.ProductVersion, policy.RatingVersion, policy.PolicyholderPartyId,
-            policy.Billing, policy.Currency, proposal.QuotedPremium!.Value, inception, policy.TermEndDate, policy._benefits.Sum(b => b.SumAssured), now));
+            policy.Billing, policy.Currency, proposal.QuotedPremium!.Value, inception, policy.TermEndDate, policy._benefits.Sum(b => b.SumAssured), now, policy.OrgNodeCode));
         if (inception <= today)
         {
             policy.Fire(LifePolicyTrigger.InceptionDateReached);

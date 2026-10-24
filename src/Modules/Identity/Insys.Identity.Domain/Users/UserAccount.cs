@@ -459,7 +459,4 @@ public static class IdentityErrorCodes
     [ErrorCode(409, "error.identity.tenant_has_users")]
     public const string TenantHasUsers = "TENANT_HAS_USERS";
 
-    /// <summary>F103 interim control: product and organisation scopes are not enforced yet, so a scoped assignment is refused.</summary>
-    [ErrorCode(422, "error.identity.scopes_not_enforced")]
-    public const string ScopesNotEnforced = "SCOPES_NOT_ENFORCED";
 }

@@ -27,7 +27,7 @@
 | 8 Wave 0 batch 5 | ADR-022 for Billing, Reinsurance, Documents and Analytics; GAP-036 payment lookups and `paymentId` at creation; GAP-037 known values; ADR-024 operator tenant refused; ADR-023 revision 2 built (endpoint keys, signed callbacks); parked-delivery alarms in Cloud Eye | **Merged, `e8f9dc5`** (24 Oct 2026) |
 | 8 Wave 0 batch 6 | GAP-044 business dates in the tenant's time zone (ADR-025); GAP-043 free cover bands; held claim payment releases; Reinsurance endorsement parks; GAP-040 Life and Health lists, fraud cases by claim; GAP-042 job schedule; test-only daily job runner; OQ-079 raised | **Merged, `4b0e97c`** (24 Oct 2026) |
 | 8 Wave 0 batch 7 | Free cover fails safe, with a band check; tenant time zone required at registration, listed on /health, and in /identity/me with the business date; OQ-079 decided and built (Life lump-sum initial reserve); addenda for onboarding readiness and Keycloak user creation, for sign-off | **Done on `wave0-7`, awaiting review** (24 Oct 2026) |
-| 8 Wave 0b batch 1 | F103 access scopes: grants per permission, scope checks in repositories and lists, `OUT_OF_SCOPE`; General enforced (quote, policy, claim placed on an organisation node) | **In progress on `wave0b-1`** (24 Oct 2026) |
+| 8 Wave 0b batch 1 | F103 access scopes enforced in General, Life, Health, Claims Framework, Billing and Workflow approvals; interim control lifted; OQ-080 (Health product scope) and OQ-081 (account and approval scope rules) raised | **Done on `wave0b-1`, awaiting review** (24 Oct 2026) |
 
 ## Phase 1 review items
 

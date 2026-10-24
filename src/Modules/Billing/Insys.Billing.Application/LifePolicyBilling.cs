@@ -76,6 +76,8 @@ public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes 
             throw new InvalidOperationException($"Policy {issued.PolicyNumber} cannot be scheduled: {schedule.Error.Message}");
         }
 
+        schedule.Value.ScopeTo(issued.ProductCode, issued.OrgNodeCode); // F103
+
         var invoices = await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken);
         if (invoices.IsFailure)
         {

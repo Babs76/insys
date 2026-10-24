@@ -842,3 +842,25 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   2. **Link plans to products:** a `product_code` on `health.cfg_plan_definitions`, and scope by that product.
   3. **Health is organisation-scoped only:** a grant restricted to products never covers a Health record.
 - **Built meanwhile (fail safe):** Health records are scoped by organisation node. A grant restricted to products does not cover them, because a record with no product is outside any product scope. A grant with no product scope is unaffected.
+
+### OQ-081 Two scope rules the access-scopes addendum leaves open (Phase 8 Wave 0b, F103)
+- **Source:** `docs/specs/addenda/access-scopes.md` §1 and §4.
+- **1. Billing accounts.**
+  - **The addendum:** it scopes "billing accounts and invoices for a policy" by the policy's product.
+  - **The gap:** an account belongs to a payer and can bill several policies, of different products and nodes.
+  - **Built:**
+    - an invoice is scoped by its own policy's product and node;
+    - an account, and its refunds, are in scope when **any** of its schedules is;
+    - the account's invoice list shows only the invoices in scope;
+    - a schedule created by hand has no product or node, so it is outside every restricted scope.
+  - **Alternatives:**
+    - in scope only when **all** of its schedules are;
+    - accounts not scoped, like parties.
+- **2. Approvals.**
+  - **The addendum:** "a checker must have the permission in scope for the record".
+  - **The gap:** it does not say which permission.
+  - **Built:**
+    - the checker's scope for the approval permission they use (`approval.read` to see it, `approval.approve` to decide it) must cover the record's product and node;
+    - Workflow records them when the approval is requested, from the module that owns the record.
+  - **Alternative:** the scope of the record's own permission, for example `claim_payment.release` for a payment instruction.
+- **Confirm or change.** Either change is local to Billing's repository or Workflow's decision.

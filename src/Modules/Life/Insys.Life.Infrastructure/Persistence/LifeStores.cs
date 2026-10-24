@@ -239,7 +239,7 @@ internal sealed class LifeEventMapper : IDomainEventMapper
             e.DecisionCode, e.RulesetCode, e.RulesetVersion),
         Domain.Policies.LifePolicyIssued e => new Contracts.LifePolicyIssued(e.PolicyId, e.PolicyNumber, e.ProposalId, e.ProductCode, e.ProductVersion,
             e.PolicyholderPartyId, e.Billing.PayerPartyId, e.Billing.BillingAccountRef, e.Billing.Frequency, e.Billing.CollectionMethod, e.Currency, e.Premium,
-            e.InceptionDate, e.TermEndDate, e.SumAssured),
+            e.InceptionDate, e.TermEndDate, e.SumAssured, e.OrgNodeCode),
         Domain.Policies.LifePolicyChanged e => new Contracts.LifePolicyChanged(e.PolicyId, e.PolicyNumber, e.ChangeType, e.EffectiveDate),
         Domain.Policies.LifePolicyLapsed e => new Contracts.LifePolicyLapsed(e.PolicyId, e.PolicyNumber, e.LapseDate, e.MissedPayments, e.ProductCode, e.ProductVersion,
             e.Currency),

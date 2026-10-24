@@ -64,7 +64,7 @@ public sealed class MeTests(DatabaseFixture fixture) : IClassFixture<DatabaseFix
         response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         response.Headers.ETag.ShouldNotBeNull();
         var me = await response.Json();
-        me.GetProperty("scopesEnforced").GetBoolean().ShouldBeFalse("F103 interim control: scopes have no effect yet");
+        me.GetProperty("scopesEnforced").GetBoolean().ShouldBeTrue("F103: scopes are enforced");
         DocumentedSchema.ResponseProblems(me, "core", "GetMe").ShouldBeEmpty("GAP-031: the response matches its documented schema");
         me.GetProperty("userId").GetGuid().ShouldBe(userId);
         me.GetProperty("username").GetString().ShouldBe("me-clerk");
@@ -112,11 +112,11 @@ public sealed class MeTests(DatabaseFixture fixture) : IClassFixture<DatabaseFix
     }
 
     /// <summary>
-    /// F103 interim control: a scoped role assignment is refused while scopes have no effect, and the scoped assignments made
-    /// before are listed for review.
+    /// F103: now that scopes are enforced, a role is assigned with product or organisation scopes, and scoped assignments are
+    /// listed for review.
     /// </summary>
     [Fact]
-    public async Task ScopedRoleAssignments_AreRefused_AndExistingOnesAreListedForReview_F103()
+    public async Task ScopedRoleAssignments_AreAccepted_AndListedForReview_F103()
     {
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "scope-admin", IdentityPermissions.UserRead, IdentityPermissions.UserUpdate);
         var userId = await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "scope-target");
@@ -124,15 +124,12 @@ public sealed class MeTests(DatabaseFixture fixture) : IClassFixture<DatabaseFix
         var admin = _factory.ClientFor(DatabaseFixture.TenantA, "scope-admin");
         var user = await admin.GetAsync($"/api/v1/identity/users/{userId}");
 
-        var refused = await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/assign-role", new { roleCode = role, scopeProducts = new[] { "GEN-MOTOR" } },
-            ifMatch: user.ETag());
-        (await refused.Code()).ShouldBe("SCOPES_NOT_ENFORCED");
-
-        await fixture.Database.AssignRole(DatabaseFixture.TenantA, userId, role);
-        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_branches = ARRAY['JHB'] WHERE user_id = @u AND role_code = @r",
-            ("u", userId), ("r", role));
+        var assigned = await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/assign-role",
+            new { roleCode = role, scopeProducts = new[] { "GEN-MOTOR" }, scopeBranches = new[] { "JHB" } }, ifMatch: user.ETag());
+        assigned.StatusCode.ShouldBe(HttpStatusCode.NoContent, await assigned.Content.ReadAsStringAsync());
         var scoped = (await (await admin.GetAsync("/api/v1/identity/role-assignments/scoped")).Json()).EnumerateArray()
             .Single(a => a.GetProperty("userId").GetGuid() == userId);
-        (scoped.GetProperty("roleCode").GetString(), scoped.GetProperty("scopeBranches")[0].GetString()).ShouldBe((role, "JHB"));
+        (scoped.GetProperty("roleCode").GetString(), scoped.GetProperty("scopeProducts")[0].GetString(), scoped.GetProperty("scopeBranches")[0].GetString())
+            .ShouldBe((role, "GEN-MOTOR", "JHB"));
     }
 }

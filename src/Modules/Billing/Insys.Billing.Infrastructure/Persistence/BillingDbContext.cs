@@ -70,6 +70,8 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options,
         modelBuilder.Entity<PremiumSchedule>(schedule =>
         {
             schedule.ToTable("premium_schedule");
+            schedule.Property(s => s.ProductCode).HasMaxLength(15);
+            schedule.Property(s => s.OrgNodeCode).HasMaxLength(15);
             schedule.HasKey(s => new { s.TenantId, s.Id });
             schedule.HasAuditColumns();
             schedule.Property(s => s.SourceDomain).HasMaxLength(10);
@@ -105,6 +107,8 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options,
         modelBuilder.Entity<Invoice>(invoice =>
         {
             invoice.ToTable("invoice");
+            invoice.Property(i => i.ProductCode).HasMaxLength(15);
+            invoice.Property(i => i.OrgNodeCode).HasMaxLength(15);
             invoice.HasKey(i => new { i.TenantId, i.Id });
             invoice.HasAuditColumns();
             invoice.Ignore(i => i.DomainEvents);

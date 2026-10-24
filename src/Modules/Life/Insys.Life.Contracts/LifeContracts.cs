@@ -107,7 +107,7 @@ public sealed record LifeUnderwritingDecided(Guid CaseId, Guid ProposalId, strin
 [IntegrationEvent("life.LifePolicyIssued")]
 public sealed record LifePolicyIssued(Guid PolicyId, string PolicyNumber, Guid ProposalId, string ProductCode, int ProductVersion, Guid PolicyholderPartyId,
     Guid PayerPartyId, Guid BillingAccountRef, string BillingFrequency, string CollectionMethod, string Currency, decimal Premium, DateOnly InceptionDate,
-    DateOnly? TermEndDate, decimal SumAssured) : IIntegrationEvent;
+    DateOnly? TermEndDate, decimal SumAssured, string? OrgNodeCode = null) : IIntegrationEvent;
 
 [IntegrationEvent("life.LifePolicyChanged")]
 public sealed record LifePolicyChanged(Guid PolicyId, string PolicyNumber, string ChangeType, DateOnly EffectiveDate) : IIntegrationEvent;

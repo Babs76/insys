@@ -2,17 +2,37 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 0b batch 1 (branch `wave0b-1`, in progress): F103 access scopes, General first
+## Wave 0b batch 1 (branch `wave0b-1`, not merged): F103 access scopes
 
 ### Changed requests
-- **`POST /api/v1/general/quotes`** takes an optional `orgNodeCode`: the organisation node (branch, region or legal entity) the quote belongs to. Omitted, it is the user's single scoped node, else the tenant's root legal entity. An unknown node is refused with 422; a node outside the user's scope with 403 `OUT_OF_SCOPE`. New versions, policies, renewals and claims keep the quote's node.
+- **Creation requests take an optional `orgNodeCode`**, the organisation node (branch, region or legal entity) the record belongs to:
+  - `POST /api/v1/general/quotes`;
+  - `POST /api/v1/life/proposals` and `POST /api/v1/life/group-schemes`;
+  - `POST /api/v1/health/memberships`.
+- **When `orgNodeCode` is omitted:** the user's one scoped node, else the tenant's root legal entity. With no organisation structure, records have no node.
+- **Refusals:** a node not in the structure is refused with 422; a product or node outside the user's scope with 403 `OUT_OF_SCOPE`.
+- **What follows a record:** policies, renewals, claims and Billing keep their quote's, proposal's or membership's node.
+- **Role assignments with `scopeProducts` or `scopeBranches` are accepted** (`POST /identity/users/{id}/assign-role`); `SCOPES_NOT_ENFORCED` is gone.
+
+### Changed responses
+- **`/identity/me`** `scopesEnforced` is now `true`.
+- **Error code `OUT_OF_SCOPE`** (403): an action on a record outside the caller's scope for that permission.
 
 ### Changed behaviour
-- **Access scopes apply in General (F103, `addenda/access-scopes.md`).** A role assignment scoped to products or branches (a branch covers its descendants) limits what its permissions reach:
+- **Access scopes are enforced (F103, `addenda/access-scopes.md`).** A role assignment scoped to products or organisation nodes (a node covers every node below it) limits what its permissions reach:
   - lists show only records in scope;
   - reading a single record outside the scope is 404, as if it did not exist;
-  - an action on one is 403 `OUT_OF_SCOPE` (new error code).
-- Existing General records were given the tenant's root legal entity as their node. Other modules follow in this batch; until they all do, scoped role assignments stay refused (`SCOPES_NOT_ENFORCED`).
+  - an action on one is 403 `OUT_OF_SCOPE`.
+- **Where it applies:**
+  - General quotes, proposals, policies, endorsements and claims;
+  - Life proposals, underwriting cases, policies, loans, claims and group schemes;
+  - Health memberships, and their preauthorisations, medical claims, utilisation cases and fraud cases;
+  - Claims Framework claims, reserves and payment instructions (as their domain claim);
+  - Billing invoices, and accounts and refunds (an account is in scope when any of its schedules is);
+  - Workflow approvals about any of those (a checker sees and decides them only within their scope).
+- **Health has no product** (OQ-080): a grant restricted to products reaches no Health record.
+- **Not scoped:** parties, static data, Health schemes and provider payment runs, payouts, and approvals of other types.
+- **Existing records** were placed at the tenant's root legal entity.
 
 ## Wave 0 batch 7 (branch `wave0-7`, not merged)
 

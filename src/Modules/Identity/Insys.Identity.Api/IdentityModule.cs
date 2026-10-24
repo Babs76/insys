@@ -107,9 +107,8 @@ public sealed class IdentityModule : IModule
             .WithTags(Name)
             .Produces<IReadOnlyList<ScopedAssignmentView>>(StatusCodes.Status200OK)
             .WithName("IdentityListScopedAssignments")
-            .WithSummary("Role assignments with product or organisation scopes, for review (F103 interim control)")
-            .WithDescription("Scopes are not enforced yet: these assignments give their role's permissions for every product and organisation. New "
-                + "scoped assignments are refused (SCOPES_NOT_ENFORCED) until enforcement is built (Wave 0b).")
+            .WithSummary("Role assignments with product or organisation scopes, for review (F103)")
+            .WithDescription("Each gives its role's permissions only for the records of its products and organisation nodes (with the nodes below them).")
             .RequirePermission(IdentityPermissions.UserRead);
 
         var users = api.MapGroup("/identity/users").WithTags(Name);
@@ -162,8 +161,8 @@ public sealed class IdentityModule : IModule
             .RequireIfMatch()
             .WithName("AssignRole")
             .WithSummary("Assign a role")
-            .WithDescription("Refused for roles with no version in force, MFA-required roles without MFA (IAM-003), segregation-of-duties conflicts (SRS-002), "
-                + "and, until product and organisation scopes are enforced (F103), any assignment with scopes (SCOPES_NOT_ENFORCED).")
+            .WithDescription("Refused for roles with no version in force, MFA-required roles without MFA (IAM-003) and segregation-of-duties conflicts "
+                + "(SRS-002). Product and organisation scopes limit the role's permissions to those records (F103).")
             .WithEventualEffects("for a privileged role (requiresApproval), the PRIVILEGED_ROLE approval appears in Workflow; the assignment stays "
                 + "PendingApproval until it is decided.")
             .RequirePermission(IdentityPermissions.UserUpdate);
