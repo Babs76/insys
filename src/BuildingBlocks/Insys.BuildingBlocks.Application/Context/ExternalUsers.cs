@@ -1,0 +1,61 @@
+/*
+ * ============================================================================
+ * OPENFACTOR TECHNOLOGY GROUP
+ * CONFIDENTIAL AND PROPRIETARY SOFTWARE
+ * ============================================================================
+ * Copyright (c) 2026 OpenFactor Technology Group.
+ * All rights reserved.
+ * PRODUCT       : INSYS
+ * COMPONENT     : BuildingBlocks.Application
+ * CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+ * This source code and its associated documentation contain confidential and
+ * proprietary information belonging to OpenFactor Technology Group or its
+ * applicable intellectual property rights holder.
+ * This material is provided solely for authorised development, maintenance,
+ * operation or evaluation purposes, as applicable. No person may reproduce,
+ * modify, distribute, disclose, publish or otherwise use this material except
+ * as expressly permitted by an applicable written agreement or licence.
+ * No ownership rights or licence to any intellectual property are granted
+ * by the inclusion of this notice, except as expressly provided in an
+ * applicable written agreement or licence.
+ * Third-party software, open-source components and customer-owned materials
+ * remain subject to their respective ownership rights and applicable licences
+ * or agreements.
+ * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+ * ============================================================================
+ */
+namespace Insys.BuildingBlocks.Application.Context;
+
+/// <summary>
+/// The party, intermediary or provider an external user is (docs/specs/addenda/external-user-access.md §1), from their
+/// approved link. A broker's codes include its sub-brokers' (§2, decided 24 October 2026); its own code is the one it
+/// quotes and sells under.
+/// </summary>
+public sealed record ExternalSubject(string Kind, Guid? PartyId, string? IntermediaryCode, IReadOnlySet<string> IntermediaryCodes, string? ProviderId)
+{
+    public const string Party = "PARTY";
+
+    public const string Intermediary = "INTERMEDIARY";
+
+    public const string Provider = "PROVIDER";
+
+    /// <summary>The channel audience an external user acts through (§5): members on the customer portal, brokers and providers on theirs.</summary>
+    public string ChannelAudience => Kind switch
+    {
+        Party => "CUSTOMER",
+        Intermediary => "BROKER",
+        _ => "PROVIDER",
+    };
+
+    /// <summary>Whether a record with this intermediary is the broker's, or one of its sub-brokers' (§2).</summary>
+    public bool Brokers(string? intermediaryCode) => Kind == Intermediary && intermediaryCode is not null && IntermediaryCodes.Contains(intermediaryCode);
+
+    /// <summary>Broker and provider portal users must use MFA (§6); for members it is the tenant's authentication policy.</summary>
+    public bool AlwaysNeedsMfa => Kind is Intermediary or Provider;
+}
+
+/// <summary>Whether a portal client's authentication policy requires MFA (iam.cfg_authentication_and_session_policies by client, §6).</summary>
+public interface IPortalAuthentication
+{
+    Task<bool> MfaRequired(Guid tenantId, string? clientId, DateOnly day, CancellationToken cancellationToken);
+}

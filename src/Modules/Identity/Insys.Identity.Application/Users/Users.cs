@@ -45,6 +45,9 @@ public interface IUserRepository
     /// <summary>The user holding the role assignment with this ID.</summary>
     Task<UserAccount?> ByAssignment(Guid assignmentId, CancellationToken cancellationToken);
 
+    /// <summary>The user with the subject link with this ID (external-user-access.md).</summary>
+    Task<UserAccount?> ByLink(Guid linkId, CancellationToken cancellationToken);
+
     void Add(UserAccount user);
 }
 
@@ -352,6 +355,12 @@ public sealed class PrivilegedRoleApprovalPolicy(IUserRepository users, IClock c
         if (businessRefType == IdentityApprovals.BusinessRefType && await users.ByAssignment(assignmentId, cancellationToken) is { } user)
         {
             user.DecideAssignment(assignmentId, approved, checkerId, clock.UtcNow);
+        }
+
+        // An external user's link (external-user-access.md §1): approved, it takes effect; rejected, it never does.
+        if (businessRefType == IdentityApprovals.SubjectLinkBusinessRefType && await users.ByLink(assignmentId, cancellationToken) is { } linked)
+        {
+            linked.DecideSubjectLink(assignmentId, approved, checkerId, clock.UtcNow);
         }
     }
 }

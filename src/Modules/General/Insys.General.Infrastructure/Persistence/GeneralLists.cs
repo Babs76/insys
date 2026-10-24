@@ -107,3 +107,44 @@ internal sealed class GeneralLists(GeneralDbContext db, IExecutionContext execut
             .ToListAsync(cancellationToken);
     }
 }
+
+/// <summary>The portals' lists (external-user access §2): a member's policies, a broker's quotes and policies, in the caller's F103 scope too.</summary>
+internal sealed class GeneralPortalQueries(GeneralDbContext db, IExecutionContext execution) : IGeneralPortalQueries
+{
+    public async Task<IReadOnlyList<Domain.Policies.GeneralPolicy>> Policies(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var policies = db.Policies.AsNoTracking().Include(p => p.Risks).ThenInclude(r => r.Coverages).AsSplitQuery()
+            .InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode);
+        var codes = who.IntermediaryCodes.ToList();
+        policies = who.Kind == ExternalSubject.Party
+            ? policies.Where(p => p.PolicyholderPartyId == who.PartyId)
+            : policies.Where(p => p.IntermediaryCode != null && codes.Contains(p.IntermediaryCode));
+        if (afterId is { } after)
+        {
+            policies = policies.Where(p => p.Id.CompareTo(after) > 0);
+        }
+
+        return await policies.OrderBy(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Domain.Underwriting.GeneralQuote>> Quotes(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var codes = who.IntermediaryCodes.ToList();
+        var quotes = db.Quotes.AsNoTracking().Include(q => q.Risks).ThenInclude(r => r.Coverages).AsSplitQuery()
+            .InScope(execution.CurrentScope, q => q.ProductCode, q => q.OrgNodeCode)
+            .Where(q => q.IntermediaryCode != null && codes.Contains(q.IntermediaryCode));
+        if (afterId is { } after)
+        {
+            quotes = quotes.Where(q => q.Id.CompareTo(after) > 0);
+        }
+
+        return await quotes.OrderBy(q => q.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> Services(ExternalSubject broker, Guid partyId, CancellationToken cancellationToken)
+    {
+        var codes = broker.IntermediaryCodes.ToList();
+        return await db.Quotes.AnyAsync(q => q.ProposerPartyId == partyId && q.IntermediaryCode != null && codes.Contains(q.IntermediaryCode), cancellationToken)
+            || await db.Policies.AnyAsync(p => p.PolicyholderPartyId == partyId && p.IntermediaryCode != null && codes.Contains(p.IntermediaryCode), cancellationToken);
+    }
+}

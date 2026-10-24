@@ -143,3 +143,31 @@ internal sealed class HealthLists(HealthDbContext db, IExecutionContext executio
         return summaries;
     }
 }
+
+/// <summary>A provider's own claims and remittances, for the provider portal (external-user access §2).</summary>
+internal sealed class HealthPortalQueries(HealthDbContext db) : IHealthPortalQueries
+{
+    public async Task<IReadOnlyList<Domain.Care.MedicalClaim>> ProviderClaims(string providerId, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var claims = db.Claims.AsNoTracking().Include(c => c.Lines).Where(c => c.ProviderId == providerId);
+        if (afterId is { } after)
+        {
+            claims = claims.Where(c => c.Id.CompareTo(after) > 0);
+        }
+
+        return await claims.OrderBy(c => c.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<PortalRemittanceView>> ProviderRemittances(string providerId, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var runs = db.Runs.AsNoTracking().SelectMany(r => r.Remittances.Where(x => x.ProviderId == providerId),
+            (r, x) => new { x.Id, r.RunCode, x.Amount, x.ClaimCount, r.Currency, x.PaymentId, x.PaidOn });
+        if (afterId is { } after)
+        {
+            runs = runs.Where(x => x.Id.CompareTo(after) > 0);
+        }
+
+        return (await runs.OrderBy(x => x.Id).Take(limit).ToListAsync(cancellationToken))
+            .Select(x => new PortalRemittanceView(x.Id, x.RunCode, x.Amount, x.ClaimCount, x.Currency, x.PaymentId, x.PaidOn)).ToList();
+    }
+}

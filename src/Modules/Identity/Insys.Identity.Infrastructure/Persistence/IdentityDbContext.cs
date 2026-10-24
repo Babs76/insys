@@ -73,6 +73,20 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             user.Navigation(u => u.RoleAssignments).UsePropertyAccessMode(PropertyAccessMode.Field);
             user.HasMany(u => u.Sessions).WithOne().HasForeignKey(s => new { s.TenantId, s.UserId });
             user.Navigation(u => u.Sessions).UsePropertyAccessMode(PropertyAccessMode.Field);
+            user.HasMany(u => u.SubjectLinks).WithOne().HasForeignKey(l => new { l.TenantId, l.UserId });
+            user.Navigation(u => u.SubjectLinks).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<SubjectLink>(link =>
+        {
+            link.ToTable("user_subject_link");
+            link.HasKey(l => new { l.TenantId, l.Id });
+            link.HasAuditColumns();
+            link.Ignore(l => l.Key);
+            link.Property(l => l.Kind).HasConversion(new UpperCaseEnumConverter<SubjectKind>()).HasMaxLength(12);
+            link.Property(l => l.Status).HasConversion(new UpperCaseEnumConverter<SubjectLinkStatus>()).HasMaxLength(10);
+            link.Property(l => l.IntermediaryCode).HasMaxLength(15);
+            link.Property(l => l.ProviderId).HasMaxLength(15);
         });
 
         modelBuilder.Entity<RoleAssignment>(assignment =>

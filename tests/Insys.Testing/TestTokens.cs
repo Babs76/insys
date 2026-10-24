@@ -46,7 +46,8 @@ public static class TestTokens
 
     /// <summary>A token valid around <paramref name="now"/>, for a host whose clock is fixed (business date tests).</summary>
     /// <param name="clientId">The OAuth client the token was issued to (azp), which names the request's channel (F005).</param>
-    public static string For(Guid? tenantId, string subject, DateTime now, string? clientId = null)
+    /// <param name="multiFactor">Whether the token shows a second factor (amr otp), as Keycloak's AMR mapper adds after OTP (external-user access §6).</param>
+    public static string For(Guid? tenantId, string subject, DateTime now, string? clientId = null, bool multiFactor = false)
     {
         var claims = new List<Claim> { new("sub", subject) };
         if (tenantId is not null)
@@ -57,6 +58,12 @@ public static class TestTokens
         if (clientId is not null)
         {
             claims.Add(new Claim("azp", clientId));
+        }
+
+        if (multiFactor)
+        {
+            claims.Add(new Claim("amr", "pwd"));
+            claims.Add(new Claim("amr", "otp"));
         }
 
         return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor

@@ -26,6 +26,7 @@
  */
 using System.Text.Json;
 using Insys.BuildingBlocks.Api;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.Health.Api.StaticData;
 using Insys.Health.Application;
@@ -81,6 +82,8 @@ public sealed class HealthModule : IModule
         MapMembers(health);
         MapCare(health);
         MapRuns(health);
+
+        MapPortal(api.MapGroup("/portal/health").WithTags(Name));
     }
 
     private static void MapMembers(RouteGroupBuilder health)
@@ -306,4 +309,73 @@ public sealed class HealthModule : IModule
         var size = Cursor.ClampLimit(limit);
         return (await query(after, size)).ToHttp(items => Results.Ok(new CursorPage<T>(items, items.Count == size ? Cursor.Encode(id(items[^1])) : null)));
     }
+
+    /// <summary>
+    /// The member and provider portals (external-user access): a member's membership; a provider's own claims,
+    /// preauthorisations and remittances. A provider submits only as itself.
+    /// </summary>
+    private static void MapPortal(RouteGroupBuilder portal)
+    {
+        const string member = BuildingBlocks.Application.Context.ExternalSubject.Party, provider = BuildingBlocks.Application.Context.ExternalSubject.Provider;
+        portal.MapGet("/memberships/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalMembership(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalMembershipView>(StatusCodes.Status200OK)
+            .WithName("PortalHealthGetMembership").WithSummary("The member's membership (principal or dependant)").RequirePermission(HealthPermissions.MembershipRead)
+            .ForPortal(member);
+        portal.MapGet("/claims", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalMedicalClaims(after, size), ct), c => c.Id))
+            .Produces<CursorPage<PortalMedicalClaimView>>(StatusCodes.Status200OK)
+            .WithName("PortalHealthListClaims").WithSummary("The provider's own claims").RequirePermission(HealthPermissions.ClaimRead).ForPortal(provider);
+        portal.MapGet("/claims/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalMedicalClaim(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalMedicalClaimView>(StatusCodes.Status200OK)
+            .WithName("PortalHealthGetClaim").WithSummary("A claim of the provider's").RequirePermission(HealthPermissions.ClaimRead).ForPortal(provider);
+        portal.MapPost("/claims", async (PortalMedicalClaimRequest r, IDispatcher d, IExecutionContext execution, CancellationToken ct) =>
+                {
+                    var patient = await d.Query(new PortalPatientOf(r.MemberNumber, r.DependantSuffix), ct);
+                    if (patient.IsFailure)
+                    {
+                        return patient.ToHttp(_ => Results.Ok());
+                    }
+
+                    var submitted = await d.Send(new SubmitMedicalClaim(Domain.Care.ClaimSources.Provider, execution.External!.ProviderId, patient.Value.MembershipId,
+                        patient.Value.PatientPartyId, r.ServiceDate, "PORTAL", r.Currency, r.PreauthorisationId, r.Lines), ct);
+                    return submitted.IsFailure
+                        ? submitted.ToHttp(_ => Results.Ok())
+                        : (await d.Query(new GetPortalMedicalClaim(submitted.Value.Id), ct)).ToHttp(v => Results.Created($"/api/v1/portal/health/claims/{v.Id}", v));
+                })
+            .Produces<PortalMedicalClaimView>(StatusCodes.Status201Created)
+            .WithName("PortalHealthSubmitClaim").WithSummary("A provider submits a claim, as itself").RequirePermission(HealthPermissions.ClaimCreate)
+            .RequireIdempotencyKey().ForPortal(provider);
+        portal.MapGet("/preauthorisations/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new GetPortalPreauthorisation(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalPreauthorisationView>(StatusCodes.Status200OK)
+            .WithName("PortalHealthGetPreauthorisation").WithSummary("A preauthorisation of the provider's").RequirePermission(HealthPermissions.PreauthRead).ForPortal(provider);
+        portal.MapPost("/preauthorisations", async (PortalPreauthorisationRequest r, IDispatcher d, IExecutionContext execution, CancellationToken ct) =>
+                {
+                    var patient = await d.Query(new PortalPatientOf(r.MemberNumber, r.DependantSuffix), ct);
+                    if (patient.IsFailure)
+                    {
+                        return patient.ToHttp(_ => Results.Ok());
+                    }
+
+                    var requested = await d.Send(new RequestAuthorisation(patient.Value.MembershipId, patient.Value.PatientPartyId, execution.External!.ProviderId!,
+                        r.DiagnosisCodes, r.ServiceType, r.Lines), ct);
+                    return requested.IsFailure
+                        ? requested.ToHttp(_ => Results.Ok())
+                        : (await d.Query(new GetPortalPreauthorisation(requested.Value.Id), ct)).ToHttp(v => Results.Created($"/api/v1/portal/health/preauthorisations/{v.Id}", v));
+                })
+            .Produces<PortalPreauthorisationView>(StatusCodes.Status201Created)
+            .WithName("PortalHealthRequestAuthorisation").WithSummary("A provider requests a preauthorisation, as itself").RequirePermission(HealthPermissions.PreauthCreate)
+            .RequireIdempotencyKey().ForPortal(provider);
+        portal.MapGet("/remittances", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalRemittances(after, size), ct), r => r.Id))
+            .Produces<CursorPage<PortalRemittanceView>>(StatusCodes.Status200OK)
+            .WithName("PortalHealthListRemittances").WithSummary("The provider's remittances").RequirePermission(HealthPermissions.RunRead).ForPortal(provider);
+    }
 }
+
+public sealed record PortalMedicalClaimRequest(string MemberNumber, string? DependantSuffix, DateOnly ServiceDate, string Currency, Guid? PreauthorisationId,
+    IReadOnlyList<Domain.Care.ClaimLineRequest> Lines);
+
+public sealed record PortalPreauthorisationRequest(string MemberNumber, string? DependantSuffix, IReadOnlyList<string> DiagnosisCodes, string ServiceType,
+    IReadOnlyList<Domain.Care.PreauthLineRequest> Lines);
+

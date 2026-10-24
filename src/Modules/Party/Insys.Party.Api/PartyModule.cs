@@ -291,6 +291,17 @@ public sealed class PartyModule : IModule
             .WithDescription("The merged party becomes read-only and points to the survivor; the merge is kept in an auditable history (PTY-004).")
             .RequirePermission(PartyPermissions.PartyMerge)
             .RequireIdempotencyKey();
+
+        api.MapGroup("/portal/party").WithTags(Name).MapPost("/parties", async (RegisterPartyThroughPortal r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(r, ct)).ToHttp(v => Results.Accepted($"/api/v1/portal/party/parties/{v.Id}", v)))
+            .Produces<PortalRegistration>(StatusCodes.Status202Accepted)
+            .WithName("PortalPartyRegister")
+            .WithSummary("A broker registers a new client")
+            .WithDescription("External-user access §6: the answer is the same whether or not the person matches an existing party (POPIA). A match goes to "
+                + "staff review (PARTY_MATCH_REVIEW) instead of a duplicate error.")
+            .RequirePermission(PartyPermissions.PartyCreate)
+            .RequireIdempotencyKey()
+            .ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Intermediary);
     }
 
     private static async Task<IResult> Versioned(HttpContext http, Func<long, Task<BuildingBlocks.Domain.Result<long>>> send)

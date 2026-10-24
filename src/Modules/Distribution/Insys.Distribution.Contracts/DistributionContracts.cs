@@ -74,6 +74,15 @@ public sealed record IntermediaryRefusal(string Code, string Message);
 public interface IIntermediaries
 {
     Task<IntermediaryRefusal?> CanSell(Guid tenantId, string intermediaryCode, string productCode, string transaction, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>Whether the intermediary is in the register in force, ACTIVE and holding a licence number (for linking a broker portal user to it).</summary>
+    Task<bool> IsActiveAndLicensed(Guid tenantId, string intermediaryCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The intermediary and every intermediary below it in the distribution hierarchy: a broker firm's principal sees its
+    /// sub-brokers' clients (external-user access, decided 24 October 2026).
+    /// </summary>
+    Task<IReadOnlySet<string>> WithSubBrokers(Guid tenantId, string intermediaryCode, DateOnly day, CancellationToken cancellationToken);
 }
 
 public static class IntermediaryTransactions

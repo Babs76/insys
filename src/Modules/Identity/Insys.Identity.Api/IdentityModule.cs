@@ -47,6 +47,8 @@ public sealed record ProvisionUserRequest(string Username, string DisplayName, s
 public sealed record ProvisionTenantAdministratorRequest(Guid TenantId, string Username, string DisplayName, string IdpCode, string ExternalSubject,
     bool MfaEnrolled, string[] Permissions);
 
+public sealed record SubjectLinkRequest(Domain.Users.SubjectKind Kind, Guid? PartyId, string? IntermediaryCode, string? ProviderId);
+
 public sealed record AssignRoleRequest(string RoleCode, DateOnly? ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches);
 
 public sealed record RevokeRoleRequest(string RoleCode);
@@ -82,7 +84,9 @@ public sealed class IdentityModule : IModule
             .Produces<MeView>(StatusCodes.Status200OK)
             .WithName("GetMe")
             .WithSummary("The signed-in user: profile, tenant, languages, role assignments and effective permissions with their scopes (GAP-003)")
-            .RequireSignedInUser();
+            .RequireSignedInUser()
+            .ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party, BuildingBlocks.Application.Context.ExternalSubject.Intermediary,
+                BuildingBlocks.Application.Context.ExternalSubject.Provider);
 
         me.MapPut("/preferred-language", (PreferredLanguageRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new ChangeMyPreferredLanguage(request.Language, v), ct)))
@@ -152,6 +156,32 @@ public sealed class IdentityModule : IModule
             .Produces<UserView>(StatusCodes.Status200OK)
             .WithName("GetUser")
             .WithSummary("Get a user with its role assignments")
+            .RequirePermission(IdentityPermissions.UserRead);
+
+        users.MapPost("/{id:guid}/subject-link", (Guid id, SubjectLinkRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new LinkSubject(id, request.Kind, request.PartyId, request.IntermediaryCode, request.ProviderId, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("IdentityLinkSubject")
+            .WithSummary("Link an external user to the party, intermediary or provider they are")
+            .WithDescription("External-user access §1: one link per user, to a party (member portal), an intermediary (broker portal, active and licensed) or a "
+                + "provider (provider portal). It gives nothing until a second person approves it.")
+            .WithEventualEffects("the EXTERNAL_SUBJECT_LINK approval appears in Workflow; the link stays Pending until it is decided.")
+            .RequirePermission(IdentityPermissions.UserUpdate);
+
+        users.MapPost("/{id:guid}/subject-link/end", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new EndSubjectLink(id, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("IdentityEndSubjectLink")
+            .WithSummary("End an external user's link: their next request is already without it")
+            .RequirePermission(IdentityPermissions.UserUpdate);
+
+        users.MapGet("/{id:guid}/subject-link", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetSubjectLink(id), ct)).ToHttp(Results.Ok))
+            .Produces<SubjectLinkView>(StatusCodes.Status200OK)
+            .WithName("IdentityGetSubjectLink")
+            .WithSummary("An external user's link pending or in effect")
             .RequirePermission(IdentityPermissions.UserRead);
 
         users.MapPost("/{id:guid}/assign-role", (Guid id, AssignRoleRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

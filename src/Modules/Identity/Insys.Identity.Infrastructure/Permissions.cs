@@ -94,6 +94,7 @@ public sealed class PrincipalResolver(
     PermissionCache cache,
     ITenantStatusQuery tenants,
     IOrganisationStructure organisation,
+    Distribution.Contracts.IIntermediaries intermediaries,
     IClock clock) : IPrincipalResolver
 {
     private static readonly string[] RoleStatuses = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RolesAndPermissionSets)).Lifecycle.InForce;
@@ -187,8 +188,28 @@ public sealed class PrincipalResolver(
             }
         }
 
+        // An external user's approved link (external-user-access.md §1); a broker's codes include its sub-brokers' (§2).
+        (string Kind, Guid? Party, string? Intermediary, string? Provider)? link = null;
+        await using (var linked = new NpgsqlCommand("""
+            SELECT kind, party_id, intermediary_code, provider_id FROM iam.user_subject_link WHERE tenant_id = @t AND user_id = @id AND status = 'ACTIVE'
+            """, connection, transaction))
+        {
+            linked.Parameters.AddWithValue("t", tenantId);
+            linked.Parameters.AddWithValue("id", userId);
+            await using var reader = await linked.ExecuteReaderAsync(cancellationToken);
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                link = (reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetString(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3));
+            }
+        }
+
         await transaction.CommitAsync(cancellationToken);
-        return new ResolvedPrincipal(userId, permissions, await Grants(tenantId, scoped, cancellationToken), roles);
+        var external = link is { } l
+            ? new ExternalSubject(l.Kind, l.Party, l.Intermediary,
+                l.Intermediary is { } code ? await intermediaries.WithSubBrokers(tenantId, code, clock.UtcToday, cancellationToken) : new HashSet<string>(), l.Provider)
+            : null;
+        return new ResolvedPrincipal(userId, permissions, await Grants(tenantId, scoped, cancellationToken), roles, external);
     }
 
     /// <summary>
@@ -225,6 +246,7 @@ public sealed class PrincipalResolver(
 /// <summary>Drops cached permissions when a role or user changes anywhere, or the tenant is suspended (iam consumes TenantSuspended).</summary>
 internal sealed class PermissionCacheInvalidation(IPermissionCache cache) :
     IIntegrationEventHandler<Contracts.RoleAssigned>,
+    IIntegrationEventHandler<Contracts.SubjectLinkChanged>,
     IIntegrationEventHandler<Contracts.RoleRevoked>,
     IIntegrationEventHandler<Contracts.UserDisabled>,
     IIntegrationEventHandler<TenantSuspended>
@@ -235,11 +257,47 @@ internal sealed class PermissionCacheInvalidation(IPermissionCache cache) :
 
     public Task Handle(Contracts.UserDisabled integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken) => Evict(envelope);
 
+    public Task Handle(Contracts.SubjectLinkChanged integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken) => Evict(envelope);
+
     public Task Handle(TenantSuspended integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken) => Evict(envelope);
 
     private Task Evict(EventEnvelope envelope)
     {
         cache.EvictTenant(envelope.TenantId);
         return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// Whether a portal client's authentication policy requires MFA (external-user access §6): a policy in force whose
+/// client_ids hold the client and whose mfa_required is set. Read on Identity's own connection.
+/// </summary>
+internal sealed class PortalAuthentication([FromKeyedServices(IdentityDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPortalAuthentication
+{
+    private static readonly string[] Statuses =
+        IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(AuthenticationAndSessionPolicies)).Lifecycle.InForce;
+
+    public async Task<bool> MfaRequired(Guid tenantId, string? clientId, DateOnly day, CancellationToken cancellationToken)
+    {
+        if (clientId is null)
+        {
+            return false;
+        }
+
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT EXISTS (SELECT 1 FROM iam.cfg_authentication_and_session_policies
+                           WHERE (tenant_id = @t OR tenant_id IS NULL) AND @c = ANY(client_ids) AND mfa_required
+                             AND record_status = ANY(@s) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day))
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("c", clientId);
+        command.Parameters.AddWithValue("s", Statuses);
+        command.Parameters.AddWithValue("day", day);
+        var required = await command.ExecuteScalarAsync(cancellationToken) is true;
+        await transaction.CommitAsync(cancellationToken);
+        return required;
     }
 }

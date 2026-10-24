@@ -31,8 +31,9 @@ namespace Insys.BuildingBlocks.Application.Context;
 /// <param name="Permissions">Permission codes from the user's current role assignments.</param>
 /// <param name="Grants">Per permission, the reach of each assignment giving it (F103); a permission missing here is unrestricted.</param>
 /// <param name="RoleCodes">The roles in effect, for channel permission rows (F005).</param>
+/// <param name="External">The party, intermediary or provider an external user is, from their approved link; null for staff.</param>
 public sealed record ResolvedPrincipal(Guid UserId, IReadOnlySet<string> Permissions, IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? Grants = null,
-    IReadOnlyCollection<string>? RoleCodes = null);
+    IReadOnlyCollection<string>? RoleCodes = null, ExternalSubject? External = null);
 
 /// <summary>
 /// Resolves a token's subject to a user and permissions, per request, from IAM role assignments. Access tokens carry

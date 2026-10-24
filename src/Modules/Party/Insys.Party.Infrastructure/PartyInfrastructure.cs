@@ -56,6 +56,7 @@ public static class PartyInfrastructure
         services.AddSingleton<IBankAccounts>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddSingleton<IBankAccountDetails>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddSingleton<IPersonFacts>(sp => sp.GetRequiredService<BankAccountQueries>());
+        services.AddSingleton<IPartyDirectory>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddSingleton<IPartyLanguage>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, BankAccountVerificationPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, BankAccountVerificationPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalRejected");

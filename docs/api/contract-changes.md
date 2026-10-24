@@ -2,7 +2,43 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 0b batch 4 (branch `wave0b-4`, not merged): Health products; Health payment runs scoped; F062 follow-ups
+## Wave 0b batch 5 (branch `wave0b-5`, not merged): external-user access; Health product follow-ups
+
+### New endpoints
+
+| Endpoint | Permission | Portal |
+|---|---|---|
+| `POST /api/v1/identity/users/{id}/subject-link` `{kind, partyId \| intermediaryCode \| providerId}` (If-Match) | `user.update` | Staff: link an external user; pending until a second person approves (`EXTERNAL_SUBJECT_LINK` in Workflow) |
+| `POST /api/v1/identity/users/{id}/subject-link/end` (If-Match) | `user.update` | Staff: end it at once |
+| `GET /api/v1/identity/users/{id}/subject-link` | `user.read` | Staff |
+| `GET /api/v1/portal/general/policies`, `…/policies/{id}` | `general_policy.read` | Member (policyholder), broker (its codes and sub-brokers') |
+| `GET /api/v1/portal/general/quotes`, `…/quotes/{id}`; `POST …/quotes` | `general_quote.read`, `.create` | Broker: quotes under its own code, for a client it services or registered |
+| `GET /api/v1/portal/general/claims/{id}`; `POST …/claims` | `general_claim.read`, `.create` | Member (own policy; notify), broker (read) |
+| `GET /api/v1/portal/life/policies/{id}` | `life_policy.read` | Member (policyholder or insured life; beneficiaries to the policyholder only), broker |
+| `GET /api/v1/portal/health/memberships/{id}` | `health_membership.read` | Member (principal or dependant) |
+| `GET /api/v1/portal/health/claims`, `…/claims/{id}`; `POST …/claims` `{memberNumber, dependantSuffix?, …}` | `medical_claim.read`, `.create` | Provider, as itself |
+| `GET /api/v1/portal/health/preauthorisations/{id}`; `POST …/preauthorisations` | `health_preauthorisation.read`, `.create` | Provider, as itself |
+| `GET /api/v1/portal/health/remittances` | `provider_payment_run.read` | Provider |
+| `POST /api/v1/portal/party/parties` → 202 `{id, status: "Received"}` | `party.create` | Broker: register a client |
+
+### Changed responses
+- **`/identity/me`** gains `external` `{kind, partyId, intermediaryCode, providerId}` for an external user; null for staff. It is open to all three portals.
+
+### Changed behaviour
+- **External users** (a user with an approved link):
+  - only their portal's endpoints: anything else is 403 `EXTERNAL_USER_NOT_ALLOWED`;
+  - only through the channel of their audience (member: CUSTOMER, broker: BROKER, provider: PROVIDER): otherwise 403 `CHANNEL_NOT_ENABLED`;
+  - brokers and providers must show MFA in the token (`amr` otp/mfa/hwk/swk, or `acr` ≥ 2); members too where the member portal's authentication policy says so (`client_ids`, `mfa_required`). Otherwise 403 `PORTAL_MFA_REQUIRED`.
+- **Records outside the relationship** read as not found and are refused for actions. Portal views leave out internal fields.
+- **A portal registration matching an existing party** (identity document, or name and birth date) gets the same 202 answer as a new one, and a staff review task (`PARTY_MATCH_REVIEW`, queue `PARTY_REVIEW`).
+- **Health:**
+  - a membership given its plan's product later raises `health.MembershipProductAssigned`, and Billing gives its schedules the product;
+  - `/health` `health-plan-products` lists every plan option whose product is missing, unknown, not a Health product, or differs from the plan's other options.
+
+### Static data
+- **`iam.cfg_authentication_and_session_policies`** gains `clientIds` and `mfaRequired`.
+
+## Wave 0b batch 4 (merged, `537f4cb`): Health products; Health payment runs scoped; F062 follow-ups
 
 ### Changed requests
 - **Health plan options** (`/api/v1/health/static/plans-and-options`) gain `productCode`: the Product Factory product (domain `HEALTH`) the plan is sold as.

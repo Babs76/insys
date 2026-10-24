@@ -56,6 +56,20 @@ internal sealed class ChannelPolicy(IntegrationDbContext db) : IChannelPolicy
         return decision;
     }
 
+    public async Task<(string Code, string Audience)?> ChannelOf(Guid tenantId, string? clientId, DateOnly day, CancellationToken cancellationToken)
+    {
+        if (clientId is null)
+        {
+            return null;
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var channel = (await InForce<ChannelDefinitions>(day).ToListAsync(cancellationToken))
+            .FirstOrDefault(c => c.ClientIds?.Contains(clientId, StringComparer.Ordinal) == true);
+        await transaction.CommitAsync(cancellationToken);
+        return channel is null ? null : (channel.ChannelCode, channel.Audience);
+    }
+
     private async Task<ChannelDecision> DecideInTenant(string? clientId, string transactionType, IReadOnlyCollection<string> roleCodes, DateOnly day,
         CancellationToken cancellationToken)
     {

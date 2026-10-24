@@ -34,7 +34,7 @@ namespace Insys.Party.Infrastructure.Persistence;
 
 /// <summary>Bank accounts, birth dates and preferred languages for other modules, on the Party module's own connection: status, hash and last four digits.</summary>
 internal sealed class BankAccountQueries([FromKeyedServices(PartyDbContext.SchemaName)] NpgsqlDataSource dataSource, IFieldProtector protector)
-    : IBankAccounts, IBankAccountDetails, IPersonFacts, IPartyLanguage
+    : IBankAccounts, IBankAccountDetails, IPersonFacts, IPartyLanguage, IPartyDirectory
 {
     private const string Columns =
         "id, party_id, currency, status, account_number_hash, account_number_last4, account_number_enc, bank_code, branch_code, account_holder_name, account_type";
@@ -56,6 +56,14 @@ internal sealed class BankAccountQueries([FromKeyedServices(PartyDbContext.Schem
     public async Task<DateOnly?> BirthDate(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
         (await Query(tenantId, "SELECT birth_date FROM party.individual WHERE tenant_id = @t AND party_id = @id", partyId,
             r => (object)r.GetFieldValue<DateOnly>(0), cancellationToken)) as DateOnly?;
+
+    public async Task<bool> Exists(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
+        await Query(tenantId, "SELECT id FROM party.party WHERE tenant_id = @t AND id = @id AND merged_into_id IS NULL", partyId, r => (object)r.GetGuid(0),
+            cancellationToken) is not null;
+
+    public async Task<string?> RegisteredBy(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
+        await Query(tenantId, "SELECT registered_by FROM party.party WHERE tenant_id = @t AND id = @id", partyId, r => r.IsDBNull(0) ? null : r.GetString(0),
+            cancellationToken);
 
     public async Task<string?> PreferredLanguage(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
         (await Query(tenantId, "SELECT preferred_language FROM party.individual WHERE tenant_id = @t AND party_id = @id", partyId,

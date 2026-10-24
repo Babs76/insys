@@ -140,6 +140,64 @@ internal sealed class DistributionCodes(DistributionDbContext db) : IDistributio
 /// <summary>DST-001 for the policy domains, on Distribution's own connection: the register's status and a permission in force.</summary>
 internal sealed class Intermediaries([FromKeyedServices(DistributionDbContext.SchemaName)] NpgsqlDataSource dataSource) : IIntermediaries
 {
+    public async Task<bool> IsActiveAndLicensed(Guid tenantId, string intermediaryCode, DateOnly day, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT status = 'ACTIVE' AND jsonb_typeof(licence_numbers) IN ('array', 'object') AND licence_numbers NOT IN ('[]'::jsonb, '{}'::jsonb)
+            FROM commission.mst_intermediary_register
+            WHERE tenant_id = @t AND intermediary_code = @i AND record_status = ANY(@reference) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
+            ORDER BY version DESC LIMIT 1
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("i", intermediaryCode);
+        command.Parameters.AddWithValue("reference", StaticLifecycle.Reference.InForce);
+        command.Parameters.AddWithValue("day", day);
+        var standing = await command.ExecuteScalarAsync(cancellationToken) is true;
+        await transaction.CommitAsync(cancellationToken);
+        return standing;
+    }
+
+    public async Task<IReadOnlySet<string>> WithSubBrokers(Guid tenantId, string intermediaryCode, DateOnly day, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            WITH RECURSIVE register AS (
+              SELECT DISTINCT ON (intermediary_code) intermediary_code, hierarchy_node::text AS hierarchy_node FROM commission.mst_intermediary_register
+              WHERE tenant_id = @t AND record_status = ANY(@reference) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
+              ORDER BY intermediary_code, version DESC),
+            hierarchy AS (
+              SELECT DISTINCT ON (node_code) node_code::text AS node_code, parent::text AS parent FROM commission.cfg_distribution_hierarchy
+              WHERE tenant_id = @t AND record_status = ANY(@config) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
+              ORDER BY node_code, version DESC),
+            below (node_code) AS (
+              SELECT hierarchy_node FROM register WHERE intermediary_code = @i
+              UNION SELECT h.node_code FROM hierarchy h JOIN below b ON h.parent = b.node_code)
+            SELECT intermediary_code FROM register
+            WHERE intermediary_code = @i OR hierarchy_node IN (SELECT node_code FROM below WHERE node_code <> (SELECT hierarchy_node FROM register WHERE intermediary_code = @i))
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("i", intermediaryCode);
+        command.Parameters.AddWithValue("reference", StaticLifecycle.Reference.InForce);
+        command.Parameters.AddWithValue("config", StaticLifecycle.Configuration.InForce);
+        command.Parameters.AddWithValue("day", day);
+        var codes = new HashSet<string>(StringComparer.Ordinal) { intermediaryCode };
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                codes.Add(reader.GetString(0));
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return codes;
+    }
+
     public async Task<IntermediaryRefusal?> CanSell(Guid tenantId, string intermediaryCode, string productCode, string transaction, DateOnly day,
         CancellationToken cancellationToken)
     {

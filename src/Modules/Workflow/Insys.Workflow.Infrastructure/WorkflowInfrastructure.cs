@@ -63,6 +63,7 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<Integration.Contracts.ParkedDeliveryEscalated, OpenParkedDeliveryTask, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<ClaimsFramework.Contracts.FraudIndicatorsNotEvaluated, OpenConfigurationReviewTask, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<ClaimsFramework.Contracts.ClaimPaymentReleaseHeld, OpenHeldClaimPaymentTask, WorkflowDbContext>(schema);
+        services.AddIntegrationEventHandler<Party.Contracts.PartyMatchReviewRequested, OpenPartyMatchReviewTask, WorkflowDbContext>(schema);
 
         services.AddSingleton<WorkflowJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)

@@ -57,6 +57,9 @@ public enum PartyTrigger
 public sealed record IndividualData(string? TitleCode, string FirstNames, string Surname, DateOnly BirthDate, string? GenderCode, string? MaritalStatusCode,
     string? Nationality, string? PreferredLanguage);
 
+/// <summary>A portal registration matched an existing party: staff link the two or confirm a new one (external-user access §6).</summary>
+public sealed record PartyMatchReviewRequested(Guid PartyId, Guid MatchedPartyId, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>The details of an organisation (party.organisation).</summary>
 public sealed record OrganisationData(string LegalName, string? TradingName, string LegalFormCode, string? RegistrationNumber, string? IndustryCode);
 
@@ -492,6 +495,28 @@ public sealed class Party : AggregateRoot<Guid>
     public PartyStatus Status { get; private set; }
 
     public Guid? MergedIntoId { get; private set; }
+
+    /// <summary>PENDING_REVIEW for a portal registration that matched an existing party, until staff resolve it (external-user access §6).</summary>
+    public string? ReviewStatus { get; private set; }
+
+    /// <summary>Who registered the party through a portal ("INTERMEDIARY:BRK-1"); null for staff registrations.</summary>
+    public string? RegisteredBy { get; private set; }
+
+    /// <summary>
+    /// A registration through a portal: who made it, and, when it matched an existing party, a staff review instead of a
+    /// duplicate error, so the portal user cannot learn that someone is already a client (POPIA).
+    /// </summary>
+    public void RegisteredThroughPortal(string registeredBy, Guid? matchedPartyId, DateTimeOffset now)
+    {
+        RegisteredBy = Guard.MaxLength(registeredBy, 40);
+        if (matchedPartyId is { } matched)
+        {
+            ReviewStatus = "PENDING_REVIEW";
+            Raise(new PartyMatchReviewRequested(Id, matched, now));
+        }
+
+        MarkChanged();
+    }
 
     public Individual? Individual { get; private set; }
 

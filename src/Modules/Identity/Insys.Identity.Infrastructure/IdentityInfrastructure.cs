@@ -52,6 +52,7 @@ public static class IdentityInfrastructure
         services.AddOptions<PermissionCacheOptions>().BindConfiguration("Identity:PermissionCache");
         services.AddSingleton<PermissionCache>();
         services.AddSingleton<IPermissionCache>(sp => sp.GetRequiredService<PermissionCache>());
+        services.AddSingleton<BuildingBlocks.Application.Context.IPortalAuthentication, PortalAuthentication>();
         services.AddSingleton<IPrincipalResolver, PrincipalResolver>();
         services.AddSingleton<Contracts.IUserRoleQuery, UserRoleQuery>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
@@ -60,6 +61,7 @@ public static class IdentityInfrastructure
             services.AddHostedService<SingleInstanceGuard>();
         }
         services.AddIntegrationEventHandler<Contracts.RoleAssigned, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "RoleAssigned");
+        services.AddIntegrationEventHandler<Contracts.SubjectLinkChanged, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "SubjectLinkChanged");
         services.AddIntegrationEventHandler<Contracts.RoleRevoked, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "RoleRevoked");
         services.AddIntegrationEventHandler<Contracts.UserDisabled, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "UserDisabled");
         services.AddIntegrationEventHandler<TenantSuspended, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "TenantSuspended");

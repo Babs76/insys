@@ -49,6 +49,9 @@ public interface IPartyRepository
 
     Task<bool> IdentifierExists(string docType, string country, string hash, CancellationToken cancellationToken);
 
+    /// <summary>An existing party the person may be: by identity document, or by a close name match with the same birth date (external-user access §6).</summary>
+    Task<Guid?> Match(IndividualData person, (string DocType, string Country, string Hash)? identifier, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ConsentRecord>> Consents(Guid partyId, CancellationToken cancellationToken);
 
     void Add(Domain.Parties.Party party);

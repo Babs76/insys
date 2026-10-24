@@ -169,3 +169,9 @@ public sealed record RemittanceReleased(Guid RemittanceId, string ProviderId, Gu
 [IntegrationEvent("health.ProviderPaymentRunReleased")]
 public sealed record ProviderPaymentRunReleased(Guid RunId, string RunCode, decimal Total, string Currency, IReadOnlyList<RemittanceReleased> Remittances, DateOnly ReleasedOn,
     string? RemittanceTemplate = null) : IIntegrationEvent;
+
+/// <summary>Public query interface: whether a provider is in the provider register in force and ACTIVE (for linking a provider portal user to it).</summary>
+public interface IProviderDirectory
+{
+    Task<bool> IsActive(Guid tenantId, string providerId, DateOnly day, CancellationToken cancellationToken);
+}

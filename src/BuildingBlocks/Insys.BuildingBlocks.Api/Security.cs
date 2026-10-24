@@ -279,6 +279,16 @@ public sealed record PlatformOperatorEndpointMetadata;
 /// </summary>
 public sealed class ExecutionScopeMiddleware(RequestDelegate next)
 {
+    private static readonly string[] SecondFactors = ["otp", "mfa", "hwk", "swk"];
+
+    /// <summary>
+    /// Whether the token shows a second factor: Keycloak's amr claim (with the "Authentication Method Reference (AMR)"
+    /// mapper) naming one, or an acr level of 2 or above (step-up authentication levels of assurance).
+    /// </summary>
+    private static bool MultiFactor(ClaimsPrincipal user) =>
+        user.FindAll("amr").Any(c => SecondFactors.Contains(c.Value, StringComparer.OrdinalIgnoreCase))
+        || (int.TryParse(user.FindFirstValue("acr"), out var level) && level >= 2);
+
     public const string CorrelationHeader = "X-Correlation-Id";
 
     public async Task InvokeAsync(HttpContext context, ExecutionScope scope)
@@ -294,6 +304,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
         IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? grants = null;
         Guid? memberOf = null;
         IReadOnlyCollection<string>? roles = null;
+        ExternalSubject? external = null;
         if (tenantId is not null && subject is not null && context.RequestServices.GetService<IPrincipalResolver>() is { } resolver)
         {
             var principal = await resolver.Resolve(tenantId.Value, subject, context.RequestAborted);
@@ -303,6 +314,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
                 permissions = principal.Permissions;
                 grants = principal.Grants;
                 roles = principal.RoleCodes;
+                external = principal.External;
                 memberOf = tenantId;
                 context.Items[TenantMemberRequirement.MemberItem] = true;
             }
@@ -313,7 +325,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
         await RequestLanguageResolver.Initialise(context, memberOf);
 
         Guid? correlation = Guid.TryParse(context.Request.Headers[CorrelationHeader], out var c) ? c : null;
-        scope.InitialiseForUser(tenantId, actor, permissions, correlation, grants, user.FindFirstValue(InsysClaims.AuthorisedParty), roles);
+        scope.InitialiseForUser(tenantId, actor, permissions, correlation, grants, user.FindFirstValue(InsysClaims.AuthorisedParty), roles, external, MultiFactor(user));
         context.Response.Headers[CorrelationHeader] = scope.CorrelationId.ToString();
         await next(context);
     }

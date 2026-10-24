@@ -77,6 +77,14 @@ public static class ErrorCodes
     [ErrorCode(403, "error.access.channel_approval_required")]
     public const string ChannelApprovalRequired = "CHANNEL_APPROVAL_REQUIRED";
 
+    /// <summary>External-user access §5: an external user may use only the endpoints of their portal.</summary>
+    [ErrorCode(403, "error.access.external_user_not_allowed")]
+    public const string ExternalUserNotAllowed = "EXTERNAL_USER_NOT_ALLOWED";
+
+    /// <summary>External-user access §6: the portal requires MFA, and the token shows none.</summary>
+    [ErrorCode(403, "error.access.portal_mfa_required")]
+    public const string PortalMfaRequired = "PORTAL_MFA_REQUIRED";
+
     /// <summary>ADR-024: a business module's endpoint was called in the platform operator tenant.</summary>
     [ErrorCode(403, "error.access.operator_tenant_not_business")]
     public const string OperatorTenantNotBusiness = "OPERATOR_TENANT_NOT_BUSINESS";

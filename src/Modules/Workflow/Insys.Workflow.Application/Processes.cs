@@ -469,3 +469,38 @@ public sealed class OpenHeldClaimPaymentTask(IProcessRepository processes, IProc
             }));
     }
 }
+
+/// <summary>
+/// A party registered through a portal matched an existing one (external-user access §6): a review task for the party
+/// administrators, due in one business day, on the built-in process PARTY_MATCH_REVIEW, about the new party. Neither
+/// party's personal details are in the task; the reviewer opens both.
+/// </summary>
+public sealed class OpenPartyMatchReviewTask(IProcessRepository processes, IProcessQueries queries, Contracts.IBusinessTime businessTime, ITenantContext tenant,
+    IClock clock, IAuditTrail audit) : IIntegrationEventHandler<Party.Contracts.PartyMatchReviewRequested>
+{
+    public const string BusinessRefType = "PARTY";
+
+    public const string Queue = "PARTY_REVIEW";
+
+    public async Task Handle(Party.Contracts.PartyMatchReviewRequested requested, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if ((await queries.List(BusinessRefType, requested.PartyId, null, 20, cancellationToken))
+            .Any(p => p.ProcessCode == BuiltInProcesses.PartyMatchReview.ProcessCode && p.Status == ProcessStatus.Running))
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.PartyMatchReview, BusinessRefType, requested.PartyId,
+            _ => new TaskRouting(Queue, null, due), now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
+            new Dictionary<string, string?>
+            {
+                ["process"] = $"{BuiltInProcesses.PartyMatchReview.ProcessCode}@{BuiltInProcesses.PartyMatchReview.Version}",
+                ["party"] = requested.PartyId.ToString(),
+                ["matched"] = requested.MatchedPartyId.ToString(),
+            }));
+    }
+}

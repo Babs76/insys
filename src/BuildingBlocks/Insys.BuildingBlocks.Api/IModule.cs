@@ -67,6 +67,9 @@ public sealed record ChannelScopedMetadata;
 /// <summary>Marks a command that always goes to maker-checker approval, which satisfies a channel's requires_approval (F005 §3).</summary>
 public sealed record ChannelApprovalFlowMetadata;
 
+/// <summary>Marks an endpoint of a portal (external-user access §5): external users of the kinds named may use it, and no other.</summary>
+public sealed record PortalEndpointMetadata(IReadOnlyList<string> Kinds);
+
 public static class ChannelScoping
 {
     public static TBuilder ChannelScoped<TBuilder>(this TBuilder builder)
@@ -74,6 +77,10 @@ public static class ChannelScoping
 
     public static TBuilder HasApprovalFlow<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder => builder.WithMetadata(new ChannelApprovalFlowMetadata());
+
+    /// <summary>The endpoint is for the external users of these kinds (ExternalSubject.Party, .Intermediary, .Provider).</summary>
+    public static TBuilder ForPortal<TBuilder>(this TBuilder builder, params string[] kinds)
+        where TBuilder : IEndpointConventionBuilder => builder.WithMetadata(new PortalEndpointMetadata(kinds));
 }
 
 /// <summary>Marks an endpoint of a business module, which refuses the operator tenant (ADR-024).</summary>
@@ -91,6 +98,11 @@ public static class RequestAccessScope
         {
             var http = context.HttpContext;
             var metadata = http.GetEndpoint()?.Metadata;
+            if (await ExternalUserRefusal(http, metadata) is { } refused)
+            {
+                return refused;
+            }
+
             if (metadata?.GetMetadata<RequiredPermissionMetadata>()?.Permission is { } permission)
             {
                 var scope = http.RequestServices.GetRequiredService<ExecutionScope>();
@@ -125,6 +137,39 @@ public static class RequestAccessScope
             return await next(context);
         });
         return group;
+    }
+
+    /// <summary>
+    /// External-user access §5 and §6, for an external user only: the endpoint is one of their portal's; the request comes
+    /// through the portal channel of their audience; and, where the portal requires it, the token shows MFA.
+    /// </summary>
+    private static async Task<IResult?> ExternalUserRefusal(HttpContext http, EndpointMetadataCollection? metadata)
+    {
+        var scope = http.RequestServices.GetRequiredService<ExecutionScope>();
+        if (scope.External is not { } external || scope.TenantId is not { } tenantId)
+        {
+            return null;
+        }
+
+        if (metadata?.GetMetadata<PortalEndpointMetadata>() is not { } portal || !portal.Kinds.Contains(external.Kind))
+        {
+            return Problems.For(Domain.ErrorCodes.ExternalUserNotAllowed, "This is not an endpoint of your portal.", StatusCodes.Status403Forbidden);
+        }
+
+        var day = http.RequestServices.GetRequiredService<IBusinessDate>().Today;
+        if (http.RequestServices.GetService<IChannelPolicy>() is not { } channels
+            || await channels.ChannelOf(tenantId, scope.ClientId, day, http.RequestAborted) is not { } channel || channel.Audience != external.ChannelAudience)
+        {
+            return Problems.For(Domain.ErrorCodes.ChannelNotEnabled, $"Portal users act only through the {external.ChannelAudience.ToLowerInvariant()} portal.",
+                StatusCodes.Status403Forbidden);
+        }
+
+        var mfa = external.AlwaysNeedsMfa
+            || (http.RequestServices.GetService<IPortalAuthentication>() is { } policies && await policies.MfaRequired(tenantId, scope.ClientId, day, http.RequestAborted));
+        return mfa && !scope.MultiFactor
+            ? Problems.For(Domain.ErrorCodes.PortalMfaRequired, "This portal requires multi-factor authentication; sign in again with your second factor.",
+                StatusCodes.Status403Forbidden)
+            : null;
     }
 }
 

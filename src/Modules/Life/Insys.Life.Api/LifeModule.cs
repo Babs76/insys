@@ -100,6 +100,13 @@ public sealed class LifeModule : IModule
         MapPolicies(life);
         MapClaims(life);
         MapSchemes(life);
+
+        api.MapGroup("/portal/life").WithTags(Name).MapGet("/policies/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new GetPortalLifePolicy(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalLifePolicyView>(StatusCodes.Status200OK)
+            .WithName("PortalLifeGetPolicy").WithSummary("A Life policy of the member (policyholder or insured life) or broker (external-user access)")
+            .RequirePermission(LifePermissions.PolicyRead).ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party,
+                BuildingBlocks.Application.Context.ExternalSubject.Intermediary);
     }
 
     private static void MapProposals(RouteGroupBuilder life)

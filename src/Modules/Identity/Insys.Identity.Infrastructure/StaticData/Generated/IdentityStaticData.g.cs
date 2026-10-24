@@ -66,6 +66,8 @@ public static class IdentityStaticData
             entity.Property(x => x.MfaRequiredRoles).HasColumnName("mfa_required_roles");
             entity.Property(x => x.SessionTimeout).HasColumnName("session_timeout").HasConversion(StaticConverters.Duration).HasColumnType("interval");
             entity.Property(x => x.LockoutAttempts).HasColumnName("lockout_attempts");
+            entity.Property(x => x.ClientIds).HasColumnName("client_ids");
+            entity.Property(x => x.MfaRequired).HasColumnName("mfa_required");
         });
         modelBuilder.Entity<IdentityProviderConfigurations>(entity =>
         {

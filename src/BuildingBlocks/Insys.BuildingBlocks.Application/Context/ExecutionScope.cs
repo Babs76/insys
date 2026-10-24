@@ -73,6 +73,9 @@ public interface IExecutionContext
 
     /// <summary>Why the request's channel refuses a product for this command (F005), or null when it allows it or does not apply.</summary>
     (string Code, string Message)? ChannelRefusal(string? product);
+
+    /// <summary>The party, intermediary or provider an external user is (external-user access); null for staff and services.</summary>
+    ExternalSubject? External { get; }
 }
 
 public sealed class TenantContextMissingException()
@@ -129,6 +132,11 @@ public sealed class ExecutionScope : ITenantContext, IExecutionContext
     /// <summary>The caller's role codes in effect, for the channel's permission rows (F005 §3).</summary>
     public IReadOnlyCollection<string> RoleCodes { get; private set; } = [];
 
+    public ExternalSubject? External { get; private set; }
+
+    /// <summary>Whether the token shows a second factor (amr otp, mfa, hwk or swk, or acr 2 or above), for portal MFA (external-user access §6).</summary>
+    public bool MultiFactor { get; private set; }
+
     /// <summary>Set by the endpoint filter for a channel-scoped command (F005).</summary>
     public void UseChannel(ChannelGate channel) => _channel = channel;
 
@@ -140,12 +148,15 @@ public sealed class ExecutionScope : ITenantContext, IExecutionContext
     }
 
     public void InitialiseForUser(Guid? tenantId, string actorId, IEnumerable<string> permissions, Guid? correlationId,
-        IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? grants = null, string? clientId = null, IReadOnlyCollection<string>? roleCodes = null)
+        IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? grants = null, string? clientId = null, IReadOnlyCollection<string>? roleCodes = null,
+        ExternalSubject? external = null, bool multiFactor = false)
     {
         EnsureNotInitialised();
         _grants = grants;
         ClientId = clientId;
         RoleCodes = roleCodes ?? [];
+        External = external;
+        MultiFactor = multiFactor;
         TenantId = tenantId;
         ActorId = actorId;
         ActorType = ActorType.User;

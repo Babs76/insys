@@ -70,3 +70,26 @@ internal sealed class PaymentRunApprovalScopes([FromKeyedServices(HealthDbContex
         return scopes is [var only] ? new RecordScope(only.Product, only.OrgNode) : new RecordScope(null, null);
     }
 }
+
+/// <summary>A provider's standing in the register (health.mst_provider_register), on Health's own connection.</summary>
+internal sealed class ProviderDirectory([FromKeyedServices(HealthDbContext.SchemaName)] NpgsqlDataSource dataSource) : IProviderDirectory
+{
+    public async Task<bool> IsActive(Guid tenantId, string providerId, DateOnly day, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT status = 'ACTIVE' FROM health.mst_provider_register
+            WHERE tenant_id = @t AND provider_id = @p AND record_status IN ('APPROVED', 'ACTIVE', 'DEPRECATED') AND effective_from <= @day
+              AND (effective_to IS NULL OR effective_to > @day)
+            ORDER BY version DESC LIMIT 1
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("p", providerId);
+        command.Parameters.AddWithValue("day", day);
+        var active = await command.ExecuteScalarAsync(cancellationToken) is true;
+        await transaction.CommitAsync(cancellationToken);
+        return active;
+    }
+}

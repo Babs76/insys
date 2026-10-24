@@ -26,6 +26,7 @@
  */
 using System.Text.Json;
 using Insys.BuildingBlocks.Api;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.General.Api.StaticData;
 using Insys.General.Application;
@@ -93,6 +94,8 @@ public sealed class GeneralModule : IModule
         MapUnderwriting(general);
         MapPolicies(general);
         MapClaims(general);
+
+        MapPortal(api.MapGroup("/portal/general").WithTags(Name));
     }
 
     private static void MapUnderwriting(RouteGroupBuilder general)
@@ -311,6 +314,64 @@ public sealed class GeneralModule : IModule
             .RequirePermission(GeneralPermissions.RecoveryUpdate).RequireIdempotencyKey();
     }
 
+    /// <summary>
+    /// The member and broker portals (external-user access): records within the caller's relationship only, in portal
+    /// views. A quote is made under the broker's own code; a claim only on the member's own policy.
+    /// </summary>
+    private static void MapPortal(RouteGroupBuilder portal)
+    {
+        const string party = ExternalSubject.Party, broker = ExternalSubject.Intermediary;
+        portal.MapGet("/policies", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalPolicies(after, size), ct), p => p.Id))
+            .Produces<CursorPage<PortalPolicyView>>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralListPolicies").WithSummary("The member's or broker's policies").RequirePermission(GeneralPermissions.PolicyRead).ForPortal(party, broker);
+        portal.MapGet("/policies/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalPolicy(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalPolicyView>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralGetPolicy").WithSummary("A policy of the member or broker").RequirePermission(GeneralPermissions.PolicyRead).ForPortal(party, broker);
+        portal.MapGet("/quotes", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalQuotes(after, size), ct), q => q.Id))
+            .Produces<CursorPage<PortalQuoteView>>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralListQuotes").WithSummary("The broker's quotes").RequirePermission(GeneralPermissions.QuoteRead).ForPortal(broker);
+        portal.MapGet("/quotes/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalQuote(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalQuoteView>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralGetQuote").WithSummary("A quote of the broker").RequirePermission(GeneralPermissions.QuoteRead).ForPortal(broker);
+        portal.MapPost("/quotes", async (PortalQuoteRequest r, IDispatcher d, CancellationToken ct) =>
+                {
+                    var allowed = await d.Query(new PortalQuoteAllowed(r.ProposerPartyId), ct);
+                    if (allowed.IsFailure)
+                    {
+                        return allowed.ToHttp(_ => Results.Ok());
+                    }
+
+                    var created = await d.Send(new CreateQuote(r.ProductCode, null, r.ProposerPartyId, allowed.Value, r.Currency, r.PeriodStart, r.PeriodEnd, r.Risks, null), ct);
+                    return created.IsFailure
+                        ? created.ToHttp(_ => Results.Ok())
+                        : (await d.Query(new GetPortalQuote(created.Value.Id), ct)).ToHttp(v => Results.Created($"/api/v1/portal/general/quotes/{v.Id}", v));
+                })
+            .Produces<PortalQuoteView>(StatusCodes.Status201Created)
+            .WithName("PortalGeneralCreateQuote").WithSummary("A broker's quote, under its own code, for a client it services or registered")
+            .RequirePermission(GeneralPermissions.QuoteCreate).RequireIdempotencyKey().ForPortal(broker);
+        portal.MapGet("/claims/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalClaim(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalClaimView>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralGetClaim").WithSummary("A claim on a policy of the member or broker").RequirePermission(GeneralPermissions.ClaimRead).ForPortal(party, broker);
+        portal.MapPost("/claims", async (PortalClaimRequest r, IDispatcher d, CancellationToken ct) =>
+                {
+                    var allowed = await d.Query(new PortalClaimAllowed(r.PolicyId), ct);
+                    if (allowed.IsFailure)
+                    {
+                        return allowed.ToHttp(_ => Results.Ok());
+                    }
+
+                    var notified = await d.Send(new NotifyLoss(r.PolicyId, r.RiskObjectId, r.CoverageCode, r.LossDate, r.CauseCode, r.PerilCode, null, r.Description), ct);
+                    return notified.IsFailure
+                        ? notified.ToHttp(_ => Results.Ok())
+                        : (await d.Query(new GetPortalClaim(notified.Value.Id), ct)).ToHttp(v => Results.Created($"/api/v1/portal/general/claims/{v.Id}", v));
+                })
+            .Produces<PortalClaimView>(StatusCodes.Status201Created)
+            .WithName("PortalGeneralNotifyLoss").WithSummary("A member notifies a loss on a policy of theirs")
+            .RequirePermission(GeneralPermissions.ClaimCreate).RequireIdempotencyKey().ForPortal(party);
+    }
+
     /// <summary>A cursor page of a list query (GAP-032).</summary>
     private static async Task<IResult> Page<T>(string? cursor, int? limit, Func<Guid?, int, Task<BuildingBlocks.Domain.Result<IReadOnlyList<T>>>> query, Func<T, Guid> id)
     {
@@ -323,3 +384,7 @@ public sealed class GeneralModule : IModule
         return (await query(after, size)).ToHttp(items => Results.Ok(new CursorPage<T>(items, items.Count == size ? Cursor.Encode(id(items[^1])) : null)));
     }
 }
+
+public sealed record PortalQuoteRequest(string ProductCode, Guid ProposerPartyId, string Currency, DateOnly PeriodStart, DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks);
+
+public sealed record PortalClaimRequest(Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, string CauseCode, string PerilCode, string? Description);

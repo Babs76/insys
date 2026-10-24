@@ -36,6 +36,7 @@ using Insys.Documents.Contracts;
 using Insys.Finance.Contracts;
 using Insys.General.Contracts;
 using Insys.Integration.Contracts;
+using Insys.Party.Contracts;
 using Insys.Payments.Contracts;
 using Insys.Rating.Contracts;
 using Insys.Workflow.Contracts;
@@ -362,6 +363,135 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<string>("""
             SELECT string_agg(payload::jsonb ->> 'zone', ',') FROM general.outbox_event WHERE event_type = 'general.AggregationLimitApproached'
             """)).ShouldBe("ZHAIL", "raised once, for the zone past its alert level");
+    }
+
+    /// <summary>
+    /// External-user access (addenda/external-user-access.md): brokers and members act only through their portal, on the
+    /// records of their relationship. A broker cannot see another broker's client, nor quote for one; a member cannot open
+    /// another member's policy, even by guessing its ID. Staff endpoints, the staff client and a token without MFA are refused.
+    /// A portal registration matching an existing party gets the same answer as a new one, and a staff review task.
+    /// </summary>
+    [Fact]
+    public async Task ExternalUsers_SeeAndActOnlyWithinTheirRelationship_ThroughTheirPortal_ExternalUserAccess()
+    {
+        // Staff set up two policies, one sold by each broker, and a claim on B's, before the tenant has channels.
+        var (policyA, vehicleA) = await IssuedPolicy();
+        var (policyB, vehicleB) = await IssuedPolicy();
+        var holderA = (await Policy(policyA)).GetProperty("policyholderPartyId").GetGuid();
+        var holderB = (await Policy(policyB)).GetProperty("policyholderPartyId").GetGuid();
+        await _db.ExecuteAsOwner("UPDATE general.policy SET intermediary_code = CASE WHEN id = @a THEN 'BRK-A' ELSE 'BRK-B' END WHERE id IN (@a, @b)",
+            ("a", policyA), ("b", policyB));
+        var claimB = await Created("/api/v1/general/claims", new
+        {
+            policyId = policyB, riskObjectId = vehicleB, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC",
+        });
+        var spare = await Vehicle();
+        var known = await _maker.RegisterPerson("Known");
+        foreach (var code in new[] { "BRK-A", "BRK-B" })
+        {
+            await Seed("commission.mst_intermediary_register", "ACTIVE", code, ("intermediary_code", code), ("type", "BROKER"), ("legal_name", code),
+                ("licence_numbers", JsonSerializer.SerializeToElement(new[] { "FSP-1" })), ("status", "ACTIVE"), ("hierarchy_node", $"NODE-{code}"));
+            await Seed("commission.cfg_intermediary_product_permissions", "EFFECTIVE", $"PERM-{code}", ("intermediary", code), ("product", Product),
+                ("transactions_allowed", Array.Empty<string>()), ("plan_code", "PLAN-10"));
+        }
+
+        async Task<string> PortalUser(string subject, string kind, Guid? party, string? broker, params string[] permissions)
+        {
+            var user = await _db.UserWithPermissions(Tenant, subject, permissions);
+            await _db.ExecuteAsOwner("""
+                INSERT INTO iam.user_subject_link (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, kind, party_id, intermediary_code,
+                                                   status, requested_by, decided_by, decided_at)
+                VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, @k, @p, @i, 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
+                """, ("t", Tenant), ("u", user), ("k", kind), ("p", (object?)party ?? DBNull.Value), ("i", (object?)broker ?? DBNull.Value));
+            return (await _db.ScalarAsOwner<string>("SELECT role_code FROM iam.user_role_assignment WHERE user_id = @u", ("u", user)))!;
+        }
+
+        string[] brokerPermissions = [GeneralPermissions.PolicyRead, GeneralPermissions.QuoteRead, GeneralPermissions.QuoteCreate, GeneralPermissions.ClaimRead,
+            PartyPermissions.PartyCreate];
+        var brokerRole = await PortalUser("broker-a", "INTERMEDIARY", null, "BRK-A", brokerPermissions);
+        await PortalUser("broker-b", "INTERMEDIARY", null, "BRK-B", brokerPermissions);
+        var memberRole = await PortalUser("member-a", "PARTY", holderA, null, GeneralPermissions.PolicyRead, GeneralPermissions.ClaimRead, GeneralPermissions.ClaimCreate);
+
+        // The portals' channels (F005), with the commands their roles may make; and the back office's.
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-BRK", ("channel_code", "BRK"), ("audience", "BROKER"), ("name", "Broker portal"),
+            ("client_ids", new[] { "broker-portal" }));
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-MEM", ("channel_code", "MEM"), ("audience", "CUSTOMER"), ("name", "Member portal"),
+            ("client_ids", new[] { "member-portal" }));
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-STF", ("channel_code", "STF"), ("audience", "STAFF"), ("name", "Back office"),
+            ("client_ids", new[] { "insys-web" }));
+        await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CP-BRK-Q", ("channel_code", "BRK"), ("role_code", brokerRole),
+            ("transaction_type", GeneralPermissions.QuoteCreate), ("allowed", true));
+        await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CP-MEM-C", ("channel_code", "MEM"), ("role_code", memberRole),
+            ("transaction_type", GeneralPermissions.ClaimCreate), ("allowed", true));
+
+        var brokerA = _factory.ClientFor(Tenant, "broker-a", "broker-portal", multiFactor: true);
+        var brokerB = _factory.ClientFor(Tenant, "broker-b", "broker-portal", multiFactor: true);
+        var member = _factory.ClientFor(Tenant, "member-a", "member-portal");
+
+        // A broker sees its own client's policy, not the other broker's, by list or by ID; nor a claim on it.
+        var brokerList = await brokerA.GetAsync("/api/v1/portal/general/policies");
+        brokerList.StatusCode.ShouldBe(HttpStatusCode.OK, await brokerList.Content.ReadAsStringAsync());
+        (await brokerList.Json()).GetProperty("items").EnumerateArray().Select(p => p.GetProperty("id").GetGuid())
+            .ShouldBe([policyA]);
+        (await brokerA.GetAsync($"/api/v1/portal/general/policies/{policyB}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await brokerA.GetAsync($"/api/v1/portal/general/claims/{claimB}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await brokerB.GetAsync($"/api/v1/portal/general/claims/{claimB}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // The portal view leaves out internal fields.
+        var view = await (await brokerA.GetAsync($"/api/v1/portal/general/policies/{policyA}")).Json();
+        view.TryGetProperty("billingAccountRef", out _).ShouldBeFalse();
+        view.TryGetProperty("cancellations", out _).ShouldBeFalse();
+
+        // A broker quotes only for a client it services, under its own code whatever it sends.
+        object Quote(Guid proposer) => new
+        {
+            productCode = Product, proposerPartyId = proposer, currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1),
+            risks = new[] { new { riskObjectId = spare, sumInsured = 100_000m, coverages = new object[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 100_000m, excessScheduleCode = "MOT-EXC" } } } },
+        };
+        var otherClient = await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", Quote(holderB), idempotent: true);
+        otherClient.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await otherClient.Code()).ShouldBe("OUT_OF_SCOPE");
+        var quoted = await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", Quote(holderA), idempotent: true);
+        quoted.StatusCode.ShouldBe(HttpStatusCode.Created, await quoted.Content.ReadAsStringAsync());
+        (await quoted.Json()).GetProperty("intermediaryCode").GetString().ShouldBe("BRK-A");
+
+        // A member opens their own policy, not another's, even by guessing its ID, and notifies a claim only on their own.
+        (await member.GetAsync($"/api/v1/portal/general/policies/{policyA}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await member.GetAsync($"/api/v1/portal/general/policies/{policyB}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await member.GetAsync($"/api/v1/portal/general/policies/{Guid.CreateVersion7()}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        object Loss(Guid policy, Guid vehicle) => new { policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC" };
+        (await member.Send(HttpMethod.Post, "/api/v1/portal/general/claims", Loss(policyB, vehicleB), idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var notified = await member.Send(HttpMethod.Post, "/api/v1/portal/general/claims", Loss(policyA, vehicleA), idempotent: true);
+        notified.StatusCode.ShouldBe(HttpStatusCode.Created, await notified.Content.ReadAsStringAsync());
+
+        // Outside the portal: a staff endpoint, the staff client, and a broker token without MFA are refused.
+        (await (await brokerA.GetAsync($"/api/v1/general/policies/{policyA}")).Code()).ShouldBe("EXTERNAL_USER_NOT_ALLOWED");
+        (await (await _factory.ClientFor(Tenant, "broker-a", "insys-web", multiFactor: true).GetAsync("/api/v1/portal/general/policies")).Code()).ShouldBe("CHANNEL_NOT_ENABLED");
+        (await (await _factory.ClientFor(Tenant, "broker-a", "broker-portal").GetAsync("/api/v1/portal/general/policies")).Code()).ShouldBe("PORTAL_MFA_REQUIRED");
+
+        // A portal registration that matches an existing party gets the same answer as a new one, and staff review it.
+        async Task<JsonElement> Register(string surname)
+        {
+            var registered = await brokerA.Send(HttpMethod.Post, "/api/v1/portal/party/parties",
+                new { individual = new { firstNames = "Test", surname, birthDate = "1985-06-15", nationality = "ZA" } }, idempotent: true);
+            registered.StatusCode.ShouldBe(HttpStatusCode.Accepted, await registered.Content.ReadAsStringAsync());
+            return await registered.Json();
+        }
+
+        var match = await Register("Known");
+        var fresh = await Register("Newcomer");
+        (match.GetProperty("status").GetString(), fresh.GetProperty("status").GetString()).ShouldBe(("Received", "Received"));
+        match.EnumerateObject().Select(p => p.Name).ShouldBe(fresh.EnumerateObject().Select(p => p.Name));
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM workflow.process_instance WHERE process_code = 'PARTY_MATCH_REVIEW' AND business_ref_id = @p",
+            ("p", match.GetProperty("id").GetGuid()))).ShouldBe(1L);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM workflow.process_instance WHERE process_code = 'PARTY_MATCH_REVIEW' AND business_ref_id = @p",
+            ("p", fresh.GetProperty("id").GetGuid()))).ShouldBe(0L);
+        known.ShouldNotBe(match.GetProperty("id").GetGuid());
+
+        // The broker may now quote for the client it registered.
+        (await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", Quote(fresh.GetProperty("id").GetGuid()), idempotent: true)).StatusCode
+            .ShouldBe(HttpStatusCode.Created);
     }
 
     private async Task<Guid> Vehicle() => await Created("/api/v1/general/risk-objects", new

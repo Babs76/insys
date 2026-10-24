@@ -1,6 +1,17 @@
 # Addendum: access for external users (broker, provider and member portals)
 
-**Signed off 24 October 2026** (Ade), with the two additions in §6 and the open points decided as proposed. Planned in Wave 0b after Health products.
+**Signed off 24 October 2026** (Ade), with the two additions in §6 and the open points decided as proposed. **Built in Wave 0b batch 5:**
+- **The core:** links with maker-checker; the portal gate (endpoint, channel, MFA); relationship checks; portal views; the party-match review.
+- **Portal endpoints:**
+  - General policies, quotes and claims;
+  - a Life policy;
+  - Health memberships, provider claims, preauthorisations and remittances;
+  - a broker's client registration.
+- **Not yet built:**
+  - portal reads of documents, invoices and commission statements;
+  - the member claim view for Life and Health;
+  - the staff screen that resolves a party-match review (the task is created);
+  - the portal Keycloak clients in the realm export.
 
 - **Basis:**
   - SRS-003 (access by product, organisation and relationship);

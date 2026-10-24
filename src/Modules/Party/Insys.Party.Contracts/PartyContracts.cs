@@ -59,6 +59,13 @@ public static class PartyPermissions
 }
 
 /// <summary>Party events carry identifiers only, never personal data (INT-007).</summary>
+/// <summary>
+/// A party registered through a portal matched an existing one (identifier or close name with the same birth date): Workflow
+/// opens a staff review task (PARTY_MATCH_REVIEW). The portal user was told only that the registration was received.
+/// </summary>
+[IntegrationEvent("party.PartyMatchReviewRequested")]
+public sealed record PartyMatchReviewRequested(Guid PartyId, Guid MatchedPartyId) : IIntegrationEvent;
+
 [IntegrationEvent("party.PartyRegistered")]
 public sealed record PartyRegistered(Guid PartyId, string Kind) : IIntegrationEvent;
 
@@ -116,6 +123,15 @@ public interface IBankAccountDetails
 /// Public query interface: an individual's date of birth, for age rules (Life entry ages, Health dependant age limits).
 /// Only the date is returned (minimum necessary); null for an organisation or an unknown party.
 /// </summary>
+/// <summary>Public query interface: whether a party exists in the tenant and is not merged away (for linking an external user to it).</summary>
+public interface IPartyDirectory
+{
+    Task<bool> Exists(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
+
+    /// <summary>Who registered the party through a portal ("INTERMEDIARY:BRK-1"), if anyone (external-user access §3).</summary>
+    Task<string?> RegisteredBy(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
+}
+
 public interface IPersonFacts
 {
     Task<DateOnly?> BirthDate(Guid tenantId, Guid partyId, CancellationToken cancellationToken);

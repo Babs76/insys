@@ -47,12 +47,18 @@ public sealed class AuthenticationAndSessionPolicies : StaticRecord<Authenticati
 
     public int LockoutAttempts { get; set; }
 
+    public string[]? ClientIds { get; set; }
+
+    public bool? MfaRequired { get; set; }
+
     public override void ApplyFields(AuthenticationAndSessionPoliciesInput input, IFieldProtector protector)
     {
         PolicyCode = input.PolicyCode!;
         MfaRequiredRoles = input.MfaRequiredRoles!;
         SessionTimeout = input.SessionTimeout!;
         LockoutAttempts = input.LockoutAttempts.GetValueOrDefault();
+        ClientIds = input.ClientIds;
+        MfaRequired = input.MfaRequired;
     }
 }
 
@@ -66,6 +72,10 @@ public sealed record AuthenticationAndSessionPoliciesInput : StaticRecordInput
     public string? SessionTimeout { get; init; }
 
     public int? LockoutAttempts { get; init; }
+
+    public string[]? ClientIds { get; init; }
+
+    public bool? MfaRequired { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

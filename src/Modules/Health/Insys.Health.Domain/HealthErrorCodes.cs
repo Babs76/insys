@@ -33,6 +33,10 @@ public static class HealthErrorCodes
     [ErrorCode(422, "error.health.code_not_in_force")]
     public const string CodeNotInForce = "HEALTH_CODE_NOT_IN_FORCE";
 
+    /// <summary>A provider portal request names a member number (and dependant suffix) that has no current membership.</summary>
+    [ErrorCode(422, "error.health.member_not_found")]
+    public const string MemberNotFound = "HEALTH_MEMBER_NOT_FOUND";
+
     /// <summary>The plan's product is not a Health product on sale on the day (addenda/health-plan-products.md §3).</summary>
     [ErrorCode(422, "error.health.product_not_available")]
     public const string ProductNotAvailable = "HEALTH_PRODUCT_NOT_AVAILABLE";

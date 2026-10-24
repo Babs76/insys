@@ -30,7 +30,8 @@
 | 8 Wave 0b batch 1 | F103 access scopes enforced in General, Life, Health, Claims Framework, Billing and Workflow approvals; interim control lifted; OQ-080 (Health product scope) and OQ-081 (account and approval scope rules) raised | **Merged, `19a9bb2`** (24 Oct 2026) |
 | 8 Wave 0b batch 2 | F005 channel permissions: channel from the token's client, transaction and product rows by role, approval requirement, channel recorded; Health plan-to-product addendum for sign-off (OQ-080) | **Merged, `376ac3d`** (24 Oct 2026) |
 | 8 Wave 0b batch 3 | Claim payouts scoped by claim; commission payouts behind `commission_payout.read`; F062 zone limits (referral), endorsement approval note, alert, aggregate claims limits; onboarding readiness §5 (channels) and the external-user access addendum, for sign-off; OQ-082 closed; Health products signed off | **Merged, `cd2d78d`** (24 Oct 2026) |
-| 8 Wave 0b batch 4 | Health plans linked to Product Factory products (OQ-080); Health payment runs and remittances scoped by their claims; F062 alert on at 80% with per-limit levels, alert and aggregate refusal tested end to end; three addenda signed off, external-user additions recorded | **Done on `wave0b-4`, awaiting review** (24 Oct 2026) |
+| 8 Wave 0b batch 4 | Health plans linked to Product Factory products (OQ-080); Health payment runs and remittances scoped by their claims; F062 alert on at 80% with per-limit levels, alert and aggregate refusal tested end to end; three addenda signed off, external-user additions recorded | **Merged, `537f4cb`** (24 Oct 2026) |
+| 8 Wave 0b batch 5 | External-user access (links, portal gate with channel and MFA, relationship scope, portal views, party-match review) for General, Life, Health and Party; Billing follows an assigned Health product; /health lists every plan product problem | **Done on `wave0b-5`, awaiting review** (24 Oct 2026) |
 
 ## Phase 1 review items
 

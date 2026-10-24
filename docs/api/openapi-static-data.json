@@ -158973,6 +158973,21 @@
             ],
             "format": "int32"
           },
+          "clientIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "mfaRequired": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -159173,6 +159188,21 @@
               "string"
             ],
             "format": "int32"
+          },
+          "clientIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "mfaRequired": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           },
           "code": {
             "type": "string"

@@ -76,7 +76,16 @@ public static class IdentityApprovals
     public const string TenantAdministratorBusinessRefType = "TENANT_ADMIN_REQUEST";
 
     public const string TenantAdministratorApprovalType = "TENANT_ADMINISTRATOR";
+
+    /// <summary>An external user's link to a party, intermediary or provider (external-user-access.md §1), approved by a second person.</summary>
+    public const string SubjectLinkBusinessRefType = "SUBJECT_LINK";
+
+    public const string SubjectLinkApprovalType = "EXTERNAL_SUBJECT_LINK";
 }
+
+/// <summary>An external user's link took effect or ended: Identity drops cached principals for the tenant (IAM-005).</summary>
+[IntegrationEvent("iam.SubjectLinkChanged")]
+public sealed record SubjectLinkChanged(Guid UserId) : IIntegrationEvent;
 
 /// <summary>
 /// A new tenant's first administrator exists (OQ-067). Published in the platform operator tenant; Tenancy completes the

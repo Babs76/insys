@@ -46,6 +46,23 @@ internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
             ? await Get(id, cancellationToken)
             : null;
 
+    public async Task<Guid?> Match(IndividualData person, (string DocType, string Country, string Hash)? identifier, CancellationToken cancellationToken)
+    {
+        if (identifier is { } i && await db.Set<PartyIdentifier>().Where(x => x.DocType == i.DocType && x.Country == i.Country && x.NumberHash == i.Hash)
+                .Select(x => (Guid?)x.PartyId).FirstOrDefaultAsync(cancellationToken) is { } byIdentifier)
+        {
+            return byIdentifier;
+        }
+
+        // A close name match: the same first names and surname, ignoring case and outer spaces, and the same birth date.
+        var first = person.FirstNames.Trim().ToLower();
+        var surname = person.Surname.Trim().ToLower();
+        return await db.Database.SqlQuery<Guid?>($"""
+            SELECT party_id AS "Value" FROM party.individual
+            WHERE lower(trim(first_names)) = {first} AND lower(trim(surname)) = {surname} AND birth_date = {person.BirthDate} LIMIT 1
+            """).FirstOrDefaultAsync(cancellationToken);
+    }
+
     public Task<bool> IdentifierExists(string docType, string country, string hash, CancellationToken cancellationToken) =>
         db.Set<PartyIdentifier>().AnyAsync(i => i.DocType == docType && i.Country == country && i.NumberHash == hash, cancellationToken);
 
@@ -90,6 +107,7 @@ internal sealed class PartyEventMapper : IDomainEventMapper
         PartyRegistered e => new Contracts.PartyRegistered(e.PartyId, e.Kind.ToString().ToUpperInvariant()),
         PartyDetailsChanged e => new Contracts.PartyDetailsChanged(e.PartyId, e.Part),
         PartiesMerged e => new Contracts.PartiesMerged(e.SurvivorId, e.MergedId),
+        PartyMatchReviewRequested e => new Contracts.PartyMatchReviewRequested(e.PartyId, e.MatchedPartyId),
         PartyAnonymised e => new Contracts.PartyAnonymised(e.PartyId),
         ConsentGranted e => new Contracts.ConsentGranted(e.PartyId, e.PurposeCode),
         ConsentWithdrawn e => new Contracts.ConsentWithdrawn(e.PartyId, e.PurposeCode),

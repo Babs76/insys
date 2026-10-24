@@ -39,12 +39,16 @@ namespace Insys.Identity.Infrastructure.Persistence;
 internal sealed class UserRepository(IdentityDbContext db) : IUserRepository
 {
     public Task<UserAccount?> Get(Guid userId, CancellationToken cancellationToken) =>
-        db.Users.Include(u => u.RoleAssignments).Include(u => u.Sessions).SingleOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        db.Users.Include(u => u.RoleAssignments).Include(u => u.Sessions).Include(u => u.SubjectLinks).SingleOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
     public Task<bool> UsernameExists(string username, CancellationToken cancellationToken) => db.Users.AnyAsync(u => u.Username == username, cancellationToken);
 
     public Task<UserAccount?> ByAssignment(Guid assignmentId, CancellationToken cancellationToken) =>
-        db.Users.Include(u => u.RoleAssignments).Include(u => u.Sessions).SingleOrDefaultAsync(u => u.RoleAssignments.Any(a => a.Id == assignmentId), cancellationToken);
+        db.Users.Include(u => u.RoleAssignments).Include(u => u.Sessions).Include(u => u.SubjectLinks).SingleOrDefaultAsync(u => u.RoleAssignments.Any(a => a.Id == assignmentId), cancellationToken);
+
+    public Task<UserAccount?> ByLink(Guid linkId, CancellationToken cancellationToken) =>
+        db.Users.Include(u => u.RoleAssignments).Include(u => u.Sessions).Include(u => u.SubjectLinks)
+            .SingleOrDefaultAsync(u => u.SubjectLinks.Any(l => l.Id == linkId), cancellationToken);
 
     public void Add(UserAccount user) => db.Users.Add(user);
 }
@@ -146,6 +150,9 @@ internal sealed class IdentityEventMapper : IDomainEventMapper
         Domain.Users.PrivilegedRoleRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.IdentityApprovals.BusinessRefType, e.AssignmentId,
             Contracts.IdentityApprovals.ApprovalType, e.AssignedBy, null, null, $"Assign {e.RoleCode} to user {e.UserId}"),
         Domain.Users.UserDisabled e => new Contracts.UserDisabled(e.UserId),
+        Domain.Users.SubjectLinkRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.IdentityApprovals.SubjectLinkBusinessRefType, e.LinkId,
+            Contracts.IdentityApprovals.SubjectLinkApprovalType, e.RequestedBy, null, null, $"Link user {e.UserId} to {e.Kind} {e.Key} (external user)"),
+        Domain.Users.SubjectLinkChanged e => new Contracts.SubjectLinkChanged(e.UserId),
         Domain.Access.AccessReviewCompleted e => new Contracts.AccessReviewCompleted(e.ReviewId,
             e.Revoked.Select(r => new Contracts.RevokedAccess(r.UserId, r.RoleCode)).ToList()),
         _ => null,

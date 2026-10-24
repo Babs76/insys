@@ -64,8 +64,12 @@ public sealed record MePermission(string Permission, IReadOnlyList<PermissionSco
 /// True: product and organisation scopes are enforced (F103), so a permission held only through scoped assignments
 /// reaches only the records in those scopes. Kept for clients that checked it during the interim control.
 /// </param>
+/// <param name="External">For an external user, the party, intermediary or provider they are (external-user access §1); null for staff.</param>
 public sealed record MeView(Guid UserId, string Username, string DisplayName, UserStatus Status, bool MfaEnrolled, MeTenant Tenant, MeLanguage Language,
-    IReadOnlyList<MeRole> Roles, IReadOnlyList<MePermission> Permissions, long RowVersion, bool ScopesEnforced = true);
+    IReadOnlyList<MeRole> Roles, IReadOnlyList<MePermission> Permissions, long RowVersion, MeExternalSubject? External, bool ScopesEnforced = true);
+
+/// <summary>What an external user's approved link names.</summary>
+public sealed record MeExternalSubject(SubjectKind Kind, Guid? PartyId, string? IntermediaryCode, string? ProviderId);
 
 public sealed record GetMe : IQuery<MeView>;
 
@@ -109,7 +113,10 @@ internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader role
             new MeTenant(tenantId, profile?.TenantCode ?? "", profile?.LegalName ?? "", profile?.Status ?? "", tenantId == platform.Value.OperatorTenantId,
                 businessDate.Zone.Id, businessDate.Today),
             new MeLanguage(user.PreferredLanguage, request.Language, tenantLanguages.Default, tenantLanguages.Supported),
-            assignments, permissions, user.RowVersion);
+            assignments, permissions, user.RowVersion,
+            user.SubjectLinks.SingleOrDefault(l => l.Status == SubjectLinkStatus.Active) is { } link
+                ? new MeExternalSubject(link.Kind, link.PartyId, link.IntermediaryCode, link.ProviderId)
+                : null);
     }
 }
 

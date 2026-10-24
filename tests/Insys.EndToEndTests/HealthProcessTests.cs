@@ -625,6 +625,91 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _factory.ClientFor(Tenant, "hlt-other-product").GetAsync($"/api/v1/billing/invoices/{laterInvoice}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    /// <summary>
+    /// External-user access: a provider submits claims only as itself and reads only its own; a member opens only their own
+    /// membership. Where the member portal's authentication policy requires MFA, a token without it is refused.
+    /// </summary>
+    [Fact]
+    public async Task ExternalUsers_ProvidersAndMembersSeeOnlyTheirOwn_ExternalUserAccess()
+    {
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var schemeNumber = (await Get($"/api/v1/health/schemes/{scheme}")).GetProperty("schemeNumber").GetString()!;
+        await Seed("health.cfg_contribution_rules", "EFFECTIVE", "CR-PORTAL", ("scheme", schemeNumber), ("member_category", "ALL_STAFF"), ("rate", 1_000m), ("employer_share", 0m));
+        async Task<(Guid Membership, Guid Principal)> Member(string surname)
+        {
+            var principal = await _maker.RegisterPerson(surname);
+            return (await Created("/api/v1/health/memberships", new
+            {
+                principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today,
+                currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+            }), principal);
+        }
+
+        var (mine, me) = await Member("Portal");
+        var (theirs, _) = await Member("Other");
+        var memberNumber = (await Get($"/api/v1/health/memberships/{mine}")).GetProperty("memberNumber").GetString()!;
+        foreach (var provider in new[] { "PR-1", "PR-2" })
+        {
+            await _db.ExecuteAsOwner("""
+                INSERT INTO health.mst_provider_register (tenant_id, code, version, effective_from, record_status, created_by, change_reason, provider_id, name,
+                                                          registration_numbers, locations, status, provider_type)
+                VALUES (@t, @p, 1, @from, 'ACTIVE', 'seed', 'seed', @p, @p, '{"practice":"P"}', '[]', 'ACTIVE', 'SPEC')
+                ON CONFLICT DO NOTHING
+                """, ("t", Tenant), ("p", provider), ("from", Today.AddYears(-2)));
+        }
+
+        async Task<string> PortalUser(string subject, string kind, Guid? party, string? provider, params string[] permissions)
+        {
+            var user = await _db.UserWithPermissions(Tenant, subject, permissions);
+            await _db.ExecuteAsOwner("""
+                INSERT INTO iam.user_subject_link (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, kind, party_id, provider_id,
+                                                   status, requested_by, decided_by, decided_at)
+                VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, @k, @p, @v, 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
+                """, ("t", Tenant), ("u", user), ("k", kind), ("p", (object?)party ?? DBNull.Value), ("v", (object?)provider ?? DBNull.Value));
+            return (await _db.ScalarAsOwner<string>("SELECT role_code FROM iam.user_role_assignment WHERE user_id = @u", ("u", user)))!;
+        }
+
+        string[] providerPermissions = [HealthPermissions.ClaimRead, HealthPermissions.ClaimCreate, HealthPermissions.PreauthRead, HealthPermissions.PreauthCreate,
+            HealthPermissions.RunRead];
+        var providerRole = await PortalUser("provider-1", "PROVIDER", null, "PR-1", providerPermissions);
+        await PortalUser("provider-2", "PROVIDER", null, "PR-2", providerPermissions);
+        await PortalUser("member-1", "PARTY", me, null, HealthPermissions.MembershipRead);
+
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-PRV", ("channel_code", "PRV"), ("audience", "PROVIDER"), ("name", "Provider portal"),
+            ("client_ids", new[] { "provider-portal" }));
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-MEM", ("channel_code", "MEM"), ("audience", "CUSTOMER"), ("name", "Member portal"),
+            ("client_ids", new[] { "member-portal" }));
+        await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CP-PRV-C", ("channel_code", "PRV"), ("role_code", providerRole),
+            ("transaction_type", HealthPermissions.ClaimCreate), ("allowed", true));
+        var provider1 = _factory.ClientFor(Tenant, "provider-1", "provider-portal", multiFactor: true);
+        var provider2 = _factory.ClientFor(Tenant, "provider-2", "provider-portal", multiFactor: true);
+
+        // A provider submits as itself; another provider cannot read the claim or see it listed.
+        var submitted = await provider1.Send(HttpMethod.Post, "/api/v1/portal/health/claims", new
+        {
+            memberNumber, serviceDate = Today, currency = "ZAR", lines = new[] { new { tariffCode = "0300", quantity = 1, claimedAmount = 500m } },
+        }, idempotent: true);
+        submitted.StatusCode.ShouldBe(HttpStatusCode.Created, await submitted.Content.ReadAsStringAsync());
+        var claim = await submitted.Json();
+        claim.GetProperty("providerId").GetString().ShouldBe("PR-1");
+        var claimId = claim.GetProperty("id").GetGuid();
+        (await provider1.GetAsync($"/api/v1/portal/health/claims/{claimId}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await provider2.GetAsync($"/api/v1/portal/health/claims/{claimId}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await (await provider2.GetAsync("/api/v1/portal/health/claims")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+
+        // A member opens their own membership, not another's.
+        var member = _factory.ClientFor(Tenant, "member-1", "member-portal");
+        (await member.GetAsync($"/api/v1/portal/health/memberships/{mine}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await member.GetAsync($"/api/v1/portal/health/memberships/{theirs}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        // Member MFA is the tenant's choice: once the member portal's policy requires it, a token without it is refused.
+        await Seed("iam.cfg_authentication_and_session_policies", "EFFECTIVE", "AUTH-MEM", ("policy_code", "AUTH-MEM"), ("mfa_required_roles", Array.Empty<string>()),
+            ("session_timeout", TimeSpan.FromMinutes(30)), ("lockout_attempts", 5), ("client_ids", new[] { "member-portal" }), ("mfa_required", true));
+        (await (await member.GetAsync($"/api/v1/portal/health/memberships/{mine}")).Code()).ShouldBe("PORTAL_MFA_REQUIRED");
+        (await _factory.ClientFor(Tenant, "member-1", "member-portal", multiFactor: true).GetAsync($"/api/v1/portal/health/memberships/{mine}")).StatusCode
+            .ShouldBe(HttpStatusCode.OK);
+    }
+
     private async Task Organisation()
     {
         foreach (var (code, type, parent) in new[] { ("ORG-ROOT", "LEGAL_ENTITY", (string?)null), ("ORG-NORTH", "REGION", "ORG-ROOT"), ("ORG-BR-A", "BRANCH", "ORG-NORTH"),

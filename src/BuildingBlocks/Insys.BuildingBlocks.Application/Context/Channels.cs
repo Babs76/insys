@@ -55,6 +55,9 @@ public interface IChannelPolicy
 {
     Task<ChannelDecision> Decide(Guid tenantId, string? clientId, string transactionType, IReadOnlyCollection<string> roleCodes, DateOnly day,
         CancellationToken cancellationToken);
+
+    /// <summary>The channel in force whose client_ids hold the client, with its audience; null when none (external-user access §5).</summary>
+    Task<(string Code, string Audience)?> ChannelOf(Guid tenantId, string? clientId, DateOnly day, CancellationToken cancellationToken);
 }
 
 /// <summary>

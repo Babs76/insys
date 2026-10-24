@@ -176,6 +176,85 @@ public sealed record DutyConflictRule(string PermissionA, string PermissionB, st
 
 public sealed record RoleAssigned(Guid UserId, string RoleCode, DateOnly ValidFrom, DateOnly? ValidTo, DateTimeOffset OccurredAt) : IDomainEvent;
 
+public enum SubjectKind
+{
+    Party,
+    Intermediary,
+    Provider,
+}
+
+public enum SubjectLinkStatus
+{
+    Pending,
+    Active,
+    Ended,
+    Rejected,
+}
+
+/// <summary>
+/// An external user's link to the one party, intermediary or provider they are (external-user-access.md §1). It gives
+/// nothing until a second person approves it; ended, it stops at the next request.
+/// </summary>
+public sealed class SubjectLink : Entity<Guid>, ITenantScoped
+{
+    private SubjectLink()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid UserId { get; private set; }
+
+    public SubjectKind Kind { get; private set; }
+
+    public Guid? PartyId { get; private set; }
+
+    public string? IntermediaryCode { get; private set; }
+
+    public string? ProviderId { get; private set; }
+
+    public SubjectLinkStatus Status { get; private set; }
+
+    public Guid RequestedBy { get; private set; }
+
+    public Guid? DecidedBy { get; private set; }
+
+    public DateTimeOffset? DecidedAt { get; private set; }
+
+    public Guid? EndedBy { get; private set; }
+
+    public DateTimeOffset? EndedAt { get; private set; }
+
+    public long RowVersion { get; private set; }
+
+    /// <summary>What the link names: the party ID, the intermediary code or the provider ID.</summary>
+    public string Key => Kind switch
+    {
+        SubjectKind.Party => PartyId!.Value.ToString(),
+        SubjectKind.Intermediary => IntermediaryCode!,
+        _ => ProviderId!,
+    };
+
+    internal static SubjectLink Create(Guid userId, SubjectKind kind, Guid? partyId, string? intermediaryCode, string? providerId, Guid requestedBy) => new()
+    {
+        Id = Guid.CreateVersion7(), UserId = userId, Kind = kind, Status = SubjectLinkStatus.Pending, RequestedBy = requestedBy,
+        PartyId = kind == SubjectKind.Party ? Guard.NotEmpty(partyId!.Value) : null,
+        IntermediaryCode = kind == SubjectKind.Intermediary ? Guard.MaxLength(Guard.NotNullOrWhiteSpace(intermediaryCode!), 15) : null,
+        ProviderId = kind == SubjectKind.Provider ? Guard.MaxLength(Guard.NotNullOrWhiteSpace(providerId!), 15) : null,
+    };
+
+    internal void Decide(bool approved, Guid checkerId, DateTimeOffset now) =>
+        (Status, DecidedBy, DecidedAt) = (approved ? SubjectLinkStatus.Active : SubjectLinkStatus.Rejected, checkerId, now);
+
+    internal void End(Guid endedBy, DateTimeOffset now) => (Status, EndedBy, EndedAt) = (SubjectLinkStatus.Ended, endedBy, now);
+}
+
+/// <summary>A link waits for a second person's approval in Workflow (EXTERNAL_SUBJECT_LINK, SRS-002).</summary>
+public sealed record SubjectLinkRequested(Guid UserId, Guid LinkId, SubjectKind Kind, string Key, Guid RequestedBy, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>A link took effect or ended: cached principals are dropped, so the next request has the change.</summary>
+public sealed record SubjectLinkChanged(Guid UserId, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record RoleRevoked(Guid UserId, string RoleCode, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>A privileged assignment waits for approval: Workflow is asked for a PRIVILEGED_ROLE approval (ADR-009).</summary>
@@ -197,6 +276,7 @@ public sealed class UserAccount : AggregateRoot<Guid>
         .Allow(UserStatus.Locked, UserTrigger.DisableUser, UserStatus.Disabled);
 
     private readonly List<RoleAssignment> _roleAssignments = [];
+    private readonly List<SubjectLink> _subjectLinks = [];
     private readonly List<Session> _sessions = [];
 
     private UserAccount()
@@ -223,6 +303,62 @@ public sealed class UserAccount : AggregateRoot<Guid>
     public string? PreferredLanguage { get; private set; }
 
     public IReadOnlyList<RoleAssignment> RoleAssignments => _roleAssignments;
+
+    public IReadOnlyList<SubjectLink> SubjectLinks => _subjectLinks;
+
+    /// <summary>The link pending approval or in effect, if any: at most one (external-user-access.md §1).</summary>
+    public SubjectLink? CurrentLink => _subjectLinks.SingleOrDefault(l => l.Status is SubjectLinkStatus.Pending or SubjectLinkStatus.Active);
+
+    /// <summary>
+    /// Command LinkSubject: links the user to the one party, intermediary or provider they are, pending a second person's
+    /// approval. Refused while another link is pending or in effect.
+    /// </summary>
+    public Result LinkSubject(SubjectKind kind, Guid? partyId, string? intermediaryCode, string? providerId, Guid requestedBy, DateTimeOffset now)
+    {
+        if (CurrentLink is { } current)
+        {
+            return Error.Conflict(IdentityErrorCodes.SubjectLinkExists, $"The user is already linked, or waiting to be linked, to {current.Kind} {current.Key}; end that link first.");
+        }
+
+        var link = SubjectLink.Create(Id, kind, partyId, intermediaryCode, providerId, requestedBy);
+        _subjectLinks.Add(link);
+        Raise(new SubjectLinkRequested(Id, link.Id, kind, link.Key, requestedBy, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>Workflow's decision on a pending link; the checker is never the one who requested it (SRS-002).</summary>
+    public Result DecideSubjectLink(Guid linkId, bool approved, Guid checkerId, DateTimeOffset now)
+    {
+        if (_subjectLinks.SingleOrDefault(l => l.Id == linkId && l.Status == SubjectLinkStatus.Pending) is not { } link)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "No link with that ID is waiting for approval.");
+        }
+
+        if (checkerId == link.RequestedBy)
+        {
+            return MakerChecker.EnsureDifferentPeople(link.RequestedBy.ToString(), checkerId.ToString());
+        }
+
+        link.Decide(approved, checkerId, now);
+        Raise(new SubjectLinkChanged(Id, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>Command EndSubjectLink: at once; the user's next request is already without it (IAM-005).</summary>
+    public Result EndSubjectLink(Guid endedBy, DateTimeOffset now)
+    {
+        if (CurrentLink is not { } link)
+        {
+            return Error.NotFound(IdentityErrorCodes.SubjectLinkNotFound, "The user has no link to end.");
+        }
+
+        link.End(endedBy, now);
+        Raise(new SubjectLinkChanged(Id, now));
+        MarkChanged();
+        return Result.Success();
+    }
 
     public IReadOnlyList<Session> Sessions => _sessions;
 
@@ -428,6 +564,18 @@ public static class IdentityErrorCodes
 {
     [ErrorCode(422, "error.identity.role_not_found")]
     public const string RoleNotFound = "ROLE_NOT_FOUND";
+
+    /// <summary>External-user access §1: the user already has a link pending or in effect.</summary>
+    [ErrorCode(409, "error.identity.subject_link_exists")]
+    public const string SubjectLinkExists = "SUBJECT_LINK_EXISTS";
+
+    /// <summary>The user has no link pending or in effect.</summary>
+    [ErrorCode(404, "error.identity.subject_link_not_found")]
+    public const string SubjectLinkNotFound = "SUBJECT_LINK_NOT_FOUND";
+
+    /// <summary>The party, intermediary or provider to link to is not in force (or the intermediary is not active and licensed).</summary>
+    [ErrorCode(422, "error.identity.subject_not_found")]
+    public const string SubjectNotFound = "LINK_SUBJECT_NOT_FOUND";
 
     [ErrorCode(409, "error.identity.role_already_assigned")]
     public const string RoleAlreadyAssigned = "ROLE_ALREADY_ASSIGNED";
