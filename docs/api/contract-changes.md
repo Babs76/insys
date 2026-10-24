@@ -20,12 +20,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 | `GET /api/v1/payments/summary` | `payment.read` | `PAYMENTS_UNKNOWN` |
 | `GET /api/v1/tenancy/tenants/{id}/readiness` (platform) | `tenant.read` | Every onboarding step's checks and results |
 | `POST /api/v1/identity/users/{id}/resend-invitation` (If-Match) | `user.update` | Keycloak's invitation again, for a user of realm insys who has not signed in |
+| `POST /api/v1/tenancy/tenants/{id}/smoke-run` `{runReference, runDate, outcome: PASSED \| FAILED, ranBy}` (If-Match, platform) | `tenant.update` | The end-to-end run, made in a non-production environment |
+| `POST /api/v1/tenancy/tenants/{id}/smoke-run/approve` (If-Match, platform) | `tenant.update` | A second operator approves it (`MAKER_CHECKER_SAME_PERSON` for the recorder) |
 
 Every summary has one shape, `DashboardSummary {asOf, refreshedAt?, notIncluded?, figures: [{code, count?, amounts?: [{currency, amount}], by?: [{key, count}], at?}]}`.
 
 ### Changed requests
 - **`POST /identity/users` and `POST /identity/tenant-administrators`:** for INSYS's own realm (`idpCode` `KEYCLOAK`) give `email` and no `externalSubject`; INSYS creates the Keycloak user. `externalSubject` is still required for a federated identity provider.
-- **`POST /tenancy/tenants/{id}/complete-onboarding-step`** takes `attestations: [{check, note}]`: a waiver for `TREATIES` or `WEBHOOKS_OR_NONE` (the reason), or evidence for `SMOKE_RUN` (the run's reference).
+- **`POST /tenancy/tenants/{id}/complete-onboarding-step`** takes `attestations: [{check, note}]`: a waiver for `TREATIES` or `WEBHOOKS_OR_NONE`, with the reason. `SMOKE_RUN` is met by a recorded, approved, passed run (`…/smoke-run`).
 
 ### Changed responses
 - **`/portal/health/claims`** and **`/portal/health/claims/{id}`** are open to members too: their own claims, and as principal every claim of their membership.
@@ -36,17 +38,17 @@ Every summary has one shape, `DashboardSummary {asOf, refreshedAt?, notIncluded?
 
 ### Changed behaviour
 - **Onboarding readiness:** a step completes only when its checks pass; otherwise 422 `ONBOARDING_STEP_NOT_READY` with `errors` naming each check and what is missing. `ATTESTATION_NOT_ALLOWED` (422) for an attestation a check does not take.
-- **A tenant's users may sign in while it is Onboarding** (to load its configuration and run the end-to-end test); Suspended and Terminated tenants are refused as before.
+- **While a tenant is Onboarding** its users may sign in and use identity, static data and configuration endpoints. Every business command (quotes, proposals, policies, endorsements, claims, billing, payments, finance postings, commission, reinsurance) is refused with 409 `TENANT_NOT_ACTIVE`; accounting periods and payment callback endpoints count as configuration. Reads are allowed. Suspended and Terminated tenants are refused as before.
 - **Arrears:** an open case past every ageing bucket stays in its bucket with its true days overdue, and is parked once (`billing.ArrearsAgeingBlocked`, `ARREARS_AGEING_BUCKET_NOT_IN_FORCE`) until a bucket covers it.
 - **Analytics** projects by the policy's organisation node (it was `ALL`).
 - **Locking a user** now also disables its Keycloak user (realm insys), and unlocking enables it.
 - **A broker quoting for a registration staff linked to an existing party** quotes for that party.
 
 ### New events
-- `billing.ArrearsAgeingBlocked {accountId, bucketCode, daysOverdue}`; `party.PartyMatchResolved {partyId, resolution, existingPartyId}`; `iam.UserIdentityRequested {userId}`, `iam.UserInvitationRequested {userId, actions}`, `iam.UserReenabled {userId}`.
+- `tenant.TenantActivated {tenantId}`; `billing.ArrearsAgeingBlocked {accountId, bucketCode, daysOverdue}`; `party.PartyMatchResolved {partyId, resolution, existingPartyId}`; `iam.UserIdentityRequested {userId}`, `iam.UserInvitationRequested {userId, actions}`, `iam.UserReenabled {userId}`.
 
 ### New error codes
-- `ONBOARDING_STEP_NOT_READY`, `ATTESTATION_NOT_ALLOWED` (Tenancy).
+- `ONBOARDING_STEP_NOT_READY`, `ATTESTATION_NOT_ALLOWED` (Tenancy); `TENANT_NOT_ACTIVE` (all business modules).
 
 ## Wave 0b batch 5 (merged, `0f66f05`): external-user access; Health product follow-ups
 

@@ -37,6 +37,10 @@ public static class TenancyPermissions
 }
 
 /// <summary>Consumed by Identity: block sign-in for the tenant (domain-model.json, iam consumes TenantSuspended).</summary>
+/// <summary>The tenant became Active: its users' cached access (configuration only while Onboarding) is dropped.</summary>
+[IntegrationEvent("tenant.TenantActivated")]
+public sealed record TenantActivated(Guid TenantId) : IIntegrationEvent;
+
 [IntegrationEvent("tenant.TenantSuspended")]
 public sealed record TenantSuspended(Guid TenantId) : IIntegrationEvent;
 
@@ -46,11 +50,18 @@ public interface ITenantStatusQuery
     Task<bool> IsActive(Guid tenantId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Whether the tenant's users may sign in: Active, or Onboarding, so they can load its configuration and run the
-    /// end-to-end test the last onboarding step records (onboarding readiness, decided in Wave 0b batch 6). Suspended
-    /// and Terminated tenants are refused. The background jobs still run for Active tenants only.
+    /// What the tenant's users may do (decided in Wave 0b batch 6): everything when Active; identity, static data and
+    /// configuration while Onboarding, so they load its configuration (business commands are refused with
+    /// TENANT_NOT_ACTIVE); nothing when Suspended or Terminated. The background jobs run for Active tenants only.
     /// </summary>
-    Task<bool> AcceptsUsers(Guid tenantId, CancellationToken cancellationToken);
+    Task<TenantUserAccess> UserAccess(Guid tenantId, CancellationToken cancellationToken);
+}
+
+public enum TenantUserAccess
+{
+    None,
+    ConfigurationOnly,
+    Full,
 }
 
 /// <summary>Public query interface: the tenant's base currency on a day (tenant.cfg_locale_defaults), or null when none is in force.</summary>

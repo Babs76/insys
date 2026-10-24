@@ -50,6 +50,9 @@ public sealed class FinanceModule : IModule
 {
     public string Name => "Finance";
 
+    /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
+    public bool TransactsBusiness => true;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddFinanceInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)
@@ -102,7 +105,8 @@ public sealed class FinanceModule : IModule
                     PeriodAction.Close => "Close a soft-closed period for good",
                     _ => "Ask to reopen a soft-closed period; a second person approves it in Workflow",
                 })
-                .RequirePermission(FinancePermissions.PeriodUpdate);
+                .RequirePermission(FinancePermissions.PeriodUpdate)
+                .OnboardingConfiguration();
         }
 
         finance.MapGet("/periods/{periodCode}/trial-balance", async (string periodCode, IDispatcher dispatcher, CancellationToken ct) =>

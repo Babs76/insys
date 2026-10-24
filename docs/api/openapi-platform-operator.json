@@ -26605,6 +26605,153 @@
         "x-permission": "tenant.update"
       }
     },
+    "/api/v1/tenancy/tenants/{id}/smoke-run": {
+      "post": {
+        "tags": [
+          "Tenancy"
+        ],
+        "summary": "Record the end-to-end run for the END_TO_END_TESTS step: its reference, date, outcome and who ran it",
+        "description": "The run is made in a non-production environment with the same configuration (decided 24 October 2026, until configuration promotion between environments exists). It stands in for SMOKE_RUN once a second platform operator approves it and its outcome is PASSED.",
+        "operationId": "RecordSmokeRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenancySmokeRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "tenant.update"
+      }
+    },
+    "/api/v1/tenancy/tenants/{id}/smoke-run/approve": {
+      "post": {
+        "tags": [
+          "Tenancy"
+        ],
+        "summary": "Approve the recorded end-to-end run, as a second platform operator (SRS-002): the one who recorded it cannot",
+        "operationId": "ApproveSmokeRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "tenant.update"
+      }
+    },
     "/api/v1/tenancy/tenants/{id}/readiness": {
       "get": {
         "tags": [
@@ -51559,6 +51706,39 @@
           "at": {
             "type": "string",
             "format": "date-time"
+          },
+          "runDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "outcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ranBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -51932,6 +52112,34 @@
             "$ref": "#/components/schemas/TenancyIsolationProfile"
           },
           "timeZone": {
+            "type": "string"
+          }
+        }
+      },
+      "TenancySmokeRunRequest": {
+        "required": [
+          "runReference",
+          "runDate",
+          "outcome",
+          "ranBy"
+        ],
+        "type": "object",
+        "properties": {
+          "runReference": {
+            "type": "string"
+          },
+          "runDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "outcome": {
+            "enum": [
+              "PASSED",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "ranBy": {
             "type": "string"
           }
         }

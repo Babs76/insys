@@ -42,12 +42,15 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
     private static readonly DateOnly From = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30);
     private InsysApiFactory _factory = null!;
     private HttpClient _operator = null!;
+    private HttpClient _checker = null!;
 
     public async ValueTask InitializeAsync()
     {
         _factory = await fixture.Host();
         await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, OperatorAdmin, TenancyPermissions.Read, TenancyPermissions.Create, TenancyPermissions.Update);
         _operator = _factory.ClientFor(DatabaseFixture.Operator, OperatorAdmin);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, OperatorAdmin + "-2", TenancyPermissions.Read, TenancyPermissions.Update);
+        _checker = _factory.ClientFor(DatabaseFixture.Operator, OperatorAdmin + "-2");
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -92,16 +95,61 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         var wrongCheck = await _operator.Send(HttpMethod.Post, $"{url}/complete-onboarding-step",
             new { step = "REINSURANCE", attestations = new[] { new { check = "SMOKE_RUN", note = "RUN-1" } } }, ifMatch: etag);
         (await wrongCheck.Code()).ShouldBe("ATTESTATION_NOT_ALLOWED");
-        foreach (var step in new[] { "REINSURANCE", "INTEGRATION_AND_REPORTING", "END_TO_END_TESTS" })
+        foreach (var step in new[] { "REINSURANCE", "INTEGRATION_AND_REPORTING" })
         {
             etag = await Complete(url, etag, step);
         }
+
+        // The end-to-end run, made in a non-production environment: recorded, then approved by a second operator, not the same one.
+        (await (await _operator.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", new { step = "END_TO_END_TESTS" }, ifMatch: etag)).Json())
+            .GetProperty("errors").EnumerateObject().Select(e => e.Name).ShouldBe(["SMOKE_RUN"]);
+        var recorded = await _operator.Send(HttpMethod.Post, $"{url}/smoke-run",
+            new { runReference = "UAT-RUN-7", runDate = From.AddDays(29), outcome = "PASSED", ranBy = "QA team" }, ifMatch: etag);
+        recorded.StatusCode.ShouldBe(HttpStatusCode.NoContent, await recorded.Content.ReadAsStringAsync());
+        etag = recorded.ETag();
+        Check(await Readiness(url), "END_TO_END_TESTS", "SMOKE_RUN").GetProperty("ready").GetBoolean().ShouldBeFalse("not yet approved");
+        (await (await _operator.Send(HttpMethod.Post, $"{url}/smoke-run/approve", ifMatch: etag)).Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        var approved = await _checker.Send(HttpMethod.Post, $"{url}/smoke-run/approve", ifMatch: etag);
+        approved.StatusCode.ShouldBe(HttpStatusCode.NoContent, await approved.Content.ReadAsStringAsync());
+        etag = await Complete(url, approved.ETag(), "END_TO_END_TESTS");
 
         (await _operator.Send(HttpMethod.Post, $"{url}/activate", new { reason = "Go live" }, ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var done = await Readiness(url);
         done.GetProperty("steps").EnumerateArray().ShouldAllBe(s => s.GetProperty("completed").GetBoolean() && s.GetProperty("ready").GetBoolean());
         var waived = Check(done, "REINSURANCE", "TREATIES").GetProperty("attestation");
         (waived.GetProperty("kind").GetString(), waived.GetProperty("note").GetString()).ShouldBe(("WAIVER", "No reinsurance: test tenant"));
+        var run = Check(done, "END_TO_END_TESTS", "SMOKE_RUN").GetProperty("attestation");
+        (run.GetProperty("note").GetString(), run.GetProperty("outcome").GetString(), run.GetProperty("ranBy").GetString()).ShouldBe(("UAT-RUN-7", "PASSED", "QA team"));
+        run.GetProperty("approvedBy").ValueKind.ShouldBe(JsonValueKind.String);
+    }
+
+    [Fact]
+    public async Task AnOnboardingTenantsUsers_LoadItsConfiguration_ButItsBusinessWaitsForActivation_TEN008()
+    {
+        var (tenantId, url) = await Register("CONFIG");
+        await fixture.Database.SeedReadyTenant(tenantId, From);
+        await fixture.Database.UserWithPermissions(tenantId, "config-clerk", "static_data.create", "static_data.read", "billing_account.create", "billing_account.read");
+        var clerk = _factory.ClientFor(tenantId, "config-clerk");
+
+        // Configuration: a static data draft, and its readiness completes the step.
+        var draft = await clerk.Send(HttpMethod.Post, "/api/v1/billing/static/billing-frequencies",
+            new { code = "WEEKLY", label = "Weekly", periodsPerYear = 52, changeReason = "onboarding" }, idempotent: true);
+        draft.StatusCode.ShouldBe(HttpStatusCode.Created, await draft.Content.ReadAsStringAsync());
+        await Complete(url, (await _operator.GetAsync(url)).ETag(), "PLATFORM_REFERENCE_DATA");
+
+        // Business: refused until the tenant is activated; reads are allowed.
+        object Account() => new { payerPartyId = Guid.CreateVersion7(), currency = "ZAR", collectionMethod = "DEBIT_ORDER" };
+        var refused = await clerk.Send(HttpMethod.Post, "/api/v1/billing/accounts/", Account(), idempotent: true);
+        refused.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await refused.Code()).ShouldBe("TENANT_NOT_ACTIVE");
+        (await clerk.GetAsync($"/api/v1/billing/accounts/{Guid.CreateVersion7()}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "reads are allowed");
+
+        var admin = await fixture.Database.UserWithPermissions(tenantId, "config-admin", "user.read");
+        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET role_code = 'TENANT_ADMIN' WHERE user_id = @u", ("u", admin));
+        var etag = await _operator.CompleteOnboarding(_checker, url, (await _operator.GetAsync(url)).ETag());
+        (await _operator.Send(HttpMethod.Post, $"{url}/activate", new { reason = "Go live" }, ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+        (await clerk.Send(HttpMethod.Post, "/api/v1/billing/accounts/", Account(), idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created);
     }
 
     [Fact]

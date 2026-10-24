@@ -106,7 +106,9 @@ public sealed class PrincipalResolver(
             return cached;
         }
 
-        var principal = await tenants.AcceptsUsers(tenantId, cancellationToken) ? await Load(tenantId, subject, cancellationToken) : null;
+        var access = await tenants.UserAccess(tenantId, cancellationToken);
+        var principal = access == TenantUserAccess.None ? null : await Load(tenantId, subject, cancellationToken);
+        principal = principal is null ? null : principal with { ConfigurationOnly = access == TenantUserAccess.ConfigurationOnly };
         cache.Set(tenantId, subject, principal);
         return principal;
     }
@@ -249,8 +251,11 @@ internal sealed class PermissionCacheInvalidation(IPermissionCache cache) :
     IIntegrationEventHandler<Contracts.SubjectLinkChanged>,
     IIntegrationEventHandler<Contracts.RoleRevoked>,
     IIntegrationEventHandler<Contracts.UserDisabled>,
-    IIntegrationEventHandler<TenantSuspended>
+    IIntegrationEventHandler<TenantSuspended>,
+    IIntegrationEventHandler<TenantActivated>
 {
+    public Task Handle(TenantActivated integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken) => Evict(envelope);
+
     public Task Handle(Contracts.RoleAssigned integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken) => Evict(envelope);
 
     public Task Handle(Contracts.RoleRevoked integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken) => Evict(envelope);

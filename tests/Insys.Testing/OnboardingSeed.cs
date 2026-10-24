@@ -88,17 +88,55 @@ public static class OnboardingSeed
         await database.SeedStatic(tenantId, table, recordStatus, code, 1, from, null, [.. filled]);
     }
 
-    /// <summary>
-    /// The body completing an onboarding step: the steps whose checks allow it record no reinsurance and no webhooks (with a
-    /// reason), and the end-to-end run's reference.
-    /// </summary>
+    /// <summary>The body completing an onboarding step: the steps whose checks allow it record no reinsurance and no webhooks, with a reason.</summary>
     public static object StepBody(string step) => step switch
     {
         "REINSURANCE" => new { step, attestations = new[] { new { check = "TREATIES", note = "No reinsurance: test tenant" } } },
         "INTEGRATION_AND_REPORTING" => new { step, attestations = new[] { new { check = "WEBHOOKS_OR_NONE", note = "No partners: test tenant" } } },
-        "END_TO_END_TESTS" => new { step, attestations = new[] { new { check = "SMOKE_RUN", note = "RUN-TEST-1" } } },
         _ => new { step },
     };
+
+    /// <summary>
+    /// Completes the onboarding steps from the current one to the end, recording the end-to-end run with
+    /// <paramref name="recorder"/> and approving it with <paramref name="approver"/> (a second platform operator); returns the ETag.
+    /// </summary>
+    public static async Task<string> CompleteOnboarding(this HttpClient recorder, HttpClient approver, string url, string etag)
+    {
+        var tenant = await (await recorder.GetAsync(url)).Json();
+        var steps = tenant.GetProperty("onboardingSteps").EnumerateArray().Select(s => s.GetString()!).ToList();
+        foreach (var step in steps.SkipWhile(s => s != tenant.GetProperty("onboardingStep").GetString()))
+        {
+            if (step == "END_TO_END_TESTS")
+            {
+                etag = await recorder.RecordSmokeRun(approver, url, etag);
+            }
+
+            var completed = await recorder.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", StepBody(step), ifMatch: etag);
+            await Expect(completed, System.Net.HttpStatusCode.NoContent, step);
+            etag = completed.ETag();
+        }
+
+        return etag;
+    }
+
+    /// <summary>Records a passed end-to-end run and has a second platform operator approve it; returns the ETag.</summary>
+    public static async Task<string> RecordSmokeRun(this HttpClient recorder, HttpClient approver, string url, string etag)
+    {
+        var recorded = await recorder.Send(HttpMethod.Post, $"{url}/smoke-run",
+            new { runReference = "UAT-RUN-1", runDate = DateOnly.FromDateTime(DateTime.UtcNow), outcome = "PASSED", ranBy = "Test operator" }, ifMatch: etag);
+        await Expect(recorded, System.Net.HttpStatusCode.NoContent, "smoke-run");
+        var approved = await approver.Send(HttpMethod.Post, $"{url}/smoke-run/approve", ifMatch: recorded.ETag());
+        await Expect(approved, System.Net.HttpStatusCode.NoContent, "smoke-run/approve");
+        return approved.ETag();
+    }
+
+    private static async Task Expect(HttpResponseMessage response, System.Net.HttpStatusCode status, string what)
+    {
+        if (response.StatusCode != status)
+        {
+            throw new InvalidOperationException($"{what}: {response.StatusCode} {await response.Content.ReadAsStringAsync()}");
+        }
+    }
 
     /// <summary>Everything every readiness check needs, in force from <paramref name="from"/>; <paramref name="staffRole"/> gets its channel rows.</summary>
     public static async Task SeedReadyTenant(this TestDatabase database, Guid tenantId, DateOnly from)

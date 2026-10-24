@@ -59,7 +59,20 @@ public interface IModule
     /// are never channel-scoped.
     /// </summary>
     bool ChannelScoped => false;
+
+    /// <summary>
+    /// Whether the module's commands are business transactions (quotes, proposals, policies, endorsements, claims,
+    /// billing, payments, finance postings, commission, reinsurance): refused while the tenant is Onboarding
+    /// (TENANT_NOT_ACTIVE), except its static data and the commands marked as onboarding configuration.
+    /// </summary>
+    bool TransactsBusiness => false;
 }
+
+/// <summary>Marks an endpoint of a module that transacts business (IModule.TransactsBusiness).</summary>
+public sealed record BusinessTransactionMetadata;
+
+/// <summary>A command of a business module that is configuration, so open while the tenant is Onboarding (an accounting period, a callback endpoint).</summary>
+public sealed record OnboardingConfigurationMetadata;
 
 /// <summary>Marks a channel-scoped command (F005): a group of a channel-scoped module, or one endpoint (payments out).</summary>
 public sealed record ChannelScopedMetadata;
@@ -86,6 +99,10 @@ internal sealed class EndpointChannelScopedTransactions(EndpointDataSource endpo
 
 public static class ChannelScoping
 {
+    /// <summary>This command configures the tenant, so it is open while the tenant is Onboarding (onboarding readiness).</summary>
+    public static TBuilder OnboardingConfiguration<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder => builder.WithMetadata(new OnboardingConfigurationMetadata());
+
     public static TBuilder ChannelScoped<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder => builder.WithMetadata(new ChannelScopedMetadata());
 
@@ -115,6 +132,15 @@ public static class RequestAccessScope
             if (await ExternalUserRefusal(http, metadata) is { } refused)
             {
                 return refused;
+            }
+
+            // A tenant still Onboarding loads its configuration; its business commands wait for activation.
+            if (http.RequestServices.GetRequiredService<ExecutionScope>().ConfigurationOnly && !HttpMethods.IsGet(http.Request.Method)
+                && !HttpMethods.IsHead(http.Request.Method) && metadata?.GetMetadata<BusinessTransactionMetadata>() is not null
+                && metadata.GetMetadata<OnboardingConfigurationMetadata>() is null && metadata.GetMetadata<StaticDataEndpointMetadata>() is null)
+            {
+                return Problems.For(Domain.ErrorCodes.TenantNotActive, "The tenant is still onboarding: business transactions start once it is activated.",
+                    StatusCodes.Status409Conflict);
             }
 
             if (metadata?.GetMetadata<RequiredPermissionMetadata>()?.Permission is { } permission)

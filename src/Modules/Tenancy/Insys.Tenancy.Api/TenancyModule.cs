@@ -43,7 +43,10 @@ public sealed record RegisterTenantRequest(string TenantCode, string LegalName, 
 
 public sealed record TenantStatusRequest(string Reason);
 
-/// <param name="Attestations">Waivers (TREATIES, WEBHOOKS_OR_NONE: the reason) or evidence (SMOKE_RUN: the run's reference) for this step's checks.</param>
+/// <param name="Attestations">Waivers for this step's checks that allow one (TREATIES, WEBHOOKS_OR_NONE), with the reason.</param>
+/// <param name="Outcome">PASSED or FAILED.</param>
+public sealed record SmokeRunRequest(string RunReference, DateOnly RunDate, [property: BuildingBlocks.Domain.OneOf("PASSED", "FAILED")] string Outcome, string RanBy);
+
 public sealed record OnboardingStepRequest(string Step, IReadOnlyList<OnboardingAttestationRequest>? Attestations = null);
 
 public sealed record IsolationProfileRequest(IsolationProfile IsolationProfile, string ApprovedMigrationRef);
@@ -120,6 +123,25 @@ public sealed class TenancyModule : IModule
             .WithDescription("Steps follow the tenant load sequence in order; activation needs them all (TEN-008). The step's checks run in the tenant on its "
                 + "business date; if any is not ready the step is refused with ONBOARDING_STEP_NOT_READY, whose errors name each check and what is missing, "
                 + "and nothing changes. attestations record a waiver for TREATIES or WEBHOOKS_OR_NONE, or the end-to-end run's reference for SMOKE_RUN.")
+            .RequirePlatformPermission(TenancyPermissions.Update);
+
+        tenants.MapPost("/{id:guid}/smoke-run", (Guid id, SmokeRunRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new RecordSmokeRun(id, request.RunReference, request.RunDate, request.Outcome, request.RanBy, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .RequireIfMatch()
+            .WithName("RecordSmokeRun")
+            .WithSummary("Record the end-to-end run for the END_TO_END_TESTS step: its reference, date, outcome and who ran it")
+            .WithDescription("The run is made in a non-production environment with the same configuration (decided 24 October 2026, until configuration "
+                + "promotion between environments exists). It stands in for SMOKE_RUN once a second platform operator approves it and its outcome is PASSED.")
+            .RequirePlatformPermission(TenancyPermissions.Update);
+
+        tenants.MapPost("/{id:guid}/smoke-run/approve", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new ApproveSmokeRun(id, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("ApproveSmokeRun")
+            .WithSummary("Approve the recorded end-to-end run, as a second platform operator (SRS-002): the one who recorded it cannot")
             .RequirePlatformPermission(TenancyPermissions.Update);
 
         tenants.MapGet("/{id:guid}/readiness", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>

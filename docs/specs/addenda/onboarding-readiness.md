@@ -50,7 +50,7 @@ Static data is read through each module's own query interface (Contracts), never
 | `REINSURANCE` | `TREATIES` | Treaties and cession rules for the tenant's products, **or** the operator records "no reinsurance" with a reason |
 | `INTEGRATION_AND_REPORTING` | `GL_EXPORT_LAYOUT` | `finance.cfg_gl_export_layouts` (F055) |
 | | `WEBHOOKS_OR_NONE` | Webhook subscriptions, **or** "none" recorded with a reason |
-| `END_TO_END_TESTS` | `SMOKE_RUN` | A recorded end-to-end run in the tenant: quote, policy, invoice, collection, journal and claim registration. Proposed as a step the operator records, with its reference, until an automated run exists |
+| `END_TO_END_TESTS` | `SMOKE_RUN` | An end-to-end run (quote, policy, invoice, collection, journal and claim registration) made in a **non-production environment with the same configuration**, recorded by a platform operator with its reference, date, outcome and who ran it, and approved by a second operator (decided 24 October 2026; see §7) |
 
 ### 3. Activation
 `ActivateTenant` stays refused until every step is complete (as today). With these checks, that now means the configuration exists, not only that the steps were ticked.
@@ -72,6 +72,18 @@ A tenant cannot be activated without channel definitions (F005, `addenda/channel
   3. Create any partner channels and their rows the same way.
   4. Complete the step. The `CHANNELS` check confirms the back-office channel lists `insys-web`, and that every staff role has an allowed row for each of its channel-scoped transactions; missing ones are listed.
 - **Effect on existing tenants:** none until they complete the step again. The readiness view reports their gaps, as for the other checks.
+
+### 6. Access while Onboarding (decided 24 October 2026)
+- **The tenant's users may use** identity, static data and configuration endpoints, including Tenancy's readiness view (the steps themselves are completed by the platform operator).
+- **Every business command is refused** with 409 `TENANT_NOT_ACTIVE`: quotes, proposals, policies, endorsements, claims, billing, payments, finance postings, commission and reinsurance. Configuration commands in those modules stay open: their static data, accounting periods and payment callback endpoints.
+- **Reads of business data are allowed;** there is none yet.
+- **Suspended and Terminated** tenants are refused entirely, and the background jobs run for Active tenants only, as before.
+
+### 7. The end-to-end run (decided 24 October 2026)
+- **Where it runs:** no test records are made in the production tenant. The run is made in a non-production environment with the same configuration.
+- **How it is recorded:** `POST /tenancy/tenants/{id}/smoke-run` records the run's reference, date, outcome (PASSED or FAILED) and who ran it. A second platform operator approves it (`…/smoke-run/approve`; the one who recorded it cannot). `SMOKE_RUN` is ready only for a PASSED run once approved.
+- **For how long:** this is the approach until configuration can be promoted between environments.
+- **Trade-off:** wrong configuration in the production tenant itself, for example a typing error made only there, is not caught by the smoke run. The readiness checks still check that the production tenant's configuration is in force and complete, but not that it behaves as tested.
 
 ## Open points for sign-off
 - **Exact minimums.** For example, `POSTING_RULES` lists the transaction types a tenant's products raise. Whether every transaction type in the catalogue must have a rule, or only those the products use, is proposed here as "only those used".

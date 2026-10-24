@@ -26,3 +26,31 @@
 - **OQ-037 is narrowed, not closed.** With one realm there is one issuer. A federated IdP keeps its users' `sub` unique within the realm.
 - **Disabling a user (IAM-005)** must be done in both places. IAM refuses at once, and Keycloak stops issuing new tokens. Access tokens should be short-lived (5 minutes is proposed), because IAM's refusal covers the rest.
 - **The first administrator of a new tenant (OQ-067)** needs both a Keycloak user with that `tenant_id` and an IAM user.
+
+## Amendment 1: one Keycloak user per person per tenant (24 October 2026)
+
+- **Status:** Accepted (Ade, 24 October 2026), with the Keycloak user provisioning built in Wave 0b batch 6 (`addenda/keycloak-user-provisioning.md`).
+- **Context:**
+  - Realm `insys` serves every tenant.
+  - A token carries one `tenant_id`, from an admin-only user attribute.
+  - One person may need to be a user in more than one tenant, for example a consultant of two insurers.
+  - Keycloak usernames are unique in a realm.
+
+### Decision
+- **One Keycloak user per person per tenant.** Each has its own `tenant_id` attribute, its own password and one-time code, and its own sessions.
+- **The username** is `<tenant code>.<username>` in lower case, for example `oft-za.jane.doe`. INSYS creates it when it provisions the user (Keycloak keeps usernames in lower case).
+- **The realm allows duplicate emails,** so the same person's accounts in different tenants can share one address. Keycloak then switches "Login with email" off: users sign in with the tenant-qualified username.
+- **No change to the token:** it still carries only `sub` and `tenant_id` (and the API audience).
+
+### Trade-offs
+- **A person in two tenants has two accounts:** two usernames, two passwords, two one-time code set-ups. Leaving one tenant ends only that account.
+- **No sign-in by email,** because duplicate emails disable it. "Forgot password" asks for the username too.
+- **A username can collide** with another tenant's user only if the tenant codes and usernames together are the same. Tenant codes are unique, so a collision means the account was created outside INSYS; INSYS parks it for the operator (`KEYCLOAK_USER_CONFLICT`).
+
+### Alternative considered: Keycloak Organizations
+- **What it offers:** since Keycloak 26, one user may be a member of several organizations, and a client asks which organization a token is for by scope. Checked on 26.7.5: a user in two organizations got `organization: ["alpha"]` with scope `organization:alpha`.
+- **Why not now:**
+  - a single account per person would need the tenant to be chosen at sign-in and carried in a different claim, changing the token contract INSYS relies on (`tenant_id`, ADR-017's decision);
+  - the API's tenant resolution would change;
+  - the front end would need a tenant picker.
+- **When to revisit:** if people commonly work in several tenants. That would be a new decision, not this amendment.

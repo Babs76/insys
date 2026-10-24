@@ -65,6 +65,7 @@ public static class IdentityInfrastructure
         services.AddIntegrationEventHandler<Contracts.RoleRevoked, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "RoleRevoked");
         services.AddIntegrationEventHandler<Contracts.UserDisabled, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "UserDisabled");
         services.AddIntegrationEventHandler<TenantSuspended, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "TenantSuspended");
+        services.AddIntegrationEventHandler<TenantActivated, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "TenantActivated");
 
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, PrivilegedRoleApprovalPolicy, IdentityDbContext>(IdentityDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, PrivilegedRoleApprovalPolicy, IdentityDbContext>(IdentityDbContext.SchemaName, "ApprovalRejected");

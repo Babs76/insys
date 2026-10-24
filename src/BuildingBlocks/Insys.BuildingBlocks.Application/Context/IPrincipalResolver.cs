@@ -33,7 +33,7 @@ namespace Insys.BuildingBlocks.Application.Context;
 /// <param name="RoleCodes">The roles in effect, for channel permission rows (F005).</param>
 /// <param name="External">The party, intermediary or provider an external user is, from their approved link; null for staff.</param>
 public sealed record ResolvedPrincipal(Guid UserId, IReadOnlySet<string> Permissions, IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? Grants = null,
-    IReadOnlyCollection<string>? RoleCodes = null, ExternalSubject? External = null);
+    IReadOnlyCollection<string>? RoleCodes = null, ExternalSubject? External = null, bool ConfigurationOnly = false);
 
 /// <summary>
 /// Resolves a token's subject to a user and permissions, per request, from IAM role assignments. Access tokens carry

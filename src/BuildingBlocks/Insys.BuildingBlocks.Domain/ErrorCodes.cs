@@ -85,6 +85,10 @@ public static class ErrorCodes
     [ErrorCode(403, "error.access.portal_mfa_required")]
     public const string PortalMfaRequired = "PORTAL_MFA_REQUIRED";
 
+    /// <summary>A business command in a tenant still Onboarding: only identity, static data and configuration are open until it is activated.</summary>
+    [ErrorCode(409, "error.access.tenant_not_active")]
+    public const string TenantNotActive = "TENANT_NOT_ACTIVE";
+
     /// <summary>ADR-024: a business module's endpoint was called in the platform operator tenant.</summary>
     [ErrorCode(403, "error.access.operator_tenant_not_business")]
     public const string OperatorTenantNotBusiness = "OPERATOR_TENANT_NOT_BUSINESS";

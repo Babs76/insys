@@ -50,6 +50,9 @@ public sealed class DistributionModule : IModule
 {
     public string Name => "Distribution";
 
+    /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
+    public bool TransactsBusiness => true;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddDistributionInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

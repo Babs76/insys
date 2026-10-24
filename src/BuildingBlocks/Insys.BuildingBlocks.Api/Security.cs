@@ -305,6 +305,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
         Guid? memberOf = null;
         IReadOnlyCollection<string>? roles = null;
         ExternalSubject? external = null;
+        var configurationOnly = false;
         if (tenantId is not null && subject is not null && context.RequestServices.GetService<IPrincipalResolver>() is { } resolver)
         {
             var principal = await resolver.Resolve(tenantId.Value, subject, context.RequestAborted);
@@ -315,6 +316,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
                 grants = principal.Grants;
                 roles = principal.RoleCodes;
                 external = principal.External;
+                configurationOnly = principal.ConfigurationOnly;
                 memberOf = tenantId;
                 context.Items[TenantMemberRequirement.MemberItem] = true;
             }
@@ -325,7 +327,8 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
         await RequestLanguageResolver.Initialise(context, memberOf);
 
         Guid? correlation = Guid.TryParse(context.Request.Headers[CorrelationHeader], out var c) ? c : null;
-        scope.InitialiseForUser(tenantId, actor, permissions, correlation, grants, user.FindFirstValue(InsysClaims.AuthorisedParty), roles, external, MultiFactor(user));
+        scope.InitialiseForUser(tenantId, actor, permissions, correlation, grants, user.FindFirstValue(InsysClaims.AuthorisedParty), roles, external, MultiFactor(user),
+            configurationOnly);
         context.Response.Headers[CorrelationHeader] = scope.CorrelationId.ToString();
         await next(context);
     }

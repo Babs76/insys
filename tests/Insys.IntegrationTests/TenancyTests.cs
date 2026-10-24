@@ -42,6 +42,7 @@ public sealed class TenancyTests(DatabaseFixture fixture) : IClassFixture<Databa
         _factory = await fixture.Host();
         await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, OperatorAdmin,
             TenancyPermissions.Read, TenancyPermissions.Create, TenancyPermissions.Update);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, OperatorAdmin + "-2", TenancyPermissions.Read, TenancyPermissions.Update);
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -103,12 +104,7 @@ public sealed class TenancyTests(DatabaseFixture fixture) : IClassFixture<Databa
         await fixture.Database.SeedReadyTenant(tenantId, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30));
         var admin = await fixture.Database.UserWithPermissions(tenantId, "acme-admin", IntegrationPermissions.DeadLetterRead);
         await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET role_code = 'TENANT_ADMIN' WHERE user_id = @u", ("u", admin));
-        foreach (var step in body.GetProperty("onboardingSteps").EnumerateArray().Select(s => s.GetString()!))
-        {
-            var completed = await client.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", OnboardingSeed.StepBody(step), ifMatch: etag);
-            completed.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-            etag = completed.ETag();
-        }
+        etag = await client.CompleteOnboarding(_factory.ClientFor(DatabaseFixture.Operator, OperatorAdmin + "-2"), url, etag);
 
         (await client.Send(HttpMethod.Post, $"{url}/activate", new { reason = "Go live" }, ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var active = await client.GetAsync(url);

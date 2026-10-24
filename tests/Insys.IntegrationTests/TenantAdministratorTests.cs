@@ -228,17 +228,9 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         return (tenantId, url);
     }
 
-    private static async Task CompleteOnboardingAndActivate(HttpClient client, string url, string etag)
+    private async Task CompleteOnboardingAndActivate(HttpClient client, string url, string etag)
     {
-        var tenant = await (await client.GetAsync(url)).Json();
-        var steps = tenant.GetProperty("onboardingSteps").EnumerateArray().Select(s => s.GetString()!).ToList();
-        foreach (var step in steps.SkipWhile(s => s != tenant.GetProperty("onboardingStep").GetString()))
-        {
-            var completed = await client.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", OnboardingSeed.StepBody(step), ifMatch: etag);
-            completed.StatusCode.ShouldBe(HttpStatusCode.NoContent, await completed.Content.ReadAsStringAsync());
-            etag = completed.ETag();
-        }
-
+        etag = await client.CompleteOnboarding(_factory.ClientFor(Operator, "platform-two"), url, etag);
         (await client.Send(HttpMethod.Post, $"{url}/activate", new { reason = "Go live" }, ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
 

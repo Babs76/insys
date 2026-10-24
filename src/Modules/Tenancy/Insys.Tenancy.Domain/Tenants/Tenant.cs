@@ -100,12 +100,52 @@ public sealed class OnboardingCase : Entity<Guid>, ITenantScoped
     /// <summary>The waivers and evidence recorded so far (tenant.onboarding_case.attestations).</summary>
     public IReadOnlyList<OnboardingAttestation> Attestations { get; private set; } = [];
 
+    /// <summary>
+    /// The end-to-end run's evidence (onboarding readiness END_TO_END_TESTS): run in a non-production environment with the
+    /// same configuration, recorded here, and standing in for the check once a second person approves it.
+    /// </summary>
+    internal Result RecordSmokeRun(string runReference, DateOnly runDate, string outcome, string ranBy, Guid by, DateTimeOffset now)
+    {
+        if (IsCompleted || CurrentStep != "END_TO_END_TESTS")
+        {
+            return Error.Validation(TenancyErrorCodes.AttestationNotAllowed, "The end-to-end run is recorded in the END_TO_END_TESTS step.");
+        }
+
+        if (outcome is not ("PASSED" or "FAILED"))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "The outcome is PASSED or FAILED.");
+        }
+
+        Attestations = [.. Attestations.Where(a => a.Check != OnboardingAttestation.SmokeRun),
+            new OnboardingAttestation(CurrentStep, OnboardingAttestation.SmokeRun, "EVIDENCE", Guard.MaxLength(Guard.NotNullOrWhiteSpace(runReference), 500), by, now,
+                runDate, outcome, Guard.MaxLength(Guard.NotNullOrWhiteSpace(ranBy), 120))];
+        return Result.Success();
+    }
+
+    /// <summary>A second person approves the recorded run (SRS-002); the one who recorded it cannot.</summary>
+    internal Result ApproveSmokeRun(Guid by, DateTimeOffset now)
+    {
+        if (Attestations.FirstOrDefault(a => a.Check == OnboardingAttestation.SmokeRun) is not { ApprovedBy: null } recorded)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "No end-to-end run is waiting for approval.");
+        }
+
+        var different = MakerChecker.EnsureDifferentPeople(recorded.By.ToString(), by.ToString());
+        if (different.IsFailure)
+        {
+            return different;
+        }
+
+        Attestations = [.. Attestations.Where(a => a.Check != OnboardingAttestation.SmokeRun), recorded with { ApprovedBy = by, ApprovedAt = now }];
+        return Result.Success();
+    }
+
     internal Result Attest(string check, string note, Guid by, DateTimeOffset now)
     {
         if (!OnboardingAttestation.Allowed.TryGetValue(check, out var allowed) || allowed.Step != CurrentStep || IsCompleted)
         {
             return Error.Validation(TenancyErrorCodes.AttestationNotAllowed,
-                $"{check} cannot be recorded here: waivers are for TREATIES and WEBHOOKS_OR_NONE, evidence for SMOKE_RUN, each in its own step.");
+                $"{check} cannot be recorded here: waivers are for TREATIES and WEBHOOKS_OR_NONE, each in its own step; the end-to-end run is recorded with its own command.");
         }
 
         Attestations = [.. Attestations.Where(a => a.Check != check), new OnboardingAttestation(allowed.Step, check, allowed.Kind, Guard.MaxLength(note, 500), by, now)];
@@ -146,14 +186,22 @@ public sealed class OnboardingCase : Entity<Guid>, ITenantScoped
 /// A waiver ("no reinsurance", "no webhooks", with a reason) or evidence (the end-to-end run's reference) the operator
 /// records for a check instead of configuration (onboarding readiness §2).
 /// </summary>
-public sealed record OnboardingAttestation(string Step, string Check, string Kind, string Note, Guid By, DateTimeOffset At)
+/// <param name="Note">A waiver's reason, or the end-to-end run's reference.</param>
+/// <param name="RunDate">The end-to-end run's date (SMOKE_RUN only), and below its outcome, who ran it, and the second person who approved the record.</param>
+public sealed record OnboardingAttestation(string Step, string Check, string Kind, string Note, Guid By, DateTimeOffset At, DateOnly? RunDate = null,
+    string? Outcome = null, string? RanBy = null, Guid? ApprovedBy = null, DateTimeOffset? ApprovedAt = null)
 {
+    public const string SmokeRun = "SMOKE_RUN";
+
+    /// <summary>The waivers a step's completion may carry; the smoke run is recorded and approved on its own (RecordSmokeRun).</summary>
     public static readonly IReadOnlyDictionary<string, (string Step, string Kind)> Allowed = new Dictionary<string, (string, string)>
     {
         ["TREATIES"] = ("REINSURANCE", "WAIVER"),
         ["WEBHOOKS_OR_NONE"] = ("INTEGRATION_AND_REPORTING", "WAIVER"),
-        ["SMOKE_RUN"] = ("END_TO_END_TESTS", "EVIDENCE"),
     };
+
+    /// <summary>Evidence of a passed end-to-end run, approved by a second person.</summary>
+    public bool StandsIn => Check != SmokeRun || (Outcome == "PASSED" && ApprovedBy is not null);
 }
 
 /// <summary>Entity StatusChange (tenant.tenant_status_history): every status change with its reason.</summary>
@@ -180,6 +228,8 @@ public sealed class StatusChange : Entity<Guid>, ITenantScoped
 }
 
 public sealed record TenantSuspended(Guid TenantId, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record TenantActivated(Guid TenantId, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>
 /// The Tenant aggregate (tenant.tenant with its onboarding case and status history). The tenant identifier is unique
@@ -246,6 +296,27 @@ public sealed class Tenant : AggregateRoot<Guid>
         return tenant;
     }
 
+    public Result RecordSmokeRun(string runReference, DateOnly runDate, string outcome, string ranBy, Guid by, DateTimeOffset now) =>
+        OnOnboarding(onboarding => onboarding.RecordSmokeRun(runReference, runDate, outcome, ranBy, by, now));
+
+    public Result ApproveSmokeRun(Guid by, DateTimeOffset now) => OnOnboarding(onboarding => onboarding.ApproveSmokeRun(by, now));
+
+    private Result OnOnboarding(Func<OnboardingCase, Result> change)
+    {
+        if (Status != TenantStatus.Onboarding || Onboarding is null)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a tenant in onboarding has onboarding steps.");
+        }
+
+        var result = change(Onboarding);
+        if (result.IsSuccess)
+        {
+            MarkChanged();
+        }
+
+        return result;
+    }
+
     /// <summary>Records a waiver or evidence for a check of the current onboarding step (onboarding readiness §2).</summary>
     public Result AttestOnboarding(string check, string note, Guid by, DateTimeOffset now)
     {
@@ -288,7 +359,13 @@ public sealed class Tenant : AggregateRoot<Guid>
             return Error.Conflict(TenancyErrorCodes.OnboardingIncomplete, $"Onboarding is not complete; the current step is {Onboarding?.CurrentStep}.");
         }
 
-        return Change(TenantTrigger.ActivateTenant, operatorId, reason, now);
+        var result = Change(TenantTrigger.ActivateTenant, operatorId, reason, now);
+        if (result.IsSuccess)
+        {
+            Raise(new TenantActivated(Id, now));
+        }
+
+        return result;
     }
 
     public Result SuspendTenant(Guid operatorId, string reason, DateTimeOffset now)

@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using FluentValidation;
 using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
@@ -42,7 +43,68 @@ public interface ITenantLocale
     Task<(string? BaseCurrency, string? DefaultLanguage)> For(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record OnboardingAttestationView(string Kind, string Note, Guid By, DateTimeOffset At);
+/// <param name="RunDate">For the end-to-end run: its date, outcome (PASSED or FAILED), who ran it, and who approved the record.</param>
+public sealed record OnboardingAttestationView(string Kind, string Note, Guid By, DateTimeOffset At, DateOnly? RunDate = null, string? Outcome = null, string? RanBy = null,
+    Guid? ApprovedBy = null, DateTimeOffset? ApprovedAt = null);
+
+/// <summary>Command RecordSmokeRun: the evidence of the end-to-end run, by a platform operator.</summary>
+public sealed record RecordSmokeRun(Guid TenantId, string RunReference, DateOnly RunDate, string Outcome, string RanBy, long ExpectedVersion)
+    : ICommand<long>, ITargetTenantRequest, IVersionedCommand
+{
+    public Guid TargetTenantId => TenantId;
+}
+
+public sealed class RecordSmokeRunValidator : AbstractValidator<RecordSmokeRun>
+{
+    public RecordSmokeRunValidator()
+    {
+        RuleFor(c => c.RunReference).NotEmpty().MaximumLength(500);
+        RuleFor(c => c.RanBy).NotEmpty().MaximumLength(120);
+        RuleFor(c => c.Outcome).Must(o => o is "PASSED" or "FAILED").WithMessage("outcome is PASSED or FAILED.");
+    }
+}
+
+/// <summary>Command ApproveSmokeRun: a second platform operator approves the recorded run (SRS-002).</summary>
+public sealed record ApproveSmokeRun(Guid TenantId, long ExpectedVersion) : ICommand<long>, ITargetTenantRequest, IVersionedCommand
+{
+    public Guid TargetTenantId => TenantId;
+}
+
+internal sealed class SmokeRunHandlers(ITenantRepository tenants, IExecutionContext execution, IClock clock, BuildingBlocks.Application.Auditing.IAuditTrail audit) :
+    ICommandHandler<RecordSmokeRun, long>,
+    ICommandHandler<ApproveSmokeRun, long>
+{
+    public Task<Result<long>> Handle(RecordSmokeRun command, CancellationToken cancellationToken) =>
+        Change(command.TenantId, command.ExpectedVersion, "RecordSmokeRun", (tenant, by) =>
+            tenant.RecordSmokeRun(command.RunReference, command.RunDate, command.Outcome, command.RanBy, by, clock.UtcNow), cancellationToken);
+
+    public Task<Result<long>> Handle(ApproveSmokeRun command, CancellationToken cancellationToken) =>
+        Change(command.TenantId, command.ExpectedVersion, "ApproveSmokeRun", (tenant, by) => tenant.ApproveSmokeRun(by, clock.UtcNow), cancellationToken);
+
+    private async Task<Result<long>> Change(Guid tenantId, long expectedVersion, string action, Func<Tenant, Guid, Result> change, CancellationToken cancellationToken)
+    {
+        var operatorId = Operator.Require(execution);
+        if (operatorId.IsFailure)
+        {
+            return operatorId.Error;
+        }
+
+        var tenant = await Operator.Load(tenants, tenantId, expectedVersion, cancellationToken);
+        if (tenant.IsFailure)
+        {
+            return tenant.Error;
+        }
+
+        var result = change(tenant.Value, operatorId.Value);
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        audit.Record(new BuildingBlocks.Application.Auditing.AuditEntry("TENANT", action, nameof(Tenant), tenantId.ToString()));
+        return tenant.Value.RowVersion + 1;
+    }
+}
 
 /// <param name="Attestation">The waiver or evidence that stands in for this check, if recorded.</param>
 public sealed record ReadinessCheckView(string Code, bool Ready, string What, IReadOnlyList<string> Missing, OnboardingAttestationView? Attestation);
@@ -76,11 +138,13 @@ public sealed class OnboardingReadiness(IEnumerable<IReadinessCheck> checks, ITe
             results.AddRange(await check.Check(context, cancellationToken));
         }
 
-        // Proposed in the addendum as a step the operator records, with its reference, until an automated run exists.
+        // Decided 24 October 2026: the run is made in a non-production environment with the same configuration, and recorded
+        // here with its reference, date, outcome and who ran it, approved by a second person (until configuration promotion exists).
         if (step is null or "END_TO_END_TESTS")
         {
-            results.Add(ReadinessResult.Of("END_TO_END_TESTS", SmokeRun, "A recorded end-to-end run: quote, policy, invoice, collection, journal and claim registration",
-                ["the run's reference, recorded as evidence"]));
+            results.Add(ReadinessResult.Of("END_TO_END_TESTS", SmokeRun,
+                "A passed end-to-end run (quote, policy, invoice, collection, journal, claim registration) in a non-production environment with the same configuration, recorded and approved by a second person",
+                ["the run's reference, date, outcome and who ran it (POST …/smoke-run), approved by a second person"]));
         }
 
         var attestations = tenant.Onboarding?.Attestations ?? [];
@@ -90,9 +154,12 @@ public sealed class OnboardingReadiness(IEnumerable<IReadinessCheck> checks, ITe
             var views = results.Where(r => r.Step == step).GroupBy(r => r.Code).Select(g =>
             {
                 var missing = g.SelectMany(r => r.Missing).Distinct(StringComparer.Ordinal).ToList();
-                var attested = attestations.FirstOrDefault(a => a.Check == g.Key);
+                var attested = attestations.FirstOrDefault(a => a.Check == g.Key && a.StandsIn);
+                var pending = attestations.FirstOrDefault(a => a.Check == g.Key && !a.StandsIn);
+                var shown = attested ?? pending;
                 return new ReadinessCheckView(g.Key, missing.Count == 0 || attested is not null, g.First().What, attested is null ? missing : [],
-                    attested is null ? null : new OnboardingAttestationView(attested.Kind, attested.Note, attested.By, attested.At));
+                    shown is null ? null : new OnboardingAttestationView(shown.Kind, shown.Note, shown.By, shown.At, shown.RunDate, shown.Outcome, shown.RanBy,
+                        shown.ApprovedBy, shown.ApprovedAt));
             }).OrderBy(v => v.Code, StringComparer.Ordinal).ToList();
             return new StepReadinessView(step, index < current, views.All(v => v.Ready), views);
         }).ToList();

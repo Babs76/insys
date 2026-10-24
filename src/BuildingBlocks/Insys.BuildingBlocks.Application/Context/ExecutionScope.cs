@@ -134,6 +134,9 @@ public sealed class ExecutionScope : ITenantContext, IExecutionContext
 
     public ExternalSubject? External { get; private set; }
 
+    /// <summary>The user's tenant is Onboarding: identity, static data and configuration only; business commands are refused (TENANT_NOT_ACTIVE).</summary>
+    public bool ConfigurationOnly { get; private set; }
+
     /// <summary>Whether the token shows a second factor (amr otp, mfa, hwk or swk, or acr 2 or above), for portal MFA (external-user access §6).</summary>
     public bool MultiFactor { get; private set; }
 
@@ -149,9 +152,10 @@ public sealed class ExecutionScope : ITenantContext, IExecutionContext
 
     public void InitialiseForUser(Guid? tenantId, string actorId, IEnumerable<string> permissions, Guid? correlationId,
         IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? grants = null, string? clientId = null, IReadOnlyCollection<string>? roleCodes = null,
-        ExternalSubject? external = null, bool multiFactor = false)
+        ExternalSubject? external = null, bool multiFactor = false, bool configurationOnly = false)
     {
         EnsureNotInitialised();
+        ConfigurationOnly = configurationOnly;
         _grants = grants;
         ClientId = clientId;
         RoleCodes = roleCodes ?? [];

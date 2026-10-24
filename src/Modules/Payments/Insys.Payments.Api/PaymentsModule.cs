@@ -68,6 +68,9 @@ public sealed class PaymentsModule : IModule
 {
     public string Name => "Payments";
 
+    /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
+    public bool TransactsBusiness => true;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddPaymentsInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)
@@ -272,6 +275,7 @@ public sealed class PaymentsModule : IModule
                     .ToHttp(issued => Results.Created($"/api/v1/payments/callback-endpoints/{issued.Endpoint.Id}", issued)))
             .Produces<IssuedCallbackEndpoint>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .OnboardingConfiguration()
             .WithName("PaymentsIssueCallbackEndpoint")
             .WithSummary("Issue a provider's callback endpoint; an active one is rotated (ADR-023)")
             .WithDescription("Returns the callback path with its endpoint key, and the signing secret, once: they are never shown again. The provider's current endpoint "
@@ -283,6 +287,7 @@ public sealed class PaymentsModule : IModule
             .Produces<CallbackEndpointView>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .OnboardingConfiguration()
             .WithName("PaymentsRevokeCallbackEndpoint")
             .WithSummary("Revoke a callback endpoint at once, for a leaked key or secret. Audited (ADR-023)")
             .RequirePermission(PaymentPermissions.CallbackEndpointUpdate);

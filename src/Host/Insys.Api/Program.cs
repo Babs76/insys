@@ -84,6 +84,11 @@ foreach (var module in modules)
         moduleGroup.WithMetadata(new ChannelScopedMetadata());
     }
 
+    if (module.TransactsBusiness)
+    {
+        moduleGroup.WithMetadata(new BusinessTransactionMetadata());
+    }
+
     module.MapEndpoints(module.HoldsBusinessData ? moduleGroup.RefuseOperatorTenant() : moduleGroup);
 }
 

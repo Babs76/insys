@@ -56,6 +56,9 @@ public sealed class BillingModule : IModule
 {
     public string Name => "Billing";
 
+    /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
+    public bool TransactsBusiness => true;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddBillingInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

@@ -50,6 +50,9 @@ public sealed class ReinsuranceModule : IModule
 {
     public string Name => "Reinsurance";
 
+    /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
+    public bool TransactsBusiness => true;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddReinsuranceInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

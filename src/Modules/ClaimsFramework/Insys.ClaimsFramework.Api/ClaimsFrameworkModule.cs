@@ -58,6 +58,9 @@ public sealed class ClaimsFrameworkModule : IModule
 {
     public string Name => "ClaimsFramework";
 
+    /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
+    public bool TransactsBusiness => true;
+
     /// <summary>F005: its commands create or change a customer's business, so they are checked against the request's channel.</summary>
     public bool ChannelScoped => true;
 

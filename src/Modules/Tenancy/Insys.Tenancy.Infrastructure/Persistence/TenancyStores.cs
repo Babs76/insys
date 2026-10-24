@@ -92,6 +92,7 @@ internal sealed class TenancyEventMapper : IDomainEventMapper
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
     {
         Domain.Tenants.TenantSuspended suspended => new Contracts.TenantSuspended(suspended.TenantId),
+        Domain.Tenants.TenantActivated activated => new Contracts.TenantActivated(activated.TenantId),
         _ => null,
     };
 }
@@ -122,12 +123,14 @@ internal sealed class TenantStatusQuery([FromKeyedServices(TenancyDbContext.Sche
         return await command.ExecuteScalarAsync(cancellationToken) is string status && status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Active);
     }
 
-    public async Task<bool> AcceptsUsers(Guid tenantId, CancellationToken cancellationToken)
+    public async Task<TenantUserAccess> UserAccess(Guid tenantId, CancellationToken cancellationToken)
     {
         await using var command = dataSource.CreateCommand("SELECT status FROM tenant.tenant WHERE id = @id");
         command.Parameters.AddWithValue("id", tenantId);
-        return await command.ExecuteScalarAsync(cancellationToken) is string status
-               && (status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Active) || status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Onboarding));
+        var status = await command.ExecuteScalarAsync(cancellationToken) as string;
+        return status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Active) ? TenantUserAccess.Full
+            : status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Onboarding) ? TenantUserAccess.ConfigurationOnly
+            : TenantUserAccess.None;
     }
 }
 
