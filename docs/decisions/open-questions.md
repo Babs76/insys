@@ -926,6 +926,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **The gap:** no underwriting role is defined in the specifications, the static data catalogue or the role seed. Roles are each tenant's own, and General's referrals are decided by permission, not routed to a role.
 - **Built:** the role is a platform setting, `General:Aggregation:AlertRole`, set to `UNDERWRITING`. Its tasks go to that queue. Empty, alerts are recorded and listed, but no task is opened.
 - **Confirm:** the role code, and whether each tenant sets its own, for example as a column on `general.cfg_aggregation_zones_and_limits` or a tenant setting.
+- **Decided (25 October 2026, Ade):** `UNDERWRITING` is the default, and each tenant can change it. **Closed** (the tenant setting is built with Communications).
 
 ### OQ-086 Which claim statuses notify the claimant (Phase 8 Wave 1, F101, F031)
 - **Source:** `docs/specs/addenda/communications.md` §6.3. F101 is "Not specified" in the coverage list, and the SRS has no notification requirements.
@@ -935,6 +936,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - Health (the member): Adjudicated, Reversed, and preauthorisation approved or rejected.
   - Amounts appear only on settlement, and for Health only as a total.
 - **Confirm or change.**
+- **Decided (25 October 2026, Ade):** as proposed. **Open for compliance:** whether a decline notice must give the reasons and the policyholder's rights under the Policyholder Protection Rules.
 
 ### OQ-087 Opting out, and POPIA section 69 choices (Phase 8 Wave 1, F078)
 - **Source:** `communications.md` §4 and §7. The section 69 summary there is for compliance to confirm.
@@ -943,11 +945,13 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - both choices;
   - that the "prescribed manner and form" for a consent request is Form 4 of the POPIA Regulations, 2018;
   - whether the Consumer Protection Act section 11 and ECTA section 45 add anything.
+- **Decided (25 October 2026, Ade):** as proposed. **Open for compliance:** Form 4, CPA section 11 and ECTA section 45.
 
 ### OQ-088 Messaging providers and push devices (Phase 8 Wave 1, F095–F098)
 - **Source:** `communications.md` §3. SRS §20.2 names "Email, SMS, approved messaging providers" but no provider. Push (F097) and WhatsApp (F098) have no basis in the specifications.
 - **Built in Wave 1:** each channel behind an adapter, with stubs.
 - **Open:** the providers for each tenant, and whether a portal mobile app will exist to register devices for push.
+- **Decided (25 October 2026, Ade):** stubs only for now. Providers are chosen later. Push stays stubbed until a portal app exists.
 
 ### OQ-089 Reminder schedules (Phase 8 Wave 1, F099, F100)
 - **Source:** `communications.md` §6.1–6.2.
@@ -956,6 +960,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - `general.cfg_renewal_rules` has one `notice_days` and no reminders between invitation and renewal.
   - Health and Life scheme renewals have no template or recipient.
 - **Open:** whether pre-due reminders are wanted, and their days; renewal reminder days (proposed: `reminder_days` on the renewal rule); scheme renewal notices.
+- **Decided (25 October 2026, Ade):** `reminder_days` on the General renewal rules, empty by default. No pre-due premium reminders in Wave 1. Scheme renewals wait until they are specified. **Closed.**
 
 ### OQ-090 One list of channel codes (Phase 8 Wave 1)
 - **Source:** the Wave 1 research.
@@ -965,3 +970,4 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - `health.cfg_remittance_advice_formats`: `EMAIL`, `PORTAL`, `FILE`;
   - `claims.claim_communication.channel`: free text.
 - **Proposed:** a shared `communication.ref_channels`, aligned module by module when each is next changed.
+- **Decided (25 October 2026, Ade):** agreed. **Closed.**

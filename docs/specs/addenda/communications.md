@@ -1,6 +1,19 @@
 # Addendum: notifications and communications (Wave 1: F021, F031, F078, F095–F102)
 
-**Proposed 25 October 2026, for sign-off.** Nothing in this addendum is built until it is signed off.
+**Signed off 25 October 2026** (Ade), with these decisions:
+- **OQ-086:** the claim statuses of §6.3 notify, with amounts only on settlement (Health as a total only). For compliance to confirm: whether a decline notice must give the reasons and the policyholder's rights under the Policyholder Protection Rules.
+- **OQ-087:** as proposed.
+  - Service notices keep at least one channel.
+  - The section 69(3) customer exception is not used.
+  - Form 4, CPA section 11 and ECTA section 45 go to compliance to confirm.
+- **OQ-088:** stubs only. Providers are chosen later, and push stays stubbed until a portal app exists.
+- **OQ-089:**
+  - `general.cfg_renewal_rules` gains `reminder_days`, a list that is empty by default, so reminders are sent only when a tenant configures them.
+  - No pre-due premium reminders in Wave 1.
+  - Health and Life scheme renewals stay out until specified.
+- **OQ-090:** `communication.ref_channels` is the shared channel list. Other modules are aligned when they are next changed.
+- **§5.1:** the ADR-023 callback signature check and endpoint lifecycle move into the building blocks.
+- **Access:** permissions as today. The function catalogue (proposed next) maps Communications' operations with the rest.
 
 - **Basis:**
   - SRS §20.2: "Communications Email, SMS, approved messaging providers".
@@ -147,7 +160,7 @@ These consumers are event-driven, one per trigger, and idempotent.
 
 ### 6.2 Renewal notices and reminders (F021, F100)
 - **The invitation:** `GeneralRenewalInvited` already carries `PolicyholderPartyId` and the template. It sends `RENEWAL_INVITATION` to the policyholder, with a link to the invitation document.
-- **Reminders:** `general.cfg_renewal_rules` has one `notice_days` and no reminder schedule. Reminders are built only when OQ-089 gives one, for example `reminder_days` on the renewal rule.
+- **Reminders (OQ-089, decided):** `general.cfg_renewal_rules.reminder_days` lists the days before the period ends on which `RENEWAL_REMINDER` is sent, while the policy has not renewed. It is empty by default, so none is sent until the tenant sets it.
 - **Health and Life schemes:** these renewals have no template or recipient rule. They are left out until specified.
 
 ### 6.3 Claim status (F101) and Health decisions (F031)
