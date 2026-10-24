@@ -205,7 +205,7 @@ internal sealed class RegisterLifeClaimHandler(ILifeRepository life, ILifeCodes 
             reserve = new InitialReserve(options.Value.InitialReserveType, sumAssured, claim.Currency, $"Sum assured of the claimed {benefitType} cover (OQ-079)");
         }
 
-        var registered = await registry.Register(LifeSubjectsDomain, claim.Id, policy.Id, facts, reserve, cancellationToken);
+        var registered = await registry.Register(LifeSubjectsDomain, claim.Id, policy.Id, new ClaimOwner(policy.ProductCode, policy.OrgNodeCode), facts, reserve, cancellationToken);
         if (!registered.Succeeded)
         {
             return Error.Validation(registered.ErrorCode ?? ErrorCodes.ValidationFailed, registered.ErrorMessage ?? "The claim number could not be allocated.");

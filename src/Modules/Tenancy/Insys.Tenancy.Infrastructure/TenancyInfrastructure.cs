@@ -52,6 +52,7 @@ public static class TenancyInfrastructure
         services.AddSingleton<ITenantTimeZone>(sp => sp.GetRequiredService<TenantLocaleDefaults>());
         services.AddSingleton<BuildingBlocks.Application.Context.ITenantTimeZoneSource>(sp => sp.GetRequiredService<TenantLocaleDefaults>());
         services.AddHealthChecks().AddCheck<TenantTimeZonesHealthCheck>("tenant-time-zones");
+        services.AddSingleton<IOrganisationStructure, OrganisationStructureQuery>();
         services.AddSingleton<ITenantProfiles, TenantProfiles>();
         services.AddMemoryCache();
         services.AddSingleton<IStaticRecordValidator, LocaleDefaultsValidator>();

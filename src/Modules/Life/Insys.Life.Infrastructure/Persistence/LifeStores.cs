@@ -37,35 +37,52 @@ using Insys.Life.Domain.Claims;
 using Insys.Life.Domain.Groups;
 using Insys.Life.Domain.Policies;
 using Insys.Life.Domain.Proposals;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.Life.Domain.Underwriting;
 using Insys.Life.Infrastructure.StaticData;
 using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Life.Infrastructure.Persistence;
 
-internal sealed class LifeRepository(LifeDbContext db) : ILifeRepository
+/// <summary>
+/// Life's records, each checked against the caller's scope for the endpoint's permission as it is loaded (F103,
+/// addenda/access-scopes.md §4): outside it, a read finds nothing (404) and an action is refused (403 OUT_OF_SCOPE).
+/// Underwriting cases are scoped as their proposal, and loans as their policy. Jobs and consumers are unrestricted.
+/// </summary>
+internal sealed class LifeRepository(LifeDbContext db, IExecutionContext execution) : ILifeRepository
 {
-    public Task<LifeProposal?> Proposal(Guid id, CancellationToken cancellationToken) =>
-        db.Proposals.Include(p => p.Lives).Include(p => p.Covers).Include(p => p.Disclosures).AsSplitQuery().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+    public async Task<LifeProposal?> Proposal(Guid id, CancellationToken cancellationToken) =>
+        Scoped(await db.Proposals.Include(p => p.Lives).Include(p => p.Covers).Include(p => p.Disclosures).AsSplitQuery()
+            .SingleOrDefaultAsync(p => p.Id == id, cancellationToken));
 
-    public Task<LifeUnderwritingCase?> Case(Guid id, CancellationToken cancellationToken) => Cases().SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+    public async Task<LifeUnderwritingCase?> Case(Guid id, CancellationToken cancellationToken) =>
+        await OfProposal(await Cases().SingleOrDefaultAsync(c => c.Id == id, cancellationToken), cancellationToken);
 
     public async Task<LifeUnderwritingCase?> CaseForProposal(Guid proposalId, CancellationToken cancellationToken) =>
         db.ChangeTracker.Entries<LifeUnderwritingCase>().Select(e => e.Entity).FirstOrDefault(c => c.ProposalId == proposalId)
-        ?? await Cases().SingleOrDefaultAsync(c => c.ProposalId == proposalId, cancellationToken);
+        ?? await OfProposal(await Cases().SingleOrDefaultAsync(c => c.ProposalId == proposalId, cancellationToken), cancellationToken);
 
-    public Task<LifePolicy?> Policy(Guid id, CancellationToken cancellationToken) => Policies().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+    public async Task<LifePolicy?> Policy(Guid id, CancellationToken cancellationToken) => Scoped(await Policies().SingleOrDefaultAsync(p => p.Id == id, cancellationToken));
 
-    public Task<LifePolicy?> PolicyForProposal(Guid proposalId, CancellationToken cancellationToken) =>
-        Policies().SingleOrDefaultAsync(p => p.ProposalId == proposalId, cancellationToken);
+    public async Task<LifePolicy?> PolicyForProposal(Guid proposalId, CancellationToken cancellationToken) =>
+        Scoped(await Policies().SingleOrDefaultAsync(p => p.ProposalId == proposalId, cancellationToken));
 
     public async Task<IReadOnlyList<Guid>> PoliciesOnAccount(Guid billingAccountRef, CancellationToken cancellationToken) =>
         await db.Policies.AsNoTracking()
             .Where(p => p.BillingAccountRef == billingAccountRef && (p.Status == LifePolicyStatus.Issued || p.Status == LifePolicyStatus.InForce))
             .OrderBy(p => p.Id).Select(p => p.Id).ToListAsync(cancellationToken);
 
-    public Task<LifePolicyLoan?> Loan(Guid id, CancellationToken cancellationToken) =>
-        db.Loans.Include(l => l.Transactions).SingleOrDefaultAsync(l => l.Id == id, cancellationToken);
+    public async Task<LifePolicyLoan?> Loan(Guid id, CancellationToken cancellationToken)
+    {
+        var loan = await db.Loans.Include(l => l.Transactions).SingleOrDefaultAsync(l => l.Id == id, cancellationToken);
+        if (loan is null)
+        {
+            return null;
+        }
+
+        var owner = await db.Policies.AsNoTracking().Where(p => p.Id == loan.PolicyId).Select(p => new { p.ProductCode, p.OrgNodeCode }).SingleAsync(cancellationToken);
+        return execution.InScope(loan, owner.ProductCode, owner.OrgNodeCode);
+    }
 
     public async Task<IReadOnlyList<LifePolicyLoan>> ActiveLoans(Guid policyId, CancellationToken cancellationToken) =>
         await db.Loans.Include(l => l.Transactions).Where(l => l.PolicyId == policyId && l.Status == LoanStatus.Active).OrderBy(l => l.Id).ToListAsync(cancellationToken);
@@ -76,17 +93,17 @@ internal sealed class LifeRepository(LifeDbContext db) : ILifeRepository
         await db.CashValues.AsNoTracking().Where(v => v.PolicyId == policyId && v.ValuationDate <= asOf).OrderByDescending(v => v.ValuationDate)
             .Select(v => (decimal?)v.Value).FirstOrDefaultAsync(cancellationToken);
 
-    public Task<LifeClaim?> Claim(Guid id, CancellationToken cancellationToken) => Claims().SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+    public async Task<LifeClaim?> Claim(Guid id, CancellationToken cancellationToken) => Scoped(await Claims().SingleOrDefaultAsync(c => c.Id == id, cancellationToken));
 
-    public Task<LifeClaim?> ClaimByNumber(string claimNumber, CancellationToken cancellationToken) =>
-        Claims().SingleOrDefaultAsync(c => c.ClaimNumber == claimNumber, cancellationToken);
+    public async Task<LifeClaim?> ClaimByNumber(string claimNumber, CancellationToken cancellationToken) =>
+        Scoped(await Claims().SingleOrDefaultAsync(c => c.ClaimNumber == claimNumber, cancellationToken));
 
     public Task<bool> OpenClaimExists(Guid policyId, string claimType, DateOnly eventDate, Guid exceptClaimId, CancellationToken cancellationToken) =>
         db.Claims.AnyAsync(c => c.PolicyId == policyId && c.ClaimType == claimType && c.EventDate == eventDate && c.Id != exceptClaimId
                                 && c.Status != LifeClaimStatus.Notified && c.Status != LifeClaimStatus.Declined && c.Status != LifeClaimStatus.Closed, cancellationToken);
 
-    public Task<GroupScheme?> Scheme(Guid id, CancellationToken cancellationToken) =>
-        db.Schemes.Include(s => s.Members).SingleOrDefaultAsync(s => s.Id == id, cancellationToken);
+    public async Task<GroupScheme?> Scheme(Guid id, CancellationToken cancellationToken) =>
+        Scoped(await db.Schemes.Include(s => s.Members).SingleOrDefaultAsync(s => s.Id == id, cancellationToken));
 
     public async Task<IReadOnlyList<Guid>> PoliciesToStart(DateOnly day, int limit, CancellationToken cancellationToken) =>
         await db.Policies.AsNoTracking().Where(p => p.Status == LifePolicyStatus.Issued && p.InceptionDate <= day).OrderBy(p => p.Id).Select(p => p.Id).Take(limit)
@@ -114,6 +131,26 @@ internal sealed class LifeRepository(LifeDbContext db) : ILifeRepository
     public void Add(LifeClaim claim) => db.Claims.Add(claim);
 
     public void Add(GroupScheme scheme) => db.Schemes.Add(scheme);
+
+    private LifeProposal? Scoped(LifeProposal? proposal) => execution.InScope(proposal, proposal?.ProductCode, proposal?.OrgNodeCode);
+
+    private LifePolicy? Scoped(LifePolicy? policy) => execution.InScope(policy, policy?.ProductCode, policy?.OrgNodeCode);
+
+    private LifeClaim? Scoped(LifeClaim? claim) => execution.InScope(claim, claim?.ProductCode, claim?.OrgNodeCode);
+
+    private GroupScheme? Scoped(GroupScheme? scheme) => execution.InScope(scheme, scheme?.ProductCode, scheme?.OrgNodeCode);
+
+    private async Task<LifeUnderwritingCase?> OfProposal(LifeUnderwritingCase? underwritingCase, CancellationToken cancellationToken)
+    {
+        if (underwritingCase is null)
+        {
+            return null;
+        }
+
+        var owner = await db.Proposals.AsNoTracking().Where(p => p.Id == underwritingCase.ProposalId).Select(p => new { p.ProductCode, p.OrgNodeCode })
+            .SingleAsync(cancellationToken);
+        return execution.InScope(underwritingCase, owner.ProductCode, owner.OrgNodeCode);
+    }
 
     private IQueryable<LifeUnderwritingCase> Cases() => db.Cases.Include(c => c.Requirements).Include(c => c.Items).AsSplitQuery();
 

@@ -828,3 +828,17 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
     - every reserve move now needs a reason (`ClaimsMoveReserve`), which the audit trail records.
   - **Note:** the Claims Framework has no reserve authority limit today: the authority rules apply when a payment is approved and released, not when a reserve moves. Any reserve limit by role is a requirement to add.
   - **Closed.**
+
+### OQ-080 What a product scope means for Health records (Phase 8 Wave 0b, F103)
+- **Sources:**
+  - SRS-003 (access by product and organisation);
+  - `docs/specs/addenda/access-scopes.md` §1: "memberships and medical claims (Health, by the scheme's product)".
+- **What the code and schema have:**
+  - a Health scheme (`health.scheme`) has a sponsor and no product;
+  - a membership has a plan and option (`health.cfg_plan_definitions`), not a Product Factory product. Health never calls the Product Factory's sellable products.
+- **Gap:** "the scheme's product" does not exist, so a product scope (`scope_products`, which holds Product Factory product codes) has nothing to match on a Health record.
+- **Options:**
+  1. **A plan is the product for Health:** a product scope lists plan codes, matched against the membership's plan (and a medical claim's or preauthorisation's membership).
+  2. **Link plans to products:** a `product_code` on `health.cfg_plan_definitions`, and scope by that product.
+  3. **Health is organisation-scoped only:** a grant restricted to products never covers a Health record.
+- **Built meanwhile (fail safe):** Health records are scoped by organisation node. A grant restricted to products does not cover them, because a record with no product is outside any product scope. A grant with no product scope is unaffected.

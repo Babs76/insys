@@ -198,7 +198,7 @@ internal sealed class NotifyLossHandler(IGeneralRepository general, IGeneralCode
 {
     public async Task<Result<ClaimView>> Handle(NotifyLoss command, CancellationToken cancellationToken)
     {
-        if (await general.Policy(command.PolicyId, cancellationToken) is null)
+        if (await general.Policy(command.PolicyId, cancellationToken) is not { } policy)
         {
             return Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
         }
@@ -219,6 +219,7 @@ internal sealed class NotifyLossHandler(IGeneralRepository general, IGeneralCode
             return claim.Error;
         }
 
+        claim.Value.PlaceAt(policy.ProductCode, policy.OrgNodeCode);
         general.Add(claim.Value);
         audit.Record(new AuditEntry("GENERAL", "NotifyLoss", nameof(GeneralClaim), claim.Value.Id.ToString()));
         return ClaimView.From(claim.Value);
@@ -257,7 +258,7 @@ internal sealed class RegisterClaimHandler(IGeneralRepository general, IClaimReg
             ["catastrophe"] = claim.CatEventCode is not null,
             ["sum_insured"] = policy.Coverage(claim.RiskObjectId, claim.CoverageCode)?.SumInsured,
         });
-        var registered = await registry.Register("GENERAL", claim.Id, policy.Id, facts, cancellationToken);
+        var registered = await registry.Register("GENERAL", claim.Id, policy.Id, new ClaimOwner(policy.ProductCode, policy.OrgNodeCode), facts, null, cancellationToken);
         if (!registered.Succeeded)
         {
             return Error.Validation(registered.ErrorCode ?? ErrorCodes.ValidationFailed, registered.ErrorMessage ?? "The claim number could not be allocated.");

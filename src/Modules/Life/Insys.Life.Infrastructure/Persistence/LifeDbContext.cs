@@ -81,6 +81,7 @@ public sealed class LifeDbContext(DbContextOptions<LifeDbContext> options, Modul
             proposal.Ignore(p => p.TotalSumAssured);
             proposal.Property(p => p.ProposalNumber).HasMaxLength(15);
             proposal.Property(p => p.ProductCode).HasMaxLength(15);
+            proposal.Property(p => p.OrgNodeCode).HasMaxLength(15);
             proposal.Property(p => p.IntermediaryCode).HasMaxLength(15);
             proposal.Property(p => p.ChannelCode).HasMaxLength(12);
             proposal.Property(p => p.Status).HasConversion(new UpperCaseEnumConverter<ProposalStatus>()).HasMaxLength(15);
@@ -180,6 +181,7 @@ public sealed class LifeDbContext(DbContextOptions<LifeDbContext> options, Modul
             policy.Ignore(p => p.LapsedOn);
             policy.Property(p => p.PolicyNumber).HasMaxLength(15);
             policy.Property(p => p.ProductCode).HasMaxLength(15);
+            policy.Property(p => p.OrgNodeCode).HasMaxLength(15);
             policy.Property(p => p.Status).HasConversion(new UpperCaseEnumConverter<LifePolicyStatus>()).HasMaxLength(12);
             policy.Property(p => p.Currency).HasColumnType("char(3)");
             policy.Property(p => p.PremiumFrequency).HasMaxLength(10);
@@ -298,6 +300,8 @@ public sealed class LifeDbContext(DbContextOptions<LifeDbContext> options, Modul
             claim.Ignore(c => c.SubjectHash);
             claim.Property(c => c.ClaimNumber).HasMaxLength(25);
             claim.Property(c => c.ClaimType).HasMaxLength(15);
+            claim.Property(c => c.ProductCode).HasMaxLength(15);
+            claim.Property(c => c.OrgNodeCode).HasMaxLength(15);
             claim.Property(c => c.CauseCode).HasMaxLength(10);
             claim.Property(c => c.Status).HasConversion(new UpperCaseEnumConverter<LifeClaimStatus>()).HasMaxLength(15);
             claim.Property(c => c.Currency).HasColumnType("char(3)");
@@ -335,6 +339,7 @@ public sealed class LifeDbContext(DbContextOptions<LifeDbContext> options, Modul
             scheme.Ignore(s => s.CurrentMembers);
             scheme.Property(s => s.SchemeNumber).HasMaxLength(12);
             scheme.Property(s => s.ProductCode).HasMaxLength(15);
+            scheme.Property(s => s.OrgNodeCode).HasMaxLength(15);
             scheme.Property(s => s.SchemeType).HasMaxLength(15);
             scheme.Property(s => s.Status).HasConversion(new UpperCaseEnumConverter<SchemeStatus>()).HasMaxLength(10);
             scheme.Property(s => s.Currency).HasColumnType("char(3)");

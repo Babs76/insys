@@ -117,7 +117,8 @@ public sealed record InstructionView(Guid Id, string ClaimNumber, string Instruc
 }
 
 /// <summary>Command AllocateClaimNumber; a repeat for the same domain claim returns the same number (CLM-005).</summary>
-public sealed record AllocateClaimNumber(string Domain, Guid DomainClaimId, Guid PolicyRef) : ICommand<ClaimView>;
+/// <param name="ProductCode">The domain claim's product, and <paramref name="OrgNodeCode"/> its organisation node: they scope the claim's records (F103).</param>
+public sealed record AllocateClaimNumber(string Domain, Guid DomainClaimId, Guid PolicyRef, string? ProductCode = null, string? OrgNodeCode = null) : ICommand<ClaimView>;
 
 public sealed record RequestEvidence(string ClaimNumber, string EvidenceType) : ICommand<ClaimView>;
 
@@ -246,7 +247,8 @@ internal sealed class AllocateClaimNumberHandler(IClaimsRepository claims, IClai
         }
 
         var prefix = await codes.NumberPrefix(command.Domain, businessDate.Today, cancellationToken) ?? command.Domain[..3];
-        var claim = ClaimRegistration.AllocateClaimNumber(Guid.CreateVersion7(), prefix, command.Domain, command.DomainClaimId, command.PolicyRef, clock.UtcNow);
+        var claim = ClaimRegistration.AllocateClaimNumber(Guid.CreateVersion7(), prefix, command.Domain, command.DomainClaimId, command.PolicyRef, clock.UtcNow,
+            command.ProductCode, command.OrgNodeCode);
         claims.Add(claim);
         return ClaimView.From(claim);
     }
@@ -768,13 +770,10 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
 /// <summary>The Claims Framework's registry for domain claims (<see cref="IClaimRegistry"/>), through its own commands and transactions.</summary>
 public sealed class ClaimRegistry(IDispatcher dispatcher, ILogger<ClaimRegistry> logger) : IClaimRegistry
 {
-    public Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, JsonElement fraudFacts, CancellationToken cancellationToken) =>
-        Register(domain, domainClaimId, policyRef, fraudFacts, null, cancellationToken);
-
-    public async Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, JsonElement fraudFacts, InitialReserve? initialReserve,
-        CancellationToken cancellationToken)
+    public async Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, ClaimOwner owner, JsonElement fraudFacts,
+        InitialReserve? initialReserve, CancellationToken cancellationToken)
     {
-        var allocated = await dispatcher.Send(new AllocateClaimNumber(domain, domainClaimId, policyRef), cancellationToken);
+        var allocated = await dispatcher.Send(new AllocateClaimNumber(domain, domainClaimId, policyRef, owner.ProductCode, owner.OrgNodeCode), cancellationToken);
         if (allocated.IsFailure)
         {
             return new ClaimRegistrationResult(false, null, allocated.Error.Code, allocated.Error.Message);

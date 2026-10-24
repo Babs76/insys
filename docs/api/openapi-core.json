@@ -26623,6 +26623,12 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "orgNodeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

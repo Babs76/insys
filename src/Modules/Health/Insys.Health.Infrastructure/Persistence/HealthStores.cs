@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Contracts.Approvals;
@@ -41,14 +42,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Health.Infrastructure.Persistence;
 
-internal sealed class HealthRepository(HealthDbContext db) : IHealthRepository
+/// <summary>
+/// Health's records, each checked against the caller's scope for the endpoint's permission as it is loaded (F103,
+/// addenda/access-scopes.md §4): outside it, a read finds nothing (404) and an action is refused (403 OUT_OF_SCOPE).
+/// Memberships carry the node; preauthorisations, medical claims, utilisation cases and fraud cases follow theirs. Health
+/// records have no product (OQ-080). Schemes and provider payment runs span members and are not scoped. Jobs and
+/// consumers are unrestricted.
+/// </summary>
+internal sealed class HealthRepository(HealthDbContext db, IExecutionContext execution) : IHealthRepository
 {
     public Task<HealthScheme?> Scheme(Guid id, CancellationToken cancellationToken) => db.Schemes.SingleOrDefaultAsync(s => s.Id == id, cancellationToken);
 
-    public Task<HealthMembership?> Membership(Guid id, CancellationToken cancellationToken) => Memberships().SingleOrDefaultAsync(m => m.Id == id, cancellationToken);
+    public async Task<HealthMembership?> Membership(Guid id, CancellationToken cancellationToken) =>
+        Scoped(await Memberships().SingleOrDefaultAsync(m => m.Id == id, cancellationToken));
 
-    public Task<HealthMembership?> MembershipByNumber(string memberNumber, CancellationToken cancellationToken) =>
-        Memberships().SingleOrDefaultAsync(m => m.MemberNumber == memberNumber, cancellationToken);
+    public async Task<HealthMembership?> MembershipByNumber(string memberNumber, CancellationToken cancellationToken) =>
+        Scoped(await Memberships().SingleOrDefaultAsync(m => m.MemberNumber == memberNumber, cancellationToken));
 
     public async Task LockBenefits(Guid membershipId, CancellationToken cancellationToken)
     {
@@ -73,8 +82,11 @@ internal sealed class HealthRepository(HealthDbContext db) : IHealthRepository
     public async Task<IReadOnlyList<BenefitAccumulator>> AccumulatorsOf(Guid membershipId, CancellationToken cancellationToken) =>
         await db.Accumulators.AsNoTracking().Where(a => a.MembershipId == membershipId).ToListAsync(cancellationToken);
 
-    public Task<Preauthorisation?> Preauthorisation(Guid id, CancellationToken cancellationToken) =>
-        db.Preauthorisations.Include(p => p.Lines).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+    public async Task<Preauthorisation?> Preauthorisation(Guid id, CancellationToken cancellationToken)
+    {
+        var preauthorisation = await db.Preauthorisations.Include(p => p.Lines).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        return await OfMembership(preauthorisation, preauthorisation?.MembershipId, cancellationToken);
+    }
 
     public async Task<IReadOnlyList<Preauthorisation>> MatchingPreauthorisations(Guid membershipId, Guid patientPartyId, string providerId, DateOnly serviceDate,
         CancellationToken cancellationToken) =>
@@ -84,7 +96,11 @@ internal sealed class HealthRepository(HealthDbContext db) : IHealthRepository
                         && p.ValidFrom <= serviceDate && p.ValidTo >= serviceDate)
             .OrderBy(p => p.Id).ToListAsync(cancellationToken);
 
-    public Task<MedicalClaim?> Claim(Guid id, CancellationToken cancellationToken) => db.Claims.Include(c => c.Lines).SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+    public async Task<MedicalClaim?> Claim(Guid id, CancellationToken cancellationToken)
+    {
+        var claim = await db.Claims.Include(c => c.Lines).SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+        return await OfMembership(claim, claim?.MembershipId, cancellationToken);
+    }
 
     public async Task<IReadOnlyList<PriorService>> PriorServices(Guid patientPartyId, DateOnly from, Guid exceptClaimId, CancellationToken cancellationToken) =>
         (await db.Claims.AsNoTracking().Include(c => c.Lines)
@@ -101,9 +117,24 @@ internal sealed class HealthRepository(HealthDbContext db) : IHealthRepository
     public async Task<IReadOnlyList<MedicalClaim>> ClaimsInRun(Guid runId, CancellationToken cancellationToken) =>
         await db.Claims.Where(c => c.PaymentRunId == runId).OrderBy(c => c.Id).ToListAsync(cancellationToken);
 
-    public Task<UtilisationCase?> UtilisationCase(Guid id, CancellationToken cancellationToken) => db.UtilisationCases.SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+    public async Task<UtilisationCase?> UtilisationCase(Guid id, CancellationToken cancellationToken)
+    {
+        var utilisationCase = await db.UtilisationCases.SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+        return await OfMembership(utilisationCase, utilisationCase?.MembershipId, cancellationToken);
+    }
 
-    public Task<HealthFraudCase?> FraudCase(Guid id, CancellationToken cancellationToken) => db.FraudCases.SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+    /// <summary>A fraud case about a medical claim follows the claim's membership; one about anything else is not scoped.</summary>
+    public async Task<HealthFraudCase?> FraudCase(Guid id, CancellationToken cancellationToken)
+    {
+        var fraudCase = await db.FraudCases.SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+        if (fraudCase is not { SubjectType: "CLAIM" })
+        {
+            return fraudCase;
+        }
+
+        var membership = await db.Claims.AsNoTracking().Where(c => c.ClaimNumber == fraudCase.SubjectRef).Select(c => (Guid?)c.MembershipId).FirstOrDefaultAsync(cancellationToken);
+        return await OfMembership(fraudCase, membership, cancellationToken);
+    }
 
     public Task<ProviderPaymentRun?> Run(Guid id, CancellationToken cancellationToken) =>
         db.Runs.Include(r => r.Remittances).SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
@@ -140,6 +171,20 @@ internal sealed class HealthRepository(HealthDbContext db) : IHealthRepository
     public void Add(HealthFraudCase fraudCase) => db.FraudCases.Add(fraudCase);
 
     public void Add(ProviderPaymentRun run) => db.Runs.Add(run);
+
+    private HealthMembership? Scoped(HealthMembership? membership) => execution.InScope(membership, null, membership?.OrgNodeCode);
+
+    private async Task<T?> OfMembership<T>(T? record, Guid? membershipId, CancellationToken cancellationToken)
+        where T : class
+    {
+        if (record is null || membershipId is not { } id || execution.CurrentScope.IsUnrestricted)
+        {
+            return record;
+        }
+
+        var node = await db.Memberships.AsNoTracking().Where(m => m.Id == id).Select(m => m.OrgNodeCode).SingleOrDefaultAsync(cancellationToken);
+        return execution.InScope(record, null, node);
+    }
 
     private IQueryable<HealthMembership> Memberships() => db.Memberships.Include(m => m.Dependants).Include(m => m.Events).AsSplitQuery();
 }

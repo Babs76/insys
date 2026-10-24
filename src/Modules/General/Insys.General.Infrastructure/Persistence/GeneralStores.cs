@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Context;
 using System.Text.Json;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
@@ -38,37 +39,72 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.General.Infrastructure.Persistence;
 
-internal sealed class GeneralRepository(GeneralDbContext db) : IGeneralRepository
+/// <summary>
+/// General's records, each checked against the caller's scope for the endpoint's permission as it is loaded (F103,
+/// addenda/access-scopes.md §4): outside it, a read finds nothing (404) and an action is refused (403 OUT_OF_SCOPE).
+/// Proposals and endorsements are scoped as their quote and policy. Jobs and consumers are unrestricted.
+/// </summary>
+internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext execution) : IGeneralRepository
 {
     public Task<RiskObject?> RiskObject(Guid id, CancellationToken cancellationToken) => db.RiskObjects.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
 
-    public Task<GeneralQuote?> Quote(Guid id, CancellationToken cancellationToken) => Quotes().SingleOrDefaultAsync(q => q.Id == id, cancellationToken);
+    public async Task<GeneralQuote?> Quote(Guid id, CancellationToken cancellationToken) =>
+        Scoped(await Quotes().SingleOrDefaultAsync(q => q.Id == id, cancellationToken));
 
-    public Task<GeneralQuote?> LatestQuoteVersion(string quoteNumber, CancellationToken cancellationToken) =>
-        Quotes().Where(q => q.QuoteNumber == quoteNumber).OrderByDescending(q => q.QuoteVersion).FirstOrDefaultAsync(cancellationToken);
+    public async Task<GeneralQuote?> LatestQuoteVersion(string quoteNumber, CancellationToken cancellationToken) =>
+        Scoped(await Quotes().Where(q => q.QuoteNumber == quoteNumber).OrderByDescending(q => q.QuoteVersion).FirstOrDefaultAsync(cancellationToken));
 
-    public Task<GeneralProposal?> Proposal(Guid id, CancellationToken cancellationToken) => db.Proposals.SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+    public async Task<GeneralProposal?> Proposal(Guid id, CancellationToken cancellationToken) =>
+        await OfQuote(await db.Proposals.SingleOrDefaultAsync(p => p.Id == id, cancellationToken), cancellationToken);
 
-    public Task<GeneralProposal?> ProposalForQuote(Guid quoteId, CancellationToken cancellationToken) =>
-        db.Proposals.SingleOrDefaultAsync(p => p.QuoteId == quoteId, cancellationToken);
+    public async Task<GeneralProposal?> ProposalForQuote(Guid quoteId, CancellationToken cancellationToken) =>
+        await OfQuote(await db.Proposals.SingleOrDefaultAsync(p => p.QuoteId == quoteId, cancellationToken), cancellationToken);
 
-    public Task<GeneralPolicy?> Policy(Guid id, CancellationToken cancellationToken) => Policies().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+    public async Task<GeneralPolicy?> Policy(Guid id, CancellationToken cancellationToken) =>
+        Scoped(await Policies().SingleOrDefaultAsync(p => p.Id == id, cancellationToken));
 
-    public Task<GeneralPolicy?> PolicyFromQuote(Guid quoteId, CancellationToken cancellationToken) =>
-        Policies().FirstOrDefaultAsync(p => p.QuoteId == quoteId, cancellationToken);
+    public async Task<GeneralPolicy?> PolicyFromQuote(Guid quoteId, CancellationToken cancellationToken) =>
+        Scoped(await Policies().FirstOrDefaultAsync(p => p.QuoteId == quoteId, cancellationToken));
 
-    public Task<GeneralPolicy?> RenewalOf(Guid policyId, CancellationToken cancellationToken) =>
-        Policies().FirstOrDefaultAsync(p => p.RenewalOfId == policyId, cancellationToken);
+    public async Task<GeneralPolicy?> RenewalOf(Guid policyId, CancellationToken cancellationToken) =>
+        Scoped(await Policies().FirstOrDefaultAsync(p => p.RenewalOfId == policyId, cancellationToken));
 
-    public Task<GeneralEndorsement?> Endorsement(Guid id, CancellationToken cancellationToken) => db.Endorsements.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
+    public async Task<GeneralEndorsement?> Endorsement(Guid id, CancellationToken cancellationToken)
+    {
+        var endorsement = await db.Endorsements.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
+        if (endorsement is null)
+        {
+            return null;
+        }
+
+        var owner = await db.Policies.AsNoTracking().Where(p => p.Id == endorsement.PolicyId).Select(p => new { p.ProductCode, p.OrgNodeCode }).SingleAsync(cancellationToken);
+        return execution.InScope(endorsement, owner.ProductCode, owner.OrgNodeCode);
+    }
 
     public Task<int> EndorsementCount(Guid policyId, CancellationToken cancellationToken) => db.Endorsements.CountAsync(e => e.PolicyId == policyId, cancellationToken);
 
-    public Task<GeneralClaim?> Claim(Guid id, CancellationToken cancellationToken) =>
-        db.Claims.Include(c => c.Parties).SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+    public async Task<GeneralClaim?> Claim(Guid id, CancellationToken cancellationToken) =>
+        Scoped(await db.Claims.Include(c => c.Parties).SingleOrDefaultAsync(c => c.Id == id, cancellationToken));
 
-    public Task<GeneralClaim?> ClaimByNumber(string claimNumber, CancellationToken cancellationToken) =>
-        db.Claims.Include(c => c.Parties).SingleOrDefaultAsync(c => c.ClaimNumber == claimNumber, cancellationToken);
+    public async Task<GeneralClaim?> ClaimByNumber(string claimNumber, CancellationToken cancellationToken) =>
+        Scoped(await db.Claims.Include(c => c.Parties).SingleOrDefaultAsync(c => c.ClaimNumber == claimNumber, cancellationToken));
+
+    private async Task<GeneralProposal?> OfQuote(GeneralProposal? proposal, CancellationToken cancellationToken)
+    {
+        if (proposal is null)
+        {
+            return null;
+        }
+
+        var owner = await db.Quotes.AsNoTracking().Where(q => q.Id == proposal.QuoteId).Select(q => new { q.ProductCode, q.OrgNodeCode }).SingleAsync(cancellationToken);
+        return execution.InScope(proposal, owner.ProductCode, owner.OrgNodeCode);
+    }
+
+    private GeneralQuote? Scoped(GeneralQuote? quote) => execution.InScope(quote, quote?.ProductCode, quote?.OrgNodeCode);
+
+    private GeneralPolicy? Scoped(GeneralPolicy? policy) => execution.InScope(policy, policy?.ProductCode, policy?.OrgNodeCode);
+
+    private GeneralClaim? Scoped(GeneralClaim? claim) => execution.InScope(claim, claim?.ProductCode, claim?.OrgNodeCode);
 
     public Task<LossAssessment?> Assessment(Guid id, CancellationToken cancellationToken) =>
         db.Assessments.Include(a => a.Estimates).SingleOrDefaultAsync(a => a.Id == id, cancellationToken);

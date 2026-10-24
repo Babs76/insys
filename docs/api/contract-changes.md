@@ -2,6 +2,18 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 0b batch 1 (branch `wave0b-1`, in progress): F103 access scopes, General first
+
+### Changed requests
+- **`POST /api/v1/general/quotes`** takes an optional `orgNodeCode`: the organisation node (branch, region or legal entity) the quote belongs to. Omitted, it is the user's single scoped node, else the tenant's root legal entity. An unknown node is refused with 422; a node outside the user's scope with 403 `OUT_OF_SCOPE`. New versions, policies, renewals and claims keep the quote's node.
+
+### Changed behaviour
+- **Access scopes apply in General (F103, `addenda/access-scopes.md`).** A role assignment scoped to products or branches (a branch covers its descendants) limits what its permissions reach:
+  - lists show only records in scope;
+  - reading a single record outside the scope is 404, as if it did not exist;
+  - an action on one is 403 `OUT_OF_SCOPE` (new error code).
+- Existing General records were given the tenant's root legal entity as their node. Other modules follow in this batch; until they all do, scoped role assignments stay refused (`SCOPES_NOT_ENFORCED`).
+
 ## Wave 0 batch 7 (branch `wave0-7`, not merged)
 
 ### Changed requests

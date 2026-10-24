@@ -50,8 +50,12 @@ public sealed record DeactivateRiskObject(Guid RiskObjectId) : ICommand<RiskObje
 public sealed record GetRiskObject(Guid RiskObjectId) : IQuery<RiskObjectView>;
 
 /// <summary>Command CreateQuote: a new quote, or (with <paramref name="FromQuoteId"/>) the next version of an existing one.</summary>
+/// <param name="OrgNodeCode">
+/// The organisation node (normally a branch) that owns the quote, and the policy and claims that follow from it (F103).
+/// When omitted: the caller's one node, else the tenant's root legal entity. A later version keeps the first one's node.
+/// </param>
 public sealed record CreateQuote(string ProductCode, int? ProductVersion, Guid ProposerPartyId, string? IntermediaryCode, string Currency, DateOnly PeriodStart,
-    DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks, Guid? FromQuoteId) : ICommand<QuoteView>;
+    DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks, Guid? FromQuoteId, string? OrgNodeCode = null) : ICommand<QuoteView>;
 
 public enum QuoteAction
 {
@@ -220,7 +224,7 @@ internal static class RiskSchemas
 }
 
 internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellableProducts products, IIntermediaries intermediaries, ITenantContext tenant, IBusinessDate businessDate,
-    IAuditTrail audit)
+    IAuditTrail audit, IExecutionContext execution, Tenancy.Contracts.IOrganisationStructure organisation)
     : ICommandHandler<CreateQuote, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(CreateQuote command, CancellationToken cancellationToken)
@@ -265,6 +269,19 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
         if (quote.IsFailure)
         {
             return quote.Error;
+        }
+
+        // F103 (addenda/access-scopes.md §2): the owning node, which must be in the structure and, with the product, in the caller's scope.
+        if (previous is null)
+        {
+            var nodes = await organisation.Nodes(tenant.RequireTenantId(), businessDate.Today, cancellationToken);
+            var node = execution.PlaceNew(product.Value.ProductCode, command.OrgNodeCode, nodes.Select(n => n.NodeCode).ToList(), Tenancy.Contracts.OrganisationNodes.Root(nodes));
+            if (node.IsFailure)
+            {
+                return node.Error;
+            }
+
+            quote.Value.PlaceAt(node.Value);
         }
 
         general.Add(quote.Value);

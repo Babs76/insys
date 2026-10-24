@@ -267,6 +267,18 @@ public sealed class HealthMembership : AggregateRoot<Guid>
     {
     }
 
+    /// <summary>
+    /// The organisation node (normally a branch) that owns the membership (F103, addenda/access-scopes.md §2). Its
+    /// preauthorisations, medical claims and cases follow it.
+    /// </summary>
+    public string? OrgNodeCode { get; private set; }
+
+    /// <summary>Places a new membership at its organisation node (§2), once.</summary>
+    public void PlaceAt(string? orgNodeCode)
+    {
+        OrgNodeCode ??= orgNodeCode is null ? null : Guard.MaxLength(orgNodeCode, 15);
+    }
+
     public string MemberNumber { get; private set; } = "";
 
     public Guid PrincipalPartyId { get; private set; }

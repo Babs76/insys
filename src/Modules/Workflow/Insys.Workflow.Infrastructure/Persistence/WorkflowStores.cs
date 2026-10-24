@@ -38,6 +38,7 @@ using Insys.BuildingBlocks.Application.Context;
 using Insys.StaticData.Contracts;
 using Insys.Tenancy.Contracts;
 using Insys.Workflow.Contracts;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -61,12 +62,19 @@ internal sealed class ApprovalRepository(WorkflowDbContext db) : IApprovalReposi
     public void Add(Approval approval) => db.Approvals.Add(approval);
 }
 
-internal sealed class ApprovalQueries(WorkflowDbContext db) : IApprovalQueries
+/// <summary>Approvals as listed and read: one about a scoped record is shown only within the caller's scope (F103), otherwise 404.</summary>
+internal sealed class ApprovalQueries(WorkflowDbContext db, IExecutionContext execution) : IApprovalQueries
 {
     public async Task<IReadOnlyList<ApprovalView>> List(string? status, string? businessRefType, Guid? businessRefId, Guid? afterId, int limit,
         CancellationToken cancellationToken)
     {
         var query = db.Approvals.AsNoTracking();
+        if (!execution.CurrentScope.IsUnrestricted)
+        {
+            var inScope = db.Approvals.AsNoTracking().InScope(execution.CurrentScope, a => a.ProductCode, a => a.OrgNodeCode).Select(a => a.Id);
+            query = query.Where(a => !a.IsScoped || inScope.Contains(a.Id));
+        }
+
         if (status is not null && Enum.TryParse<ApprovalStatus>(status, ignoreCase: true, out var parsed))
         {
             query = query.Where(a => a.Status == parsed);
@@ -91,7 +99,10 @@ internal sealed class ApprovalQueries(WorkflowDbContext db) : IApprovalQueries
     }
 
     public async Task<ApprovalView?> Get(Guid id, CancellationToken cancellationToken) =>
-        await db.Approvals.AsNoTracking().SingleOrDefaultAsync(a => a.Id == id, cancellationToken) is { } approval ? View(approval) : null;
+        await db.Approvals.AsNoTracking().SingleOrDefaultAsync(a => a.Id == id, cancellationToken) is { } approval
+        && (!approval.IsScoped || execution.CurrentScope.Allows(approval.ProductCode, approval.OrgNodeCode))
+            ? View(approval)
+            : null;
 
     private static ApprovalView View(Approval a) =>
         new(a.Id, a.BusinessRefType, a.BusinessRefId, a.ApprovalType, a.MakerId, a.CheckerId, a.Status, a.Amount, a.Currency, a.Reason, a.DecisionReason,

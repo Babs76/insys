@@ -168,6 +168,19 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
 
     public Guid PolicyId { get; private set; }
 
+    /// <summary>The policy's product, kept on the claim for scoping its lists (F103).</summary>
+    public string? ProductCode { get; private set; }
+
+    /// <summary>The organisation node (normally a branch) that owns the record (F103, addenda/access-scopes.md §2); its children inherit it.</summary>
+    public string? OrgNodeCode { get; private set; }
+
+    /// <summary>A claim is scoped as its policy: the policy's product and organisation node (§1, §2).</summary>
+    public void PlaceAt(string productCode, string? orgNodeCode)
+    {
+        ProductCode ??= Guard.MaxLength(productCode, 15);
+        OrgNodeCode ??= orgNodeCode is null ? null : Guard.MaxLength(orgNodeCode, 15);
+    }
+
     public Guid? RiskObjectId { get; private set; }
 
     public string CoverageCode { get; private set; } = "";

@@ -95,6 +95,12 @@ public sealed record ClaimPaymentCompleted(Guid InstructionId, Guid MovementId, 
 /// </summary>
 public sealed record InitialReserve(string ReserveType, decimal Amount, string Currency, string Basis);
 
+/// <summary>
+/// The product and organisation node of the domain claim, which scope its Claims Framework records (payment instructions,
+/// reserves, evidence) as the domain claim is scoped (F103, addenda/access-scopes.md §1).
+/// </summary>
+public sealed record ClaimOwner(string ProductCode, string? OrgNodeCode);
+
 /// <summary>The outcome of registering a domain claim: its claim number, or why it could not be allocated.</summary>
 public sealed record ClaimRegistrationResult(bool Succeeded, string? ClaimNumber, string? ErrorCode, string? ErrorMessage);
 
@@ -105,9 +111,8 @@ public sealed record ClaimRegistrationResult(bool Succeeded, string? ClaimNumber
 /// </summary>
 public interface IClaimRegistry
 {
-    Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, System.Text.Json.JsonElement fraudFacts, CancellationToken cancellationToken);
-
-    /// <summary>As <see cref="Register(string, Guid, Guid, System.Text.Json.JsonElement, CancellationToken)"/>, with the reserve the claim starts with (OQ-079).</summary>
-    Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, System.Text.Json.JsonElement fraudFacts, InitialReserve? initialReserve,
-        CancellationToken cancellationToken);
+    /// <param name="owner">The domain claim's product and node (F103).</param>
+    /// <param name="initialReserve">The reserve the claim starts with, if any (OQ-079).</param>
+    Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, ClaimOwner owner, System.Text.Json.JsonElement fraudFacts,
+        InitialReserve? initialReserve, CancellationToken cancellationToken);
 }

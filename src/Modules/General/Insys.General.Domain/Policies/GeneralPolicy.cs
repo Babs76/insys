@@ -220,6 +220,10 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
     public string ProductCode { get; private set; } = "";
 
+    /// <summary>The organisation node (normally a branch) that owns the record (F103, addenda/access-scopes.md §2); its children inherit it.</summary>
+    public string? OrgNodeCode { get; private set; }
+
+
     public int ProductVersion { get; private set; }
 
     public int RatingVersion { get; private set; }
@@ -292,6 +296,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         var policy = New(id, policyNumber, quote.ProductCode, quote.ProductVersion, quote.RatingVersion!.Value, quote.ProposerPartyId, quote.Currency, quote.PeriodStart,
             quote.PeriodEnd, quote.IntermediaryCode, billing, renewalOfId, quote.Id);
         policy.CoverStartsOn = coverStartsOn;
+        policy.OrgNodeCode = quote.OrgNodeCode;
         policy._risks.AddRange(quote.Risks.Select(r => PolicyRisk.Create(id, r.ToRequest(), quote.PeriodStart)));
         policy.SetPremium(quote.Premium!.Value);
         return policy.Issued(today, now);
@@ -309,6 +314,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         var renewal = New(id, policyNumber, expiring.ProductCode, expiring.ProductVersion, expiring.RatingVersion, expiring.PolicyholderPartyId, expiring.Currency, start,
             NextPeriodEnd(expiring.PeriodStart, expiring.PeriodEnd, start), expiring.IntermediaryCode, expiring.Billing, expiring.Id, null);
         renewal.CoverStartsOn = expiring.CoverStartsOn;
+        renewal.OrgNodeCode = expiring.OrgNodeCode;
         foreach (var risk in expiring._risks.Where(r => r.DetachedOn is null))
         {
             renewal._risks.Add(PolicyRisk.Create(id, new RiskRequest(risk.RiskObjectId, risk.SumInsured,

@@ -202,6 +202,66 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
 
     /// <summary>
+    /// F103 (addenda/access-scopes.md): a role assignment scoped to a region covers its branches only; one scoped to a
+    /// product covers that product only. Lists show only records in scope, a single read of another's record is not found,
+    /// an action on it is refused with OUT_OF_SCOPE, and a quote cannot be created outside the scope.
+    /// </summary>
+    [Fact]
+    public async Task ScopedAssignments_SeeAndActOnlyWithinTheirOrganisationAndProduct_F103()
+    {
+        foreach (var (code, type, parent) in new[] { ("ORG-ROOT", "LEGAL_ENTITY", (string?)null), ("ORG-NORTH", "REGION", "ORG-ROOT"), ("ORG-BR-A", "BRANCH", "ORG-NORTH"),
+                     ("ORG-BR-B", "BRANCH", "ORG-ROOT") })
+        {
+            await Seed("tenant.mst_organisation_structure", "ACTIVE", code, ("node_code", code), ("type", type), ("parent", (object?)parent ?? DBNull.Value), ("name", code));
+        }
+
+        var inA = await QuoteAt("ORG-BR-A");
+        var inB = await QuoteAt("ORG-BR-B");
+
+        // A user scoped to the North region (which covers branch A), and one scoped to another product.
+        var north = await _db.UserWithPermissions(Tenant, "scoped-north", Permissions);
+        await _db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_branches = '{ORG-NORTH}' WHERE user_id = @u", ("u", north));
+        var otherProduct = await _db.UserWithPermissions(Tenant, "scoped-product", Permissions);
+        await _db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = '{OTHER-PROD}' WHERE user_id = @u", ("u", otherProduct));
+        var northClient = _factory.ClientFor(Tenant, "scoped-north");
+        var productClient = _factory.ClientFor(Tenant, "scoped-product");
+
+        var listed = (await (await northClient.GetAsync("/api/v1/general/quotes?limit=200")).Json()).GetProperty("items").EnumerateArray()
+            .Select(q => q.GetProperty("id").GetGuid()).ToList();
+        listed.ShouldContain(inA);
+        listed.ShouldNotContain(inB);
+        (await northClient.GetAsync($"/api/v1/general/quotes/{inA}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await northClient.GetAsync($"/api/v1/general/quotes/{inB}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "a record outside the scope is not revealed");
+        var refused = await northClient.PostAsync($"/api/v1/general/quotes/{inB}/issue", null);
+        refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await refused.Code()).ShouldBe("OUT_OF_SCOPE");
+
+        // Creating: inside the scope is allowed; another branch is refused.
+        var inside = await northClient.Send(HttpMethod.Post, "/api/v1/general/quotes", QuoteBody(await Vehicle(), "ORG-BR-A"), idempotent: true);
+        inside.StatusCode.ShouldBe(HttpStatusCode.Created, await inside.Content.ReadAsStringAsync());
+        var outside = await northClient.Send(HttpMethod.Post, "/api/v1/general/quotes", QuoteBody(await Vehicle(), "ORG-BR-B"), idempotent: true);
+        outside.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await outside.Code()).ShouldBe("OUT_OF_SCOPE");
+
+        // A product scope: none of this product's quotes are in it.
+        (await productClient.GetAsync($"/api/v1/general/quotes/{inA}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await (await productClient.GetAsync("/api/v1/general/quotes?limit=200")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+    }
+
+    private async Task<Guid> Vehicle() => await Created("/api/v1/general/risk-objects", new
+    {
+        objectType = "VEHICLE", attributes = new { registration = "CA" + Random.Shared.Next(100_000, 999_999), vehicle_group = "G3", year = Today.Year - 2 },
+    });
+
+    private static object QuoteBody(Guid vehicle, string orgNodeCode) => new
+    {
+        productCode = Product, proposerPartyId = Guid.CreateVersion7(), currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1), orgNodeCode,
+        risks = new[] { new { riskObjectId = vehicle, sumInsured = 100_000m, coverages = new object[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 100_000m, excessScheduleCode = "MOT-EXC" } } } },
+    };
+
+    private async Task<Guid> QuoteAt(string orgNodeCode) => await Created("/api/v1/general/quotes", QuoteBody(await Vehicle(), orgNodeCode));
+
+    /// <summary>
     /// GAP-044, ADR-025: at 23:30 UTC it is 01:30 the next day in Johannesburg, and business dates follow the tenant's time
     /// zone. A policy whose cover starts on that (local) day is in force when issued, its first debit order falls due and
     /// is invoiced, and a claim for an event on the first day of cover is accepted. On UTC dates all three would wait a day.

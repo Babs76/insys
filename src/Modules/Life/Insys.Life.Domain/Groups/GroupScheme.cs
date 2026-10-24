@@ -141,6 +141,15 @@ public sealed class GroupScheme : AggregateRoot<Guid>
 
     public Guid EmployerPartyId { get; private set; }
 
+    /// <summary>The organisation node (normally a branch) that owns the record (F103, addenda/access-scopes.md §2); its children inherit it.</summary>
+    public string? OrgNodeCode { get; private set; }
+
+    /// <summary>Places a new record at its organisation node (§2), once.</summary>
+    public void PlaceAt(string? orgNodeCode)
+    {
+        OrgNodeCode ??= orgNodeCode is null ? null : Guard.MaxLength(orgNodeCode, 15);
+    }
+
     public string ProductCode { get; private set; } = "";
 
     public int ProductVersion { get; private set; }

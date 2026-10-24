@@ -34,11 +34,13 @@ using Insys.BuildingBlocks.Domain.Expressions;
 using Insys.Life.Domain;
 using Insys.Life.Domain.Groups;
 using Insys.ProductFactory.Contracts;
+using Insys.Tenancy.Contracts;
 
 namespace Insys.Life.Application;
 
+/// <param name="OrgNodeCode">The organisation node (normally a branch) that owns the scheme (F103); when omitted, the caller's one node, else the root.</param>
 public sealed record SetUpGroupScheme(Guid EmployerPartyId, string ProductCode, int? ProductVersion, string SchemeType, DateOnly StartDate, DateOnly RenewalDate,
-    string Currency) : ICommand<SchemeView>;
+    string Currency, string? OrgNodeCode = null) : ICommand<SchemeView>;
 
 /// <param name="Facts">The member's facts the category's eligibility rule reads (for example their grade), as a JSON object.</param>
 public sealed record EnrolGroupMember(Guid SchemeId, Guid PartyId, string CategoryCode, decimal? AnnualSalary, DateOnly JoinedOn, JsonElement? Facts)
@@ -121,7 +123,8 @@ internal static class Categories
     }
 }
 
-internal sealed class SetUpGroupSchemeHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IAuditTrail audit)
+internal sealed class SetUpGroupSchemeHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IAuditTrail audit,
+    IExecutionContext execution, IOrganisationStructure organisation)
     : ICommandHandler<SetUpGroupScheme, SchemeView>
 {
     public async Task<Result<SchemeView>> Handle(SetUpGroupScheme command, CancellationToken cancellationToken)
@@ -130,6 +133,14 @@ internal sealed class SetUpGroupSchemeHandler(ILifeRepository life, ILifeCodes c
         if (product.IsFailure)
         {
             return product.Error;
+        }
+
+        // F103 (addenda/access-scopes.md §2): the owning node, in the structure and, with the product, in the caller's scope.
+        var nodes = await organisation.Nodes(tenant.RequireTenantId(), businessDate.Today, cancellationToken);
+        var node = execution.PlaceNew(product.Value.ProductCode, command.OrgNodeCode, nodes.Select(n => n.NodeCode).ToList(), OrganisationNodes.Root(nodes));
+        if (node.IsFailure)
+        {
+            return node.Error;
         }
 
         if (!await codes.Exists(LifeCode.GroupSchemeType, command.SchemeType, businessDate.Today, cancellationToken))
@@ -145,6 +156,7 @@ internal sealed class SetUpGroupSchemeHandler(ILifeRepository life, ILifeCodes c
             return scheme.Error;
         }
 
+        scheme.Value.PlaceAt(node.Value);
         life.Add(scheme.Value);
         audit.Record(new AuditEntry("LIFE", "SetUpScheme", nameof(GroupScheme), id.ToString()));
         return SchemeView.From(scheme.Value);

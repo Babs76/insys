@@ -35,6 +35,7 @@ using Insys.Life.Domain;
 using Insys.Life.Domain.Proposals;
 using Insys.Party.Contracts;
 using Insys.ProductFactory.Contracts;
+using Insys.Tenancy.Contracts;
 
 namespace Insys.Life.Application;
 
@@ -44,9 +45,13 @@ public sealed record InsuredLifeInput(Guid PartyId, string LifeRole, string Smok
 public sealed record DisclosureInput(Guid InsuredPartyId, string QuestionCode, int QuestionVersion, JsonElement Answer);
 
 /// <summary>Command CaptureProposal (LIF-001): a Life product version on sale, the insured lives, covers, disclosures and nominations.</summary>
+/// <param name="OrgNodeCode">
+/// The organisation node (normally a branch) that owns the proposal and the policy and claims that follow from it (F103).
+/// When omitted: the caller's one node, else the tenant's root legal entity.
+/// </param>
 public sealed record CaptureProposal(string ProductCode, int? ProductVersion, Guid ApplicantPartyId, string? IntermediaryCode, string ChannelCode, string Currency,
     DateOnly InceptionDate, string Frequency, string CollectionMethod, Guid? PayerPartyId, IReadOnlyList<InsuredLifeInput> Lives, IReadOnlyList<CoverRequest> Covers,
-    IReadOnlyList<DisclosureInput>? Disclosures, IReadOnlyList<BeneficiaryNomination>? Nominations) : ICommand<ProposalView>;
+    IReadOnlyList<DisclosureInput>? Disclosures, IReadOnlyList<BeneficiaryNomination>? Nominations, string? OrgNodeCode = null) : ICommand<ProposalView>;
 
 public sealed record SubmitLifeProposal(Guid ProposalId) : ICommand<ProposalView>;
 
@@ -91,7 +96,8 @@ public sealed class CaptureProposalValidator : AbstractValidator<CaptureProposal
 }
 
 internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, IPersonFacts persons, IIntermediaries intermediaries,
-    ITenantContext tenant, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<CaptureProposal, ProposalView>
+    ITenantContext tenant, IBusinessDate businessDate, IAuditTrail audit, IExecutionContext execution, IOrganisationStructure organisation)
+    : ICommandHandler<CaptureProposal, ProposalView>
 {
     public async Task<Result<ProposalView>> Handle(CaptureProposal command, CancellationToken cancellationToken)
     {
@@ -100,6 +106,14 @@ internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes co
         if (product.IsFailure)
         {
             return product.Error;
+        }
+
+        // F103 (addenda/access-scopes.md §2): the owning node, in the structure and, with the product, in the caller's scope.
+        var nodes = await organisation.Nodes(tenantId, businessDate.Today, cancellationToken);
+        var node = execution.PlaceNew(product.Value.ProductCode, command.OrgNodeCode, nodes.Select(n => n.NodeCode).ToList(), OrganisationNodes.Root(nodes));
+        if (node.IsFailure)
+        {
+            return node.Error;
         }
 
         // DST-001: a proposal through an intermediary needs one that may sell the product.
@@ -140,6 +154,7 @@ internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes co
             return proposal.Error;
         }
 
+        proposal.Value.PlaceAt(node.Value);
         life.Add(proposal.Value);
         audit.Record(new AuditEntry("LIFE", "CaptureProposal", nameof(LifeProposal), id.ToString()));
         return ProposalView.From(proposal.Value);

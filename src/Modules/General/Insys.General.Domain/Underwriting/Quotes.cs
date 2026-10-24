@@ -235,6 +235,15 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
 
     public string ProductCode { get; private set; } = "";
 
+    /// <summary>The organisation node (normally a branch) that owns the record (F103, addenda/access-scopes.md §2); its children inherit it.</summary>
+    public string? OrgNodeCode { get; private set; }
+
+    /// <summary>Places a new quote at its organisation node (§2). A later version keeps its first version's node.</summary>
+    public void PlaceAt(string? orgNodeCode)
+    {
+        OrgNodeCode ??= orgNodeCode is null ? null : Guard.MaxLength(orgNodeCode, 15);
+    }
+
     public int ProductVersion { get; private set; }
 
     public Guid ProposerPartyId { get; private set; }
@@ -294,6 +303,7 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
         {
             Id = Guard.NotEmpty(id),
             QuoteNumber = previous?.QuoteNumber ?? Guard.MaxLength(quoteNumber, 15),
+            OrgNodeCode = previous?.OrgNodeCode,
             QuoteVersion = (previous?.QuoteVersion ?? 0) + 1,
             ProductCode = Guard.MaxLength(product.ProductCode, 15),
             ProductVersion = product.Version,

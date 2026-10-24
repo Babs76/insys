@@ -47,6 +47,7 @@ public static class ClaimsFrameworkInfrastructure
         services.AddModuleHandlers<ClaimsFrameworkDbContext>(typeof(AllocateClaimNumber).Assembly);
         services.AddDomainEventMapper<ClaimsEventMapper>(schema);
         services.AddScoped<IClaimsRepository, ClaimsRepository>();
+        services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, ClaimsApprovalScopes>();
         services.AddScoped<IClaimsCodes, ClaimsCodes>();
         services.AddIntegrationEventHandler<ApprovalGranted, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ApprovalRejected");

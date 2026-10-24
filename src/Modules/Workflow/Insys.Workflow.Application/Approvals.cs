@@ -119,6 +119,12 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
     {
         audit.Record(new AuditEntry("APPROVAL", approve ? "Approve" : "Reject", nameof(Approval), approval.Id.ToString(),
             new Dictionary<string, string?> { ["type"] = approval.ApprovalType, ["businessRef"] = $"{approval.BusinessRefType}:{approval.BusinessRefId}" }));
+        // F103 (addenda/access-scopes.md §4): the checker's scope for deciding approvals covers the record the approval is about.
+        if (approval.IsScoped && !execution.CurrentScope.Allows(approval.ProductCode, approval.OrgNodeCode))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "The record this approval is about is outside your scope.");
+        }
+
         // The checker also holds the permission the requester named (bank_account.verify, say), for approving and rejecting alike.
         if (approval.RequiredPermission is { } permission && !execution.HasPermission(permission))
         {
@@ -248,7 +254,8 @@ internal sealed class DueApprovalsHandler(IApprovalRepository approvals) : IQuer
 /// Workflow's policy for workflow.ApprovalRequested: create the Approval (RequestApproval). A request for a business
 /// reference that already has an approval waiting is a duplicate and changes nothing.
 /// </summary>
-public sealed class RequestApprovalPolicy(IApprovalRepository approvals, IClock clock, IOptions<ApprovalOptions> options) : IIntegrationEventHandler<ApprovalRequested>
+public sealed class RequestApprovalPolicy(IApprovalRepository approvals, IClock clock, IOptions<ApprovalOptions> options, IEnumerable<IApprovalScopeSource> scopes,
+    ITenantContext tenant) : IIntegrationEventHandler<ApprovalRequested>
 {
     public async Task Handle(ApprovalRequested requested, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -258,8 +265,17 @@ public sealed class RequestApprovalPolicy(IApprovalRepository approvals, IClock 
         }
 
         var now = clock.UtcNow;
-        approvals.Add(Approval.RequestApproval(Guid.CreateVersion7(), requested.BusinessRefType, requested.BusinessRefId, requested.ApprovalType, requested.MakerId,
-            requested.Amount, requested.Currency, requested.Reason, now, now + options.Value.DefaultExpiry, requested.SubjectHash, requested.RequiredPermission));
+        var approval = Approval.RequestApproval(Guid.CreateVersion7(), requested.BusinessRefType, requested.BusinessRefId, requested.ApprovalType, requested.MakerId,
+            requested.Amount, requested.Currency, requested.Reason, now, now + options.Value.DefaultExpiry, requested.SubjectHash, requested.RequiredPermission);
+
+        // F103 (addenda/access-scopes.md §4): an approval about a scoped record carries that record's product and node.
+        if (scopes.FirstOrDefault(s => s.Covers(requested.BusinessRefType)) is { } source)
+        {
+            var scope = await source.ScopeOf(tenant.RequireTenantId(), requested.BusinessRefType, requested.BusinessRefId, cancellationToken);
+            approval.ScopeTo(scope?.ProductCode, scope?.OrgNodeCode);
+        }
+
+        approvals.Add(approval);
     }
 }
 

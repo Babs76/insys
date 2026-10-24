@@ -288,6 +288,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
         var subject = user.FindFirstValue(InsysClaims.Subject) ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
         var actor = subject ?? "anonymous";
         IEnumerable<string> permissions = [];
+        IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? grants = null;
         Guid? memberOf = null;
         if (tenantId is not null && subject is not null && context.RequestServices.GetService<IPrincipalResolver>() is { } resolver)
         {
@@ -296,6 +297,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
             {
                 actor = principal.UserId.ToString();
                 permissions = principal.Permissions;
+                grants = principal.Grants;
                 memberOf = tenantId;
                 context.Items[TenantMemberRequirement.MemberItem] = true;
             }
@@ -306,7 +308,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
         await RequestLanguageResolver.Initialise(context, memberOf);
 
         Guid? correlation = Guid.TryParse(context.Request.Headers[CorrelationHeader], out var c) ? c : null;
-        scope.InitialiseForUser(tenantId, actor, permissions, correlation);
+        scope.InitialiseForUser(tenantId, actor, permissions, correlation, grants);
         context.Response.Headers[CorrelationHeader] = scope.CorrelationId.ToString();
         await next(context);
     }

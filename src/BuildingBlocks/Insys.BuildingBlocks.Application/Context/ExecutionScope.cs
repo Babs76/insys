@@ -55,6 +55,18 @@ public interface IExecutionContext
     Guid? CausationId { get; }
 
     bool HasPermission(string permission);
+
+    /// <summary>The caller's scope for a permission (F103): unrestricted for a service identity or an unscoped assignment.</summary>
+    AccessScope ScopeFor(string permission);
+
+    /// <summary>The scope for the permission the current endpoint requires; unrestricted outside an endpoint (a job, a consumer).</summary>
+    AccessScope CurrentScope { get; }
+
+    /// <summary>The permission the current endpoint requires, when the request is to a business endpoint.</summary>
+    string? RequestPermission { get; }
+
+    /// <summary>Whether the current request only reads (GET): a record outside the scope is then not found, rather than refused.</summary>
+    bool RequestIsRead { get; }
 }
 
 public sealed class TenantContextMissingException()
@@ -67,6 +79,7 @@ public sealed class TenantContextMissingException()
 public sealed class ExecutionScope : ITenantContext, IExecutionContext
 {
     private HashSet<string> _permissions = new(StringComparer.Ordinal);
+    private IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? _grants;
 
     public bool IsInitialised { get; private set; }
 
@@ -82,9 +95,30 @@ public sealed class ExecutionScope : ITenantContext, IExecutionContext
 
     public bool HasPermission(string permission) => _permissions.Contains(permission);
 
-    public void InitialiseForUser(Guid? tenantId, string actorId, IEnumerable<string> permissions, Guid? correlationId)
+    public string? RequestPermission { get; private set; }
+
+    public bool RequestIsRead { get; private set; }
+
+    public AccessScope ScopeFor(string permission) =>
+        ActorType == ActorType.Service ? AccessScope.Unrestricted
+        : !_permissions.Contains(permission) ? AccessScope.None
+        : _grants is not null && _grants.TryGetValue(permission, out var grants) ? new AccessScope(grants)
+        : AccessScope.Unrestricted;
+
+    public AccessScope CurrentScope => RequestPermission is null ? AccessScope.Unrestricted : ScopeFor(RequestPermission);
+
+    /// <summary>Set once per request by the business modules' endpoint filter, from the endpoint's required permission (F103).</summary>
+    public void UseRequest(string permission, bool isRead)
+    {
+        RequestPermission = permission;
+        RequestIsRead = isRead;
+    }
+
+    public void InitialiseForUser(Guid? tenantId, string actorId, IEnumerable<string> permissions, Guid? correlationId,
+        IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? grants = null)
     {
         EnsureNotInitialised();
+        _grants = grants;
         TenantId = tenantId;
         ActorId = actorId;
         ActorType = ActorType.User;

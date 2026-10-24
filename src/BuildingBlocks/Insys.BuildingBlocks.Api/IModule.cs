@@ -57,6 +57,28 @@ public interface IModule
 /// <summary>Marks an endpoint of a business module, which refuses the operator tenant (ADR-024).</summary>
 public sealed record OperatorTenantRefusedMetadata;
 
+public static class RequestAccessScope
+{
+    /// <summary>
+    /// F103 (addenda/access-scopes.md §4): the record scope the handlers apply is the caller's scope for the endpoint's
+    /// required permission; a GET or HEAD only reads, so a record outside it is not found rather than refused.
+    /// </summary>
+    public static RouteGroupBuilder ApplyRequestScope(this RouteGroupBuilder group)
+    {
+        group.AddEndpointFilter(async (context, next) =>
+        {
+            var http = context.HttpContext;
+            if (http.GetEndpoint()?.Metadata.GetMetadata<RequiredPermissionMetadata>()?.Permission is { } permission)
+            {
+                http.RequestServices.GetRequiredService<ExecutionScope>().UseRequest(permission, HttpMethods.IsGet(http.Request.Method) || HttpMethods.IsHead(http.Request.Method));
+            }
+
+            return await next(context);
+        });
+        return group;
+    }
+}
+
 public static class OperatorTenantRefusal
 {
     /// <summary>
@@ -71,6 +93,7 @@ public static class OperatorTenantRefusal
         {
             var http = context.HttpContext;
             var metadata = http.GetEndpoint()?.Metadata;
+
             if (metadata?.GetMetadata<StaticDataEndpointMetadata>() is null && metadata?.GetMetadata<PlatformOperatorEndpointMetadata>() is null)
             {
                 var operatorTenant = http.RequestServices.GetRequiredService<IOptions<PlatformOptions>>().Value.OperatorTenantId;

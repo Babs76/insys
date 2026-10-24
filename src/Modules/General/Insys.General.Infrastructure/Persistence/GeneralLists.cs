@@ -24,17 +24,22 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Context;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.General.Application;
 using Microsoft.EntityFrameworkCore;
 
 namespace Insys.General.Infrastructure.Persistence;
 
-/// <summary>General's record lists (GAP-032), on the existing indexes and V0028's quote proposer index.</summary>
-internal sealed class GeneralLists(GeneralDbContext db) : IGeneralLists
+/// <summary>
+/// General's record lists (GAP-032), on the existing indexes and V0028's quote proposer index. Only records in the caller's
+/// scope for the list's permission are returned, filtered in the query so paging stays correct (F103).
+/// </summary>
+internal sealed class GeneralLists(GeneralDbContext db, IExecutionContext execution) : IGeneralLists
 {
     public async Task<IReadOnlyList<QuoteSummary>> Quotes(ListQuotes query, CancellationToken cancellationToken)
     {
-        var quotes = db.Quotes.AsNoTracking();
+        var quotes = db.Quotes.AsNoTracking().InScope(execution.CurrentScope, q => q.ProductCode, q => q.OrgNodeCode);
         if (query.ProposerPartyId is { } proposer)
         {
             quotes = quotes.Where(q => q.ProposerPartyId == proposer);
@@ -58,7 +63,7 @@ internal sealed class GeneralLists(GeneralDbContext db) : IGeneralLists
 
     public async Task<IReadOnlyList<PolicySummary>> Policies(ListPolicies query, CancellationToken cancellationToken)
     {
-        var policies = db.Policies.AsNoTracking();
+        var policies = db.Policies.AsNoTracking().InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode);
         if (query.PolicyholderPartyId is { } holder)
         {
             policies = policies.Where(p => p.PolicyholderPartyId == holder);
@@ -81,7 +86,7 @@ internal sealed class GeneralLists(GeneralDbContext db) : IGeneralLists
 
     public async Task<IReadOnlyList<ClaimSummary>> Claims(ListClaims query, CancellationToken cancellationToken)
     {
-        var claims = db.Claims.AsNoTracking();
+        var claims = db.Claims.AsNoTracking().InScope(execution.CurrentScope, c => c.ProductCode, c => c.OrgNodeCode);
         if (query.PolicyId is { } policy)
         {
             claims = claims.Where(c => c.PolicyId == policy);

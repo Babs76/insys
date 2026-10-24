@@ -66,3 +66,39 @@ public interface ITenantProfiles
 {
     Task<TenantProfile?> Get(Guid tenantId, CancellationToken cancellationToken);
 }
+
+/// <summary>A node of a tenant's organisation structure (tenant.mst_organisation_structure): a legal entity, region or branch.</summary>
+public sealed record OrganisationNode(string NodeCode, string Type, string? Parent);
+
+/// <summary>Public query interface: a tenant's organisation structure in force on a day (F103, addenda/access-scopes.md §3).</summary>
+public interface IOrganisationStructure
+{
+    Task<IReadOnlyList<OrganisationNode>> Nodes(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+}
+
+public static class OrganisationNodes
+{
+    /// <summary>The nodes and every node below them (parent links): a scope on a node covers its whole subtree (§3).</summary>
+    public static IReadOnlySet<string> WithDescendants(IReadOnlyList<OrganisationNode> nodes, IEnumerable<string> codes)
+    {
+        var children = nodes.Where(n => n.Parent is not null).ToLookup(n => n.Parent!, n => n.NodeCode, StringComparer.Ordinal);
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        var pending = new Stack<string>(codes);
+        while (pending.TryPop(out var code))
+        {
+            if (result.Add(code))
+            {
+                foreach (var child in children[code])
+                {
+                    pending.Push(child);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>The root legal entity: a node with no parent (the first by code when there are several), or null without a structure.</summary>
+    public static string? Root(IReadOnlyList<OrganisationNode> nodes) =>
+        nodes.Where(n => n.Parent is null).OrderBy(n => n.NodeCode, StringComparer.Ordinal).Select(n => n.NodeCode).FirstOrDefault();
+}

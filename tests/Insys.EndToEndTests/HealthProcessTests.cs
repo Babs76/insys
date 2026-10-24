@@ -559,6 +559,46 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         return rows;
     }
 
+    /// <summary>
+    /// F103 (addenda/access-scopes.md): a membership belongs to an organisation node, and a user scoped to a region sees
+    /// only its branches' memberships. Health records have no product, so a product-scoped user sees none (OQ-080).
+    /// </summary>
+    [Fact]
+    public async Task ScopedAssignments_SeeOnlyMembershipsWithinTheirOrganisation_AndProductScopesReachNone_F103_OQ080()
+    {
+        foreach (var (code, type, parent) in new[] { ("ORG-ROOT", "LEGAL_ENTITY", (string?)null), ("ORG-NORTH", "REGION", "ORG-ROOT"), ("ORG-BR-A", "BRANCH", "ORG-NORTH"),
+                     ("ORG-BR-B", "BRANCH", "ORG-ROOT") })
+        {
+            await Seed("tenant.mst_organisation_structure", "ACTIVE", code, ("node_code", code), ("type", type), ("parent", (object?)parent ?? DBNull.Value), ("name", code));
+        }
+
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var schemeNumber = (await Get($"/api/v1/health/schemes/{scheme}")).GetProperty("schemeNumber").GetString()!;
+        await Seed("health.cfg_contribution_rules", "EFFECTIVE", "CR-SCOPE", ("scheme", schemeNumber), ("member_category", "ALL_STAFF"), ("rate", 1_000m), ("employer_share", 0m));
+        var principal = await _maker.RegisterPerson("Scoped");
+        async Task<Guid> Enrol(string orgNodeCode) => await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today,
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" }, orgNodeCode,
+        });
+        var inA = await Enrol("ORG-BR-A");
+        var inB = await Enrol("ORG-BR-B");
+
+        var north = await _db.UserWithPermissions(Tenant, "health-north", Permissions);
+        await _db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_branches = '{ORG-NORTH}' WHERE user_id = @u", ("u", north));
+        var product = await _db.UserWithPermissions(Tenant, "health-product", Permissions);
+        await _db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = '{HLT-CORE}' WHERE user_id = @u", ("u", product));
+        var northClient = _factory.ClientFor(Tenant, "health-north");
+        var productClient = _factory.ClientFor(Tenant, "health-product");
+
+        (await (await northClient.GetAsync($"/api/v1/health/memberships?principalPartyId={principal}")).Json()).GetProperty("items").EnumerateArray()
+            .Select(m => m.GetProperty("id").GetGuid()).ShouldBe([inA]);
+        (await northClient.GetAsync($"/api/v1/health/memberships/{inA}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await northClient.GetAsync($"/api/v1/health/memberships/{inB}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await productClient.GetAsync($"/api/v1/health/memberships/{inA}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "a Health record has no product to match (OQ-080)");
+        (await (await productClient.GetAsync($"/api/v1/health/memberships?principalPartyId={principal}")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+    }
+
     private async Task<Guid> Created(string url, object body)
     {
         var response = await _maker.Send(HttpMethod.Post, url, body, idempotent: true);

@@ -344,6 +344,9 @@ public sealed class LifePolicy : AggregateRoot<Guid>
 
     public Guid ProposalId { get; private set; }
 
+    /// <summary>The organisation node that owns the policy: its proposal's (F103, addenda/access-scopes.md §2).</summary>
+    public string? OrgNodeCode { get; private set; }
+
     public string ProductCode { get; private set; } = "";
 
     public int ProductVersion { get; private set; }
@@ -419,7 +422,7 @@ public sealed class LifePolicy : AggregateRoot<Guid>
         var billing = proposal.Billing;
         var policy = new LifePolicy
         {
-            Id = id, PolicyNumber = Guard.MaxLength(policyNumber, 15), ProposalId = proposal.Id, ProductCode = proposal.ProductCode, ProductVersion = proposal.ProductVersion,
+            Id = id, PolicyNumber = Guard.MaxLength(policyNumber, 15), ProposalId = proposal.Id, ProductCode = proposal.ProductCode, ProductVersion = proposal.ProductVersion, OrgNodeCode = proposal.OrgNodeCode,
             RatingVersion = proposal.RatingVersion!.Value, RulesetVersion = decided.RulesetVersion, PolicyholderPartyId = proposal.ApplicantPartyId,
             Status = LifePolicyStatus.Issued, InceptionDate = inception, Currency = proposal.Currency, PremiumFrequency = proposal.Frequency,
             BillingAccountRef = billingAccountRef, PayerPartyId = billing.PayerPartyId, CollectionMethod = billing.CollectionMethod, IntermediaryCode = proposal.IntermediaryCode,

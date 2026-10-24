@@ -66,6 +66,22 @@ public interface IApprovalAuthoritySource
         CancellationToken cancellationToken);
 }
 
+/// <summary>The product and organisation node of the record an approval is about (F103, addenda/access-scopes.md §4).</summary>
+public sealed record RecordScope(string? ProductCode, string? OrgNodeCode);
+
+/// <summary>
+/// A module whose records are scoped (F103) says which product and node the record behind one of its approval types
+/// belongs to. Workflow records it with the approval, and a checker sees and decides only approvals about records in their
+/// scope. Approvals of other types (static data, product versions, payouts) are not scoped.
+/// </summary>
+public interface IApprovalScopeSource
+{
+    bool Covers(string businessRefType);
+
+    /// <summary>The record's scope, or null when it is not found (the approval is then refused to every scoped checker).</summary>
+    Task<RecordScope?> ScopeOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// Public query interface: business time in a tenant. On the named calendar (workflow.ref_business_calendars) when it is
 /// in force, otherwise Monday to Friday, 08:00 to 17:00, in the tenant's time zone (tenant.cfg_locale_defaults), or

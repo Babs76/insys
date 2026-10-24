@@ -36,6 +36,7 @@ using Insys.Health.Domain.Adjudication;
 using Insys.Health.Domain.Benefits;
 using Insys.Health.Domain.Members;
 using Insys.Party.Contracts;
+using Insys.Tenancy.Contracts;
 
 namespace Insys.Health.Application;
 
@@ -52,8 +53,12 @@ public sealed record ChangeHealthScheme(Guid SchemeId, SchemeAction Action) : IC
 public sealed record GetHealthScheme(Guid SchemeId) : IQuery<SchemeView>;
 
 /// <param name="Facts">The member's facts the scheme category's eligibility rule reads, as a JSON object.</param>
+/// <param name="OrgNodeCode">
+/// The organisation node (normally a branch) that owns the membership and its claims (F103); when omitted, the caller's one
+/// node, else the tenant's root legal entity.
+/// </param>
 public sealed record EnrolHealthMember(Guid PrincipalPartyId, Guid? SchemeId, string? MemberCategory, string PlanCode, string OptionCode, DateOnly StartDate, string Currency,
-    Guid? PayerPartyId, Guid? BillingAccountId, string CollectionMethod, JsonElement? Facts) : ICommand<MembershipView>;
+    Guid? PayerPartyId, Guid? BillingAccountId, string CollectionMethod, JsonElement? Facts, string? OrgNodeCode = null) : ICommand<MembershipView>;
 
 public sealed record AddHealthDependant(Guid MembershipId, Guid PartyId, string DependantType, bool Student, DateOnly StartDate) : ICommand<MembershipView>;
 
@@ -144,11 +149,21 @@ internal sealed class GetHealthSchemeHandler(IHealthRepository health) : IQueryH
         await health.Scheme(query.SchemeId, cancellationToken) is { } scheme ? SchemeView.From(scheme) : Error.NotFound(ErrorCodes.NotFound, "The scheme was not found.");
 }
 
-internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<EnrolHealthMember, MembershipView>
+internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit,
+    ITenantContext tenant, IExecutionContext execution, IOrganisationStructure organisation) : ICommandHandler<EnrolHealthMember, MembershipView>
 {
     public async Task<Result<MembershipView>> Handle(EnrolHealthMember command, CancellationToken cancellationToken)
     {
         var day = businessDate.Today;
+
+        // F103 (addenda/access-scopes.md §2): the owning node. Health records have no product to scope by (OQ-080).
+        var nodes = await organisation.Nodes(tenant.RequireTenantId(), day, cancellationToken);
+        var node = execution.PlaceNew(null, command.OrgNodeCode, nodes.Select(n => n.NodeCode).ToList(), OrganisationNodes.Root(nodes));
+        if (node.IsFailure)
+        {
+            return node.Error;
+        }
+
         if (await codes.Plan(command.PlanCode, command.OptionCode, day, cancellationToken) is not { } plan)
         {
             return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.PlanCode}/{command.OptionCode} is not a plan option in force.");
@@ -208,6 +223,7 @@ internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealth
             return membership.Error;
         }
 
+        membership.Value.PlaceAt(node.Value);
         health.Add(membership.Value);
         audit.Record(new AuditEntry("HEALTH", "EnrolMember", nameof(HealthMembership), id.ToString()));
         return MembershipView.From(membership.Value);

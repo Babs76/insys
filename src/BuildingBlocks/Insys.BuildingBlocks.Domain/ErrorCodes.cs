@@ -61,6 +61,10 @@ public static class ErrorCodes
     [ErrorCode(403, "error.access.forbidden")]
     public const string Forbidden = "FORBIDDEN";
 
+    /// <summary>F103: an action on a record outside the caller's product or organisation scope for the permission.</summary>
+    [ErrorCode(403, "error.access.out_of_scope")]
+    public const string OutOfScope = "OUT_OF_SCOPE";
+
     /// <summary>ADR-024: a business module's endpoint was called in the platform operator tenant.</summary>
     [ErrorCode(403, "error.access.operator_tenant_not_business")]
     public const string OperatorTenantNotBusiness = "OPERATOR_TENANT_NOT_BUSINESS";

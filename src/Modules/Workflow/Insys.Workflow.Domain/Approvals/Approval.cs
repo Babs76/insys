@@ -111,6 +111,24 @@ public sealed class Approval : AggregateRoot<Guid>
     /// <summary>A permission the checker must hold, besides authority for the type.</summary>
     public string? RequiredPermission { get; private set; }
 
+    /// <summary>
+    /// Whether the approval is about a scoped record (F103), and that record's product and organisation node: a checker sees
+    /// and decides it only within their scope.
+    /// </summary>
+    public bool IsScoped { get; private set; }
+
+    public string? ProductCode { get; private set; }
+
+    public string? OrgNodeCode { get; private set; }
+
+    /// <summary>Records the scope of the record the approval is about (F103), once, as it is requested.</summary>
+    public void ScopeTo(string? productCode, string? orgNodeCode)
+    {
+        IsScoped = true;
+        ProductCode = productCode is null ? null : Guard.MaxLength(productCode, 15);
+        OrgNodeCode = orgNodeCode is null ? null : Guard.MaxLength(orgNodeCode, 15);
+    }
+
     /// <summary>Command RequestApproval.</summary>
     public static Approval RequestApproval(Guid id, string businessRefType, Guid businessRefId, string approvalType, Guid makerId, decimal? amount, string? currency,
         string? reason, DateTimeOffset now, DateTimeOffset? expiresAt, string? subjectHash = null, string? requiredPermission = null)

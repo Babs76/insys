@@ -93,6 +93,7 @@ public sealed class PrincipalResolver(
     [FromKeyedServices(IdentityDbContext.SchemaName)] NpgsqlDataSource dataSource,
     PermissionCache cache,
     ITenantStatusQuery tenants,
+    IOrganisationStructure organisation,
     IClock clock) : IPrincipalResolver
 {
     private static readonly string[] RoleStatuses = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RolesAndPermissionSets)).Lifecycle.InForce;
@@ -158,9 +159,11 @@ public sealed class PrincipalResolver(
             await signIn.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        // Each assignment's permissions with its reach (F103): the assignment's own product and branch scopes, else its role's.
         var permissions = new HashSet<string>(StringComparer.Ordinal);
+        var scoped = new List<(string Permission, string[]? Products, string[]? Branches)>();
         await using (var load = new NpgsqlCommand("""
-            SELECT DISTINCT p.permission
+            SELECT p.permission, coalesce(a.scope_products, r.scope_products), coalesce(a.scope_branches, r.scope_branches)
             FROM iam.user_role_assignment a
             JOIN iam.cfg_roles_and_permission_sets r
               ON r.role_code = a.role_code AND r.tenant_id = a.tenant_id
@@ -176,12 +179,44 @@ public sealed class PrincipalResolver(
             await using var reader = await load.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                permissions.Add(reader.GetString(0));
+                var permission = reader.GetString(0);
+                permissions.Add(permission);
+                scoped.Add((permission, reader.IsDBNull(1) ? null : reader.GetFieldValue<string[]>(1), reader.IsDBNull(2) ? null : reader.GetFieldValue<string[]>(2)));
             }
         }
 
         await transaction.CommitAsync(cancellationToken);
-        return new ResolvedPrincipal(userId, permissions);
+        return new ResolvedPrincipal(userId, permissions, await Grants(tenantId, scoped, cancellationToken));
+    }
+
+    /// <summary>
+    /// Per permission, the grants of the assignments giving it (addenda/access-scopes.md §4). A permission any assignment
+    /// gives without scope is left out: it is unrestricted. A branch scope covers the nodes below it (§3).
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>?> Grants(Guid tenantId,
+        List<(string Permission, string[]? Products, string[]? Branches)> scoped, CancellationToken cancellationToken)
+    {
+        static bool Empty(string[]? values) => values is null || values.Length == 0;
+        if (scoped.All(s => Empty(s.Products) && Empty(s.Branches)))
+        {
+            return null;
+        }
+
+        var nodes = scoped.Any(s => !Empty(s.Branches)) ? await organisation.Nodes(tenantId, clock.UtcToday, cancellationToken) : [];
+        var grants = new Dictionary<string, IReadOnlyList<PermissionGrant>>(StringComparer.Ordinal);
+        foreach (var permission in scoped.GroupBy(s => s.Permission))
+        {
+            if (permission.Any(s => Empty(s.Products) && Empty(s.Branches)))
+            {
+                continue;
+            }
+
+            grants[permission.Key] = permission.Select(s => new PermissionGrant(
+                Empty(s.Products) ? null : new HashSet<string>(s.Products!, StringComparer.Ordinal),
+                Empty(s.Branches) ? null : OrganisationNodes.WithDescendants(nodes, s.Branches!))).ToList();
+        }
+
+        return grants;
     }
 }
 

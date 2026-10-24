@@ -29,7 +29,8 @@ namespace Insys.BuildingBlocks.Application.Context;
 /// <summary>The caller as the Identity module knows it.</summary>
 /// <param name="UserId">The iam.user_account ID, used as the actor in audit and maker-checker.</param>
 /// <param name="Permissions">Permission codes from the user's current role assignments.</param>
-public sealed record ResolvedPrincipal(Guid UserId, IReadOnlySet<string> Permissions);
+/// <param name="Grants">Per permission, the reach of each assignment giving it (F103); a permission missing here is unrestricted.</param>
+public sealed record ResolvedPrincipal(Guid UserId, IReadOnlySet<string> Permissions, IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? Grants = null);
 
 /// <summary>
 /// Resolves a token's subject to a user and permissions, per request, from IAM role assignments. Access tokens carry

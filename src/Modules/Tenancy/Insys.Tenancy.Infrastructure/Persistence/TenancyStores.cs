@@ -295,3 +295,35 @@ internal sealed class TenantTimeZonesHealthCheck(TenantLocaleDefaults zones, [Fr
                 data: new Dictionary<string, object> { ["tenantsWithoutTimeZone"] = missing });
     }
 }
+
+/// <summary>A tenant's organisation structure in force (F103), read on the Tenancy module's own connection and cached for a minute.</summary>
+internal sealed class OrganisationStructureQuery([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource, IMemoryCache cache) : IOrganisationStructure
+{
+    public async Task<IReadOnlyList<OrganisationNode>> Nodes(Guid tenantId, DateOnly day, CancellationToken cancellationToken) =>
+        await cache.GetOrCreateAsync($"org-structure:{tenantId:N}:{day:yyyyMMdd}", async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1);
+            await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+            await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+            await using var command = new NpgsqlCommand("""
+                SELECT DISTINCT ON (code) node_code, type, parent FROM tenant.mst_organisation_structure
+                WHERE (tenant_id = @t OR tenant_id IS NULL) AND record_status = ANY(@statuses) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
+                ORDER BY code, (tenant_id IS NULL), version DESC
+                """, connection, transaction);
+            command.Parameters.AddWithValue("t", tenantId);
+            command.Parameters.AddWithValue("statuses", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Reference.InForce);
+            command.Parameters.AddWithValue("day", day);
+            var nodes = new List<OrganisationNode>();
+            await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    nodes.Add(new OrganisationNode(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
+                }
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return (IReadOnlyList<OrganisationNode>)nodes;
+        }) ?? [];
+}

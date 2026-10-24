@@ -150,6 +150,11 @@ public sealed class LifeClaim : AggregateRoot<Guid>
 
     public string? ClaimNumber { get; private set; }
 
+    /// <summary>The policy's product and organisation node, which scope the claim (F103, addenda/access-scopes.md §1).</summary>
+    public string? ProductCode { get; private set; }
+
+    public string? OrgNodeCode { get; private set; }
+
     public Guid PolicyId { get; private set; }
 
     public string ClaimType { get; private set; } = "";
@@ -222,7 +227,7 @@ public sealed class LifeClaim : AggregateRoot<Guid>
 
         return new LifeClaim
         {
-            Id = id, PolicyId = policy.Id, ClaimType = Guard.MaxLength(claimType, 15), EventDate = eventDate, CauseCode = causeCode, ClaimantPartyId = Guard.NotEmpty(claimantPartyId),
+            Id = id, PolicyId = policy.Id, ProductCode = policy.ProductCode, OrgNodeCode = policy.OrgNodeCode, ClaimType = Guard.MaxLength(claimType, 15), EventDate = eventDate, CauseCode = causeCode, ClaimantPartyId = Guard.NotEmpty(claimantPartyId),
             InsuredLifeId = insuredLifeId, Status = LifeClaimStatus.Notified, Currency = policy.Currency, NotifiedAt = now,
         };
     }

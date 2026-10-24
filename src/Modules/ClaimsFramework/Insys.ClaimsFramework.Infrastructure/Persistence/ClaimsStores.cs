@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
@@ -36,10 +37,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.ClaimsFramework.Infrastructure.Persistence;
 
-internal sealed class ClaimsRepository(ClaimsFrameworkDbContext db) : IClaimsRepository
+/// <summary>
+/// The Claims Framework's records, scoped as the domain claim they belong to (F103, addenda/access-scopes.md §4): by the
+/// product and organisation node recorded at registration. Outside the caller's scope for the endpoint's permission, a read
+/// finds nothing (404) and an action is refused (403 OUT_OF_SCOPE). Registration, jobs and consumers are unrestricted.
+/// </summary>
+internal sealed class ClaimsRepository(ClaimsFrameworkDbContext db, IExecutionContext execution) : IClaimsRepository
 {
-    public Task<ClaimRegistration?> ByNumber(string claimNumber, CancellationToken cancellationToken) =>
-        Claims().SingleOrDefaultAsync(c => c.ClaimNumber == claimNumber, cancellationToken);
+    public async Task<ClaimRegistration?> ByNumber(string claimNumber, CancellationToken cancellationToken)
+    {
+        var claim = await Claims().SingleOrDefaultAsync(c => c.ClaimNumber == claimNumber, cancellationToken);
+        return execution.InScope(claim, claim?.ProductCode, claim?.OrgNodeCode);
+    }
 
     public Task<ClaimRegistration?> ByDomainClaim(string domain, Guid domainClaimId, CancellationToken cancellationToken) =>
         Claims().SingleOrDefaultAsync(c => c.Domain == domain && c.DomainClaimId == domainClaimId, cancellationToken);
@@ -56,11 +65,23 @@ internal sealed class ClaimsRepository(ClaimsFrameworkDbContext db) : IClaimsRep
     public async Task<IReadOnlyList<ClaimPaymentInstruction>> Instructions(string claimNumber, CancellationToken cancellationToken) =>
         await db.Instructions.AsNoTracking().Where(i => i.ClaimNumber == claimNumber).OrderBy(i => i.Id).ToListAsync(cancellationToken);
 
-    public Task<ClaimPaymentInstruction?> Instruction(Guid id, CancellationToken cancellationToken) =>
-        db.Instructions.SingleOrDefaultAsync(i => i.Id == id, cancellationToken);
+    public async Task<ClaimPaymentInstruction?> Instruction(Guid id, CancellationToken cancellationToken) =>
+        await OfClaim(await db.Instructions.SingleOrDefaultAsync(i => i.Id == id, cancellationToken), cancellationToken);
 
-    public Task<ClaimPaymentInstruction?> Instruction(string claimNumber, string instructionRef, CancellationToken cancellationToken) =>
-        db.Instructions.SingleOrDefaultAsync(i => i.ClaimNumber == claimNumber && i.InstructionRef == instructionRef, cancellationToken);
+    public async Task<ClaimPaymentInstruction?> Instruction(string claimNumber, string instructionRef, CancellationToken cancellationToken) =>
+        await OfClaim(await db.Instructions.SingleOrDefaultAsync(i => i.ClaimNumber == claimNumber && i.InstructionRef == instructionRef, cancellationToken), cancellationToken);
+
+    private async Task<ClaimPaymentInstruction?> OfClaim(ClaimPaymentInstruction? instruction, CancellationToken cancellationToken)
+    {
+        if (instruction is null || execution.CurrentScope.IsUnrestricted)
+        {
+            return instruction;
+        }
+
+        var owner = await db.Claims.AsNoTracking().Where(c => c.ClaimNumber == instruction.ClaimNumber).Select(c => new { c.ProductCode, c.OrgNodeCode })
+            .SingleOrDefaultAsync(cancellationToken);
+        return execution.InScope(instruction, owner?.ProductCode, owner?.OrgNodeCode);
+    }
 
     public void Add(ClaimRegistration registration) => db.Claims.Add(registration);
 

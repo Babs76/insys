@@ -24,17 +24,24 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Context;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.Health.Application;
 using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Health.Infrastructure.Persistence;
 
-/// <summary>Health's record lists (GAP-040): filters are exact matches, ordered by ID for cursor paging.</summary>
-internal sealed class HealthLists(HealthDbContext db) : IHealthLists
+/// <summary>
+/// Health's record lists (GAP-040): filters are exact matches, ordered by ID for cursor paging, over the records in the
+/// caller's scope (F103): memberships by their node, and preauthorisations, claims and cases by their membership's.
+/// </summary>
+internal sealed class HealthLists(HealthDbContext db, IExecutionContext execution) : IHealthLists
 {
+    private IQueryable<Guid> MembershipsInScope => db.Memberships.AsNoTracking().InScope(execution.CurrentScope, _ => null, m => m.OrgNodeCode).Select(m => m.Id);
+
     public async Task<IReadOnlyList<MembershipSummary>> Memberships(ListMemberships q, CancellationToken cancellationToken)
     {
-        var rows = db.Memberships.AsNoTracking();
+        var rows = db.Memberships.AsNoTracking().InScope(execution.CurrentScope, _ => null, m => m.OrgNodeCode);
         if (q.PrincipalPartyId is { } party) rows = rows.Where(m => m.PrincipalPartyId == party);
         if (q.MemberNumber is { } number) rows = rows.Where(m => m.MemberNumber == number);
         if (q.SchemeId is { } scheme) rows = rows.Where(m => m.SchemeId == scheme);
@@ -48,6 +55,7 @@ internal sealed class HealthLists(HealthDbContext db) : IHealthLists
     public async Task<IReadOnlyList<PreauthorisationSummary>> Preauthorisations(ListPreauthorisations q, CancellationToken cancellationToken)
     {
         var rows = db.Preauthorisations.AsNoTracking();
+        if (!execution.CurrentScope.IsUnrestricted) rows = rows.Where(p => MembershipsInScope.Contains(p.MembershipId));
         if (q.MembershipId is { } membership) rows = rows.Where(p => p.MembershipId == membership);
         if (q.PatientPartyId is { } party) rows = rows.Where(p => p.PatientPartyId == party);
         if (q.AuthNumber is { } number) rows = rows.Where(p => p.AuthNumber == number);
@@ -62,6 +70,7 @@ internal sealed class HealthLists(HealthDbContext db) : IHealthLists
     public async Task<IReadOnlyList<MedicalClaimSummary>> Claims(ListMedicalClaims q, CancellationToken cancellationToken)
     {
         var rows = db.Claims.AsNoTracking();
+        if (!execution.CurrentScope.IsUnrestricted) rows = rows.Where(c => MembershipsInScope.Contains(c.MembershipId));
         if (q.MembershipId is { } membership) rows = rows.Where(c => c.MembershipId == membership);
         if (q.PatientPartyId is { } party) rows = rows.Where(c => c.PatientPartyId == party);
         if (q.ClaimNumber is { } number) rows = rows.Where(c => c.ClaimNumber == number);
@@ -76,6 +85,7 @@ internal sealed class HealthLists(HealthDbContext db) : IHealthLists
     public async Task<IReadOnlyList<UtilisationCaseSummary>> UtilisationCases(ListUtilisationCases q, CancellationToken cancellationToken)
     {
         var rows = db.UtilisationCases.AsNoTracking();
+        if (!execution.CurrentScope.IsUnrestricted) rows = rows.Where(c => MembershipsInScope.Contains(c.MembershipId));
         if (q.MembershipId is { } membership) rows = rows.Where(c => c.MembershipId == membership);
         if (q.ClaimId is { } claim) rows = rows.Where(c => c.ClaimId == claim);
         if (q.Status is { } status) rows = rows.Where(c => c.Status == status);
@@ -88,6 +98,12 @@ internal sealed class HealthLists(HealthDbContext db) : IHealthLists
     public async Task<IReadOnlyList<FraudCaseSummary>> FraudCases(ListFraudCases q, CancellationToken cancellationToken)
     {
         var rows = db.FraudCases.AsNoTracking();
+        if (!execution.CurrentScope.IsUnrestricted)
+        {
+            var claimsInScope = db.Claims.AsNoTracking().Where(c => MembershipsInScope.Contains(c.MembershipId)).Select(c => c.ClaimNumber);
+            rows = rows.Where(c => c.SubjectType != "CLAIM" || claimsInScope.Contains(c.SubjectRef));
+        }
+
         if (q.ClaimNumber is { } number) rows = rows.Where(c => c.SubjectType == "CLAIM" && c.SubjectRef == number);
         if (q.Status is { } status) rows = rows.Where(c => c.Status == status);
         if (q.AfterId is { } after) rows = rows.Where(c => c.Id.CompareTo(after) > 0);

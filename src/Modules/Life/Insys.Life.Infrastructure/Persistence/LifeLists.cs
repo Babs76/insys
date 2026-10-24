@@ -24,17 +24,19 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Context;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.Life.Application;
 using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Life.Infrastructure.Persistence;
 
-/// <summary>Life's record lists (GAP-040): filters are exact matches, ordered by ID for cursor paging.</summary>
-internal sealed class LifeLists(LifeDbContext db) : ILifeLists
+/// <summary>Life's record lists (GAP-040): filters are exact matches, ordered by ID for cursor paging, over the records in the caller's scope (F103).</summary>
+internal sealed class LifeLists(LifeDbContext db, IExecutionContext execution) : ILifeLists
 {
     public async Task<IReadOnlyList<LifeProposalSummary>> Proposals(ListLifeProposals q, CancellationToken cancellationToken)
     {
-        var rows = db.Proposals.AsNoTracking();
+        var rows = db.Proposals.AsNoTracking().InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode);
         if (q.ApplicantPartyId is { } party) rows = rows.Where(p => p.ApplicantPartyId == party);
         if (q.ProposalNumber is { } number) rows = rows.Where(p => p.ProposalNumber == number);
         if (q.Status is { } status) rows = rows.Where(p => p.Status == status);
@@ -46,7 +48,7 @@ internal sealed class LifeLists(LifeDbContext db) : ILifeLists
 
     public async Task<IReadOnlyList<LifePolicySummary>> Policies(ListLifePolicies q, CancellationToken cancellationToken)
     {
-        var rows = db.Policies.AsNoTracking();
+        var rows = db.Policies.AsNoTracking().InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode);
         if (q.PolicyholderPartyId is { } party) rows = rows.Where(p => p.PolicyholderPartyId == party);
         if (q.PolicyNumber is { } number) rows = rows.Where(p => p.PolicyNumber == number);
         if (q.Status is { } status) rows = rows.Where(p => p.Status == status);
@@ -58,7 +60,7 @@ internal sealed class LifeLists(LifeDbContext db) : ILifeLists
 
     public async Task<IReadOnlyList<LifeClaimSummary>> Claims(ListLifeClaims q, CancellationToken cancellationToken)
     {
-        var rows = db.Claims.AsNoTracking();
+        var rows = db.Claims.AsNoTracking().InScope(execution.CurrentScope, c => c.ProductCode, c => c.OrgNodeCode);
         if (q.PolicyId is { } policy) rows = rows.Where(c => c.PolicyId == policy);
         if (q.ClaimantPartyId is { } party) rows = rows.Where(c => c.ClaimantPartyId == party);
         if (q.ClaimNumber is { } number) rows = rows.Where(c => c.ClaimNumber == number);
@@ -71,7 +73,7 @@ internal sealed class LifeLists(LifeDbContext db) : ILifeLists
 
     public async Task<IReadOnlyList<GroupSchemeSummary>> Schemes(ListGroupSchemes q, CancellationToken cancellationToken)
     {
-        var rows = db.Schemes.AsNoTracking();
+        var rows = db.Schemes.AsNoTracking().InScope(execution.CurrentScope, s => s.ProductCode, s => s.OrgNodeCode);
         if (q.EmployerPartyId is { } party) rows = rows.Where(s => s.EmployerPartyId == party);
         if (q.SchemeNumber is { } number) rows = rows.Where(s => s.SchemeNumber == number);
         if (q.Status is { } status) rows = rows.Where(s => s.Status == status);

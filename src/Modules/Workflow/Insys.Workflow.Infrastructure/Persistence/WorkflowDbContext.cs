@@ -67,6 +67,8 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
         modelBuilder.Entity<Approval>(approval =>
         {
             approval.ToTable("approval");
+            approval.Property(a => a.ProductCode).HasMaxLength(15);
+            approval.Property(a => a.OrgNodeCode).HasMaxLength(15);
             approval.HasKey(a => new { a.TenantId, a.Id });
             approval.HasAuditColumns();
             approval.Ignore(a => a.DomainEvents);

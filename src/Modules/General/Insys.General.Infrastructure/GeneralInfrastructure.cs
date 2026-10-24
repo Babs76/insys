@@ -54,6 +54,7 @@ public static class GeneralInfrastructure
         services.AddModuleHandlers<GeneralDbContext>(typeof(CreateQuote).Assembly);
         services.AddDomainEventMapper<GeneralEventMapper>(schema);
         services.AddScoped<IGeneralRepository, GeneralRepository>();
+        services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, GeneralApprovalScopes>();
         services.AddScoped<IGeneralLists, GeneralLists>();
         services.AddScoped<IGeneralCodes, GeneralCodes>();
         services.AddSingleton<Distribution.Contracts.IPolicyDistribution, GeneralPolicyDistribution>();

@@ -78,7 +78,8 @@ var v1 = app.MapInsysV1();
 foreach (var module in modules)
 {
     // ADR-024: business modules refuse the operator tenant; platform modules are mapped as they are.
-    module.MapEndpoints(module.HoldsBusinessData ? ((RouteGroupBuilder)v1).MapGroup("").RefuseOperatorTenant() : v1);
+    var moduleGroup = ((RouteGroupBuilder)v1).MapGroup("").ApplyRequestScope();
+    module.MapEndpoints(module.HoldsBusinessData ? moduleGroup.RefuseOperatorTenant() : moduleGroup);
 }
 
 // Test only (ADR-025), mapped last and kept out of the documents.

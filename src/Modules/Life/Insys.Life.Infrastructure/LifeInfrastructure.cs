@@ -59,6 +59,7 @@ public static class LifeInfrastructure
         services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticSetGuard, FreeCoverBandsGuard>();
         services.AddSingleton<Distribution.Contracts.IPolicyDistribution, LifePolicyDistribution>();
         services.AddSingleton<Workflow.Contracts.IApprovalAuthoritySource, ClaimsAuthority>();
+        services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, LifeApprovalScopes>();
         services.AddIntegrationEventHandler<PremiumCalculated, LifeEventPolicies, LifeDbContext>(schema, "PremiumCalculated");
         services.AddIntegrationEventHandler<RuleDecisionRecorded, LifeEventPolicies, LifeDbContext>(schema, "RuleDecisionRecorded");
         services.AddIntegrationEventHandler<LifeProposalSubmitted, LifeEventPolicies, LifeDbContext>(schema, "LifeProposalSubmitted");

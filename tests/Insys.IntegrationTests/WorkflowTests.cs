@@ -180,6 +180,41 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         process.GetProperty("tasks")[0].GetProperty("assigneeId").GetGuid().ShouldBe(_maker);
     }
 
+    /// <summary>
+    /// F103 (addenda/access-scopes.md §4): an approval about a scoped record is seen and decided only by a checker whose
+    /// scope covers that record; approvals about unscoped things (static data, say) are unaffected.
+    /// </summary>
+    [Fact]
+    public async Task ScopedApproval_IsSeenAndDecidedOnlyWithinTheCheckersScope_F103()
+    {
+        var db = fixture.Database;
+        var checker = await db.UserWithPermissions(DatabaseFixture.TenantA, "wf-home-only", All);
+        var authorityRole = await db.RoleWithPermissions(DatabaseFixture.TenantA);
+        await db.AssignRole(DatabaseFixture.TenantA, checker, authorityRole);
+        await Authority(authorityRole, 50_000m);
+        await db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = ARRAY['GEN-HOME'] WHERE user_id = @u", ("u", checker));
+        var outside = await SeedApproval(100m);
+        var inside = await SeedApproval(100m);
+        var unscoped = await SeedApproval(100m);
+        foreach (var (approval, product) in new[] { (outside, "GEN-MOTOR"), (inside, "GEN-HOME") })
+        {
+            await db.ExecuteAsOwner("UPDATE workflow.approval SET is_scoped = true, product_code = @p, org_node_code = 'BR-A' WHERE id = @a", ("p", product), ("a", approval));
+        }
+
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, "wf-home-only");
+        (await client.GetAsync($"{Approvals}/{outside}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "an approval about a record outside the scope is not revealed");
+        (await client.GetAsync($"{Approvals}/{inside}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await client.GetAsync($"{Approvals}/{unscoped}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        foreach (var (approval, shown) in new[] { (outside, 0), (inside, 1), (unscoped, 1) })
+        {
+            var businessRef = await db.ScalarAsOwner<Guid>("SELECT business_ref_id FROM workflow.approval WHERE id = @a", ("a", approval));
+            (await (await client.GetAsync($"{Approvals}?businessRefId={businessRef}")).Json()).GetProperty("items").GetArrayLength().ShouldBe(shown, "lists show only approvals in scope");
+        }
+
+        await Refused(client, $"{Approvals}/{outside}", "OUT_OF_SCOPE");
+        (await client.Send(HttpMethod.Post, $"{Approvals}/{inside}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+    }
+
     private async Task<(string Url, Guid TaskId)> Start(HttpClient client, string processCode)
     {
         var started = await client.Send(HttpMethod.Post, Processes, new { processCode, businessRefType = "CLAIM", businessRefId = Guid.CreateVersion7() }, idempotent: true);

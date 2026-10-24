@@ -205,6 +205,11 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
 
     public Guid PolicyRef { get; private set; }
 
+    /// <summary>The domain claim's product and organisation node, which scope the claim's records (F103, addenda/access-scopes.md §1).</summary>
+    public string? ProductCode { get; private set; }
+
+    public string? OrgNodeCode { get; private set; }
+
     public DateTimeOffset RegisteredAt { get; private set; }
 
     public IReadOnlyList<EvidenceItem> Evidence => _evidence;
@@ -219,7 +224,8 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
     /// Command AllocateClaimNumber. TODO(spec): numbers are the scheme's prefix and an ID-based suffix; sequence
     /// numbers with check digits need a counter (OQ-058).
     /// </summary>
-    public static ClaimRegistration AllocateClaimNumber(Guid id, string prefix, string domain, Guid domainClaimId, Guid policyRef, DateTimeOffset now)
+    public static ClaimRegistration AllocateClaimNumber(Guid id, string prefix, string domain, Guid domainClaimId, Guid policyRef, DateTimeOffset now,
+        string? productCode = null, string? orgNodeCode = null)
     {
         var registration = new ClaimRegistration
         {
@@ -228,6 +234,8 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
             Domain = Guard.MaxLength(Guard.NotNullOrWhiteSpace(domain), 10),
             DomainClaimId = Guard.NotEmpty(domainClaimId),
             PolicyRef = Guard.NotEmpty(policyRef),
+            ProductCode = productCode is null ? null : Guard.MaxLength(productCode, 15),
+            OrgNodeCode = orgNodeCode is null ? null : Guard.MaxLength(orgNodeCode, 15),
             RegisteredAt = now,
         };
         registration.Raise(new ClaimNumberAllocated(id, registration.ClaimNumber, registration.Domain, domainClaimId, policyRef, now));

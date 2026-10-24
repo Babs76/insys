@@ -53,6 +53,8 @@ public sealed class ClaimsFrameworkDbContext(DbContextOptions<ClaimsFrameworkDbC
         modelBuilder.Entity<ClaimRegistration>(claim =>
         {
             claim.ToTable("claim_register");
+            claim.Property(c => c.ProductCode).HasMaxLength(15);
+            claim.Property(c => c.OrgNodeCode).HasMaxLength(15);
             claim.HasKey(c => new { c.TenantId, c.Id });
             claim.HasAlternateKey(c => new { c.TenantId, c.ClaimNumber });
             claim.HasAuditColumns();

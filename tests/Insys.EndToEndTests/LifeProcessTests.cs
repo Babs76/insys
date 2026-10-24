@@ -405,6 +405,42 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.dead_letter_message")).ShouldBe(0L);
     }
 
+    /// <summary>
+    /// F103 (addenda/access-scopes.md): a Life policy keeps its proposal's organisation node, and a user scoped to a region
+    /// sees and acts on the proposals and policies of its branches only.
+    /// </summary>
+    [Fact]
+    public async Task ScopedAssignments_SeeAndActOnlyWithinTheirOrganisation_F103()
+    {
+        foreach (var (code, type, parent) in new[] { ("ORG-ROOT", "LEGAL_ENTITY", (string?)null), ("ORG-NORTH", "REGION", "ORG-ROOT"), ("ORG-BR-A", "BRANCH", "ORG-NORTH"),
+                     ("ORG-BR-B", "BRANCH", "ORG-ROOT") })
+        {
+            await Seed("tenant.mst_organisation_structure", "ACTIVE", code, ("node_code", code), ("type", type), ("parent", (object?)parent ?? DBNull.Value), ("name", code));
+        }
+
+        var applicant = await _maker.RegisterPerson("Scoped");
+        var spouse = await _maker.RegisterPerson("Partner");
+        var inA = await Proposal(applicant, spouse, Today, "ORG-BR-A");
+        var inB = await Proposal(applicant, spouse, Today, "ORG-BR-B");
+        var policyInB = await IssuedPolicy(applicant, spouse, Today, "ORG-BR-B");
+        (await _db.ScalarAsOwner<string>("SELECT org_node_code FROM life.policy WHERE id = @p", ("p", policyInB))).ShouldBe("ORG-BR-B", "a policy keeps its proposal's node");
+
+        var north = await _db.UserWithPermissions(Tenant, "life-north", Permissions);
+        await _db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_branches = '{ORG-NORTH}' WHERE user_id = @u", ("u", north));
+        var northClient = _factory.ClientFor(Tenant, "life-north");
+
+        var listed = (await (await northClient.GetAsync($"/api/v1/life/proposals?applicantPartyId={applicant}")).Json()).GetProperty("items").EnumerateArray()
+            .Select(p => p.GetProperty("id").GetGuid()).ToList();
+        listed.ShouldBe([inA]);
+        (await (await northClient.GetAsync($"/api/v1/life/policies?policyholderPartyId={applicant}")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+        (await northClient.GetAsync($"/api/v1/life/proposals/{inA}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await northClient.GetAsync($"/api/v1/life/proposals/{inB}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await northClient.GetAsync($"/api/v1/life/policies/{policyInB}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var refused = await northClient.PostAsync($"/api/v1/life/proposals/{inB}/withdraw", null);
+        refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await refused.Code()).ShouldBe("OUT_OF_SCOPE");
+    }
+
     private static int Ages(DateOnly on)
     {
         var birth = new DateOnly(1985, 6, 15);
@@ -412,10 +448,10 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         return age + 1;
     }
 
-    private async Task<Guid> Proposal(Guid applicant, Guid spouse, DateOnly inception) =>
+    private async Task<Guid> Proposal(Guid applicant, Guid spouse, DateOnly inception, string? orgNodeCode = null) =>
         await Created("/api/v1/life/proposals", new
         {
-            productCode = Product, applicantPartyId = applicant, channelCode = "BRANCH", currency = "ZAR", inceptionDate = inception, frequency = "MONTHLY",
+            productCode = Product, orgNodeCode, applicantPartyId = applicant, channelCode = "BRANCH", currency = "ZAR", inceptionDate = inception, frequency = "MONTHLY",
             collectionMethod = "DEBIT_ORDER",
             lives = new[] { new { partyId = applicant, lifeRole = "MAIN", smokerStatus = "NS" } },
             covers = new[] { new { insuredPartyId = applicant, benefitCode = "DEATH", sumAssured = 1_000_000m, termYears = 20 }, new { insuredPartyId = applicant, benefitCode = "DISABILITY", sumAssured = 500_000m, termYears = 20 } },
@@ -423,9 +459,9 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
             nominations = new[] { new { partyId = spouse, relationshipCode = "SPOUSE", sharePct = 100m } },
         });
 
-    private async Task<Guid> IssuedPolicy(Guid applicant, Guid spouse, DateOnly inception)
+    private async Task<Guid> IssuedPolicy(Guid applicant, Guid spouse, DateOnly inception, string? orgNodeCode = null)
     {
-        var proposal = await Proposal(applicant, spouse, inception);
+        var proposal = await Proposal(applicant, spouse, inception, orgNodeCode);
         await Rate(proposal, 1_500_000m);
         await Eligibility(proposal, Ages(inception));
         (await _maker.PostAsync($"/api/v1/life/proposals/{proposal}/submit", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
