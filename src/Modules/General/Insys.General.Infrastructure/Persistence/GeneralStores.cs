@@ -132,6 +132,11 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
                                                     && p.PeriodEnd <= lastPeriodEnd)
             .OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> PoliciesToRemind(string productCode, DateOnly periodEnd, int limit, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.ProductCode == productCode && p.Status == PolicyStatus.InForce && p.RenewalInvitedOn != null
+                                                    && p.PeriodEnd == periodEnd)
+            .OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Guid>> PoliciesToRenew(string productCode, DateOnly day, int limit, CancellationToken cancellationToken) =>
         await db.Policies.AsNoTracking().Where(p => p.ProductCode == productCode && p.Status == PolicyStatus.InForce && p.PeriodEnd <= day
                                                     && !db.Policies.Any(r => r.RenewalOfId == p.Id))
@@ -247,7 +252,7 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
 internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
 {
     public async Task<IReadOnlyList<ZoneLimit>> ZoneLimits(DateOnly day, CancellationToken cancellationToken) =>
-        await InForce<AggregationZonesAndLimits>(day).Select(l => new ZoneLimit(l.Zone, l.Peril, l.MaxExposure, l.Currency, l.AlertAtPct)).ToListAsync(cancellationToken);
+        await InForce<AggregationZonesAndLimits>(day).Select(l => new ZoneLimit(l.Zone, l.Peril, l.MaxExposure, l.Currency, l.AlertAtPct, l.AlertRole)).ToListAsync(cancellationToken);
 
     public async Task<AggregateLimit?> AggregateLimit(string coverage, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<AggregateLimitDefinitions>(day).Where(l => l.Coverage == coverage).OrderByDescending(l => l.Version)
@@ -276,11 +281,11 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
 
     public async Task<RenewalRule?> RenewalRule(string productCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<RenewalRules>(day).Where(r => r.ProductCode == productCode)
-            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate)).FirstOrDefaultAsync(cancellationToken);
+            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate, r.ReminderDays)).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<IReadOnlyList<RenewalRule>> RenewalRules(DateOnly day, CancellationToken cancellationToken) =>
         await InForce<RenewalRules>(day).OrderBy(r => r.ProductCode)
-            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate)).ToListAsync(cancellationToken);
+            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate, r.ReminderDays)).ToListAsync(cancellationToken);
 
     public Task<bool> Exists(GeneralCode kind, string code, DateOnly day, CancellationToken cancellationToken) => kind switch
     {
@@ -326,6 +331,9 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         GeneralPolicyEndorsed e => new Contracts.GeneralPolicyEndorsed(e.PolicyId, e.PolicyNumber, e.EndorsementId, e.EndorsementNumber, e.EffectiveDate, e.NewAnnualPremium,
             e.PremiumDelta, e.Currency, e.ProductCode, e.ProductVersion, e.DocumentTypes, e.NewSumInsured, e.PolicyholderPartyId),
         GeneralPolicyRenewed e => new Contracts.GeneralPolicyRenewed(e.PolicyId, e.PolicyNumber, e.RenewalPolicyId),
+        GeneralRenewalReminderDue e => new Contracts.GeneralRenewalReminderDue(e.PolicyId, e.PolicyNumber, e.ProductCode, e.PeriodEnd, e.DaysBefore, e.PolicyholderPartyId,
+            e.OrgNodeCode),
+        Domain.Claims.GeneralClaimDeclined e => new Contracts.GeneralClaimDeclined(e.ClaimId, e.ClaimNumber, e.DecisionCode),
         GeneralRenewalInvited e => new Contracts.GeneralRenewalInvited(e.PolicyId, e.PolicyNumber, e.ProductCode, e.ProductVersion, e.PeriodEnd, e.TemplateCode,
             e.PolicyholderPartyId),
         GeneralPolicyCancelled e => new Contracts.GeneralPolicyCancelled(e.PolicyId, e.PolicyNumber, e.ReasonCode, e.EffectiveDate, e.RefundAmount, e.Currency, e.ProductCode,

@@ -156,3 +156,9 @@ public sealed record GroupMemberEnrolled(Guid SchemeId, string SchemeNumber, Gui
 
 [IntegrationEvent("life.GroupSchemeRenewed")]
 public sealed record GroupSchemeRenewed(Guid SchemeId, string SchemeNumber, DateOnly RenewalDate) : IIntegrationEvent;
+
+/// <summary>Public query interface: who a Life claim's notices go to, the claimant (communications §6.3); null for an unknown claim.</summary>
+public interface ILifeClaimRecipients
+{
+    Task<NoticeRecipient?> ForClaim(Guid tenantId, Guid claimId, CancellationToken cancellationToken);
+}

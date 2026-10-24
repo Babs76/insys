@@ -74,6 +74,8 @@ public sealed record MedicalClaimAdjudicated(Guid ClaimId, string ClaimNumber, G
 public sealed record MedicalClaimSettled(Guid ClaimId, string ClaimNumber, string? ProviderId, Guid PaymentRunId, decimal Amount, string Currency, DateOnly PaidOn,
     DateTimeOffset OccurredAt) : IDomainEvent;
 
+public sealed record MedicalClaimRejected(Guid ClaimId, string ClaimNumber, Guid MembershipId, string ReasonCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record MedicalClaimReversed(Guid ClaimId, string ClaimNumber, string? ProviderId, decimal Amount, string Currency, string Reason, DateTimeOffset OccurredAt)
     : IDomainEvent;
 
@@ -244,7 +246,13 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
 
         PendReason = Guard.MaxLength(problem, 30);
         TotalPaid = 0;
-        return Fire(MedicalClaimTrigger.RejectClaim);
+        var rejected = Fire(MedicalClaimTrigger.RejectClaim);
+        if (rejected.IsSuccess)
+        {
+            Raise(new MedicalClaimRejected(Id, ClaimNumber, MembershipId, PendReason, now));
+        }
+
+        return rejected;
     }
 
     /// <summary>Command AdjudicateClaim (or "Information received" for a pended claim): the lines take the result; a line that pends pends the claim.</summary>
@@ -284,13 +292,14 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
     }
 
     /// <summary>Command RejectClaim, after validation.</summary>
-    public Result RejectClaim(string reason)
+    public Result RejectClaim(string reason, DateTimeOffset now)
     {
         var result = Fire(MedicalClaimTrigger.RejectClaim);
         if (result.IsSuccess)
         {
             PendReason = Guard.MaxLength(reason, 30);
             TotalPaid = 0;
+            Raise(new MedicalClaimRejected(Id, ClaimNumber, MembershipId, PendReason, now));
         }
 
         return result;

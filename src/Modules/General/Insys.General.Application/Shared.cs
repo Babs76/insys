@@ -97,6 +97,9 @@ public interface IGeneralRepository
     /// <summary>Policies of a product in force, not yet invited to renew, whose period ends on or before the date.</summary>
     Task<IReadOnlyList<Guid>> PoliciesToInvite(string productCode, DateOnly lastPeriodEnd, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Policies of the product in force, invited to renew and not renewed, whose period ends on <paramref name="periodEnd"/> (OQ-089).</summary>
+    Task<IReadOnlyList<Guid>> PoliciesToRemind(string productCode, DateOnly periodEnd, int limit, CancellationToken cancellationToken);
+
     /// <summary>Policies of a product in force whose period has ended by the day and that have no renewal.</summary>
     Task<IReadOnlyList<Guid>> PoliciesToRenew(string productCode, DateOnly day, int limit, CancellationToken cancellationToken);
 
@@ -125,7 +128,8 @@ public sealed record RiskObjectTypeDefinition(string ObjectType, int Version, IR
 
 /// <summary>A renewal rule (general.cfg_renewal_rules).</summary>
 /// <summary>A product's renewal rule (general.cfg_renewal_rules): the notice for the invitation, whether it renews by itself, and whether it is re-rated.</summary>
-public sealed record RenewalRule(string ProductCode, int NoticeDays, bool AutoRenew, bool ReRating, string InvitationTemplate);
+/// <param name="ReminderDays">Days before the period ends to remind a policyholder who has not renewed (OQ-089); empty by default.</param>
+public sealed record RenewalRule(string ProductCode, int NoticeDays, bool AutoRenew, bool ReRating, string InvitationTemplate, IReadOnlyList<int>? ReminderDays = null);
 
 public enum GeneralCode
 {

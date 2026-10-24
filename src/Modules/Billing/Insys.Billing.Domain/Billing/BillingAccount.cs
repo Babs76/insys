@@ -58,7 +58,8 @@ public sealed record AgeingBucket(string BucketCode, int DaysFrom, int DaysTo, s
 
 public sealed record BillingAccountOpened(Guid AccountId, string AccountNumber, Guid PayerPartyId, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
 
-public sealed record ArrearsDetected(Guid AccountId, string BucketCode, int DaysOverdue, decimal AmountOverdue, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record ArrearsDetected(Guid AccountId, string BucketCode, int DaysOverdue, decimal AmountOverdue, string Currency, DateTimeOffset OccurredAt,
+    string? AccountNumber = null, Guid? PayerPartyId = null, string? NextAction = null, string? ProductCode = null, string? OrgNodeCode = null) : IDomainEvent;
 
 /// <summary>An open arrears case aged past every ageing bucket in force: it stays in its bucket until one covers its days (request 46).</summary>
 public sealed record ArrearsAgeingBlocked(Guid AccountId, string BucketCode, int DaysOverdue, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -455,7 +456,7 @@ public sealed class BillingAccount : AggregateRoot<Guid>
 
         if (changed)
         {
-            Raise(new ArrearsDetected(Id, bucket.BucketCode, daysOverdue, amountOverdue, Currency, now));
+            Raise(new ArrearsDetected(Id, bucket.BucketCode, daysOverdue, amountOverdue, Currency, now, AccountNumber, PayerPartyId, bucket.Action));
         }
 
         MarkChanged();

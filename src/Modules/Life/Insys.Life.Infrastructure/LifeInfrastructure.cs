@@ -54,6 +54,7 @@ public static class LifeInfrastructure
         services.AddModuleHandlers<LifeDbContext>(typeof(CaptureProposal).Assembly);
         services.AddDomainEventMapper<LifeEventMapper>(schema);
         services.AddScoped<ILifeRepository, LifeRepository>();
+        services.AddSingleton<Contracts.ILifeClaimRecipients, LifeClaimRecipients>();
         services.AddScoped<ILifeCodes, LifeCodes>();
         services.AddScoped<ILifeLists, LifeLists>();
         services.AddScoped<ILifePortalQueries, LifePortalQueries>();

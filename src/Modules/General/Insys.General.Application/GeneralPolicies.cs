@@ -201,7 +201,27 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
 }
 
 public sealed record DueWork(IReadOnlyList<Guid> PoliciesToStart, IReadOnlyList<Guid> PoliciesToExpire, IReadOnlyList<Guid> QuotesToExpire,
-    IReadOnlyList<Guid> PoliciesToInvite, IReadOnlyList<Guid> PoliciesToRenew);
+    IReadOnlyList<Guid> PoliciesToInvite, IReadOnlyList<Guid> PoliciesToRenew, IReadOnlyList<RenewalReminder>? RenewalReminders = null);
+
+/// <summary>A renewal reminder due today: the policy, and how many days before its period ends (OQ-089).</summary>
+public sealed record RenewalReminder(Guid PolicyId, int DaysBefore);
+
+/// <summary>Remind a policyholder who has not renewed (communications §6.2): the policy announces it; Communications sends it.</summary>
+public sealed record RemindRenewal(Guid PolicyId, int DaysBefore, DateOnly Day) : ICommand<bool>;
+
+internal sealed class RemindRenewalHandler(IGeneralRepository general, IClock clock) : ICommandHandler<RemindRenewal, bool>
+{
+    public async Task<BuildingBlocks.Domain.Result<bool>> Handle(RemindRenewal command, CancellationToken cancellationToken)
+    {
+        if (await general.Policy(command.PolicyId, cancellationToken) is not { } policy)
+        {
+            return false;
+        }
+
+        var result = policy.RemindRenewal(command.DaysBefore, command.Day, clock.UtcNow);
+        return result.IsFailure ? result.Error : true;
+    }
+}
 
 /// <summary>
 /// The daily jobs' work: policies whose period starts or ends, quotes past validity, renewal invitations due, and policies
@@ -228,9 +248,16 @@ internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCod
     {
         var invite = new List<Guid>();
         var renew = new List<Guid>();
+        var remind = new List<RenewalReminder>();
         foreach (var rule in await codes.RenewalRules(query.Day, cancellationToken))
         {
             invite.AddRange(await general.PoliciesToInvite(rule.ProductCode, query.Day.AddDays(rule.NoticeDays), query.Limit, cancellationToken));
+            foreach (var days in (rule.ReminderDays ?? []).Where(d => d > 0).Distinct())
+            {
+                remind.AddRange((await general.PoliciesToRemind(rule.ProductCode, query.Day.AddDays(days), query.Limit, cancellationToken))
+                    .Select(id => new RenewalReminder(id, days)));
+            }
+
             if (rule.AutoRenew && !rule.ReRating)
             {
                 renew.AddRange(await general.PoliciesToRenew(rule.ProductCode, query.Day, query.Limit, cancellationToken));
@@ -238,7 +265,7 @@ internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCod
         }
 
         return new DueWork(await general.PoliciesToStart(query.Day, query.Limit, cancellationToken), await general.PoliciesToExpire(query.Day, query.Limit, cancellationToken),
-            await general.QuotesToExpire(query.Day, query.Limit, cancellationToken), invite, renew);
+            await general.QuotesToExpire(query.Day, query.Limit, cancellationToken), invite, renew, remind);
     }
 }
 
@@ -260,7 +287,7 @@ internal sealed class RefreshExposureSnapshotHandler(IGeneralRepository general,
                 && (limit.AlertAtPct / 100m ?? options.Value.AlertAt) is { } alertAt && sumInsured >= alertAt * limit.MaxExposure)
             {
                 var alert = AggregationAlertView.Raise(Guid.CreateVersion7(), zone, peril, currency, sumInsured, limit.MaxExposure, alertAt, command.Day, clock.UtcNow);
-                if (await general.RecordLimitApproached(alert, options.Value.AlertRole is { Length: > 0 } role ? role : null, cancellationToken))
+                if (await general.RecordLimitApproached(alert, (limit.AlertRole ?? options.Value.AlertRole) is { Length: > 0 } role ? role : null, cancellationToken))
                 {
                     logger.LogWarning("Aggregation limit approached: {Zone}/{Peril} at {Exposure} of {Limit} {Currency}", zone, peril, sumInsured, limit.MaxExposure, currency);
                 }

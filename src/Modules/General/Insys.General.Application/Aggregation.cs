@@ -33,7 +33,8 @@ namespace Insys.General.Application;
 
 /// <summary>A zone and peril's maximum exposure (general.cfg_aggregation_zones_and_limits).</summary>
 /// <param name="AlertAtPct">The limit's own alert level, as a percentage; null uses the platform default.</param>
-public sealed record ZoneLimit(string Zone, string Peril, decimal MaxExposure, string Currency, decimal? AlertAtPct = null);
+/// <param name="AlertRole">The role reviewing this limit's alerts (OQ-085); null uses General:Aggregation:AlertRole.</param>
+public sealed record ZoneLimit(string Zone, string Peril, decimal MaxExposure, string Currency, decimal? AlertAtPct = null, string? AlertRole = null);
 
 /// <summary>A coverage's aggregate claims limit (general.cfg_aggregate_limit_definitions).</summary>
 public sealed record AggregateLimit(string Coverage, string Period, decimal Amount, string? Reinstatement);
@@ -54,9 +55,8 @@ public sealed class AggregationOptions
     public decimal? AlertAt { get; set; } = 0.8m;
 
     /// <summary>
-    /// The role whose Workflow queue reviews a zone and peril's alerts (GAP-051). No underwriting role is defined in the
-    /// specifications or the role catalogue, so the code is a setting; OQ-085 asks for it and whether tenants set their own.
-    /// Empty, alerts are still recorded and listed, but no task is opened.
+    /// The role whose Workflow queue reviews a zone and peril's alerts (GAP-051): UNDERWRITING by default, and a tenant sets
+    /// its own on each limit (alert_role, OQ-085 decided 25 October 2026). Empty, alerts are recorded and listed, but no task is opened.
     /// </summary>
     public string? AlertRole { get; set; } = "UNDERWRITING";
 }

@@ -80,8 +80,12 @@ public sealed record InvoiceOverdue(Guid InvoiceId, Guid BillingAccountId, strin
 [IntegrationEvent("billing.ArrearsAgeingBlocked")]
 public sealed record ArrearsAgeingBlocked(Guid AccountId, string BucketCode, int DaysOverdue) : IIntegrationEvent;
 
+/// <param name="PayerPartyId">The account's payer, who is reminded (communications §6.1); null on events raised before Wave 1.</param>
+/// <param name="NextAction">The bucket's action: NONE, REMINDER, FINAL_NOTICE, LAPSE or CANCEL (billing.cfg_arrears_ageing_buckets).</param>
+/// <param name="ProductCode">Not yet carried: an account has no single product (its schedules do).</param>
 [IntegrationEvent("billing.ArrearsDetected")]
-public sealed record ArrearsDetected(Guid AccountId, string BucketCode, int DaysOverdue, decimal AmountOverdue, string Currency) : IIntegrationEvent;
+public sealed record ArrearsDetected(Guid AccountId, string BucketCode, int DaysOverdue, decimal AmountOverdue, string Currency, string? AccountNumber = null,
+    Guid? PayerPartyId = null, string? NextAction = null, string? ProductCode = null, string? OrgNodeCode = null) : IIntegrationEvent;
 
 /// <summary>A refund was approved by a second person (SRS-002): Payments pays it.</summary>
 [IntegrationEvent("billing.RefundApproved")]

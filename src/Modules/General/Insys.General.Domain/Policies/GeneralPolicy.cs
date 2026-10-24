@@ -62,6 +62,9 @@ public sealed record GeneralPolicyEndorsed(Guid PolicyId, string PolicyNumber, G
     decimal NewAnnualPremium, decimal PremiumDelta, string Currency, string ProductCode, int ProductVersion, IReadOnlyList<string> DocumentTypes, decimal NewSumInsured,
     DateTimeOffset OccurredAt, Guid? PolicyholderPartyId = null) : IDomainEvent;
 
+public sealed record GeneralRenewalReminderDue(Guid PolicyId, string PolicyNumber, string ProductCode, DateOnly PeriodEnd, int DaysBefore, Guid PolicyholderPartyId,
+    string? OrgNodeCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record GeneralPolicyRenewed(Guid PolicyId, string PolicyNumber, Guid RenewalPolicyId, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record GeneralRenewalInvited(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, DateOnly PeriodEnd, string TemplateCode,
@@ -391,6 +394,21 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
         RenewalInvitedOn = today;
         Raise(new GeneralRenewalInvited(Id, PolicyNumber, ProductCode, ProductVersion, PeriodEnd, templateCode, now, PolicyholderPartyId));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// A renewal reminder (OQ-089, communications §6.2): for a policy in force, invited and not renewed, on one of the
+    /// rule's reminder days before its period ends. The reminder is announced; the policy itself does not change.
+    /// </summary>
+    public Result RemindRenewal(int daysBefore, DateOnly today, DateTimeOffset now)
+    {
+        if (Status != PolicyStatus.InForce || RenewalInvitedOn is null || PeriodEnd.AddDays(-daysBefore) != today)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is not due a renewal reminder.");
+        }
+
+        Raise(new GeneralRenewalReminderDue(Id, PolicyNumber, ProductCode, PeriodEnd, daysBefore, PolicyholderPartyId, OrgNodeCode, now));
         return Result.Success();
     }
 

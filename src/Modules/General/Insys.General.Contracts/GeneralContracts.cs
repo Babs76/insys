@@ -177,3 +177,18 @@ public sealed record LossAssessed(Guid AssessmentId, Guid ClaimId, decimal Asses
 [IntegrationEvent("general.RecoveryRecorded")]
 public sealed record RecoveryRecorded(Guid RecoveryCaseId, Guid ClaimId, string ClaimNumber, string RecoveryType, decimal Amount, string Currency, string ReserveType)
     : IIntegrationEvent;
+
+/// <summary>The claim was declined, with its decision code (CLM-003); the policyholder is told (communications §6.3).</summary>
+[IntegrationEvent("general.GeneralClaimDeclined")]
+public sealed record GeneralClaimDeclined(Guid ClaimId, string ClaimNumber, string DecisionCode) : IIntegrationEvent;
+
+/// <summary>A renewal reminder is due (OQ-089): the policy is in force, invited and not renewed, DaysBefore its period ends.</summary>
+[IntegrationEvent("general.GeneralRenewalReminderDue")]
+public sealed record GeneralRenewalReminderDue(Guid PolicyId, string PolicyNumber, string ProductCode, DateOnly PeriodEnd, int DaysBefore, Guid PolicyholderPartyId,
+    string? OrgNodeCode = null) : IIntegrationEvent;
+
+/// <summary>Public query interface: who a General claim's notices go to, the policyholder (communications §6.3); null for an unknown claim.</summary>
+public interface IGeneralClaimRecipients
+{
+    Task<NoticeRecipient?> ForClaim(Guid tenantId, Guid claimId, CancellationToken cancellationToken);
+}

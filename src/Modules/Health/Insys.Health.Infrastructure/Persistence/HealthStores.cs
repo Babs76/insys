@@ -354,6 +354,7 @@ internal sealed class HealthEventMapper : IDomainEventMapper
             e.AuthorisationUses.Select(u => new Contracts.AuthorisationUse(u.PreauthorisationId, u.LineId, u.Released, u.Consumed)).ToList(),
             e.HighCost.Select(h => new Contracts.HighCostLine(h.LineNo, h.RuleCode)).ToList()),
         Domain.Care.MedicalClaimSettled e => new Contracts.MedicalClaimSettled(e.ClaimId, e.ClaimNumber, e.ProviderId, e.PaymentRunId, e.Amount, e.Currency, e.PaidOn),
+        Domain.Care.MedicalClaimRejected e => new Contracts.MedicalClaimRejected(e.ClaimId, e.ClaimNumber, e.MembershipId, e.ReasonCode),
         Domain.Care.MedicalClaimReversed e => new Contracts.MedicalClaimReversed(e.ClaimId, e.ClaimNumber, e.ProviderId, e.Amount, e.Currency, e.Reason),
         Domain.Care.UtilisationCaseConcluded e => new Contracts.UtilisationCaseConcluded(e.CaseId, e.MembershipId, e.RuleCode, e.Outcome),
         Domain.Care.FraudCaseConcluded e => new Contracts.FraudCaseConcluded(e.CaseId, e.SubjectType, e.SubjectRef, e.OutcomeCode),

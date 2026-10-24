@@ -175,3 +175,18 @@ public interface IProviderDirectory
 {
     Task<bool> IsActive(Guid tenantId, string providerId, DateOnly day, CancellationToken cancellationToken);
 }
+
+/// <summary>A medical claim was rejected after validation; the member is told (communications §6.3). The reason is a code, never clinical.</summary>
+[IntegrationEvent("health.MedicalClaimRejected")]
+public sealed record MedicalClaimRejected(Guid ClaimId, string ClaimNumber, Guid MembershipId, string ReasonCode) : IIntegrationEvent;
+
+/// <summary>
+/// Public query interface: who a Health notice goes to (communications §6.3): the patient, or the membership's principal
+/// when the patient is a dependant under 18 (OQ-084). Null for an unknown claim or authorisation.
+/// </summary>
+public interface IHealthNoticeRecipients
+{
+    Task<NoticeRecipient?> ForClaim(Guid tenantId, Guid claimId, CancellationToken cancellationToken);
+
+    Task<NoticeRecipient?> ForPreauthorisation(Guid tenantId, Guid preauthorisationId, CancellationToken cancellationToken);
+}

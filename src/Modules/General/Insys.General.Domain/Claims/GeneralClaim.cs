@@ -72,6 +72,8 @@ public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, Guid 
 
 public sealed record GeneralClaimClosed(Guid ClaimId, string ClaimNumber, DateTimeOffset OccurredAt) : IDomainEvent;
 
+public sealed record GeneralClaimDeclined(Guid ClaimId, string ClaimNumber, string DecisionCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>
 /// What the settlement is: the accepted assessment, the coverage, the payee and their verified bank account (with the
 /// keyed hash of its number), the reserve, and the maker's decision and rationale (CLM-003).
@@ -421,6 +423,7 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             DecisionRationale = rationale;
             DecidedBy = decidedBy;
             DecidedAt = now;
+            Raise(new GeneralClaimDeclined(Id, ClaimNumber!, DecisionCode, now));
         }
 
         return result;

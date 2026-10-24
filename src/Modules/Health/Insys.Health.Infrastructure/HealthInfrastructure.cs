@@ -52,6 +52,7 @@ public static class HealthInfrastructure
         services.AddModuleHandlers<HealthDbContext>(typeof(EnrolHealthMember).Assembly);
         services.AddDomainEventMapper<HealthEventMapper>(schema);
         services.AddScoped<IHealthRepository, HealthRepository>();
+        services.AddSingleton<Contracts.IHealthNoticeRecipients, HealthNoticeRecipients>();
         services.AddScoped<IHealthPortalQueries, HealthPortalQueries>();
         services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticSetGuard, PlanProductsGuard>();
         services.AddSingleton<BuildingBlocks.Contracts.IBusinessRecordScopes, HealthRemittanceScopes>();

@@ -494,7 +494,7 @@ internal sealed class MedicalClaimDecisions(IHealthRepository health, IExecution
         Apply(command.ClaimId, "ApproveForPayment", (c, user) => Task.FromResult(c.ApproveForPayment(user, clock.UtcNow)), cancellationToken);
 
     public Task<Result<MedicalClaimView>> Handle(RejectMedicalClaim command, CancellationToken cancellationToken) =>
-        Apply(command.ClaimId, "RejectClaim", (c, _) => Task.FromResult(c.RejectClaim(command.Reason)), cancellationToken);
+        Apply(command.ClaimId, "RejectClaim", (c, _) => Task.FromResult(c.RejectClaim(command.Reason, clock.UtcNow)), cancellationToken);
 
     /// <summary>Command ReverseClaim: the claim's consumption is given back on the accumulators covering its service date (same transaction, ADR-012).</summary>
     public Task<Result<MedicalClaimView>> Handle(ReverseMedicalClaim command, CancellationToken cancellationToken) =>

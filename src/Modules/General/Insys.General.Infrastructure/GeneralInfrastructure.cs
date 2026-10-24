@@ -54,6 +54,7 @@ public static class GeneralInfrastructure
         services.AddModuleHandlers<GeneralDbContext>(typeof(CreateQuote).Assembly);
         services.AddDomainEventMapper<GeneralEventMapper>(schema);
         services.AddScoped<IGeneralRepository, GeneralRepository>();
+        services.AddSingleton<Contracts.IGeneralClaimRecipients, GeneralClaimRecipients>();
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, GeneralApprovalScopes>();
         services.AddScoped<IGeneralLists, GeneralLists>();
         services.AddScoped<IAggregationAlerts, AggregationAlerts>();
@@ -149,6 +150,20 @@ public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory te
                 else
                 {
                     logger.LogWarning("General job RenewPolicy on {Id} failed: {Code}", id, renewed.Error.Code);
+                }
+            }
+
+            foreach (var reminder in work.RenewalReminders ?? [])
+            {
+                await using var scope = Scope(tenantId);
+                var reminded = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RemindRenewal(reminder.PolicyId, reminder.DaysBefore, day), cancellationToken);
+                if (reminded.IsSuccess)
+                {
+                    done++;
+                }
+                else
+                {
+                    logger.LogWarning("General job RemindRenewal on {Id} failed: {Code}", reminder.PolicyId, reminded.Error.Code);
                 }
             }
 
