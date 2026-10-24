@@ -30,6 +30,8 @@ What changed in the API contract, newest first, so the front end can sync. The O
   - `general.AggregationLimitApproached` gains `alertId`, `alertAtPct` and `targetRole`. It is now raised at most once a day per zone, peril and currency, however often the snapshot runs.
   - Workflow opens a task on the built-in process `AGGREGATION_REVIEW` (state `REVIEW_EXPOSURE`), in the queue of `targetRole` (`UNDERWRITING` by default, OQ-085). The task's business reference is `AGGREGATION_ZONE` and the alert's `zoneReference`.
   - There is one open task per zone and peril. Later alerts add none while it is open.
+- **Static data reads** (`GET /{module}/{entity}` and `…/{code}`): without `asAt`, "today" is now the tenant's business date (ADR-025), not the UTC date. This matters only between 00:00 and 02:00 in Johannesburg.
+- **`POST /billing/accounts/{id}/age`** ages on the business date.
 
 ## Wave 0b batch 6 (merged, `f97ed95`): external-user remainder; arrears past the last bucket; dashboard figures; onboarding readiness; Keycloak users
 
