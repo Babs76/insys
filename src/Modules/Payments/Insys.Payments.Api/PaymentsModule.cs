@@ -26,6 +26,7 @@
  */
 using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Application.ProviderCallbacks;
 using Insys.Payments.Api.StaticData;
 using Insys.Payments.Application;
 using Insys.Payments.Contracts;
@@ -224,7 +225,7 @@ public sealed class PaymentsModule : IModule
 
                 // One answer for an unknown key, a revoked endpoint, a bad signature or an old timestamp, so none can be told apart.
                 var refused = Problems.For(PaymentErrorCodes.CallbackSignatureInvalid, "The callback is not authenticated.", StatusCodes.Status401Unauthorized);
-                if (endpointKey.Length is < 20 or > 100 || await resolver.Resolve(CallbackKeys.Hash(endpointKey), ct) is not { } found)
+                if (!CallbackKeys.Plausible(endpointKey) || await resolver.Resolve(CallbackKeys.Hash(endpointKey), ct) is not { } found)
                 {
                     return refused;
                 }

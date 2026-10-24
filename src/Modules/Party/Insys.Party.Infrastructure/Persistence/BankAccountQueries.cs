@@ -34,7 +34,7 @@ namespace Insys.Party.Infrastructure.Persistence;
 
 /// <summary>Bank accounts, birth dates and preferred languages for other modules, on the Party module's own connection: status, hash and last four digits.</summary>
 internal sealed class BankAccountQueries([FromKeyedServices(PartyDbContext.SchemaName)] NpgsqlDataSource dataSource, IFieldProtector protector)
-    : IBankAccounts, IBankAccountDetails, IPersonFacts, IPartyLanguage, IPartyDirectory
+    : IBankAccounts, IBankAccountDetails, IPersonFacts, IPartyLanguage, IPartyDirectory, IPartyContacts, IPartyConsent
 {
     private const string Columns =
         "id, party_id, currency, status, account_number_hash, account_number_last4, account_number_enc, bank_code, branch_code, account_holder_name, account_type";
@@ -72,6 +72,18 @@ internal sealed class BankAccountQueries([FromKeyedServices(PartyDbContext.Schem
     public async Task<string?> PreferredLanguage(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
         (await Query(tenantId, "SELECT preferred_language FROM party.individual WHERE tenant_id = @t AND party_id = @id", partyId,
             r => r.IsDBNull(0) ? null : r.GetString(0).Trim(), cancellationToken)) is { Length: > 0 } language ? language : null;
+
+    public async Task<string?> Primary(Guid tenantId, Guid partyId, string channelType, CancellationToken cancellationToken) =>
+        await Query(tenantId, """
+            SELECT value FROM party.contact_point WHERE tenant_id = @t AND party_id = @id AND channel_type = @type AND is_primary
+            ORDER BY id DESC LIMIT 1
+            """, partyId, r => r.GetString(0), cancellationToken, ("type", channelType));
+
+    public async Task<bool> IsGranted(Guid tenantId, Guid partyId, string purposeCode, CancellationToken cancellationToken) =>
+        await Query(tenantId, """
+            SELECT granted FROM party.consent_record WHERE tenant_id = @t AND party_id = @id AND purpose_code = @purpose
+            ORDER BY captured_at DESC, id DESC LIMIT 1
+            """, partyId, r => r.GetBoolean(0) ? "Y" : null, cancellationToken, ("purpose", purposeCode)) is not null;
 
     private Task<T?> Read<T>(Guid tenantId, Guid bankAccountId, Func<NpgsqlDataReader, T?> map, CancellationToken cancellationToken) where T : class =>
         Query(tenantId, $"SELECT {Columns} FROM party.bank_account WHERE tenant_id = @t AND id = @id", bankAccountId, map, cancellationToken);

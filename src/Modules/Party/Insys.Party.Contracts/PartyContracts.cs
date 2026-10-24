@@ -160,3 +160,21 @@ public interface IPartyLanguage
 {
     Task<string?> PreferredLanguage(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Public query interface: a party's primary contact for a channel type (EMAIL, MOBILE), for sending a notification
+/// (addenda/communications.md §3). Read when sending and never copied; null when the party has none.
+/// </summary>
+public interface IPartyContacts
+{
+    Task<string?> Primary(Guid tenantId, Guid partyId, string channelType, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Public query interface: whether a party's current consent for a purpose is granted (PTY-005: the latest record per
+/// purpose is current). Marketing is sent only when it is (communications §4, POPIA s69).
+/// </summary>
+public interface IPartyConsent
+{
+    Task<bool> IsGranted(Guid tenantId, Guid partyId, string purposeCode, CancellationToken cancellationToken);
+}

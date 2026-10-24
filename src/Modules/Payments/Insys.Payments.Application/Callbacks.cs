@@ -24,15 +24,15 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using FluentValidation;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Application.ProviderCallbacks;
 using Insys.BuildingBlocks.Application.Security;
 using Insys.BuildingBlocks.Domain;
+using Insys.BuildingBlocks.Domain.ProviderCallbacks;
 using Insys.Payments.Domain.Payments;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -40,33 +40,13 @@ using Microsoft.Extensions.Options;
 namespace Insys.Payments.Application;
 
 // ADR-023 revision 2: provider callbacks authenticated by an endpoint key in the address and an HMAC signature keyed to the
-// tenant and provider, over a timestamp and the callback's ID. No user token. Keys and secrets are never logged.
+// tenant and provider, over a timestamp and the callback's ID. No user token. Keys and secrets are never logged. The
+// endpoint lifecycle and the signature check are the building blocks' (ProviderCallbacks), shared with Communications.
 
-public sealed class CallbackOptions
-{
-    /// <summary>How far a callback's timestamp may be from the server's clock.</summary>
-    public TimeSpan Tolerance { get; set; } = TimeSpan.FromMinutes(5);
+public sealed class PaymentCallbackOptions : CallbackOptions;
 
-    /// <summary>How long a rotated endpoint is still accepted beside its replacement.</summary>
-    public TimeSpan Overlap { get; set; } = TimeSpan.FromDays(7);
-}
-
-public interface ICallbackEndpoints
-{
-    Task<CallbackEndpoint?> Get(Guid id, CancellationToken cancellationToken);
-
-    Task<IReadOnlyList<CallbackEndpoint>> All(CancellationToken cancellationToken);
-
-    Task<IReadOnlyList<CallbackEndpoint>> Active(string providerCode, CancellationToken cancellationToken);
-
-    void Add(CallbackEndpoint endpoint);
-
-    /// <summary>Records the callback ID for the endpoint; false when it was already received (a replay).</summary>
-    Task<bool> TryRecordReceipt(Guid endpointId, string callbackId, DateTimeOffset now, CancellationToken cancellationToken);
-
-    /// <summary>Forgets the endpoint's callback IDs received before <paramref name="before"/>, outside the replay window.</summary>
-    Task PurgeReceipts(Guid endpointId, DateTimeOffset before, CancellationToken cancellationToken);
-}
+/// <summary>Payments' callback endpoints (payment.callback_endpoint and payment.callback_receipt).</summary>
+public interface ICallbackEndpoints : ICallbackEndpointStore;
 
 /// <summary>Finds the tenant and endpoint for an endpoint key's hash, across tenants, before any tenant is known (V0033).</summary>
 public interface ICallbackEndpointResolver
@@ -74,23 +54,12 @@ public interface ICallbackEndpointResolver
     Task<(Guid TenantId, Guid EndpointId)?> Resolve(string keyHash, CancellationToken cancellationToken);
 }
 
-public static class CallbackKeys
-{
-    /// <summary>SHA-256 of the endpoint key, hex in lower case: what is stored and looked up.</summary>
-    public static string Hash(string endpointKey) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(endpointKey)));
-
-    public static string NewSecret() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-    /// <summary>The signature a provider sends: HMAC-SHA256 of "timestamp.callbackId.body" under the endpoint's secret, hex in lower case.</summary>
-    public static string Sign(string secret, string timestamp, string callbackId, string body) =>
-        Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes($"{timestamp}.{callbackId}.{body}")));
-}
-
 public sealed record CallbackEndpointView(Guid Id, string ProviderCode, CallbackEndpointStatus Status, bool RequireClientToken, DateTimeOffset IssuedAt, string IssuedBy,
     DateTimeOffset? RetiresAt, DateTimeOffset? RevokedAt, long RowVersion)
 {
     public static CallbackEndpointView From(CallbackEndpoint e) =>
-        new(e.Id, e.ProviderCode, e.Status, e.RequireClientToken, e.IssuedAt, e.IssuedBy, e.RetiresAt, e.RevokedAt, e.RowVersion);
+        new(e.Id, e.ProviderCode, Enum.Parse<CallbackEndpointStatus>(e.Status.ToString()), e.RequireClientToken, e.IssuedAt, e.IssuedBy, e.RetiresAt, e.RevokedAt,
+            e.RowVersion);
 }
 
 /// <summary>A new endpoint: the key and the signing secret are shown here once, and never again.</summary>
@@ -127,47 +96,34 @@ public sealed class IssueCallbackEndpointValidator : AbstractValidator<IssueCall
 }
 
 internal sealed class CallbackEndpointHandlers(ICallbackEndpoints endpoints, IFieldProtector protector, IExecutionContext execution, IClock clock,
-    IOptions<CallbackOptions> options, IAuditTrail audit)
+    IOptions<PaymentCallbackOptions> options, IAuditTrail audit)
     : ICommandHandler<IssueCallbackEndpoint, IssuedCallbackEndpoint>,
       ICommandHandler<RevokeCallbackEndpoint, CallbackEndpointView>,
       IQueryHandler<ListCallbackEndpoints, IReadOnlyList<CallbackEndpointView>>
 {
     public async Task<Result<IssuedCallbackEndpoint>> Handle(IssueCallbackEndpoint command, CancellationToken cancellationToken)
     {
-        var now = clock.UtcNow;
-        foreach (var current in await endpoints.Active(command.ProviderCode, cancellationToken))
-        {
-            current.Retire(now + options.Value.Overlap);
-        }
-
-        var key = CallbackKeys.NewSecret();
-        var secret = CallbackKeys.NewSecret();
-        var endpoint = CallbackEndpoint.Issue(Guid.CreateVersion7(), command.ProviderCode, CallbackKeys.Hash(key), protector.Protect(secret).Encrypted,
-            command.RequireClientToken, execution.ActorId, now);
-        endpoints.Add(endpoint);
+        var issued = await CallbackEndpoints.Issue(endpoints, protector, command.ProviderCode, command.RequireClientToken, execution.ActorId, clock.UtcNow,
+            options.Value, cancellationToken);
 
         // Never the key or the secret: the audit names the endpoint and provider only.
-        audit.Record(new AuditEntry("PAYMENT", "IssueCallbackEndpoint", nameof(CallbackEndpoint), endpoint.Id.ToString(),
+        audit.Record(new AuditEntry("PAYMENT", "IssueCallbackEndpoint", nameof(CallbackEndpoint), issued.Endpoint.Id.ToString(),
             new Dictionary<string, string?> { ["provider"] = command.ProviderCode, ["requireClientToken"] = command.RequireClientToken ? "true" : "false" }));
-        return new IssuedCallbackEndpoint(CallbackEndpointView.From(endpoint), $"/api/v1/payments/callbacks/{key}", key, secret);
+        return new IssuedCallbackEndpoint(CallbackEndpointView.From(issued.Endpoint), $"/api/v1/payments/callbacks/{issued.EndpointKey}", issued.EndpointKey,
+            issued.SigningSecret);
     }
 
     public async Task<Result<CallbackEndpointView>> Handle(RevokeCallbackEndpoint command, CancellationToken cancellationToken)
     {
-        if (await endpoints.Get(command.EndpointId, cancellationToken) is not { } endpoint)
-        {
-            return Error.NotFound(ErrorCodes.NotFound, "The callback endpoint was not found.");
-        }
-
-        var revoked = endpoint.Revoke(execution.ActorId, clock.UtcNow);
+        var revoked = await CallbackEndpoints.Revoke(endpoints, command.EndpointId, execution.ActorId, clock.UtcNow, cancellationToken);
         if (revoked.IsFailure)
         {
             return revoked.Error;
         }
 
-        audit.Record(new AuditEntry("PAYMENT", "RevokeCallbackEndpoint", nameof(CallbackEndpoint), endpoint.Id.ToString(),
-            new Dictionary<string, string?> { ["provider"] = endpoint.ProviderCode }));
-        return CallbackEndpointView.From(endpoint);
+        audit.Record(new AuditEntry("PAYMENT", "RevokeCallbackEndpoint", nameof(CallbackEndpoint), revoked.Value.Id.ToString(),
+            new Dictionary<string, string?> { ["provider"] = revoked.Value.ProviderCode }));
+        return CallbackEndpointView.From(revoked.Value);
     }
 
     public async Task<Result<IReadOnlyList<CallbackEndpointView>>> Handle(ListCallbackEndpoints query, CancellationToken cancellationToken) =>
@@ -175,7 +131,7 @@ internal sealed class CallbackEndpointHandlers(ICallbackEndpoints endpoints, IFi
 }
 
 internal sealed class ReceiveCallbackHandler(ICallbackEndpoints endpoints, IPaymentRepository payments, IPaymentCodes codes, IFieldProtector protector, IBusinessDate businessDate, IClock clock,
-    IOptions<CallbackOptions> options, ILogger<ReceiveCallbackHandler> logger) : ICommandHandler<ReceiveCallback, CallbackHandled>
+    IOptions<PaymentCallbackOptions> options, ILogger<ReceiveCallbackHandler> logger) : ICommandHandler<ReceiveCallback, CallbackHandled>
 {
     public async Task<Result<CallbackHandled>> Handle(ReceiveCallback command, CancellationToken cancellationToken)
     {
@@ -186,7 +142,7 @@ internal sealed class ReceiveCallbackHandler(ICallbackEndpoints endpoints, IPaym
         }
 
         var (externalRef, status) = Parse(command.Body);
-        var signed = Verify(endpoint, command, now);
+        var signed = CallbackEndpoints.Signed(endpoint, protector, command.Body, command.Timestamp, command.CallbackId, command.Signature, now, options.Value);
         if (!signed || (endpoint.RequireClientToken && !command.ClientTokenValid))
         {
             // Recorded in the tenant and not applied. The log names the endpoint by ID only, never its key, secret or signature.
@@ -196,8 +152,7 @@ internal sealed class ReceiveCallbackHandler(ICallbackEndpoints endpoints, IPaym
             return new CallbackHandled(CallbackResult.Unauthorized);
         }
 
-        await endpoints.PurgeReceipts(endpoint.Id, now - (options.Value.Tolerance * 2), cancellationToken);
-        if (!await endpoints.TryRecordReceipt(endpoint.Id, command.CallbackId!, now, cancellationToken))
+        if (await CallbackEndpoints.Admit(endpoints, endpoint, command.CallbackId!, now, options.Value, cancellationToken) == CallbackAuthentication.Replayed)
         {
             logger.LogWarning("Callback replay refused at endpoint {EndpointId} ({Provider})", endpoint.Id, endpoint.ProviderCode);
             return new CallbackHandled(CallbackResult.Replayed);
@@ -218,24 +173,6 @@ internal sealed class ReceiveCallbackHandler(ICallbackEndpoints endpoints, IPaym
         var outcome = await codes.MapStatus(endpoint.ProviderCode, status, businessDate.Today, cancellationToken);
         var result = payment.RecordCallback(outcome, $"Provider status {status}", businessDate.Today, now);
         return result.IsFailure ? result.Error : new CallbackHandled(CallbackResult.Applied, PaymentView.From(payment));
-    }
-
-    private bool Verify(CallbackEndpoint endpoint, ReceiveCallback command, DateTimeOffset now)
-    {
-        if (string.IsNullOrEmpty(command.Signature) || string.IsNullOrEmpty(command.CallbackId) || command.CallbackId.Length > 100
-            || !long.TryParse(command.Timestamp, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var seconds))
-        {
-            return false;
-        }
-
-        var sentAt = DateTimeOffset.FromUnixTimeSeconds(Math.Clamp(seconds, 0, 253_402_300_799));
-        if ((now - sentAt).Duration() > options.Value.Tolerance)
-        {
-            return false;
-        }
-
-        var expected = CallbackKeys.Sign(protector.Unprotect(endpoint.SecretEnc), command.Timestamp!, command.CallbackId, command.Body);
-        return CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(expected), Encoding.ASCII.GetBytes(command.Signature.ToLowerInvariant()));
     }
 
     private static (string? ExternalRef, string? Status) Parse(string body)

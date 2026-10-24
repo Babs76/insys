@@ -29,6 +29,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Insys.BuildingBlocks.Application.ProviderCallbacks;
 using Insys.Payments.Application;
 using Insys.Payments.Contracts;
 using Insys.Payments.Domain.Payments;

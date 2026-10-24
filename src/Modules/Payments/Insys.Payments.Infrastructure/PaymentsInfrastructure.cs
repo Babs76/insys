@@ -51,7 +51,7 @@ public static class PaymentsInfrastructure
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, PayoutApprovalScopes>();
         services.AddScoped<ICallbackEndpoints, CallbackEndpoints>();
         services.AddSingleton<ICallbackEndpointResolver, CallbackEndpointResolver>();
-        services.AddOptions<CallbackOptions>().BindConfiguration("Payments:Callbacks");
+        services.AddOptions<PaymentCallbackOptions>().BindConfiguration("Payments:Callbacks");
         services.AddScoped<IPaymentCodes, PaymentCodes>();
         services.AddScoped<PaymentStarter>();
         services.AddSingleton<IPaymentGateway, SimulatorGateway>();
