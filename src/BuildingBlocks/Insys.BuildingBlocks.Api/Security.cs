@@ -261,10 +261,21 @@ public static class EndpointSecurityExtensions
         where TBuilder : IEndpointConventionBuilder =>
         builder.RequireAuthorization(PermissionPolicyProvider.PlatformPrefix + permission)
             .WithMetadata(new RequiredPermissionMetadata(permission), new PlatformOperatorEndpointMetadata());
+
+    /// <summary>
+    /// A permission the handler checks besides the endpoint's own, and when (GAP-052): declared as x-additional-permissions
+    /// so the contract names every permission the operation enforces. An endpoint may declare several.
+    /// </summary>
+    public static TBuilder AlsoChecks<TBuilder>(this TBuilder builder, string permission, string when)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.WithMetadata(new AdditionalPermissionMetadata(permission, when));
 }
 
 /// <summary>Endpoint metadata naming the permission, used by OpenAPI and the tests that check every endpoint has one.</summary>
 public sealed record RequiredPermissionMetadata(string Permission);
+
+/// <summary>A permission the handler checks besides the endpoint's own, and when it applies (GAP-052).</summary>
+public sealed record AdditionalPermissionMetadata(string Permission, string When);
 
 /// <summary>Marks a provider callback address authenticated by its endpoint key and signature, not a token (ADR-023).</summary>
 public sealed record SignedProviderCallbackMetadata;

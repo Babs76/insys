@@ -106,7 +106,7 @@ internal sealed class ApprovalQueries(WorkflowDbContext db, IExecutionContext ex
 
     private static ApprovalView View(Approval a) =>
         new(a.Id, a.BusinessRefType, a.BusinessRefId, a.ApprovalType, a.MakerId, a.CheckerId, a.Status, a.Amount, a.Currency, a.Reason, a.DecisionReason,
-            a.RequestedAt, a.DecidedAt, a.ExpiresAt, a.SubjectHash, a.RowVersion);
+            a.RequestedAt, a.DecidedAt, a.ExpiresAt, a.SubjectHash, a.RequiredPermission, a.RowVersion);
 }
 
 internal sealed class ProcessRepository(WorkflowDbContext db) : IProcessRepository

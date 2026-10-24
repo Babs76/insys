@@ -26,6 +26,7 @@
  */
 using System.Text.Json;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
+using Insys.General.Application;
 using Insys.General.Domain.Claims;
 using Insys.General.Domain.Policies;
 using Insys.General.Domain.Underwriting;
@@ -60,6 +61,8 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
     public DbSet<LossAssessment> Assessments => Set<LossAssessment>();
 
     public DbSet<RecoveryCase> Recoveries => Set<RecoveryCase>();
+
+    public DbSet<AggregationAlert> AggregationAlerts => Set<AggregationAlert>();
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
@@ -298,6 +301,19 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             snapshot.Property(s => s.SumInsured).HasPrecision(20, 2);
             snapshot.Property(s => s.Currency).HasColumnType("char(3)");
         });
+
+        // A zone and peril at or above its alert level on a day (GAP-051).
+        modelBuilder.Entity<AggregationAlert>(alert =>
+        {
+            alert.ToTable("aggregation_alert");
+            alert.HasKey(a => new { a.TenantId, a.Id });
+            alert.Property(a => a.Zone).HasMaxLength(15);
+            alert.Property(a => a.PerilCode).HasMaxLength(10);
+            alert.Property(a => a.Currency).HasColumnType("char(3)");
+            alert.Property(a => a.Exposure).HasPrecision(20, 2);
+            alert.Property(a => a.MaxExposure).HasPrecision(20, 2);
+            alert.Property(a => a.AlertAtPct).HasPrecision(5, 2);
+        });
     }
 
     private static void Root<T>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T> root) where T : BuildingBlocks.Domain.AggregateRoot<Guid>
@@ -326,3 +342,81 @@ public sealed class ExposureSnapshot : BuildingBlocks.Domain.ITenantScoped
 
     public string Currency { get; set; } = "";
 }
+
+/// <summary>Table general.aggregation_alert (GAP-051): recorded once a day per zone, peril and currency.</summary>
+public sealed class AggregationAlert : BuildingBlocks.Domain.ITenantScoped
+{
+    public Guid TenantId { get; set; }
+
+    public Guid Id { get; set; }
+
+    public string Zone { get; set; } = "";
+
+    public string PerilCode { get; set; } = "";
+
+    public string Currency { get; set; } = "";
+
+    public decimal Exposure { get; set; }
+
+    public decimal MaxExposure { get; set; }
+
+    public decimal AlertAtPct { get; set; }
+
+    public DateOnly AsAt { get; set; }
+
+    public DateTimeOffset RaisedAt { get; set; }
+
+    public AggregationAlertView View() => new(Id, Zone, PerilCode, Currency, Exposure, MaxExposure, AlertAtPct,
+        Math.Round(Exposure / MaxExposure * 100m, 2), AsAt, RaisedAt, Contracts.AggregationZones.Reference(Zone, PerilCode));
+}
+
+/// <summary>The recorded aggregation alerts (GAP-051), across the tenant whatever the reader's scope: a capacity limit counts every policy.</summary>
+internal sealed class AggregationAlerts(GeneralDbContext db) : IAggregationAlerts
+{
+    public async Task<IReadOnlyList<AggregationAlertView>> List(ListAggregationAlerts query, CancellationToken cancellationToken)
+    {
+        var alerts = db.AggregationAlerts.AsNoTracking();
+        if (query.Zone is { } zone)
+        {
+            alerts = alerts.Where(a => a.Zone == zone);
+        }
+
+        if (query.Peril is { } peril)
+        {
+            alerts = alerts.Where(a => a.PerilCode == peril);
+        }
+
+        if (query.ZoneReference is { } reference)
+        {
+            // The reference is a hash of the zone and peril: find which of the tenant's alerted pairs it is.
+            var pairs = await db.AggregationAlerts.AsNoTracking().Select(a => new { a.Zone, a.PerilCode }).Distinct().ToListAsync(cancellationToken);
+            if (pairs.FirstOrDefault(p => Contracts.AggregationZones.Reference(p.Zone, p.PerilCode) == reference) is not { } pair)
+            {
+                return [];
+            }
+
+            alerts = alerts.Where(a => a.Zone == pair.Zone && a.PerilCode == pair.PerilCode);
+        }
+
+        if (query.From is { } from)
+        {
+            alerts = alerts.Where(a => a.AsAt >= from);
+        }
+
+        if (query.To is { } to)
+        {
+            alerts = alerts.Where(a => a.AsAt <= to);
+        }
+
+        if (query.AfterId is { } after)
+        {
+            alerts = alerts.Where(a => a.Id.CompareTo(after) > 0);
+        }
+
+        return (await alerts.OrderBy(a => a.Id).Take(query.Limit).ToListAsync(cancellationToken)).Select(a => a.View()).ToList();
+    }
+
+    public async Task<AggregationAlertView?> Get(Guid id, CancellationToken cancellationToken) =>
+        (await db.AggregationAlerts.AsNoTracking().SingleOrDefaultAsync(a => a.Id == id, cancellationToken))?.View();
+}
+

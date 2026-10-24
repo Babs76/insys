@@ -62,6 +62,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         GeneralPermissions.QuoteUpdate, GeneralPermissions.QuoteUnderwrite, GeneralPermissions.PolicyRead, GeneralPermissions.PolicyCreate, GeneralPermissions.PolicyUpdate,
         GeneralPermissions.PolicyCancel, GeneralPermissions.EndorsementRead, GeneralPermissions.EndorsementCreate, GeneralPermissions.ClaimRead, GeneralPermissions.ClaimCreate,
         GeneralPermissions.ClaimUpdate, GeneralPermissions.ClaimDecide, GeneralPermissions.AssessmentUpdate, GeneralPermissions.RecoveryUpdate,
+        GeneralPermissions.AggregationAlertRead,
         RatingPermissions.CalculationCreate, RatingPermissions.CalculationRead, BillingPermissions.AccountRead, BillingPermissions.InvoiceRead,
         PaymentPermissions.PaymentRead, PaymentPermissions.PaymentResolve, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease,
         PaymentPermissions.CallbackEndpointUpdate, ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate,
@@ -375,6 +376,35 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<string>("""
             SELECT string_agg(payload::jsonb ->> 'zone', ',') FROM general.outbox_event WHERE event_type = 'general.AggregationLimitApproached'
             """)).ShouldBe("ZHAIL", "raised once, for the zone past its alert level");
+
+        // GAP-051: the alert is recorded, listed by zone and peril, and opens one review task for the underwriting role.
+        // A second run the same day records nothing more; the next day's alert is recorded but opens no second task.
+        var jobs = _factory.ClientFor(Tenant, "job-runner");
+        (await jobs.PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = Today })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var alerts = (await (await _maker.GetAsync("/api/v1/general/aggregation-alerts?zone=ZHAIL&peril=HAIL")).Json()).GetProperty("items").EnumerateArray().ToList();
+        var alert = alerts.ShouldHaveSingleItem("once a day");
+        alert.GetProperty("exposure").GetDecimal().ShouldBe(200_000m);
+        alert.GetProperty("maxExposure").GetDecimal().ShouldBe(150_000m);
+        alert.GetProperty("alertAtPct").GetDecimal().ShouldBe(80m);
+        alert.GetProperty("percentUsed").GetDecimal().ShouldBe(133.33m);
+        alert.GetProperty("asAt").GetString().ShouldBe(Today.ToString("yyyy-MM-dd"));
+        var zoneReference = alert.GetProperty("zoneReference").GetGuid();
+        (await _maker.GetAsync($"/api/v1/general/aggregation-alerts/{alert.GetProperty("id").GetGuid()}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await (await _maker.GetAsync("/api/v1/general/aggregation-alerts?zone=ZFLOOD")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+
+        const string OpenReviews = """
+            SELECT t.queue_code FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
+            WHERE p.process_code = 'AGGREGATION_REVIEW' AND p.business_ref_type = 'AGGREGATION_ZONE' AND p.business_ref_id = @z AND t.status = 'OPEN'
+            """;
+        (await _db.ScalarAsOwner<string>(OpenReviews, ("z", zoneReference))).ShouldBe("UNDERWRITING");
+
+        (await jobs.PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = Today.AddDays(1) })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        (await (await _maker.GetAsync($"/api/v1/general/aggregation-alerts?zoneReference={zoneReference}")).Json()).GetProperty("items").GetArrayLength()
+            .ShouldBe(2, "listed by the reference the task names");
+        (await _db.ScalarAsOwner<long>(OpenReviews.Replace("t.queue_code", "count(*)", StringComparison.Ordinal), ("z", zoneReference))).ShouldBe(1L,
+            "one open review per zone and peril");
     }
 
     /// <summary>

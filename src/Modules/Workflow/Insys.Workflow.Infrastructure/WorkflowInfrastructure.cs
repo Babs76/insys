@@ -64,6 +64,7 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<ClaimsFramework.Contracts.FraudIndicatorsNotEvaluated, OpenConfigurationReviewTask, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<ClaimsFramework.Contracts.ClaimPaymentReleaseHeld, OpenHeldClaimPaymentTask, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Party.Contracts.PartyMatchReviewRequested, OpenPartyMatchReviewTask, WorkflowDbContext>(schema);
+        services.AddIntegrationEventHandler<General.Contracts.AggregationLimitApproached, OpenAggregationReviewTask, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Party.Contracts.PartyMatchResolved, ClosePartyMatchReviewTask, WorkflowDbContext>(schema);
 
         services.AddSingleton<WorkflowJobs>();

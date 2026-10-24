@@ -106,8 +106,12 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition PartyMatchReview = new("PARTY_MATCH_REVIEW", 1, ["REVIEW_MATCH", "REVIEWED"],
         [new TransitionDefinition("REVIEW_MATCH", "REVIEWED", null)], null);
 
+    /// <summary>A zone and peril reached its aggregation alert level (GAP-051, F062): the underwriting role reviews its exposure.</summary>
+    public static readonly ProcessDefinition AggregationReview = new("AGGREGATION_REVIEW", 1, ["REVIEW_EXPOSURE", "REVIEWED"],
+        [new TransitionDefinition("REVIEW_EXPOSURE", "REVIEWED", null)], null);
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
-        new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+        new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>

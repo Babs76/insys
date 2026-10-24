@@ -92,7 +92,8 @@ public sealed class PaymentsModule : IModule
             .Produces<PaymentView>(StatusCodes.Status200OK)
             .WithName("PaymentsGet")
             .WithSummary("Get a payment with its status history (PAY-002) and allocations")
-            .RequirePermission(PaymentPermissions.PaymentRead);
+            .RequirePermission(PaymentPermissions.PaymentRead)
+            .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "a commission payout is found only by a caller who also holds it");
 
         payments.MapGet("/payments", async (string businessRefType, Guid businessRefId, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
             {
@@ -109,6 +110,7 @@ public sealed class PaymentsModule : IModule
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("PaymentsList")
             .WithSummary("The payments for a business record, oldest first (GAP-036)")
+            .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "commission payouts are listed only to a caller who also holds it")
             .WithDescription("A refund (REFUND_REQUEST), claim payment instruction (CLAIM_PAYMENT), invoice (INVOICE), remittance or commission statement. "
                 + "A payment is listed from when it is created, before it completes.")
             .WithKnownValues("businessRefType", PaymentReferenceTypes.Known, "The business record types INSYS itself pays or collects for (GAP-037).")
@@ -119,7 +121,8 @@ public sealed class PaymentsModule : IModule
             .Produces<BuildingBlocks.Application.DashboardSummary>(StatusCodes.Status200OK)
             .WithName("PaymentsSummary")
             .WithSummary("Dashboard figure PAYMENTS_UNKNOWN (GAP-046): payments waiting for a decision on an unknown outcome, per currency, and the oldest")
-            .RequirePermission(PaymentPermissions.PaymentRead);
+            .RequirePermission(PaymentPermissions.PaymentRead)
+            .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "commission payouts are counted only for a caller who also holds it");
 
         payments.MapPost("/payments/{id:guid}/resolve", async (Guid id, ResolveUnknownRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ResolveUnknown(id, r.Succeeded, r.Evidence), ct)).ToHttp(Results.Ok))
@@ -150,6 +153,7 @@ public sealed class PaymentsModule : IModule
             .WithName("PaymentsBuildBatch")
             .WithSummary("Batch the payouts waiting for a purpose and currency; a second person approves the batch in Workflow (SRS-002)")
             .RequirePermission(PaymentPermissions.PayoutCreate)
+            .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "batching commission payouts: without it they are outside the caller's scope and the batch is refused (OUT_OF_SCOPE)")
             .RequireIdempotencyKey()
             .ChannelScoped() // F005: payments out
             .HasApprovalFlow();
@@ -158,7 +162,8 @@ public sealed class PaymentsModule : IModule
             .Produces<BatchView>(StatusCodes.Status200OK)
             .WithName("PaymentsGetBatch")
             .WithSummary("Get a payout batch")
-            .RequirePermission(PaymentPermissions.PayoutRead);
+            .RequirePermission(PaymentPermissions.PayoutRead)
+            .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "a commission batch is found, and its payouts counted, only for a caller who also holds it");
 
         payments.MapGet("/payout-batches/{id:guid}/payments", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListBatchPayments(id), ct)).ToHttp(Results.Ok))
@@ -166,7 +171,8 @@ public sealed class PaymentsModule : IModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithName("PaymentsListBatchPayments")
             .WithSummary("The payments in a payout batch (GAP-036)")
-            .RequirePermission(PaymentPermissions.PayoutRead);
+            .RequirePermission(PaymentPermissions.PayoutRead)
+            .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "a commission batch's payouts are listed only to a caller who also holds it");
 
         payments.MapPost("/payout-batches/{id:guid}/release", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ReleaseBatch(id), ct)).ToHttp(Results.Ok))
@@ -174,6 +180,7 @@ public sealed class PaymentsModule : IModule
             .WithName("PaymentsReleaseBatch")
             .WithSummary("Release an approved batch: each payment is sent to its provider")
             .RequirePermission(PaymentPermissions.PayoutRelease)
+            .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "releasing a commission batch: without it the batch is not found")
             .ChannelScoped(); // F005: payments out
 
         payments.MapPost("/bank-statements", async (ImportStatementRequest r, IDispatcher dispatcher, CancellationToken ct) =>

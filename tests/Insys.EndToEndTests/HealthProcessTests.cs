@@ -557,6 +557,9 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         object Enrolment(string plan) => new { principalPartyId = principal, planCode = plan, optionCode = "A", startDate = Today, currency = "ZAR", collectionMethod = "DEBIT_ORDER" };
         var membership = await Created("/api/v1/health/memberships", Enrolment("HLT-PRD"));
         (await _db.ScalarAsOwner<string>("SELECT product_code FROM health.membership WHERE id = @m", ("m", membership))).ShouldBe("HLT-PROD");
+        var view = await Get($"/api/v1/health/memberships/{membership}");
+        view.GetProperty("productCode").GetString().ShouldBe("HLT-PROD", "GAP-050");
+        view.GetProperty("productVersion").GetInt32().ShouldBe(1, "GAP-050");
         (await (await _maker.Send(HttpMethod.Post, "/api/v1/health/memberships", Enrolment("HLT-OFF"), idempotent: true)).Code()).ShouldBe("HEALTH_PRODUCT_NOT_AVAILABLE");
 
         // Product scopes now reach Health.
@@ -608,6 +611,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         });
         await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<string>("SELECT product_code FROM health.membership WHERE id = @m", ("m", late))).ShouldBeNull();
+        (await Get($"/api/v1/health/memberships/{late}")).GetProperty("productCode").ValueKind.ShouldBe(JsonValueKind.Null);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.premium_schedule WHERE policy_ref = @m AND product_code IS NULL", ("m", late))).ShouldBe(1L);
 
         // The next version names the product: the daily job gives it to the membership, and Billing to its schedule and later invoices.
@@ -616,6 +620,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await jobs.PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = Today.AddDays(1) })).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<string>("SELECT product_code FROM health.membership WHERE id = @m", ("m", late))).ShouldBe("HLT-PROD");
+        (await Get($"/api/v1/health/memberships/{late}")).GetProperty("productVersion").GetInt32().ShouldBe(1);
         (await _db.ScalarAsOwner<string>("SELECT product_code FROM billing.premium_schedule WHERE policy_ref = @m", ("m", late))).ShouldBe("HLT-PROD");
         (await jobs.PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = Today.AddMonths(1) })).StatusCode.ShouldBe(HttpStatusCode.OK);
         var laterInvoice = await _db.ScalarAsOwner<Guid>(

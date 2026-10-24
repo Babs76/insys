@@ -63,7 +63,8 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
         await db.Memberships.AsNoTracking().Where(m => membershipIds.Contains(m.Id))
             .ToDictionaryAsync(m => m.Id, m => new MembershipScope(m.MemberNumber, m.ProductCode, m.OrgNodeCode), cancellationToken);
 
-    public async Task<int> AssignPlanProducts(DateOnly day, DateTimeOffset now, CancellationToken cancellationToken)
+    public async Task<int> AssignPlanProducts(DateOnly day, Func<string, CancellationToken, Task<int?>> versionOnSale, DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         var plans = (await db.Set<PlansAndOptions>().AsNoTracking()
                 .InForce(HealthStaticData.Descriptors.Single(d => d.EntityType == typeof(PlansAndOptions)).Lifecycle, day)
@@ -73,10 +74,11 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
         var assigned = 0;
         foreach (var plan in plans)
         {
+            var version = await versionOnSale(plan.ProductCode!, cancellationToken);
             foreach (var membership in await db.Memberships.Where(m => m.ProductCode == null && m.PlanCode == plan.PlanCode && m.OptionCode == plan.OptionCode)
                          .ToListAsync(cancellationToken))
             {
-                membership.UseProduct(plan.ProductCode, null, now);
+                membership.UseProduct(plan.ProductCode, version, now);
                 assigned++;
             }
         }

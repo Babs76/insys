@@ -244,7 +244,8 @@ internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCod
 
 /// <summary>
 /// The day's exposure snapshot, then the F062 §1 alert: a zone and peril at or above its alert level (the limit's own
-/// alert_at_pct, else General:Aggregation:AlertAt, 80%) raises AggregationLimitApproached and a warning, once for the day.
+/// alert_at_pct, else General:Aggregation:AlertAt, 80%) is recorded as an aggregation alert (GAP-051) and raises
+/// AggregationLimitApproached and a warning, once for the day.
 /// </summary>
 internal sealed class RefreshExposureSnapshotHandler(IGeneralRepository general, IGeneralCodes codes, IOptions<AggregationOptions> options, IClock clock,
     ILogger<RefreshExposureSnapshotHandler> logger) : ICommandHandler<RefreshExposureSnapshot, int>
@@ -258,8 +259,11 @@ internal sealed class RefreshExposureSnapshotHandler(IGeneralRepository general,
             if (limits.FirstOrDefault(l => l.Zone == zone && l.Peril == peril && l.Currency == currency) is { } limit
                 && (limit.AlertAtPct / 100m ?? options.Value.AlertAt) is { } alertAt && sumInsured >= alertAt * limit.MaxExposure)
             {
-                logger.LogWarning("Aggregation limit approached: {Zone}/{Peril} at {Exposure} of {Limit} {Currency}", zone, peril, sumInsured, limit.MaxExposure, currency);
-                general.PublishLimitApproached(zone, peril, sumInsured, limit.MaxExposure, currency, command.Day, clock.UtcNow);
+                var alert = AggregationAlertView.Raise(Guid.CreateVersion7(), zone, peril, currency, sumInsured, limit.MaxExposure, alertAt, command.Day, clock.UtcNow);
+                if (await general.RecordLimitApproached(alert, options.Value.AlertRole is { Length: > 0 } role ? role : null, cancellationToken))
+                {
+                    logger.LogWarning("Aggregation limit approached: {Zone}/{Peril} at {Exposure} of {Limit} {Currency}", zone, peril, sumInsured, limit.MaxExposure, currency);
+                }
             }
         }
 

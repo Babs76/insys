@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Text;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Localisation;
 using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
@@ -71,7 +72,8 @@ public static class StaticDataEndpoints
             .WithMetadata(new StaticDataEndpointMetadata());
         var name = descriptor.EntityName;
 
-        group.MapGet("/", async (DateOnly? asAt, string? cursor, int? limit, StaticDataService<TDbContext> service, HttpContext http, CancellationToken ct) =>
+        group.MapGet("/", async (DateOnly? asAt, string? cursor, int? limit, StaticDataService<TDbContext> service, IBusinessDate businessDate, HttpContext http,
+                CancellationToken ct) =>
             {
                 var pageSize = Cursor.ClampLimit(limit);
                 if (!TryDecodeCode(cursor, out var afterCode))
@@ -79,7 +81,7 @@ public static class StaticDataEndpoints
                     return Problems.For(ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
                 }
 
-                var items = await service.ListInForce<TEntity>(descriptor, asAt ?? DateOnly.FromDateTime(DateTime.UtcNow), afterCode, pageSize, ct);
+                var items = await service.ListInForce<TEntity>(descriptor, asAt ?? businessDate.Today, afterCode, pageSize, ct);
                 return Results.Ok(new CursorPage<TEntity>(StaticLabels.Localise(items, Chain(http)), items.Count == pageSize ? EncodeCode(items[^1].Code) : null));
             })
             .Produces<CursorPage<TEntity>>(StatusCodes.Status200OK)
@@ -88,9 +90,11 @@ public static class StaticDataEndpoints
             .WithDescription($"{name} records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).")
             .RequirePermission(StaticDataPermissions.Read);
 
-        group.MapGet("/{code}", async (string code, DateOnly? asAt, StaticDataService<TDbContext> service, HttpContext http, CancellationToken ct) =>
+        // ADR-025: "today" is the tenant's business date, the day new versions start on.
+        group.MapGet("/{code}", async (string code, DateOnly? asAt, StaticDataService<TDbContext> service, IBusinessDate businessDate, HttpContext http,
+                CancellationToken ct) =>
             {
-                var entity = await service.GetInForce<TEntity>(descriptor, code, asAt ?? DateOnly.FromDateTime(DateTime.UtcNow), ct);
+                var entity = await service.GetInForce<TEntity>(descriptor, code, asAt ?? businessDate.Today, ct);
                 if (entity is null)
                 {
                     return Problems.For(ErrorCodes.NotFound, $"No {name} with this code is in force on that date.", StatusCodes.Status404NotFound);

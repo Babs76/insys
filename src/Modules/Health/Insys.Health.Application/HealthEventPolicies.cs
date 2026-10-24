@@ -192,10 +192,14 @@ public sealed record FindHealthDueWork(DateOnly Day, int Limit) : IQuery<HealthD
 /// <summary>Memberships with no product take their plan's, once it names one (addenda/health-plan-products.md §4).</summary>
 public sealed record AssignPlanProducts(DateOnly Day) : ICommand<int>;
 
-internal sealed class AssignPlanProductsHandler(IHealthRepository health, IClock clock) : ICommandHandler<AssignPlanProducts, int>
+internal sealed class AssignPlanProductsHandler(IHealthRepository health, ProductFactory.Contracts.ISellableProducts products, ITenantContext tenant, IClock clock)
+    : ICommandHandler<AssignPlanProducts, int>
 {
+    /// <summary>Each membership records the version of its product on sale that day (GAP-050), as at enrolment.</summary>
     public async Task<Result<int>> Handle(AssignPlanProducts command, CancellationToken cancellationToken) =>
-        await health.AssignPlanProducts(command.Day, clock.UtcNow, cancellationToken);
+        await health.AssignPlanProducts(command.Day,
+            async (code, ct) => await products.Sellable(tenant.RequireTenantId(), code, null, command.Day, ct) is { Domain: "HEALTH" } product ? product.Version : null,
+            clock.UtcNow, cancellationToken);
 }
 
 public enum HealthDueAction

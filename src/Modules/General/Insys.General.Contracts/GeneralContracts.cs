@@ -49,6 +49,7 @@ public static class GeneralPermissions
     public const string ClaimDecide = "general_claim.decide";
     public const string AssessmentUpdate = "general_assessment.update";
     public const string RecoveryUpdate = "general_recovery.update";
+    public const string AggregationAlertRead = "general_aggregation_alert.read";
 }
 
 /// <summary>What General asks Workflow to approve (ADR-009).</summary>
@@ -80,10 +81,27 @@ public sealed record GeneralRiskObjectRegistered(Guid RiskObjectId, string Objec
 
 /// <summary>
 /// A zone and peril's exposure in force reached the alert share of its limit (F062 §1), for operations and reinsurance.
-/// Raised at most once a day per zone and peril, from the exposure snapshot.
+/// Raised at most once a day per zone and peril, from the exposure snapshot, and recorded as an aggregation alert (GAP-051).
 /// </summary>
+/// <param name="AlertId">The recorded alert (GET /general/aggregation-alerts/{id}); null on events raised before GAP-051.</param>
+/// <param name="AlertAtPct">The alert level that applied, in per cent of the limit.</param>
+/// <param name="TargetRole">The role whose queue reviews the zone and peril (General:Aggregation:AlertRole, OQ-085).</param>
 [IntegrationEvent("general.AggregationLimitApproached")]
-public sealed record AggregationLimitApproached(string Zone, string Peril, decimal Exposure, decimal MaxExposure, string Currency, DateOnly AsAt) : IIntegrationEvent;
+public sealed record AggregationLimitApproached(string Zone, string Peril, decimal Exposure, decimal MaxExposure, string Currency, DateOnly AsAt,
+    Guid? AlertId = null, decimal? AlertAtPct = null, string? TargetRole = null) : IIntegrationEvent;
+
+/// <summary>A zone and peril as a business reference, for the Workflow review of its alerts (GAP-051).</summary>
+public static class AggregationZones
+{
+    public const string BusinessRefType = "AGGREGATION_ZONE";
+
+    /// <summary>The same reference for a zone and peril every time, so its open review task can be found again.</summary>
+    public static Guid Reference(string zone, string peril)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{BusinessRefType}:{zone}|{peril}"));
+        return new Guid(hash.AsSpan(0, 16));
+    }
+}
 
 [IntegrationEvent("general.GeneralQuoteIssued")]
 public sealed record GeneralQuoteIssued(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, decimal Premium, string Currency,

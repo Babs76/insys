@@ -197,8 +197,23 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
             .ToListAsync(cancellationToken))
         .Select(r => (r.Zone, r.Peril, r.SumInsured, r.Currency)).ToList();
 
-    public void PublishLimitApproached(string zone, string peril, decimal exposure, decimal maxExposure, string currency, DateOnly asAt, DateTimeOffset now) =>
-        db.Publish(new Contracts.AggregationLimitApproached(zone, peril, exposure, maxExposure, currency, asAt), "ExposureSnapshot", Guid.CreateVersion7(), now);
+    public async Task<bool> RecordLimitApproached(AggregationAlertView alert, string? targetRole, CancellationToken cancellationToken)
+    {
+        if (await db.AggregationAlerts.AnyAsync(a => a.Zone == alert.Zone && a.PerilCode == alert.Peril && a.Currency == alert.Currency && a.AsAt == alert.AsAt,
+                cancellationToken))
+        {
+            return false;
+        }
+
+        db.AggregationAlerts.Add(new AggregationAlert
+        {
+            Id = alert.Id, Zone = alert.Zone, PerilCode = alert.Peril, Currency = alert.Currency, Exposure = alert.Exposure, MaxExposure = alert.MaxExposure,
+            AlertAtPct = alert.AlertAtPct, AsAt = alert.AsAt, RaisedAt = alert.RaisedAt,
+        });
+        db.Publish(new Contracts.AggregationLimitApproached(alert.Zone, alert.Peril, alert.Exposure, alert.MaxExposure, alert.Currency, alert.AsAt, alert.Id,
+            alert.AlertAtPct, targetRole), "AggregationAlert", alert.Id, alert.RaisedAt);
+        return true;
+    }
 
     private sealed record SnapshotRow(string Zone, string Peril, decimal SumInsured, string Currency);
 

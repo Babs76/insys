@@ -920,3 +920,48 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Built:** a member sees the medical claims where they are the patient; the principal also sees every claim of the membership; a dependant does not see the principal's or another dependant's claims. The view leaves out diagnosis codes.
 - **Why:** medical data is the most sensitive personal information (POPIA section 26); an adult dependant's claims are not obviously the principal's to see, but the principal is responsible for the membership and its statements.
 - **Confirm or change:** for example, a dependant aged 18 or over hidden from the principal, or the principal seeing only claim totals.
+
+### OQ-085 Which role reviews aggregation alerts (Phase 8 Wave 1, GAP-051)
+- **Source:** front-end request 49 (GAP-051), and your direction of 24 October 2026: "open a Workflow task for the underwriting role".
+- **The gap:** no underwriting role is defined in the specifications, the static data catalogue or the role seed. Roles are each tenant's own, and General's referrals are decided by permission, not routed to a role.
+- **Built:** the role is a platform setting, `General:Aggregation:AlertRole`, set to `UNDERWRITING`. Its tasks go to that queue. Empty, alerts are recorded and listed, but no task is opened.
+- **Confirm:** the role code, and whether each tenant sets its own, for example as a column on `general.cfg_aggregation_zones_and_limits` or a tenant setting.
+
+### OQ-086 Which claim statuses notify the claimant (Phase 8 Wave 1, F101, F031)
+- **Source:** `docs/specs/addenda/communications.md` §6.3. F101 is "Not specified" in the coverage list, and the SRS has no notification requirements.
+- **Proposed:**
+  - Life: Registered, Approved, Declined, Settled.
+  - General: Registered, Approved, Declined, Settled, Closed.
+  - Health (the member): Adjudicated, Reversed, and preauthorisation approved or rejected.
+  - Amounts appear only on settlement, and for Health only as a total.
+- **Confirm or change.**
+
+### OQ-087 Opting out, and POPIA section 69 choices (Phase 8 Wave 1, F078)
+- **Source:** `communications.md` §4 and §7. The section 69 summary there is for compliance to confirm.
+- **Proposed:** service notices cannot be opted out of entirely (one channel stays). Marketing needs consent from every party, so the section 69(3) customer exception is not used.
+- **Confirm:**
+  - both choices;
+  - that the "prescribed manner and form" for a consent request is Form 4 of the POPIA Regulations, 2018;
+  - whether the Consumer Protection Act section 11 and ECTA section 45 add anything.
+
+### OQ-088 Messaging providers and push devices (Phase 8 Wave 1, F095–F098)
+- **Source:** `communications.md` §3. SRS §20.2 names "Email, SMS, approved messaging providers" but no provider. Push (F097) and WhatsApp (F098) have no basis in the specifications.
+- **Built in Wave 1:** each channel behind an adapter, with stubs.
+- **Open:** the providers for each tenant, and whether a portal mobile app will exist to register devices for push.
+
+### OQ-089 Reminder schedules (Phase 8 Wave 1, F099, F100)
+- **Source:** `communications.md` §6.1–6.2.
+- **The gap:**
+  - Arrears buckets give the reminder and final-notice actions, but nothing gives a reminder before the due date.
+  - `general.cfg_renewal_rules` has one `notice_days` and no reminders between invitation and renewal.
+  - Health and Life scheme renewals have no template or recipient.
+- **Open:** whether pre-due reminders are wanted, and their days; renewal reminder days (proposed: `reminder_days` on the renewal rule); scheme renewal notices.
+
+### OQ-090 One list of channel codes (Phase 8 Wave 1)
+- **Source:** the Wave 1 research.
+- **The gap:** channel codes differ across tables:
+  - `document.cfg_delivery_channel_settings`: `EMAIL`, `SMS`, `POST`, `PORTAL`;
+  - `life.cfg_notification_lead_times`: `EMAIL`, `SMS`, `POST`;
+  - `health.cfg_remittance_advice_formats`: `EMAIL`, `PORTAL`, `FILE`;
+  - `claims.claim_communication.channel`: free text.
+- **Proposed:** a shared `communication.ref_channels`, aligned module by module when each is next changed.

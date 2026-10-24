@@ -67,7 +67,7 @@ public interface IAuthorityReader
 
 public sealed record ApprovalView(Guid Id, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid? CheckerId, ApprovalStatus Status,
     decimal? Amount, string? Currency, string? Reason, string? DecisionReason, DateTimeOffset RequestedAt, DateTimeOffset? DecidedAt, DateTimeOffset? ExpiresAt,
-    string? SubjectHash, long RowVersion);
+    string? SubjectHash, string? RequiredPermission, long RowVersion);
 
 public interface IApprovalQueries
 {

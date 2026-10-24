@@ -31,6 +31,7 @@ using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.StaticData.Contracts;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.Party.Contracts;
 using Insys.Workflow.Api.StaticData;
 using Insys.Workflow.Application;
 using Insys.Workflow.Contracts;
@@ -112,6 +113,8 @@ public sealed class WorkflowModule : IModule
             .Produces(StatusCodes.Status204NoContent)
             .RequireIfMatch()
             .WithName("WorkflowApprove")
+            .AlsoChecks(PartyPermissions.BankAccountVerify, "the approval is a bank account verification (businessRefType BANK_ACCOUNT; requiredPermission names it)")
+            .AlsoChecks(PartyPermissions.PartyUpdate, "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)")
             .WithSummary("Approve (not by the maker, within the checker's authority)")
             .WithDescription("The checker needs a role with authority for the approval type and, where there is an amount, a limit at least that amount (WFL-004).")
             .WithEventualEffects("the decision reaches the record that asked for it (a static data version, product version, role assignment, bank "
@@ -124,6 +127,8 @@ public sealed class WorkflowModule : IModule
             .Produces(StatusCodes.Status204NoContent)
             .RequireIfMatch()
             .WithName("WorkflowReject")
+            .AlsoChecks(PartyPermissions.BankAccountVerify, "the approval is a bank account verification (businessRefType BANK_ACCOUNT; requiredPermission names it)")
+            .AlsoChecks(PartyPermissions.PartyUpdate, "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)")
             .WithSummary("Reject, with a reason")
             .WithEventualEffects("the rejection reaches the record that asked for it, which returns to its previous state; read that record again.")
             .RequirePermission(WorkflowPermissions.ApprovalApprove);

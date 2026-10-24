@@ -50,8 +50,11 @@ public interface IGeneralRepository
     /// <summary>The zone and peril exposures of the day's snapshot (general.exposure_snapshot).</summary>
     Task<IReadOnlyList<(string Zone, string Peril, decimal SumInsured, string Currency)>> Snapshot(DateOnly day, CancellationToken cancellationToken);
 
-    /// <summary>Publishes AggregationLimitApproached through General's outbox (F062 §1).</summary>
-    void PublishLimitApproached(string zone, string peril, decimal exposure, decimal maxExposure, string currency, DateOnly asAt, DateTimeOffset now);
+    /// <summary>
+    /// Records the day's alert for a zone, peril and currency and publishes AggregationLimitApproached through General's
+    /// outbox (F062 §1, GAP-051); false, with nothing recorded, when that alert was already raised for the day.
+    /// </summary>
+    Task<bool> RecordLimitApproached(AggregationAlertView alert, string? targetRole, CancellationToken cancellationToken);
 
     Task<RiskObject?> RiskObject(Guid id, CancellationToken cancellationToken);
 

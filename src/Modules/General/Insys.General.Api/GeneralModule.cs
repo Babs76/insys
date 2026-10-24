@@ -291,6 +291,18 @@ public sealed class GeneralModule : IModule
             .Produces<RecoveryView>(StatusCodes.Status201Created)
             .WithName("GeneralOpenRecovery").WithSummary("Open a salvage or third-party recovery (GEN-007)")
             .RequirePermission(GeneralPermissions.RecoveryUpdate).RequireIdempotencyKey();
+        general.MapGet("/aggregation-alerts", async (string? zone, string? peril, Guid? zoneReference, DateOnly? from, DateOnly? to, string? cursor, int? limit,
+                IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListAggregationAlerts(zone, peril, zoneReference, from, to, after, size), ct), a => a.Id))
+            .Produces<CursorPage<AggregationAlertView>>(StatusCodes.Status200OK)
+            .WithName("GeneralListAggregationAlerts")
+            .WithSummary("Aggregation alerts: each zone and peril at or above its alert level, once a day (GAP-051, F062), oldest first")
+            .WithDescription("Filter by zone, peril, zoneReference (the AGGREGATION_ZONE reference its Workflow review task names) and from/to days. "
+                + "Alerts cover the whole tenant: a capacity limit counts every policy, so they are not narrowed by the reader's scope.")
+            .RequirePermission(GeneralPermissions.AggregationAlertRead);
+        general.MapGet("/aggregation-alerts/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetAggregationAlert(id), ct)).ToHttp(Results.Ok))
+            .Produces<AggregationAlertView>(StatusCodes.Status200OK)
+            .WithName("GeneralGetAggregationAlert").WithSummary("Get an aggregation alert (GAP-051)").RequirePermission(GeneralPermissions.AggregationAlertRead);
         general.MapGet("/recoveries/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetRecovery(id), ct)).ToHttp(Results.Ok))
             .Produces<RecoveryView>(StatusCodes.Status200OK)
             .WithName("GeneralGetRecovery").WithSummary("Get a recovery").RequirePermission(GeneralPermissions.ClaimRead);

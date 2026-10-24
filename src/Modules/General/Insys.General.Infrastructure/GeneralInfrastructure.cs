@@ -56,6 +56,7 @@ public static class GeneralInfrastructure
         services.AddScoped<IGeneralRepository, GeneralRepository>();
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, GeneralApprovalScopes>();
         services.AddScoped<IGeneralLists, GeneralLists>();
+        services.AddScoped<IAggregationAlerts, AggregationAlerts>();
         services.AddScoped<IGeneralPortalQueries, GeneralPortalQueries>();
         services.AddScoped<IGeneralCodes, GeneralCodes>();
         services.AddSingleton<Distribution.Contracts.IPolicyDistribution, GeneralPolicyDistribution>();

@@ -29,6 +29,7 @@ using Insys.Billing.Application;
 using Insys.Billing.Contracts;
 using Insys.Billing.Infrastructure;
 using Insys.BuildingBlocks.Api;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -113,8 +114,8 @@ public sealed class BillingModule : IModule
             .WithSummary("List an account's invoices and credit notes")
             .RequirePermission(BillingPermissions.InvoiceRead);
 
-        accounts.MapPost("/{id:guid}/age", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new AgeAccount(id, DateOnly.FromDateTime(DateTime.UtcNow)), ct)).ToHttp(Results.Ok))
+        accounts.MapPost("/{id:guid}/age", async (Guid id, IDispatcher dispatcher, IBusinessDate businessDate, CancellationToken ct) =>
+                (await dispatcher.Send(new AgeAccount(id, businessDate.Today), ct)).ToHttp(Results.Ok))
             .Produces<AccountView>(StatusCodes.Status200OK)
             .WithName("BillingAgeAccount")
             .WithSummary("Mark overdue invoices and detect arrears by the ageing buckets (the billing job does this daily)")

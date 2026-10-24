@@ -5,6 +5,9 @@
 - **Endorsements:** the approval request names the limit exceeded.
 - **The alert:** on at 80% of each limit by default (24 October 2026), or the limit's own `alert_at_pct` (each tenant's limits are its own static data); the platform default is `General:Aggregation:AlertAt`.
 - **Settlement:** over the remaining aggregate it is refused.
+- **Alerts recorded and reviewed (Wave 1 batch 1, GAP-051):**
+  - Each alert is kept in `general.aggregation_alert`, once a day per zone, peril and currency, and listed at `GET /general/aggregation-alerts`.
+  - Workflow keeps one open `AGGREGATION_REVIEW` task per zone and peril, in the queue of `General:Aggregation:AlertRole` (OQ-085).
 - **Reinstatement:** automatic and on-request reinstatement are not defined, so every aggregate stops settlement when used up, as `NONE` does, until the rule is chosen.
 
 - **Basis:** static data

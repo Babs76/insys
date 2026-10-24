@@ -125,4 +125,105 @@ public sealed class OpenApiReviewTests
         Insys.Testing.DocumentedSchema.Problems(proposal.RootElement, "core", "GeneralProposalView").ShouldBeEmpty();
         Insys.Testing.DocumentedSchema.Problems(proposal.RootElement, "core", "LifeProposalView").ShouldNotBeEmpty();
     }
+
+    /// <summary>
+    /// GAP-052: every permission the code enforces is named in the contract. An endpoint's own is its x-permission; one a
+    /// handler checks (execution.HasPermission) is declared on some operation, and one an approval request names for its
+    /// checker on Workflow's approve and reject operations, as x-additional-permissions.
+    /// </summary>
+    [Fact]
+    public void EveryEnforcedPermission_IsDeclaredInTheContract_GAP052()
+    {
+        var constants = PermissionConstants();
+        var declared = new HashSet<string>(StringComparer.Ordinal);
+        var onApprovals = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var o in Operations())
+        {
+            var additional = (o.Operation["x-additional-permissions"]?.AsArray() ?? []).Select(a => a!["permission"]!.GetValue<string>()).ToList();
+            declared.UnionWith(additional);
+            if (o.Operation["x-permission"]?.GetValue<string>() is { } own)
+            {
+                declared.Add(own);
+            }
+
+            if (o.Operation["operationId"]?.GetValue<string>() is "WorkflowApprove" or "WorkflowReject")
+            {
+                onApprovals.UnionWith(additional);
+            }
+        }
+
+        var undeclared = new List<string>();
+        var sources = Directory.EnumerateFiles(Path.Combine(RepositoryPaths.Root, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
+        foreach (var file in sources)
+        {
+            var text = File.ReadAllText(file);
+            foreach (System.Text.RegularExpressions.Match check in System.Text.RegularExpressions.Regex.Matches(text, @"\.HasPermission\(([^()]+)\)"))
+            {
+                var argument = check.Groups[1].Value.Trim();
+                if (argument is "requirement.Permission" or "permission" && Path.GetFileName(file) is "Security.cs" or "Approvals.cs")
+                {
+                    continue; // the endpoint's own permission, and the one an approval names (checked below)
+                }
+
+                var value = Resolve(constants, argument, file);
+                if (!declared.Contains(value))
+                {
+                    undeclared.Add($"{Path.GetFileName(file)}: {value} is checked but declared on no operation");
+                }
+            }
+
+            foreach (var request in ApprovalRequests(text))
+            {
+                foreach (System.Text.RegularExpressions.Match named in System.Text.RegularExpressions.Regex.Matches(request, @"[\w.]*Permissions\.\w+"))
+                {
+                    var value = Resolve(constants, named.Value, file);
+                    if (!onApprovals.Contains(value))
+                    {
+                        undeclared.Add($"{Path.GetFileName(file)}: approvals name {value}, but WorkflowApprove and WorkflowReject do not declare it");
+                    }
+                }
+            }
+        }
+
+        undeclared.ShouldBeEmpty();
+        declared.ShouldContain("commission_payout.read");
+    }
+
+    private static string Resolve(Dictionary<string, string> constants, string expression, string file)
+    {
+        var key = string.Join('.', expression.Split('.').TakeLast(2));
+        constants.TryGetValue(key, out var value).ShouldBeTrue($"{Path.GetFileName(file)}: {expression} is not a permission constant");
+        return value!;
+    }
+
+    /// <summary>The arguments of each ApprovalRequested construction in a source file.</summary>
+    private static IEnumerable<string> ApprovalRequests(string text)
+    {
+        for (var at = text.IndexOf("ApprovalRequested(", StringComparison.Ordinal); at >= 0; at = text.IndexOf("ApprovalRequested(", at + 1, StringComparison.Ordinal))
+        {
+            var start = at + "ApprovalRequested(".Length;
+            var depth = 1;
+            var end = start;
+            while (end < text.Length && depth > 0)
+            {
+                depth += text[end] switch { '(' => 1, ')' => -1, _ => 0 };
+                end++;
+            }
+
+            yield return text[start..(end - 1)];
+        }
+    }
+
+    /// <summary>Every const string of a *Permissions class in the Insys assemblies, by "Class.Name".</summary>
+    private static Dictionary<string, string> PermissionConstants() =>
+        Directory.EnumerateFiles(AppContext.BaseDirectory, "Insys.*.dll")
+            .Select(System.Reflection.Assembly.LoadFrom)
+            .SelectMany(a => a.GetTypes())
+            .Where(t => t.IsAbstract && t.IsSealed && t.Name.EndsWith("Permissions", StringComparison.Ordinal))
+            .SelectMany(t => t.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                .Where(f => f.IsLiteral && f.FieldType == typeof(string))
+                .Select(f => (Key: $"{t.Name}.{f.Name}", Value: (string)f.GetRawConstantValue()!)))
+            .GroupBy(c => c.Key)
+            .ToDictionary(g => g.Key, g => g.First().Value);
 }

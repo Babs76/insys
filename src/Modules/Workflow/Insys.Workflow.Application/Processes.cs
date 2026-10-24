@@ -534,3 +534,43 @@ public sealed class ClosePartyMatchReviewTask(IProcessRepository processes, IPro
         }
     }
 }
+
+/// <summary>
+/// A zone and peril reached its aggregation alert level (GAP-051, F062 §1): a review task for the alert's target role,
+/// due in one business day, on the built-in process AGGREGATION_REVIEW about the zone and peril (AGGREGATION_ZONE). One
+/// task is open per zone and peril; later alerts while it is open add none. An alert without a target role opens none.
+/// </summary>
+public sealed class OpenAggregationReviewTask(IProcessRepository processes, IProcessQueries queries, Contracts.IBusinessTime businessTime, ITenantContext tenant,
+    IClock clock, IAuditTrail audit) : IIntegrationEventHandler<General.Contracts.AggregationLimitApproached>
+{
+    public async Task Handle(General.Contracts.AggregationLimitApproached approached, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (approached.TargetRole is not { } role)
+        {
+            return;
+        }
+
+        var reference = General.Contracts.AggregationZones.Reference(approached.Zone, approached.Peril);
+        if ((await queries.List(General.Contracts.AggregationZones.BusinessRefType, reference, null, 20, cancellationToken))
+            .Any(p => p.ProcessCode == BuiltInProcesses.AggregationReview.ProcessCode && p.Status == ProcessStatus.Running))
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.AggregationReview, General.Contracts.AggregationZones.BusinessRefType,
+            reference, _ => new TaskRouting(role, null, due), now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
+            new Dictionary<string, string?>
+            {
+                ["process"] = $"{BuiltInProcesses.AggregationReview.ProcessCode}@{BuiltInProcesses.AggregationReview.Version}",
+                ["zone"] = approached.Zone,
+                ["peril"] = approached.Peril,
+                ["alert"] = approached.AlertId?.ToString(),
+                ["queue"] = role,
+            }));
+    }
+}
+

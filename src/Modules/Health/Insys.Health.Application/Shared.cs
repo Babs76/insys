@@ -43,7 +43,7 @@ public interface IHealthRepository
     /// Memberships with no product take their plan option's, once a version in force names one (addenda/health-plan-products.md §4).
     /// Returns how many were given one.
     /// </summary>
-    Task<int> AssignPlanProducts(DateOnly day, DateTimeOffset now, CancellationToken cancellationToken);
+    Task<int> AssignPlanProducts(DateOnly day, Func<string, CancellationToken, Task<int?>> versionOnSale, DateTimeOffset now, CancellationToken cancellationToken);
 
     Task<HealthScheme?> Scheme(Guid id, CancellationToken cancellationToken);
 
@@ -206,11 +206,14 @@ public sealed record SchemeView(Guid Id, string SchemeNumber, string SponsorCode
 
 public sealed record DependantView(Guid Id, Guid PartyId, string DependantType, string Suffix, DateOnly StartDate, DateOnly? EndDate, [property: OneOf("ACTIVE", "REMOVED")] string Status);
 
-public sealed record MembershipView(Guid Id, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode, int PlanVersion, MembershipStatus Status,
+/// <param name="ProductCode">The Product Factory product the membership is on, recorded at enrolment and on a plan change (GAP-050); null while its plan names none.</param>
+/// <param name="ProductVersion">That product's version at the time; null with <paramref name="ProductCode"/>.</param>
+public sealed record MembershipView(Guid Id, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode, int PlanVersion,
+    string? ProductCode, int? ProductVersion, MembershipStatus Status,
     DateOnly StartDate, DateOnly? EndDate, string? MemberCategory, IReadOnlyList<WaitingPeriod> WaitingPeriods, IReadOnlyList<DependantView> Dependants, long RowVersion)
 {
     public static MembershipView From(HealthMembership m) => new(m.Id, m.MemberNumber, m.PrincipalPartyId, m.SchemeId, m.PlanCode, m.OptionCode, m.PlanVersion,
-        m.Status, m.StartDate, m.EndDate, m.MemberCategory, m.WaitingPeriods,
+        m.ProductCode, m.ProductVersion, m.Status, m.StartDate, m.EndDate, m.MemberCategory, m.WaitingPeriods,
         m.Dependants.Select(d => new DependantView(d.Id, d.PartyId, d.DependantType, d.Suffix, d.StartDate, d.EndDate, d.Status)).ToList(), m.RowVersion);
 }
 

@@ -24,7 +24,9 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Domain;
+using Insys.General.Contracts;
 using Insys.General.Domain;
 
 namespace Insys.General.Application;
@@ -50,6 +52,53 @@ public sealed class AggregationOptions
     /// (alert_at_pct). Empty in configuration, no alert is raised for limits without their own level.
     /// </summary>
     public decimal? AlertAt { get; set; } = 0.8m;
+
+    /// <summary>
+    /// The role whose Workflow queue reviews a zone and peril's alerts (GAP-051). No underwriting role is defined in the
+    /// specifications or the role catalogue, so the code is a setting; OQ-085 asks for it and whether tenants set their own.
+    /// Empty, alerts are still recorded and listed, but no task is opened.
+    /// </summary>
+    public string? AlertRole { get; set; } = "UNDERWRITING";
+}
+
+/// <summary>
+/// A zone and peril at or above its alert level on a day (GAP-051, F062 §1), recorded once a day per zone, peril and
+/// currency. Capacity limits count every policy in the tenant, so alerts are not narrowed by the reader's F103 scope.
+/// </summary>
+/// <param name="AlertAtPct">The alert level that applied, in per cent of <paramref name="MaxExposure"/>.</param>
+/// <param name="PercentUsed">Exposure as a percentage of the limit, to two decimals.</param>
+/// <param name="ZoneReference">The zone and peril's business reference (AGGREGATION_ZONE), which its Workflow review task names.</param>
+public sealed record AggregationAlertView(Guid Id, string Zone, string Peril, string Currency, decimal Exposure, decimal MaxExposure, decimal AlertAtPct,
+    decimal PercentUsed, DateOnly AsAt, DateTimeOffset RaisedAt, Guid ZoneReference)
+{
+    public static AggregationAlertView Raise(Guid id, string zone, string peril, string currency, decimal exposure, decimal maxExposure, decimal alertAt,
+        DateOnly asAt, DateTimeOffset now) =>
+        new(id, zone, peril, currency, exposure, maxExposure, Math.Round(alertAt * 100m, 2), Math.Round(exposure / maxExposure * 100m, 2), asAt, now,
+            AggregationZones.Reference(zone, peril));
+}
+
+/// <summary>Query ListAggregationAlerts: by zone, peril or zone reference and days, oldest first, by ID with cursor paging.</summary>
+public sealed record ListAggregationAlerts(string? Zone, string? Peril, Guid? ZoneReference, DateOnly? From, DateOnly? To, Guid? AfterId, int Limit)
+    : IQuery<IReadOnlyList<AggregationAlertView>>;
+
+public sealed record GetAggregationAlert(Guid AlertId) : IQuery<AggregationAlertView>;
+
+public interface IAggregationAlerts
+{
+    Task<IReadOnlyList<AggregationAlertView>> List(ListAggregationAlerts query, CancellationToken cancellationToken);
+
+    Task<AggregationAlertView?> Get(Guid id, CancellationToken cancellationToken);
+}
+
+internal sealed class AggregationAlertHandlers(IAggregationAlerts alerts) :
+    IQueryHandler<ListAggregationAlerts, IReadOnlyList<AggregationAlertView>>,
+    IQueryHandler<GetAggregationAlert, AggregationAlertView>
+{
+    public async Task<Result<IReadOnlyList<AggregationAlertView>>> Handle(ListAggregationAlerts query, CancellationToken cancellationToken) =>
+        Result.Success(await alerts.List(query, cancellationToken));
+
+    public async Task<Result<AggregationAlertView>> Handle(GetAggregationAlert query, CancellationToken cancellationToken) =>
+        await alerts.Get(query.AlertId, cancellationToken) is { } alert ? alert : Error.NotFound(ErrorCodes.NotFound, "The aggregation alert was not found.");
 }
 
 /// <summary>

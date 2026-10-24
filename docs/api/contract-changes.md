@@ -2,7 +2,36 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 0b batch 6 (branch `wave0b-6`, not merged): external-user remainder; arrears past the last bucket; dashboard figures; onboarding readiness; Keycloak users
+## Wave 1 batch 1 (branch `wave1-1`, not merged): requests 48–50, completing Wave 0b
+
+### New endpoints
+
+| Endpoint | Permission | Notes |
+|---|---|---|
+| `GET /api/v1/general/aggregation-alerts?zone&peril&zoneReference&from&to` (cursor) | `general_aggregation_alert.read` (new) | GAP-051. Each zone and peril at or above its alert level, once a day: `{id, zone, peril, currency, exposure, maxExposure, alertAtPct, percentUsed, asAt, raisedAt, zoneReference}`. Tenant-wide: not narrowed by F103 scope |
+| `GET /api/v1/general/aggregation-alerts/{id}` | `general_aggregation_alert.read` | GAP-051 |
+
+### Changed responses
+- **`HealthMembershipView`** (`GET /health/memberships/{id}` and the membership commands) gains `productCode` and `productVersion` (GAP-050): the product the membership is on, recorded at enrolment, on a plan change, and by the daily job once the plan names one. Both are null while the plan names none.
+- **`WorkflowApprovalView`** gains `requiredPermission`: the permission the checker needs besides authority for the type (`bank_account.verify`, `party.update`), or null.
+
+### Contract metadata
+- **`x-additional-permissions`** (GAP-052): an operation whose handler checks a permission besides its `x-permission` lists it as `[{permission, when}]`. `x-permission` stays a single string.
+  - `commission_payout.read` on:
+    - `GET /payments/payments/{id}` and `GET /payments/payments`;
+    - `GET /payments/summary`;
+    - `POST /payments/payout-batches`, `GET /payments/payout-batches/{id}` and `…/{id}/payments`;
+    - `POST /payments/payout-batches/{id}/release`.
+  - `bank_account.verify` and `party.update` on `POST /workflow/approvals/{id}/approve` and `…/reject`, for the approval types that name them.
+  - A test fails if a permission the code checks is declared on no operation.
+
+### Changed behaviour
+- **Aggregation alerts (GAP-051):**
+  - `general.AggregationLimitApproached` gains `alertId`, `alertAtPct` and `targetRole`. It is now raised at most once a day per zone, peril and currency, however often the snapshot runs.
+  - Workflow opens a task on the built-in process `AGGREGATION_REVIEW` (state `REVIEW_EXPOSURE`), in the queue of `targetRole` (`UNDERWRITING` by default, OQ-085). The task's business reference is `AGGREGATION_ZONE` and the alert's `zoneReference`.
+  - There is one open task per zone and peril. Later alerts add none while it is open.
+
+## Wave 0b batch 6 (merged, `f97ed95`): external-user remainder; arrears past the last bucket; dashboard figures; onboarding readiness; Keycloak users
 
 ### New endpoints
 

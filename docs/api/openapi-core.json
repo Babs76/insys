@@ -4267,6 +4267,16 @@
           }
         },
         "x-permission": "approval.approve",
+        "x-additional-permissions": [
+          {
+            "permission": "bank_account.verify",
+            "when": "the approval is a bank account verification (businessRefType BANK_ACCOUNT; requiredPermission names it)"
+          },
+          {
+            "permission": "party.update",
+            "when": "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)"
+          }
+        ],
         "x-eventual-effects": "the decision reaches the record that asked for it (a static data version, product version, role assignment, bank account, payment or claim instruction, first tenant administrator ...) and its own follow-ups, such as a product\u0027s publication; read that record again to see it."
       }
     },
@@ -4347,6 +4357,16 @@
           }
         },
         "x-permission": "approval.approve",
+        "x-additional-permissions": [
+          {
+            "permission": "bank_account.verify",
+            "when": "the approval is a bank account verification (businessRefType BANK_ACCOUNT; requiredPermission names it)"
+          },
+          {
+            "permission": "party.update",
+            "when": "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)"
+          }
+        ],
         "x-eventual-effects": "the rejection reaches the record that asked for it, which returns to its previous state; read that record again."
       }
     },
@@ -6940,7 +6960,13 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "payment.read"
+        "x-permission": "payment.read",
+        "x-additional-permissions": [
+          {
+            "permission": "commission_payout.read",
+            "when": "commission payouts are listed only to a caller who also holds it"
+          }
+        ]
       }
     },
     "/api/v1/payments/payments/{id}": {
@@ -6994,7 +7020,13 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "payment.read"
+        "x-permission": "payment.read",
+        "x-additional-permissions": [
+          {
+            "permission": "commission_payout.read",
+            "when": "a commission payout is found only by a caller who also holds it"
+          }
+        ]
       }
     },
     "/api/v1/payments/summary": {
@@ -7031,7 +7063,13 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "payment.read"
+        "x-permission": "payment.read",
+        "x-additional-permissions": [
+          {
+            "permission": "commission_payout.read",
+            "when": "commission payouts are counted only for a caller who also holds it"
+          }
+        ]
       }
     },
     "/api/v1/payments/payments/{id}/resolve": {
@@ -7369,7 +7407,13 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "payout_batch.create"
+        "x-permission": "payout_batch.create",
+        "x-additional-permissions": [
+          {
+            "permission": "commission_payout.read",
+            "when": "batching commission payouts: without it they are outside the caller\u0027s scope and the batch is refused (OUT_OF_SCOPE)"
+          }
+        ]
       }
     },
     "/api/v1/payments/payout-batches/{id}": {
@@ -7423,7 +7467,13 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "payout_batch.read"
+        "x-permission": "payout_batch.read",
+        "x-additional-permissions": [
+          {
+            "permission": "commission_payout.read",
+            "when": "a commission batch is found, and its payouts counted, only for a caller who also holds it"
+          }
+        ]
       }
     },
     "/api/v1/payments/payout-batches/{id}/payments": {
@@ -7480,7 +7530,13 @@
             "$ref": "#/components/responses/Problem400"
           }
         },
-        "x-permission": "payout_batch.read"
+        "x-permission": "payout_batch.read",
+        "x-additional-permissions": [
+          {
+            "permission": "commission_payout.read",
+            "when": "a commission batch\u0027s payouts are listed only to a caller who also holds it"
+          }
+        ]
       }
     },
     "/api/v1/payments/payout-batches/{id}/release": {
@@ -7540,7 +7596,13 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "payout_batch.release"
+        "x-permission": "payout_batch.release",
+        "x-additional-permissions": [
+          {
+            "permission": "commission_payout.read",
+            "when": "releasing a commission batch: without it the batch is not found"
+          }
+        ]
       }
     },
     "/api/v1/payments/bank-statements": {
@@ -14738,6 +14800,157 @@
           }
         },
         "x-permission": "general_recovery.update"
+      }
+    },
+    "/api/v1/general/aggregation-alerts": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Aggregation alerts: each zone and peril at or above its alert level, once a day (GAP-051, F062), oldest first",
+        "description": "Filter by zone, peril, zoneReference (the AGGREGATION_ZONE reference its Workflow review task names) and from/to days. Alerts cover the whole tenant: a capacity limit counts every policy, so they are not narrowed by the reader\u0027s scope.",
+        "operationId": "GeneralListAggregationAlerts",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "peril",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "zoneReference",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralAggregationAlertView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "general_aggregation_alert.read"
+      }
+    },
+    "/api/v1/general/aggregation-alerts/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Get an aggregation alert (GAP-051)",
+        "operationId": "GeneralGetAggregationAlert",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralAggregationAlertView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "general_aggregation_alert.read"
       }
     },
     "/api/v1/general/recoveries/{id}": {
@@ -26785,6 +26998,27 @@
           }
         }
       },
+      "CursorPageOfGeneralAggregationAlertView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralAggregationAlertView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfGeneralClaimSummary": {
         "required": [
           "items",
@@ -28699,6 +28933,81 @@
               "string"
             ],
             "format": "double"
+          }
+        }
+      },
+      "GeneralAggregationAlertView": {
+        "required": [
+          "id",
+          "zone",
+          "peril",
+          "currency",
+          "exposure",
+          "maxExposure",
+          "alertAtPct",
+          "percentUsed",
+          "asAt",
+          "raisedAt",
+          "zoneReference"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "zone": {
+            "type": "string"
+          },
+          "peril": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "exposure": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "maxExposure": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "alertAtPct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "percentUsed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "asAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "raisedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "zoneReference": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -31951,6 +32260,8 @@
           "planCode",
           "optionCode",
           "planVersion",
+          "productCode",
+          "productVersion",
           "status",
           "startDate",
           "endDate",
@@ -31988,6 +32299,21 @@
           "planVersion": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "productVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
               "integer",
               "string"
             ],
@@ -40333,6 +40659,7 @@
           "decidedAt",
           "expiresAt",
           "subjectHash",
+          "requiredPermission",
           "rowVersion"
         ],
         "type": "object",
@@ -40411,6 +40738,12 @@
             "format": "date-time"
           },
           "subjectHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "requiredPermission": {
             "type": [
               "null",
               "string"

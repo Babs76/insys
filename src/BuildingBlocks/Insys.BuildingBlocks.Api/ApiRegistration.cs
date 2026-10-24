@@ -233,6 +233,14 @@ public static class ApiRegistration
                 operation.Extensions["x-permission"] = new Microsoft.OpenApi.JsonNodeExtension(System.Text.Json.Nodes.JsonValue.Create(permission.Permission));
             }
 
+            if (metadata.OfType<AdditionalPermissionMetadata>().ToList() is { Count: > 0 } additional)
+            {
+                // GAP-052: permissions the handler checks besides x-permission, each with when it applies.
+                operation.Extensions ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiExtension>();
+                operation.Extensions["x-additional-permissions"] = new Microsoft.OpenApi.JsonNodeExtension(new System.Text.Json.Nodes.JsonArray([.. additional
+                    .Select(a => (System.Text.Json.Nodes.JsonNode)new System.Text.Json.Nodes.JsonObject { ["permission"] = a.Permission, ["when"] = a.When })]));
+            }
+
             if (operation.OperationId is "ListAuditEvents" or "GetRecordHistory"
                 && operation.Parameters?.FirstOrDefault(p => p.Name == "targetType")?.Schema is OpenApiSchema targetType)
             {
