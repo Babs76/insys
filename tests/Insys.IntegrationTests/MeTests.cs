@@ -71,6 +71,11 @@ public sealed class MeTests(DatabaseFixture fixture) : IClassFixture<DatabaseFix
         var tenant = me.GetProperty("tenant");
         (tenant.GetProperty("id").GetGuid(), tenant.GetProperty("tenantCode").GetString(), tenant.GetProperty("isPlatformOperator").GetBoolean())
             .ShouldBe((DatabaseFixture.TenantA, "TENA", false));
+
+        // ADR-025: the tenant's time zone and today's business date in it, for defaulting dates (this tenant has none, so the default).
+        tenant.GetProperty("timeZone").GetString().ShouldBe("Africa/Johannesburg");
+        DateOnly.Parse(tenant.GetProperty("businessDate").GetString()!, System.Globalization.CultureInfo.InvariantCulture)
+            .ShouldBe(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Africa/Johannesburg")).DateTime));
         me.GetProperty("language").GetProperty("request").GetString().ShouldBe("en");
         me.GetProperty("roles").GetArrayLength().ShouldBe(2);
         me.GetProperty("roles").EnumerateArray().ShouldAllBe(r => r.GetProperty("inEffect").GetBoolean());

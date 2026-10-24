@@ -135,7 +135,9 @@ public enum ReserveAction
 }
 
 /// <summary>Commands SetReserve, ChangeReserve and RecordRecovery (CLM-004).</summary>
-public sealed record MoveReserve(string ClaimNumber, ReserveAction Action, string ReserveType, decimal Amount, string Currency) : ICommand<FinancialsView>;
+/// <param name="Reason">Why the reserve moves; recorded in the audit trail. The initial reserve gives its basis (OQ-079).</param>
+public sealed record MoveReserve(string ClaimNumber, ReserveAction Action, string ReserveType, decimal Amount, string Currency, string? Reason = null)
+    : ICommand<FinancialsView>;
 
 public sealed class ClaimsPaymentOptions
 {
@@ -191,6 +193,7 @@ public sealed class MoveReserveValidator : AbstractValidator<MoveReserve>
         RuleFor(c => c.ReserveType).NotEmpty().MaximumLength(15);
         RuleFor(c => c.Currency).Length(3);
         RuleFor(c => c.Amount).PrecisionScale(18, 2, true);
+        RuleFor(c => c.Reason).NotEmpty().MaximumLength(500).WithMessage("A reserve moves with a reason (OQ-079).");
     }
 }
 
@@ -353,7 +356,7 @@ internal sealed class MoveReserveHandler(IClaimsRepository claims, IClaimsCodes 
 
         var financials = await Loaded.Financials(claims, claim.Value, command.Currency, cancellationToken);
         audit.Record(new AuditEntry("CLAIMS", $"Reserve{command.Action}", nameof(ClaimFinancials), claim.Value.Id.ToString(),
-            new Dictionary<string, string?> { ["claim"] = command.ClaimNumber, ["reserveType"] = command.ReserveType }));
+            new Dictionary<string, string?> { ["claim"] = command.ClaimNumber, ["reserveType"] = command.ReserveType, ["reason"] = command.Reason }));
         var movement = command.Action switch
         {
             ReserveAction.Set => financials.SetReserve(command.ReserveType, command.Amount, businessDate.Today, clock.UtcNow),
@@ -765,7 +768,11 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
 /// <summary>The Claims Framework's registry for domain claims (<see cref="IClaimRegistry"/>), through its own commands and transactions.</summary>
 public sealed class ClaimRegistry(IDispatcher dispatcher, ILogger<ClaimRegistry> logger) : IClaimRegistry
 {
-    public async Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, JsonElement fraudFacts, CancellationToken cancellationToken)
+    public Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, JsonElement fraudFacts, CancellationToken cancellationToken) =>
+        Register(domain, domainClaimId, policyRef, fraudFacts, null, cancellationToken);
+
+    public async Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, JsonElement fraudFacts, InitialReserve? initialReserve,
+        CancellationToken cancellationToken)
     {
         var allocated = await dispatcher.Send(new AllocateClaimNumber(domain, domainClaimId, policyRef), cancellationToken);
         if (allocated.IsFailure)
@@ -781,6 +788,20 @@ public sealed class ClaimRegistry(IDispatcher dispatcher, ILogger<ClaimRegistry>
             // through POST /claims/claims/{number}/fraud-evaluations once the definitions are fixed.
             logger.LogError("Claim {ClaimNumber} was not screened for fraud: {ErrorCode}", allocated.Value.ClaimNumber, screened.Error.Code);
         }
+        // OQ-079: the claim's initial reserve, set once: a repeat registration finds a reserve of that type and leaves it.
+        if (initialReserve is not null
+            && await dispatcher.Query(new GetFinancials(allocated.Value.ClaimNumber), cancellationToken) is { IsSuccess: true } financials
+            && financials.Value.Movements.All(m => m.ReserveType != initialReserve.ReserveType))
+        {
+            var reserved = await dispatcher.Send(new MoveReserve(allocated.Value.ClaimNumber, ReserveAction.Set, initialReserve.ReserveType, initialReserve.Amount,
+                initialReserve.Currency, initialReserve.Basis), cancellationToken);
+            if (reserved.IsFailure)
+            {
+                // The claim is registered; without the reserve, a payment is held until one is set (ClaimPaymentReleaseHeld).
+                logger.LogError("Claim {ClaimNumber}'s initial reserve was not set: {ErrorCode}", allocated.Value.ClaimNumber, reserved.Error.Code);
+            }
+        }
+
         return new ClaimRegistrationResult(true, allocated.Value.ClaimNumber, null, null);
     }
 }

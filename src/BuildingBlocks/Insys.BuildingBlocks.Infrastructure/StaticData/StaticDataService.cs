@@ -87,6 +87,7 @@ public sealed class StaticDataService<TDbContext>(
     IBusinessDate businessDate, IClock clock,
     IFieldProtector protector,
     IEnumerable<IStaticChangeGuard> guards,
+    IEnumerable<IStaticSetGuard> setGuards,
     IEnumerable<IStaticRecordValidator> validators)
     where TDbContext : ModuleDbContext
 {
@@ -245,6 +246,26 @@ public sealed class StaticDataService<TDbContext>(
                 if (allowed.IsFailure)
                 {
                     return allowed.Error;
+                }
+            }
+
+            // A module's rules across the table: the other codes in force (or on their way) from this version's start.
+            var applicable = setGuards.Where(g => g.Schema == descriptor.Schema && g.Table == descriptor.Table).ToList();
+            if (applicable.Count > 0)
+            {
+                string[] closed = ["DRAFT", "VALIDATED", "WITHDRAWN", "RETIRED"];
+                var others = (await db.Set<TEntity>().AsNoTracking()
+                        .Where(r => r.Code != entity.Code && !closed.Contains(r.RecordStatus) && r.EffectiveFrom <= entity.EffectiveFrom
+                                    && (r.EffectiveTo == null || r.EffectiveTo > entity.EffectiveFrom))
+                        .ToListAsync(cancellationToken))
+                    .GroupBy(r => r.Code).Select(g => (StaticRecord)g.OrderByDescending(r => r.Version).First()).ToList();
+                foreach (var guard in applicable)
+                {
+                    var allowed = guard.Check(entity, others);
+                    if (allowed.IsFailure)
+                    {
+                        return allowed.Error;
+                    }
                 }
             }
 

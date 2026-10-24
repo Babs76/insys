@@ -42,13 +42,13 @@ public interface ITenantRepository
     void Add(Tenant tenant);
 }
 
-public sealed record TenantSummary(Guid Id, string TenantCode, string LegalName, string IsolationProfile, TenantStatus Status, long RowVersion);
+public sealed record TenantSummary(Guid Id, string TenantCode, string LegalName, string IsolationProfile, TenantStatus Status, long RowVersion, string? TimeZone = null);
 
 public sealed record StatusChangeView(TenantStatus FromStatus, TenantStatus ToStatus, string Reason, Guid ChangedBy, DateTimeOffset ChangedAt);
 
 public sealed record TenantDetail(
     Guid Id, string TenantCode, string LegalName, string IsolationProfile, TenantStatus Status, string? OnboardingStep, [property: OneOf("IN_PROGRESS", "COMPLETED")] string? OnboardingStatus,
-    IReadOnlyList<string> OnboardingSteps, IReadOnlyList<StatusChangeView> StatusHistory, long RowVersion);
+    IReadOnlyList<string> OnboardingSteps, IReadOnlyList<StatusChangeView> StatusHistory, long RowVersion, string? TimeZone = null);
 
 public interface ITenantQueries
 {
@@ -60,7 +60,8 @@ public interface ITenantQueries
 // Platform operator commands. Each runs as the target tenant (ITargetTenantRequest), so the onboarding case, status
 // history, outbox and audit rows belong to that tenant (TEN-007).
 
-public sealed record RegisterTenant(Guid TenantId, string TenantCode, string LegalName, IsolationProfile IsolationProfile) : ICommand<Guid>, ITargetTenantRequest
+/// <param name="TimeZone">An IANA time zone such as Africa/Johannesburg: the tenant's business dates follow it (ADR-025).</param>
+public sealed record RegisterTenant(Guid TenantId, string TenantCode, string LegalName, IsolationProfile IsolationProfile, string TimeZone) : ICommand<Guid>, ITargetTenantRequest
 {
     public Guid TargetTenantId => TenantId;
 }
@@ -106,7 +107,17 @@ public sealed class RegisterTenantValidator : AbstractValidator<RegisterTenant>
         RuleFor(c => c.TenantCode).NotEmpty().MaximumLength(10).Matches("^[A-Z0-9_]+$").WithMessage("tenantCode is upper-case letters, digits and underscores.");
         RuleFor(c => c.LegalName).NotEmpty().MaximumLength(150);
         RuleFor(c => c.IsolationProfile).IsInEnum();
+        RuleFor(c => c.TimeZone).NotEmpty().MaximumLength(50).Must(IanaTimeZone.IsValid)
+            .WithMessage("timeZone is an IANA time zone, such as Africa/Johannesburg (ADR-025).");
     }
+}
+
+/// <summary>An IANA time zone name that this platform can convert to (ADR-025).</summary>
+public static class IanaTimeZone
+{
+    public static bool IsValid(string? id) =>
+        !string.IsNullOrWhiteSpace(id) && (id == "UTC" || id.Contains('/', StringComparison.Ordinal))
+        && TimeZoneInfo.TryFindSystemTimeZoneById(id, out var zone) && zone.HasIanaId;
 }
 
 public sealed class ChangeTenantStatusValidator : AbstractValidator<ChangeTenantStatus>
@@ -162,7 +173,7 @@ internal sealed class RegisterTenantHandler(ITenantRepository tenants, IExecutio
             return Error.Conflict(TenancyErrorCodes.TenantCodeTaken, "Another tenant already uses this tenant code.");
         }
 
-        var tenant = Tenant.RegisterTenant(command.TenantId, command.TenantCode, command.LegalName, command.IsolationProfile, clock.UtcNow);
+        var tenant = Tenant.RegisterTenant(command.TenantId, command.TenantCode, command.LegalName, command.IsolationProfile, command.TimeZone, clock.UtcNow);
         if (tenant.IsFailure)
         {
             return tenant.Error;
@@ -170,7 +181,10 @@ internal sealed class RegisterTenantHandler(ITenantRepository tenants, IExecutio
 
         tenants.Add(tenant.Value);
         audit.Record(new AuditEntry("TENANT", "RegisterTenant", nameof(Tenant), tenant.Value.Id.ToString(),
-            new Dictionary<string, string?> { ["tenantCode"] = command.TenantCode, ["isolationProfile"] = command.IsolationProfile.ToString() }));
+            new Dictionary<string, string?>
+            {
+                ["tenantCode"] = command.TenantCode, ["isolationProfile"] = command.IsolationProfile.ToString(), ["timeZone"] = command.TimeZone,
+            }));
         return tenant.Value.Id;
     }
 }

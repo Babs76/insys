@@ -185,7 +185,7 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
 
     private static async Task<(Guid TenantId, string Url)> RegisterTenantAtAccessStep(HttpClient client, string code)
     {
-        var registered = await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = code, legalName = code + " Ltd", isolationProfile = "B" },
+        var registered = await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = code, legalName = code + " Ltd", isolationProfile = "B", timeZone = "Africa/Johannesburg" },
             idempotent: true);
         var tenantId = (await registered.Json()).GetProperty("id").GetGuid();
         var url = $"/api/v1/tenancy/tenants/{tenantId}";

@@ -71,6 +71,19 @@ public interface IStaticRecordValidator
     IReadOnlyDictionary<string, string[]> Validate(StaticRecord record);
 }
 
+/// <summary>
+/// A module's rule across the records of one table, checked when a draft is submitted: the proposed version against the
+/// other codes' versions in force from its effective date (bands that must not overlap or leave gaps, say).
+/// </summary>
+public interface IStaticSetGuard
+{
+    string Schema { get; }
+
+    string Table { get; }
+
+    Result Check(StaticRecord proposed, IReadOnlyList<StaticRecord> others);
+}
+
 /// <summary>Every static data table in the platform, for platform-wide checks.</summary>
 public sealed record ModuleStaticDataTables(string ModuleRoute, IReadOnlyList<StaticDataDescriptor> Descriptors);
 

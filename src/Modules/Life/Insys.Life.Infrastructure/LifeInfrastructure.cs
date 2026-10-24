@@ -56,6 +56,7 @@ public static class LifeInfrastructure
         services.AddScoped<ILifeRepository, LifeRepository>();
         services.AddScoped<ILifeCodes, LifeCodes>();
         services.AddScoped<ILifeLists, LifeLists>();
+        services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticSetGuard, FreeCoverBandsGuard>();
         services.AddSingleton<Distribution.Contracts.IPolicyDistribution, LifePolicyDistribution>();
         services.AddSingleton<Workflow.Contracts.IApprovalAuthoritySource, ClaimsAuthority>();
         services.AddIntegrationEventHandler<PremiumCalculated, LifeEventPolicies, LifeDbContext>(schema, "PremiumCalculated");
@@ -72,6 +73,7 @@ public static class LifeInfrastructure
         services.AddIntegrationEventHandler<LifeClaimApproved, LifeEventPolicies, LifeDbContext>(schema, "LifeClaimApproved");
         services.AddIntegrationEventHandler<LifeClaimSettled, LifeEventPolicies, LifeDbContext>(schema, "LifeClaimSettled");
         services.AddOptions<LifeJobOptions>().BindConfiguration("Life:Jobs");
+        services.AddOptions<LifeClaimOptions>().BindConfiguration("Life:Claims");
         services.AddSingleton<LifeJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {

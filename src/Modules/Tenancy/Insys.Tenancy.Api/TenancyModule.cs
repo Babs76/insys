@@ -39,7 +39,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Tenancy.Api;
 
-public sealed record RegisterTenantRequest(string TenantCode, string LegalName, IsolationProfile IsolationProfile);
+public sealed record RegisterTenantRequest(string TenantCode, string LegalName, IsolationProfile IsolationProfile, string TimeZone);
 
 public sealed record TenantStatusRequest(string Reason);
 
@@ -68,7 +68,7 @@ public sealed class TenancyModule : IModule
         tenants.MapPost("/", async (RegisterTenantRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
             {
                 var tenantId = Guid.CreateVersion7();
-                var result = await dispatcher.Send(new RegisterTenant(tenantId, request.TenantCode, request.LegalName, request.IsolationProfile), ct);
+                var result = await dispatcher.Send(new RegisterTenant(tenantId, request.TenantCode, request.LegalName, request.IsolationProfile, request.TimeZone), ct);
                 return result.ToHttp(id =>
                 {
                     Concurrency.SetETag(http, 1);

@@ -38,8 +38,10 @@ using Microsoft.Extensions.Options;
 namespace Insys.Identity.Application.Users;
 
 /// <summary>The caller's tenant.</summary>
+/// <param name="TimeZone">The IANA time zone the tenant's business dates follow (ADR-025).</param>
+/// <param name="BusinessDate">Today in that time zone: the date to default date fields to.</param>
 public sealed record MeTenant(Guid Id, string TenantCode, string Name, [property: OneOf("Onboarding", "Active", "Suspended", "Terminated")] string Status,
-    bool IsPlatformOperator);
+    bool IsPlatformOperator, string TimeZone, DateOnly BusinessDate);
 
 /// <summary>The caller's preferred language, this request's language, and the tenant's languages (OQ-068).</summary>
 public sealed record MeLanguage(string? Preferred, string Request, string TenantDefault, IReadOnlyList<string> Supported);
@@ -77,7 +79,7 @@ public sealed class ChangeMyPreferredLanguageValidator : AbstractValidator<Chang
 }
 
 internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader roles, ITenantProfiles tenants, ILanguageSettings languages, RequestLanguage request,
-    IExecutionContext execution, ITenantContext tenant, IOptions<PlatformOptions> platform, IClock clock) : IQueryHandler<GetMe, MeView>
+    IExecutionContext execution, ITenantContext tenant, IOptions<PlatformOptions> platform, IClock clock, IBusinessDate businessDate) : IQueryHandler<GetMe, MeView>
 {
     public async Task<Result<MeView>> Handle(GetMe query, CancellationToken cancellationToken)
     {
@@ -104,7 +106,8 @@ internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader role
         var profile = await tenants.Get(tenantId, cancellationToken);
         var tenantLanguages = await languages.For(tenantId, cancellationToken);
         return new MeView(user.Id, user.Username, user.DisplayName, user.Status, user.MfaEnrolled,
-            new MeTenant(tenantId, profile?.TenantCode ?? "", profile?.LegalName ?? "", profile?.Status ?? "", tenantId == platform.Value.OperatorTenantId),
+            new MeTenant(tenantId, profile?.TenantCode ?? "", profile?.LegalName ?? "", profile?.Status ?? "", tenantId == platform.Value.OperatorTenantId,
+                businessDate.Zone.Id, businessDate.Today),
             new MeLanguage(user.PreferredLanguage, request.Language, tenantLanguages.Default, tenantLanguages.Supported),
             assignments, permissions, user.RowVersion);
     }

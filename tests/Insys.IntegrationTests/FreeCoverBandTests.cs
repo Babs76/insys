@@ -60,6 +60,66 @@ public sealed class FreeCoverBandTests(DatabaseFixture fixture) : IClassFixture<
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
+    /// <summary>
+    /// Fail safe: a scheme whose size matches no band, or whose band is not yet in force, has no free cover limit, and then
+    /// any cover needs evidence. Before, "no limit" meant no member ever needed evidence.
+    /// </summary>
+    [Theory]
+    [InlineData(5_000, "no band covers 5 000 members")]
+    [InlineData(10, "the band for 10 members is not in force yet")]
+    public async Task NoBandInForce_MeansEvidenceForAnyCover_NeverNoLimit_GAP043(int members, string because)
+    {
+        var tenant = DatabaseFixture.TenantB;
+        await fixture.Database.SeedStatic(tenant, "life.cfg_free_cover_limits", "EFFECTIVE", "B-SMALL", Today.AddDays(-30),
+            ("size_band", new NpgsqlRange<int>(100, true, 1_000, false)), ("free_cover_limit", 750_000m), ("evidence_above", "MEDICAL"));
+        await fixture.Database.SeedStatic(tenant, "life.cfg_free_cover_limits", "EFFECTIVE", "B-FUTURE", Today.AddDays(60),
+            ("size_band", new NpgsqlRange<int>(1, true, 100, false)), ("free_cover_limit", 750_000m), ("evidence_above", "MEDICAL"));
+        await using var scope = _factory.Services.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(tenant, "test");
+        await using var transaction = await scope.ServiceProvider.GetRequiredService<Insys.Life.Infrastructure.Persistence.LifeDbContext>().Database.BeginTransactionAsync();
+        var limit = await scope.ServiceProvider.GetRequiredService<ILifeCodes>().FreeCoverLimit(members, Today, CancellationToken.None);
+        var scheme = GroupScheme.SetUpScheme(Guid.CreateVersion7(), "GS-NONE", Guid.CreateVersion7(), "LIF-GRP", 1, "EMPLOYER", Today, Today.AddYears(1), "ZAR", Today).Value;
+
+        var member = scheme.EnrolMember(Guid.CreateVersion7(), new MemberCategory("STAFF", 1m), 50_000m, Today, limit, DateTimeOffset.UtcNow).Value;
+
+        limit.ShouldBeNull(because);
+        member.EvidenceStatus.ShouldBe(EvidenceStatus.Required, "with no limit, any cover needs evidence");
+    }
+
+    /// <summary>The bands are checked when a draft is submitted: they start at 1 member, and do not overlap or leave gaps.</summary>
+    [Fact]
+    public async Task BandsThatOverlapOrLeaveAGap_AreRefusedOnSubmit_ARangeThatStillTilesIsAccepted_GAP043()
+    {
+        string[] permissions =
+        [
+            Insys.BuildingBlocks.Api.StaticData.StaticDataPermissions.Read, Insys.BuildingBlocks.Api.StaticData.StaticDataPermissions.Create,
+            Insys.BuildingBlocks.Api.StaticData.StaticDataPermissions.Update,
+        ];
+        await fixture.Database.UserWithPermissions(Tenant, "band-maker", permissions);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantB, "band-maker-b", permissions);
+        var maker = _factory.ClientFor(Tenant, "band-maker");
+
+        // Against [1,50), [50,200) and [200,): a new version of the top band with the same range is accepted; a band that
+        // overlaps them is refused.
+        (await Submit(maker, "LARGE", "[200,)")).ShouldBe("SUBMITTED");
+        (await Submit(maker, "OVERLAP", "[150,300)")).ShouldBe("LIFE_FREE_COVER_BANDS_INVALID");
+
+        // A band that leaves members below it uncovered is refused: bands are built up from 1 member.
+        (await Submit(_factory.ClientFor(DatabaseFixture.TenantB, "band-maker-b"), "B-HIGH", "[2000,)")).ShouldBe("LIFE_FREE_COVER_BANDS_INVALID");
+    }
+
+    private static async Task<string?> Submit(HttpClient maker, string code, string band)
+    {
+        const string url = "/api/v1/life/static/free-cover-limits";
+        var created = await maker.Send(HttpMethod.Post, url,
+            new { code, sizeBand = band, freeCoverLimit = 2_000_000m, evidenceAbove = "MEDICAL", effectiveFrom = Today.AddDays(1), changeReason = "Bands" }, idempotent: true);
+        created.StatusCode.ShouldBe(System.Net.HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        var version = (await created.Json()).GetProperty("version").GetInt32();
+        var submitted = await maker.Send(HttpMethod.Post, $"{url}/{code}/versions/{version}/submit", ifMatch: created.ETag());
+        var body = await submitted.Json();
+        return submitted.IsSuccessStatusCode ? body.GetProperty("recordStatus").GetString() : body.GetProperty("code").GetString();
+    }
+
     [Theory]
     [InlineData(49, 500_000)]
     [InlineData(50, 1_000_000)]

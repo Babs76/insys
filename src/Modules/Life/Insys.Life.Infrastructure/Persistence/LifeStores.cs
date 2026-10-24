@@ -150,6 +150,9 @@ internal sealed partial class LifeCodes(LifeDbContext db) : ILifeCodes
         (await InForce<UnderwritingDecisionCodes>(day).Select(c => new { c.Code, c.RequiresTerms }).ToListAsync(cancellationToken))
         .GroupBy(c => c.Code).ToDictionary(g => g.Key, g => g.First().RequiresTerms);
 
+    public Task<bool> PaysLumpSum(string benefitType, DateOnly day, CancellationToken cancellationToken) =>
+        InForce<LifeBenefitTypes>(day).AnyAsync(t => t.Code == benefitType && t.PayoutType == "LUMP_SUM", cancellationToken);
+
     public async Task<string?> ClaimBenefitType(string claimType, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<LifeClaimTypes>(day).Where(t => t.Code == claimType).Select(t => t.BenefitType).FirstOrDefaultAsync(cancellationToken);
 

@@ -366,7 +366,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await _maker.PostAsync($"/api/v1/general/claims/{claim}/register", null)).Json()).GetProperty("claimNumber").GetString().ShouldBe(number);
 
         // SetReserve (Claims Framework), posted.
-        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 50_000m, currency = "ZAR" }))
+        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 50_000m, currency = "ZAR", reason = "Assessed" }))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // AppointAssessor; the loss assessment is reported and accepted. The excess is the greater of 5 000 and 5 %.

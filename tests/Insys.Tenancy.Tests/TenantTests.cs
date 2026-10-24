@@ -35,7 +35,7 @@ public sealed class TenantTests
     private static readonly DateTimeOffset Now = new(2026, 10, 21, 12, 0, 0, TimeSpan.Zero);
     private static readonly Guid Operator = Guid.CreateVersion7();
 
-    private static Tenant Registered() => Tenant.RegisterTenant(Guid.CreateVersion7(), "ACME", "Acme", IsolationProfile.B, Now).Value;
+    private static Tenant Registered() => Tenant.RegisterTenant(Guid.CreateVersion7(), "ACME", "Acme", IsolationProfile.B, "Africa/Johannesburg", Now).Value;
 
     private static Tenant Active()
     {
@@ -56,7 +56,7 @@ public sealed class TenantTests
 
     [Fact]
     public void Tenant_IdentifierIsRequired_TEN001() =>
-        Tenant.RegisterTenant(Guid.Empty, "ACME", "Acme", IsolationProfile.A, Now).Error!.Code.ShouldBe(ErrorCodes.ValidationFailed);
+        Tenant.RegisterTenant(Guid.Empty, "ACME", "Acme", IsolationProfile.A, "Africa/Johannesburg", Now).Error!.Code.ShouldBe(ErrorCodes.ValidationFailed);
 
     [Fact]
     public void Activation_RequiresCompletedOnboarding_TEN008()

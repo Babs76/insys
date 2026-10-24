@@ -70,7 +70,7 @@ internal sealed class TenantQueries(TenancyDbContext db) : ITenantQueries
         }
 
         var rows = await query.OrderBy(t => t.Id).Take(limit).ToListAsync(cancellationToken);
-        return rows.Select(t => new TenantSummary(t.Id, t.TenantCode, t.LegalName, t.IsolationProfile.ToString(), t.Status, t.RowVersion)).ToList();
+        return rows.Select(t => new TenantSummary(t.Id, t.TenantCode, t.LegalName, t.IsolationProfile.ToString(), t.Status, t.RowVersion, t.TimeZone)).ToList();
     }
 
     public async Task<TenantDetail?> Get(Guid tenantId, CancellationToken cancellationToken)
@@ -83,7 +83,7 @@ internal sealed class TenantQueries(TenancyDbContext db) : ITenantQueries
                 tenant.Onboarding?.CurrentStep, tenant.Onboarding?.Status, OnboardingSteps.All,
                 tenant.StatusChanges.OrderBy(c => c.ChangedAt)
                     .Select(c => new StatusChangeView(c.FromStatus, c.ToStatus, c.Reason, c.ChangedBy, c.ChangedAt)).ToList(),
-                tenant.RowVersion);
+                tenant.RowVersion, tenant.TimeZone);
     }
 }
 
@@ -143,10 +143,13 @@ internal sealed class TenantLocaleDefaults([FromKeyedServices(TenancyDbContext.S
             set.ExecuteNonQuery();
         }
 
+        // The locale defaults in force, else the zone given at registration (ADR-025); null for a tenant with neither.
         using var command = new NpgsqlCommand("""
-            SELECT time_zone FROM tenant.cfg_locale_defaults
-            WHERE tenant_id = @t AND record_status = ANY(@statuses) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
-            ORDER BY version DESC LIMIT 1
+            SELECT coalesce(
+              (SELECT time_zone FROM tenant.cfg_locale_defaults
+               WHERE tenant_id = @t AND record_status = ANY(@statuses) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
+               ORDER BY version DESC LIMIT 1),
+              (SELECT time_zone FROM tenant.tenant WHERE id = @t))
             """, connection, transaction);
         command.Parameters.AddWithValue("t", tenantId);
         command.Parameters.AddWithValue("statuses", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce);
@@ -258,5 +261,37 @@ internal sealed class TenantProfiles([FromKeyedServices(TenancyDbContext.SchemaN
         command.Parameters.AddWithValue("id", tenantId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? new TenantProfile(tenantId, reader.GetString(0), reader.GetString(1), UpperCaseEnumConverter<TenantStatus>.FromCode(reader.GetString(2)).ToString()) : null;
+    }
+}
+
+/// <summary>
+/// /health check tenant-time-zones (ADR-025): Degraded while any tenant has no time zone (neither locale defaults nor one
+/// given at registration) and so runs on the default, Africa/Johannesburg; its data lists those tenants' codes to fix.
+/// </summary>
+internal sealed class TenantTimeZonesHealthCheck(TenantLocaleDefaults zones, [FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource)
+    : Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck
+{
+    public async Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthAsync(
+        Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        var missing = new List<string>();
+        await using (var command = dataSource.CreateCommand("SELECT id, tenant_code FROM tenant.tenant ORDER BY tenant_code"))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            var tenants = new List<(Guid Id, string Code)>();
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                tenants.Add((reader.GetGuid(0), reader.GetString(1)));
+            }
+
+            await reader.CloseAsync();
+            missing.AddRange(tenants.Where(t => string.IsNullOrWhiteSpace(zones.TimeZoneOf(t.Id))).Select(t => t.Code));
+        }
+
+        return missing.Count == 0
+            ? Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Every tenant has a time zone.")
+            : Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Degraded(
+                $"{missing.Count} tenant(s) have no time zone and use the default, Africa/Johannesburg (ADR-025): {string.Join(", ", missing.Take(20))}",
+                data: new Dictionary<string, object> { ["tenantsWithoutTimeZone"] = missing });
     }
 }

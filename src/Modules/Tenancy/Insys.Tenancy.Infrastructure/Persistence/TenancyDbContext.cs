@@ -62,6 +62,7 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
             tenant.Ignore(t => t.Onboarding);
             tenant.Property(t => t.TenantCode).HasMaxLength(10);
             tenant.Property(t => t.LegalName).HasMaxLength(150);
+            tenant.Property(t => t.TimeZone).HasMaxLength(50);
             tenant.Property(t => t.IsolationProfile).HasConversion<string>().HasColumnType("char(1)");
             tenant.Property(t => t.Status).HasConversion(new UpperCaseEnumConverter<TenantStatus>()).HasMaxLength(12);
             tenant.Property<DateTimeOffset>(UpdatedAt);

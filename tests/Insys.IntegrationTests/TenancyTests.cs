@@ -46,12 +46,43 @@ public sealed class TenancyTests(DatabaseFixture fixture) : IClassFixture<Databa
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
+    /// <summary>ADR-025: a new tenant needs an IANA time zone; its business dates follow it.</summary>
+    [Fact]
+    public async Task RegisterTenant_NeedsAnIanaTimeZone_ADR025()
+    {
+        var client = _factory.ClientFor(DatabaseFixture.Operator, OperatorAdmin);
+        foreach (var zone in new string?[] { null, "Mars/Olympus_Mons", "South Africa Standard Time" })
+        {
+            var refused = await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = "TZNONE", legalName = "No zone", isolationProfile = "A", timeZone = zone },
+                idempotent: true);
+            refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, zone);
+            if (zone is not null)
+            {
+                var errors = (await refused.Json()).GetProperty("errors");
+                errors.TryGetProperty("TimeZone", out _).ShouldBeTrue($"{zone}: {errors}");
+            }
+        }
+
+        var registered = await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants",
+            new { tenantCode = "TZNBO", legalName = "Nairobi Mutual", isolationProfile = "A", timeZone = "Africa/Nairobi" }, idempotent: true);
+        registered.StatusCode.ShouldBe(HttpStatusCode.Created, await registered.Content.ReadAsStringAsync());
+        var id = (await registered.Json()).GetProperty("id").GetGuid();
+        (await (await client.GetAsync($"/api/v1/tenancy/tenants/{id}")).Json()).GetProperty("timeZone").GetString().ShouldBe("Africa/Nairobi");
+
+        // Tenants without a time zone (registered before it was required) are listed on /health to be fixed; a new one is not.
+        var check = (await (await _factory.CreateClient().GetAsync("/health")).Json()).GetProperty("checks").GetProperty("tenant-time-zones");
+        check.GetProperty("status").GetString().ShouldBe("Degraded");
+        var missing = check.GetProperty("data").GetProperty("tenantsWithoutTimeZone").EnumerateArray().Select(t => t.GetString()).ToList();
+        missing.ShouldContain("TENA");
+        missing.ShouldNotContain("TZNBO");
+    }
+
     [Fact]
     public async Task Onboarding_ThenActivation_ThenSuspension_BlocksTheTenantsUsers_TEN008()
     {
         var client = _factory.ClientFor(DatabaseFixture.Operator, OperatorAdmin);
         var registered = await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants",
-            new { tenantCode = "ACME", legalName = "Acme Insurance Ltd", isolationProfile = "B" }, idempotent: true);
+            new { tenantCode = "ACME", legalName = "Acme Insurance Ltd", isolationProfile = "B", timeZone = "Africa/Johannesburg" }, idempotent: true);
         registered.StatusCode.ShouldBe(HttpStatusCode.Created);
         var tenantId = (await registered.Json()).GetProperty("id").GetGuid();
         var url = $"/api/v1/tenancy/tenants/{tenantId}";
@@ -106,7 +137,7 @@ public sealed class TenancyTests(DatabaseFixture fixture) : IClassFixture<Databa
         var client = _factory.ClientFor(DatabaseFixture.TenantA, "tenant-a-admin");
 
         (await client.GetAsync("/api/v1/tenancy/tenants")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = "EVIL", legalName = "Evil", isolationProfile = "A" }, idempotent: true))
+        (await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = "EVIL", legalName = "Evil", isolationProfile = "A", timeZone = "Africa/Johannesburg" }, idempotent: true))
             .StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
@@ -114,10 +145,10 @@ public sealed class TenancyTests(DatabaseFixture fixture) : IClassFixture<Databa
     public async Task TenantCode_IsUnique_TEN001()
     {
         var client = _factory.ClientFor(DatabaseFixture.Operator, OperatorAdmin);
-        (await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = "UNIQ", legalName = "One", isolationProfile = "A" }, idempotent: true))
+        (await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = "UNIQ", legalName = "One", isolationProfile = "A", timeZone = "Africa/Johannesburg" }, idempotent: true))
             .StatusCode.ShouldBe(HttpStatusCode.Created);
 
-        var second = await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = "UNIQ", legalName = "Two", isolationProfile = "A" }, idempotent: true);
+        var second = await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = "UNIQ", legalName = "Two", isolationProfile = "A", timeZone = "Africa/Johannesburg" }, idempotent: true);
 
         second.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await second.Code()).ShouldBe("TENANT_CODE_TAKEN");
@@ -127,7 +158,7 @@ public sealed class TenancyTests(DatabaseFixture fixture) : IClassFixture<Databa
     public async Task ChangeIsolationProfile_RequiresAnApprovedMigration()
     {
         var client = _factory.ClientFor(DatabaseFixture.Operator, OperatorAdmin);
-        var registered = await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = "MIGR", legalName = "Migrating", isolationProfile = "A" },
+        var registered = await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = "MIGR", legalName = "Migrating", isolationProfile = "A", timeZone = "Africa/Johannesburg" },
             idempotent: true);
         var url = $"/api/v1/tenancy/tenants/{(await registered.Json()).GetProperty("id").GetGuid()}";
 

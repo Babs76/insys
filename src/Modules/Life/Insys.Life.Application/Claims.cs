@@ -142,7 +142,7 @@ internal sealed class NotifyLifeClaimHandler(ILifeRepository life, ILifeCodes co
 /// open for the same benefit and event (CLM-005). Then the Claims Framework allocates the number.
 /// </summary>
 internal sealed class RegisterLifeClaimHandler(ILifeRepository life, ILifeCodes codes, IExclusionCodes exclusions, IClaimRegistry registry, ITenantContext tenant,
-    IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<RegisterLifeClaim, LifeClaimView>
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit, Microsoft.Extensions.Options.IOptions<LifeClaimOptions> options) : ICommandHandler<RegisterLifeClaim, LifeClaimView>
 {
     public async Task<Result<LifeClaimView>> Handle(RegisterLifeClaim command, CancellationToken cancellationToken)
     {
@@ -194,7 +194,18 @@ internal sealed class RegisterLifeClaimHandler(ILifeRepository life, ILifeCodes 
             ["cause_code"] = claim.CauseCode,
             ["sum_assured"] = benefit.Value.SumAssured,
         });
-        var registered = await registry.Register(LifeSubjectsDomain, claim.Id, policy.Id, facts, cancellationToken);
+        // OQ-079 (decided 24 October 2026): a lump-sum claim (death, or disability where the benefit is a fixed sum) starts
+        // with a reserve equal to the sum assured of each claimed cover: the insured life's benefits of that type in force on
+        // the event date. The assessor adjusts it with a reason. An income benefit starts with none.
+        InitialReserve? reserve = null;
+        if (await codes.PaysLumpSum(benefitType, businessDate.Today, cancellationToken))
+        {
+            var sumAssured = policy.Benefits.Where(b => b.InsuredLifeId == claim.InsuredLifeId && b.BenefitCode == benefitType && b.CoversOn(claim.EventDate))
+                .Sum(b => b.SumAssured);
+            reserve = new InitialReserve(options.Value.InitialReserveType, sumAssured, claim.Currency, $"Sum assured of the claimed {benefitType} cover (OQ-079)");
+        }
+
+        var registered = await registry.Register(LifeSubjectsDomain, claim.Id, policy.Id, facts, reserve, cancellationToken);
         if (!registered.Succeeded)
         {
             return Error.Validation(registered.ErrorCode ?? ErrorCodes.ValidationFailed, registered.ErrorMessage ?? "The claim number could not be allocated.");
@@ -206,6 +217,15 @@ internal sealed class RegisterLifeClaimHandler(ILifeRepository life, ILifeCodes 
     }
 
     private const string LifeSubjectsDomain = Contracts.LifeSubjects.SourceDomain;
+}
+
+public sealed class LifeClaimOptions
+{
+    /// <summary>
+    /// The Claims Framework reserve type a lump-sum claim's initial reserve is set on (OQ-079); approval then pays from it.
+    /// TODO(spec): the reserve type for Life benefits is not specified; INDEMNITY is the type the claims reserve types hold.
+    /// </summary>
+    public string InitialReserveType { get; set; } = "INDEMNITY";
 }
 
 internal sealed class AssessLifeClaimHandler(ILifeRepository life, IAuditTrail audit) : ICommandHandler<AssessLifeClaim, LifeClaimView>

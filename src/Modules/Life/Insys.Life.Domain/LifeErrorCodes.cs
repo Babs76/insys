@@ -33,6 +33,10 @@ public static class LifeErrorCodes
     [ErrorCode(422, "error.life.product_not_available")]
     public const string ProductNotAvailable = "LIFE_PRODUCT_NOT_AVAILABLE";
 
+    /// <summary>GAP-043: free cover bands that overlap or leave a gap.</summary>
+    [ErrorCode(422, "error.life.free_cover_bands_invalid")]
+    public const string FreeCoverBandsInvalid = "LIFE_FREE_COVER_BANDS_INVALID";
+
     [ErrorCode(422, "error.life.code_not_in_force")]
     public const string CodeNotInForce = "LIFE_CODE_NOT_IN_FORCE";
 

@@ -122,6 +122,9 @@ public interface ILifeCodes
     /// <summary>The benefit type a claim type pays (life.ref_life_claim_types).</summary>
     Task<string?> ClaimBenefitType(string claimType, DateOnly day, CancellationToken cancellationToken);
 
+    /// <summary>Whether a benefit type pays a lump sum (life.ref_life_benefit_types payout_type LUMP_SUM), rather than an income.</summary>
+    Task<bool> PaysLumpSum(string benefitType, DateOnly day, CancellationToken cancellationToken);
+
     Task<LoanRule?> LoanRule(string productCode, DateOnly day, CancellationToken cancellationToken);
 
     Task<MemberCategoryDefinition?> MemberCategory(string schemeNumber, string categoryCode, DateOnly day, CancellationToken cancellationToken);

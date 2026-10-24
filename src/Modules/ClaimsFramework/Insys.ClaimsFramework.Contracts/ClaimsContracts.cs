@@ -89,6 +89,12 @@ public sealed record ClaimPaymentReleaseHeld(Guid InstructionId, string ClaimNum
 public sealed record ClaimPaymentCompleted(Guid InstructionId, Guid MovementId, string ClaimNumber, string Domain, string ReserveType, decimal Amount, string Currency,
     DateOnly PaidOn) : IIntegrationEvent;
 
+/// <summary>
+/// The reserve a claim starts with, set at registration (OQ-079: a Life lump-sum claim's reserve is the sum assured of each
+/// claimed cover). The assessor adjusts it afterwards with a reason.
+/// </summary>
+public sealed record InitialReserve(string ReserveType, decimal Amount, string Currency, string Basis);
+
 /// <summary>The outcome of registering a domain claim: its claim number, or why it could not be allocated.</summary>
 public sealed record ClaimRegistrationResult(bool Succeeded, string? ClaimNumber, string? ErrorCode, string? ErrorMessage);
 
@@ -100,4 +106,8 @@ public sealed record ClaimRegistrationResult(bool Succeeded, string? ClaimNumber
 public interface IClaimRegistry
 {
     Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, System.Text.Json.JsonElement fraudFacts, CancellationToken cancellationToken);
+
+    /// <summary>As <see cref="Register(string, Guid, Guid, System.Text.Json.JsonElement, CancellationToken)"/>, with the reserve the claim starts with (OQ-079).</summary>
+    Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, System.Text.Json.JsonElement fraudFacts, InitialReserve? initialReserve,
+        CancellationToken cancellationToken);
 }

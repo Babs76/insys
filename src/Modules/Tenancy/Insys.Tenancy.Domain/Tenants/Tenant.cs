@@ -179,6 +179,12 @@ public sealed class Tenant : AggregateRoot<Guid>
 
     public IsolationProfile IsolationProfile { get; private set; }
 
+    /// <summary>
+    /// The tenant's IANA time zone, required at registration (ADR-025): its business dates follow it until its locale
+    /// defaults set one. Null only for tenants registered before it was required.
+    /// </summary>
+    public string? TimeZone { get; private set; }
+
     public TenantStatus Status { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -188,7 +194,7 @@ public sealed class Tenant : AggregateRoot<Guid>
     public IReadOnlyList<StatusChange> StatusChanges => _statusChanges;
 
     /// <summary>Command RegisterTenant: the tenant starts onboarding (TEN-008).</summary>
-    public static Result<Tenant> RegisterTenant(Guid tenantId, string tenantCode, string legalName, IsolationProfile profile, DateTimeOffset now)
+    public static Result<Tenant> RegisterTenant(Guid tenantId, string tenantCode, string legalName, IsolationProfile profile, string timeZone, DateTimeOffset now)
     {
         if (tenantId == Guid.Empty)
         {
@@ -201,6 +207,7 @@ public sealed class Tenant : AggregateRoot<Guid>
             TenantCode = Guard.MaxLength(Guard.NotNullOrWhiteSpace(tenantCode), 10),
             LegalName = Guard.MaxLength(Guard.NotNullOrWhiteSpace(legalName), 150),
             IsolationProfile = profile,
+            TimeZone = Guard.MaxLength(Guard.NotNullOrWhiteSpace(timeZone), 50),
             Status = TenantStatus.Onboarding,
             CreatedAt = now,
         };

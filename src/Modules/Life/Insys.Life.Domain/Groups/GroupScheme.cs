@@ -91,7 +91,11 @@ public sealed class GroupMember : Entity<Guid>, ITenantScoped
 
     internal static GroupMember Create(Guid schemeId, Guid partyId, DateOnly joinedOn) => new() { Id = Guid.CreateVersion7(), SchemeId = schemeId, PartyId = partyId, JoinedOn = joinedOn };
 
-    /// <summary>Cover is salary × multiple; above the free cover limit it needs underwriting evidence (accepted evidence stays accepted unless cover rises).</summary>
+    /// <summary>
+    /// Cover is salary × multiple; above the free cover limit it needs underwriting evidence (accepted evidence stays
+    /// accepted unless cover rises). Fail safe: with no limit (the scheme's size matches no band, or the band is not in
+    /// force) any cover needs evidence; never "no limit".
+    /// </summary>
     internal void Set(MemberCategory category, decimal? salary, decimal? freeCoverLimit)
     {
         var cover = Math.Round((salary ?? 0) * category.BenefitMultiple, 2, MidpointRounding.AwayFromZero);
@@ -100,7 +104,7 @@ public sealed class GroupMember : Entity<Guid>, ITenantScoped
         AnnualSalary = salary;
         CoverAmount = cover;
         FreeCoverLimit = freeCoverLimit;
-        if (freeCoverLimit is null || cover <= freeCoverLimit)
+        if (cover == 0 || (freeCoverLimit is { } limit && cover <= limit))
         {
             EvidenceStatus = Groups.EvidenceStatus.NotRequired;
         }

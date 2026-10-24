@@ -274,7 +274,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
             new { domain = "GENERAL", domainClaimId = Guid.CreateVersion7(), policyRef = Guid.CreateVersion7() })).Json();
         var number = claim.GetProperty("claimNumber").GetString()!;
         number.ShouldStartWith("GEN-");
-        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 1000m, currency = "ZAR" }))
+        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 1000m, currency = "ZAR", reason = "Assessed" }))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var payee = await _maker.RegisterPerson("Claimant");
@@ -323,7 +323,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
     {
         var number = (await (await _maker.PostAsJsonAsync("/api/v1/claims/claims",
             new { domain = "GENERAL", domainClaimId = Guid.CreateVersion7(), policyRef = Guid.CreateVersion7() })).Json()).GetProperty("claimNumber").GetString()!;
-        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 100m, currency = "ZAR" }))
+        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 100m, currency = "ZAR", reason = "Assessed" }))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
         var payee = await _maker.RegisterPerson("Held Payee");
         var bankAccount = await _maker.AddVerifiedBankAccount(_checker, _factory, payee, "62000888801");
@@ -347,7 +347,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
             WHERE p.process_code = 'CLAIM_PAYMENT_HELD' AND p.business_ref_id = @i AND t.status = 'OPEN'
             """, ("i", id))).ShouldBe("CLAIMS_MANAGER");
 
-        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 500m, currency = "ZAR" }))
+        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 500m, currency = "ZAR", reason = "Assessed" }))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _maker.PostAsync($"/api/v1/claims/payment-instructions/{id}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var released = await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{id}")).Json();

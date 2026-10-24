@@ -41,7 +41,8 @@ namespace Insys.ClaimsFramework.Api;
 
 public sealed record EvidenceRequest(string EvidenceType, Guid? DocumentId);
 
-public sealed record ReserveRequest(ReserveAction Action, string ReserveType, decimal Amount, string Currency);
+/// <param name="Reason">Why the reserve moves; required (OQ-079: an assessor adjusts a claim's reserve with a reason).</param>
+public sealed record ReserveRequest(ReserveAction Action, string ReserveType, decimal Amount, string Currency, string Reason);
 
 public sealed record DraftInstructionRequest(string InstructionRef, Guid PayeePartyId, Guid BankAccountId, decimal Amount, decimal ApprovedAmount, string Currency,
     string ReserveType);
@@ -117,10 +118,10 @@ public sealed class ClaimsFrameworkModule : IModule
             .RequirePermission(ClaimsPermissions.FinancialsRead);
 
         claims.MapPost("/claims/{claimNumber}/reserves", async (string claimNumber, ReserveRequest r, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new MoveReserve(claimNumber, r.Action, r.ReserveType, r.Amount, r.Currency), ct)).ToHttp(Results.Ok))
+                (await dispatcher.Send(new MoveReserve(claimNumber, r.Action, r.ReserveType, r.Amount, r.Currency, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<FinancialsView>(StatusCodes.Status200OK)
             .WithName("ClaimsMoveReserve")
-            .WithSummary("Set or change a reserve, or record a recovery; a reserve never goes below zero")
+            .WithSummary("Set or change a reserve, or record a recovery, with a reason; a reserve never goes below zero")
             .RequirePermission(ClaimsPermissions.FinancialsUpdate);
 
         claims.MapPost("/claims/{claimNumber}/payment-instructions", async (string claimNumber, DraftInstructionRequest r, IDispatcher dispatcher, CancellationToken ct) =>
