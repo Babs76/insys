@@ -66,7 +66,9 @@ public sealed record RegisterTenant(Guid TenantId, string TenantCode, string Leg
     public Guid TargetTenantId => TenantId;
 }
 
-public sealed record CompleteOnboardingStep(Guid TenantId, string Step, long ExpectedVersion) : ICommand<long>, ITargetTenantRequest, IVersionedCommand
+/// <param name="Attestations">Waivers or evidence for the step's checks that allow them (onboarding readiness §2), recorded before the checks run.</param>
+public sealed record CompleteOnboardingStep(Guid TenantId, string Step, long ExpectedVersion, IReadOnlyList<OnboardingAttestationRequest>? Attestations = null)
+    : ICommand<long>, ITargetTenantRequest, IVersionedCommand
 {
     public Guid TargetTenantId => TenantId;
 }
@@ -131,8 +133,15 @@ public sealed class ChangeTenantStatusValidator : AbstractValidator<ChangeTenant
 
 public sealed class CompleteOnboardingStepValidator : AbstractValidator<CompleteOnboardingStep>
 {
-    public CompleteOnboardingStepValidator() => RuleFor(c => c.Step).NotEmpty().Must(s => OnboardingSteps.All.Contains(s))
-        .WithMessage($"step must be one of: {string.Join(", ", OnboardingSteps.All)}.");
+    public CompleteOnboardingStepValidator()
+    {
+        RuleFor(c => c.Step).NotEmpty().Must(s => OnboardingSteps.All.Contains(s)).WithMessage($"step must be one of: {string.Join(", ", OnboardingSteps.All)}.");
+        RuleForEach(c => c.Attestations).ChildRules(a =>
+        {
+            a.RuleFor(x => x.Check).NotEmpty().MaximumLength(30);
+            a.RuleFor(x => x.Note).NotEmpty().MaximumLength(500);
+        });
+    }
 }
 
 internal static class Operator
@@ -189,8 +198,8 @@ internal sealed class RegisterTenantHandler(ITenantRepository tenants, IExecutio
     }
 }
 
-internal sealed class CompleteOnboardingStepHandler(ITenantRepository tenants, IExecutionContext execution, IClock clock, IAuditTrail audit)
-    : ICommandHandler<CompleteOnboardingStep, long>
+internal sealed class CompleteOnboardingStepHandler(ITenantRepository tenants, OnboardingReadiness readiness, IExecutionContext execution, IClock clock,
+    IAuditTrail audit) : ICommandHandler<CompleteOnboardingStep, long>
 {
     public async Task<Result<long>> Handle(CompleteOnboardingStep command, CancellationToken cancellationToken)
     {
@@ -204,6 +213,25 @@ internal sealed class CompleteOnboardingStepHandler(ITenantRepository tenants, I
         if (tenant.IsFailure)
         {
             return tenant.Error;
+        }
+
+        foreach (var attestation in command.Attestations ?? [])
+        {
+            var attested = tenant.Value.AttestOnboarding(attestation.Check, attestation.Note, operatorId.Value, clock.UtcNow);
+            if (attested.IsFailure)
+            {
+                return attested.Error;
+            }
+
+            audit.Record(new AuditEntry("TENANT", "AttestOnboardingCheck", nameof(Tenant), command.TenantId.ToString(),
+                new Dictionary<string, string?> { ["check"] = attestation.Check }));
+        }
+
+        // Onboarding readiness: the current step's checks must all be ready (a step out of order is refused by the domain).
+        if (tenant.Value.Onboarding is { IsCompleted: false } onboarding && onboarding.CurrentStep == command.Step
+            && OnboardingReadiness.NotReady(await readiness.For(tenant.Value, cancellationToken), command.Step) is { } notReady)
+        {
+            return notReady;
         }
 
         audit.Record(new AuditEntry("TENANT", "CompleteOnboardingStep", nameof(Tenant), command.TenantId.ToString(),

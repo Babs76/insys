@@ -80,6 +80,23 @@ public static class GeneralInfrastructure
         services.AddSingleton<GeneralPortalRelations>(); // external-user access §2: other modules' portal reads
         services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations>(sp => sp.GetRequiredService<GeneralPortalRelations>());
         services.AddSingleton<BuildingBlocks.Application.Context.IBrokeredPolicies>(sp => sp.GetRequiredService<GeneralPortalRelations>());
+        // Onboarding readiness DOMAIN_CODES: once the tenant sets GENERAL up (its numbering scheme), its own reference data is in force too.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.GeneralDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        {
+            var missing = new List<string>();
+            if (await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, $"SELECT count(*) FROM general.cfg_policy_numbering_schemes WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                    ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day)) > 0)
+            {
+            if (await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, $"SELECT count(*) FROM general.cfg_cancellation_reasons_and_refund_rules WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                    ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day)) == 0)
+            {
+                missing.Add("general.cfg_cancellation_reasons_and_refund_rules");
+            }
+            }
+
+            return [BuildingBlocks.Application.ReadinessResult.Of("DOMAIN_REFERENCE_DATA", "DOMAIN_CODES",
+                "Each domain the tenant sets up has its own reference data: Life claim and benefit types, General cancellation reasons, Health plans", missing)];
+        });
         return services;
     }
 }

@@ -97,6 +97,25 @@ public sealed class OnboardingCase : Entity<Guid>, ITenantScoped
 
     public bool IsCompleted => Status == "COMPLETED";
 
+    /// <summary>The waivers and evidence recorded so far, as JSON (tenant.onboarding_case.attestations).</summary>
+    public string AttestationsJson { get; private set; } = "[]";
+
+    public IReadOnlyList<OnboardingAttestation> Attestations =>
+        System.Text.Json.JsonSerializer.Deserialize<List<OnboardingAttestation>>(AttestationsJson, System.Text.Json.JsonSerializerOptions.Web) ?? [];
+
+    internal Result Attest(string check, string note, Guid by, DateTimeOffset now)
+    {
+        if (!OnboardingAttestation.Allowed.TryGetValue(check, out var allowed) || allowed.Step != CurrentStep || IsCompleted)
+        {
+            return Error.Validation(TenancyErrorCodes.AttestationNotAllowed,
+                $"{check} cannot be recorded here: waivers are for TREATIES and WEBHOOKS_OR_NONE, evidence for SMOKE_RUN, each in its own step.");
+        }
+
+        var recorded = Attestations.Where(a => a.Check != check).Append(new OnboardingAttestation(allowed.Step, check, allowed.Kind, Guard.MaxLength(note, 500), by, now));
+        AttestationsJson = System.Text.Json.JsonSerializer.Serialize(recorded, System.Text.Json.JsonSerializerOptions.Web);
+        return Result.Success();
+    }
+
     internal static OnboardingCase Start(Guid tenantId, DateTimeOffset now) =>
         new() { Id = Guid.CreateVersion7(), TenantId = tenantId, StartedAt = now };
 
@@ -125,6 +144,20 @@ public sealed class OnboardingCase : Entity<Guid>, ITenantScoped
 
         return Result.Success();
     }
+}
+
+/// <summary>
+/// A waiver ("no reinsurance", "no webhooks", with a reason) or evidence (the end-to-end run's reference) the operator
+/// records for a check instead of configuration (onboarding readiness §2).
+/// </summary>
+public sealed record OnboardingAttestation(string Step, string Check, string Kind, string Note, Guid By, DateTimeOffset At)
+{
+    public static readonly IReadOnlyDictionary<string, (string Step, string Kind)> Allowed = new Dictionary<string, (string, string)>
+    {
+        ["TREATIES"] = ("REINSURANCE", "WAIVER"),
+        ["WEBHOOKS_OR_NONE"] = ("INTEGRATION_AND_REPORTING", "WAIVER"),
+        ["SMOKE_RUN"] = ("END_TO_END_TESTS", "EVIDENCE"),
+    };
 }
 
 /// <summary>Entity StatusChange (tenant.tenant_status_history): every status change with its reason.</summary>
@@ -215,6 +248,23 @@ public sealed class Tenant : AggregateRoot<Guid>
         tenant._onboardingCases.Add(OnboardingCase.Start(tenantId, now));
         tenant.MarkChanged();
         return tenant;
+    }
+
+    /// <summary>Records a waiver or evidence for a check of the current onboarding step (onboarding readiness §2).</summary>
+    public Result AttestOnboarding(string check, string note, Guid by, DateTimeOffset now)
+    {
+        if (Status != TenantStatus.Onboarding || Onboarding is null)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a tenant in onboarding has onboarding steps.");
+        }
+
+        var result = Onboarding.Attest(check, note, by, now);
+        if (result.IsSuccess)
+        {
+            MarkChanged();
+        }
+
+        return result;
     }
 
     /// <summary>Completes the current onboarding step (TEN-008). Proposed command; see OQ-029.</summary>
@@ -320,4 +370,10 @@ public static class TenancyErrorCodes
 
     [ErrorCode(409, "error.tenancy.code_taken")]
     public const string TenantCodeTaken = "TENANT_CODE_TAKEN";
+
+    [ErrorCode(422, "error.tenancy.onboarding_step_not_ready")]
+    public const string OnboardingStepNotReady = "ONBOARDING_STEP_NOT_READY";
+
+    [ErrorCode(422, "error.tenancy.attestation_not_allowed")]
+    public const string AttestationNotAllowed = "ONBOARDING_ATTESTATION_NOT_ALLOWED";
 }

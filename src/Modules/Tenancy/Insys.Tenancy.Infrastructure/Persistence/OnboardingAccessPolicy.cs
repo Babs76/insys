@@ -35,11 +35,13 @@ namespace Insys.Tenancy.Infrastructure.Persistence;
 
 /// <summary>
 /// Tenancy's policy for a new tenant's first administrator (OQ-067): the ORGANISATION_AND_ACCESS onboarding step is
-/// complete once the tenant has an administrator, if it is the current step. Otherwise the step is left to the
-/// operator (CompleteOnboardingStep), since steps are completed in order. The event arrives in the operator tenant;
-/// the onboarding case is the new tenant's, so it is changed as that tenant.
+/// completed when the tenant has an administrator, it is the current step, and the step's other readiness checks pass
+/// (roles, organisation structure, authentication policy, channels). Otherwise the step is left to the operator
+/// (CompleteOnboardingStep). The event arrives in the operator tenant; the onboarding case is the new tenant's, so it
+/// is changed as that tenant.
 /// </summary>
-public sealed class OnboardingAccessPolicy(TenancyDbContext db, ITenantRepository tenants, IClock clock, ILogger<OnboardingAccessPolicy> logger)
+public sealed class OnboardingAccessPolicy(TenancyDbContext db, ITenantRepository tenants, OnboardingReadiness readiness, IClock clock,
+    ILogger<OnboardingAccessPolicy> logger)
     : IIntegrationEventHandler<TenantAdministratorProvisioned>
 {
     public const string Step = "ORGANISATION_AND_ACCESS";
@@ -49,6 +51,13 @@ public sealed class OnboardingAccessPolicy(TenancyDbContext db, ITenantRepositor
         {
             if (await tenants.Get(provisioned.TargetTenantId, cancellationToken) is not { } tenant)
             {
+                return;
+            }
+
+            if (tenant.Onboarding?.CurrentStep == Step && OnboardingReadiness.NotReady(await readiness.For(tenant, cancellationToken), Step) is { } notReady)
+            {
+                logger.LogInformation("Tenant {TenantId} has its first administrator; {Step} is left to the operator: {Reason}",
+                    provisioned.TargetTenantId, Step, notReady.Message);
                 return;
             }
 

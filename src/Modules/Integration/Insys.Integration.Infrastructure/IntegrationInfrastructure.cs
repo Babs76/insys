@@ -91,6 +91,10 @@ public static class IntegrationInfrastructure
         {
             services.AddHostedService<WebhookJobsService>();
         }
+        // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.IntegrationDbContext.SchemaName, IntegrationStaticData.Descriptors,
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("INTEGRATION_AND_REPORTING", "WEBHOOKS_OR_NONE", "integration.cfg_webhook_subscriptions", "Webhook subscriptions, or none recorded with a reason"));
+        services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, Channels.ChannelReadiness>();
         return services;
     }
 }

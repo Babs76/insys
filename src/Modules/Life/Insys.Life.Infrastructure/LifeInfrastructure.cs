@@ -85,6 +85,28 @@ public static class LifeInfrastructure
         services.AddSingleton<LifePortalRelations>(); // external-user access §2: other modules' portal reads
         services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations>(sp => sp.GetRequiredService<LifePortalRelations>());
         services.AddSingleton<BuildingBlocks.Application.Context.IBrokeredPolicies>(sp => sp.GetRequiredService<LifePortalRelations>());
+        // Onboarding readiness DOMAIN_CODES: once the tenant sets LIFE up (its numbering scheme), its own reference data is in force too.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.LifeDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        {
+            var missing = new List<string>();
+            if (await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, $"SELECT count(*) FROM life.cfg_policy_numbering_schemes WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                    ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day)) > 0)
+            {
+            if (await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, $"SELECT count(*) FROM life.ref_life_claim_types WHERE (tenant_id = @t OR tenant_id IS NULL) AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                    ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Reference.InForce), ("day", context.Day)) == 0)
+            {
+                missing.Add("life.ref_life_claim_types");
+            }
+            if (await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, $"SELECT count(*) FROM life.ref_life_benefit_types WHERE (tenant_id = @t OR tenant_id IS NULL) AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                    ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Reference.InForce), ("day", context.Day)) == 0)
+            {
+                missing.Add("life.ref_life_benefit_types");
+            }
+            }
+
+            return [BuildingBlocks.Application.ReadinessResult.Of("DOMAIN_REFERENCE_DATA", "DOMAIN_CODES",
+                "Each domain the tenant sets up has its own reference data: Life claim and benefit types, General cancellation reasons, Health plans", missing)];
+        });
         return services;
     }
 }

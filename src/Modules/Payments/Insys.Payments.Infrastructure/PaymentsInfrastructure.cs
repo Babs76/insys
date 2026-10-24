@@ -72,6 +72,38 @@ public static class PaymentsInfrastructure
             services.AddHostedService<PaymentJobsService>();
         }
 
+        // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.PaymentsDbContext.SchemaName, PaymentsStaticData.Descriptors,
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PAYMENTS_AND_DISTRIBUTION", "TENANT_BANK_ACCOUNT", "payment.mst_tenant_bank_accounts", "A tenant bank account"));
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.PaymentsDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        {
+            var reference = BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Reference.InForce;
+            var currency = context.BaseCurrency ?? "";
+            var directions = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction,
+                $"SELECT DISTINCT direction FROM payment.ref_payment_methods WHERE (tenant_id = @t OR tenant_id IS NULL) AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce} AND @currency = ANY(currencies)",
+                ct, ("t", context.TenantId), ("inForce", reference), ("day", context.Day), ("currency", currency));
+            var methods = new List<string>();
+            if (!directions.Contains("COLLECT") && !directions.Contains("BOTH")) methods.Add($"a COLLECT method in {(currency.Length > 0 ? currency : "the base currency")}");
+            if (!directions.Contains("PAY") && !directions.Contains("BOTH")) methods.Add($"a PAY method in {(currency.Length > 0 ? currency : "the base currency")}");
+            var providers = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,
+                $"SELECT count(*) FROM payment.mst_payment_provider_and_bank_register WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                ("t", context.TenantId), ("inForce", reference), ("day", context.Day));
+            var mappings = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,
+                $"SELECT count(*) FROM payment.ref_payment_status_mappings WHERE (tenant_id = @t OR tenant_id IS NULL) AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                ("t", context.TenantId), ("inForce", reference), ("day", context.Day));
+            var endpoints = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,
+                "SELECT count(*) FROM payment.callback_endpoint WHERE tenant_id = @t AND status = 'ACTIVE'", ct, ("t", context.TenantId));
+            var provider = new List<string>();
+            if (providers == 0) provider.Add("payment.mst_payment_provider_and_bank_register");
+            if (mappings == 0) provider.Add("payment.ref_payment_status_mappings");
+            if (endpoints == 0) provider.Add("a callback endpoint (ADR-023)");
+            return
+            [
+                BuildingBlocks.Application.ReadinessResult.Of("PAYMENTS_AND_DISTRIBUTION", "PAYMENT_METHODS", "A collect and a pay method in the base currency", methods),
+                BuildingBlocks.Application.ReadinessResult.Of("PAYMENTS_AND_DISTRIBUTION", "PAYMENT_PROVIDER",
+                    "A payment provider with status mappings, and a callback endpoint issued", provider),
+            ];
+        });
         return services;
     }
 }

@@ -79,3 +79,9 @@ public interface IProductDomains
 {
     Task<IReadOnlyDictionary<string, string>> DomainsOf(Guid tenantId, IReadOnlyCollection<string> productCodes, CancellationToken cancellationToken);
 }
+
+/// <summary>The product versions published and sellable in a tenant on a day (onboarding readiness PRODUCT_FACTORY, RATING).</summary>
+public interface IPublishedProducts
+{
+    Task<IReadOnlyList<(string ProductCode, int Version)>> Sellable(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+}

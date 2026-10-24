@@ -72,6 +72,29 @@ public static class FinanceInfrastructure
         services.AddIntegrationEventHandler<Reinsurance.Contracts.RecoverySettled, PostingPolicies, FinanceDbContext>(schema, "RecoverySettled");
         services.AddIntegrationEventHandler<ApprovalGranted, PeriodReopenPolicy, FinanceDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, PeriodReopenPolicy, FinanceDbContext>(schema, "ApprovalRejected");
+        // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.FinanceDbContext.SchemaName, FinanceStaticData.Descriptors,
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("FINANCIAL_FOUNDATIONS", "CHART_OF_ACCOUNTS", "finance.mst_chart_of_accounts", "At least one account in the chart of accounts"),
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("INTEGRATION_AND_REPORTING", "GL_EXPORT_LAYOUT", "finance.cfg_gl_export_layouts", "A GL export layout (F055)"));
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.FinanceDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        {
+            // The transaction types every tenant's business raises (onboarding readiness §2, "only those used", proposed).
+            string[] used = [Contracts.TransactionTypes.PremiumDue, Contracts.TransactionTypes.PaymentReceived, Contracts.TransactionTypes.RefundPaid,
+                Contracts.TransactionTypes.ClaimReserveIncrease, Contracts.TransactionTypes.ClaimReserveDecrease, Contracts.TransactionTypes.ClaimPaid];
+            var ruled = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction,
+                $"SELECT DISTINCT transaction_type FROM finance.cfg_posting_rules WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day));
+            var open = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,
+                "SELECT count(*) FROM finance.accounting_period WHERE tenant_id = @t AND status = 'OPEN' AND start_date <= @day AND end_date >= @day", ct,
+                ("t", context.TenantId), ("day", context.Day));
+            return
+            [
+                BuildingBlocks.Application.ReadinessResult.Of("FINANCIAL_FOUNDATIONS", "POSTING_RULES",
+                    "A posting rule for premium due, payment received, refund paid, claim reserve up and down, and claim paid", used.Except(ruled).ToList()),
+                BuildingBlocks.Application.ReadinessResult.Of("FINANCIAL_FOUNDATIONS", "OPEN_PERIOD", "An accounting period open on the business date",
+                    open > 0 ? [] : [$"finance.accounting_period open on {context.Day:yyyy-MM-dd}"]),
+            ];
+        });
         return services;
     }
 }

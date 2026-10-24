@@ -43,7 +43,8 @@ public sealed record RegisterTenantRequest(string TenantCode, string LegalName, 
 
 public sealed record TenantStatusRequest(string Reason);
 
-public sealed record OnboardingStepRequest(string Step);
+/// <param name="Attestations">Waivers (TREATIES, WEBHOOKS_OR_NONE: the reason) or evidence (SMOKE_RUN: the run's reference) for this step's checks.</param>
+public sealed record OnboardingStepRequest(string Step, IReadOnlyList<OnboardingAttestationRequest>? Attestations = null);
 
 public sealed record IsolationProfileRequest(IsolationProfile IsolationProfile, string ApprovedMigrationRef);
 
@@ -110,13 +111,23 @@ public sealed class TenancyModule : IModule
             .RequirePlatformPermission(TenancyPermissions.Read);
 
         tenants.MapPost("/{id:guid}/complete-onboarding-step", (Guid id, OnboardingStepRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
-                Versioned(http, version => dispatcher.Send(new CompleteOnboardingStep(id, request.Step, version), ct)))
+                Versioned(http, version => dispatcher.Send(new CompleteOnboardingStep(id, request.Step, version, request.Attestations), ct)))
             .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .RequireIfMatch()
             .WithName("CompleteOnboardingStep")
-            .WithSummary("Complete the current onboarding step")
-            .WithDescription("Steps follow the tenant load sequence in order; activation needs them all (TEN-008).")
+            .WithSummary("Complete the current onboarding step, once its readiness checks pass")
+            .WithDescription("Steps follow the tenant load sequence in order; activation needs them all (TEN-008). The step's checks run in the tenant on its "
+                + "business date; if any is not ready the step is refused with ONBOARDING_STEP_NOT_READY, whose errors name each check and what is missing, "
+                + "and nothing changes. attestations record a waiver for TREATIES or WEBHOOKS_OR_NONE, or the end-to-end run's reference for SMOKE_RUN.")
             .RequirePlatformPermission(TenancyPermissions.Update);
+
+        tenants.MapGet("/{id:guid}/readiness", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetTenantReadiness(id), ct)).ToHttp(Results.Ok))
+            .Produces<TenantReadinessView>(StatusCodes.Status200OK)
+            .WithName("GetTenantReadiness")
+            .WithSummary("Every onboarding step's readiness checks and their results, without completing anything (onboarding readiness)")
+            .RequirePlatformPermission(TenancyPermissions.Read);
 
         MapStatus(tenants, "activate", TenantStatusAction.Activate, "Activate a tenant whose onboarding is complete");
         MapStatus(tenants, "suspend", TenantStatusAction.Suspend, "Suspend a tenant; its users can no longer act");

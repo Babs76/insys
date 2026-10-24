@@ -64,6 +64,16 @@ public static class DocumentsInfrastructure
         services.AddIntegrationEventHandler<Life.Contracts.LifePolicyIssued, LifeDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "LifePolicyIssued");
         services.AddIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased, HealthDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName,
             "ProviderPaymentRunReleased");
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.DocumentsDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        {
+            var language = context.DefaultLanguage ?? "";
+            var templates = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,
+                $"SELECT count(*) FROM document.cfg_document_templates WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce} AND (@language = '' OR trim(language) = @language)",
+                ct, ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day),
+                ("language", language));
+            return [BuildingBlocks.Application.ReadinessResult.Of("SHARED_OPERATIONAL_SETUP", "DOCUMENT_TEMPLATES", "A document template in the default language",
+                templates > 0 ? [] : [$"document.cfg_document_templates ({(language.Length > 0 ? language : "no default language set")})"])];
+        });
         return services;
     }
 }

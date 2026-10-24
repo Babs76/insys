@@ -100,9 +100,12 @@ public sealed class TenancyTests(DatabaseFixture fixture) : IClassFixture<Databa
         (await outOfOrder.Code()).ShouldBe("ONBOARDING_STEP_OUT_OF_ORDER");
 
         var etag = tenant.ETag();
-        foreach (var step in body.GetProperty("onboardingSteps").EnumerateArray().Select(s => s.GetString()))
+        await fixture.Database.SeedReadyTenant(tenantId, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30));
+        var admin = await fixture.Database.UserWithPermissions(tenantId, "acme-admin", IntegrationPermissions.DeadLetterRead);
+        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET role_code = 'TENANT_ADMIN' WHERE user_id = @u", ("u", admin));
+        foreach (var step in body.GetProperty("onboardingSteps").EnumerateArray().Select(s => s.GetString()!))
         {
-            var completed = await client.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", new { step }, ifMatch: etag);
+            var completed = await client.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", OnboardingSeed.StepBody(step), ifMatch: etag);
             completed.StatusCode.ShouldBe(HttpStatusCode.NoContent);
             etag = completed.ETag();
         }

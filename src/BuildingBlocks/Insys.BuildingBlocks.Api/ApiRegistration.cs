@@ -116,6 +116,7 @@ public static class ApiRegistration
             (options, config, environment) => options.AddPolicy(DevelopmentCors.Policy, policy => DevelopmentCors.Configure(policy, config, environment)));
         services.AddHostedService<DevelopmentCorsGuard>();
         services.AddSingleton<EndpointWarmup>();
+        services.AddSingleton<Application.Context.IChannelScopedTransactions, EndpointChannelScopedTransactions>();
         services.AddHealthChecks().AddCheck<EndpointWarmupHealthCheck>("endpoints", tags: ["ready"]);
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme).Configure<IConfiguration, IHostEnvironment>((options, config, environment) =>
         {

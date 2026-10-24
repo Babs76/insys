@@ -51,6 +51,10 @@ public static class ReinsuranceInfrastructure
         services.AddIntegrationEventHandler<LifePolicyIssued, ReinsurancePolicies, ReinsuranceDbContext>(schema, "LifePolicyIssued");
         services.AddIntegrationEventHandler<GeneralClaimSettled, ReinsurancePolicies, ReinsuranceDbContext>(schema, "GeneralClaimSettled");
         services.AddIntegrationEventHandler<LifeClaimSettled, ReinsurancePolicies, ReinsuranceDbContext>(schema, "LifeClaimSettled");
+        // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.ReinsuranceDbContext.SchemaName, ReinsuranceStaticData.Descriptors,
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("REINSURANCE", "TREATIES", "reinsurance.cfg_treaty_definitions", "Treaties and cession rules, or no reinsurance recorded with a reason"),
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("REINSURANCE", "TREATIES", "reinsurance.cfg_cession_rules", "Treaties and cession rules, or no reinsurance recorded with a reason"));
         return services;
     }
 }

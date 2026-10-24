@@ -93,3 +93,12 @@ public sealed record SubjectLinkChanged(Guid UserId) : IIntegrationEvent;
 /// </summary>
 [IntegrationEvent("iam.TenantAdministratorProvisioned")]
 public sealed record TenantAdministratorProvisioned(Guid TargetTenantId, Guid UserId, string RoleCode) : IIntegrationEvent;
+
+/// <summary>
+/// The tenant's staff roles in force with their permissions (onboarding readiness CHANNELS): every role except those whose
+/// every holder is an external (portal) user, who act through partner channels instead.
+/// </summary>
+public interface IStaffRoles
+{
+    Task<IReadOnlyList<(string RoleCode, IReadOnlyList<string> Permissions)>> InForce(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+}

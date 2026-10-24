@@ -55,6 +55,12 @@ public static class StaticDataInfrastructure
         services.AddIntegrationEventHandler<StaticDataCodeDeprecated, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "Deprecated");
         services.AddIntegrationEventHandler<StaticDataImportCompleted, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ImportCompleted");
         services.AddIntegrationEventHandler<StaticDataImportRejected, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ImportRejected");
+        // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.StaticDataDbContext.SchemaName, StaticDataStaticData.Descriptors,
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PLATFORM_REFERENCE_DATA", "GLOBAL_REFERENCE_DATA", "refdata.ref_currencies", "Global currencies, countries, languages and time zones", null, GlobalRows: true),
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PLATFORM_REFERENCE_DATA", "GLOBAL_REFERENCE_DATA", "refdata.ref_countries", "Global currencies, countries, languages and time zones", null, GlobalRows: true),
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PLATFORM_REFERENCE_DATA", "GLOBAL_REFERENCE_DATA", "refdata.ref_languages", "Global currencies, countries, languages and time zones", null, GlobalRows: true),
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PLATFORM_REFERENCE_DATA", "GLOBAL_REFERENCE_DATA", "refdata.ref_time_zones", "Global currencies, countries, languages and time zones", null, GlobalRows: true));
         return services;
     }
 }

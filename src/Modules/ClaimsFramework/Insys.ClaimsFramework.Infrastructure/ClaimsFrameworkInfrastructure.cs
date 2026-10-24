@@ -62,6 +62,10 @@ public static class ClaimsFrameworkInfrastructure
         services.AddIntegrationEventHandler<RecoveryRecorded, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "RecoveryRecorded");
         services.AddScoped<IClaimRegistry, ClaimRegistry>();
         services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator, Persistence.FraudIndicatorValidator>();
+        // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.ClaimsFrameworkDbContext.SchemaName, ClaimsFrameworkStaticData.Descriptors,
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("DOMAIN_REFERENCE_DATA", "CLAIMS_SETUP", "claims.cfg_claim_numbering_schemes", "Claim numbering schemes and reserve types"),
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("DOMAIN_REFERENCE_DATA", "CLAIMS_SETUP", "claims.ref_reserve_types", "Claim numbering schemes and reserve types", null, GlobalRows: true));
         return services;
     }
 }

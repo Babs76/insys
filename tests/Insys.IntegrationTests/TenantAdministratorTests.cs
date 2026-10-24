@@ -183,13 +183,14 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         permissions = new[] { IdentityPermissions.UserRead, IdentityPermissions.UserCreate, IdentityPermissions.UserUpdate, IntegrationPermissions.DeadLetterRead },
     };
 
-    private static async Task<(Guid TenantId, string Url)> RegisterTenantAtAccessStep(HttpClient client, string code)
+    private async Task<(Guid TenantId, string Url)> RegisterTenantAtAccessStep(HttpClient client, string code)
     {
         var registered = await client.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new { tenantCode = code, legalName = code + " Ltd", isolationProfile = "B", timeZone = "Africa/Johannesburg" },
             idempotent: true);
         var tenantId = (await registered.Json()).GetProperty("id").GetGuid();
         var url = $"/api/v1/tenancy/tenants/{tenantId}";
         var etag = (await client.GetAsync(url)).ETag();
+        await fixture.Database.SeedReadyTenant(tenantId, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30));
         foreach (var step in new[] { "PLATFORM_REFERENCE_DATA", "TENANT_REGISTRATION" })
         {
             var completed = await client.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", new { step }, ifMatch: etag);
@@ -206,8 +207,8 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         var steps = tenant.GetProperty("onboardingSteps").EnumerateArray().Select(s => s.GetString()!).ToList();
         foreach (var step in steps.SkipWhile(s => s != tenant.GetProperty("onboardingStep").GetString()))
         {
-            var completed = await client.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", new { step }, ifMatch: etag);
-            completed.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            var completed = await client.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", OnboardingSeed.StepBody(step), ifMatch: etag);
+            completed.StatusCode.ShouldBe(HttpStatusCode.NoContent, await completed.Content.ReadAsStringAsync());
             etag = completed.ETag();
         }
 

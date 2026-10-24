@@ -119,3 +119,12 @@ public sealed class ChannelGate
             : (ErrorCodes.ChannelNotAllowed, $"Your roles may not make this transaction for {product ?? "this record"} on channel {ChannelCode}.");
     }
 }
+
+/// <summary>
+/// The channel-scoped transactions (F005 §2): the permission of every command that a channel scopes, as the endpoints
+/// declare them. Onboarding readiness checks that the back office's staff roles have a channel row for each they hold.
+/// </summary>
+public interface IChannelScopedTransactions
+{
+    IReadOnlySet<string> All { get; }
+}

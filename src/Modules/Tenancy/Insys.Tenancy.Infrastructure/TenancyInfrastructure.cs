@@ -61,6 +61,28 @@ public static class TenancyInfrastructure
         services.AddIntegrationEventHandler<Insys.BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated, LocaleCachePolicy, TenancyDbContext>(
             TenancyDbContext.SchemaName, "LocaleDefaultsActivated");
         services.AddIntegrationEventHandler<Identity.Contracts.TenantAdministratorProvisioned, OnboardingAccessPolicy, TenancyDbContext>(TenancyDbContext.SchemaName);
+        // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.TenancyDbContext.SchemaName, TenancyStaticData.Descriptors,
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("TENANT_REGISTRATION", "LOCALE_DEFAULTS", "tenant.cfg_locale_defaults", "Locale defaults: base currency, languages and default language", "base_currency IS NOT NULL AND default_language IS NOT NULL AND cardinality(languages) > 0"),
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("ORGANISATION_AND_ACCESS", "ORGANISATION_STRUCTURE", "tenant.mst_organisation_structure", "A root legal entity in the organisation structure (F103)", "type = 'LEGAL_ENTITY' AND parent IS NULL"),
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PRODUCT_FACTORY", "PRODUCT_PUBLISHED", "tenant.cfg_tenant_product_availability", "A product published and made available to the tenant", "enabled"));
+        services.AddScoped<Application.Tenants.OnboardingReadiness>();
+        services.AddSingleton<Application.Tenants.ITenantLocale, Persistence.TenantLocale>();
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.TenancyDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        {
+            // TIME_ZONE: given at registration, or in the locale defaults (ADR-025); BASE_CURRENCY: the locale defaults' base currency.
+            var zones = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, $"""
+                SELECT (SELECT count(*) FROM tenant.tenant WHERE id = @t AND time_zone IS NOT NULL)
+                     + (SELECT count(*) FROM tenant.cfg_locale_defaults WHERE tenant_id = @t AND time_zone IS NOT NULL AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce})
+                """, ct, ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day));
+            return
+            [
+                BuildingBlocks.Application.ReadinessResult.Of("TENANT_REGISTRATION", "TIME_ZONE", "A time zone, given at registration or in locale defaults (ADR-025)",
+                    zones > 0 ? [] : ["tenant.tenant time_zone, or tenant.cfg_locale_defaults time_zone"]),
+                BuildingBlocks.Application.ReadinessResult.Of("FINANCIAL_FOUNDATIONS", "BASE_CURRENCY", "The locale defaults' base currency",
+                    context.BaseCurrency is { Length: > 0 } ? [] : ["tenant.cfg_locale_defaults base_currency"]),
+            ];
+        });
         return services;
     }
 }

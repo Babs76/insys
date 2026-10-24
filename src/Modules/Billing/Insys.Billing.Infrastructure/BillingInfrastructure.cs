@@ -79,6 +79,20 @@ public static class BillingInfrastructure
 
         services.AddScoped<IBillingPortalQueries, BillingPortalQueries>();
         services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations, BillingPortalRelations>(); // external-user access §2
+        // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.BillingDbContext.SchemaName, BillingStaticData.Descriptors,
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PAYMENTS_AND_DISTRIBUTION", "COLLECTION_METHODS", "billing.ref_collection_methods", "Collection methods, billing frequencies, document numbering and ageing buckets covering every day to the last action"),
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PAYMENTS_AND_DISTRIBUTION", "COLLECTION_METHODS", "billing.ref_billing_frequencies", "Collection methods, billing frequencies, document numbering and ageing buckets covering every day to the last action", null, GlobalRows: true),
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PAYMENTS_AND_DISTRIBUTION", "COLLECTION_METHODS", "billing.cfg_document_numbering_schemes", "Collection methods, billing frequencies, document numbering and ageing buckets covering every day to the last action"));
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.BillingDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        {
+            // Request 46: the buckets cover every day overdue from day 1 to the last action, with no gaps or overlaps.
+            var buckets = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction,
+                $"SELECT days_from || ':' || days_to || ':' || action FROM billing.cfg_arrears_ageing_buckets WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce} ORDER BY days_from, days_to",
+                ct, ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day));
+            return [BuildingBlocks.Application.ReadinessResult.Of("PAYMENTS_AND_DISTRIBUTION", "COLLECTION_METHODS",
+                "Collection methods, billing frequencies, document numbering and ageing buckets covering every day to the last action", AgeingCoverage.Gaps(buckets))];
+        });
         return services;
     }
 }

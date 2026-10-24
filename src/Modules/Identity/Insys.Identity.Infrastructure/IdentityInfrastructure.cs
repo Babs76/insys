@@ -84,6 +84,20 @@ public static class IdentityInfrastructure
         {
             services.AddHostedService<PrivilegedAccessExpiryService>();
         }
+        // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.IdentityDbContext.SchemaName, IdentityStaticData.Descriptors,
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("ORGANISATION_AND_ACCESS", "ROLES", "iam.cfg_roles_and_permission_sets", "At least one role besides TENANT_ADMIN", "role_code <> 'TENANT_ADMIN'"),
+            new BuildingBlocks.Infrastructure.Readiness.StaticCheck("ORGANISATION_AND_ACCESS", "AUTHENTICATION_POLICY", "iam.cfg_authentication_and_session_policies", "An authentication and session policy, the tenant's or global", null, GlobalRows: true));
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.IdentityDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        {
+            var admins = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, """
+                SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN' AND status = 'ACTIVE'
+                  AND valid_from <= @day AND (valid_to IS NULL OR valid_to > @day)
+                """, ct, ("t", context.TenantId), ("day", context.Day));
+            return [BuildingBlocks.Application.ReadinessResult.Of("ORGANISATION_AND_ACCESS", "FIRST_ADMINISTRATOR", "An active tenant administrator (OQ-067)",
+                admins > 0 ? [] : ["TENANT_ADMIN"])];
+        });
+        services.AddSingleton<Contracts.IStaffRoles, Persistence.StaffRoles>();
         return services;
     }
 }

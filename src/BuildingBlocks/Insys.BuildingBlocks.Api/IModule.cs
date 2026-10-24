@@ -70,6 +70,20 @@ public sealed record ChannelApprovalFlowMetadata;
 /// <summary>Marks an endpoint of a portal (external-user access §5): external users of the kinds named may use it, and no other.</summary>
 public sealed record PortalEndpointMetadata(IReadOnlyList<string> Kinds);
 
+/// <summary>The channel-scoped transactions, read once from the endpoints: the permission of each channel-scoped command (F005 §2).</summary>
+internal sealed class EndpointChannelScopedTransactions(EndpointDataSource endpoints) : IChannelScopedTransactions
+{
+    private readonly Lazy<IReadOnlySet<string>> _all = new(() => endpoints.Endpoints
+        .Where(e => e.Metadata.GetMetadata<ChannelScopedMetadata>() is not null && e.Metadata.GetMetadata<StaticDataEndpointMetadata>() is null
+                    && e.Metadata.GetMetadata<PlatformOperatorEndpointMetadata>() is null && e.Metadata.GetMetadata<PortalEndpointMetadata>() is null
+                    && e.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()?.HttpMethods.Any(m => m is not ("GET" or "HEAD")) == true)
+        .Select(e => e.Metadata.GetMetadata<RequiredPermissionMetadata>()?.Permission)
+        .OfType<string>()
+        .ToHashSet(StringComparer.Ordinal));
+
+    public IReadOnlySet<string> All => _all.Value;
+}
+
 public static class ChannelScoping
 {
     public static TBuilder ChannelScoped<TBuilder>(this TBuilder builder)

@@ -32,8 +32,34 @@ using Npgsql;
 
 namespace Insys.ProductFactory.Infrastructure.Persistence;
 
-internal sealed class SellableProducts([FromKeyedServices(ProductFactoryDbContext.SchemaName)] NpgsqlDataSource dataSource) : ISellableProducts
+internal sealed class SellableProducts([FromKeyedServices(ProductFactoryDbContext.SchemaName)] NpgsqlDataSource dataSource) : ISellableProducts, IPublishedProducts
 {
+    public async Task<IReadOnlyList<(string ProductCode, int Version)>> Sellable(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> codes;
+        await using (var connection = await dataSource.OpenConnectionAsync(cancellationToken))
+        await using (var transaction = await connection.BeginTransactionAsync(cancellationToken))
+        {
+            await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+            codes = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction, $"""
+                SELECT DISTINCT code FROM product.cfg_product_definitions_and_versions
+                WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce} ORDER BY code
+                """, cancellationToken, ("t", tenantId), ("inForce", Sold), ("day", day));
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        var sellable = new List<(string, int)>();
+        foreach (var code in codes)
+        {
+            if (await Sellable(tenantId, code, null, day, cancellationToken) is { } product)
+            {
+                sellable.Add((code, product.Version));
+            }
+        }
+
+        return sellable;
+    }
+
     private static readonly string[] Sold = ["PUBLISHED", "EFFECTIVE"];
     private static readonly string[] Issued = ["PUBLISHED", "EFFECTIVE", "WITHDRAWN", "RETIRED"];
 

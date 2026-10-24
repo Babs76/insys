@@ -56,6 +56,7 @@ public static class RatingInfrastructure
         services.AddScoped<IPremiumSimulator, PremiumSimulator>();
         services.AddIntegrationEventHandler<ProductVersionPublished, RatingCachePolicies, RatingDbContext>(schema, "ProductVersionPublished");
         services.AddIntegrationEventHandler<StaticDataVersionActivated, RatingCachePolicies, RatingDbContext>(schema, "StaticDataActivated");
+        services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, RatingReadiness>(); // onboarding readiness RATING
         return services;
     }
 }

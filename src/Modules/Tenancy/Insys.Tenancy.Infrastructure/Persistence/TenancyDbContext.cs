@@ -78,6 +78,8 @@ public sealed class TenancyDbContext(DbContextOptions<TenancyDbContext> options,
             onboarding.HasKey(c => new { c.TenantId, c.Id });
             onboarding.Property(c => c.CurrentStep).HasMaxLength(30);
             onboarding.Property(c => c.Status).HasMaxLength(12);
+            onboarding.Property(c => c.AttestationsJson).HasColumnName("attestations").HasColumnType("jsonb");
+            onboarding.Ignore(c => c.Attestations);
             onboarding.HasAuditColumns();
         });
 
