@@ -65,7 +65,8 @@ BEGIN
     ('insys_analytics',   ARRAY['analytics']),
     ('insys_tenant',      ARRAY['tenant']),
     ('insys_iam',         ARRAY['iam']),
-    ('insys_audit',       ARRAY['audit'])
+    ('insys_audit',       ARRAY['audit']),
+    ('insys_communication', ARRAY['communication'])
   ) AS v(role_name, schemas)
   LOOP
     FOREACH s IN ARRAY m.schemas LOOP
@@ -107,6 +108,7 @@ BEGIN
   GRANT EXECUTE ON FUNCTION party.minimise_search_log(timestamptz) TO insys_party;
   GRANT EXECUTE ON FUNCTION party.purge_search_log(timestamptz) TO insys_party;
   GRANT EXECUTE ON FUNCTION payment.resolve_callback_endpoint(char) TO insys_payment;
+  GRANT EXECUTE ON FUNCTION communication.resolve_callback_endpoint(char) TO insys_communication;
 
   -- The API building block: idempotency keys only (INT-003, DBA-008).
   GRANT USAGE ON SCHEMA integration TO insys_api;

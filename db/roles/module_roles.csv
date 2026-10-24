@@ -21,3 +21,4 @@ insys_analytics,analytics,Analytics
 insys_tenant,tenant,Tenancy
 insys_iam,iam,Identity
 insys_audit,audit,Audit
+insys_communication,communication,Communications

@@ -49,6 +49,8 @@ public sealed class RenewalRules : StaticRecord<RenewalRulesInput>
 
     public string InvitationTemplate { get; set; } = "";
 
+    public int[]? ReminderDays { get; set; }
+
     public override void ApplyFields(RenewalRulesInput input, IFieldProtector protector)
     {
         ProductCode = input.ProductCode!;
@@ -56,6 +58,7 @@ public sealed class RenewalRules : StaticRecord<RenewalRulesInput>
         AutoRenew = input.AutoRenew.GetValueOrDefault();
         ReRating = input.ReRating.GetValueOrDefault();
         InvitationTemplate = input.InvitationTemplate!;
+        ReminderDays = input.ReminderDays;
     }
 }
 
@@ -71,6 +74,8 @@ public sealed record RenewalRulesInput : StaticRecordInput
     public bool? ReRating { get; init; }
 
     public string? InvitationTemplate { get; init; }
+
+    public int[]? ReminderDays { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

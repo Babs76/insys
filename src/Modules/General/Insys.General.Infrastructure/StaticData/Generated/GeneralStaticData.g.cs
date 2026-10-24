@@ -100,6 +100,7 @@ public static class GeneralStaticData
             entity.Property(x => x.MaxExposure).HasColumnName("max_exposure").HasPrecision(18, 2);
             entity.Property(x => x.Currency).HasColumnName("currency").HasMaxLength(80);
             entity.Property(x => x.AlertAtPct).HasColumnName("alert_at_pct").HasPrecision(5, 2);
+            entity.Property(x => x.AlertRole).HasColumnName("alert_role").HasMaxLength(30);
         });
         modelBuilder.Entity<CancellationReasonsAndRefundRules>(entity =>
         {
@@ -178,6 +179,7 @@ public static class GeneralStaticData
             entity.Property(x => x.AutoRenew).HasColumnName("auto_renew");
             entity.Property(x => x.ReRating).HasColumnName("re_rating");
             entity.Property(x => x.InvitationTemplate).HasColumnName("invitation_template").HasMaxLength(80);
+            entity.Property(x => x.ReminderDays).HasColumnName("reminder_days");
         });
         modelBuilder.Entity<RiskObjectTypesAndAttributeSchemas>(entity =>
         {

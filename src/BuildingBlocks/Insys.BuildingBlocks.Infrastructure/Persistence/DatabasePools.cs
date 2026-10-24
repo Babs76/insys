@@ -39,14 +39,14 @@ namespace Insys.BuildingBlocks.Infrastructure.Persistence;
 /// </summary>
 public static class DatabasePools
 {
-    /// <summary>OQ-069 option A: hot paths 8, medium 4, the rest 3; 116 per instance for the 23 roles.</summary>
+    /// <summary>OQ-069 option A: hot paths 8, medium 4, the rest 3; 119 per instance for the 24 roles.</summary>
     public static readonly IReadOnlyDictionary<string, int> Defaults = new Dictionary<string, int>(StringComparer.Ordinal)
     {
         ["insys_api"] = 8, ["insys_iam"] = 8, ["insys_payment"] = 8, ["insys_billing"] = 8, ["insys_rating"] = 8, ["insys_health"] = 8, ["insys_general"] = 8,
         ["insys_integration"] = 8,
         ["insys_party"] = 4, ["insys_product"] = 4, ["insys_claims"] = 4, ["insys_life"] = 4, ["insys_finance"] = 4, ["insys_workflow"] = 4, ["insys_document"] = 4,
         ["insys_sdm"] = 3, ["insys_rules"] = 3, ["insys_commission"] = 3, ["insys_reinsurance"] = 3, ["insys_reporting"] = 3, ["insys_analytics"] = 3,
-        ["insys_tenant"] = 3, ["insys_audit"] = 3,
+        ["insys_tenant"] = 3, ["insys_audit"] = 3, ["insys_communication"] = 3,
     };
 
     /// <summary>A role with no default (a module added later) gets this until it is given one.</summary>

@@ -58,5 +58,6 @@ internal static class Modules
         ["tenant"] = new("Tenancy", "tenancy", "tenant"),
         ["iam"] = new("Identity", "identity", "iam"),
         ["audit"] = new("Audit", "audit", "audit"),
+        ["communication"] = new("Communications", "communications", "communication"),
     };
 }

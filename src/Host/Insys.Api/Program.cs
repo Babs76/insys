@@ -56,6 +56,7 @@ IModule[] modules =
     new Insys.Tenancy.Api.TenancyModule(),
     new Insys.Identity.Api.IdentityModule(),
     new Insys.Audit.Api.AuditModule(),
+    new Insys.Communications.Api.CommunicationsModule(),
 ];
 
 builder.AddInsysTelemetry();

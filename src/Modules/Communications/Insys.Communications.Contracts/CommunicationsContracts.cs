@@ -1,0 +1,94 @@
+/*
+ * ============================================================================
+ * OPENFACTOR TECHNOLOGY GROUP
+ * CONFIDENTIAL AND PROPRIETARY SOFTWARE
+ * ============================================================================
+ * Copyright (c) 2026 OpenFactor Technology Group.
+ * All rights reserved.
+ * PRODUCT       : INSYS
+ * COMPONENT     : Communications
+ * CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+ * This source code and its associated documentation contain confidential and
+ * proprietary information belonging to OpenFactor Technology Group or its
+ * applicable intellectual property rights holder.
+ * This material is provided solely for authorised development, maintenance,
+ * operation or evaluation purposes, as applicable. No person may reproduce,
+ * modify, distribute, disclose, publish or otherwise use this material except
+ * as expressly permitted by an applicable written agreement or licence.
+ * No ownership rights or licence to any intellectual property are granted
+ * by the inclusion of this notice, except as expressly provided in an
+ * applicable written agreement or licence.
+ * Third-party software, open-source components and customer-owned materials
+ * remain subject to their respective ownership rights and applicable licences
+ * or agreements.
+ * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+ * ============================================================================
+ */
+using Insys.BuildingBlocks.Contracts;
+
+namespace Insys.Communications.Contracts;
+
+public static class CommunicationPermissions
+{
+    public const string NotificationRead = "notification.read";
+    public const string PreferenceRead = "notification_preference.read";
+    public const string PreferenceUpdate = "notification_preference.update";
+    public const string DeviceUpdate = "notification_device.update";
+    public const string CallbackEndpointRead = "communication_callback_endpoint.read";
+    public const string CallbackEndpointUpdate = "communication_callback_endpoint.update";
+}
+
+/// <summary>The channel codes (communication.ref_channels, OQ-090).</summary>
+public static class Channels
+{
+    public const string Email = "EMAIL";
+    public const string Sms = "SMS";
+    public const string Push = "PUSH";
+    public const string WhatsApp = "WHATSAPP";
+
+    public static readonly IReadOnlyList<string> All = [Email, Sms, Push, WhatsApp];
+}
+
+/// <summary>A notification type's category (addenda/communications.md §2): marketing needs consent when it is sent (§4).</summary>
+public static class NotificationCategories
+{
+    public const string Service = "SERVICE";
+    public const string Marketing = "MARKETING";
+}
+
+/// <summary>The service notification types the platform triggers (§2, §6); a tenant configures each in cfg_notification_types.</summary>
+public static class NotificationTypes
+{
+    public const string PaymentReminder = "PAYMENT_REMINDER";
+    public const string PaymentFinalNotice = "PAYMENT_FINAL_NOTICE";
+    public const string RenewalInvitation = "RENEWAL_INVITATION";
+    public const string RenewalReminder = "RENEWAL_REMINDER";
+    public const string ClaimStatus = "CLAIM_STATUS";
+    public const string HealthClaimDecision = "HEALTH_CLAIM_DECISION";
+    public const string PreauthDecision = "PREAUTH_DECISION";
+}
+
+/// <summary>
+/// A module asks for a notification to a party (§1). Merge values are business references only (a claim number, a due
+/// date, an amount), never contact details, ID numbers or clinical data (INT-007). One notification per event ID, type
+/// and recipient: a redelivered request creates nothing.
+/// </summary>
+/// <param name="SourceType">What the notification is about (GENERAL_CLAIM, BILLING_ACCOUNT …), with <paramref name="SourceId"/>.</param>
+/// <param name="ProductCode">The source record's product, for F103 scope on staff reads.</param>
+/// <param name="OrgNodeCode">The source record's organisation node, for F103 scope on staff reads.</param>
+[IntegrationEvent("communication.NotificationRequested")]
+public sealed record NotificationRequested(string NotificationType, Guid RecipientPartyId, string SourceType, Guid SourceId, IReadOnlyDictionary<string, string> MergeValues,
+    string? ProductCode = null, string? OrgNodeCode = null) : IIntegrationEvent;
+
+/// <summary>A channel accepted a notification (§5). Claims Framework logs a claim's notices as outbound communications.</summary>
+[IntegrationEvent("communication.NotificationSent")]
+public sealed record NotificationSent(Guid NotificationId, string NotificationType, Guid RecipientPartyId, string SourceType, Guid SourceId, string Channel)
+    : IIntegrationEvent;
+
+/// <summary>The provider confirmed delivery (§5.1).</summary>
+[IntegrationEvent("communication.NotificationDelivered")]
+public sealed record NotificationDelivered(Guid NotificationId, string Channel) : IIntegrationEvent;
+
+/// <summary>A notification ended without being sent: FAILED, UNDELIVERABLE or SUPPRESSED_NO_CONSENT (§5).</summary>
+[IntegrationEvent("communication.NotificationFailed")]
+public sealed record NotificationFailed(Guid NotificationId, string NotificationType, Guid RecipientPartyId, string Status) : IIntegrationEvent;

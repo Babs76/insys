@@ -64,6 +64,13 @@
     <Project Path="src/Modules/ClaimsFramework/Insys.ClaimsFramework.Domain/Insys.ClaimsFramework.Domain.csproj" />
     <Project Path="src/Modules/ClaimsFramework/Insys.ClaimsFramework.Infrastructure/Insys.ClaimsFramework.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Communications/">
+    <Project Path="src/Modules/Communications/Insys.Communications.Api/Insys.Communications.Api.csproj" />
+    <Project Path="src/Modules/Communications/Insys.Communications.Application/Insys.Communications.Application.csproj" />
+    <Project Path="src/Modules/Communications/Insys.Communications.Contracts/Insys.Communications.Contracts.csproj" />
+    <Project Path="src/Modules/Communications/Insys.Communications.Domain/Insys.Communications.Domain.csproj" />
+    <Project Path="src/Modules/Communications/Insys.Communications.Infrastructure/Insys.Communications.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Compliance/">
     <Project Path="src/Modules/Compliance/Insys.Compliance.Api/Insys.Compliance.Api.csproj" />
     <Project Path="src/Modules/Compliance/Insys.Compliance.Application/Insys.Compliance.Application.csproj" />
@@ -210,6 +217,7 @@
     <Project Path="tests/Insys.Payments.Tests/Insys.Payments.Tests.csproj" />
     <Project Path="tests/Insys.ClaimsFramework.Tests/Insys.ClaimsFramework.Tests.csproj" />
     <Project Path="tests/Insys.Compliance.Tests/Insys.Compliance.Tests.csproj" />
+    <Project Path="tests/Insys.Communications.Tests/Insys.Communications.Tests.csproj" />
     <Project Path="tests/Insys.Distribution.Tests/Insys.Distribution.Tests.csproj" />
     <Project Path="tests/Insys.Reinsurance.Tests/Insys.Reinsurance.Tests.csproj" />
     <Project Path="tests/Insys.General.Tests/Insys.General.Tests.csproj" />

@@ -39,6 +39,81 @@
     { "name": "value", "logicalType": "Decimal(12,4)", "mandatory": true, "sample": "25.0000" },
     { "name": "applies_to", "logicalType": "List<Code or range>", "mandatory": false, "sample": "0190-0199" }
    ]
+  },
+  {
+   "layer": "Platform",
+   "module": "Communications",
+   "subModule": "Channels",
+   "entity": "Channels",
+   "table": "communication.ref_channels",
+   "class": "REF",
+   "scope": "G",
+   "tier": 2,
+   "proposedOwner": "Platform Administrator",
+   "provenance": "addenda/communications.md (signed off 25 October 2026)",
+   "basis": "OQ-090",
+   "fields": [
+    { "name": "channel_code", "logicalType": "Enum{EMAIL,SMS,PUSH,WHATSAPP}", "mandatory": true, "sample": "EMAIL" }
+   ]
+  },
+  {
+   "layer": "Platform",
+   "module": "Communications",
+   "subModule": "Notification types",
+   "entity": "Notification types",
+   "table": "communication.cfg_notification_types",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 1,
+   "proposedOwner": "Compliance Officer",
+   "provenance": "addenda/communications.md (signed off 25 October 2026)",
+   "basis": "§4, §6 of the addendum; POPIA s69",
+   "fields": [
+    { "name": "type_code", "logicalType": "Code(30)", "mandatory": true, "sample": "PAYMENT_REMINDER" },
+    { "name": "category", "logicalType": "Enum{SERVICE,MARKETING}", "mandatory": true, "sample": "SERVICE" },
+    { "name": "consent_purpose", "logicalType": "Ref ConsentPurpose", "mandatory": false, "sample": "MKT_EMAIL" },
+    { "name": "channels", "logicalType": "List<Ref Channel>", "mandatory": true, "sample": "EMAIL, SMS" },
+    { "name": "portal_visible", "logicalType": "Boolean", "mandatory": true, "sample": "true" }
+   ]
+  },
+  {
+   "layer": "Platform",
+   "module": "Communications",
+   "subModule": "Templates",
+   "entity": "Notification templates",
+   "table": "communication.cfg_notification_templates",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 1,
+   "proposedOwner": "Compliance Officer",
+   "provenance": "addenda/communications.md (signed off 25 October 2026)",
+   "basis": "SRS §7.6",
+   "fields": [
+    { "name": "type_code", "logicalType": "Ref NotificationType", "mandatory": true, "sample": "PAYMENT_REMINDER" },
+    { "name": "channel", "logicalType": "Ref Channel", "mandatory": true, "sample": "EMAIL" },
+    { "name": "language", "logicalType": "Ref Language", "mandatory": true, "sample": "en" },
+    { "name": "subject", "logicalType": "String(200)", "mandatory": false, "sample": "Your premium is overdue" },
+    { "name": "body", "logicalType": "Text", "mandatory": true, "sample": "Dear customer, {amount_overdue} {currency} on {policy_number} is overdue." }
+   ]
+  },
+  {
+   "layer": "Platform",
+   "module": "Communications",
+   "subModule": "Providers",
+   "entity": "Channel providers",
+   "table": "communication.cfg_channel_providers",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 1,
+   "proposedOwner": "Tenant Administrator",
+   "provenance": "addenda/communications.md (signed off 25 October 2026)",
+   "basis": "SRS §20.2",
+   "fields": [
+    { "name": "channel", "logicalType": "Ref Channel", "mandatory": true, "sample": "SMS" },
+    { "name": "provider_code", "logicalType": "Ref Partner", "mandatory": true, "sample": "SMS-PROV-01" },
+    { "name": "sender_identity", "logicalType": "String(120)", "mandatory": true, "sample": "INSYS" },
+    { "name": "enabled", "logicalType": "Boolean", "mandatory": true, "sample": "true" }
+   ]
   }
  ]
 }

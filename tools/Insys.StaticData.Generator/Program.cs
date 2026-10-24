@@ -422,6 +422,7 @@ internal static class Emit
                 "jsonb" => ("JsonElement", "JsonElement?"),
                 "text[]" => ("string[]", "string[]?"),
                 "boolean[]" => ("bool[]", "bool[]?"),
+                "integer[]" => ("int[]", "int[]?"),
                 "interval" => ("string", "string?"),
                 "int4range" => ("string", "string?"),
                 "numrange" => ("string", "string?"),
