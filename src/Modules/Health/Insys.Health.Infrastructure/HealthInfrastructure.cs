@@ -76,6 +76,7 @@ public static class HealthInfrastructure
             services.AddHostedService<HealthJobsService>();
         }
 
+        services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations, HealthPortalRelations>(); // external-user access §2
         return services;
     }
 }

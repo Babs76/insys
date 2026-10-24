@@ -324,10 +324,13 @@ public sealed class HealthModule : IModule
         portal.MapGet("/claims", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPortalMedicalClaims(after, size), ct), c => c.Id))
             .Produces<CursorPage<PortalMedicalClaimView>>(StatusCodes.Status200OK)
-            .WithName("PortalHealthListClaims").WithSummary("The provider's own claims").RequirePermission(HealthPermissions.ClaimRead).ForPortal(provider);
+            .WithName("PortalHealthListClaims")
+            .WithSummary("The provider's own claims; for a member, their own claims and, as principal, every claim of their membership")
+            .RequirePermission(HealthPermissions.ClaimRead).ForPortal(provider, member);
         portal.MapGet("/claims/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalMedicalClaim(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalMedicalClaimView>(StatusCodes.Status200OK)
-            .WithName("PortalHealthGetClaim").WithSummary("A claim of the provider's").RequirePermission(HealthPermissions.ClaimRead).ForPortal(provider);
+            .WithName("PortalHealthGetClaim").WithSummary("A claim of the provider's, or of the member's (as patient, or as principal of the membership)")
+            .RequirePermission(HealthPermissions.ClaimRead).ForPortal(provider, member);
         portal.MapPost("/claims", async (PortalMedicalClaimRequest r, IDispatcher d, IExecutionContext execution, CancellationToken ct) =>
                 {
                     var patient = await d.Query(new PortalPatientOf(r.MemberNumber, r.DependantSuffix), ct);

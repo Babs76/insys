@@ -346,6 +346,23 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         (await (await _maker.PostAsync($"/api/v1/reinsurance/bordereaux/{bordereau}/agree", null)).Json()).GetProperty("status").GetString().ShouldBe("Agreed");
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.external_call_log WHERE operation = 'reinsurance.SendBordereau' AND partner_code = 'RE-1'"))
             .ShouldBe(1L);
+
+        // The broker portal (external-user access §2), last as its channel then applies to staff too (F005): the broker sees
+        // its paid statement without the approval or bank account.
+        var brokerUser = await _db.UserWithPermissions(Tenant, "broker-1", DistributionPermissions.StatementRead);
+        await _db.ExecuteAsOwner("""
+            INSERT INTO iam.user_subject_link (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, kind, intermediary_code, status,
+                                               requested_by, decided_by, decided_at)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, 'INTERMEDIARY', @b, 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
+            """, ("t", Tenant), ("u", brokerUser), ("b", Broker));
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-BRK", ("channel_code", "BRK"), ("audience", "BROKER"), ("name", "Broker portal"),
+            ("client_ids", new[] { "broker-portal" }));
+        var brokerPortal = _factory.ClientFor(Tenant, "broker-1", "broker-portal", multiFactor: true);
+        var statements = await brokerPortal.GetAsync("/api/v1/portal/distribution/statements");
+        statements.StatusCode.ShouldBe(HttpStatusCode.OK, await statements.Content.ReadAsStringAsync());
+        (await statements.Json()).EnumerateArray().Select(x => x.GetProperty("id").GetGuid()).ShouldContain(statement);
+        var portalStatement = await (await brokerPortal.GetAsync($"/api/v1/portal/distribution/statements/{statement}")).Json();
+        (portalStatement.GetProperty("status").GetString(), portalStatement.TryGetProperty("bankAccountId", out _)).ShouldBe(("Paid", false));
     }
 
     [Fact]

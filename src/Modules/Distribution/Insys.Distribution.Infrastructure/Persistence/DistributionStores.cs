@@ -284,3 +284,19 @@ internal sealed class DistributionEventMapper : IDomainEventMapper
         _ => null,
     };
 }
+
+internal sealed class DistributionPortalQueries(DistributionDbContext db) : IDistributionPortalQueries
+{
+    public async Task<IReadOnlyList<CommissionStatement>> Statements(IReadOnlyCollection<string> intermediaryCodes, Guid? afterId, int limit,
+        CancellationToken cancellationToken)
+    {
+        var codes = intermediaryCodes.ToList();
+        var rows = db.Statements.AsNoTracking().Where(s => codes.Contains(s.IntermediaryCode) && s.Status != StatementStatus.Draft);
+        if (afterId is { } after)
+        {
+            rows = rows.Where(s => s.Id.CompareTo(after) > 0);
+        }
+
+        return await rows.OrderBy(s => s.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+}

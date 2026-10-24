@@ -56,6 +56,7 @@ public static class LifeInfrastructure
         services.AddScoped<ILifeRepository, LifeRepository>();
         services.AddScoped<ILifeCodes, LifeCodes>();
         services.AddScoped<ILifeLists, LifeLists>();
+        services.AddScoped<ILifePortalQueries, LifePortalQueries>();
         services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticSetGuard, FreeCoverBandsGuard>();
         services.AddSingleton<Distribution.Contracts.IPolicyDistribution, LifePolicyDistribution>();
         services.AddSingleton<Workflow.Contracts.IApprovalAuthoritySource, ClaimsAuthority>();
@@ -81,6 +82,9 @@ public static class LifeInfrastructure
             services.AddHostedService<LifeJobsService>();
         }
 
+        services.AddSingleton<LifePortalRelations>(); // external-user access §2: other modules' portal reads
+        services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations>(sp => sp.GetRequiredService<LifePortalRelations>());
+        services.AddSingleton<BuildingBlocks.Application.Context.IBrokeredPolicies>(sp => sp.GetRequiredService<LifePortalRelations>());
         return services;
     }
 }

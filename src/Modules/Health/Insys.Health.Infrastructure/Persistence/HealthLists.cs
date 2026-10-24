@@ -158,6 +158,18 @@ internal sealed class HealthPortalQueries(HealthDbContext db) : IHealthPortalQue
         return await claims.OrderBy(c => c.Id).Take(limit).ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Domain.Care.MedicalClaim>> MemberClaims(Guid partyId, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var claims = db.Claims.AsNoTracking().Include(c => c.Lines)
+            .Where(c => c.PatientPartyId == partyId || db.Memberships.Any(m => m.Id == c.MembershipId && m.PrincipalPartyId == partyId));
+        if (afterId is { } after)
+        {
+            claims = claims.Where(c => c.Id.CompareTo(after) > 0);
+        }
+
+        return await claims.OrderBy(c => c.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<PortalRemittanceView>> ProviderRemittances(string providerId, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
         var runs = db.Runs.AsNoTracking().SelectMany(r => r.Remittances.Where(x => x.ProviderId == providerId),

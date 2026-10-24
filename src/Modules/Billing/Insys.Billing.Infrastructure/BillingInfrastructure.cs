@@ -76,6 +76,8 @@ public static class BillingInfrastructure
             services.AddHostedService<BillingJobsService>();
         }
 
+        services.AddScoped<IBillingPortalQueries, BillingPortalQueries>();
+        services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations, BillingPortalRelations>(); // external-user access §2
         return services;
     }
 }

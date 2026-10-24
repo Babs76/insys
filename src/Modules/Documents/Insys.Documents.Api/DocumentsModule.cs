@@ -26,6 +26,7 @@
  */
 using System.Text.Json;
 using Insys.BuildingBlocks.Api;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.Documents.Api.StaticData;
 using Insys.Documents.Application;
@@ -161,6 +162,25 @@ public sealed class DocumentsModule : IModule
             .WithName("DocumentsDispose")
             .WithSummary("Dispose of a document after its retention date, when no legal hold applies")
             .RequirePermission(DocumentPermissions.DocumentDispose);
+
+        // The portals (external-user access §2): documents of a record in the caller's relationship, in categories whose
+        // allowed roles include the caller's.
+        string[] everyone = [ExternalSubject.Party, ExternalSubject.Intermediary, ExternalSubject.Provider];
+        var portal = api.MapGroup("/portal/documents").WithTags(Name);
+        portal.MapGet("/", async (string businessRefType, Guid businessRefId, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListPortalDocuments(businessRefType, businessRefId), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<PortalDocumentView>>(StatusCodes.Status200OK)
+            .WithName("PortalDocumentsList")
+            .WithSummary("The documents of a record in your relationship (a policy, endorsement, invoice, statement or remittance)")
+            .WithDescription("Only documents in categories whose allowed roles include one of yours: each tenant names its portal roles on the categories its "
+                + "portals may show. A record outside your relationship is not found.")
+            .RequirePermission(DocumentPermissions.DocumentRead).ForPortal(everyone);
+        portal.MapGet("/{id:guid}/content", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new ReadPortalDocumentContent(id), ct)).ToHttp(content => Results.File(content.Content, content.MimeType)))
+            .Produces(StatusCodes.Status200OK, typeof(Stream), "application/octet-stream")
+            .WithName("PortalDocumentsReadContent")
+            .WithSummary("Read a document's content; every read is recorded in its access log with purpose PORTAL (DOC-003)")
+            .RequirePermission(DocumentPermissions.DocumentRead).ForPortal(everyone);
     }
 
     private static IResult Created(HttpContext http, DocumentView view)

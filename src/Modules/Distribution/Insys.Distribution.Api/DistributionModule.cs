@@ -99,5 +99,21 @@ public sealed class DistributionModule : IModule
             .WithName("DistributionGetStatement")
             .WithSummary("A commission statement")
             .RequirePermission(DistributionPermissions.StatementRead);
+
+        // The broker portal (external-user access §2): the broker's approved statements, and its sub-brokers'.
+        const string broker = BuildingBlocks.Application.Context.ExternalSubject.Intermediary;
+        var portal = api.MapGroup("/portal/distribution").WithTags(Name);
+        portal.MapGet("/statements", async (Guid? afterId, int? limit, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new ListPortalStatements(afterId, Math.Clamp(limit ?? 50, 1, 200)), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<PortalStatementView>>(StatusCodes.Status200OK)
+            .WithName("PortalDistributionListStatements")
+            .WithSummary("The broker's approved and paid commission statements, and its sub-brokers', by ID after afterId")
+            .RequirePermission(DistributionPermissions.StatementRead).ForPortal(broker);
+        portal.MapGet("/statements/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new GetPortalStatement(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalStatementView>(StatusCodes.Status200OK)
+            .WithName("PortalDistributionGetStatement")
+            .WithSummary("An approved or paid commission statement of the broker or a sub-broker, without its approval or bank account")
+            .RequirePermission(DistributionPermissions.StatementRead).ForPortal(broker);
     }
 }

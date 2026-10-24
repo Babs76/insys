@@ -50,6 +50,7 @@ public static class DistributionInfrastructure
         services.AddModuleHandlers<DistributionDbContext>(typeof(PrepareStatement).Assembly);
         services.AddDomainEventMapper<DistributionEventMapper>(schema);
         services.AddScoped<IDistributionRepository, DistributionRepository>();
+        services.AddScoped<IDistributionPortalQueries, DistributionPortalQueries>();
         services.AddScoped<IDistributionCodes, DistributionCodes>();
         services.AddSingleton<IIntermediaries, Intermediaries>();
         services.AddSingleton<IStaticChangeGuard, IntermediaryLifecycleGuard>();
@@ -61,6 +62,7 @@ public static class DistributionInfrastructure
         services.AddIntegrationEventHandler<ApprovalRejected, CommissionPolicies, DistributionDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<PaymentSucceeded, CommissionPolicies, DistributionDbContext>(schema, "PaymentSucceeded");
         services.AddIntegrationEventHandler<StaticDataChangeApproved, IntermediaryStatusPolicy, DistributionDbContext>(schema, "IntermediaryStatus");
+        services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations, DistributionPortalRelations>(); // external-user access §2
         return services;
     }
 }

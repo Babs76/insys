@@ -59,3 +59,24 @@ public interface IPortalAuthentication
 {
     Task<bool> MfaRequired(Guid tenantId, string? clientId, DateOnly day, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Whether a module's business record is in an external user's relationship (external-user access §2), for a portal
+/// read in another module: Documents files documents under business references owned elsewhere. Each module answers
+/// for the reference types it owns.
+/// </summary>
+public interface IPortalRecordRelations
+{
+    bool Covers(string businessRefType);
+
+    /// <summary>False when the record is not found, as well as when it is not the caller's.</summary>
+    Task<bool> Related(Guid tenantId, ExternalSubject who, string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
+}
+
+/// <summary>The policies a broker sells and services in one domain (its codes and its sub-brokers', §2), for Billing's portal reads.</summary>
+public interface IBrokeredPolicies
+{
+    Task<IReadOnlyList<Guid>> PolicyIds(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, CancellationToken cancellationToken);
+
+    Task<bool> Brokers(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, Guid policyId, CancellationToken cancellationToken);
+}

@@ -646,7 +646,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         }
 
         var (mine, me) = await Member("Portal");
-        var (theirs, _) = await Member("Other");
+        var (theirs, them) = await Member("Other");
         var memberNumber = (await Get($"/api/v1/health/memberships/{mine}")).GetProperty("memberNumber").GetString()!;
         foreach (var provider in new[] { "PR-1", "PR-2" })
         {
@@ -673,7 +673,8 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             HealthPermissions.RunRead];
         var providerRole = await PortalUser("provider-1", "PROVIDER", null, "PR-1", providerPermissions);
         await PortalUser("provider-2", "PROVIDER", null, "PR-2", providerPermissions);
-        await PortalUser("member-1", "PARTY", me, null, HealthPermissions.MembershipRead);
+        await PortalUser("member-1", "PARTY", me, null, HealthPermissions.MembershipRead, HealthPermissions.ClaimRead);
+        await PortalUser("member-2", "PARTY", them, null, HealthPermissions.MembershipRead, HealthPermissions.ClaimRead);
 
         await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-PRV", ("channel_code", "PRV"), ("audience", "PROVIDER"), ("name", "Provider portal"),
             ("client_ids", new[] { "provider-portal" }));
@@ -701,6 +702,15 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var member = _factory.ClientFor(Tenant, "member-1", "member-portal");
         (await member.GetAsync($"/api/v1/portal/health/memberships/{mine}")).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await member.GetAsync($"/api/v1/portal/health/memberships/{theirs}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        // A member sees their own claims, as patient or principal, and not another member's.
+        var mineListed = await member.GetAsync("/api/v1/portal/health/claims");
+        mineListed.StatusCode.ShouldBe(HttpStatusCode.OK, await mineListed.Content.ReadAsStringAsync());
+        (await mineListed.Json()).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldBe([claimId]);
+        (await member.GetAsync($"/api/v1/portal/health/claims/{claimId}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var other = _factory.ClientFor(Tenant, "member-2", "member-portal");
+        (await other.GetAsync($"/api/v1/portal/health/claims/{claimId}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await (await other.GetAsync("/api/v1/portal/health/claims")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
 
         // Member MFA is the tenant's choice: once the member portal's policy requires it, a token without it is refused.
         await Seed("iam.cfg_authentication_and_session_policies", "EFFECTIVE", "AUTH-MEM", ("policy_code", "AUTH-MEM"), ("mfa_required_roles", Array.Empty<string>()),

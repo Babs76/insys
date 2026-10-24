@@ -373,6 +373,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         number.ShouldStartWith("LIF");
         (await _db.ScalarAsOwner<string>("SELECT indicator_code || ':' || referred FROM claims.fraud_indicator_hit WHERE claim_number = @n", ("n", number)))
             .ShouldBe("DEATH_CLAIM:false", customMessage: "F009: fraud indicators are evaluated at registration");
+
         var reserve = await Get($"/api/v1/claims/claims/{number}/financials");
         reserve.GetProperty("outstandingReserves").GetProperty("INDEMNITY").GetDecimal().ShouldBe(1_000_000m, "OQ-079: the death cover's sum assured, set at registration");
         reserve.GetProperty("movements").GetArrayLength().ShouldBe(1);
@@ -420,6 +421,22 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
             (await client.GetAsync($"/api/v1/payments/payout-batches/{batch}")).StatusCode.ShouldBe(expected, subject);
             (await client.GetAsync($"/api/v1/payments/payout-batches/{batch}/payments")).StatusCode.ShouldBe(expected, subject);
         }
+
+        // Last, as the portals' channels then apply to staff too (F005). The portals (external-user access): the claimant
+        // sees the claim, and so does the policy's broker; a stranger does not; the view leaves out the assessment and reasons.
+        var claimant = await PortalClient("claimant", "PARTY", spouse, null);
+        var outsider = await PortalClient("outsider", "PARTY", stranger, null);
+        var broker = await PortalClient("broker-2", "INTERMEDIARY", null, "BRK-2");
+        var seen = await claimant.GetAsync($"/api/v1/portal/life/claims/{claim}");
+        seen.StatusCode.ShouldBe(HttpStatusCode.OK, await seen.Content.ReadAsStringAsync());
+        var portalView = await seen.Json();
+        portalView.TryGetProperty("decisionRationale", out _).ShouldBeFalse();
+        portalView.TryGetProperty("reserveType", out _).ShouldBeFalse();
+        (await (await claimant.GetAsync("/api/v1/portal/life/claims")).Json()).EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldContain(claim);
+        (await outsider.GetAsync($"/api/v1/portal/life/claims/{claim}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await (await outsider.GetAsync("/api/v1/portal/life/claims")).Json()).EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldContain(refused,
+            "the stranger made that one");
+        (await broker.GetAsync($"/api/v1/portal/life/claims/{claim}")).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     private async Task Organisation()
@@ -429,6 +446,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         {
             await Seed("tenant.mst_organisation_structure", "ACTIVE", code, ("node_code", code), ("type", type), ("parent", (object?)parent ?? DBNull.Value), ("name", code));
         }
+
     }
 
     /// <summary>
@@ -518,6 +536,27 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
             disclosures = new[] { new { insuredPartyId = applicant, questionCode = "SMOKE_12M", questionVersion = 1, answer = JsonSerializer.SerializeToElement(new { value = false }) } },
             nominations = new[] { new { partyId = spouse, relationshipCode = "SPOUSE", sharePct = 100m } },
         });
+
+    /// <summary>A linked portal user (external-user access) on its portal's client, with Life policy and claim reads.</summary>
+    private async Task<HttpClient> PortalClient(string subject, string kind, Guid? party, string? broker)
+    {
+        var user = await _db.UserWithPermissions(Tenant, subject, LifePermissions.PolicyRead, LifePermissions.ClaimRead);
+        await _db.ExecuteAsOwner("""
+            INSERT INTO iam.user_subject_link (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, kind, party_id, intermediary_code,
+                                               status, requested_by, decided_by, decided_at)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, @k, @p, @i, 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
+            """, ("t", Tenant), ("u", user), ("k", kind), ("p", (object?)party ?? DBNull.Value), ("i", (object?)broker ?? DBNull.Value));
+        var (client, audience) = kind == "PARTY" ? ("member-portal", "CUSTOMER") : ("broker-portal", "BROKER");
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", $"CH-{audience}", ("channel_code", audience[..3]), ("audience", audience), ("name", audience),
+            ("client_ids", new[] { client }));
+        if (broker is not null)
+        {
+            await Seed("commission.mst_intermediary_register", "ACTIVE", broker, ("intermediary_code", broker), ("type", "BROKER"), ("legal_name", broker),
+                ("licence_numbers", JsonSerializer.SerializeToElement(new[] { "FSP-1" })), ("status", "ACTIVE"), ("hierarchy_node", $"NODE-{broker}"));
+        }
+
+        return _factory.ClientFor(Tenant, subject, client, multiFactor: true);
+    }
 
     private async Task<Guid> IssuedPolicy(Guid applicant, Guid spouse, DateOnly inception, string? orgNodeCode = null)
     {

@@ -27,6 +27,8 @@
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.Life.Application;
+using Insys.Life.Domain.Claims;
+using Insys.Life.Domain.Policies;
 using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Life.Infrastructure.Persistence;
@@ -81,5 +83,36 @@ internal sealed class LifeLists(LifeDbContext db, IExecutionContext execution) :
         return await rows.OrderBy(s => s.Id).Take(q.Limit)
             .Select(s => new GroupSchemeSummary(s.Id, s.SchemeNumber, s.EmployerPartyId, s.ProductCode, s.Status, s.StartDate, s.RenewalDate))
             .ToListAsync(cancellationToken);
+    }
+}
+
+/// <summary>The portal's Life claims (external-user access §2), ordered by ID for cursor paging, within the caller's F103 scope.</summary>
+internal sealed class LifePortalQueries(LifeDbContext db, IExecutionContext execution) : ILifePortalQueries
+{
+    public async Task<IReadOnlyList<LifeClaim>> Claims(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var rows = db.Claims.AsNoTracking().InScope(execution.CurrentScope, c => c.ProductCode, c => c.OrgNodeCode);
+        if (who.Kind == ExternalSubject.Party && who.PartyId is { } party)
+        {
+            rows = rows.Where(c => c.ClaimantPartyId == party
+                || db.Policies.Any(p => p.Id == c.PolicyId && p.PolicyholderPartyId == party)
+                || db.Set<LifeBeneficiary>().Any(b => b.PolicyId == c.PolicyId && b.PartyId == party && b.ValidTo == null));
+        }
+        else if (who.Kind == ExternalSubject.Intermediary)
+        {
+            var codes = who.IntermediaryCodes.ToList();
+            rows = rows.Where(c => db.Policies.Any(p => p.Id == c.PolicyId && p.IntermediaryCode != null && codes.Contains(p.IntermediaryCode)));
+        }
+        else
+        {
+            return [];
+        }
+
+        if (afterId is { } after)
+        {
+            rows = rows.Where(c => c.Id.CompareTo(after) > 0);
+        }
+
+        return await rows.OrderBy(c => c.Id).Take(limit).ToListAsync(cancellationToken);
     }
 }

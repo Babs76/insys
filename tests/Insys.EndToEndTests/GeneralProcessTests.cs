@@ -67,7 +67,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         PaymentPermissions.CallbackEndpointUpdate, ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate,
         ClaimsPermissions.InstructionRead, ClaimsPermissions.InstructionRelease, ClaimsPermissions.InstructionCreate, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate,
         WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove, IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate,
-        DocumentPermissions.DocumentRead, Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.BankAccountCreate,
+        DocumentPermissions.DocumentRead, DocumentPermissions.DocumentCreate, Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.BankAccountCreate,
         Insys.Party.Contracts.PartyPermissions.BankAccountRead, Insys.Party.Contracts.PartyPermissions.BankAccountVerify,
     ];
 
@@ -405,10 +405,11 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         }
 
         string[] brokerPermissions = [GeneralPermissions.PolicyRead, GeneralPermissions.QuoteRead, GeneralPermissions.QuoteCreate, GeneralPermissions.ClaimRead,
-            PartyPermissions.PartyCreate];
+            PartyPermissions.PartyCreate, BillingPermissions.InvoiceRead, DocumentPermissions.DocumentRead];
         var brokerRole = await PortalUser("broker-a", "INTERMEDIARY", null, "BRK-A", brokerPermissions);
         await PortalUser("broker-b", "INTERMEDIARY", null, "BRK-B", brokerPermissions);
-        var memberRole = await PortalUser("member-a", "PARTY", holderA, null, GeneralPermissions.PolicyRead, GeneralPermissions.ClaimRead, GeneralPermissions.ClaimCreate);
+        var memberRole = await PortalUser("member-a", "PARTY", holderA, null, GeneralPermissions.PolicyRead, GeneralPermissions.ClaimRead, GeneralPermissions.ClaimCreate,
+            BillingPermissions.InvoiceRead, DocumentPermissions.DocumentRead);
 
         // The portals' channels (F005), with the commands their roles may make; and the back office's.
         await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-BRK", ("channel_code", "BRK"), ("audience", "BROKER"), ("name", "Broker portal"),
@@ -461,6 +462,46 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await member.Send(HttpMethod.Post, "/api/v1/portal/general/claims", Loss(policyB, vehicleB), idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         var notified = await member.Send(HttpMethod.Post, "/api/v1/portal/general/claims", Loss(policyA, vehicleA), idempotent: true);
         notified.StatusCode.ShouldBe(HttpStatusCode.Created, await notified.Content.ReadAsStringAsync());
+
+        // Invoices: the member's are those of the accounts they pay; a broker's, those of its policies.
+        async Task<Guid[]> InvoicePolicies(HttpClient client)
+        {
+            var listed = await client.GetAsync("/api/v1/portal/billing/invoices");
+            listed.StatusCode.ShouldBe(HttpStatusCode.OK, await listed.Content.ReadAsStringAsync());
+            return (await listed.Json()).EnumerateArray().Select(i => i.GetProperty("policyRef").GetGuid()).Distinct().ToArray();
+        }
+
+        await _factory.DrainOutbox();
+        (await InvoicePolicies(member)).ShouldBe([policyA]);
+        (await InvoicePolicies(brokerA)).ShouldBe([policyA]);
+        (await InvoicePolicies(brokerB)).ShouldBe([policyB]);
+        var invoiceB = await _db.ScalarAsOwner<Guid>("SELECT id FROM billing.invoice WHERE policy_ref = @p LIMIT 1", ("p", policyB));
+        (await member.GetAsync($"/api/v1/portal/billing/invoices/{invoiceB}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var invoiceView = await (await brokerB.GetAsync($"/api/v1/portal/billing/invoices/{invoiceB}")).Json();
+        invoiceView.TryGetProperty("allocatedAmount", out _).ShouldBeFalse();
+
+        // Documents: only categories that name a portal role (the policy schedule's does not), and only the relationship's.
+        string Documents(Guid policy) => $"/api/v1/portal/documents?businessRefType=GENERAL_POLICY&businessRefId={policy}";
+        await Seed("document.ref_document_categories", "ACTIVE", "PORTAL_LETTER", ("category_code", "PORTAL_LETTER"), ("label", "Letter"), ("classification", "PERSONAL"),
+            ("domain", "ALL"), ("allowed_roles", new[] { memberRole, brokerRole }));
+        foreach (var category in new[] { "PORTAL_LETTER", "POLICY_SCHEDULE" })
+        {
+            var stored = await _maker.Send(HttpMethod.Post, "/api/v1/documents/documents", new
+            {
+                categoryCode = category, businessRefType = "GENERAL_POLICY", businessRefId = policyA, mimeType = "text/plain",
+                contentBase64 = Convert.ToBase64String("Dear policyholder"u8.ToArray()),
+            }, idempotent: true);
+            stored.StatusCode.ShouldBe(HttpStatusCode.Created, await stored.Content.ReadAsStringAsync());
+        }
+
+        var schedule = (await (await member.GetAsync(Documents(policyA))).Json()).EnumerateArray().Single();
+        schedule.GetProperty("categoryCode").GetString().ShouldBe("PORTAL_LETTER");
+        (await member.GetAsync(Documents(policyB))).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var scheduleId = schedule.GetProperty("id").GetGuid();
+        (await member.GetAsync($"/api/v1/portal/documents/{scheduleId}/content")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _db.ScalarAsOwner<string>("SELECT purpose FROM document.document_access_log WHERE document_id = @d", ("d", scheduleId))).ShouldBe("PORTAL");
+        (await brokerA.GetAsync($"/api/v1/portal/documents/{scheduleId}/content")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await brokerB.GetAsync($"/api/v1/portal/documents/{scheduleId}/content")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         // Outside the portal: a staff endpoint, the staff client, and a broker token without MFA are refused.
         (await (await brokerA.GetAsync($"/api/v1/general/policies/{policyA}")).Code()).ShouldBe("EXTERNAL_USER_NOT_ALLOWED");

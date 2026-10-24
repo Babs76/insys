@@ -43,6 +43,7 @@ public static class DocumentsInfrastructure
         services.AddModuleHandlers<DocumentsDbContext>(typeof(GenerateDocument).Assembly);
         services.AddDomainEventMapper<DocumentsEventMapper>(DocumentsDbContext.SchemaName);
         services.AddScoped<IDocumentRepository, DocumentRepository>();
+        services.AddScoped<PortalDocuments>();
         services.AddScoped<IDocumentCatalogue, DocumentCatalogue>();
         services.AddOptions<DocumentStorageOptions>().BindConfiguration("Documents:Storage");
         if (string.Equals(configuration["Documents:Storage:Provider"], "object-store", StringComparison.OrdinalIgnoreCase))

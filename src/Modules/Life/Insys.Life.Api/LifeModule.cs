@@ -101,11 +101,25 @@ public sealed class LifeModule : IModule
         MapClaims(life);
         MapSchemes(life);
 
-        api.MapGroup("/portal/life").WithTags(Name).MapGet("/policies/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) =>
+        var portal = api.MapGroup("/portal/life").WithTags(Name);
+        portal.MapGet("/policies/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Query(new GetPortalLifePolicy(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalLifePolicyView>(StatusCodes.Status200OK)
             .WithName("PortalLifeGetPolicy").WithSummary("A Life policy of the member (policyholder or insured life) or broker (external-user access)")
             .RequirePermission(LifePermissions.PolicyRead).ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party,
+                BuildingBlocks.Application.Context.ExternalSubject.Intermediary);
+        portal.MapGet("/claims", async (Guid? afterId, int? limit, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new ListPortalLifeClaims(afterId, Math.Clamp(limit ?? 50, 1, 200)), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<PortalLifeClaimView>>(StatusCodes.Status200OK)
+            .WithName("PortalLifeListClaims")
+            .WithSummary("The member's Life claims (claimant, policyholder or nominated beneficiary) or the broker's (its policies), by ID after afterId")
+            .RequirePermission(LifePermissions.ClaimRead).ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party,
+                BuildingBlocks.Application.Context.ExternalSubject.Intermediary);
+        portal.MapGet("/claims/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new GetPortalLifeClaim(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalLifeClaimView>(StatusCodes.Status200OK)
+            .WithName("PortalLifeGetClaim").WithSummary("A Life claim of the member or broker, without its assessment, reserve or decision reasons (external-user access)")
+            .RequirePermission(LifePermissions.ClaimRead).ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party,
                 BuildingBlocks.Application.Context.ExternalSubject.Intermediary);
     }
 

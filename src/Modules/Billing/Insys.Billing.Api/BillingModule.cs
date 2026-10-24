@@ -152,5 +152,21 @@ public sealed class BillingModule : IModule
             .WithName("BillingGetRefund")
             .WithSummary("Get a refund request")
             .RequirePermission(BillingPermissions.RefundRead);
+
+        // The member and broker portals (external-user access §2): the invoices a member pays, or of a broker's policies.
+        const string member = BuildingBlocks.Application.Context.ExternalSubject.Party, broker = BuildingBlocks.Application.Context.ExternalSubject.Intermediary;
+        var portal = api.MapGroup("/portal/billing").WithTags(Name);
+        portal.MapGet("/invoices", async (Guid? afterId, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListPortalInvoices(afterId, Math.Clamp(limit ?? 50, 1, 200)), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<PortalInvoiceView>>(StatusCodes.Status200OK)
+            .WithName("PortalBillingListInvoices")
+            .WithSummary("The member's invoices (accounts they pay) or the broker's (its policies and its sub-brokers'), by ID after afterId")
+            .RequirePermission(BillingPermissions.InvoiceRead).ForPortal(member, broker);
+        portal.MapGet("/invoices/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetPortalInvoice(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalInvoiceView>(StatusCodes.Status200OK)
+            .WithName("PortalBillingGetInvoice")
+            .WithSummary("An invoice of the member or broker, without the account's collection details or allocations")
+            .RequirePermission(BillingPermissions.InvoiceRead).ForPortal(member, broker);
     }
 }

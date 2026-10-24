@@ -75,6 +75,9 @@ public interface IHealthPortalQueries
 {
     Task<IReadOnlyList<MedicalClaim>> ProviderClaims(string providerId, Guid? afterId, int limit, CancellationToken cancellationToken);
 
+    /// <summary>A member's claims: those where they are the patient, and every claim of a membership where they are the principal.</summary>
+    Task<IReadOnlyList<MedicalClaim>> MemberClaims(Guid partyId, Guid? afterId, int limit, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<PortalRemittanceView>> ProviderRemittances(string providerId, Guid? afterId, int limit, CancellationToken cancellationToken);
 }
 
@@ -107,14 +110,39 @@ internal sealed class HealthPortalHandlers(IHealthRepository health, IHealthPort
             ? PortalMembershipView.From(m)
             : Error.NotFound(ErrorCodes.NotFound, "The membership was not found.");
 
-    public async Task<Result<PortalMedicalClaimView>> Handle(GetPortalMedicalClaim query, CancellationToken cancellationToken) =>
-        await health.Claim(query.ClaimId, cancellationToken) is { } claim && Who.Kind == ExternalSubject.Provider && claim.ProviderId == Who.ProviderId
-            ? PortalMedicalClaimView.From(claim)
-            : Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
+    /// <summary>
+    /// A provider sees its own claims. A member sees the claims where they are the patient and, as principal, every claim
+    /// of their membership; a dependant does not see the principal's or another dependant's (OQ-084).
+    /// </summary>
+    public async Task<Result<PortalMedicalClaimView>> Handle(GetPortalMedicalClaim query, CancellationToken cancellationToken)
+    {
+        var who = Who;
+        if (await health.Claim(query.ClaimId, cancellationToken) is { } claim)
+        {
+            var related = who.Kind switch
+            {
+                ExternalSubject.Provider => claim.ProviderId == who.ProviderId,
+                ExternalSubject.Party => claim.PatientPartyId == who.PartyId
+                    || (await health.Membership(claim.MembershipId, cancellationToken))?.PrincipalPartyId == who.PartyId,
+                _ => false,
+            };
+            if (related)
+            {
+                return PortalMedicalClaimView.From(claim);
+            }
+        }
 
-    public async Task<Result<IReadOnlyList<PortalMedicalClaimView>>> Handle(ListPortalMedicalClaims query, CancellationToken cancellationToken) =>
-        Result.Success<IReadOnlyList<PortalMedicalClaimView>>((await queries.ProviderClaims(Who.ProviderId!, query.AfterId, query.Limit, cancellationToken))
-            .Select(PortalMedicalClaimView.From).ToList());
+        return Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
+    }
+
+    public async Task<Result<IReadOnlyList<PortalMedicalClaimView>>> Handle(ListPortalMedicalClaims query, CancellationToken cancellationToken)
+    {
+        var who = Who;
+        var claims = who.Kind == ExternalSubject.Provider
+            ? await queries.ProviderClaims(who.ProviderId!, query.AfterId, query.Limit, cancellationToken)
+            : await queries.MemberClaims(who.PartyId!.Value, query.AfterId, query.Limit, cancellationToken);
+        return Result.Success<IReadOnlyList<PortalMedicalClaimView>>(claims.Select(PortalMedicalClaimView.From).ToList());
+    }
 
     public async Task<Result<PortalPreauthorisationView>> Handle(GetPortalPreauthorisation query, CancellationToken cancellationToken) =>
         await health.Preauthorisation(query.PreauthorisationId, cancellationToken) is { } preauth && Who.Kind == ExternalSubject.Provider && preauth.ProviderId == Who.ProviderId
