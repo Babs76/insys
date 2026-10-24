@@ -51,6 +51,7 @@ public static class ClaimsFrameworkInfrastructure
         services.AddSingleton<BuildingBlocks.Contracts.IBusinessRecordScopes, ClaimsRecordScopes>();
         services.AddScoped<IClaimsCodes, ClaimsCodes>();
         services.AddIntegrationEventHandler<ApprovalGranted, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ApprovalGranted");
+        services.AddIntegrationEventHandler<Communications.Contracts.NotificationSent, LogClaimNotice, ClaimsFrameworkDbContext>(schema);
         services.AddIntegrationEventHandler<ApprovalRejected, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<PaymentSucceeded, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "PaymentSucceeded");
         services.AddOptions<ClaimsPaymentOptions>().BindConfiguration("Claims:Payments");

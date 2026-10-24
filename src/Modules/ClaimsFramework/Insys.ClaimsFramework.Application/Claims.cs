@@ -805,3 +805,25 @@ public sealed class ClaimRegistry(IDispatcher dispatcher, ILogger<ClaimRegistry>
     }
 }
 
+/// <summary>
+/// A claim notice was sent (addenda/communications.md §5): the claim's correspondence log records it as outbound on its
+/// channel, so the claim shows every notice. Notices about other records are not the claim's.
+/// </summary>
+public sealed class LogClaimNotice(IClaimsRepository claims, IClock clock) : IIntegrationEventHandler<Communications.Contracts.NotificationSent>
+{
+    public async Task Handle(Communications.Contracts.NotificationSent sent, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var domain = sent.SourceType switch
+        {
+            "GENERAL_CLAIM" => "GENERAL",
+            "LIFE_CLAIM" => "LIFE",
+            "HEALTH_CLAIM" => "HEALTH",
+            _ => null,
+        };
+        if (domain is not null && await claims.ByDomainClaim(domain, sent.SourceId, cancellationToken) is { } registration)
+        {
+            registration.RecordCommunication("OUT", sent.Channel, null, clock.UtcNow);
+        }
+    }
+}
+
