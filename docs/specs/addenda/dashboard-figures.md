@@ -1,6 +1,11 @@
 # Addendum: dashboard figures (GAP-046, front-end request 43)
 
-**Proposed 24 October 2026, for sign-off. Nothing is built.**
+**Signed off 24 October 2026** (Ade), with these decisions. Built in Wave 0b batch 6.
+1. One summary endpoint per module: agreed.
+2. Claims for branch-scoped users: the claims projection gains the claim's branch (organisation node), so they get their own claims figures.
+3. Health: shown as "not included" for now; Health figures come with Waves 5a and 5b.
+4. Return due dates: a submission deadline is added to the return definitions, as tenant configuration that compliance sets. The actual deadlines are OQ-083; none is invented.
+5. Both optional figures are included: open arrears, and payments with an unknown outcome.
 
 - **Asked for:** server-computed headline figures, so the browser never adds up rows:
   - written premium and claims incurred for a period;

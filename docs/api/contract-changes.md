@@ -2,7 +2,11 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 0b batch 5 (branch `wave0b-5`, not merged): external-user access; Health product follow-ups
+## Wave 0b batch 6 (branch `wave0b-6`, not merged)
+
+In progress.
+
+## Wave 0b batch 5 (merged, `0f66f05`): external-user access; Health product follow-ups
 
 ### Removed
 - **`POST /api/v1/payments/providers/{providerCode}/callbacks`** (operation `PaymentsProviderCallback`) is gone, with its bearer-token path and the `Payments:Providers:<code>:CallbackSecret` setting. Every provider callback, the simulator's included, uses `POST /api/v1/payments/callbacks/{endpointKey}` with no token, signed as in ADR-023. The front end moved its simulator scripts first.

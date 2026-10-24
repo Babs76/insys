@@ -908,3 +908,9 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - Life proposals record the token's channel.
 
   **Closed.**
+
+### OQ-083 Regulatory return submission deadlines (Phase 8 Wave 0b, GAP-046)
+- **Source:** `docs/specs/addenda/dashboard-figures.md`, decision 4.
+- **The gap:** neither the SRS nor `reporting.cfg_regulatory_return_definitions` says by when each return must be submitted to its regulator, so no return can be shown as due or overdue.
+- **Decided (24 October 2026, Ade):** the deadline becomes tenant configuration on each return definition, set by compliance. No deadline is invented in code, seed data or tests other than as test data.
+- **Open:** the actual deadline of each return the tenants file (for example the Prudential Authority's quarterly and annual returns), and whether a deadline counts calendar or business days after the period end.

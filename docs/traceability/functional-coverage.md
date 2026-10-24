@@ -90,6 +90,8 @@ Order: Workstreams B, C and D, then Wave 0, then Waves 1 to 6. After each wave, 
 
 F050 (provider payment disputes) sits in both Wave 2 and Wave 5a: Wave 2 builds the shared case capability, and Wave 5a uses it for providers.
 
+Wave 3 also builds a duplicate check for parties registered by staff, with the same matching as portal registration (the identifier hash, or the same names and birth date). Decided 24 October 2026 (Ade); today only portal registrations are matched (external-user access §6).
+
 | # | Area | Capability | Function | Baseline | Spec basis | Note | Verified status | Evidence (code, tests) |
 |---|---|---|---|---|---|---|---|---|
 | F001 | Customer Management | Identification | Verify Customer Identity | Partly | SRS §6.1 identity documents and verification references | Identifiers stored encrypted with a verification reference; no identity-verification provider integration **Verified:** Identifiers stored encrypted and unique; a verification reference is recorded by hand (`POST /party/parties/{id}/identifiers/{identifierId}/verify`, `VerifyIdentifier`), but no test covers that command and there is no verification provider. | Partial | `SharedServicesTests.Identifier_IsEncrypted_UniqueInTheTenant_AndNeverReturned_PTY005`, `PartyTests.Identifier_OfTheSameTypeAndCountry_IsAddedOnce` |
