@@ -315,6 +315,19 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         (await (await _maker.GetAsync($"/api/v1/analytics/written-premium?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}")).Json()).EnumerateArray().Single()
             .GetProperty("writtenPremium").GetDecimal().ShouldBe(3_050m);
 
+        // GAP-046: the dashboard figures, per currency, from the same projections.
+        var summary = await (await _maker.GetAsync($"/api/v1/analytics/summary?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}")).Json();
+        JsonElement Figure(JsonElement s, string code) => s.GetProperty("figures").EnumerateArray().Single(f => f.GetProperty("code").GetString() == code);
+        var premium = Figure(summary, "WRITTEN_PREMIUM").GetProperty("amounts").EnumerateArray().Single();
+        (premium.GetProperty("currency").GetString(), premium.GetProperty("amount").GetDecimal()).ShouldBe(("ZAR", 3_050m));
+        Figure(summary, "POLICIES_WRITTEN").GetProperty("count").GetInt64().ShouldBe(1L);
+        summary.GetProperty("notIncluded").EnumerateArray().Select(n => n.GetString()).ShouldBe(["HEALTH"]);
+        // This tenant has no organisation structure, so the policy has no node: its branch is ALL, which no branch scope covers.
+        var branchUser = await _db.UserWithPermissions(Tenant, "figures-branch", AnalyticsPermissions.ProjectionRead);
+        await _db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_branches = ARRAY['ORG-X'] WHERE user_id = @u", ("u", branchUser));
+        var scoped = await (await _factory.ClientFor(Tenant, "figures-branch").GetAsync($"/api/v1/analytics/summary?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}")).Json();
+        (Figure(scoped, "POLICIES_WRITTEN").GetProperty("count").GetInt64(), Figure(scoped, "WRITTEN_PREMIUM").GetProperty("amounts").GetArrayLength()).ShouldBe((0L, 0));
+
         // Partner webhooks: signed with the subscription's key; a partner that answers 503 is retried by its policy, then dead-lettered (INT-006).
         var jobs = _factory.Services.GetRequiredService<WebhookJobs>();
         var stub = _factory.Services.GetRequiredService<StubWebhookTransport>();
@@ -539,6 +552,15 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         (await _maker.PostAsync($"/api/v1/finance/periods/{Month}/close", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         var prepared = (await (await _maker.GetAsync($"/api/v1/compliance/returns?periodCode={Month}")).Json()).EnumerateArray().Single();
+
+        // GAP-046: the return counts by status and as awaiting action; it has no deadline yet, so it is never overdue (OQ-083).
+        var returns = await (await _maker.GetAsync($"/api/v1/compliance/returns/summary?fromPeriod={Month}&toPeriod={Month}")).Json();
+        JsonElement ReturnFigure(string code) => returns.GetProperty("figures").EnumerateArray().Single(f => f.GetProperty("code").GetString() == code);
+        ReturnFigure("RETURNS_BY_STATUS").GetProperty("by").EnumerateArray().Single(p => p.GetProperty("key").GetString() == "Prepared").GetProperty("count").GetInt64()
+            .ShouldBe(1L);
+        ReturnFigure("RETURNS_AWAITING_ACTION").GetProperty("count").GetInt64().ShouldBe(1L);
+        var overdue = ReturnFigure("RETURNS_OVERDUE");
+        (overdue.GetProperty("count").GetInt64(), overdue.GetProperty("by").EnumerateArray().Single().GetProperty("key").GetString()!).ShouldBe((0L, $"NO_DEADLINE:{prepared.GetProperty("returnCode").GetString()}"));
         prepared.GetProperty("fieldValues").GetProperty("gross_premium").GetDecimal().ShouldBe(3_050m);
         prepared.GetProperty("fieldValues").GetProperty("receivables").GetDecimal().ShouldBe(254.17m);
         var id = prepared.GetProperty("id").GetGuid();

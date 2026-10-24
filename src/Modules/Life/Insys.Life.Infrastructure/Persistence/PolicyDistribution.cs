@@ -41,7 +41,7 @@ internal sealed class LifePolicyDistribution([FromKeyedServices(LifeDbContext.Sc
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
-        await using var command = new NpgsqlCommand("SELECT product_code, intermediary_code FROM life.policy WHERE tenant_id = @t AND id = @p", connection, transaction);
+        await using var command = new NpgsqlCommand("SELECT product_code, intermediary_code, org_node_code FROM life.policy WHERE tenant_id = @t AND id = @p", connection, transaction);
         command.Parameters.AddWithValue("t", tenantId);
         command.Parameters.AddWithValue("p", policyRef);
         PolicyDistribution? found = null;
@@ -49,7 +49,8 @@ internal sealed class LifePolicyDistribution([FromKeyedServices(LifeDbContext.Sc
         {
             if (await reader.ReadAsync(cancellationToken))
             {
-                found = new PolicyDistribution(SourceDomain, policyRef, reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1));
+                found = new PolicyDistribution(SourceDomain, policyRef, reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2));
             }
         }
 

@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using FluentValidation;
+using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
@@ -59,6 +60,9 @@ public interface IParkedDeliveryStore
     /// <summary>Counts of parked deliveries per active tenant and kind, read tenant by tenant.</summary>
     Task<IReadOnlyList<ParkedDeliveryCount>> ByTenant(CancellationToken cancellationToken);
 
+    /// <summary>The Integration dashboard figures (GAP-046) for the tenant.</summary>
+    Task<DashboardSummary> Summary(CancellationToken cancellationToken);
+
     /// <summary>Asks for a retry at the next pass of the parking job. Returns how many deliveries it covers.</summary>
     Task<int> RequestRetry(Guid? id, string? code, CancellationToken cancellationToken);
 
@@ -86,6 +90,27 @@ public sealed record GetParkingSetting : IQuery<ParkingSettingView>;
 
 public sealed record ChangeParkingSetting(string ConfigurationOwnerRole, string? CalendarCode, string MoneyFirst, string MoneySecond, string OtherFirst,
     string OtherSecond, long? ExpectedVersion) : ICommand<long>;
+
+/// <summary>
+/// The Integration dashboard figures (GAP-046, addenda/dashboard-figures.md): DELIVERIES_PARKED by prerequisite code;
+/// DELIVERIES_FAILING (failing, retrying or waiting behind one); DEAD_LETTERS_OPEN (no resolution yet);
+/// WEBHOOK_DELIVERIES_FAILING (failed for good, or pending after a failed attempt); OLDEST_PARKED_AT.
+/// </summary>
+public sealed record DeliveriesSummaryQuery : IQuery<DashboardSummary>;
+
+public static class DeliveryFigures
+{
+    public const string Parked = "DELIVERIES_PARKED";
+    public const string Failing = "DELIVERIES_FAILING";
+    public const string DeadLettersOpen = "DEAD_LETTERS_OPEN";
+    public const string WebhooksFailing = "WEBHOOK_DELIVERIES_FAILING";
+    public const string OldestParkedAt = "OLDEST_PARKED_AT";
+}
+
+internal sealed class DeliveriesSummaryHandler(IParkedDeliveryStore store) : IQueryHandler<DeliveriesSummaryQuery, DashboardSummary>
+{
+    public async Task<Result<DashboardSummary>> Handle(DeliveriesSummaryQuery query, CancellationToken cancellationToken) => await store.Summary(cancellationToken);
+}
 
 public static class ParkingErrorCodes
 {

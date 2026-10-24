@@ -102,6 +102,10 @@ public sealed class ArrearsAgeingTests(DatabaseFixture fixture) : IClassFixture<
         var (account, dueOn) = await Schedule(Today.AddDays(-10), clerk);
         await RunAsOf(dueOn.AddDays(1), clerk);
         (await Case(account)).ShouldBe(("B1", 1));
+        var arrears = (await (await clerk.GetAsync("/api/v1/billing/summary")).Json()).GetProperty("figures").EnumerateArray().Single();
+        (arrears.GetProperty("code").GetString(), arrears.GetProperty("count").GetInt64()).ShouldBe(("OPEN_ARREARS", 1L), "GAP-046: the dashboard counts it");
+        var overdueAmount = arrears.GetProperty("amounts").EnumerateArray().Single();
+        (overdueAmount.GetProperty("currency").GetString(), overdueAmount.GetProperty("amount").GetDecimal()).ShouldBe(("ZAR", 80m));
 
         await RunAsOf(dueOn.AddDays(5), clerk);
         (await Case(account)).ShouldBe(("B1", 5), "it stays in its bucket, with its true days overdue");

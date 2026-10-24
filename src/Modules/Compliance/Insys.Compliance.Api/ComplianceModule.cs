@@ -72,6 +72,15 @@ public sealed class ComplianceModule : IModule
             .WithSummary("Regulatory returns, by period or status")
             .RequirePermission(CompliancePermissions.ReturnRead);
 
+        compliance.MapGet("/returns/summary", async (string fromPeriod, string toPeriod, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new ReturnsSummaryQuery(fromPeriod, toPeriod), ct)).ToHttp(Results.Ok))
+            .Produces<BuildingBlocks.Application.DashboardSummary>(StatusCodes.Status200OK)
+            .WithName("ComplianceReturnsSummary")
+            .WithSummary("Dashboard figures (GAP-046): returns by status, awaiting action, and overdue, for the periods fromPeriod to toPeriod (yyyy-MM)")
+            .WithDescription("RETURNS_OVERDUE counts returns not yet submitted past their definition's submissionDays after the period end. A definition without "
+                + "submissionDays has no deadline: its returns are never overdue, and its code is listed in by as NO_DEADLINE:<code> (OQ-083).")
+            .RequirePermission(CompliancePermissions.ReturnRead);
+
         compliance.MapGet("/returns/{id:guid}", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) =>
                 (await d.Query(new GetReturn(id), ct)).ToHttp(view => Tagged(http, view, Results.Ok(view))))
             .Produces<ReturnView>(StatusCodes.Status200OK)

@@ -39,6 +39,9 @@ namespace Insys.Payments.Infrastructure.Persistence;
 
 internal sealed class PaymentRepository(PaymentsDbContext db) : IPaymentRepository
 {
+    public async Task<IReadOnlyList<Payment>> Unknown(CancellationToken cancellationToken) =>
+        await db.Payments.AsNoTracking().Where(p => p.Status == PaymentStatus.Unknown).OrderBy(p => p.Id).ToListAsync(cancellationToken);
+
     public Task<Payment?> Get(Guid id, CancellationToken cancellationToken) => Payments().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
     public Task<Payment?> ByIdempotencyKey(string key, CancellationToken cancellationToken) => Payments().SingleOrDefaultAsync(p => p.IdempotencyKey == key, cancellationToken);

@@ -91,7 +91,7 @@ public static class IntermediaryTransactions
 }
 
 /// <summary>A policy's distribution: its product and the intermediary that sold it, if any.</summary>
-public sealed record PolicyDistribution(string SourceDomain, Guid PolicyRef, string ProductCode, string? IntermediaryCode);
+public sealed record PolicyDistribution(string SourceDomain, Guid PolicyRef, string ProductCode, string? IntermediaryCode, string? OrgNodeCode = null);
 
 /// <summary>
 /// Public query interface each policy domain implements (General, Life): who sold a policy, for commission on its

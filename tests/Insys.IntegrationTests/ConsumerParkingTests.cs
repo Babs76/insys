@@ -106,6 +106,15 @@ public sealed class ConsumerParkingTests(DatabaseFixture fixture) : IClassFixtur
         (await Status(issued, consumer)).ShouldBe("PARKED");
         (await fixture.Database.ScalarAsOwner<int>("SELECT attempts FROM integration.parked_delivery WHERE event_id = @e AND consumer = @c",
             ("e", issued.EventId), ("c", consumer))).ShouldBe(2);
+
+        // GAP-046: the operations dashboard counts it by what is missing, and says since when deliveries have been parked.
+        await fixture.Database.UserWithPermissions(Tenant, "operations", Insys.Integration.Contracts.IntegrationPermissions.DeadLetterRead);
+        var summary = await (await _factory.ClientFor(Tenant, "operations").GetAsync("/api/v1/integration/deliveries/summary")).Json();
+        JsonElement Figure(string code) => summary.GetProperty("figures").EnumerateArray().Single(f => f.GetProperty("code").GetString() == code);
+        Figure("DELIVERIES_PARKED").GetProperty("by").EnumerateArray().Single(p => p.GetProperty("key").GetString() == PrerequisiteCodes.DocumentTemplateNotInForce)
+            .GetProperty("count").GetInt64().ShouldBeGreaterThanOrEqualTo(1L);
+        Figure("OLDEST_PARKED_AT").GetProperty("at").GetDateTimeOffset().ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+        Figure("DEAD_LETTERS_OPEN").GetProperty("count").GetInt64().ShouldBeGreaterThanOrEqualTo(0L);
     }
 
     [Fact]

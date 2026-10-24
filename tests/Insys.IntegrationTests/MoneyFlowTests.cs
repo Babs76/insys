@@ -213,10 +213,24 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         (await fixture.Database.ScalarAsOwner<long>(
             "SELECT count(*) FROM payment.reconciliation_exception WHERE payment_id = @p AND status = 'OPEN'", ("p", payment))).ShouldBe(1L);
 
+        // GAP-046: it counts among the payments waiting for a decision on the dashboard, until it is decided.
+        async Task<(long Count, decimal Zar)> Unknown()
+        {
+            var figure = (await (await _maker.GetAsync("/api/v1/payments/summary")).Json()).GetProperty("figures").EnumerateArray().Single();
+            figure.GetProperty("code").GetString().ShouldBe("PAYMENTS_UNKNOWN");
+            return (figure.GetProperty("count").GetInt64(),
+                figure.GetProperty("amounts").EnumerateArray().Where(a => a.GetProperty("currency").GetString() == "ZAR").Sum(a => a.GetProperty("amount").GetDecimal()));
+        }
+
+        var waiting = await Unknown();
+        waiting.Count.ShouldBeGreaterThanOrEqualTo(1L);
+        waiting.Zar.ShouldBeGreaterThanOrEqualTo(150.99m);
+
         // A person decides from evidence; only then is it received, allocated and posted.
         (await _maker.PostAsJsonAsync($"/api/v1/payments/payments/{payment}/resolve", new { succeeded = true, evidence = "Bank statement 2026-10-21 line 7" }))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
+        (await Unknown()).ShouldBe((waiting.Count - 1, waiting.Zar - 150.99m));
         (await Journals("PAYMENT", payment)).Count.ShouldBe(1);
         (await (await _maker.GetAsync($"/api/v1/billing/invoices/{invoice}")).Json()).GetProperty("status").GetString().ShouldBe("Paid");
     }

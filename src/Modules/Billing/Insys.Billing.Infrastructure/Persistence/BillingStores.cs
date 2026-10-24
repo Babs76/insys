@@ -101,6 +101,10 @@ internal sealed class BillingRepository(BillingDbContext db, IExecutionContext e
             .Union(db.Accounts.AsNoTracking().Where(a => a.Status == AccountStatus.InArrears).Select(a => a.Id))
             .Distinct().Take(limit).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<BillingAccount>> InArrears(CancellationToken cancellationToken) =>
+        await db.Accounts.AsNoTracking().Include(a => a.Schedules).Include(a => a.Arrears).AsSplitQuery()
+            .Where(a => a.Arrears.Any(c => c.Status == "OPEN")).ToListAsync(cancellationToken);
+
     public void Add(BillingAccount account) => db.Accounts.Add(account);
 
     public void Add(Invoice invoice) => db.Invoices.Add(invoice);

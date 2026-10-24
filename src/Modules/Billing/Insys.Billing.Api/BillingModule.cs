@@ -153,6 +153,14 @@ public sealed class BillingModule : IModule
             .WithSummary("Get a refund request")
             .RequirePermission(BillingPermissions.RefundRead);
 
+        api.MapGroup("/billing").WithTags(Name).MapGet("/summary", async (IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new BillingSummaryQuery(), ct)).ToHttp(Results.Ok))
+            .Produces<BuildingBlocks.Application.DashboardSummary>(StatusCodes.Status200OK)
+            .WithName("BillingSummary")
+            .WithSummary("Dashboard figure OPEN_ARREARS (GAP-046): open arrears cases and their amount overdue per currency")
+            .WithDescription("Only accounts wholly in your scope: an account that also bills policies outside it is left out (OQ-081).")
+            .RequirePermission(BillingPermissions.AccountRead);
+
         // The member and broker portals (external-user access §2): the invoices a member pays, or of a broker's policies.
         const string member = BuildingBlocks.Application.Context.ExternalSubject.Party, broker = BuildingBlocks.Application.Context.ExternalSubject.Intermediary;
         var portal = api.MapGroup("/portal/billing").WithTags(Name);

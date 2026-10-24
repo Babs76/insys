@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using Insys.Billing.Contracts;
+using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
@@ -54,7 +55,7 @@ public sealed record ProjectionEntry(string Kind, DateOnly Day, string ProductCo
 
 public sealed record WrittenPremiumRow(DateOnly DateKey, string ProductCode, string ChannelCode, string BranchCode, int PolicyCount, decimal WrittenPremium, string Currency);
 
-public sealed record ClaimsIncurredRow(string MonthKey, string ProductCode, string CauseCode, int ClaimCount, decimal Incurred, string Currency);
+public sealed record ClaimsIncurredRow(string MonthKey, string ProductCode, string CauseCode, int ClaimCount, decimal Incurred, string Currency, string BranchCode = "ALL");
 
 public interface IProjectionStore
 {
@@ -63,8 +64,8 @@ public interface IProjectionStore
 
     Task Apply(ProjectionEntry entry, DateTimeOffset now, CancellationToken cancellationToken);
 
-    /// <summary>The product a claim number was registered against (its CLAIM_REGISTERED entry).</summary>
-    Task<string?> ClaimProduct(string claimNumber, CancellationToken cancellationToken);
+    /// <summary>The product and branch a claim number was registered against (its CLAIM_REGISTERED entry).</summary>
+    Task<(string ProductCode, string Branch)?> ClaimDimensions(string claimNumber, CancellationToken cancellationToken);
 
     /// <summary>Clears the tenant's projections and replays its event log in order; returns the entries replayed.</summary>
     Task<int> Rebuild(DateTimeOffset now, CancellationToken cancellationToken);
@@ -72,19 +73,45 @@ public interface IProjectionStore
     Task<IReadOnlyList<WrittenPremiumRow>> WrittenPremium(DateOnly from, DateOnly to, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ClaimsIncurredRow>> ClaimsIncurred(string fromMonth, string toMonth, CancellationToken cancellationToken);
+
+    /// <summary>The headline figures over the dates (GAP-046), within the caller's F103 scope.</summary>
+    Task<DashboardSummary> Summary(DateOnly from, DateOnly to, CancellationToken cancellationToken);
 }
 
 public sealed record WrittenPremiumQuery(DateOnly From, DateOnly To) : IQuery<IReadOnlyList<WrittenPremiumRow>>;
 
 public sealed record ClaimsIncurredQuery(string FromMonth, string ToMonth) : IQuery<IReadOnlyList<ClaimsIncurredRow>>;
 
+/// <summary>
+/// The Analytics dashboard figures (GAP-046, addenda/dashboard-figures.md): WRITTEN_PREMIUM and POLICIES_WRITTEN over the
+/// days from and to (both included), CLAIMS_INCURRED and CLAIMS_REPORTED over their months. Health is not included.
+/// </summary>
+public sealed record AnalyticsSummaryQuery(DateOnly From, DateOnly To) : IQuery<DashboardSummary>;
+
+public static class AnalyticsFigures
+{
+    public const string WrittenPremium = "WRITTEN_PREMIUM";
+    public const string PoliciesWritten = "POLICIES_WRITTEN";
+    public const string ClaimsIncurred = "CLAIMS_INCURRED";
+    public const string ClaimsReported = "CLAIMS_REPORTED";
+
+    /// <summary>Health is not projected yet (decision 3: its figures come with Waves 5a and 5b).</summary>
+    public const string Health = "HEALTH";
+}
+
 /// <summary>Rebuilds the tenant's projections from the events Analytics consumed (domain-model.json: projections are rebuilt from events).</summary>
 public sealed record RebuildProjections : ICommand<int>;
 
 internal sealed class ProjectionQueries(IProjectionStore store) :
     IQueryHandler<WrittenPremiumQuery, IReadOnlyList<WrittenPremiumRow>>,
-    IQueryHandler<ClaimsIncurredQuery, IReadOnlyList<ClaimsIncurredRow>>
+    IQueryHandler<ClaimsIncurredQuery, IReadOnlyList<ClaimsIncurredRow>>,
+    IQueryHandler<AnalyticsSummaryQuery, DashboardSummary>
 {
+    public async Task<Result<DashboardSummary>> Handle(AnalyticsSummaryQuery query, CancellationToken cancellationToken) =>
+        query.To < query.From
+            ? Error.Validation(ErrorCodes.ValidationFailed, "to is on or after from.")
+            : await store.Summary(query.From, query.To, cancellationToken);
+
     public async Task<Result<IReadOnlyList<WrittenPremiumRow>>> Handle(WrittenPremiumQuery query, CancellationToken cancellationToken) =>
         Result.Success(await store.WrittenPremium(query.From, query.To, cancellationToken));
 
@@ -101,7 +128,8 @@ internal sealed class RebuildProjectionsHandler(IProjectionStore store, IClock c
 /// Analytics' projections (domain-model.json: analytics consumes all published domain and financial events). Each
 /// event becomes a minimal entry in the event log and is applied to its projection, once (the log's key is the event).
 /// Dimensions (OQ-065): the channel is INTERMEDIARY when the policy has an intermediary, otherwise DIRECT; the branch
-/// is ALL; the cause is UNKNOWN until the claim events carry one. Written premium is the annual premium at issue, plus
+/// is the policy's organisation node (ALL when it has none, GAP-046 decision 2); the cause is UNKNOWN until the claim
+/// events carry one. Written premium is the annual premium at issue, plus
 /// endorsement deltas, less cancellation refunds. TODO(spec): Health is not projected (no product on its events); the
 /// projections assume one currency per tenant (their keys have none).
 /// </summary>
@@ -116,25 +144,35 @@ public sealed class ProjectionPolicies(IProjectionStore store, IEnumerable<IPoli
     public const string AllBranches = "ALL";
     public const string UnknownCause = "UNKNOWN";
 
-    public async Task Handle(GeneralPolicyIssued e, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        await Project(envelope, new ProjectionEntry(ProjectionEntry.WrittenPremium, Day(envelope), e.ProductCode,
-            await Channel(GeneralRatingSubjects.SourceDomain, e.PolicyId, cancellationToken), AllBranches, e.AnnualPremium, 1, e.Currency), cancellationToken);
+    public async Task Handle(GeneralPolicyIssued e, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var (channel, branch) = await Dimensions(GeneralRatingSubjects.SourceDomain, e.PolicyId, cancellationToken);
+        await Project(envelope, new ProjectionEntry(ProjectionEntry.WrittenPremium, Day(envelope), e.ProductCode, channel, branch, e.AnnualPremium, 1, e.Currency),
+            cancellationToken);
+    }
 
-    public async Task Handle(GeneralPolicyEndorsed e, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        await Project(envelope, new ProjectionEntry(ProjectionEntry.WrittenPremium, Day(envelope), e.ProductCode,
-            await Channel(GeneralRatingSubjects.SourceDomain, e.PolicyId, cancellationToken), AllBranches, e.PremiumDelta, 0, e.Currency), cancellationToken);
+    public async Task Handle(GeneralPolicyEndorsed e, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var (channel, branch) = await Dimensions(GeneralRatingSubjects.SourceDomain, e.PolicyId, cancellationToken);
+        await Project(envelope, new ProjectionEntry(ProjectionEntry.WrittenPremium, Day(envelope), e.ProductCode, channel, branch, e.PremiumDelta, 0, e.Currency),
+            cancellationToken);
+    }
 
-    public async Task Handle(GeneralPolicyCancelled e, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        await Project(envelope, new ProjectionEntry(ProjectionEntry.WrittenPremium, Day(envelope), e.ProductCode,
-            await Channel(GeneralRatingSubjects.SourceDomain, e.PolicyId, cancellationToken), AllBranches, -e.RefundAmount, 0, e.Currency), cancellationToken);
+    public async Task Handle(GeneralPolicyCancelled e, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var (channel, branch) = await Dimensions(GeneralRatingSubjects.SourceDomain, e.PolicyId, cancellationToken);
+        await Project(envelope, new ProjectionEntry(ProjectionEntry.WrittenPremium, Day(envelope), e.ProductCode, channel, branch, -e.RefundAmount, 0, e.Currency),
+            cancellationToken);
+    }
 
     /// <summary>A Life policy's written premium is its instalment × the frequency's periods per year (Billing).</summary>
     public async Task Handle(LifePolicyIssued e, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         var periods = await billing.PeriodsPerYear(tenant.RequireTenantId(), e.BillingFrequency, e.InceptionDate, cancellationToken)
                       ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, e.BillingFrequency);
-        await Project(envelope, new ProjectionEntry(ProjectionEntry.WrittenPremium, Day(envelope), e.ProductCode,
-            await Channel(LifeSubjects.SourceDomain, e.PolicyId, cancellationToken), AllBranches, e.Premium * periods, 1, e.Currency), cancellationToken);
+        var (channel, branch) = await Dimensions(LifeSubjects.SourceDomain, e.PolicyId, cancellationToken);
+        await Project(envelope, new ProjectionEntry(ProjectionEntry.WrittenPremium, Day(envelope), e.ProductCode, channel, branch, e.Premium * periods, 1, e.Currency),
+            cancellationToken);
     }
 
     /// <summary>A registered claim counts in its month, against its policy's product.</summary>
@@ -146,18 +184,18 @@ public sealed class ProjectionPolicies(IProjectionStore store, IEnumerable<IPoli
             return;
         }
 
-        await Project(envelope, new ProjectionEntry(ProjectionEntry.ClaimRegistered, Day(envelope), policy.ProductCode, UnknownCause, AllBranches, 0m, 1, "",
-            e.ClaimNumber), cancellationToken);
+        await Project(envelope, new ProjectionEntry(ProjectionEntry.ClaimRegistered, Day(envelope), policy.ProductCode, UnknownCause,
+            policy.OrgNodeCode ?? AllBranches, 0m, 1, "", e.ClaimNumber), cancellationToken);
     }
 
     public async Task Handle(ClaimReserveChanged e, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (await store.ClaimProduct(e.ClaimNumber, cancellationToken) is not { } product)
+        if (await store.ClaimDimensions(e.ClaimNumber, cancellationToken) is not { } claim)
         {
             return;
         }
 
-        await Project(envelope, new ProjectionEntry(ProjectionEntry.ClaimsIncurred, e.MovementDate, product, UnknownCause, AllBranches, e.Change, 0, e.Currency,
+        await Project(envelope, new ProjectionEntry(ProjectionEntry.ClaimsIncurred, e.MovementDate, claim.ProductCode, UnknownCause, claim.Branch, e.Change, 0, e.Currency,
             e.ClaimNumber), cancellationToken);
     }
 
@@ -169,11 +207,13 @@ public sealed class ProjectionPolicies(IProjectionStore store, IEnumerable<IPoli
         }
     }
 
-    private async Task<string> Channel(string sourceDomain, Guid policyRef, CancellationToken cancellationToken) =>
-        policies.FirstOrDefault(p => p.SourceDomain == sourceDomain) is { } domain
-        && await domain.For(tenant.RequireTenantId(), policyRef, cancellationToken) is { IntermediaryCode: { Length: > 0 } }
-            ? "INTERMEDIARY"
-            : "DIRECT";
+    private async Task<(string Channel, string Branch)> Dimensions(string sourceDomain, Guid policyRef, CancellationToken cancellationToken)
+    {
+        var policy = policies.FirstOrDefault(p => p.SourceDomain == sourceDomain) is { } domain
+            ? await domain.For(tenant.RequireTenantId(), policyRef, cancellationToken)
+            : null;
+        return (policy is { IntermediaryCode: { Length: > 0 } } ? "INTERMEDIARY" : "DIRECT", policy?.OrgNodeCode ?? AllBranches);
+    }
 
     private static DateOnly Day(EventEnvelope envelope) => DateOnly.FromDateTime(envelope.OccurredAt.UtcDateTime);
 }

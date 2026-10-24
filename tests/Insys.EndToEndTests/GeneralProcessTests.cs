@@ -247,6 +247,18 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // A product scope: none of this product's quotes are in it.
         (await productClient.GetAsync($"/api/v1/general/quotes/{inA}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await (await productClient.GetAsync("/api/v1/general/quotes?limit=200")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+
+        // GAP-046 decision 2: the dashboard's figures are projected by the policy's branch, so a branch scope sees its own.
+        await IssuedPolicy(orgNodeCode: "ORG-BR-A");
+        await _factory.DrainOutbox();
+        foreach (var (subject, branch, expected) in new[] { ("figures-north", "ORG-NORTH", 1L), ("figures-b", "ORG-BR-B", 0L) })
+        {
+            var user = await _db.UserWithPermissions(Tenant, subject, Insys.Analytics.Contracts.AnalyticsPermissions.ProjectionRead);
+            await _db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_branches = ARRAY[@n] WHERE user_id = @u", ("n", branch), ("u", user));
+            var figures = await (await _factory.ClientFor(Tenant, subject).GetAsync($"/api/v1/analytics/summary?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}")).Json();
+            figures.GetProperty("figures").EnumerateArray().Single(f => f.GetProperty("code").GetString() == "POLICIES_WRITTEN").GetProperty("count").GetInt64()
+                .ShouldBe(expected, subject);
+        }
     }
 
     /// <summary>
@@ -968,7 +980,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>A vehicle, a quote rated through Rating, issued and accepted (GeneralQuoteAccepted), a proposal, and the policy issued from it.</summary>
-    private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null, string? riskZone = null)
+    private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null, string? riskZone = null, string? orgNodeCode = null)
     {
         var periodStart = start ?? Today;
         var vehicle = await Created("/api/v1/general/risk-objects", new
@@ -981,7 +993,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         });
         var quote = await Created("/api/v1/general/quotes", new
         {
-            productCode = product, proposerPartyId = Guid.CreateVersion7(), currency = "ZAR", periodStart, periodEnd = periodStart.AddYears(1).AddDays(-1),
+            productCode = product, proposerPartyId = Guid.CreateVersion7(), currency = "ZAR", periodStart, periodEnd = periodStart.AddYears(1).AddDays(-1), orgNodeCode,
             risks = new[]
             {
                 new

@@ -43,6 +43,12 @@ internal sealed class ComplianceRepository(ComplianceDbContext db) : ICompliance
         db.ChangeTracker.Entries<RegulatoryReturn>().Select(e => e.Entity).FirstOrDefault(r => r.ReturnCode == returnCode && r.PeriodCode == periodCode)
         ?? await db.Returns.SingleOrDefaultAsync(r => r.ReturnCode == returnCode && r.PeriodCode == periodCode, cancellationToken);
 
+    public async Task<IReadOnlyList<(string ReturnCode, string PeriodCode, ReturnStatus Status)>> ReturnStatuses(string fromPeriod, string toPeriod,
+        CancellationToken cancellationToken) =>
+        (await db.Returns.AsNoTracking().Where(r => r.PeriodCode.CompareTo(fromPeriod) >= 0 && r.PeriodCode.CompareTo(toPeriod) <= 0)
+            .Select(r => new { r.ReturnCode, r.PeriodCode, r.Status }).ToListAsync(cancellationToken))
+        .Select(r => (r.ReturnCode, r.PeriodCode, r.Status)).ToList();
+
     public async Task<IReadOnlyList<RegulatoryReturn>> Returns(string? periodCode, ReturnStatus? status, CancellationToken cancellationToken)
     {
         var query = db.Returns.AsNoTracking();
@@ -93,11 +99,11 @@ internal sealed class ComplianceCodes(ComplianceDbContext db) : IComplianceCodes
 {
     public async Task<ReturnDefinition?> Definition(string returnCode, DateOnly day, CancellationToken cancellationToken) =>
         (await InForce<RegulatoryReturnDefinitions>(day).Where(d => d.ReturnCode == returnCode).OrderByDescending(d => d.Version).FirstOrDefaultAsync(cancellationToken))
-        is { } d ? new ReturnDefinition(d.ReturnCode, d.Regulator, d.FieldMapping, d.Frequency) : null;
+        is { } d ? new ReturnDefinition(d.ReturnCode, d.Regulator, d.FieldMapping, d.Frequency, d.SubmissionDays) : null;
 
     public async Task<IReadOnlyList<ReturnDefinition>> Definitions(DateOnly day, CancellationToken cancellationToken) =>
         (await InForce<RegulatoryReturnDefinitions>(day).OrderBy(d => d.ReturnCode).ToListAsync(cancellationToken))
-        .Select(d => new ReturnDefinition(d.ReturnCode, d.Regulator, d.FieldMapping, d.Frequency)).ToList();
+        .Select(d => new ReturnDefinition(d.ReturnCode, d.Regulator, d.FieldMapping, d.Frequency, d.SubmissionDays)).ToList();
 
     public async Task<ReportDefinition?> Report(string reportCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<ReportCatalogueAndAccessRules>(day).Where(r => r.ReportCode == reportCode).OrderByDescending(r => r.Version)

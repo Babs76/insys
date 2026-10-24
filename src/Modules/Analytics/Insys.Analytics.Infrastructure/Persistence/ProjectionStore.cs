@@ -28,6 +28,7 @@ using System.Text.Json;
 using Insys.Analytics.Application;
 using Insys.Analytics.Contracts;
 using Insys.Analytics.Infrastructure.StaticData;
+using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
@@ -42,7 +43,7 @@ namespace Insys.Analytics.Infrastructure.Persistence;
 /// The projections and their event log, written with SQL in the handler's transaction (the facts are additive upserts:
 /// a key's measures accumulate). Row-level security and the tenant filter in each statement keep tenants apart.
 /// </summary>
-internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tenant) : IProjectionStore
+internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tenant, IExecutionContext execution, IClock clock) : IProjectionStore
 {
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
 
@@ -71,9 +72,9 @@ internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tena
                 refreshed_at = EXCLUDED.refreshed_at
               """
             : """
-              INSERT INTO analytics.fact_claims_incurred (tenant_id, refreshed_at, month_key, product_code, cause_code, claim_count, incurred, currency)
-              VALUES (@t, @now, @month, @product, @dimension, @count, @amount, @currency)
-              ON CONFLICT (tenant_id, month_key, product_code, cause_code) DO UPDATE SET
+              INSERT INTO analytics.fact_claims_incurred (tenant_id, refreshed_at, month_key, product_code, cause_code, branch_code, claim_count, incurred, currency)
+              VALUES (@t, @now, @month, @product, @dimension, @branch, @count, @amount, @currency)
+              ON CONFLICT (tenant_id, month_key, product_code, cause_code, branch_code) DO UPDATE SET
                 claim_count = fact_claims_incurred.claim_count + EXCLUDED.claim_count,
                 incurred = fact_claims_incurred.incurred + EXCLUDED.incurred,
                 currency = CASE WHEN trim(fact_claims_incurred.currency) = '' THEN EXCLUDED.currency ELSE fact_claims_incurred.currency END,
@@ -91,14 +92,15 @@ internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tena
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task<string?> ClaimProduct(string claimNumber, CancellationToken cancellationToken)
+    public async Task<(string ProductCode, string Branch)?> ClaimDimensions(string claimNumber, CancellationToken cancellationToken)
     {
         await using var command = await Command("""
-            SELECT payload ->> 'productCode' FROM analytics.event_log
+            SELECT payload ->> 'productCode', coalesce(payload ->> 'branch', 'ALL') FROM analytics.event_log
             WHERE tenant_id = @t AND payload ->> 'kind' = 'CLAIM_REGISTERED' AND payload ->> 'claimNumber' = @claim LIMIT 1
             """, cancellationToken);
         command.Parameters.AddWithValue("claim", claimNumber);
-        return await command.ExecuteScalarAsync(cancellationToken) as string;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) && !reader.IsDBNull(0) ? (reader.GetString(0), reader.GetString(1)) : null;
     }
 
     public async Task<int> Rebuild(DateTimeOffset now, CancellationToken cancellationToken)
@@ -129,10 +131,11 @@ internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tena
 
     public async Task<IReadOnlyList<WrittenPremiumRow>> WrittenPremium(DateOnly from, DateOnly to, CancellationToken cancellationToken)
     {
-        await using var command = await Command("""
+        await using var command = await Command("", cancellationToken);
+        command.CommandText = $"""
             SELECT date_key, product_code, channel_code, branch_code, policy_count, written_premium, currency FROM analytics.fact_written_premium
-            WHERE tenant_id = @t AND date_key BETWEEN @from AND @to ORDER BY date_key, product_code, channel_code, branch_code
-            """, cancellationToken);
+            WHERE tenant_id = @t AND date_key BETWEEN @from AND @to AND {Scope(command)} ORDER BY date_key, product_code, channel_code, branch_code
+            """;
         command.Parameters.AddWithValue("from", from);
         command.Parameters.AddWithValue("to", to);
         var rows = new List<WrittenPremiumRow>();
@@ -148,21 +151,72 @@ internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tena
 
     public async Task<IReadOnlyList<ClaimsIncurredRow>> ClaimsIncurred(string fromMonth, string toMonth, CancellationToken cancellationToken)
     {
-        await using var command = await Command("""
-            SELECT month_key, product_code, cause_code, claim_count, incurred, currency FROM analytics.fact_claims_incurred
-            WHERE tenant_id = @t AND month_key BETWEEN @from AND @to ORDER BY month_key, product_code, cause_code
-            """, cancellationToken);
+        await using var command = await Command("", cancellationToken);
+        command.CommandText = $"""
+            SELECT month_key, product_code, cause_code, claim_count, incurred, currency, branch_code FROM analytics.fact_claims_incurred
+            WHERE tenant_id = @t AND month_key BETWEEN @from AND @to AND {Scope(command)} ORDER BY month_key, product_code, cause_code, branch_code
+            """;
         command.Parameters.AddWithValue("from", fromMonth);
         command.Parameters.AddWithValue("to", toMonth);
         var rows = new List<ClaimsIncurredRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            rows.Add(new ClaimsIncurredRow(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetInt32(3), reader.GetDecimal(4), reader.GetString(5).Trim()));
+            rows.Add(new ClaimsIncurredRow(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetInt32(3), reader.GetDecimal(4), reader.GetString(5).Trim(),
+                reader.GetString(6)));
         }
 
         return rows;
     }
+
+    public async Task<DashboardSummary> Summary(DateOnly from, DateOnly to, CancellationToken cancellationToken)
+    {
+        // Money per currency, never added across currencies; claims by the months the dates fall in (their projection is monthly).
+        await using var command = await Command("", cancellationToken);
+        var scope = Scope(command);
+        command.CommandText = $"""
+            SELECT 'P', currency, sum(written_premium), sum(policy_count), max(refreshed_at) FROM analytics.fact_written_premium
+            WHERE tenant_id = @t AND date_key BETWEEN @from AND @to AND {scope} GROUP BY currency
+            UNION ALL
+            SELECT 'C', trim(currency), sum(incurred), sum(claim_count), max(refreshed_at) FROM analytics.fact_claims_incurred
+            WHERE tenant_id = @t AND month_key BETWEEN @fromMonth AND @toMonth AND {scope} GROUP BY trim(currency)
+            """;
+        command.Parameters.AddWithValue("from", from);
+        command.Parameters.AddWithValue("to", to);
+        command.Parameters.AddWithValue("fromMonth", from.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture));
+        command.Parameters.AddWithValue("toMonth", to.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture));
+        var premium = new List<MoneyAmount>();
+        var incurred = new List<MoneyAmount>();
+        var (policies, claims) = (0L, 0L);
+        DateTimeOffset? refreshed = null;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var isPremium = reader.GetString(0) == "P";
+                var currency = reader.GetString(1);
+                if (currency.Length > 0)
+                {
+                    (isPremium ? premium : incurred).Add(new MoneyAmount(currency, reader.GetDecimal(2)));
+                }
+
+                if (isPremium) policies += reader.GetInt64(3); else claims += reader.GetInt64(3);
+                var at = reader.GetFieldValue<DateTimeOffset>(4);
+                refreshed = refreshed is null || at > refreshed ? at : refreshed;
+            }
+        }
+
+        return new DashboardSummary(clock.UtcNow,
+        [
+            new DashboardFigure(AnalyticsFigures.WrittenPremium, Amounts: premium.OrderBy(m => m.Currency, StringComparer.Ordinal).ToList()),
+            new DashboardFigure(AnalyticsFigures.PoliciesWritten, Count: policies),
+            new DashboardFigure(AnalyticsFigures.ClaimsIncurred, Amounts: incurred.OrderBy(m => m.Currency, StringComparer.Ordinal).ToList()),
+            new DashboardFigure(AnalyticsFigures.ClaimsReported, Count: claims),
+        ], refreshed, [AnalyticsFigures.Health]);
+    }
+
+    /// <summary>The caller's F103 scope over a fact's product and branch: a fact with branch ALL (no node) is outside every branch scope.</summary>
+    private string Scope(NpgsqlCommand command) => ScopeSql.Predicate(execution.CurrentScope, "product_code", "branch_code", command);
 
     /// <summary>A command on the context's connection, in its current transaction (the pipeline's, with the tenant set).</summary>
     private async Task<NpgsqlCommand> Command(string sql, CancellationToken cancellationToken)

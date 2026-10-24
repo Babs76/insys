@@ -66,6 +66,7 @@ public static class ComplianceStaticData
             entity.Property(x => x.Regulator).HasColumnName("regulator").HasMaxLength(80);
             entity.Property(x => x.FieldMapping).HasColumnName("field_mapping").HasColumnType("jsonb");
             entity.Property(x => x.Frequency).HasColumnName("frequency").HasMaxLength(40);
+            entity.Property(x => x.SubmissionDays).HasColumnName("submission_days");
         });
         modelBuilder.Entity<ReportCatalogueAndAccessRules>(entity =>
         {

@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.Integration.Application.Parking;
@@ -98,6 +99,47 @@ internal sealed class ParkedDeliveryStore(
 
         return result;
     }
+
+    public Task<DashboardSummary> Summary(CancellationToken cancellationToken) =>
+        ParkedRows.InTenant(dataSource, tenant.RequireTenantId(), async (connection, transaction) =>
+        {
+            await using var command = new NpgsqlCommand("""
+                SELECT 'P', prerequisite_code, count(*), min(parked_at) FROM integration.parked_delivery WHERE status = 'PARKED' GROUP BY prerequisite_code
+                UNION ALL SELECT 'F', NULL, count(*), NULL FROM integration.parked_delivery WHERE status IN ('FAILING', 'RETRYING', 'WAITING')
+                UNION ALL SELECT 'D', NULL, count(*), NULL FROM integration.dead_letter_message WHERE resolution IS NULL
+                UNION ALL SELECT 'W', NULL, count(*), NULL FROM integration.webhook_delivery WHERE status = 'FAILED' OR (status = 'PENDING' AND http_status IS NOT NULL)
+                """, connection, transaction);
+            var parked = new List<FigurePart>();
+            var (failing, deadLetters, webhooks) = (0L, 0L, 0L);
+            DateTimeOffset? oldest = null;
+            await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var count = reader.GetInt64(2);
+                    switch (reader.GetString(0))
+                    {
+                        case "P":
+                            parked.Add(new FigurePart(reader.GetString(1), count));
+                            var at = reader.GetFieldValue<DateTimeOffset>(3);
+                            oldest = oldest is null || at < oldest ? at : oldest;
+                            break;
+                        case "F": failing = count; break;
+                        case "D": deadLetters = count; break;
+                        default: webhooks = count; break;
+                    }
+                }
+            }
+
+            return new DashboardSummary(clock.UtcNow,
+            [
+                new DashboardFigure(DeliveryFigures.Parked, Count: parked.Sum(p => p.Count), By: parked.OrderBy(p => p.Key, StringComparer.Ordinal).ToList()),
+                new DashboardFigure(DeliveryFigures.Failing, Count: failing),
+                new DashboardFigure(DeliveryFigures.DeadLettersOpen, Count: deadLetters),
+                new DashboardFigure(DeliveryFigures.WebhooksFailing, Count: webhooks),
+                new DashboardFigure(DeliveryFigures.OldestParkedAt, At: oldest),
+            ]);
+        }, cancellationToken);
 
     public async Task<int> RequestRetry(Guid? id, string? code, CancellationToken cancellationToken)
     {

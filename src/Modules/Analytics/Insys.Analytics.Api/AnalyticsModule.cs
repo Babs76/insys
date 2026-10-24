@@ -60,14 +60,24 @@ public sealed class AnalyticsModule : IModule
                 (await d.Query(new WrittenPremiumQuery(from, to), ct)).ToHttp(Results.Ok))
             .Produces<IReadOnlyList<WrittenPremiumRow>>(StatusCodes.Status200OK)
             .WithName("AnalyticsWrittenPremium")
-            .WithSummary("Written premium and policy count by day, product, channel and branch")
+            .WithSummary("Written premium and policy count by day, product, channel and branch, within your scope (F103)")
             .RequirePermission(AnalyticsPermissions.ProjectionRead);
 
         analytics.MapGet("/claims-incurred", async (string fromMonth, string toMonth, IDispatcher d, CancellationToken ct) =>
                 (await d.Query(new ClaimsIncurredQuery(fromMonth, toMonth), ct)).ToHttp(Results.Ok))
             .Produces<IReadOnlyList<ClaimsIncurredRow>>(StatusCodes.Status200OK)
             .WithName("AnalyticsClaimsIncurred")
-            .WithSummary("Claims incurred and claim count by month (yyyy-MM), product and cause")
+            .WithSummary("Claims incurred and claim count by month (yyyy-MM), product, cause and branch, within your scope (F103)")
+            .RequirePermission(AnalyticsPermissions.ProjectionRead);
+
+        analytics.MapGet("/summary", async (DateOnly from, DateOnly to, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new AnalyticsSummaryQuery(from, to), ct)).ToHttp(Results.Ok))
+            .Produces<BuildingBlocks.Application.DashboardSummary>(StatusCodes.Status200OK)
+            .WithName("AnalyticsSummary")
+            .WithSummary("Dashboard figures (GAP-046): written premium, policies written, claims incurred and claims reported, within your scope")
+            .WithDescription("WRITTEN_PREMIUM (per currency) and POLICIES_WRITTEN over the days from and to, both included; CLAIMS_INCURRED (per currency, the net "
+                + "change in claim reserves) and CLAIMS_REPORTED over the months those days fall in. General and Life only: notIncluded lists HEALTH. "
+                + "Definitions: docs/specs/addenda/dashboard-figures.md.")
             .RequirePermission(AnalyticsPermissions.ProjectionRead);
 
         analytics.MapPost("/projections/rebuild", async (IDispatcher d, CancellationToken ct) =>

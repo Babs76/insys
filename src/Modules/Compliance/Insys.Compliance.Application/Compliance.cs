@@ -29,6 +29,7 @@ using System.Text;
 using System.Text.Json;
 using FluentValidation;
 using Insys.Analytics.Contracts;
+using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
@@ -50,6 +51,9 @@ public interface IComplianceRepository
 
     Task<IReadOnlyList<RegulatoryReturn>> Returns(string? periodCode, ReturnStatus? status, CancellationToken cancellationToken);
 
+    /// <summary>Each return's code, period and status for the periods from and to (yyyy-MM, both included), for the dashboard.</summary>
+    Task<IReadOnlyList<(string ReturnCode, string PeriodCode, ReturnStatus Status)>> ReturnStatuses(string fromPeriod, string toPeriod, CancellationToken cancellationToken);
+
     Task<ReportRun?> Run(Guid id, CancellationToken cancellationToken);
 
     /// <summary>Report runs, newest first (GAP-047).</summary>
@@ -61,7 +65,8 @@ public interface IComplianceRepository
 }
 
 /// <summary>A regulatory return definition in force (reporting.cfg_regulatory_return_definitions).</summary>
-public sealed record ReturnDefinition(string ReturnCode, string Regulator, JsonElement FieldMapping, string Frequency);
+/// <param name="SubmissionDays">Days after the period's end by which the return must be submitted; null when compliance has not set it (OQ-083).</param>
+public sealed record ReturnDefinition(string ReturnCode, string Regulator, JsonElement FieldMapping, string Frequency, int? SubmissionDays = null);
 
 /// <summary>A report in the catalogue (reporting.cfg_report_catalogue_and_access_rules).</summary>
 public sealed record ReportDefinition(string ReportCode, string Name, IReadOnlyList<string> Roles, bool ExportAllowed);
@@ -112,6 +117,14 @@ public sealed record ListReturns(string? PeriodCode, ReturnStatus? Status) : IQu
 public sealed record RunReport(string ReportCode, DateOnly From, DateOnly To, IReadOnlyList<string> Metrics, bool Export) : ICommand<ReportRunView>;
 
 public sealed record GetReportRun(Guid RunId) : IQuery<ReportRunView>;
+
+/// <summary>
+/// The Compliance dashboard figures (GAP-046) for returns whose period (yyyy-MM) is from fromPeriod to toPeriod:
+/// RETURNS_BY_STATUS; RETURNS_AWAITING_ACTION (Prepared, Reviewed, Approved or Rejected, so a person still acts on them);
+/// and RETURNS_OVERDUE, those not yet submitted past their definition's submission deadline, counted only where
+/// compliance has set the deadline (OQ-083; RETURNS_OVERDUE.by lists the return codes with no deadline as NO_DEADLINE).
+/// </summary>
+public sealed record ReturnsSummaryQuery(string FromPeriod, string ToPeriod) : IQuery<DashboardSummary>;
 
 /// <summary>A report run in a list (GAP-047): what ran, when, by whom and whether it was exported; its result is read by ID.</summary>
 public sealed record ReportRunSummary(Guid Id, string ReportCode, Guid RequestedBy, DateTimeOffset RanAt, [property: OneOf("COMPLETED", "FAILED")] string Status,
@@ -371,6 +384,49 @@ internal sealed class RunReportHandler(IComplianceRepository repository, ICompli
             new Dictionary<string, string?> { ["report"] = report.ReportCode }));
         return ReportRunView.From(run);
     }
+}
+
+internal sealed class ReturnsSummaryHandler(IComplianceRepository repository, IComplianceCodes codes, IBusinessDate businessDate, IClock clock)
+    : IQueryHandler<ReturnsSummaryQuery, DashboardSummary>
+{
+    public const string ByStatus = "RETURNS_BY_STATUS";
+    public const string AwaitingAction = "RETURNS_AWAITING_ACTION";
+    public const string Overdue = "RETURNS_OVERDUE";
+
+    public async Task<Result<DashboardSummary>> Handle(ReturnsSummaryQuery query, CancellationToken cancellationToken)
+    {
+        if (!Period(query.FromPeriod, out _) || !Period(query.ToPeriod, out _) || string.CompareOrdinal(query.FromPeriod, query.ToPeriod) > 0)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "fromPeriod and toPeriod are months (yyyy-MM), fromPeriod first.");
+        }
+
+        var today = businessDate.Today;
+        var returns = await repository.ReturnStatuses(query.FromPeriod, query.ToPeriod, cancellationToken);
+        var byStatus = Enum.GetValues<ReturnStatus>().Select(s => new FigurePart(s.ToString(), returns.Count(r => r.Status == s))).ToList();
+        var awaiting = returns.Count(r => r.Status is ReturnStatus.Prepared or ReturnStatus.Reviewed or ReturnStatus.Approved or ReturnStatus.Rejected);
+        var (overdue, noDeadline) = (0L, new SortedSet<string>(StringComparer.Ordinal));
+        foreach (var r in returns.Where(r => r.Status is not (ReturnStatus.Submitted or ReturnStatus.Accepted)))
+        {
+            if (await codes.Definition(r.ReturnCode, today, cancellationToken) is not { SubmissionDays: { } days })
+            {
+                noDeadline.Add(r.ReturnCode);
+            }
+            else if (Period(r.PeriodCode, out var month) && month.AddMonths(1).AddDays(-1).AddDays(days) < today)
+            {
+                overdue++;
+            }
+        }
+
+        return new DashboardSummary(clock.UtcNow,
+        [
+            new DashboardFigure(ByStatus, Count: returns.Count, By: byStatus),
+            new DashboardFigure(AwaitingAction, Count: awaiting),
+            new DashboardFigure(Overdue, Count: overdue, By: noDeadline.Select(code => new FigurePart($"NO_DEADLINE:{code}", 0)).ToList()),
+        ]);
+    }
+
+    private static bool Period(string code, out DateOnly firstDay) =>
+        DateOnly.TryParseExact(code + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out firstDay);
 }
 
 internal sealed class DownloadReportExportHandler(IComplianceRepository repository, IComplianceCodes codes, IUserRoleQuery roles, ITenantContext tenant,

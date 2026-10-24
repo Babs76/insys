@@ -109,6 +109,13 @@ public sealed class IntegrationModule : IModule
             "Closes the dead letter without delivering it (INT-006).",
             (id, version) => new DiscardMessage(id, version));
 
+        api.MapGroup("/integration/deliveries").WithTags(Name).MapGet("/summary", async (IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new Application.Parking.DeliveriesSummaryQuery(), ct)).ToHttp(Results.Ok))
+            .Produces<BuildingBlocks.Application.DashboardSummary>(StatusCodes.Status200OK)
+            .WithName("IntegrationDeliveriesSummary")
+            .WithSummary("Dashboard figures (GAP-046): parked deliveries by prerequisite, failing deliveries, open dead letters, failing webhooks, oldest parked")
+            .RequirePermission(IntegrationPermissions.DeadLetterRead);
+
         MapParkedDeliveries(api.MapGroup("/integration/parked-deliveries").WithTags(Name));
         MapParkingSetting(api.MapGroup("/integration/parking-setting").WithTags(Name));
 

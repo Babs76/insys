@@ -111,6 +111,13 @@ public sealed class PaymentsModule : IModule
             .WithKnownValues("businessRefType", PaymentReferenceTypes.Known, "The business record types INSYS itself pays or collects for (GAP-037).")
             .RequirePermission(PaymentPermissions.PaymentRead);
 
+        payments.MapGet("/summary", async (IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new PaymentsSummaryQuery(), ct)).ToHttp(Results.Ok))
+            .Produces<BuildingBlocks.Application.DashboardSummary>(StatusCodes.Status200OK)
+            .WithName("PaymentsSummary")
+            .WithSummary("Dashboard figure PAYMENTS_UNKNOWN (GAP-046): payments waiting for a decision on an unknown outcome, per currency, and the oldest")
+            .RequirePermission(PaymentPermissions.PaymentRead);
+
         payments.MapPost("/payments/{id:guid}/resolve", async (Guid id, ResolveUnknownRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ResolveUnknown(id, r.Succeeded, r.Evidence), ct)).ToHttp(Results.Ok))
             .Produces<PaymentView>(StatusCodes.Status200OK)

@@ -27,6 +27,7 @@
 using FluentValidation;
 using Insys.Billing.Contracts;
 using Insys.Billing.Domain.Billing;
+using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
@@ -59,6 +60,9 @@ public interface IBillingRepository
 
     /// <summary>Accounts with an issued, part-paid or overdue invoice due before the day, or in arrears.</summary>
     Task<IReadOnlyList<Guid>> AccountsToAge(DateOnly day, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Accounts with an open arrears case, with their schedules and arrears (for the dashboard, GAP-046).</summary>
+    Task<IReadOnlyList<BillingAccount>> InArrears(CancellationToken cancellationToken);
 
     void Add(BillingAccount account);
 
@@ -113,6 +117,26 @@ public sealed record AccountView(Guid Id, string AccountNumber, Guid PayerPartyI
 /// An account shared by policies of several products or branches (F103, OQ-081): a caller covering only part of it sees
 /// only that part, and may not run what works on the whole account (ageing, closing, issuing, refunds, new schedules).
 /// </summary>
+/// <summary>
+/// The Billing dashboard figure OPEN_ARREARS (GAP-046): the open arrears cases and their amount overdue per currency, of
+/// the accounts wholly in the caller's scope. A partly-scoped account is left out, so no other branch's or product's
+/// figures show through it (OQ-081).
+/// </summary>
+public sealed record BillingSummaryQuery : IQuery<DashboardSummary>;
+
+internal sealed class BillingSummaryHandler(IBillingRepository billing, IExecutionContext execution, IClock clock) : IQueryHandler<BillingSummaryQuery, DashboardSummary>
+{
+    public const string OpenArrears = "OPEN_ARREARS";
+
+    public async Task<Result<DashboardSummary>> Handle(BillingSummaryQuery query, CancellationToken cancellationToken)
+    {
+        var open = (await billing.InArrears(cancellationToken)).Where(a => AccountScopes.Whole(a, execution.CurrentScope))
+            .SelectMany(a => a.Arrears.Where(c => c.Status == "OPEN")).ToList();
+        var amounts = open.GroupBy(c => c.Currency).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => new MoneyAmount(g.Key, g.Sum(c => c.AmountOverdue))).ToList();
+        return new DashboardSummary(clock.UtcNow, [new DashboardFigure(OpenArrears, Count: open.Count, Amounts: amounts)]);
+    }
+}
+
 internal static class AccountScopes
 {
     public static bool Whole(BillingAccount account, AccessScope scope) =>

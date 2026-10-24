@@ -48,12 +48,15 @@ public sealed class RegulatoryReturnDefinitions : StaticRecord<RegulatoryReturnD
     [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY", "ANNUAL")]
     public string Frequency { get; set; } = "";
 
+    public int? SubmissionDays { get; set; }
+
     public override void ApplyFields(RegulatoryReturnDefinitionsInput input, IFieldProtector protector)
     {
         ReturnCode = input.ReturnCode!;
         Regulator = input.Regulator!;
         FieldMapping = input.FieldMapping.GetValueOrDefault();
         Frequency = input.Frequency!;
+        SubmissionDays = input.SubmissionDays;
     }
 }
 
@@ -68,6 +71,8 @@ public sealed record RegulatoryReturnDefinitionsInput : StaticRecordInput
 
     [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY", "ANNUAL")]
     public string? Frequency { get; init; }
+
+    public int? SubmissionDays { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

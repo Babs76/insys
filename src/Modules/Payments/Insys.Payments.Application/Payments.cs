@@ -26,6 +26,7 @@
  */
 using FluentValidation;
 using Insys.Billing.Contracts;
+using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
@@ -58,6 +59,9 @@ public interface IPaymentRepository
     Task<IReadOnlyList<Payment>> ForBusinessRef(string businessRefType, Guid businessRefId, Guid? afterId, int limit, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Guid>> PendingSince(DateTimeOffset before, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Payments whose outcome is unknown, waiting for a person's decision (PAY-005).</summary>
+    Task<IReadOnlyList<Payment>> Unknown(CancellationToken cancellationToken);
 
     Task<PayoutBatch?> Batch(Guid id, CancellationToken cancellationToken);
 
@@ -621,6 +625,25 @@ public sealed class PaymentScopes(IEnumerable<IBusinessRecordScopes> sources, IT
 
         var scopes = await source.ScopesOf(tenant.RequireTenantId(), businessRefType, id, cancellationToken);
         return scopes is { Count: > 0 } && scopes.All(s => execution.CurrentScope.Allows(s.ProductCode, s.OrgNodeCode));
+    }
+}
+
+/// <summary>
+/// The Payments dashboard figure PAYMENTS_UNKNOWN (GAP-046): payments whose outcome is unknown and waits for a person's
+/// decision (PAY-005), the count and amount per currency, and since when the oldest has waited; only those the caller may see.
+/// </summary>
+public sealed record PaymentsSummaryQuery : IQuery<DashboardSummary>;
+
+internal sealed class PaymentsSummaryHandler(IPaymentRepository payments, PaymentScopes scopes, IClock clock) : IQueryHandler<PaymentsSummaryQuery, DashboardSummary>
+{
+    public const string PaymentsUnknown = "PAYMENTS_UNKNOWN";
+
+    public async Task<Result<DashboardSummary>> Handle(PaymentsSummaryQuery query, CancellationToken cancellationToken)
+    {
+        var (visible, _) = await scopes.Of(await payments.Unknown(cancellationToken), cancellationToken);
+        var amounts = visible.GroupBy(p => p.Currency).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => new MoneyAmount(g.Key, g.Sum(p => p.Amount))).ToList();
+        return new DashboardSummary(clock.UtcNow,
+            [new DashboardFigure(PaymentsUnknown, Count: visible.Count, Amounts: amounts, At: visible.Count == 0 ? null : visible.Min(p => p.InitiatedAt))]);
     }
 }
 
