@@ -99,6 +99,14 @@ public static class ErrorCodes
     [ErrorCode(401, "error.access.unauthenticated")]
     public const string Unauthenticated = "UNAUTHENTICATED";
 
+    /// <summary>ADR-023: a provider callback whose key, signature, timestamp or client token is not valid; one answer for all of them.</summary>
+    [ErrorCode(401, "error.callback.signature")]
+    public const string CallbackSignatureInvalid = "CALLBACK_SIGNATURE_INVALID";
+
+    /// <summary>ADR-023: a callback ID the endpoint already received, inside the replay window.</summary>
+    [ErrorCode(409, "error.callback.replayed")]
+    public const string CallbackReplayed = "CALLBACK_REPLAYED";
+
     [ErrorCode(412, "error.concurrency.precondition_failed")]
     public const string PreconditionFailed = "PRECONDITION_FAILED";
 

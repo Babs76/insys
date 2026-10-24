@@ -659,3 +659,18 @@ internal sealed class GetConsentsHandler(IPartyRepository parties) : IQueryHandl
             ? Error.NotFound(ErrorCodes.NotFound, "The party was not found.")
             : Consents.Views(new ConsentLedger(query.PartyId, await parties.Consents(query.PartyId, cancellationToken)));
 }
+
+/// <summary>
+/// A party opted out of a marketing notification type (addenda/communications.md §4): the type's consent purpose is
+/// withdrawn in the ledger, so the ledger and the preference agree. Nothing is recorded for a purpose already withdrawn,
+/// or for a merged or anonymised party.
+/// </summary>
+public sealed class WithdrawConsentOnOptOut(IPartyRepository parties, IPartyCodes codes, IBusinessDate businessDate, IClock clock)
+    : IIntegrationEventHandler<Communications.Contracts.MarketingOptedOut>
+{
+    public async Task Handle(Communications.Contracts.MarketingOptedOut optedOut, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        await Consents.Change(parties, codes, clock, businessDate, optedOut.PartyId, optedOut.PurposeCode,
+            ledger => ledger.WithdrawConsent(optedOut.PurposeCode, optedOut.CaptureChannel, $"notification-preference:{envelope.EventId:N}", clock.UtcNow),
+            cancellationToken);
+}
+

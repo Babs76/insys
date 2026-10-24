@@ -99,7 +99,7 @@ public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixtu
         (await Callback(a.CallbackPath, a.SigningSecret, body, sentAt: DateTimeOffset.UtcNow.AddMinutes(-10))).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         var unknown = await Callback("/api/v1/payments/callbacks/" + CallbackKeys.NewSecret(), a.SigningSecret, body);
         unknown.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        (await unknown.Code()).ShouldBe(PaymentErrorCodes.CallbackSignatureInvalid);
+        (await unknown.Code()).ShouldBe(Insys.BuildingBlocks.Domain.ErrorCodes.CallbackSignatureInvalid);
 
         (await Status(payment)).ShouldBe("PENDING");
         (await fixture.Database.ScalarAsOwner<long>(
@@ -119,7 +119,7 @@ public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixtu
         var replay = await Callback(endpoint.CallbackPath, endpoint.SigningSecret, body, callbackId: id);
 
         replay.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await replay.Code()).ShouldBe(PaymentErrorCodes.CallbackReplayed);
+        (await replay.Code()).ShouldBe(Insys.BuildingBlocks.Domain.ErrorCodes.CallbackReplayed);
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM payment.provider_callback WHERE payload ->> 'externalRef' = @r AND signature_valid",
             ("r", (await ExternalRef(payment))!))).ShouldBe(1);
     }

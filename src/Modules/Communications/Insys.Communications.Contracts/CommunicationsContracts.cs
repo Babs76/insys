@@ -92,3 +92,10 @@ public sealed record NotificationDelivered(Guid NotificationId, string Channel) 
 /// <summary>A notification ended without being sent: FAILED, UNDELIVERABLE or SUPPRESSED_NO_CONSENT (§5).</summary>
 [IntegrationEvent("communication.NotificationFailed")]
 public sealed record NotificationFailed(Guid NotificationId, string NotificationType, Guid RecipientPartyId, string Status) : IIntegrationEvent;
+
+/// <summary>
+/// A party opted out of a marketing type (§4): Party records it as the withdrawal of the type's consent purpose, so the
+/// consent ledger and the preference agree. <paramref name="CaptureChannel"/> is PORTAL or STAFF.
+/// </summary>
+[IntegrationEvent("communication.MarketingOptedOut")]
+public sealed record MarketingOptedOut(Guid PartyId, string PurposeCode, string CaptureChannel) : IIntegrationEvent;

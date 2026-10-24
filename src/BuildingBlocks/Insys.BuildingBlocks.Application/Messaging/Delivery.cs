@@ -79,6 +79,15 @@ public static class PrerequisiteCodes
 
     /// <summary>Item: the days overdue that no arrears ageing bucket (billing.cfg_arrears_ageing_buckets) covers, for example "1".</summary>
     public const string ArrearsAgeingBucketNotInForce = "ARREARS_AGEING_BUCKET_NOT_IN_FORCE";
+
+    /// <summary>Item: the notification type code (communication.cfg_notification_types) a trigger asked for (communications §9).</summary>
+    public const string NotificationTypeNotConfigured = "NOTIFICATION_TYPE_NOT_CONFIGURED";
+
+    /// <summary>Item: type and channels ("PAYMENT_REMINDER:EMAIL,SMS"): no template in any language of the chain (communications §9).</summary>
+    public const string NotificationTemplateNotInForce = "NOTIFICATION_TEMPLATE_NOT_IN_FORCE";
+
+    /// <summary>Item: type and channels: no enabled provider for any channel the party's order allows (communications §9).</summary>
+    public const string ChannelProviderNotConfigured = "CHANNEL_PROVIDER_NOT_CONFIGURED";
 }
 
 public enum DeliveryStatus

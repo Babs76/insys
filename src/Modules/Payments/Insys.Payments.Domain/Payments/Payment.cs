@@ -409,13 +409,6 @@ public static class PaymentErrorCodes
     [ErrorCode(422, "error.payment.code_not_in_force")]
     public const string CodeNotInForce = "PAYMENT_CODE_NOT_IN_FORCE";
 
-    [ErrorCode(401, "error.payment.callback_signature")]
-    public const string CallbackSignatureInvalid = "CALLBACK_SIGNATURE_INVALID";
-
-    /// <summary>ADR-023: a callback ID the endpoint already received, inside the replay window.</summary>
-    [ErrorCode(409, "error.payment.callback_replayed")]
-    public const string CallbackReplayed = "CALLBACK_REPLAYED";
-
     [ErrorCode(409, "error.payment.batch_empty")]
     public const string BatchEmpty = "PAYOUT_BATCH_EMPTY";
 }

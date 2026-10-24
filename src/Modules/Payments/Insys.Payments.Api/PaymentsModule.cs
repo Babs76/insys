@@ -224,7 +224,7 @@ public sealed class PaymentsModule : IModule
                 var body = await reader.ReadToEndAsync(ct);
 
                 // One answer for an unknown key, a revoked endpoint, a bad signature or an old timestamp, so none can be told apart.
-                var refused = Problems.For(PaymentErrorCodes.CallbackSignatureInvalid, "The callback is not authenticated.", StatusCodes.Status401Unauthorized);
+                var refused = Problems.For(BuildingBlocks.Domain.ErrorCodes.CallbackSignatureInvalid, "The callback is not authenticated.", StatusCodes.Status401Unauthorized);
                 if (!CallbackKeys.Plausible(endpointKey) || await resolver.Resolve(CallbackKeys.Hash(endpointKey), ct) is not { } found)
                 {
                     return refused;
@@ -249,7 +249,7 @@ public sealed class PaymentsModule : IModule
                 return result.Value.Result switch
                 {
                     CallbackResult.Applied => Results.Ok(result.Value.Payment),
-                    CallbackResult.Replayed => Problems.For(PaymentErrorCodes.CallbackReplayed, "This callback ID was already received.", StatusCodes.Status409Conflict),
+                    CallbackResult.Replayed => Problems.For(BuildingBlocks.Domain.ErrorCodes.CallbackReplayed, "This callback ID was already received.", StatusCodes.Status409Conflict),
                     CallbackResult.Invalid => Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The callback needs externalRef and status.",
                         StatusCodes.Status422UnprocessableEntity),
                     CallbackResult.NoPayment => Problems.For(BuildingBlocks.Domain.ErrorCodes.NotFound, "No payment has this provider reference; the callback was recorded.",

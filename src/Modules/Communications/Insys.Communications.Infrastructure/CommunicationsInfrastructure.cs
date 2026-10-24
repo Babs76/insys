@@ -26,6 +26,9 @@
  */
 using Insys.BuildingBlocks.Infrastructure;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
+using Insys.Communications.Application;
+using Insys.Communications.Contracts;
+using Insys.Communications.Infrastructure.Channels;
 using Insys.Communications.Infrastructure.Persistence;
 using Insys.Communications.Infrastructure.StaticData;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,6 +42,32 @@ public static class CommunicationsInfrastructure
         const string schema = CommunicationsDbContext.SchemaName;
         services.AddModuleDbContext<CommunicationsDbContext>(schema, "Communications");
         services.AddStaticData<CommunicationsDbContext>(schema, CommunicationsStaticData.Descriptors);
+        services.AddModuleHandlers<CommunicationsDbContext>(typeof(NotificationQueue).Assembly);
+        services.AddDomainEventMapper<CommunicationsEventMapper>(schema);
+        services.AddOptions<CommunicationOptions>().BindConfiguration("Communications");
+        services.AddOptions<CommunicationCallbackOptions>().BindConfiguration("Communications:Callbacks");
+        services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<INotificationQueries, NotificationQueries>();
+        services.AddScoped<ICommunicationCodes, CommunicationCodes>();
+        services.AddScoped<ICommunicationCallbackEndpoints, CommunicationCallbackEndpoints>();
+        services.AddSingleton<ICommunicationCallbackResolver, CommunicationCallbackResolver>();
+        services.AddScoped<NotificationQueue>();
+        services.AddSingleton<IStaticRecordValidator, NotificationTypeValidator>();
+        services.AddSingleton<IStaticRecordValidator, NotificationTemplateValidator>();
+
+        // Wave 1 ships stubs for every channel; a tenant's providers are chosen later (OQ-088).
+        services.AddStubNotificationChannels();
+
+        services.AddIntegrationEventHandler<NotificationRequested, QueueRequestedNotification, CommunicationsDbContext>(schema);
+        services.AddIntegrationEventHandler<Party.Contracts.ConsentWithdrawn, SuppressMarketingOnWithdrawal, CommunicationsDbContext>(schema);
+        services.AddIntegrationEventHandler<Party.Contracts.PartyAnonymised, AnonymiseNotifications, CommunicationsDbContext>(schema);
+
+        services.AddSingleton<NotificationSender>();
+        if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
+        {
+            services.AddHostedService<NotificationSenderService>();
+        }
+
         return services;
     }
 }

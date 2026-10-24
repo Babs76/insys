@@ -345,6 +345,7 @@ CREATE TABLE communication.delivery_attempt (
   masked_address             varchar(120),
   status                     varchar(15) NOT NULL,
   failure_code               varchar(40),
+  retryable                  boolean NOT NULL DEFAULT false,
   attempted_at               timestamptz NOT NULL,
   status_at                  timestamptz NOT NULL,
   CONSTRAINT pk_delivery_attempt PRIMARY KEY (tenant_id, id),
