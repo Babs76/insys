@@ -802,3 +802,19 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Gap:** nothing stops a user of the operator tenant with business permissions from creating parties, policies, claims or payments there. The specifications do not say whether the operator tenant may hold business data.
 - **Proposal (pending sign-off):** ADR-024. Business modules refuse the operator tenant with 403 `OPERATOR_TENANT_NOT_BUSINESS`, reads as well as changes, through one endpoint filter per business module checked by a sweep test; Tenancy, Identity, Static data, Audit, Integration and Workflow stay open to it. Not built until approved.
 - **Resolved (23 October 2026):** ADR-024 is signed off. It is built in Wave 0 batch 5 and merged only after the front end's live tests have moved to a business tenant. **Closed.**
+
+### OQ-079 Setting a Life death claim's reserve at registration (Phase 8 Wave 0)
+- **Sources:**
+  - CLM-004 (reserves as financial movements);
+  - GEN-006 lists reserves among General claim steps;
+  - LIF-006 and LIF-008 (Life claims);
+  - the database specification ("running reserve = sum of movements").
+- **What the code does:**
+  - a Life claim's payment instruction is released only within the claim's Claims Framework reserve (`RESERVE_BELOW_ZERO`);
+  - nothing sets that reserve: a person sets it through `/claims/claims/{claimNumber}/reserves`.
+- **Gap:** the specifications do not say whether a Life death claim's reserve should be set automatically at registration from the sum assured (or the benefit's amount), or set by an assessor.
+- **Options:**
+  1. **Automatic at registration:** the reserve is set from the death benefit's sum assured on the policy, by benefit, with a reserve type from static data.
+  2. **Automatic at assessment:** set from the assessed amount.
+  3. **Manual, as today:** documented as a step before payment. A refused release is now held with its reason and a task to the claims role, so it no longer stops silently.
+- **Not built** until decided.

@@ -50,6 +50,20 @@ A provider reports payment outcomes to its tenant's callback address, `POST /api
 - **Firewall:** allow the callback path only from each provider's published addresses at the WAF, as a second layer.
 - **Refusals** are logged by endpoint ID only (never the key, secret or signature), and recorded in `payment.provider_callback` with `signature_valid = false` when the key was known.
 
+## Claim payments held instead of released
+
+- **A claim is paid only within its reserve.** A claim payment instruction (General settlement, or each payee of a Life claim) is released only while the claim's reserve in the Claims Framework covers it (`RESERVE_BELOW_ZERO`). Set the reserve before the claim is approved.
+  - Life's claim view does not show the reserve; read it at `GET /api/v1/claims/claims/{claimNumber}/financials`.
+  - Whether a Life death claim's reserve should be set automatically from the sum assured is OQ-079, undecided.
+- **A refused automatic release is held, not dropped.** The instruction stays `Approved`, with `heldReason`:
+  - `RESERVE_BELOW_ZERO`;
+  - `PAYEE_ACCOUNT_CHANGED`: the payee's bank account changed after approval.
+
+  It also carries `heldDetail` (amounts and reserve type) and `heldAt`.
+  - The claims role (`Claims:Payments:HeldReleaseRole`, default `CLAIMS_MANAGER`) gets a Workflow task (process `CLAIM_PAYMENT_HELD`), due in one business day.
+  - The log event `ClaimPaymentReleaseHeld` names the claim and reason, for the Cloud Eye log alarm.
+- **To release it:** raise the reserve (`POST /api/v1/claims/claims/{claimNumber}/reserves`), or have the new bank account approved; then `POST /api/v1/claims/payment-instructions/{id}/release`, and complete the task. A release clears the hold.
+
 ## Bank statements and reconciliation (PAY-003)
 
 1. Import the statement: `POST /api/v1/payments/bank-statements` [reconciliation.update], with `{ accountRef, lines: [...] }`. The lines are matched to payments within the matching tolerance in force (the lowest one, OQ-058).

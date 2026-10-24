@@ -173,6 +173,7 @@ Create the alarm rules on the custom metrics, and notify the operations SMN topi
 | Probe silent | `health_status` has no data for 5 periods | Major: the probe or the instance is down |
 | Parked delivery | `parked_deliveries` > 0 for 1 period | Major: a tenant is missing configuration (ADR-022). Platform operations is alerted at once (OQ-072) |
 | Parked delivery escalated | `parked_escalated` > 0 for 1 period | Critical: the second escalation has passed, so the platform operator acts with the tenant administrator (OQ-072) |
+| Claim payment held | LTS keyword `ClaimPaymentReleaseHeld` | Major: an approved claim payment was not released (reserve or payee account); the claims role has a task (`money-operations.md`) |
 
 Also alarm on the load balancer's backend health (`/health/ready`): unhealthy backends for more than 2 minutes, Critical.
 
@@ -194,6 +195,27 @@ Also alarm on the load balancer's backend health (`/health/ready`): unhealthy ba
 When `/health` alarms, its `checks` say which check and why. For outbox lag, see `slowestOutbox` and follow `docs/runbooks/monitoring.md` (outbox lag) and `docs/runbooks/dead-letters-and-webhooks.md` (events that need tenant configuration).
 
 The thresholds match `docs/runbooks/monitoring.md`. They are starting values: no requirement sets them (NFR-012 asks for alerts, not values).
+
+## Daily jobs (GAP-042, ADR-025)
+
+Each module's daily transitions run on a timer in every API instance. The work is idempotent: a record moves once, and a second instance (or a repeated run) finds nothing left to do. Each job works tenant by tenant, on **that tenant's business date** (its time zone, ADR-025), and takes everything due on or before it.
+
+| Setting | Does | Default |
+|---|---|---|
+| `Life:Jobs:Enabled`, `Interval` | Issued policies come into force at inception; policies past grace with enough missed premiums lapse (LIF-005); lapsed policies past their reinstatement window terminate; group schemes start | on, 1 hour |
+| `Health:Jobs:Enabled`, `Interval` | Memberships and schemes start on their start date; approved preauthorisations past their validity expire | on, 1 hour |
+| `General:Jobs:Enabled`, `Interval` | Policies start and expire; quotes past their validity expire; renewal invitations and renewals fall due; the exposure snapshot is refreshed | on, 1 hour |
+| `Billing:Jobs:Enabled`, `Interval` | Instalments due are invoiced (debit orders included); accounts in arrears are aged, which raises the arrears events Life's lapse depends on | on, 1 hour |
+| `ProductFactory:Jobs:Enabled`, `Interval` | Approved product versions become effective on their date | on, 1 hour |
+| `Payments:Jobs:Enabled`, `Interval` | Payments pending too long are checked for an unknown outcome (PAY-005) | on, 15 minutes |
+
+- **When a change shows.** A transition due on a day happens at the first run after local midnight, so up to one `Interval` late: with the default, by 01:00 local time. A policy issued during the day with cover starting that day goes into force when it is issued; the job only covers what was issued earlier.
+- **Intended production schedule:** `PT15M` (15 minutes) for Life, Health, General and Billing, so cover starts and debit orders fall due within a quarter of an hour of local midnight; 1 hour for Product Factory, and 15 minutes (its default) for Payments. This is a starting value; no requirement sets one.
+- **Live tests** may set a few seconds (the front end's live runner uses 15 seconds). For a chosen date, use the test-only runner instead.
+- **The test-only runner** (Development and Testing only, ADR-025): `POST /api/v1/testing/daily-jobs` `{ "asOf": "2026-12-01" }` [`daily_job.run`].
+  - It runs every daily job for the caller's tenant as if its business date were `asOf`, and delivers the events they raise.
+  - To test a missed premium leading to a lapse, run it for the due date, then for a date past the grace period.
+  - Enable it with `Testing:DailyJobRunner:Enabled`. The host refuses to start with it in any other environment.
 
 ## Upgrades
 

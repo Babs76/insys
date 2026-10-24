@@ -8471,6 +8471,87 @@
       }
     },
     "/api/v1/life/proposals": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "List proposals, by applicant, number or status (GAP-040)",
+        "operationId": "LifeListProposals",
+        "parameters": [
+          {
+            "name": "applicantPartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "proposalNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/LifeProposalStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfLifeProposalSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "life_proposal.read"
+      },
       "post": {
         "tags": [
           "Life"
@@ -8536,6 +8617,461 @@
           }
         },
         "x-permission": "life_proposal.create"
+      }
+    },
+    "/api/v1/life/policies": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "List policies, by policyholder, number or status (GAP-040)",
+        "operationId": "LifeListPolicies",
+        "parameters": [
+          {
+            "name": "policyholderPartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "policyNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/LifePolicyStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfLifePolicySummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "life_policy.read"
+      },
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Issue a policy from an accepted proposal, on its product and rating versions (LIF-003)",
+        "operationId": "LifeIssuePolicy",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifeIssueLifePolicy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifePolicyView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "life_policy.create"
+      }
+    },
+    "/api/v1/life/claims": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "List claims, by policy, claimant, number or status (GAP-040)",
+        "operationId": "LifeListClaims",
+        "parameters": [
+          {
+            "name": "policyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "claimantPartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "claimNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/LifeClaimStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfLifeClaimSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "life_claim.read"
+      },
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Notify a claim on an insured life of a policy",
+        "operationId": "LifeNotifyClaim",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifeNotifyLifeClaim"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifeClaimView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "life_claim.create"
+      }
+    },
+    "/api/v1/life/group-schemes": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "List group schemes, by employer, number or status (GAP-040)",
+        "operationId": "LifeListGroupSchemes",
+        "parameters": [
+          {
+            "name": "employerPartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "schemeNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/LifeSchemeStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfLifeGroupSchemeSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "life_group_scheme.read"
+      },
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Set up a group scheme on a Life product",
+        "operationId": "LifeSetUpScheme",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifeSetUpGroupScheme"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifeSchemeView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "life_group_scheme.create"
       }
     },
     "/api/v1/life/proposals/{id}": {
@@ -9308,74 +9844,6 @@
         "x-permission": "life_underwriting.decide"
       }
     },
-    "/api/v1/life/policies": {
-      "post": {
-        "tags": [
-          "Life"
-        ],
-        "summary": "Issue a policy from an accepted proposal, on its product and rating versions (LIF-003)",
-        "operationId": "LifeIssuePolicy",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "description": "A unique key for this operation. A retry with the same key returns the original response.",
-            "required": true,
-            "schema": {
-              "maxLength": 80,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LifeIssueLifePolicy"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LifePolicyView"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem400"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
-          }
-        },
-        "x-permission": "life_policy.create"
-      }
-    },
     "/api/v1/life/policies/{id}": {
       "get": {
         "tags": [
@@ -10034,74 +10502,6 @@
         "x-permission": "life_loan.update"
       }
     },
-    "/api/v1/life/claims": {
-      "post": {
-        "tags": [
-          "Life"
-        ],
-        "summary": "Notify a claim on an insured life of a policy",
-        "operationId": "LifeNotifyClaim",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "description": "A unique key for this operation. A retry with the same key returns the original response.",
-            "required": true,
-            "schema": {
-              "maxLength": 80,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LifeNotifyLifeClaim"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LifeClaimView"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem400"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
-          }
-        },
-        "x-permission": "life_claim.create"
-      }
-    },
     "/api/v1/life/claims/{id}": {
       "get": {
         "tags": [
@@ -10484,74 +10884,6 @@
           }
         },
         "x-permission": "life_claim.update"
-      }
-    },
-    "/api/v1/life/group-schemes": {
-      "post": {
-        "tags": [
-          "Life"
-        ],
-        "summary": "Set up a group scheme on a Life product",
-        "operationId": "LifeSetUpScheme",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "description": "A unique key for this operation. A retry with the same key returns the original response.",
-            "required": true,
-            "schema": {
-              "maxLength": 80,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LifeSetUpGroupScheme"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LifeSchemeView"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem400"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
-          }
-        },
-        "x-permission": "life_group_scheme.create"
       }
     },
     "/api/v1/life/group-schemes/{id}": {
@@ -14280,6 +14612,843 @@
         "x-permission": "general_recovery.update"
       }
     },
+    "/api/v1/health/memberships": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "List memberships, by principal member, number, scheme or status (GAP-040)",
+        "operationId": "HealthListMemberships",
+        "parameters": [
+          {
+            "name": "principalPartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "memberNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "schemeId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/HealthMembershipStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthMembershipSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_membership.read"
+      },
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Enrol a principal member on a plan option; waiting periods are fixed now (HLT-002)",
+        "operationId": "HealthEnrolMember",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthEnrolHealthMember"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthMembershipView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_membership.create"
+      }
+    },
+    "/api/v1/health/preauthorisations": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "List preauthorisations, by membership, patient, number or status (GAP-040)",
+        "operationId": "HealthListAuthorisations",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "patientPartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "authNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/HealthPreauthStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthPreauthorisationSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_preauthorisation.read"
+      },
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Request a preauthorisation for an eligible member (HLT-005)",
+        "operationId": "HealthRequestAuthorisation",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthRequestAuthorisation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthPreauthorisationView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_preauthorisation.create"
+      }
+    },
+    "/api/v1/health/claims": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "List medical claims, by membership, patient, number or status (GAP-040)",
+        "operationId": "HealthListClaims",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "patientPartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "claimNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/HealthMedicalClaimStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthMedicalClaimSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "medical_claim.read"
+      },
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Submit a provider or member claim (HLT-006)",
+        "operationId": "HealthSubmitClaim",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthSubmitMedicalClaim"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthMedicalClaimView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "medical_claim.create"
+      }
+    },
+    "/api/v1/health/utilisation-cases": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "List utilisation cases, by membership, claim or status (GAP-040)",
+        "operationId": "HealthListUtilisationCases",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "claimId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/HealthUtilisationStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthUtilisationCaseSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_case.read"
+      },
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Open a utilisation case",
+        "operationId": "HealthOpenUtilisationCase",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthOpenUtilisationCase"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthUtilisationCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_case.update"
+      }
+    },
+    "/api/v1/health/fraud-cases": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Find fraud cases, by the medical claim\u0027s number or status (GAP-040)",
+        "operationId": "HealthListFraudCases",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/HealthFraudStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthFraudCaseSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_case.read"
+      }
+    },
+    "/api/v1/health/payment-runs": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "List provider payment runs, by code or status (GAP-040)",
+        "operationId": "HealthListRuns",
+        "parameters": [
+          {
+            "name": "runCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/HealthRunStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthPaymentRunSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "provider_payment_run.read"
+      },
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Open a provider payment run",
+        "operationId": "HealthOpenRun",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthOpenPaymentRun"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthPaymentRunView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "provider_payment_run.update"
+      }
+    },
     "/api/v1/health/schemes": {
       "post": {
         "tags": [
@@ -14520,74 +15689,6 @@
           }
         },
         "x-permission": "health_scheme.update"
-      }
-    },
-    "/api/v1/health/memberships": {
-      "post": {
-        "tags": [
-          "Health"
-        ],
-        "summary": "Enrol a principal member on a plan option; waiting periods are fixed now (HLT-002)",
-        "operationId": "HealthEnrolMember",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "description": "A unique key for this operation. A retry with the same key returns the original response.",
-            "required": true,
-            "schema": {
-              "maxLength": 80,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/HealthEnrolHealthMember"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthMembershipView"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem400"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
-          }
-        },
-        "x-permission": "health_membership.create"
       }
     },
     "/api/v1/health/memberships/{id}": {
@@ -15196,74 +16297,6 @@
         "x-permission": "health_eligibility.create"
       }
     },
-    "/api/v1/health/preauthorisations": {
-      "post": {
-        "tags": [
-          "Health"
-        ],
-        "summary": "Request a preauthorisation for an eligible member (HLT-005)",
-        "operationId": "HealthRequestAuthorisation",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "description": "A unique key for this operation. A retry with the same key returns the original response.",
-            "required": true,
-            "schema": {
-              "maxLength": 80,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/HealthRequestAuthorisation"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthPreauthorisationView"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem400"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
-          }
-        },
-        "x-permission": "health_preauthorisation.create"
-      }
-    },
     "/api/v1/health/preauthorisations/{id}": {
       "get": {
         "tags": [
@@ -15706,74 +16739,6 @@
           }
         },
         "x-permission": "health_preauthorisation.review"
-      }
-    },
-    "/api/v1/health/claims": {
-      "post": {
-        "tags": [
-          "Health"
-        ],
-        "summary": "Submit a provider or member claim (HLT-006)",
-        "operationId": "HealthSubmitClaim",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "description": "A unique key for this operation. A retry with the same key returns the original response.",
-            "required": true,
-            "schema": {
-              "maxLength": 80,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/HealthSubmitMedicalClaim"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthMedicalClaimView"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem400"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
-          }
-        },
-        "x-permission": "medical_claim.create"
       }
     },
     "/api/v1/health/claims/{id}": {
@@ -16220,74 +17185,6 @@
         "x-permission": "medical_claim.approve"
       }
     },
-    "/api/v1/health/utilisation-cases": {
-      "post": {
-        "tags": [
-          "Health"
-        ],
-        "summary": "Open a utilisation case",
-        "operationId": "HealthOpenUtilisationCase",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "description": "A unique key for this operation. A retry with the same key returns the original response.",
-            "required": true,
-            "schema": {
-              "maxLength": 80,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/HealthOpenUtilisationCase"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthUtilisationCaseView"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem400"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
-          }
-        },
-        "x-permission": "health_case.update"
-      }
-    },
     "/api/v1/health/utilisation-cases/{id}": {
       "get": {
         "tags": [
@@ -16654,74 +17551,6 @@
           }
         },
         "x-permission": "health_case.update"
-      }
-    },
-    "/api/v1/health/payment-runs": {
-      "post": {
-        "tags": [
-          "Health"
-        ],
-        "summary": "Open a provider payment run",
-        "operationId": "HealthOpenRun",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "description": "A unique key for this operation. A retry with the same key returns the original response.",
-            "required": true,
-            "schema": {
-              "maxLength": 80,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/HealthOpenPaymentRun"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthPaymentRunView"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem400"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
-          }
-        },
-        "x-permission": "provider_payment_run.update"
       }
     },
     "/api/v1/health/payment-runs/{id}": {
@@ -23240,6 +24069,30 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "heldReason": {
+            "enum": [
+              "RESERVE_BELOW_ZERO",
+              "PAYEE_ACCOUNT_CHANGED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "heldDetail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "heldAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -23712,6 +24565,132 @@
           }
         }
       },
+      "CursorPageOfHealthFraudCaseSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthFraudCaseSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthMedicalClaimSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthMedicalClaimSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthMembershipSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthMembershipSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthPaymentRunSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthPaymentRunSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthPreauthorisationSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthPreauthorisationSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthUtilisationCaseSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthUtilisationCaseSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfIdentityGrantView": {
         "required": [
           "items",
@@ -23807,6 +24786,90 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/IntegrationParkedDeliveryView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfLifeClaimSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeClaimSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfLifeGroupSchemeSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeGroupSchemeSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfLifePolicySummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifePolicySummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfLifeProposalSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeProposalSummary"
             }
           },
           "nextCursor": {
@@ -27560,6 +28623,42 @@
           }
         }
       },
+      "HealthFraudCaseSummary": {
+        "required": [
+          "id",
+          "subjectType",
+          "subjectRef",
+          "indicatorCodes",
+          "status",
+          "openedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subjectType": {
+            "type": "string"
+          },
+          "subjectRef": {
+            "type": "string"
+          },
+          "indicatorCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthFraudStatus"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "HealthFraudCaseView": {
         "required": [
           "id",
@@ -27674,6 +28773,71 @@
           "Rejected",
           "Reversed"
         ]
+      },
+      "HealthMedicalClaimSummary": {
+        "required": [
+          "id",
+          "claimNumber",
+          "membershipId",
+          "patientPartyId",
+          "providerId",
+          "serviceDate",
+          "status",
+          "totalClaimed",
+          "totalPaid",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimNumber": {
+            "type": "string"
+          },
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serviceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthMedicalClaimStatus"
+          },
+          "totalClaimed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "totalPaid": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
       },
       "HealthMedicalClaimView": {
         "required": [
@@ -27796,6 +28960,60 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "HealthMembershipSummary": {
+        "required": [
+          "id",
+          "memberNumber",
+          "principalPartyId",
+          "schemeId",
+          "planCode",
+          "optionCode",
+          "status",
+          "startDate",
+          "endDate"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "memberNumber": {
+            "type": "string"
+          },
+          "principalPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schemeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "planCode": {
+            "type": "string"
+          },
+          "optionCode": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthMembershipStatus"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         }
       },
@@ -27928,6 +29146,53 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "HealthPaymentRunSummary": {
+        "required": [
+          "id",
+          "runCode",
+          "cutOff",
+          "claimCount",
+          "totalAmount",
+          "status",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runCode": {
+            "type": "string"
+          },
+          "cutOff": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "claimCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthRunStatus"
+          },
+          "currency": {
+            "type": "string"
           }
         }
       },
@@ -28131,6 +29396,75 @@
           "Expired",
           "Cancelled"
         ]
+      },
+      "HealthPreauthorisationSummary": {
+        "required": [
+          "id",
+          "authNumber",
+          "membershipId",
+          "patientPartyId",
+          "providerId",
+          "status",
+          "requestedAmount",
+          "authorisedAmount",
+          "validFrom",
+          "validTo"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "authNumber": {
+            "type": "string"
+          },
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthPreauthStatus"
+          },
+          "requestedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "authorisedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "validFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        }
       },
       "HealthPreauthorisationView": {
         "required": [
@@ -28499,6 +29833,44 @@
             "items": {
               "$ref": "#/components/schemas/HealthClaimLineRequest"
             }
+          }
+        }
+      },
+      "HealthUtilisationCaseSummary": {
+        "required": [
+          "id",
+          "membershipId",
+          "ruleCode",
+          "status",
+          "claimId",
+          "openedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ruleCode": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthUtilisationStatus"
+          },
+          "claimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -30529,6 +31901,62 @@
           "Closed"
         ]
       },
+      "LifeClaimSummary": {
+        "required": [
+          "id",
+          "claimNumber",
+          "policyId",
+          "claimType",
+          "claimantPartyId",
+          "eventDate",
+          "status",
+          "approvedAmount",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimType": {
+            "type": "string"
+          },
+          "claimantPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LifeClaimStatus"
+          },
+          "approvedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
       "LifeClaimView": {
         "required": [
           "id",
@@ -30848,6 +32276,48 @@
           },
           "mandatory": {
             "type": "boolean"
+          }
+        }
+      },
+      "LifeGroupSchemeSummary": {
+        "required": [
+          "id",
+          "schemeNumber",
+          "employerPartyId",
+          "productCode",
+          "status",
+          "startDate",
+          "renewalDate"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schemeNumber": {
+            "type": "string"
+          },
+          "employerPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LifeSchemeStatus"
+          },
+          "startDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "renewalDate": {
+            "type": "string",
+            "format": "date"
           }
         }
       },
@@ -31313,6 +32783,52 @@
           "Matured"
         ]
       },
+      "LifePolicySummary": {
+        "required": [
+          "id",
+          "policyNumber",
+          "productCode",
+          "policyholderPartyId",
+          "status",
+          "inceptionDate",
+          "termEndDate",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyNumber": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "policyholderPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LifePolicyStatus"
+          },
+          "inceptionDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "termEndDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
       "LifePolicyView": {
         "required": [
           "id",
@@ -31457,6 +32973,57 @@
           "Withdrawn",
           "Converted"
         ]
+      },
+      "LifeProposalSummary": {
+        "required": [
+          "id",
+          "proposalNumber",
+          "productCode",
+          "applicantPartyId",
+          "status",
+          "currency",
+          "quotedPremium",
+          "inceptionDate"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposalNumber": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "applicantPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LifeProposalStatus"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "quotedPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "inceptionDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        }
       },
       "LifeProposalView": {
         "required": [
