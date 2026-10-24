@@ -54,6 +54,7 @@ dotnet run --project src/Host/Insys.Api
 | `Outbox:*` | Relay poll interval, batch size, attempts and back-off; lag warning and failure thresholds; each consumer attempt's time limit (ADR-022) | 2 s, 100, 10, 5 s; 1 min, 5 min; 30 s |
 | `Outbox:Parking:*` | Parked deliveries (ADR-022): job switch and interval, periodic retry, money consumers' schemas, default escalation | on, 5 s, 15 min; PT4H/P1D money, P1D/P3D others |
 | `BusinessDate:DefaultTimeZone` | The business date's time zone for a tenant with none in its locale defaults (ADR-025) | Africa/Johannesburg |
+| `Life:Claims:InitialReserveType` | The Claims Framework reserve type a Life lump-sum claim's initial reserve is set on (OQ-079) | INDEMNITY |
 | `Claims:Payments:HeldReleaseRole` | The role whose queue gets a held claim payment's task | CLAIMS_MANAGER |
 | `Testing:DailyJobRunner:Enabled` | Test only: `POST /api/v1/testing/daily-jobs` runs the daily jobs as of a date; refused outside Development and Testing (ADR-025) | off |
 | `Payments:Callbacks:Tolerance`, `Overlap` | Signed callbacks (ADR-023): timestamp window, and how long a rotated endpoint is still accepted | 5 min, 7 days |

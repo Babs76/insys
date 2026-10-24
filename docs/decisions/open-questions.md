@@ -818,3 +818,13 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   2. **Automatic at assessment:** set from the assessed amount.
   3. **Manual, as today:** documented as a step before payment. A refused release is now held with its reason and a task to the claims role, so it no longer stops silently.
 - **Not built** until decided.
+- **Resolved (24 October 2026, decided by Ade):**
+  - **The rule:** a Life lump-sum claim (death, and disability where the benefit is a fixed sum) gets its initial reserve automatically at registration, equal to the sum assured of each claimed cover. The assessor adjusts it with a reason, under the existing Claims Framework reserve rules.
+  - **Built:**
+    - lump sum means the benefit type's `payout_type` is `LUMP_SUM` in `life.ref_life_benefit_types`;
+    - the claimed covers are the insured life's benefits of that type in force on the event date;
+    - the reserve type is `Life:Claims:InitialReserveType`, `INDEMNITY` by default;
+    - the reserve is set through the Claims Framework at registration, once (a repeat registration leaves it);
+    - every reserve move now needs a reason (`ClaimsMoveReserve`), which the audit trail records.
+  - **Note:** the Claims Framework has no reserve authority limit today: the authority rules apply when a payment is approved and released, not when a reserve moves. Any reserve limit by role is a requirement to add.
+  - **Closed.**

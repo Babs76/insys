@@ -25,7 +25,8 @@
 | 8 Wave 0 batch 3 | ADR-022 revision 2; Cloud Eye alarms; party search log access (OQ-073); F009, F023, F055 built; F103, F005, F062 proposals (OQ-074 to OQ-076) | **Merged, `8351b83`** (23 Oct 2026) |
 | 8 Wave 0 batch 4 | ADR-022 built (parking, order per record, escalation per tenant, attempt timeout) with GAP-038 payouts; F103 interim control; GAP-039 pools and 503; OQ-073 retention job; F009 skips recorded and alerted; GAP-035 documented, GAP-037 purposes; ADR-023 and ADR-024 proposed | **Merged, `5ae047e`** (23 Oct 2026) |
 | 8 Wave 0 batch 5 | ADR-022 for Billing, Reinsurance, Documents and Analytics; GAP-036 payment lookups and `paymentId` at creation; GAP-037 known values; ADR-024 operator tenant refused; ADR-023 revision 2 built (endpoint keys, signed callbacks); parked-delivery alarms in Cloud Eye | **Merged, `e8f9dc5`** (24 Oct 2026) |
-| 8 Wave 0 batch 6 | GAP-044 business dates in the tenant's time zone (ADR-025); GAP-043 free cover bands; held claim payment releases; Reinsurance endorsement parks; GAP-040 Life and Health lists, fraud cases by claim; GAP-042 job schedule; test-only daily job runner; OQ-079 raised | **Done on `wave0-6`, awaiting review** (24 Oct 2026) |
+| 8 Wave 0 batch 6 | GAP-044 business dates in the tenant's time zone (ADR-025); GAP-043 free cover bands; held claim payment releases; Reinsurance endorsement parks; GAP-040 Life and Health lists, fraud cases by claim; GAP-042 job schedule; test-only daily job runner; OQ-079 raised | **Merged, `4b0e97c`** (24 Oct 2026) |
+| 8 Wave 0 batch 7 | Free cover fails safe, with a band check; tenant time zone required at registration, listed on /health, and in /identity/me with the business date; OQ-079 decided and built (Life lump-sum initial reserve); addenda for onboarding readiness and Keycloak user creation, for sign-off | **Done on `wave0-7`, awaiting review** (24 Oct 2026) |
 
 ## Phase 1 review items
 

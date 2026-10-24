@@ -51735,7 +51735,8 @@
         "required": [
           "tenantCode",
           "legalName",
-          "isolationProfile"
+          "isolationProfile",
+          "timeZone"
         ],
         "type": "object",
         "properties": {
@@ -51747,6 +51748,9 @@
           },
           "isolationProfile": {
             "$ref": "#/components/schemas/TenancyIsolationProfile"
+          },
+          "timeZone": {
+            "type": "string"
           }
         }
       },
@@ -51846,6 +51850,12 @@
               "string"
             ],
             "format": "int64"
+          },
+          "timeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -51902,6 +51912,12 @@
               "string"
             ],
             "format": "int64"
+          },
+          "timeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

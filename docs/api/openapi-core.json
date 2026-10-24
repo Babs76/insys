@@ -7969,7 +7969,7 @@
         "tags": [
           "ClaimsFramework"
         ],
-        "summary": "Set or change a reserve, or record a recovery; a reserve never goes below zero",
+        "summary": "Set or change a reserve, or record a recovery, with a reason; a reserve never goes below zero",
         "operationId": "ClaimsMoveReserve",
         "parameters": [
           {
@@ -24190,7 +24190,8 @@
           "action",
           "reserveType",
           "amount",
-          "currency"
+          "currency",
+          "reason"
         ],
         "type": "object",
         "properties": {
@@ -24209,6 +24210,9 @@
             "format": "double"
           },
           "currency": {
+            "type": "string"
+          },
+          "reason": {
             "type": "string"
           }
         }
@@ -30239,7 +30243,9 @@
           "tenantCode",
           "name",
           "status",
-          "isPlatformOperator"
+          "isPlatformOperator",
+          "timeZone",
+          "businessDate"
         ],
         "type": "object",
         "properties": {
@@ -30264,6 +30270,13 @@
           },
           "isPlatformOperator": {
             "type": "boolean"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "businessDate": {
+            "type": "string",
+            "format": "date"
           }
         }
       },
