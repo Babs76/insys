@@ -66,7 +66,9 @@ public sealed record EndorsementChange(EndorsementAction Action, Guid RiskObject
 public sealed record EndorsementType(string Code, string PremiumMethod, IReadOnlyList<string> Documents, bool RequiresUnderwriting);
 
 /// <summary>Asks Workflow for a second person's approval (SRS-002, ADR-009).</summary>
-public sealed record EndorsementSubmitted(Guid EndorsementId, string EndorsementNumber, Guid RequestedBy, decimal PremiumDelta, string Currency, DateTimeOffset OccurredAt)
+/// <param name="ExceededLimit">The zone and peril limit the endorsement's added sum insured would exceed (F062 §1), for the approver.</param>
+public sealed record EndorsementSubmitted(Guid EndorsementId, string EndorsementNumber, Guid RequestedBy, decimal PremiumDelta, string Currency, DateTimeOffset OccurredAt,
+    string? ExceededLimit = null)
     : IDomainEvent;
 
 public sealed record GeneralEndorsementApproved(Guid EndorsementId, Guid PolicyId, Guid ApprovalId, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -187,13 +189,13 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
     }
 
     /// <summary>Command SubmitEndorsement: Workflow asks a second person to approve it.</summary>
-    public Result SubmitEndorsement(Guid submittedBy, string currency, DateTimeOffset now)
+    public Result SubmitEndorsement(Guid submittedBy, string currency, DateTimeOffset now, string? exceededLimit = null)
     {
         var result = Fire(EndorsementTrigger.SubmitEndorsement);
         if (result.IsSuccess)
         {
             RequestedBy = submittedBy;
-            Raise(new EndorsementSubmitted(Id, EndorsementNumber, submittedBy, PremiumDelta, currency, now));
+            Raise(new EndorsementSubmitted(Id, EndorsementNumber, submittedBy, PremiumDelta, currency, now, exceededLimit));
         }
 
         return result;

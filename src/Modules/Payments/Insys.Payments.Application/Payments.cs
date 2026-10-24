@@ -122,11 +122,19 @@ public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, [
         p.Allocations.Select(a => new AllocationView(a.Id, a.InvoiceId, a.Amount, a.Currency, a.AllocatedAt, a.ReversedById)).ToList());
 }
 
+/// <param name="PartlyInScope">
+/// True when the batch also pays records outside the caller's scope (F103): the count and total are then of the payments
+/// in scope only, so no other branch's or product's figures show through the batch.
+/// </param>
 public sealed record BatchView(Guid Id, string BatchRef, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission)] string Purpose, int PaymentCount, decimal TotalAmount, string Currency, BatchStatus Status, Guid? BuiltBy,
-    Guid? ApprovedBy, Guid? ReleasedBy)
+    Guid? ApprovedBy, Guid? ReleasedBy, bool PartlyInScope)
 {
     public static BatchView From(PayoutBatch b) => new(b.Id, b.BatchRef, b.Purpose, b.PaymentCount, b.TotalAmount, b.Currency, b.Status, b.BuiltBy,
-        b.ApprovedBy, b.ReleasedBy);
+        b.ApprovedBy, b.ReleasedBy, false);
+
+    public static BatchView Of(PayoutBatch b, IReadOnlyList<Payment> visible, bool partly) => partly
+        ? new(b.Id, b.BatchRef, b.Purpose, visible.Count, visible.Sum(p => p.Amount), b.Currency, b.Status, b.BuiltBy, b.ApprovedBy, b.ReleasedBy, true)
+        : From(b);
 }
 
 public sealed record ExceptionView(Guid Id, string ExceptionType, Guid? PaymentId, Guid? StatementLineId, decimal Amount, ExceptionStatus Status, Guid? AssignedTo)
@@ -448,7 +456,8 @@ internal static class Allocation
     }
 }
 
-internal sealed class BuildBatchHandler(IPaymentRepository payments, IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<BuildBatch, BatchView>
+internal sealed class BuildBatchHandler(IPaymentRepository payments, PaymentScopes scopes, IExecutionContext execution, IClock clock, IAuditTrail audit)
+    : ICommandHandler<BuildBatch, BatchView>
 {
     public async Task<Result<BatchView>> Handle(BuildBatch command, CancellationToken cancellationToken)
     {
@@ -458,8 +467,14 @@ internal sealed class BuildBatchHandler(IPaymentRepository payments, IExecutionC
             return user.Error;
         }
 
-        var batch = PayoutBatch.BuildBatch(Guid.CreateVersion7(), command.Purpose, command.Currency, await payments.AwaitingBatch(command.Purpose, command.Currency, cancellationToken),
-            user.Value, clock.UtcNow);
+        // F103: a batch pays every waiting payout of its purpose, so it is built only by a caller covering them all.
+        var waiting = await payments.AwaitingBatch(command.Purpose, command.Currency, cancellationToken);
+        if ((await scopes.Of(waiting, cancellationToken)).Partly)
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "Some waiting payouts are for records outside your scope, so you cannot batch them.");
+        }
+
+        var batch = PayoutBatch.BuildBatch(Guid.CreateVersion7(), command.Purpose, command.Currency, waiting, user.Value, clock.UtcNow);
         if (batch.IsFailure)
         {
             return batch.Error;
@@ -471,8 +486,8 @@ internal sealed class BuildBatchHandler(IPaymentRepository payments, IExecutionC
     }
 }
 
-internal sealed class ReleaseBatchHandler(IPaymentRepository payments, PaymentStarter starter, IExecutionContext execution, IClock clock, IAuditTrail audit)
-    : ICommandHandler<ReleaseBatch, BatchView>
+internal sealed class ReleaseBatchHandler(IPaymentRepository payments, PaymentScopes scopes, PaymentStarter starter, IExecutionContext execution, IClock clock,
+    IAuditTrail audit) : ICommandHandler<ReleaseBatch, BatchView>
 {
     public async Task<Result<BatchView>> Handle(ReleaseBatch command, CancellationToken cancellationToken)
     {
@@ -487,6 +502,15 @@ internal sealed class ReleaseBatchHandler(IPaymentRepository payments, PaymentSt
             return Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.");
         }
 
+        // F103: releasing pays the whole batch, so the caller covers every payment in it (a batch with none in scope is not found).
+        var all = await payments.InBatch(batch.Id, cancellationToken);
+        var (visible, partly) = await scopes.Of(all, cancellationToken);
+        if (partly)
+        {
+            return visible.Count == 0 ? Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.")
+                : Error.Forbidden(ErrorCodes.OutOfScope, "The batch also pays records outside your scope, so you cannot release it.");
+        }
+
         audit.Record(new AuditEntry("PAYMENT", "ReleaseBatch", nameof(PayoutBatch), batch.Id.ToString()));
         var result = batch.ReleaseBatch(user.Value, clock.UtcNow);
         if (result.IsFailure)
@@ -494,7 +518,7 @@ internal sealed class ReleaseBatchHandler(IPaymentRepository payments, PaymentSt
             return result.Error;
         }
 
-        foreach (var payment in await payments.InBatch(batch.Id, cancellationToken))
+        foreach (var payment in all)
         {
             await starter.Send(payment, cancellationToken);
         }
@@ -587,6 +611,37 @@ internal sealed class ResolveExceptionHandler(IPaymentRepository payments, IExec
 /// </summary>
 public sealed class PaymentScopes(IEnumerable<IBusinessRecordScopes> sources, ITenantContext tenant, IExecutionContext execution)
 {
+    /// <summary>
+    /// A payment is shown when its record is in the caller's scope; a commission payout, outside branch scope, only to a
+    /// caller holding commission_payout.read.
+    /// </summary>
+    public async Task<bool> Covers(Payment payment, CancellationToken cancellationToken) =>
+        payment.Purpose == PaymentPurposes.Commission
+            ? execution.ActorType == ActorType.Service || execution.HasPermission(PaymentPermissions.CommissionPayoutRead)
+            : await Covers(payment.BusinessRefType, payment.BusinessRefId, cancellationToken);
+
+    /// <summary>The payments the caller may see, and whether that is only part of them.</summary>
+    public async Task<(IReadOnlyList<Payment> Visible, bool Partly)> Of(IReadOnlyList<Payment> payments, CancellationToken cancellationToken)
+    {
+        var visible = new List<Payment>();
+        var seen = new Dictionary<(string?, Guid?, bool), bool>();
+        foreach (var payment in payments)
+        {
+            var key = (payment.BusinessRefType, payment.BusinessRefId, payment.Purpose == PaymentPurposes.Commission);
+            if (!seen.TryGetValue(key, out var covered))
+            {
+                seen[key] = covered = await Covers(payment, cancellationToken);
+            }
+
+            if (covered)
+            {
+                visible.Add(payment);
+            }
+        }
+
+        return (visible, visible.Count < payments.Count);
+    }
+
     public async Task<bool> Covers(string? businessRefType, Guid? businessRefId, CancellationToken cancellationToken)
     {
         if (execution.CurrentScope.IsUnrestricted || businessRefType is null || businessRefId is not { } id
@@ -603,7 +658,7 @@ public sealed class PaymentScopes(IEnumerable<IBusinessRecordScopes> sources, IT
 internal sealed class GetPaymentHandler(IPaymentRepository payments, PaymentScopes scopes) : IQueryHandler<GetPayment, PaymentView>
 {
     public async Task<Result<PaymentView>> Handle(GetPayment query, CancellationToken cancellationToken) =>
-        await payments.Get(query.PaymentId, cancellationToken) is { } p && await scopes.Covers(p.BusinessRefType, p.BusinessRefId, cancellationToken)
+        await payments.Get(query.PaymentId, cancellationToken) is { } p && await scopes.Covers(p, cancellationToken)
             ? PaymentView.From(p)
             : Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
 }
@@ -612,15 +667,23 @@ internal sealed class ListPaymentsHandler(IPaymentRepository payments, PaymentSc
     : IQueryHandler<ListPayments, IReadOnlyList<PaymentView>>, IQueryHandler<ListBatchPayments, IReadOnlyList<PaymentView>>
 {
     public async Task<Result<IReadOnlyList<PaymentView>>> Handle(ListPayments query, CancellationToken cancellationToken) =>
-        await scopes.Covers(query.BusinessRefType, query.BusinessRefId, cancellationToken)
-            ? Result.Success<IReadOnlyList<PaymentView>>((await payments.ForBusinessRef(query.BusinessRefType, query.BusinessRefId, query.AfterId, query.Limit,
-                cancellationToken)).Select(PaymentView.From).ToList())
-            : Result.Success<IReadOnlyList<PaymentView>>([]);
+        Result.Success<IReadOnlyList<PaymentView>>((await scopes.Of(await payments.ForBusinessRef(query.BusinessRefType, query.BusinessRefId, query.AfterId,
+            query.Limit, cancellationToken), cancellationToken)).Visible.Select(PaymentView.From).ToList());
 
-    public async Task<Result<IReadOnlyList<PaymentView>>> Handle(ListBatchPayments query, CancellationToken cancellationToken) =>
-        await payments.Batch(query.BatchId, cancellationToken) is null
+    /// <summary>The batch's payments in the caller's scope; a batch with none in scope is not found (F103).</summary>
+    public async Task<Result<IReadOnlyList<PaymentView>>> Handle(ListBatchPayments query, CancellationToken cancellationToken)
+    {
+        if (await payments.Batch(query.BatchId, cancellationToken) is null)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.");
+        }
+
+        var all = await payments.InBatch(query.BatchId, cancellationToken);
+        var (visible, _) = await scopes.Of(all, cancellationToken);
+        return visible.Count == 0 && all.Count > 0
             ? Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.")
-            : Result.Success<IReadOnlyList<PaymentView>>((await payments.InBatch(query.BatchId, cancellationToken)).Select(PaymentView.From).ToList());
+            : Result.Success<IReadOnlyList<PaymentView>>(visible.Select(PaymentView.From).ToList());
+    }
 }
 
 public sealed class ListPaymentsValidator : AbstractValidator<ListPayments>
@@ -632,10 +695,20 @@ public sealed class ListPaymentsValidator : AbstractValidator<ListPayments>
     }
 }
 
-internal sealed class GetBatchHandler(IPaymentRepository payments) : IQueryHandler<GetBatch, BatchView>
+/// <summary>A batch, with the count and total of the payments in the caller's scope; one with none in scope is not found (F103).</summary>
+internal sealed class GetBatchHandler(IPaymentRepository payments, PaymentScopes scopes) : IQueryHandler<GetBatch, BatchView>
 {
-    public async Task<Result<BatchView>> Handle(GetBatch query, CancellationToken cancellationToken) =>
-        await payments.Batch(query.BatchId, cancellationToken) is { } b ? BatchView.From(b) : Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.");
+    public async Task<Result<BatchView>> Handle(GetBatch query, CancellationToken cancellationToken)
+    {
+        if (await payments.Batch(query.BatchId, cancellationToken) is not { } batch)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.");
+        }
+
+        var all = await payments.InBatch(batch.Id, cancellationToken);
+        var (visible, partly) = await scopes.Of(all, cancellationToken);
+        return visible.Count == 0 && all.Count > 0 ? Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.") : BatchView.Of(batch, visible, partly);
+    }
 }
 
 internal sealed class ListExceptionsHandler(IPaymentRepository payments) : IQueryHandler<ListExceptions, IReadOnlyList<ExceptionView>>

@@ -69,6 +69,7 @@ public static class GeneralInfrastructure
         services.AddIntegrationEventHandler<AssessorAppointed, GeneralPolicies, GeneralDbContext>(schema, "AssessorAppointed");
         services.AddIntegrationEventHandler<InvoiceSettled, GeneralPolicies, GeneralDbContext>(schema, "InvoiceSettled");
         services.AddOptions<GeneralJobOptions>().BindConfiguration("General:Jobs");
+        services.AddOptions<AggregationOptions>().BindConfiguration("General:Aggregation");
         services.AddSingleton<GeneralJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {

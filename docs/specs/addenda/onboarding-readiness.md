@@ -1,6 +1,6 @@
 # Addendum: onboarding readiness checks (TEN-008)
 
-**Proposed 24 October 2026, for sign-off. Not built.**
+**Proposed 24 October 2026, for sign-off; §5 (channels) added the same day at Ade's request. Not built.**
 
 - **Basis:**
   - TEN-008: "Tenant onboarding, suspension, reactivation, and termination MUST be governed by defined workflows."
@@ -29,6 +29,7 @@ Static data is read through each module's own query interface (Contracts), never
 | | `ROLES` | `iam.cfg_roles_and_permission_sets`: at least one role besides `TENANT_ADMIN` |
 | | `ORGANISATION_STRUCTURE` | `tenant.mst_organisation_structure`: a root legal entity (needed for access scopes, F103) |
 | | `AUTHENTICATION_POLICY` | `iam.cfg_authentication_and_session_policies`, tenant or global |
+| | `CHANNELS` | Channel definitions in force (F005), including a back-office channel whose `client_ids` list `insys-web`, with allowed rows in `channel.cfg_channel_transaction_permissions` for the staff roles and every channel-scoped transaction they use (§5) |
 | `FINANCIAL_FOUNDATIONS` | `CHART_OF_ACCOUNTS` | `finance.mst_chart_of_accounts`: at least one account |
 | | `POSTING_RULES` | `finance.cfg_posting_rules`: a rule for every transaction type in `finance.ref_transaction_types` the tenant's products raise (premium due, payment received, refund paid, claim reserve, claim paid) |
 | | `BASE_CURRENCY` | The locale defaults' base currency, with exchange rates for any other currency its products use |
@@ -57,6 +58,20 @@ Static data is read through each module's own query interface (Contracts), never
 ### 4. What does not change
 - The step order and the API to complete a step.
 - A tenant already active is not re-checked. The readiness view still reports its gaps, for repair.
+
+### 5. Channels before activation (added 24 October 2026)
+A tenant cannot be activated without channel definitions (F005, `addenda/channel-permissions.md`).
+- **Why:** a tenant with no channels has no channel scoping, so any client could make any transaction. The `CHANNELS` check makes channels part of `ORGANISATION_AND_ACCESS`.
+- **What must be in force:**
+  - **The back-office channel:** a channel definition (audience `STAFF`, for example `BACK_OFFICE`) whose `client_ids` include `insys-web`. `enabled_transactions` and `enabled_products` are empty (all) unless the tenant limits them.
+  - **Its permission rows:** for every staff role, an allowed row in `channel.cfg_channel_transaction_permissions` for each channel-scoped transaction the role's permissions include (the command permissions of General, Life, Health, the Claims Framework and payouts). A row with an empty product covers every product the channel enables. `requires_approval` is set only where the business wants a second person.
+  - **Partner channels,** if the tenant has a broker, provider or member portal: one channel each, with its own Keycloak client in `client_ids` and rows for the portal roles (see the external-user access addendum).
+- **The steps that set them up,** within `ORGANISATION_AND_ACCESS`, after the roles exist:
+  1. Create the back-office channel definition (`POST /api/v1/integration/static/channel-definitions`: a draft, then submitted and approved; Tier 2 maker-checker).
+  2. For each staff role, create its permission rows (`/api/v1/integration/static/channel-transaction-permissions`, Tier 1). The readiness view lists the transactions each role's permissions include, so none is missed.
+  3. Create any partner channels and their rows the same way.
+  4. Complete the step. The `CHANNELS` check confirms the back-office channel lists `insys-web`, and that every staff role has an allowed row for each of its channel-scoped transactions; missing ones are listed.
+- **Effect on existing tenants:** none until they complete the step again. The readiness view reports their gaps, as for the other checks.
 
 ## Open points for sign-off
 - **Exact minimums.** For example, `POSTING_RULES` lists the transaction types a tenant's products raise. Whether every transaction type in the catalogue must have a rule, or only those the products use, is proposed here as "only those used".

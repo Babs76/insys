@@ -38,6 +38,21 @@ namespace Insys.General.Application;
 
 public interface IGeneralRepository
 {
+    /// <summary>Each risk object's zone and the zone's peril in force (F062); risk objects with no zone are left out.</summary>
+    Task<IReadOnlyDictionary<Guid, (string Zone, string Peril)>> ZonesOf(IReadOnlyCollection<Guid> riskObjectIds, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The sum insured of the risks of issued and in-force policies in the zone and peril, in the currency, on the day (F062).</summary>
+    Task<decimal> LiveExposure(string zone, string peril, string currency, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The settlements requested, approved or paid on the policy's coverage for losses in the period, other than the claim's (F062 §2).</summary>
+    Task<decimal> SettledOnCoverage(Guid policyId, string coverage, DateOnly from, DateOnly to, Guid exceptClaimId, CancellationToken cancellationToken);
+
+    /// <summary>The zone and peril exposures of the day's snapshot (general.exposure_snapshot).</summary>
+    Task<IReadOnlyList<(string Zone, string Peril, decimal SumInsured, string Currency)>> Snapshot(DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>Publishes AggregationLimitApproached through General's outbox (F062 §1).</summary>
+    void PublishLimitApproached(string zone, string peril, decimal exposure, decimal maxExposure, string currency, DateOnly asAt, DateTimeOffset now);
+
     Task<RiskObject?> RiskObject(Guid id, CancellationToken cancellationToken);
 
     Task<GeneralQuote?> Quote(Guid id, CancellationToken cancellationToken);
@@ -124,6 +139,12 @@ public enum GeneralCode
 /// <summary>The General module's static data in force.</summary>
 public interface IGeneralCodes
 {
+    /// <summary>The zone and peril limits in force (F062).</summary>
+    Task<IReadOnlyList<ZoneLimit>> ZoneLimits(DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The coverage's aggregate claims limit in force, if any (F062).</summary>
+    Task<AggregateLimit?> AggregateLimit(string coverage, DateOnly day, CancellationToken cancellationToken);
+
     Task<RiskObjectTypeDefinition?> RiskObjectType(string objectType, DateOnly day, CancellationToken cancellationToken);
 
     Task<int?> QuoteValidityDays(string productCode, DateOnly day, CancellationToken cancellationToken);

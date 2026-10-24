@@ -162,6 +162,46 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
             """, cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, (string Zone, string Peril)>> ZonesOf(IReadOnlyCollection<Guid> riskObjectIds, DateOnly day,
+        CancellationToken cancellationToken)
+    {
+        var zones = await db.RiskObjects.AsNoTracking().Where(o => riskObjectIds.Contains(o.Id) && o.RiskZone != null).Select(o => new { o.Id, o.RiskZone })
+            .ToListAsync(cancellationToken);
+        var codes = zones.Select(z => z.RiskZone!).Distinct().ToList();
+        var perils = (await db.Set<RiskZones>().AsNoTracking()
+                .InForce(GeneralStaticData.Descriptors.Single(d => d.EntityType == typeof(RiskZones)).Lifecycle, day)
+                .Where(z => codes.Contains(z.ZoneCode)).Select(z => new { z.ZoneCode, z.Peril, z.Version }).ToListAsync(cancellationToken))
+            .GroupBy(z => z.ZoneCode).ToDictionary(g => g.Key, g => g.MaxBy(z => z.Version)!.Peril);
+        return zones.Where(z => perils.ContainsKey(z.RiskZone!)).ToDictionary(z => z.Id, z => (z.RiskZone!, perils[z.RiskZone!]));
+    }
+
+    /// <summary>Across the tenant, whatever the caller's scope (F103): a capacity limit counts every policy.</summary>
+    public async Task<decimal> LiveExposure(string zone, string peril, string currency, DateOnly day, CancellationToken cancellationToken)
+    {
+        var inZone = db.RiskObjects.Where(o => o.RiskZone == zone).Select(o => o.Id);
+        return await db.Policies.AsNoTracking()
+            .Where(p => (p.Status == PolicyStatus.Issued || p.Status == PolicyStatus.InForce) && p.Currency == currency && p.PeriodEnd >= day)
+            .SelectMany(p => p.Risks)
+            .Where(r => inZone.Contains(r.RiskObjectId) && (r.DetachedOn == null || r.DetachedOn > day))
+            .SumAsync(r => r.SumInsured, cancellationToken);
+    }
+
+    public async Task<decimal> SettledOnCoverage(Guid policyId, string coverage, DateOnly from, DateOnly to, Guid exceptClaimId, CancellationToken cancellationToken) =>
+        await db.Claims.AsNoTracking()
+            .Where(c => c.PolicyId == policyId && c.CoverageCode == coverage && c.Id != exceptClaimId && c.LossDate >= from && c.LossDate <= to && c.SettlementAmount != null)
+            .SumAsync(c => c.SettlementAmount ?? 0m, cancellationToken);
+
+    public async Task<IReadOnlyList<(string Zone, string Peril, decimal SumInsured, string Currency)>> Snapshot(DateOnly day, CancellationToken cancellationToken) =>
+        (await db.Database.SqlQuery<SnapshotRow>(
+                $"SELECT zone AS \"Zone\", peril_code AS \"Peril\", sum_insured AS \"SumInsured\", currency AS \"Currency\" FROM general.exposure_snapshot WHERE as_at = {day}")
+            .ToListAsync(cancellationToken))
+        .Select(r => (r.Zone, r.Peril, r.SumInsured, r.Currency)).ToList();
+
+    public void PublishLimitApproached(string zone, string peril, decimal exposure, decimal maxExposure, string currency, DateOnly asAt, DateTimeOffset now) =>
+        db.Publish(new Contracts.AggregationLimitApproached(zone, peril, exposure, maxExposure, currency, asAt), "ExposureSnapshot", Guid.CreateVersion7(), now);
+
+    private sealed record SnapshotRow(string Zone, string Peril, decimal SumInsured, string Currency);
+
     public async Task<IReadOnlyList<Guid>> QuotesToExpire(DateOnly day, int limit, CancellationToken cancellationToken) =>
         await db.Quotes.AsNoTracking().Where(q => q.Status == QuoteStatus.Issued && q.ValidUntil < day).OrderBy(q => q.Id).Select(q => q.Id).Take(limit)
             .ToListAsync(cancellationToken);
@@ -191,6 +231,13 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
 
 internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
 {
+    public async Task<IReadOnlyList<ZoneLimit>> ZoneLimits(DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<AggregationZonesAndLimits>(day).Select(l => new ZoneLimit(l.Zone, l.Peril, l.MaxExposure, l.Currency)).ToListAsync(cancellationToken);
+
+    public async Task<AggregateLimit?> AggregateLimit(string coverage, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<AggregateLimitDefinitions>(day).Where(l => l.Coverage == coverage).OrderByDescending(l => l.Version)
+            .Select(l => new AggregateLimit(l.Coverage, l.Period, l.AggregateAmount, l.Reinstatement)).FirstOrDefaultAsync(cancellationToken);
+
     public async Task<RiskObjectTypeDefinition?> RiskObjectType(string objectType, DateOnly day, CancellationToken cancellationToken)
     {
         var row = await InForce<RiskObjectTypesAndAttributeSchemas>(day).Where(t => t.ObjectType == objectType).OrderByDescending(t => t.Version).FirstOrDefaultAsync(cancellationToken);
@@ -271,7 +318,8 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         GeneralPolicyReinstated e => new Contracts.GeneralPolicyReinstated(e.PolicyId, e.PolicyNumber),
         GeneralEndorsementApproved e => new Contracts.GeneralEndorsementApproved(e.EndorsementId, e.PolicyId, e.ApprovalId),
         EndorsementSubmitted e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.GeneralApprovals.EndorsementBusinessRefType, e.EndorsementId,
-            Contracts.GeneralApprovals.EndorsementApprovalType, e.RequestedBy, Math.Abs(e.PremiumDelta), e.Currency, $"Endorsement {e.EndorsementNumber}"),
+            Contracts.GeneralApprovals.EndorsementApprovalType, e.RequestedBy, Math.Abs(e.PremiumDelta), e.Currency,
+            e.ExceededLimit is null ? $"Endorsement {e.EndorsementNumber}" : $"Endorsement {e.EndorsementNumber}; exceeds aggregation limit {e.ExceededLimit} (F062)"),
         GeneralClaimRegistered e => new Contracts.GeneralClaimRegistered(e.ClaimId, e.ClaimNumber, e.PolicyId, e.LossDate, e.PerilCode),
         AssessorAppointed e => new Contracts.AssessorAppointed(e.ClaimId, e.AssessorPartyId),
         SettlementRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.GeneralApprovals.SettlementBusinessRefType, e.ClaimId,

@@ -70,6 +70,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         GeneralPermissions.ClaimCreate, GeneralPermissions.ClaimUpdate, GeneralPermissions.ClaimDecide, GeneralPermissions.AssessmentUpdate,
         RatingPermissions.CalculationCreate, RatingPermissions.CalculationRead, BillingPermissions.AccountRead, BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate,
         PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackCreate,
+        PaymentPermissions.CommissionPayoutRead,
         ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate, ClaimsPermissions.InstructionRead,
         FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate, FinancePermissions.GlExportRead, FinancePermissions.GlExportCreate,
         FinancePermissions.GlExportUpdate, WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove,
@@ -293,6 +294,15 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         (await Get($"/api/v1/distribution/statements/{statement}")).GetProperty("status").GetString().ShouldBe("Approved");
         await PayOut(PaymentPurposes.Commission, statement);
         (await Get($"/api/v1/distribution/statements/{statement}")).GetProperty("status").GetString().ShouldBe("Paid");
+
+        // A commission payout is outside branch scope, but read only with commission_payout.read.
+        var commission = await _db.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @s", ("s", statement));
+        var commissionBatch = await _db.ScalarAsOwner<Guid>("SELECT payout_batch_id FROM payment.payment WHERE id = @p", ("p", commission));
+        await _db.UserWithPermissions(Tenant, "payments-clerk", PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead);
+        var clerk = _factory.ClientFor(Tenant, "payments-clerk");
+        (await clerk.GetAsync($"/api/v1/payments/payments/{commission}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await clerk.GetAsync($"/api/v1/payments/payout-batches/{commissionBatch}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await _maker.GetAsync($"/api/v1/payments/payments/{commission}")).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await Entitlements(policy)).Single().GetProperty("status").GetString().ShouldBe("Paid");
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM finance.journal j JOIN finance.subledger_entry e ON e.journal_id = j.id WHERE e.posting_rule_code = 'PR-COM-PAID'"))
             .ShouldBeGreaterThan(0L);

@@ -35,6 +35,9 @@ public static class PaymentPermissions
     public const string PaymentUpdate = "payment.update";
     public const string PaymentResolve = "payment.resolve";
     public const string PayoutRead = "payout_batch.read";
+
+    /// <summary>Reading commission payouts and their batches: outside branch scope, but held only by finance roles that need it.</summary>
+    public const string CommissionPayoutRead = "commission_payout.read";
     public const string PayoutCreate = "payout_batch.create";
     public const string PayoutRelease = "payout_batch.release";
     public const string ReconciliationRead = "reconciliation.read";

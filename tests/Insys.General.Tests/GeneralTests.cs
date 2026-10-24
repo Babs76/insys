@@ -320,6 +320,24 @@ public sealed class GeneralTests
         ExcessCalculator.Settlement(40_000m, 5_000m, 200_000m, []).ShouldBe(35_000m);
     }
 
+    /// <summary>F062 §2 (GEN-008): a settlement over what remains of the coverage's aggregate claims limit is refused.</summary>
+    [Fact]
+    public void Settlement_IsRefusedOverTheRemainingAggregate_F062()
+    {
+        var policy = Policy();
+        var claim = GeneralClaim.NotifyLoss(Guid.CreateVersion7(), policy.Id, Vehicle, "OWN_DAMAGE", Today, "COLLISION", "ACC", null, null, Today, Now).Value;
+        claim.RegisterClaim(policy, "GEN-2", Now);
+        claim.AppointAssessor(Guid.CreateVersion7(), Now);
+        var coverage = policy.Coverage(Vehicle, "OWN_DAMAGE")!;
+        var request = new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Repair quote accepted");
+
+        var refused = claim.RequestSettlement(request, coverage, [], "ZAR", Guid.CreateVersion7(), Now, aggregateRemaining: 30_000m);
+        refused.Error!.Code.ShouldBe(GeneralErrorCodes.AggregateLimitExceeded);
+        refused.Error.Message.ShouldContain("30000.00 ZAR remaining");
+        claim.SettlementAmount.ShouldBeNull();
+        claim.RequestSettlement(request, coverage, [], "ZAR", Guid.CreateVersion7(), Now, aggregateRemaining: 35_000m).IsSuccess.ShouldBeTrue();
+    }
+
     [Fact]
     public void Settlement_NeedsASecondPersonsApproval_AndRecordsItsRationale_SRS002_CLM003()
     {

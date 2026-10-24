@@ -281,6 +281,9 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
 
     public IReadOnlyList<UnderwritingReferral> Referrals => _referrals;
 
+    /// <summary>Whether an underwriter approved a referral for the reason (F062: a quote over a zone limit issues once approved).</summary>
+    public bool ReferralApproved(string reasonCode) => _referrals.Any(r => r.ReasonCode == reasonCode && r.Status == "APPROVED");
+
     /// <summary>Command CreateQuote: version 1 of a new quote number, or the next version of an existing one (<paramref name="previous"/>).</summary>
     public static Result<GeneralQuote> CreateQuote(Guid id, string quoteNumber, GeneralQuote? previous, ProductTerms product, Guid proposer, string? intermediary,
         string currency, DateOnly periodStart, DateOnly periodEnd, IReadOnlyList<RiskRequest> risks, DateOnly validUntil)

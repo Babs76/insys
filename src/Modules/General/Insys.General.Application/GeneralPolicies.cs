@@ -37,6 +37,7 @@ using Insys.ProductFactory.Contracts;
 using Insys.Rating.Contracts;
 using Insys.Workflow.Contracts;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Insys.General.Application;
 
@@ -241,10 +242,31 @@ internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCod
     }
 }
 
-internal sealed class RefreshExposureSnapshotHandler(IGeneralRepository general, IClock clock) : ICommandHandler<RefreshExposureSnapshot, int>
+/// <summary>
+/// The day's exposure snapshot, then the F062 §1 alert: a zone and peril at or above General:Aggregation:AlertAt of its
+/// limit raises AggregationLimitApproached and a warning, once for the day. Nothing is raised while AlertAt is unset (OQ-076).
+/// </summary>
+internal sealed class RefreshExposureSnapshotHandler(IGeneralRepository general, IGeneralCodes codes, IOptions<AggregationOptions> options, IClock clock,
+    ILogger<RefreshExposureSnapshotHandler> logger) : ICommandHandler<RefreshExposureSnapshot, int>
 {
-    public async Task<BuildingBlocks.Domain.Result<int>> Handle(RefreshExposureSnapshot command, CancellationToken cancellationToken) =>
-        await general.RefreshExposure(command.Day, clock.UtcNow, cancellationToken);
+    public async Task<BuildingBlocks.Domain.Result<int>> Handle(RefreshExposureSnapshot command, CancellationToken cancellationToken)
+    {
+        var rows = await general.RefreshExposure(command.Day, clock.UtcNow, cancellationToken);
+        if (options.Value.AlertAt is { } alertAt)
+        {
+            var limits = await codes.ZoneLimits(command.Day, cancellationToken);
+            foreach (var (zone, peril, sumInsured, currency) in await general.Snapshot(command.Day, cancellationToken))
+            {
+                if (limits.FirstOrDefault(l => l.Zone == zone && l.Peril == peril && l.Currency == currency) is { } limit && sumInsured >= alertAt * limit.MaxExposure)
+                {
+                    logger.LogWarning("Aggregation limit approached: {Zone}/{Peril} at {Exposure} of {Limit} {Currency}", zone, peril, sumInsured, limit.MaxExposure, currency);
+                    general.PublishLimitApproached(zone, peril, sumInsured, limit.MaxExposure, currency, command.Day, clock.UtcNow);
+                }
+            }
+        }
+
+        return rows;
+    }
 }
 
 /// <summary>Transitions "Period starts", "Period ends without renewal" and "Validity ends".</summary>

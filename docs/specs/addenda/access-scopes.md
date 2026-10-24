@@ -62,3 +62,14 @@ Not defined anywhere. The proposal: a category is the permission's resource (`cl
 - **The front end:**
   - gains an optional `orgNodeCode` on creation requests, and sees fewer records for scoped users;
   - `/identity/me` already returns the scopes per permission.
+
+## Additions after sign-off
+- **Shared billing accounts (OQ-081, 24 October 2026):**
+  - a caller covering part of an account sees only that part;
+  - account-wide operations need the whole account;
+  - payments against invoices, accounts and refunds follow them.
+- **Claim payouts (24 October 2026):**
+  - claim payments and payout batch items follow their claim's product and branch;
+  - building or releasing a batch needs all of it in scope;
+  - a batch's approval is scoped when its payments share one scope.
+- **Commission payouts (24 October 2026):** outside branch scope, and read only with `commission_payout.read`.

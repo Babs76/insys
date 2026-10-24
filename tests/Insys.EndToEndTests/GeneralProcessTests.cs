@@ -309,6 +309,49 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _factory.ClientFor(Tenant, "ch-any-product").GetAsync($"/api/v1/general/quotes/{quote}")).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    /// <summary>
+    /// F062 §1 (addenda/aggregation-limits.md): a quote that would take a zone and peril past its limit is referred to an
+    /// underwriter instead of issued, and issues once they approve; an endorsement over it tells its approver which limit.
+    /// </summary>
+    [Fact]
+    public async Task ZoneLimit_RefersAQuoteOverIt_AndNamesItToTheEndorsementApprover_F062()
+    {
+        await Seed("general.ref_risk_zones", "ACTIVE", "ZHAIL", ("zone_code", "ZHAIL"), ("peril", "HAIL"), ("geography", JsonSerializer.SerializeToElement(new { region = "Hail belt" })));
+        await Seed("general.ref_underwriting_decision_codes", "ACTIVE", "ACCEPT", ("label", "Accepted"), ("requires_terms", false));
+        await Seed("general.cfg_aggregation_zones_and_limits", "EFFECTIVE", "ZL-HAIL", ("zone", "ZHAIL"), ("peril", "HAIL"), ("max_exposure", 150_000m), ("currency", "ZAR"));
+
+        // In force: 100 000 in the zone, within the limit.
+        var (policy, vehicle) = await IssuedPolicy(riskZone: "ZHAIL");
+
+        // Another 100 000 there would make 200 000: referred, not issued.
+        var second = await Created("/api/v1/general/risk-objects", new
+        {
+            objectType = "VEHICLE", attributes = new { registration = "CA654321", vehicle_group = "G3", year = Today.Year - 2 }, riskZone = "ZHAIL",
+        });
+        var quote = await Created("/api/v1/general/quotes", QuoteBody(second, null));
+        await Rate(GeneralRatingSubjects.Quote, quote, 100_000m);
+        var referred = await (await _maker.PostAsync($"/api/v1/general/quotes/{quote}/issue", null)).Json();
+        referred.GetProperty("status").GetString().ShouldBe("Referred");
+        referred.GetProperty("referrals").EnumerateArray().Single().GetProperty("reasonCode").GetString().ShouldBe("AGG_LIMIT");
+
+        // The underwriter may exceed the capacity limit: approved, the quote issues.
+        (await _checker.PostAsJsonAsync($"/api/v1/general/quotes/{quote}/referral-decision", new { approved = true, decisionCode = "ACCEPT", specialConditions = Array.Empty<string>() }))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await (await _maker.PostAsync($"/api/v1/general/quotes/{quote}/issue", null)).Json()).GetProperty("status").GetString().ShouldBe("Issued");
+
+        // An endorsement adding 100 000 there: its approval says which limit it exceeds.
+        var endorsement = await Created($"/api/v1/general/policies/{policy}/endorsements", new
+        {
+            endorsementType = "CHANGE_SI", effectiveDate = Today,
+            changes = new[] { new { action = "ChangeRisk", riskObjectId = vehicle, sumInsured = 200_000m, coverages = new[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 200_000m } } } },
+        });
+        await Rate(GeneralRatingSubjects.Endorsement, endorsement, 200_000m);
+        (await _maker.PostAsync($"/api/v1/general/endorsements/{endorsement}/submit", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<string>("SELECT reason FROM workflow.approval WHERE business_ref_id = @e", ("e", endorsement)))!
+            .ShouldContain("exceeds aggregation limit ZHAIL/HAIL");
+    }
+
     private async Task<Guid> Vehicle() => await Created("/api/v1/general/risk-objects", new
     {
         objectType = "VEHICLE", attributes = new { registration = "CA" + Random.Shared.Next(100_000, 999_999), vehicle_group = "G3", year = Today.Year - 2 },
@@ -508,6 +551,10 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var payee = await _maker.RegisterPerson("Repairs");
         var firstAccount = await _maker.AddVerifiedBankAccount(_checker, _factory, payee, "62 0001 2345");
         var settlement = new { payeePartyId = payee, bankAccountId = firstAccount, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Repair estimate within the assessed amount" };
+
+        // F062 §2: the coverage's aggregate claims limit for the policy period is read at settlement; 35 000 is within 40 000 (GEN-008).
+        await Seed("general.cfg_aggregate_limit_definitions", "EFFECTIVE", "AGG-OD", ("coverage", "OWN_DAMAGE"), ("period", "POLICY_PERIOD"), ("aggregate_amount", 40_000m),
+            ("reinstatement", "NONE"));
         (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/settlement", settlement)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         await Decide(GeneralApprovals.SettlementBusinessRefType, claim, approve: false);
@@ -688,7 +735,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>A vehicle, a quote rated through Rating, issued and accepted (GeneralQuoteAccepted), a proposal, and the policy issued from it.</summary>
-    private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null)
+    private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null, string? riskZone = null)
     {
         var periodStart = start ?? Today;
         var vehicle = await Created("/api/v1/general/risk-objects", new
@@ -697,7 +744,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         }, expectFailureCode: "VALUATION_BASIS_REQUIRED");
         vehicle = await Created("/api/v1/general/risk-objects", new
         {
-            objectType = "VEHICLE", attributes = new { registration = "CA123456", vehicle_group = "G3", year = Today.Year - 2 },
+            objectType = "VEHICLE", attributes = new { registration = "CA123456", vehicle_group = "G3", year = Today.Year - 2 }, riskZone,
         });
         var quote = await Created("/api/v1/general/quotes", new
         {

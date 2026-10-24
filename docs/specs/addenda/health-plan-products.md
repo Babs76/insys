@@ -1,6 +1,6 @@
 # Addendum: linking Health plans to Product Factory products
 
-**Proposed 24 October 2026, for sign-off. Not built.** Answers OQ-080.
+**Signed off 24 October 2026** (Ade); answers OQ-080. Planned in Wave 0b after F062; OQ-080 closes when it is merged.
 
 - **Basis:**
   - SRS-003 (access by product and organisation) and `addenda/access-scopes.md`;

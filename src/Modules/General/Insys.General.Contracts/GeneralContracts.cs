@@ -78,6 +78,13 @@ public static class GeneralDocuments
 [IntegrationEvent("general.GeneralRiskObjectRegistered")]
 public sealed record GeneralRiskObjectRegistered(Guid RiskObjectId, string ObjectType) : IIntegrationEvent;
 
+/// <summary>
+/// A zone and peril's exposure in force reached the alert share of its limit (F062 §1), for operations and reinsurance.
+/// Raised at most once a day per zone and peril, from the exposure snapshot.
+/// </summary>
+[IntegrationEvent("general.AggregationLimitApproached")]
+public sealed record AggregationLimitApproached(string Zone, string Peril, decimal Exposure, decimal MaxExposure, string Currency, DateOnly AsAt) : IIntegrationEvent;
+
 [IntegrationEvent("general.GeneralQuoteIssued")]
 public sealed record GeneralQuoteIssued(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, decimal Premium, string Currency,
     DateOnly ValidUntil) : IIntegrationEvent;

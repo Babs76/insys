@@ -28,7 +28,8 @@
 | 8 Wave 0 batch 6 | GAP-044 business dates in the tenant's time zone (ADR-025); GAP-043 free cover bands; held claim payment releases; Reinsurance endorsement parks; GAP-040 Life and Health lists, fraud cases by claim; GAP-042 job schedule; test-only daily job runner; OQ-079 raised | **Merged, `4b0e97c`** (24 Oct 2026) |
 | 8 Wave 0 batch 7 | Free cover fails safe, with a band check; tenant time zone required at registration, listed on /health, and in /identity/me with the business date; OQ-079 decided and built (Life lump-sum initial reserve); addenda for onboarding readiness and Keycloak user creation, for sign-off | **Merged, `7614b84`** (24 Oct 2026) |
 | 8 Wave 0b batch 1 | F103 access scopes enforced in General, Life, Health, Claims Framework, Billing and Workflow approvals; interim control lifted; OQ-080 (Health product scope) and OQ-081 (account and approval scope rules) raised | **Merged, `19a9bb2`** (24 Oct 2026) |
-| 8 Wave 0b batch 2 | F005 channel permissions: channel from the token's client, transaction and product rows by role, approval requirement, channel recorded; Health plan-to-product addendum for sign-off (OQ-080) | **Done on `wave0b-2`, awaiting review** (24 Oct 2026) |
+| 8 Wave 0b batch 2 | F005 channel permissions: channel from the token's client, transaction and product rows by role, approval requirement, channel recorded; Health plan-to-product addendum for sign-off (OQ-080) | **Merged, `376ac3d`** (24 Oct 2026) |
+| 8 Wave 0b batch 3 | Claim payouts scoped by claim; commission payouts behind `commission_payout.read`; F062 zone limits (referral), endorsement approval note, alert, aggregate claims limits; onboarding readiness §5 (channels) and the external-user access addendum, for sign-off; OQ-082 closed; Health products signed off | **Done on `wave0b-3`, awaiting review** (24 Oct 2026) |
 
 ## Phase 1 review items
 

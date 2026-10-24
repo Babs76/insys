@@ -30,6 +30,10 @@ namespace Insys.General.Domain;
 
 public static class GeneralErrorCodes
 {
+    /// <summary>F062 §2: the settlement is more than what remains of the coverage's aggregate claims limit (GEN-008).</summary>
+    [ErrorCode(422, "error.general.aggregate_limit_exceeded")]
+    public const string AggregateLimitExceeded = "AGGREGATE_LIMIT_EXCEEDED";
+
     [ErrorCode(422, "error.general.attribute_schema_invalid")]
     public const string AttributeSchemaInvalid = "ATTRIBUTE_SCHEMA_INVALID";
 

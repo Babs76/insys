@@ -312,8 +312,9 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
     /// Command ApproveSettlement: the settlement applies the excess and the coverage's limits (GEN-008) and waits for a
     /// second person's approval in Workflow, within authority (SRS-002). The claim stays under assessment until then.
     /// </summary>
+    /// <param name="aggregateRemaining">What remains of the coverage's aggregate claims limit in the period, when it has one (F062 §2).</param>
     public Result RequestSettlement(SettlementRequest request, GeneralCoverage coverage, IEnumerable<CoverageLimit> limits, string currency, Guid requestedBy,
-        DateTimeOffset now)
+        DateTimeOffset now, decimal? aggregateRemaining = null)
     {
         if (Status != ClaimStatus.UnderAssessment || SettlementPending)
         {
@@ -329,6 +330,12 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
         if (amount <= 0)
         {
             return Error.Validation(GeneralErrorCodes.NothingToSettle, "After the excess and limits there is nothing to settle; decline the claim instead.");
+        }
+
+        if (aggregateRemaining is { } remaining && amount > remaining)
+        {
+            return Error.Validation(GeneralErrorCodes.AggregateLimitExceeded,
+                $"The settlement of {amount:0.00} {currency} is more than the {remaining:0.00} {currency} remaining of the coverage's aggregate limit.");
         }
 
         SettlementAmount = amount;

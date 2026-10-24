@@ -48,6 +48,7 @@ public static class PaymentsInfrastructure
         services.AddDomainEventMapper<PaymentsEventMapper>(schema);
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<PaymentScopes>();
+        services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, PayoutApprovalScopes>();
         services.AddScoped<ICallbackEndpoints, CallbackEndpoints>();
         services.AddSingleton<ICallbackEndpointResolver, CallbackEndpointResolver>();
         services.AddOptions<CallbackOptions>().BindConfiguration("Payments:Callbacks");

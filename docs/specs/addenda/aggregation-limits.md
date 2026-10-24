@@ -1,6 +1,11 @@
 # Addendum: aggregation and risk limits at issue and endorsement (F062)
 
-**Signed off 23 October 2026** (ADR-019); closes OQ-076. Planned as Wave 0b.
+**Signed off 23 October 2026** (ADR-019); closes OQ-076. **Built in Wave 0b batch 3** (24 October 2026):
+- **Zone limits:** a quote over one is referred with reason `AGG_LIMIT` (the referral reason column holds 15 characters), and issues once an underwriter approves.
+- **Endorsements:** the approval request names the limit exceeded.
+- **The alert:** setting `General:Aggregation:AlertAt` enables it.
+- **Settlement:** over the remaining aggregate it is refused.
+- **Reinstatement:** automatic and on-request reinstatement are not defined, so every aggregate stops settlement when used up, as `NONE` does, until the rule is chosen.
 
 - **Basis:** static data
   - `general.cfg_aggregation_zones_and_limits`: zone, peril, `max_exposure`, currency;

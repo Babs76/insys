@@ -291,7 +291,8 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
     }
 }
 
-internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<ChangeQuote, QuoteView>
+internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit, IExecutionContext execution)
+    : ICommandHandler<ChangeQuote, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(ChangeQuote command, CancellationToken cancellationToken)
     {
@@ -309,6 +310,23 @@ internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCod
                 if (await codes.QuoteValidityDays(quote.ProductCode, businessDate.Today, cancellationToken) is not { } days)
                 {
                     return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{quote.ProductCode} has no quote validity period in force.");
+                }
+
+                // F062 §1: over a zone and peril limit, the quote is referred to an underwriter instead; once they approve, it issues.
+                if (!quote.ReferralApproved(ZoneExposure.ReferralReason)
+                    && await ZoneExposure.FirstExceeded(general, codes, quote.Risks.Select(r => (r.RiskObjectId, r.SumInsured)).ToList(), quote.Currency, businessDate.Today,
+                        cancellationToken) is { } exceeded)
+                {
+                    var user = Users.Require(execution);
+                    if (user.IsFailure)
+                    {
+                        return user.Error;
+                    }
+
+                    audit.Record(new AuditEntry("GENERAL", "ReferQuote", nameof(GeneralQuote), quote.Id.ToString(),
+                        new Dictionary<string, string?> { ["reason"] = ZoneExposure.ReferralReason, ["limit"] = exceeded.ToString() }));
+                    result = quote.ReferQuote(ZoneExposure.ReferralReason, user.Value);
+                    break;
                 }
 
                 result = quote.IssueQuote(businessDate.Today.AddDays(days), clock.UtcNow);

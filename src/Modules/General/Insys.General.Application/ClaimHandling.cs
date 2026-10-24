@@ -314,7 +314,7 @@ internal sealed class AppointAssessorHandler(IGeneralRepository general, IGenera
     }
 }
 
-internal sealed class RequestSettlementHandler(IGeneralRepository general, ISellableProducts products, IBankAccounts bankAccounts, ITenantContext tenant,
+internal sealed class RequestSettlementHandler(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, IBankAccounts bankAccounts, ITenantContext tenant,
     IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<RequestSettlement, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(RequestSettlement command, CancellationToken cancellationToken)
@@ -348,8 +348,11 @@ internal sealed class RequestSettlementHandler(IGeneralRepository general, ISell
 
         audit.Record(new AuditEntry("GENERAL", "ApproveSettlement", nameof(GeneralClaim), claim.Id.ToString()));
         var limits = coverage.Value.Product.Limits.Where(l => l.CoverageCode == claim.CoverageCode && l.Currency == policy.Currency).ToList();
+        var aggregate = await ClaimsAggregate.Remaining(general, codes, claim.Id, policy.Id, claim.CoverageCode, claim.LossDate, policy.PeriodStart, policy.PeriodEnd,
+            businessDate.Today, cancellationToken);
         var result = claim.RequestSettlement(new SettlementRequest(assessment.AssessedAmount!.Value, assessment.ExcessApplied!.Value, command.PayeePartyId,
-            account.Id, account.AccountNumberHash, command.ReserveType, command.DecisionCode, command.Rationale), coverage.Value.Coverage, limits, policy.Currency, user.Value, clock.UtcNow);
+            account.Id, account.AccountNumberHash, command.ReserveType, command.DecisionCode, command.Rationale), coverage.Value.Coverage, limits, policy.Currency, user.Value, clock.UtcNow,
+            aggregate);
         return result.IsFailure ? result.Error : ClaimView.From(claim);
     }
 }

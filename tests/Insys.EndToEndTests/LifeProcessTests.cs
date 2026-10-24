@@ -343,9 +343,10 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
     [Fact]
     public async Task DeathClaim_IsCheckedRegisteredApprovedAndPaidToTheBeneficiary_ThenThePolicyIsClaimed_LIF008()
     {
+        await Organisation();
         var applicant = await _maker.RegisterPerson("Insured");
         var spouse = await _maker.RegisterPerson("Widow");
-        var policy = await IssuedPolicy(applicant, spouse, Today.AddMonths(-1));
+        var policy = await IssuedPolicy(applicant, spouse, Today.AddMonths(-1), "ORG-BR-A");
 
         // Only a user holding the alteration type's authority role applies it.
         var alteration = new { alterationCode = "INTERMEDIARY", effectiveDate = Today, intermediaryCode = "BRK-2" };
@@ -403,6 +404,31 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         closed.GetProperty("benefits").EnumerateArray().Single(b => b.GetProperty("benefitCode").GetString() == "DEATH").GetProperty("status").GetString().ShouldBe("CLAIMED");
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM life.outbox_event WHERE payload::text LIKE '%4400112233%'")).ShouldBe(0L);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.dead_letter_message")).ShouldBe(0L);
+
+        // F103: the claim payment follows its claim's branch, through /payments and through its payout batch.
+        var payment = await _db.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @i", ("i", instruction));
+        var batch = await _db.ScalarAsOwner<Guid>("SELECT payout_batch_id FROM payment.payment WHERE id = @p", ("p", payment));
+        var byInstruction = $"/api/v1/payments/payments?businessRefType={ClaimsApprovals.InstructionBusinessRefType}&businessRefId={instruction}";
+        foreach (var (subject, node, sees) in new[] { ("pay-branch-b", "ORG-BR-B", false), ("pay-north", "ORG-NORTH", true) })
+        {
+            var user = await _db.UserWithPermissions(Tenant, subject, Permissions);
+            await _db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_branches = ARRAY[@n] WHERE user_id = @u", ("n", node), ("u", user));
+            var client = _factory.ClientFor(Tenant, subject);
+            var expected = sees ? HttpStatusCode.OK : HttpStatusCode.NotFound;
+            (await (await client.GetAsync(byInstruction)).Json()).GetProperty("items").GetArrayLength().ShouldBe(sees ? 1 : 0, subject);
+            (await client.GetAsync($"/api/v1/payments/payments/{payment}")).StatusCode.ShouldBe(expected, subject);
+            (await client.GetAsync($"/api/v1/payments/payout-batches/{batch}")).StatusCode.ShouldBe(expected, subject);
+            (await client.GetAsync($"/api/v1/payments/payout-batches/{batch}/payments")).StatusCode.ShouldBe(expected, subject);
+        }
+    }
+
+    private async Task Organisation()
+    {
+        foreach (var (code, type, parent) in new[] { ("ORG-ROOT", "LEGAL_ENTITY", (string?)null), ("ORG-NORTH", "REGION", "ORG-ROOT"), ("ORG-BR-A", "BRANCH", "ORG-NORTH"),
+                     ("ORG-BR-B", "BRANCH", "ORG-ROOT") })
+        {
+            await Seed("tenant.mst_organisation_structure", "ACTIVE", code, ("node_code", code), ("type", type), ("parent", (object?)parent ?? DBNull.Value), ("name", code));
+        }
     }
 
     /// <summary>
@@ -412,12 +438,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
     [Fact]
     public async Task ScopedAssignments_SeeAndActOnlyWithinTheirOrganisation_F103()
     {
-        foreach (var (code, type, parent) in new[] { ("ORG-ROOT", "LEGAL_ENTITY", (string?)null), ("ORG-NORTH", "REGION", "ORG-ROOT"), ("ORG-BR-A", "BRANCH", "ORG-NORTH"),
-                     ("ORG-BR-B", "BRANCH", "ORG-ROOT") })
-        {
-            await Seed("tenant.mst_organisation_structure", "ACTIVE", code, ("node_code", code), ("type", type), ("parent", (object?)parent ?? DBNull.Value), ("name", code));
-        }
-
+        await Organisation();
         var applicant = await _maker.RegisterPerson("Scoped");
         var spouse = await _maker.RegisterPerson("Partner");
         var inA = await Proposal(applicant, spouse, Today, "ORG-BR-A");

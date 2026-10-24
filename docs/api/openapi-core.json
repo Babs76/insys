@@ -34642,7 +34642,8 @@
           "status",
           "builtBy",
           "approvedBy",
-          "releasedBy"
+          "releasedBy",
+          "partlyInScope"
         ],
         "type": "object",
         "properties": {
@@ -34705,6 +34706,9 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "partlyInScope": {
+            "type": "boolean"
           }
         }
       },

@@ -127,9 +127,9 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-077 | 8 | How a payment provider authenticates its callbacks (GAP-035) | Resolved 23 Oct 2026: ADR-023 revision 2 |
 | OQ-078 | 8 | Business use of the operator tenant | Resolved: ADR-024 |
 | OQ-079 | 8 | A Life death claim's reserve at registration | Resolved 24 Oct 2026: initial reserve from the sum assured, built |
-| OQ-080 | 8 | What a product scope means for Health records (F103) | Open: fail-safe built; `docs/specs/addenda/health-plan-products.md` for sign-off |
+| OQ-080 | 8 | What a product scope means for Health records (F103) | Decided 24 Oct 2026: `docs/specs/addenda/health-plan-products.md` signed off; planned after F062; closes when merged |
 | OQ-081 | 8 | Scope rules for shared billing accounts and approvals (F103) | Resolved 24 Oct 2026: confirmed, with account figures from in-scope schedules only; built |
-| OQ-082 | 8 | Choices the channel addendum leaves open (F005) | Open: built as described, for confirmation |
+| OQ-082 | 8 | Choices the channel addendum leaves open (F005) | Resolved 24 Oct 2026: confirmed as built |
 
 ---
 
@@ -848,7 +848,8 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   2. **Link plans to products:** a `product_code` on `health.cfg_plan_definitions`, and scope by that product.
   3. **Health is organisation-scoped only:** a grant restricted to products never covers a Health record.
 - **Built meanwhile (fail safe):** Health records are scoped by organisation node. A grant restricted to products does not cover them, because a record with no product is outside any product scope. A grant with no product scope is unaffected.
-- **Decision (24 October 2026, Ade):** keep the fail-safe for now. An addendum linking each Health plan to a Product Factory product of domain Health is proposed for sign-off (`docs/specs/addenda/health-plan-products.md`, on the next batch's branch). Not built until signed off. **Open.**
+- **Decision (24 October 2026, Ade):** keep the fail-safe for now. An addendum linking each Health plan to a Product Factory product of domain Health is proposed for sign-off (`docs/specs/addenda/health-plan-products.md`, on the next batch's branch). Not built until signed off.
+- **Signed off (24 October 2026, Ade):** `docs/specs/addenda/health-plan-products.md`. Planned in Wave 0b after F062. The fail-safe stays until it is merged; then this question is closed.
 
 ### OQ-081 Two scope rules the access-scopes addendum leaves open (Phase 8 Wave 0b, F103)
 - **Source:** `docs/specs/addenda/access-scopes.md` §1 and §4.
@@ -894,3 +895,10 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   4. **Health records** have no product (OQ-080). On a channel that limits products, a Health command is refused with `CHANNEL_NOT_ALLOWED`. On a channel that enables every product, with a row for every product, it is allowed.
   5. **Life proposals:** where the tenant has channels, the request's own channel is recorded, and the `channelCode` in the body is ignored. The body field stays for tenants without channels.
 - **Not cached:** the channel tables are read on each channel-scoped command, in one small query. A cache like the permission cache (ADR-006) can follow if load needs it.
+- **Resolved (24 October 2026, Ade):** confirmed as built:
+  - roles combine;
+  - approval is required only when every allowed row requires it;
+  - Health is refused on product-limited channels until OQ-080 is built;
+  - Life proposals record the token's channel.
+
+  **Closed.**

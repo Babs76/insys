@@ -290,8 +290,8 @@ internal sealed class DraftEndorsementHandler(IGeneralRepository general, IGener
     }
 }
 
-internal sealed class SubmitEndorsementHandler(IGeneralRepository general, IExecutionContext execution, IClock clock, IAuditTrail audit)
-    : ICommandHandler<SubmitEndorsement, EndorsementView>
+internal sealed class SubmitEndorsementHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate, IClock clock,
+    IAuditTrail audit) : ICommandHandler<SubmitEndorsement, EndorsementView>
 {
     public async Task<Result<EndorsementView>> Handle(SubmitEndorsement command, CancellationToken cancellationToken)
     {
@@ -307,8 +307,16 @@ internal sealed class SubmitEndorsementHandler(IGeneralRepository general, IExec
             return Error.NotFound(ErrorCodes.NotFound, "The endorsement was not found.");
         }
 
+        // F062 §1: sum insured the endorsement adds, by risk; the approver is told which zone limit it would exceed.
+        var added = endorsement.Changes.Select(c => (c.RiskObjectId, Added: c.Action switch
+        {
+            EndorsementAction.AttachRisk => c.SumInsured ?? 0m,
+            EndorsementAction.ChangeRisk => (c.SumInsured ?? 0m) - policy.Risks.Where(r => r.RiskObjectId == c.RiskObjectId && r.AttachedOn(endorsement.EffectiveDate)).Sum(r => r.SumInsured),
+            _ => 0m,
+        })).ToList();
+        var exceeded = await ZoneExposure.FirstExceeded(general, codes, added, policy.Currency, businessDate.Today, cancellationToken);
         audit.Record(new AuditEntry("GENERAL", "SubmitEndorsement", nameof(GeneralEndorsement), endorsement.Id.ToString()));
-        var result = endorsement.SubmitEndorsement(user.Value, policy.Currency, clock.UtcNow);
+        var result = endorsement.SubmitEndorsement(user.Value, policy.Currency, clock.UtcNow, exceeded?.ToString());
         return result.IsFailure ? result.Error : EndorsementView.From(endorsement);
     }
 }

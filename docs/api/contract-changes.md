@@ -2,7 +2,26 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 0b batch 2 (branch `wave0b-2`, not merged): F005 channel permissions
+## Wave 0b batch 3 (branch `wave0b-3`, not merged): claim payouts scoped; F062 aggregation limits
+
+### Changed responses
+- **Payments `BatchView`** gains `partlyInScope`. When a payout batch also pays records outside the caller's scope, `paymentCount` and `totalAmount` are of the payments in scope only.
+
+### Changed behaviour
+- **Claim payouts follow their claim's product and branch (F103).** Applies to claim payments in `/payments` (by ID and by business reference) and in payout batches (`/payout-batches/{id}` and its `/payments`). Outside the scope they are not found.
+- **Partly-scoped batches:** a batch with some payments in scope shows only those. Building a batch, or releasing one, needs every payment in it to be in the caller's scope (403 `OUT_OF_SCOPE`).
+- **A payout batch's approval** carries its payments' product and node when they all share one. Otherwise only a checker with unrestricted scope sees and decides it.
+- **Commission payouts** are outside branch scope, but reading them (payments and batches) needs the new permission `commission_payout.read`. So does building or releasing a commission batch.
+- **Zone and peril limits (F062):**
+  - issuing a quote that would take a zone and peril past its limit (`general.cfg_aggregation_zones_and_limits`) refers it, with referral reason `AGG_LIMIT`, instead of issuing it; the response is the quote in status `Referred`;
+  - once an underwriter approves that referral, issuing succeeds;
+  - an endorsement over a limit goes to approval as before, and its approval's `reason` names the limit.
+- **Aggregate claims limits (F062):** a General settlement over what remains of the coverage's aggregate in the period (`general.cfg_aggregate_limit_definitions`) is refused with 422 `AGGREGATE_LIMIT_EXCEEDED`, with the amount remaining.
+
+### New events
+- **`general.AggregationLimitApproached`** `{zone, peril, exposure, maxExposure, currency, asAt}`: raised once a day from the exposure snapshot, when a zone and peril reaches `General:Aggregation:AlertAt` of its limit. Not raised until that level is set (OQ-076).
+
+## Wave 0b batch 2 (merged, `376ac3d`): F005 channel permissions
 
 ### Changed behaviour
 - **Channels apply once a tenant has channel definitions** (F005, `addenda/channel-permissions.md`). A tenant without any is unchanged.
