@@ -62,6 +62,9 @@ public static class ComplianceErrorCodes
 
     [ErrorCode(403, "error.compliance.report_not_allowed")]
     public const string ReportNotAllowed = "REPORT_NOT_ALLOWED";
+
+    [ErrorCode(409, "error.compliance.report_not_exported")]
+    public const string ReportNotExported = "REPORT_NOT_EXPORTED";
 }
 
 public static class ReturnFrequencies

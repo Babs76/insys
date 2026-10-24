@@ -108,12 +108,29 @@ public sealed class BillingTests
     }
 
     [Fact]
-    public void Invoice_PastItsDueDate_IsOverdue()
+    public void Invoice_PastItsDueDate_IsOverdue_AndSaysSo()
     {
         var (_, invoice) = Issued();
-        invoice.MarkOverdue(Start).ShouldBeFalse();
-        invoice.MarkOverdue(Start.AddDays(1)).ShouldBeTrue();
+        invoice.MarkOverdue(Start, Now).ShouldBeFalse();
+        invoice.MarkOverdue(Start.AddDays(1), Now).ShouldBeTrue();
         invoice.Status.ShouldBe(InvoiceStatus.Overdue);
+        invoice.DomainEvents.OfType<InvoiceOverdue>().Single().DueDate.ShouldBe(Start);
+        invoice.MarkOverdue(Start.AddDays(2), Now).ShouldBeFalse("only the transition is reported");
+    }
+
+    [Fact]
+    public void Invoice_IssuedAfterItsInstalmentFellDue_IsDueOnTheInstalmentsDate_UnlessBilledForTheFirstTime_Request46()
+    {
+        var account = BillingAccount.OpenAccount(Guid.CreateVersion7(), Guid.CreateVersion7(), "ZAR", "DEBIT_ORDER", null, Now);
+        var schedule = account.CreateSchedule("GENERAL", Guid.CreateVersion7(), "MOTOR-v1", Monthly, Start, null, 300m).Value;
+        var due = account.DueInstalments(Start.AddDays(1)).Select(d => d.Instalment).ToList();
+
+        // The daily run missed the due date: the premium is still due from its own date, so the next run finds it overdue.
+        Invoice.IssueInvoice(Guid.CreateVersion7(), "INV-", account, schedule, due, "DEBIT_ORDER", Start.AddDays(1), Now).Value.DueDate.ShouldBe(Start);
+
+        // A backdated policy billed for the first time: its back premiums are due from the day they are invoiced.
+        Invoice.IssueInvoice(Guid.CreateVersion7(), "INV-", account, schedule, due, "DEBIT_ORDER", Start.AddDays(1), Now, dueNoEarlierThan: Start.AddDays(1)).Value
+            .DueDate.ShouldBe(Start.AddDays(1));
     }
 
     [Fact]

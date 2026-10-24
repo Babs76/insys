@@ -82,7 +82,7 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
 
         schedule.Value.ScopeTo(issued.ProductCode, issued.OrgNodeCode); // F103
 
-        var invoices = await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken);
+        var invoices = await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken, firstBilling: true);
         if (invoices.IsFailure)
         {
             throw new InvalidOperationException($"Policy {issued.PolicyNumber} cannot be invoiced: {invoices.Error.Message}");

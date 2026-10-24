@@ -78,7 +78,7 @@ public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes 
 
         schedule.Value.ScopeTo(issued.ProductCode, issued.OrgNodeCode); // F103
 
-        var invoices = await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken);
+        var invoices = await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken, firstBilling: true);
         if (invoices.IsFailure)
         {
             throw new InvalidOperationException($"Policy {issued.PolicyNumber} cannot be invoiced: {invoices.Error.Message}");
@@ -114,7 +114,7 @@ public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes 
             throw new InvalidOperationException($"Policy {reinstated.PolicyNumber}'s schedule cannot resume: {resumed.Error.Message}");
         }
 
-        await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken);
+        await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken, firstBilling: true);
     }
 
     private async Task<BillingFrequency> Frequency(string code, string policyNumber, CancellationToken cancellationToken) =>

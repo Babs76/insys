@@ -143,7 +143,7 @@ public sealed class CrossTenantSuiteTests(DatabaseFixture fixture) : IClassFixtu
                      }),
                  })
         {
-            var response = await _b.Send(HttpMethod.Post, url, body, idempotent: true);
+            var response = await _b.Send(HttpMethod.Post, url, body, ifMatch: "\"1\"", idempotent: true);
             ((int)response.StatusCode).ShouldBeOneOf([404, 422], url);
         }
 

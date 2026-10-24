@@ -124,7 +124,7 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
 
         schedule.Value.ScopeTo(enrolled.ProductCode, enrolled.OrgNodeCode); // F103; the plan's product (addenda/health-plan-products.md)
 
-        await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken);
+        await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken, firstBilling: true);
     }
 
     private async Task Amend(string sourceDomain, Guid membershipId, string memberNumber, decimal? contribution, DateOnly from, CancellationToken cancellationToken)

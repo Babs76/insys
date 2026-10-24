@@ -61,6 +61,29 @@ internal sealed class ComplianceRepository(ComplianceDbContext db) : ICompliance
 
     public Task<ReportRun?> Run(Guid id, CancellationToken cancellationToken) => db.Runs.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<ReportRunSummary>> Runs(string? reportCode, DateTimeOffset? from, DateTimeOffset? to, int limit, CancellationToken cancellationToken)
+    {
+        var query = db.Runs.AsNoTracking();
+        if (reportCode is not null)
+        {
+            query = query.Where(r => r.ReportCode == reportCode);
+        }
+
+        if (from is { } after)
+        {
+            query = query.Where(r => EF.Property<DateTimeOffset>(r, "CreatedAt") >= after);
+        }
+
+        if (to is { } before)
+        {
+            query = query.Where(r => EF.Property<DateTimeOffset>(r, "CreatedAt") < before);
+        }
+
+        return await query.OrderByDescending(r => EF.Property<DateTimeOffset>(r, "CreatedAt")).ThenByDescending(r => r.Id).Take(limit)
+            .Select(r => new ReportRunSummary(r.Id, r.ReportCode, r.RequestedBy, EF.Property<DateTimeOffset>(r, "CreatedAt"), r.Status, r.Exported))
+            .ToListAsync(cancellationToken);
+    }
+
     public void Add(RegulatoryReturn regulatoryReturn) => db.Returns.Add(regulatoryReturn);
 
     public void Add(ReportRun run) => db.Runs.Add(run);

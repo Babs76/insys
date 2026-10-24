@@ -24,8 +24,16 @@ What changed in the API contract, newest first, so the front end can sync. The O
 | `GET /api/v1/portal/health/preauthorisations/{id}`; `POST …/preauthorisations` | `health_preauthorisation.read`, `.create` | Provider, as itself |
 | `GET /api/v1/portal/health/remittances` | `provider_payment_run.read` | Provider |
 | `POST /api/v1/portal/party/parties` → 202 `{id, status: "Received"}` | `party.create` | Broker: register a client |
+| `GET /api/v1/compliance/report-runs?reportCode&from&to&limit` → `ReportRunSummary[]`, newest first | `report.read` | Staff (GAP-047) |
+| `GET /api/v1/compliance/report-runs/{id}/export` → `text/csv` file | `report.read` | Staff: a run made with export, while the catalogue lets your roles export it; else `REPORT_NOT_EXPORTED` (409) or `REPORT_NOT_ALLOWED` (403) (GAP-047) |
+
+### Changed requests
+- **Compliance (GAP-048):**
+  - `POST /compliance/returns` and `POST /compliance/report-runs` need `Idempotency-Key`; a retry with the same key returns the first result;
+  - the return actions (`…/review`, `/approve`, `/submit`, `/accept`, `/reject`, `/correct`) need `If-Match` with the return's ETag: 428 without it, 412 when stale.
 
 ### Changed responses
+- **Compliance (GAP-048):** `GET /compliance/returns/{id}`, `POST /compliance/returns` and the return actions send an `ETag`. An action's response `rowVersion` is the new version (it was the one before the action).
 - **`/identity/me`** gains `external` `{kind, partyId, intermediaryCode, providerId}` for an external user; null for staff. It is open to all three portals.
 
 ### Changed behaviour
@@ -35,9 +43,15 @@ What changed in the API contract, newest first, so the front end can sync. The O
   - brokers and providers must show MFA in the token (`amr` otp/mfa/hwk/swk, or `acr` ≥ 2); members too where the member portal's authentication policy says so (`client_ids`, `mfa_required`). Otherwise 403 `PORTAL_MFA_REQUIRED`.
 - **Records outside the relationship** read as not found and are refused for actions. Portal views leave out internal fields.
 - **A portal registration matching an existing party** (identity document, or name and birth date) gets the same 202 answer as a new one, and a staff review task (`PARTY_MATCH_REVIEW`, queue `PARTY_REVIEW`).
+- **Arrears (request 46):**
+  - a premium the daily run invoices after its due date is due on its own date, so the first run after that date finds it overdue and opens the arrears case (it used to take a second run). Back premiums of a policy billed for the first time (backdated issue, reinstatement, enrolment) are still due from the day they are invoiced;
+  - an invoice passing its due date raises `billing.InvoiceOverdue`. With no ageing bucket for the days overdue, ageing no longer just refuses: the case opening is parked (`ARREARS_AGEING_BUCKET_NOT_IN_FORCE`, item the days overdue) and done once a bucket is published. `POST /billing/accounts/{id}/age` answers 200 in that case; the parked delivery shows in `/integration/parked-deliveries`.
 - **Health:**
   - a membership given its plan's product later raises `health.MembershipProductAssigned`, and Billing gives its schedules the product;
   - `/health` `health-plan-products` lists every plan option whose product is missing, unknown, not a Health product, or differs from the plan's other options.
+
+### New events
+- **`billing.InvoiceOverdue`** `{invoiceId, billingAccountId, sourceDomain, policyRef, dueDate, outstanding, currency}`.
 
 ### Static data
 - **`iam.cfg_authentication_and_session_policies`** gains `clientIds` and `mfaRequired`.
@@ -220,6 +234,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 | `POST /api/v1/party/search-log/holds`, `GET …`, `POST …/{id}/release` | `party_search_log.hold` (POST), `audit_event.read` (GET) | OQ-073: legal holds on the party search log |
 
 ### Changed responses
+- **Compliance (GAP-048):** `GET /compliance/returns/{id}`, `POST /compliance/returns` and the return actions send an `ETag`. An action's response `rowVersion` is the new version (it was the one before the action).
 - **`/identity/me`** gains `scopesEnforced: false` (F103 interim): scopes are returned but have no effect.
 - **Claims Framework `ClaimView`** gains `fraudEvaluations`: each screening, with `score`, `referred`, `indicatorsEvaluated` and `skipped` (`indicatorCode`, `reason` = `MISSING_FACTS` or `EVALUATION_FAILED`, `missingFacts`, `errorCode`) (F009).
 - **Payments `PaymentView.purpose`, `BatchView.purpose`, `BuildBatchRequest.purpose`** are enums now: `PREMIUM`, `REFUND`, `CLAIM_PAYOUT`, `RECOVERY`, `COMMISSION` (a batch: `REFUND`, `CLAIM_PAYOUT`, `COMMISSION`) (GAP-037).

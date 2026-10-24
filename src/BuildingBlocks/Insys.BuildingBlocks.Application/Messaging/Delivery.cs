@@ -67,6 +67,9 @@ public static class PrerequisiteCodes
 
     /// <summary>Item: the treaty code, or the error code when no single treaty is at fault.</summary>
     public const string TreatyNotApplicable = "TREATY_NOT_APPLICABLE";
+
+    /// <summary>Item: the days overdue that no arrears ageing bucket (billing.cfg_arrears_ageing_buckets) covers, for example "1".</summary>
+    public const string ArrearsAgeingBucketNotInForce = "ARREARS_AGEING_BUCKET_NOT_IN_FORCE";
 }
 
 public enum DeliveryStatus

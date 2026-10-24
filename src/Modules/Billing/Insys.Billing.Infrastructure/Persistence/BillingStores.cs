@@ -249,6 +249,7 @@ internal sealed class BillingEventMapper : IDomainEventMapper
         Domain.Billing.CreditNoteIssued e => new Contracts.CreditNoteIssued(e.CreditNoteId, e.CreditNoteNumber, e.InvoiceId, e.BillingAccountId, e.SourceDomain,
             e.PolicyRef, e.IssueDate, e.Currency, e.TotalAmount, e.ReasonCode),
         Domain.Billing.InvoiceSettled e => new Contracts.InvoiceSettled(e.InvoiceId, e.BillingAccountId, e.SourceDomain, e.PolicyRef),
+        Domain.Billing.InvoiceOverdue e => new Contracts.InvoiceOverdue(e.InvoiceId, e.BillingAccountId, e.SourceDomain, e.PolicyRef, e.DueDate, e.Outstanding, e.Currency),
         Domain.Billing.ArrearsDetected e => new Contracts.ArrearsDetected(e.AccountId, e.BucketCode, e.DaysOverdue, e.AmountOverdue, e.Currency),
         Domain.Billing.RefundApproved e => new Contracts.RefundApproved(e.RefundId, e.BillingAccountId, e.PayerPartyId, e.BankAccountId, e.Amount, e.Currency),
         RefundRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(BillingApprovals.RefundBusinessRefType, e.RefundId, BillingApprovals.RefundApprovalType,

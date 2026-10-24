@@ -57,9 +57,10 @@ public sealed class ComplianceModule : IModule
         ComplianceStaticDataEndpoints.MapStaticData(api);
         var compliance = api.MapGroup("/compliance").WithTags(Name);
 
-        compliance.MapPost("/returns", async (PrepareReturn r, IDispatcher d, CancellationToken ct) =>
-                (await d.Send(r, ct)).ToHttp(view => Results.Created($"/api/v1/compliance/returns/{view.Id}", view)))
+        compliance.MapPost("/returns", async (PrepareReturn r, IDispatcher d, HttpContext http, CancellationToken ct) =>
+                (await d.Send(r, ct)).ToHttp(view => Tagged(http, view, Results.Created($"/api/v1/compliance/returns/{view.Id}", view))))
             .Produces<ReturnView>(StatusCodes.Status201Created)
+            .RequireIdempotencyKey()
             .WithName("CompliancePrepareReturn")
             .WithSummary("Prepare a regulatory return for the period it ends with, from its definition's field mapping; one per code and period")
             .RequirePermission(CompliancePermissions.ReturnCreate);
@@ -71,7 +72,8 @@ public sealed class ComplianceModule : IModule
             .WithSummary("Regulatory returns, by period or status")
             .RequirePermission(CompliancePermissions.ReturnRead);
 
-        compliance.MapGet("/returns/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetReturn(id), ct)).ToHttp(Results.Ok))
+        compliance.MapGet("/returns/{id:guid}", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) =>
+                (await d.Query(new GetReturn(id), ct)).ToHttp(view => Tagged(http, view, Results.Ok(view))))
             .Produces<ReturnView>(StatusCodes.Status200OK)
             .WithName("ComplianceGetReturn")
             .WithSummary("A regulatory return and its values")
@@ -89,9 +91,25 @@ public sealed class ComplianceModule : IModule
         compliance.MapPost("/report-runs", async (RunReport r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(r, ct)).ToHttp(view => Results.Created($"/api/v1/compliance/report-runs/{view.Id}", view)))
             .Produces<ReportRunView>(StatusCodes.Status201Created)
+            .RequireIdempotencyKey()
             .WithName("ComplianceRunReport")
             .WithSummary("Run a report in the catalogue, if your roles allow it; export only where the catalogue allows")
             .RequirePermission(CompliancePermissions.ReportCreate);
+
+        compliance.MapGet("/report-runs", async (string? reportCode, DateTimeOffset? from, DateTimeOffset? to, int? limit, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new ListReportRuns(reportCode, from, to, limit ?? 50), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<ReportRunSummary>>(StatusCodes.Status200OK)
+            .WithName("ComplianceListReportRuns")
+            .WithSummary("Report runs, newest first: by report and by when they ran (from inclusive, to exclusive); limit 1 to 200, default 50")
+            .RequirePermission(CompliancePermissions.ReportRead);
+
+        compliance.MapGet("/report-runs/{id:guid}/export", async (Guid id, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new DownloadReportExport(id), ct)).ToHttp(file => Results.File(file.Content, file.ContentType, file.FileName)))
+            .Produces<string>(StatusCodes.Status200OK, "text/csv")
+            .WithName("ComplianceDownloadReportExport")
+            .WithSummary("The CSV file of a run made with export (one line per metric), while the catalogue lets your roles export the report")
+            .WithDescription("REPORT_NOT_EXPORTED (409) for a run made without export; REPORT_NOT_ALLOWED (403) when the catalogue no longer allows you. Each download is audited.")
+            .RequirePermission(CompliancePermissions.ReportRead);
 
         compliance.MapGet("/report-runs/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetReportRun(id), ct)).ToHttp(Results.Ok))
             .Produces<ReportRunView>(StatusCodes.Status200OK)
@@ -100,11 +118,27 @@ public sealed class ComplianceModule : IModule
             .RequirePermission(CompliancePermissions.ReportRead);
     }
 
+    /// <summary>A return action with the ETag the caller read (If-Match, DBA-011); the response carries the new one (GAP-048).</summary>
     private static void Action(RouteGroupBuilder group, string route, ReturnAction action, string summary, string permission) =>
-        group.MapPost($"/returns/{{id:guid}}/{route}", async (Guid id, ReturnReasonRequest? r, IDispatcher d, CancellationToken ct) =>
-                (await d.Send(new ChangeReturn(id, action, r?.Reason), ct)).ToHttp(Results.Ok))
+        group.MapPost($"/returns/{{id:guid}}/{route}", async (Guid id, ReturnReasonRequest? r, IDispatcher d, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                if (expected.IsFailure)
+                {
+                    return Problems.For(expected.Error);
+                }
+
+                return (await d.Send(new ChangeReturn(id, action, r?.Reason, expected.Value), ct)).ToHttp(view => Tagged(http, view, Results.Ok(view)));
+            })
             .Produces<ReturnView>(StatusCodes.Status200OK)
+            .RequireIfMatch()
             .WithName($"Compliance{action}Return")
             .WithSummary(summary)
             .RequirePermission(permission);
+
+    private static IResult Tagged(HttpContext http, ReturnView view, IResult result)
+    {
+        Concurrency.SetETag(http, view.RowVersion);
+        return result;
+    }
 }

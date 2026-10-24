@@ -59,6 +59,7 @@ A consumer that finds the tenant's configuration missing **parks** its delivery 
 | `GeneralRenewalInvited`, `ProviderPaymentRunReleased` | Documents | `DOCUMENT_TEMPLATE_NOT_IN_FORCE` <template code> | The template in force in the recipient's languages |
 | `LifePolicyIssued` | Reinsurance, Analytics | `BILLING_FREQUENCY_NOT_IN_FORCE` <frequency> | The billing frequency in force |
 | `GeneralPolicyIssued`, `LifePolicyIssued` | Reinsurance | `TREATY_NOT_APPLICABLE` <error code> | A treaty for the product that can be applied |
+| `InvoiceOverdue` | Billing | `ARREARS_AGEING_BUCKET_NOT_IN_FORCE` <days overdue> | An arrears ageing bucket (`billing.cfg_arrears_ageing_buckets`) covering that many days; once published, the parked opening of the account's arrears case is retried (request 46) |
 | `GeneralPolicyCancelled` | Billing | `ADJUSTMENT_REASON_NOT_IN_FORCE` `CANCELLATION` | The reason code, or `CANCELLATION`, in `billing.ref_adjustment_and_reversal_reason_codes` |
 | Refund, claim payment, remittance or commission released | Payments | `PAYOUT_METHOD_NOT_IN_FORCE` <currency>, `PAYOUT_PROVIDER_NOT_IN_FORCE` <method> | A payout method for the currency, and a provider supporting it |
 | `GeneralPolicyEndorsed` | Billing | (fails, then waits in order) | The policy's premium schedule, from its issue: an endorsement waits behind a parked issue |

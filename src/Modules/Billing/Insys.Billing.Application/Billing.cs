@@ -218,6 +218,22 @@ internal static class Users
             : Error.Forbidden(ErrorCodes.Forbidden, "This is done by an identified user.");
 }
 
+/// <summary>DetectArrears from an account's unpaid invoices past their due date: the oldest decides the days overdue.</summary>
+internal static class Ageing
+{
+    public static bool HasOpenCase(BillingAccount account) => account.Arrears.Any(a => a.Status == "OPEN");
+
+    public static async Task<Result> Detect(BillingAccount account, IReadOnlyList<Invoice> invoices, DateOnly today, IBillingCodes codes, DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var overdue = invoices.Where(i => i.Outstanding > 0 && i.DueDate < today).ToList();
+        var days = DaysOverdue(overdue, today);
+        return account.DetectArrears(days, overdue.Sum(i => i.Outstanding), await codes.AgeingBuckets(today, cancellationToken), now);
+    }
+
+    public static int DaysOverdue(IReadOnlyList<Invoice> overdue, DateOnly today) => overdue.Count == 0 ? 0 : today.DayNumber - overdue.Min(i => i.DueDate).DayNumber;
+}
+
 internal static class Loaded
 {
     public static async Task<Result<BillingAccount>> Account(IBillingRepository billing, Guid id, CancellationToken cancellationToken) =>
@@ -318,8 +334,12 @@ internal sealed class IssueDueInvoicesHandler(IBillingRepository billing, IBilli
 /// <summary>Invoices for the instalments due by a day, one per schedule (BIL-002).</summary>
 public static class DueInvoices
 {
+    /// <param name="firstBilling">
+    /// True when a policy's schedule is billed for the first time or resumed (issue, endorsement, reinstatement, enrolment):
+    /// instalments already past are due from today. False for the daily run, where each is due on its own date.
+    /// </param>
     public static async Task<Result<IReadOnlyList<Invoice>>> Issue(BillingAccount account, DateOnly asOf, IBillingRepository billing, IBillingCodes codes, IClock clock,
-        IBusinessDate businessDate, CancellationToken cancellationToken)
+        IBusinessDate businessDate, CancellationToken cancellationToken, bool firstBilling = false)
     {
         var prefix = await codes.NumberPrefix("INVOICE", businessDate.Today, cancellationToken);
         var paymentMethod = await codes.PaymentMethodOf(account.CollectionMethod, businessDate.Today, cancellationToken) ?? account.CollectionMethod;
@@ -327,7 +347,8 @@ public static class DueInvoices
         foreach (var group in account.DueInstalments(asOf).GroupBy(d => d.Schedule).ToList())
         {
             var instalments = group.Select(g => g.Instalment).ToList();
-            var invoice = Invoice.IssueInvoice(Guid.CreateVersion7(), prefix, account, group.Key, instalments, paymentMethod, businessDate.Today, clock.UtcNow);
+            var invoice = Invoice.IssueInvoice(Guid.CreateVersion7(), prefix, account, group.Key, instalments, paymentMethod, businessDate.Today, clock.UtcNow,
+                firstBilling ? businessDate.Today : null);
             if (invoice.IsFailure)
             {
                 return invoice.Error;
@@ -403,14 +424,16 @@ internal sealed class AgeAccountHandler(IBillingRepository billing, IBillingCode
         }
 
         var invoices = await billing.Invoices(account.Value.Id, cancellationToken);
-        foreach (var invoice in invoices)
+        var newlyOverdue = invoices.Count(i => i.MarkOverdue(command.Today, clock.UtcNow));
+        var result = await Ageing.Detect(account.Value, invoices, command.Today, codes, clock.UtcNow, cancellationToken);
+
+        // Request 46: with no bucket for the days overdue, a case not yet open is opened from InvoiceOverdue, which parks
+        // until a bucket is in force (ADR-022). The overdue invoices are kept rather than rolled back with the refusal.
+        if (result is { IsFailure: true, Error.Code: BillingErrorCodes.NoAgeingBucket } && newlyOverdue > 0 && !Ageing.HasOpenCase(account.Value))
         {
-            invoice.MarkOverdue(command.Today);
+            return AccountView.From(account.Value, execution.CurrentScope);
         }
 
-        var overdue = invoices.Where(i => i.Outstanding > 0 && i.DueDate < command.Today).ToList();
-        var days = overdue.Count == 0 ? 0 : command.Today.DayNumber - overdue.Min(i => i.DueDate).DayNumber;
-        var result = account.Value.DetectArrears(days, overdue.Sum(i => i.Outstanding), await codes.AgeingBuckets(command.Today, cancellationToken), clock.UtcNow);
         return result.IsFailure ? result.Error : AccountView.From(account.Value, execution.CurrentScope);
     }
 }

@@ -65,6 +65,14 @@ public sealed record CreditNoteIssued(Guid CreditNoteId, string CreditNoteNumber
 /// <summary>An invoice was paid in full; <paramref name="PolicyRef"/> is the policy it bills in <paramref name="SourceDomain"/>.</summary>
 public sealed record InvoiceSettled(Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef) : IIntegrationEvent;
 
+/// <summary>
+/// An issued invoice passed its due date unpaid (transition "Due date passed"). Billing's own consumer opens the account's
+/// arrears case from it, and parks it while no ageing bucket covers the days overdue (ADR-022).
+/// </summary>
+[IntegrationEvent("billing.InvoiceOverdue")]
+public sealed record InvoiceOverdue(Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef, DateOnly DueDate, decimal Outstanding, string Currency)
+    : IIntegrationEvent;
+
 [IntegrationEvent("billing.ArrearsDetected")]
 public sealed record ArrearsDetected(Guid AccountId, string BucketCode, int DaysOverdue, decimal AmountOverdue, string Currency) : IIntegrationEvent;
 

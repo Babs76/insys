@@ -489,6 +489,29 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         // Reports: run by the catalogue's roles, not exported where the catalogue says so.
         var run = await Created("/api/v1/compliance/report-runs", new { reportCode = "RPT-GWP", from = Today, to = Today, metrics = new[] { "GWP" }, export = false });
         (await Get($"/api/v1/compliance/report-runs/{run}")).GetProperty("result").GetProperty("GWP").GetDecimal().ShouldBe(3_050m);
+
+        // GAP-048: a run needs an Idempotency-Key, and a retry with the same key gives the same run, not a second one.
+        var runBody = new { reportCode = "RPT-GWP", from = Today, to = Today, metrics = new[] { "GWP" }, export = false };
+        (await (await _maker.Send(HttpMethod.Post, "/api/v1/compliance/report-runs", runBody)).Code()).ShouldBe("IDEMPOTENCY_KEY_REQUIRED");
+        var key = Guid.CreateVersion7().ToString();
+        var first = await (await _maker.SendAsync(Keyed("/api/v1/compliance/report-runs", runBody, key))).Json();
+        var retried = await (await _maker.SendAsync(Keyed("/api/v1/compliance/report-runs", runBody, key))).Json();
+        retried.GetProperty("id").GetGuid().ShouldBe(first.GetProperty("id").GetGuid());
+
+        // GAP-047: runs are listed newest first, and a run made with export gives its CSV file; one made without does not.
+        await Seed("reporting.cfg_report_catalogue_and_access_rules", "EFFECTIVE", "RPT-GWPX", ("report_code", "RPT-GWPX"), ("name", "Written premium (export)"),
+            ("roles", new[] { _reportRole }), ("export_allowed", true));
+        var exported = await Created("/api/v1/compliance/report-runs", new { reportCode = "RPT-GWPX", from = Today, to = Today, metrics = new[] { "GWP" }, export = true });
+        var runs = (await Get("/api/v1/compliance/report-runs?limit=10")).EnumerateArray().ToList();
+        runs[0].GetProperty("id").GetGuid().ShouldBe(exported);
+        runs.Select(r => r.GetProperty("id").GetGuid()).ShouldContain(run);
+        (await Get("/api/v1/compliance/report-runs?reportCode=RPT-GWPX")).EnumerateArray().Single().GetProperty("exported").GetBoolean().ShouldBeTrue();
+        var file = await _maker.GetAsync($"/api/v1/compliance/report-runs/{exported}/export");
+        file.StatusCode.ShouldBe(HttpStatusCode.OK);
+        file.Content.Headers.ContentType!.MediaType.ShouldBe("text/csv");
+        file.Content.Headers.ContentDisposition!.FileName!.Trim('"').ShouldBe($"RPT-GWPX-{exported:N}.csv");
+        (await file.Content.ReadAsStringAsync()).ShouldBe($"report_code,from,to,metric,total\r\nRPT-GWPX,{Today:yyyy-MM-dd},{Today:yyyy-MM-dd},GWP,3050.00\r\n");
+        (await (await _maker.GetAsync($"/api/v1/compliance/report-runs/{run}/export")).Code()).ShouldBe("REPORT_NOT_EXPORTED");
         (await (await _maker.Send(HttpMethod.Post, "/api/v1/compliance/report-runs", new { reportCode = "RPT-GWP", from = Today, to = Today, metrics = new[] { "GWP" }, export = true },
             idempotent: true)).Code()).ShouldBe("REPORT_NOT_ALLOWED");
         (await (await _checker.Send(HttpMethod.Post, "/api/v1/compliance/report-runs", new { reportCode = "RPT-GWP", from = Today, to = Today, metrics = new[] { "GWP" }, export = false },
@@ -503,15 +526,38 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         prepared.GetProperty("fieldValues").GetProperty("receivables").GetDecimal().ShouldBe(254.17m);
         var id = prepared.GetProperty("id").GetGuid();
 
+        // GAP-048: return actions need the ETag from a read (If-Match); a stale one changes nothing.
+        var read = await _maker.GetAsync($"/api/v1/compliance/returns/{id}");
+        var etag = read.Headers.ETag!.Tag;
+        etag.ShouldBe($"\"{(await read.Json()).GetProperty("rowVersion").GetInt64()}\"");
+        (await (await _maker.PostAsync($"/api/v1/compliance/returns/{id}/review", null)).Code()).ShouldBe("PRECONDITION_REQUIRED");
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/compliance/returns/{id}/review", ifMatch: "\"99\"")).Code()).ShouldBe("PRECONDITION_FAILED");
+
         // Reviewed, then approved by a different compliance officer, then submitted through the regulator adapter and accepted.
-        (await (await _maker.PostAsync($"/api/v1/compliance/returns/{id}/submit", null)).Code()).ShouldBe("INVALID_STATE_TRANSITION");
-        (await _maker.PostAsync($"/api/v1/compliance/returns/{id}/review", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await (await _maker.PostAsync($"/api/v1/compliance/returns/{id}/approve", null)).Code()).ShouldBe("RETURN_SAME_PERSON");
-        (await _checker.PostAsync($"/api/v1/compliance/returns/{id}/approve", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        var submitted = await (await _maker.PostAsync($"/api/v1/compliance/returns/{id}/submit", null)).Json();
+        (await (await ReturnAction(_maker, id, "submit")).Code()).ShouldBe("INVALID_STATE_TRANSITION");
+        var reviewed = await ReturnAction(_maker, id, "review");
+        reviewed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        reviewed.Headers.ETag!.Tag.ShouldBe((await _maker.GetAsync($"/api/v1/compliance/returns/{id}")).Headers.ETag!.Tag, "the action answers with the new ETag");
+        (await (await ReturnAction(_maker, id, "approve")).Code()).ShouldBe("RETURN_SAME_PERSON");
+        (await ReturnAction(_checker, id, "approve")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var submitted = await (await ReturnAction(_maker, id, "submit")).Json();
         submitted.GetProperty("status").GetString().ShouldBe("Submitted");
         submitted.GetProperty("regulatorRef").GetString()!.ShouldStartWith("STUB-");
-        (await (await _maker.PostAsync($"/api/v1/compliance/returns/{id}/accept", null)).Json()).GetProperty("status").GetString().ShouldBe("Accepted");
+        (await (await ReturnAction(_maker, id, "accept")).Json()).GetProperty("status").GetString().ShouldBe("Accepted");
+    }
+
+    /// <summary>A return action with the ETag just read (GAP-048).</summary>
+    private static async Task<HttpResponseMessage> ReturnAction(HttpClient client, Guid id, string action)
+    {
+        var etag = (await client.GetAsync($"/api/v1/compliance/returns/{id}")).Headers.ETag!.Tag;
+        return await client.Send(HttpMethod.Post, $"/api/v1/compliance/returns/{id}/{action}", ifMatch: etag);
+    }
+
+    private static HttpRequestMessage Keyed(string url, object body, string key)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(body) };
+        request.Headers.Add("Idempotency-Key", key);
+        return request;
     }
 
     private object QuoteBody(Guid vehicle, string? intermediary) => new

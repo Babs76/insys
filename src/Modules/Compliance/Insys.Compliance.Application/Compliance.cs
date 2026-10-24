@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using FluentValidation;
 using Insys.Analytics.Contracts;
@@ -50,6 +51,9 @@ public interface IComplianceRepository
     Task<IReadOnlyList<RegulatoryReturn>> Returns(string? periodCode, ReturnStatus? status, CancellationToken cancellationToken);
 
     Task<ReportRun?> Run(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>Report runs, newest first (GAP-047).</summary>
+    Task<IReadOnlyList<ReportRunSummary>> Runs(string? reportCode, DateTimeOffset? from, DateTimeOffset? to, int limit, CancellationToken cancellationToken);
 
     void Add(RegulatoryReturn regulatoryReturn);
 
@@ -98,7 +102,7 @@ public enum ReturnAction
 }
 
 /// <summary>Commands ReviewReturn, ApproveReturn, SubmitReturn, the regulator's answer and the correction of a rejected return.</summary>
-public sealed record ChangeReturn(Guid ReturnId, ReturnAction Action, string? Reason) : ICommand<ReturnView>;
+public sealed record ChangeReturn(Guid ReturnId, ReturnAction Action, string? Reason, long ExpectedVersion) : ICommand<ReturnView>, IVersionedCommand;
 
 public sealed record GetReturn(Guid ReturnId) : IQuery<ReturnView>;
 
@@ -108,6 +112,22 @@ public sealed record ListReturns(string? PeriodCode, ReturnStatus? Status) : IQu
 public sealed record RunReport(string ReportCode, DateOnly From, DateOnly To, IReadOnlyList<string> Metrics, bool Export) : ICommand<ReportRunView>;
 
 public sealed record GetReportRun(Guid RunId) : IQuery<ReportRunView>;
+
+/// <summary>A report run in a list (GAP-047): what ran, when, by whom and whether it was exported; its result is read by ID.</summary>
+public sealed record ReportRunSummary(Guid Id, string ReportCode, Guid RequestedBy, DateTimeOffset RanAt, [property: OneOf("COMPLETED", "FAILED")] string Status,
+    bool Exported);
+
+/// <summary>Report runs, newest first; <paramref name="From"/> and <paramref name="To"/> bound when they ran (GAP-047).</summary>
+public sealed record ListReportRuns(string? ReportCode, DateTimeOffset? From, DateTimeOffset? To, int Limit) : IQuery<IReadOnlyList<ReportRunSummary>>;
+
+/// <summary>The file of an exported report run (GAP-047).</summary>
+public sealed record ReportExportFile(string FileName, string ContentType, byte[] Content);
+
+/// <summary>
+/// Command DownloadReportExport: the CSV of a run made with export, while the catalogue still lets the caller's roles
+/// run and export that report. The file is built from the run's stored result, so every download of a run is the same.
+/// </summary>
+public sealed record DownloadReportExport(Guid RunId) : ICommand<ReportExportFile>;
 
 public sealed class PrepareReturnValidator : AbstractValidator<PrepareReturn>
 {
@@ -202,7 +222,7 @@ internal sealed class PrepareReturnHandler(IComplianceRepository repository, ICo
         }
 
         audit.Record(new AuditEntry("COMPLIANCE", "PrepareReturn", nameof(RegulatoryReturn), prepared.Value.Id.ToString()));
-        return ReturnView.From(prepared.Value);
+        return ReturnView.From(prepared.Value) with { RowVersion = 1 }; // the version it is saved with, for its ETag
     }
 }
 
@@ -253,6 +273,12 @@ internal sealed class ChangeReturnHandler(IComplianceRepository repository, ICom
             return Error.NotFound(ErrorCodes.NotFound, "The regulatory return was not found.");
         }
 
+        // GAP-048: the ETag the caller read (DBA-011), so a retried or crossed action never applies twice.
+        if (regulatoryReturn.RowVersion != command.ExpectedVersion)
+        {
+            return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The return has changed since it was read. Read it again and retry.");
+        }
+
         if (command.Action == ReturnAction.Approve && !execution.HasPermission(Contracts.CompliancePermissions.ReturnApprove))
         {
             return Error.Forbidden(ErrorCodes.Forbidden, "A return is approved by a compliance officer.");
@@ -270,7 +296,7 @@ internal sealed class ChangeReturnHandler(IComplianceRepository repository, ICom
             ReturnAction.Correct => await Correct(regulatoryReturn, user.Value, cancellationToken),
             _ => Result.Failure(Error.Validation(ErrorCodes.ValidationFailed, "Unknown action.")),
         };
-        return result.IsFailure ? result.Error : ReturnView.From(regulatoryReturn);
+        return result.IsFailure ? result.Error : ReturnView.From(regulatoryReturn) with { RowVersion = regulatoryReturn.RowVersion + 1 };
     }
 
     private async Task<Result> Submit(RegulatoryReturn regulatoryReturn, CancellationToken cancellationToken)
@@ -347,11 +373,82 @@ internal sealed class RunReportHandler(IComplianceRepository repository, ICompli
     }
 }
 
+internal sealed class DownloadReportExportHandler(IComplianceRepository repository, IComplianceCodes codes, IUserRoleQuery roles, ITenantContext tenant,
+    IExecutionContext execution, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<DownloadReportExport, ReportExportFile>
+{
+    public async Task<Result<ReportExportFile>> Handle(DownloadReportExport command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await repository.Run(command.RunId, cancellationToken) is not { } run)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The report run was not found.");
+        }
+
+        if (!run.Exported)
+        {
+            return Error.Conflict(ComplianceErrorCodes.ReportNotExported, "This run was not made with export; run the report again with export.");
+        }
+
+        var report = await codes.Report(run.ReportCode, businessDate.Today, cancellationToken);
+        var held = await roles.EffectiveRoles(tenant.RequireTenantId(), user.Value, cancellationToken);
+        if (report is null || !report.ExportAllowed || !report.Roles.Any(held.Contains))
+        {
+            return Error.Forbidden(ComplianceErrorCodes.ReportNotAllowed, $"Report {run.ReportCode} may not be exported by your roles.");
+        }
+
+        audit.Record(new AuditEntry("COMPLIANCE", "DownloadReportExport", nameof(ReportRun), run.Id.ToString(),
+            new Dictionary<string, string?> { ["report"] = run.ReportCode }));
+        return new ReportExportFile($"{run.ReportCode}-{run.Id:N}.csv", "text/csv", ReportCsv.For(run));
+    }
+}
+
+/// <summary>A run's totals as CSV: one line per metric, with the run's dates. Text that a spreadsheet would read as a formula is quoted.</summary>
+internal static class ReportCsv
+{
+    public static byte[] For(ReportRun run)
+    {
+        var parameters = Json.Parse(run.Parameters);
+        var from = parameters.TryGetProperty("from", out var f) ? f.GetString() : null;
+        var to = parameters.TryGetProperty("to", out var t) ? t.GetString() : null;
+        var csv = new StringBuilder("report_code,from,to,metric,total\r\n");
+        if (run.Result is not null)
+        {
+            foreach (var metric in Json.Parse(run.Result).EnumerateObject())
+            {
+                var total = metric.Value.ValueKind == JsonValueKind.Number ? metric.Value.GetDecimal().ToString(CultureInfo.InvariantCulture) : "";
+                csv.Append(CultureInfo.InvariantCulture, $"{Cell(run.ReportCode)},{Cell(from)},{Cell(to)},{Cell(metric.Name)},{total}\r\n");
+            }
+        }
+
+        return Encoding.UTF8.GetBytes(csv.ToString());
+    }
+
+    private static string Cell(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return "";
+        }
+
+        var text = value[0] is '=' or '+' or '-' or '@' or '\t' or '\r' ? "'" + value : value;
+        return text.IndexOfAny([',', '"', '\r', '\n']) >= 0 ? $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"" : text;
+    }
+}
+
 internal sealed class ComplianceQueries(IComplianceRepository repository) :
     IQueryHandler<GetReturn, ReturnView>,
     IQueryHandler<ListReturns, IReadOnlyList<ReturnView>>,
-    IQueryHandler<GetReportRun, ReportRunView>
+    IQueryHandler<GetReportRun, ReportRunView>,
+    IQueryHandler<ListReportRuns, IReadOnlyList<ReportRunSummary>>
 {
+    public async Task<Result<IReadOnlyList<ReportRunSummary>>> Handle(ListReportRuns query, CancellationToken cancellationToken) =>
+        Result<IReadOnlyList<ReportRunSummary>>.Success(await repository.Runs(query.ReportCode, query.From, query.To, Math.Clamp(query.Limit, 1, 200), cancellationToken));
+
     public async Task<Result<ReturnView>> Handle(GetReturn query, CancellationToken cancellationToken) =>
         await repository.Return(query.ReturnId, cancellationToken) is { } r ? ReturnView.From(r) : Error.NotFound(ErrorCodes.NotFound, "The regulatory return was not found.");
 

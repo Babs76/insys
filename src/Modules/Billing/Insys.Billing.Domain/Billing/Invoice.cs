@@ -56,6 +56,9 @@ public sealed record CreditNoteIssued(Guid CreditNoteId, string CreditNoteNumber
 
 public sealed record InvoiceSettled(Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef, DateTimeOffset OccurredAt) : IDomainEvent;
 
+public sealed record InvoiceOverdue(Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef, DateOnly DueDate, decimal Outstanding, string Currency,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>Entity InvoiceLine (billing.invoice_line).</summary>
 public sealed class InvoiceLine : Entity<Guid>, ITenantScoped
 {
@@ -173,9 +176,14 @@ public sealed class Invoice : AggregateRoot<Guid>
     /// <summary>Credit notes raised against this invoice so far.</summary>
     public decimal Credited => _adjustments.Sum(a => a.Amount);
 
-    /// <summary>Command IssueInvoice: for the instalments due, with one line each. TODO(spec): premium taxes on invoices are not specified (OQ-058).</summary>
+    /// <summary>
+    /// Command IssueInvoice: for the instalments due, with one line each. The invoice is due on its earliest instalment's
+    /// due date, so a premium invoiced a day late is still overdue from the day it fell due (request 46), but never before
+    /// <paramref name="dueNoEarlierThan"/>: back premiums of a policy billed for the first time (backdated, reinstated,
+    /// enrolled late) are due from the day they are invoiced. TODO(spec): premium taxes on invoices are not specified (OQ-058).
+    /// </summary>
     public static Result<Invoice> IssueInvoice(Guid id, string prefix, BillingAccount account, PremiumSchedule schedule, IReadOnlyList<Instalment> instalments,
-        string paymentMethod, DateOnly issueDate, DateTimeOffset now)
+        string paymentMethod, DateOnly issueDate, DateTimeOffset now, DateOnly? dueNoEarlierThan = null)
     {
         if (instalments.Count == 0 || account.Status == AccountStatus.Closed)
         {
@@ -183,7 +191,7 @@ public sealed class Invoice : AggregateRoot<Guid>
         }
 
         var invoice = New(id, prefix, DocumentType.Invoice, account.Id, schedule.SourceDomain, schedule.PolicyRef, schedule.ProductVersionRef, issueDate,
-            instalments.Min(i => i.DueDate) < issueDate ? issueDate : instalments.Min(i => i.DueDate), account.Currency, null);
+            dueNoEarlierThan is { } earliest && instalments.Min(i => i.DueDate) < earliest ? earliest : instalments.Min(i => i.DueDate), account.Currency, null);
         (invoice.ProductCode, invoice.OrgNodeCode) = (schedule.ProductCode, schedule.OrgNodeCode);
         foreach (var instalment in instalments.OrderBy(i => i.DueDate))
         {
@@ -267,7 +275,8 @@ public sealed class Invoice : AggregateRoot<Guid>
     }
 
     /// <summary>Transition "Due date passed": an issued invoice not paid by its due date.</summary>
-    public bool MarkOverdue(DateOnly today)
+    /// <summary>Transition "Due date passed": an issued invoice not paid by its due date becomes overdue (InvoiceOverdue).</summary>
+    public bool MarkOverdue(DateOnly today, DateTimeOffset now)
     {
         if (Status != InvoiceStatus.Issued || DueDate >= today)
         {
@@ -276,6 +285,7 @@ public sealed class Invoice : AggregateRoot<Guid>
 
         Status = InvoiceStatus.Overdue;
         MarkChanged();
+        Raise(new InvoiceOverdue(Id, BillingAccountId, SourceDomain, PolicyRef, DueDate, Outstanding, Currency, now));
         return true;
     }
 
