@@ -24,7 +24,6 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
-using System.Text.Json;
 using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.Payments.Api.StaticData;
@@ -132,35 +131,6 @@ public sealed class PaymentsModule : IModule
             .WithName("PaymentsAllocate")
             .WithSummary("Allocate what is left of a received payment to its invoices (BIL-003); done automatically when it is received")
             .RequirePermission(PaymentPermissions.PaymentUpdate);
-
-        payments.MapPost("/providers/{providerCode}/callbacks", async (string providerCode, HttpContext http, IDispatcher dispatcher, CancellationToken ct) =>
-            {
-                using var reader = new StreamReader(http.Request.Body);
-                var body = await reader.ReadToEndAsync(ct);
-                ProviderCallbackRequest? callback;
-                try
-                {
-                    callback = JsonSerializer.Deserialize<ProviderCallbackRequest>(body, JsonSerializerOptions.Web);
-                }
-                catch (JsonException)
-                {
-                    callback = null;
-                }
-
-                if (callback is null || string.IsNullOrEmpty(callback.ExternalRef) || string.IsNullOrEmpty(callback.Status))
-                {
-                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The callback needs externalRef and status.", StatusCodes.Status422UnprocessableEntity);
-                }
-
-                return (await dispatcher.Send(new RecordProviderCallback(providerCode, callback.ExternalRef, callback.Status, body, http.Request.Headers["X-Signature"]), ct))
-                    .ToHttp(Results.Ok);
-            })
-            .Produces<PaymentView>(StatusCodes.Status200OK)
-            .WithName("PaymentsProviderCallback")
-            .WithSummary("A provider reports a payment's status, signed in the X-Signature header (HMAC-SHA256 of the body)")
-            .WithDescription("Every callback is recorded. An invalid signature changes nothing; a status with no mapping makes the payment Unknown (PAY-005).")
-            .Accepts<ProviderCallbackRequest>("application/json")
-            .RequirePermission(PaymentPermissions.CallbackCreate);
 
         MapCallbackEndpoints(payments);
 

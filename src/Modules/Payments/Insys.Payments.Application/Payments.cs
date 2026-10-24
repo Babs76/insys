@@ -103,9 +103,6 @@ public interface IPaymentGateway
 
     /// <summary>Sends the payment. <paramref name="payee"/> is the payee's bank account, decrypted, for a payout to one; the gateway never logs or stores it.</summary>
     Task<(ProviderOutcome Outcome, string? ExternalRef, string? Reason)> Send(Payment payment, PayeeAccountDetails? payee, CancellationToken cancellationToken);
-
-    /// <summary>Whether a callback body carries the provider's valid signature. Credentials stay in configuration, never in the database (PAY-004).</summary>
-    bool SignatureValid(string providerCode, string body, string? signature);
 }
 
 public sealed record StatusChangeView(PaymentStatus From, PaymentStatus To, string Source, DateTimeOffset ChangedAt);
@@ -153,9 +150,6 @@ public sealed record StatementResult(int Matched, int Exceptions);
 /// <param name="BankAccountId">For a payout: the payee's verified bank account (party.bank_account), by id; never its details.</param>
 public sealed record InitiatePayment(string IdempotencyKey, Direction Direction, string Purpose, string MethodCode, decimal Amount, string Currency,
     Guid? CounterpartyPartyId, string? BusinessRefType, Guid? BusinessRefId, Guid? BankAccountId = null) : ICommand<PaymentView>;
-
-/// <summary>Command RecordProviderCallback: a provider reports a payment's status, with a signature over the body.</summary>
-public sealed record RecordProviderCallback(string ProviderCode, string ExternalRef, string ProviderStatus, string Body, string? Signature) : ICommand<PaymentView>;
 
 public sealed record MarkUnknown(Guid PaymentId) : ICommand<PaymentView>;
 
@@ -323,31 +317,6 @@ internal sealed class InitiatePaymentHandler(PaymentStarter starter, IAuditTrail
         }
 
         return payment.IsFailure ? payment.Error : PaymentView.From(payment.Value);
-    }
-}
-
-internal sealed class RecordProviderCallbackHandler(IPaymentRepository payments, IPaymentCodes codes, IEnumerable<IPaymentGateway> gateways, IBusinessDate businessDate, IClock clock)
-    : ICommandHandler<RecordProviderCallback, PaymentView>
-{
-    public async Task<Result<PaymentView>> Handle(RecordProviderCallback command, CancellationToken cancellationToken)
-    {
-        var valid = gateways.FirstOrDefault(g => g.Handles(command.ProviderCode))?.SignatureValid(command.ProviderCode, command.Body, command.Signature) ?? false;
-        var payment = valid ? await payments.ByExternalRef(command.ProviderCode, command.ExternalRef, cancellationToken) : null;
-        payments.RecordCallback(command.ProviderCode, command.ExternalRef, command.Body, valid, clock.UtcNow, processed: payment is not null);
-        if (!valid)
-        {
-            // Kept, with signature_valid false, for investigation; nothing changes.
-            return Error.Forbidden(PaymentErrorCodes.CallbackSignatureInvalid, "The callback's signature is not valid; it was recorded and not applied.");
-        }
-
-        if (payment is null)
-        {
-            return Error.NotFound(ErrorCodes.NotFound, "No payment has this provider reference; the callback was recorded.");
-        }
-
-        var outcome = await codes.MapStatus(command.ProviderCode, command.ProviderStatus, businessDate.Today, cancellationToken);
-        var result = payment.RecordCallback(outcome, $"Provider status {command.ProviderStatus}", businessDate.Today, clock.UtcNow);
-        return result.IsFailure ? result.Error : PaymentView.From(payment);
     }
 }
 

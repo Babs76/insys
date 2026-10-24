@@ -69,7 +69,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         GeneralPermissions.PolicyRead, GeneralPermissions.PolicyCreate, GeneralPermissions.PolicyUpdate, GeneralPermissions.PolicyCancel, GeneralPermissions.ClaimRead,
         GeneralPermissions.ClaimCreate, GeneralPermissions.ClaimUpdate, GeneralPermissions.ClaimDecide, GeneralPermissions.AssessmentUpdate,
         RatingPermissions.CalculationCreate, RatingPermissions.CalculationRead, BillingPermissions.AccountRead, BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate,
-        PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackCreate,
+        PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackEndpointUpdate,
         PaymentPermissions.CommissionPayoutRead,
         ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate, ClaimsPermissions.InstructionRead,
         FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate, FinancePermissions.GlExportRead, FinancePermissions.GlExportCreate,
@@ -579,14 +579,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         await _factory.DrainOutbox();
     }
 
-    private async Task<HttpResponseMessage> Callback(Guid payment, string status)
-    {
-        var externalRef = await _db.ScalarAsOwner<string>("SELECT external_ref FROM payment.payment WHERE id = @p", ("p", payment));
-        var body = JsonSerializer.Serialize(new { externalRef, status }, JsonSerializerOptions.Web);
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/payments/providers/SIMULATOR/callbacks") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-        request.Headers.Add("X-Signature", Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(TestTokens.SimulatorCallbackSecret), Encoding.UTF8.GetBytes(body))));
-        return await _maker.SendAsync(request);
-    }
+    private Task<HttpResponseMessage> Callback(Guid payment, string status) => _maker.SimulatorCallback(_factory, _db, payment, status);
 
     private async Task<Guid> Created(string url, object body)
     {

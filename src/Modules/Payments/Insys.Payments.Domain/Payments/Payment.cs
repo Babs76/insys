@@ -264,7 +264,7 @@ public sealed class Payment : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Command RecordProviderCallback: a final status confirms or rejects a pending payment; an unmapped status makes it
+    /// Command ReceiveCallback (ADR-023): a final status confirms or rejects a pending payment; an unmapped status makes it
     /// Unknown. A callback for a payment that is already final changes nothing (callbacks repeat).
     /// </summary>
     public Result RecordCallback(ProviderOutcome outcome, string? reason, DateOnly today, DateTimeOffset now)

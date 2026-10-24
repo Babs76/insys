@@ -24,8 +24,6 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
-using System.Security.Cryptography;
-using System.Text;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
@@ -35,7 +33,6 @@ using Insys.Payments.Application;
 using Insys.Payments.Domain.Payments;
 using Insys.Payments.Infrastructure.StaticData;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Payments.Infrastructure.Persistence;
@@ -135,11 +132,11 @@ internal sealed class PaymentCodes(PaymentsDbContext db) : IPaymentCodes
 
 /// <summary>
 /// A stand-in for a payment provider, for development and tests (provider code SIMULATOR). It accepts every payment
-/// as pending, with an external reference, and the outcome arrives by callback; an amount ending in .13 is rejected
-/// and one ending in .99 gets no answer (an unknown outcome). Callbacks are signed with HMAC-SHA256 of the body using
-/// Payments:Providers:{code}:CallbackSecret. TODO(spec): real provider integrations are not specified (OQ-058).
+/// as pending, with an external reference, and the outcome arrives by callback at the tenant's
+/// callback address (ADR-023); an amount ending in .13 is rejected and one ending in .99 gets no answer (an unknown outcome).
+/// TODO(spec): real provider integrations are not specified (OQ-058).
 /// </summary>
-internal sealed class SimulatorGateway(IConfiguration configuration) : IPaymentGateway
+internal sealed class SimulatorGateway : IPaymentGateway
 {
     public const string Code = "SIMULATOR";
 
@@ -155,18 +152,6 @@ internal sealed class SimulatorGateway(IConfiguration configuration) : IPaymentG
             99 => (ProviderOutcome.Unknown, (string?)null, (string?)"No answer from the simulator"),
             _ => (ProviderOutcome.Pending, (string?)("SIM-" + payment.IdempotencyKey.GetHashCode().ToString("X8")), (string?)null),
         });
-    }
-
-    public bool SignatureValid(string providerCode, string body, string? signature)
-    {
-        var secret = configuration[$"Payments:Providers:{providerCode}:CallbackSecret"];
-        if (string.IsNullOrEmpty(secret) || string.IsNullOrEmpty(signature))
-        {
-            return false;
-        }
-
-        var expected = Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(body)));
-        return CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(expected), Encoding.ASCII.GetBytes(signature.ToLowerInvariant()));
     }
 }
 

@@ -38,7 +38,7 @@ dotnet run --project src/Host/Insys.Api
 - Health endpoints: `/health/live` (process), `/health/ready` (database, outbox lag, partitions), `/health` (everything, with detail).
 - `appsettings.Development.json` holds local-only settings: the role connection template, a development token signing key and field protection keys. Never use them anywhere else.
 - **Provider callbacks (ADR-023, GAP-035):** a provider calls its tenant's address, `POST /api/v1/payments/callbacks/{endpointKey}`, with no token. Issue an endpoint locally with `POST /api/v1/payments/callback-endpoints` `{ "providerCode": "SIMULATOR" }`; the response gives the path and signing secret once. Sign each callback with `X-Callback-Timestamp` (Unix seconds), `X-Callback-Id` (unique) and `X-Signature` = HMAC-SHA256 of `timestamp.callbackId.body`, hex in lower case. Keep the secret out of git: in user secrets, an environment variable or your shell, never a committed file. See `docs/runbooks/money-operations.md`.
-- **The old callback route** (`/payments/providers/{providerCode}/callbacks`, bearer token plus `Payments:Providers:<code>:CallbackSecret`) still works until the front end's simulator scripts have moved. Its secret also stays out of git: `dotnet user-secrets --project src/Host/Insys.Api set "Payments:Providers:SIMULATOR:CallbackSecret" "<value>"`, or `Payments__Providers__SIMULATOR__CallbackSecret`.
+- **The old callback route** (`/payments/providers/{providerCode}/callbacks`) and its `Payments:Providers:<code>:CallbackSecret` setting were removed in Wave 0b batch 5; the address above is the only one.
 
 ## Configuration
 
@@ -59,7 +59,6 @@ dotnet run --project src/Host/Insys.Api
 | `Claims:Payments:HeldReleaseRole` | The role whose queue gets a held claim payment's task | CLAIMS_MANAGER |
 | `Testing:DailyJobRunner:Enabled` | Test only: `POST /api/v1/testing/daily-jobs` runs the daily jobs as of a date; refused outside Development and Testing (ADR-025) | off |
 | `Payments:Callbacks:Tolerance`, `Overlap` | Signed callbacks (ADR-023): timestamp window, and how long a rotated endpoint is still accepted | 5 min, 7 days |
-| `Payments:Providers:<code>:CallbackSecret` | The old callback route's signing secret, until it is removed; user secrets or the environment locally (GAP-035) | none |
 | `Database:Pools:<role>`, `MaxConnections`, `Reserve`, `Instances`, `PoolWaitSeconds` | Connection pool per module role, checked at start-up against the server's limit (GAP-039) | see `docs/runbooks/deployment.md` |
 | `Idempotency:Retention` | How long Idempotency-Key results are kept | 24 h |
 | `RateLimiting:PermitsPerMinute` | Requests per minute per tenant | 1,200 |

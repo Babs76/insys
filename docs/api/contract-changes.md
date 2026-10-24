@@ -4,6 +4,10 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 0b batch 5 (branch `wave0b-5`, not merged): external-user access; Health product follow-ups
 
+### Removed
+- **`POST /api/v1/payments/providers/{providerCode}/callbacks`** (operation `PaymentsProviderCallback`) is gone, with its bearer-token path and the `Payments:Providers:<code>:CallbackSecret` setting. Every provider callback, the simulator's included, uses `POST /api/v1/payments/callbacks/{endpointKey}` with no token, signed as in ADR-023. The front end moved its simulator scripts first.
+- **`payment_callback.create`** remains only as the optional client-credentials check on the keyed route (ADR-023 decision 4); no user needs it to send a callback.
+
 ### New endpoints
 
 | Endpoint | Permission | Portal |

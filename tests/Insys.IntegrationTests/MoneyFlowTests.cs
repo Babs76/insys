@@ -26,8 +26,6 @@
  */
 using System.Net;
 using System.Net.Http.Json;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Insys.Billing.Contracts;
 using Insys.BuildingBlocks.Application.Messaging;
@@ -57,7 +55,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         BillingPermissions.AccountRead, BillingPermissions.AccountCreate, BillingPermissions.AccountUpdate, BillingPermissions.InvoiceRead,
         BillingPermissions.InvoiceCreate, BillingPermissions.RefundRead, BillingPermissions.RefundCreate, PaymentPermissions.PaymentRead, PaymentPermissions.PaymentResolve,
         PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.ReconciliationRead,
-        PaymentPermissions.CallbackCreate, FinancePermissions.JournalRead, FinancePermissions.PeriodRead, FinancePermissions.PeriodUpdate,
+        PaymentPermissions.CallbackEndpointUpdate, FinancePermissions.JournalRead, FinancePermissions.PeriodRead, FinancePermissions.PeriodUpdate,
         FinancePermissions.PostingExceptionRead, ClaimsPermissions.ClaimRead, ClaimsPermissions.ClaimCreate, ClaimsPermissions.FinancialsRead,
         ClaimsPermissions.FinancialsUpdate, ClaimsPermissions.InstructionRead, ClaimsPermissions.InstructionCreate, ClaimsPermissions.InstructionRelease,
         WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove,
@@ -153,7 +151,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         var payment = await CollectionFor(invoice);
         (await (await _maker.GetAsync($"/api/v1/payments/payments/{payment}")).Json()).GetProperty("status").GetString().ShouldBe("Pending");
         (await Journals("PAYMENT", payment)).ShouldBeEmpty();
-        (await Callback(payment, "PAID", signature: "not-the-signature")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await Callback(payment, "PAID", signingSecret: "not-the-secret")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         (await Callback(payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
 
@@ -376,15 +374,8 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
     private async Task<Guid> CollectionFor(Guid invoice) =>
         await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_type = 'INVOICE' AND business_ref_id = @i", ("i", invoice));
 
-    private async Task<HttpResponseMessage> Callback(Guid payment, string status, string? signature = null)
-    {
-        var externalRef = await fixture.Database.ScalarAsOwner<string>("SELECT external_ref FROM payment.payment WHERE id = @p", ("p", payment));
-        var body = JsonSerializer.Serialize(new { externalRef, status }, JsonSerializerOptions.Web);
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/payments/providers/SIMULATOR/callbacks") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-        request.Headers.Add("X-Signature", signature
-            ?? Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(TestTokens.SimulatorCallbackSecret), Encoding.UTF8.GetBytes(body))));
-        return await _maker.SendAsync(request);
-    }
+    private Task<HttpResponseMessage> Callback(Guid payment, string status, string? signingSecret = null) =>
+        _maker.SimulatorCallback(_factory, fixture.Database, payment, status, signingSecret);
 
     /// <summary>The maker cannot approve their own request; the checker can (SRS-002).</summary>
     private async Task Approve(string businessRefType, Guid businessRefId)

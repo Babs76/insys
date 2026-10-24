@@ -24,10 +24,13 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using System.Globalization;
 using System.Net;
-using System.Security.Cryptography;
+using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using Insys.Payments.Application;
 
 namespace Insys.Testing;
 
@@ -69,14 +72,34 @@ public static class MoneySeed
         return (accountId, (await issued.Json()).EnumerateArray().Single().GetProperty("id").GetGuid());
     }
 
-    /// <summary>A callback from the simulator provider, signed with its test secret.</summary>
-    public static async Task<HttpResponseMessage> SimulatorCallback(this HttpClient client, TestDatabase database, Guid payment, string status)
+    private static readonly ConditionalWeakTable<HttpClient, Task<(string Path, string Secret)>> Endpoints = new();
+
+    /// <summary>
+    /// A callback from the simulator provider at the tenant's callback address (ADR-023), with no bearer token. The address is
+    /// issued once per <paramref name="client"/>, whose user needs payment_callback_endpoint.update. <paramref name="signingSecret"/>
+    /// replaces the endpoint's secret, to send a callback with a bad signature.
+    /// </summary>
+    public static async Task<HttpResponseMessage> SimulatorCallback(this HttpClient client, InsysApiFactory factory, TestDatabase database, Guid payment, string status,
+        string? signingSecret = null)
     {
+        var (path, secret) = await Endpoints.GetValue(client, IssueSimulatorEndpoint);
         var externalRef = await database.ScalarAsOwner<string>("SELECT external_ref FROM payment.payment WHERE id = @p", ("p", payment));
         var body = JsonSerializer.Serialize(new { externalRef, status }, JsonSerializerOptions.Web);
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/payments/providers/SIMULATOR/callbacks") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-        request.Headers.Add("X-Signature", Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(TestTokens.SimulatorCallbackSecret), Encoding.UTF8.GetBytes(body))));
-        return await client.SendAsync(request);
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        var callbackId = Guid.CreateVersion7().ToString();
+        var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        request.Headers.Add("X-Callback-Timestamp", timestamp);
+        request.Headers.Add("X-Callback-Id", callbackId);
+        request.Headers.Add("X-Signature", CallbackKeys.Sign(signingSecret ?? secret, timestamp, callbackId, body));
+        return await factory.CreateClient().SendAsync(request);
+    }
+
+    private static async Task<(string Path, string Secret)> IssueSimulatorEndpoint(HttpClient client)
+    {
+        var issued = await client.PostAsJsonAsync("/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR" });
+        await Expect(issued, HttpStatusCode.Created);
+        var json = await issued.Json();
+        return (json.GetProperty("callbackPath").GetString()!, json.GetProperty("signingSecret").GetString()!);
     }
 
     private static async Task Expect(HttpResponseMessage response, HttpStatusCode status)

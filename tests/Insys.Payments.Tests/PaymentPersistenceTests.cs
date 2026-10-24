@@ -50,7 +50,7 @@ public sealed class PaymentPersistenceTests(PostgresServer server) : IAsyncLifet
         await _db.SeedTenant(Tenant, "TENA");
         await _db.UserWithPermissions(Tenant, "cashier", BillingPermissions.AccountRead, BillingPermissions.AccountCreate, BillingPermissions.AccountUpdate,
             BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate, PaymentPermissions.PaymentRead, PaymentPermissions.PaymentResolve, PaymentPermissions.PaymentUpdate,
-            PaymentPermissions.CallbackCreate);
+            PaymentPermissions.CallbackEndpointUpdate);
         await _db.SeedBillingAndPayments(Tenant, Today.AddDays(-30));
         _factory = new InsysApiFactory(_db);
         _client = _factory.ClientFor(Tenant, "cashier");
@@ -93,7 +93,7 @@ public sealed class PaymentPersistenceTests(PostgresServer server) : IAsyncLifet
         var (_, invoice) = await _client.IssueInvoice(amount, Today);
         await _factory.DrainOutbox();
         var payment = await _db.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @i", ("i", invoice));
-        (await _client.SimulatorCallback(_db, payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _client.SimulatorCallback(_factory, _db, payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         (await (await _client.GetAsync($"/api/v1/billing/invoices/{invoice}")).Json()).GetProperty("status").GetString().ShouldBe("Paid");
         return (invoice, payment);

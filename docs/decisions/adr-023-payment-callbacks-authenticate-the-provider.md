@@ -48,7 +48,7 @@
 - **Replays:** each endpoint's callback IDs are kept for twice the tolerance window, in `payment.callback_receipt`, unique on endpoint and callback ID. A repeated ID is refused with 409 `CALLBACK_REPLAYED` and not applied. A status older than the payment's current one is still never applied (the payment's status machine).
 
 ### 3. No user bearer token on callbacks
-The new address accepts no bearer token and needs none. The old route, `/providers/{providerCode}/callbacks`, keeps working under the bearer-token rules until the front end's simulator scripts have moved to the new address. It is then removed, and that is announced in `contract-changes.md`.
+The new address accepts no bearer token and needs none. The old route, `/providers/{providerCode}/callbacks`, keeps working under the bearer-token rules until the front end's simulator scripts have moved to the new address. It is then removed, and that is announced in `contract-changes.md`. **Removed in Wave 0b batch 5** (24 October 2026), once the front end had moved.
 
 ### 4. Client credentials are an optional extra
 For a provider that supports OAuth 2.0 client credentials, an endpoint can also require a token. There is one Keycloak confidential client per tenant and provider, whose service account is an IAM service identity in that tenant holding only `payment_callback.create` (ADR-017). When the endpoint's `require_client_token` is set, the callback must carry such a token, and its `tenant_id` must match the endpoint's tenant. It never replaces the key and signature.
@@ -83,6 +83,6 @@ At the Huawei Cloud WAF (ADR-016), the callback path accepts only each provider'
   - tests: a wrong tenant's key, a bad signature, an old timestamp, a replayed ID, rotation overlap, a revoked key, and nothing secret in logs.
 - **Configuration:**
   - `Payments:Callbacks:Tolerance` and `Overlap`;
-  - `Payments:Providers:<code>:CallbackSecret` stays only for the old route, and only until it is removed.
+  - `Payments:Providers:<code>:CallbackSecret` stayed only for the old route; it went with it in Wave 0b batch 5.
 - **Runbook:** issuing, rotating and revoking a provider's endpoint, in `money-operations.md`.
 - **The front end:** the simulator scripts move to the new address and headers. The README gives the format.

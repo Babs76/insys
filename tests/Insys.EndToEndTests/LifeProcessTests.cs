@@ -60,7 +60,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         LifePermissions.UnderwritingWaive, LifePermissions.UnderwritingDecide, LifePermissions.PolicyRead, LifePermissions.PolicyCreate, LifePermissions.PolicyUpdate,
         LifePermissions.ClaimRead, LifePermissions.ClaimCreate, LifePermissions.ClaimUpdate, LifePermissions.ClaimDecide, RatingPermissions.CalculationCreate,
         RatingPermissions.CalculationRead, RulesPermissions.DecisionCreate, RulesPermissions.DecisionRead, BillingPermissions.AccountRead, BillingPermissions.InvoiceRead,
-        PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackCreate,
+        PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackEndpointUpdate,
         ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate, ClaimsPermissions.InstructionRead,
         ClaimsPermissions.InstructionRelease, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate, WorkflowPermissions.ApprovalRead,
         WorkflowPermissions.ApprovalApprove, IntegrationPermissions.DeadLetterRead, DocumentPermissions.DocumentRead, PartyPermissions.PartyCreate,
@@ -304,7 +304,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         var collection = await _db.ScalarAsOwner<Guid>("""
             SELECT p.id FROM payment.payment p JOIN billing.invoice i ON i.id = p.business_ref_id WHERE i.policy_ref = @p
             """, ("p", policy));
-        (await _maker.SimulatorCallback(_db, collection, "BOUNCED")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.SimulatorCallback(_factory, _db, collection, "BOUNCED")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
 
         // DetectArrears → ArrearsDetected → RecordMissedPremium: the grace period starts at the oldest unpaid instalment.
@@ -575,7 +575,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         await Decide(PaymentApprovals.PayoutBusinessRefType, batch);
         (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var payment = await _db.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @i AND payout_batch_id = @b", ("i", instruction), ("b", batch));
-        (await _maker.SimulatorCallback(_db, payment, providerStatus)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.SimulatorCallback(_factory, _db, payment, providerStatus)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
     }
 
