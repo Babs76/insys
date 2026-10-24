@@ -194,7 +194,8 @@ internal static class ClaimContext
     }
 }
 
-internal sealed class NotifyLossHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<NotifyLoss, ClaimView>
+internal sealed class NotifyLossHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit,
+    IExecutionContext execution) : ICommandHandler<NotifyLoss, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(NotifyLoss command, CancellationToken cancellationToken)
     {
@@ -220,6 +221,7 @@ internal sealed class NotifyLossHandler(IGeneralRepository general, IGeneralCode
         }
 
         claim.Value.PlaceAt(policy.ProductCode, policy.OrgNodeCode);
+        claim.Value.RecordChannel(execution.ChannelCode);
         general.Add(claim.Value);
         audit.Record(new AuditEntry("GENERAL", "NotifyLoss", nameof(GeneralClaim), claim.Value.Id.ToString()));
         return ClaimView.From(claim.Value);

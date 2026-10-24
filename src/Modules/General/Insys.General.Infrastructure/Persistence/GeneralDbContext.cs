@@ -82,6 +82,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
         modelBuilder.Entity<GeneralQuote>(quote =>
         {
             quote.Property(x => x.OrgNodeCode).HasMaxLength(15);
+            quote.Property(x => x.ChannelCode).HasMaxLength(12);
             quote.ToTable("quote");
             Root(quote);
             quote.Property(q => q.QuoteNumber).HasMaxLength(15);
@@ -139,6 +140,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
         modelBuilder.Entity<GeneralPolicy>(policy =>
         {
             policy.Property(x => x.OrgNodeCode).HasMaxLength(15);
+            policy.Property(x => x.ChannelCode).HasMaxLength(12);
             policy.ToTable("policy");
             Root(policy);
             policy.Ignore(p => p.Coverages);
@@ -214,6 +216,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
         modelBuilder.Entity<GeneralClaim>(claim =>
         {
             claim.Property(x => x.OrgNodeCode).HasMaxLength(15);
+            claim.Property(x => x.ChannelCode).HasMaxLength(12);
             claim.Property(x => x.ProductCode).HasMaxLength(15);
             claim.ToTable("claim");
             Root(claim);

@@ -81,6 +81,9 @@ public sealed class GeneralModule : IModule
 {
     public string Name => "General";
 
+    /// <summary>F005: its commands create or change a customer's business, so they are checked against the request's channel.</summary>
+    public bool ChannelScoped => true;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddGeneralInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)
@@ -209,7 +212,7 @@ public sealed class GeneralModule : IModule
                 (await d.Send(new SubmitEndorsement(id), ct)).ToHttp(Results.Ok))
             .Produces<EndorsementView>(StatusCodes.Status200OK)
             .WithName("GeneralSubmitEndorsement").WithSummary("Submit a rated endorsement for a second person's approval in Workflow (SRS-002)")
-            .RequirePermission(GeneralPermissions.EndorsementCreate);
+            .RequirePermission(GeneralPermissions.EndorsementCreate).HasApprovalFlow();
     }
 
     private static void MapClaims(RouteGroupBuilder general)
@@ -240,7 +243,7 @@ public sealed class GeneralModule : IModule
                 (await d.Send(new RequestSettlement(id, r.PayeePartyId, r.BankAccountId, r.ReserveType, r.DecisionCode, r.Rationale), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)
             .WithName("GeneralRequestSettlement").WithSummary("Approve a settlement: excess and limits are applied (GEN-008); a second person approves it in Workflow (SRS-002)")
-            .RequirePermission(GeneralPermissions.ClaimDecide);
+            .RequirePermission(GeneralPermissions.ClaimDecide).HasApprovalFlow();
         general.MapPost("/claims/{id:guid}/decline", async (Guid id, DeclineRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DeclineClaim(id, r.DecisionCode, r.Rationale), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)

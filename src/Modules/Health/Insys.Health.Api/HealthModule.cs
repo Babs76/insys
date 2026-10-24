@@ -68,6 +68,9 @@ public sealed class HealthModule : IModule
 {
     public string Name => "Health";
 
+    /// <summary>F005: its commands create or change a customer's business, so they are checked against the request's channel.</summary>
+    public bool ChannelScoped => true;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddHealthInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

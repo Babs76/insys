@@ -302,6 +302,7 @@ public sealed class LifeDbContext(DbContextOptions<LifeDbContext> options, Modul
             claim.Property(c => c.ClaimType).HasMaxLength(15);
             claim.Property(c => c.ProductCode).HasMaxLength(15);
             claim.Property(c => c.OrgNodeCode).HasMaxLength(15);
+            claim.Property(c => c.ChannelCode).HasMaxLength(12);
             claim.Property(c => c.CauseCode).HasMaxLength(10);
             claim.Property(c => c.Status).HasConversion(new UpperCaseEnumConverter<LifeClaimStatus>()).HasMaxLength(15);
             claim.Property(c => c.Currency).HasColumnType("char(3)");

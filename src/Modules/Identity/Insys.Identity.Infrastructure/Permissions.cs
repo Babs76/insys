@@ -162,8 +162,9 @@ public sealed class PrincipalResolver(
         // Each assignment's permissions with its reach (F103): the assignment's own product and branch scopes, else its role's.
         var permissions = new HashSet<string>(StringComparer.Ordinal);
         var scoped = new List<(string Permission, string[]? Products, string[]? Branches)>();
+        var roles = new HashSet<string>(StringComparer.Ordinal);
         await using (var load = new NpgsqlCommand("""
-            SELECT p.permission, coalesce(a.scope_products, r.scope_products), coalesce(a.scope_branches, r.scope_branches)
+            SELECT p.permission, coalesce(a.scope_products, r.scope_products), coalesce(a.scope_branches, r.scope_branches), a.role_code
             FROM iam.user_role_assignment a
             JOIN iam.cfg_roles_and_permission_sets r
               ON r.role_code = a.role_code AND r.tenant_id = a.tenant_id
@@ -182,11 +183,12 @@ public sealed class PrincipalResolver(
                 var permission = reader.GetString(0);
                 permissions.Add(permission);
                 scoped.Add((permission, reader.IsDBNull(1) ? null : reader.GetFieldValue<string[]>(1), reader.IsDBNull(2) ? null : reader.GetFieldValue<string[]>(2)));
+                roles.Add(reader.GetString(3));
             }
         }
 
         await transaction.CommitAsync(cancellationToken);
-        return new ResolvedPrincipal(userId, permissions, await Grants(tenantId, scoped, cancellationToken));
+        return new ResolvedPrincipal(userId, permissions, await Grants(tenantId, scoped, cancellationToken), roles);
     }
 
     /// <summary>

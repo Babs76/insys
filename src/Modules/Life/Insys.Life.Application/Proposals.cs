@@ -45,6 +45,10 @@ public sealed record InsuredLifeInput(Guid PartyId, string LifeRole, string Smok
 public sealed record DisclosureInput(Guid InsuredPartyId, string QuestionCode, int QuestionVersion, JsonElement Answer);
 
 /// <summary>Command CaptureProposal (LIF-001): a Life product version on sale, the insured lives, covers, disclosures and nominations.</summary>
+/// <param name="ChannelCode">
+/// Where the tenant has channels, the request's own channel (its client's, F005 §1) is recorded instead; this is kept for
+/// tenants without channels.
+/// </param>
 /// <param name="OrgNodeCode">
 /// The organisation node (normally a branch) that owns the proposal and the policy and claims that follow from it (F103).
 /// When omitted: the caller's one node, else the tenant's root legal entity.
@@ -146,7 +150,7 @@ internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes co
 
         var disclosures = (command.Disclosures ?? []).Select(d => new DisclosureRequest(d.InsuredPartyId, d.QuestionCode, d.QuestionVersion, d.Answer.GetRawText())).ToList();
         var id = Guid.CreateVersion7();
-        var proposal = LifeProposal.CaptureProposal(id, Numbers.Of("LP", id, 15), product.Value, command.ApplicantPartyId, command.IntermediaryCode, command.ChannelCode,
+        var proposal = LifeProposal.CaptureProposal(id, Numbers.Of("LP", id, 15), product.Value, command.ApplicantPartyId, command.IntermediaryCode, execution.ChannelCode ?? command.ChannelCode,
             command.Currency, command.InceptionDate, new ProposalBilling(command.PayerPartyId ?? command.ApplicantPartyId, command.Frequency, command.CollectionMethod),
             lives, command.Covers, disclosures, nominations, await codes.NominationRule(product.Value.ProductCode, businessDate.Today, cancellationToken));
         if (proposal.IsFailure)

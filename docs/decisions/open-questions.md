@@ -124,6 +124,12 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-074 | 8 | Product and organisation scopes on permissions (F103, SRS-003) | Resolved 23 Oct 2026: `docs/specs/addenda/access-scopes.md` signed off; scoped role assignments refused until enforcement is merged |
 | OQ-075 | 8 | Channel transaction permissions (F005) | Resolved 23 Oct 2026: `docs/specs/addenda/channel-permissions.md` signed off |
 | OQ-076 | 8 | Aggregation and risk limits (F062) | Resolved 23 Oct 2026: `docs/specs/addenda/aggregation-limits.md` signed off |
+| OQ-077 | 8 | How a payment provider authenticates its callbacks (GAP-035) | Resolved 23 Oct 2026: ADR-023 revision 2 |
+| OQ-078 | 8 | Business use of the operator tenant | Resolved: ADR-024 |
+| OQ-079 | 8 | A Life death claim's reserve at registration | Resolved 24 Oct 2026: initial reserve from the sum assured, built |
+| OQ-080 | 8 | What a product scope means for Health records (F103) | Open: fail-safe built; `docs/specs/addenda/health-plan-products.md` for sign-off |
+| OQ-081 | 8 | Scope rules for shared billing accounts and approvals (F103) | Resolved 24 Oct 2026: confirmed, with account figures from in-scope schedules only; built |
+| OQ-082 | 8 | Choices the channel addendum leaves open (F005) | Open: built as described, for confirmation |
 
 ---
 
@@ -878,3 +884,13 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - **Tested** with one account billing policies in two branches.
   - **Closed.**
 
+
+### OQ-082 Choices the channel addendum leaves open (Phase 8 Wave 0b, F005)
+- **Source:** `docs/specs/addenda/channel-permissions.md` §3.
+- **Built as follows; confirm or change:**
+  1. **Several roles:** the caller's roles combine. A transaction and product are allowed when **any** of the roles has an allowed row. A row with `allowed = false` grants nothing but does not override another role's allowed row.
+  2. **Approval with several roles:** a product needs approval only when every allowed row covering it requires approval. One row allowing it without approval is enough.
+  3. **An empty `product_code`** on a row means every product the channel enables.
+  4. **Health records** have no product (OQ-080). On a channel that limits products, a Health command is refused with `CHANNEL_NOT_ALLOWED`. On a channel that enables every product, with a row for every product, it is allowed.
+  5. **Life proposals:** where the tenant has channels, the request's own channel is recorded, and the `channelCode` in the body is ignored. The body field stays for tenants without channels.
+- **Not cached:** the channel tables are read on each channel-scoped command, in one small query. A cache like the permission cache (ADR-006) can follow if load needs it.

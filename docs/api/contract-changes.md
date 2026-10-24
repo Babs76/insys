@@ -2,7 +2,22 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 0b batch 1 (branch `wave0b-1`, not merged): F103 access scopes
+## Wave 0b batch 2 (branch `wave0b-2`, not merged): F005 channel permissions
+
+### Changed behaviour
+- **Channels apply once a tenant has channel definitions** (F005, `addenda/channel-permissions.md`). A tenant without any is unchanged.
+- **Which requests:** every command (POST, PUT, DELETE) of General, Life, Health and the Claims Framework, and building and releasing payout batches. Reads, static data and platform endpoints never are.
+- **The channel** is the one whose `client_ids` hold the token's OAuth client (`azp`). The front end sends nothing new; its client (`insys-web`) must be on a channel.
+- **Refusals (403):**
+  - `CHANNEL_NOT_ENABLED`: the client is on no channel in force, or the channel does not enable the transaction (the command's permission code);
+  - `CHANNEL_NOT_ALLOWED`: the caller's roles have no allowed row for the channel, transaction and product, or the product is not enabled on the channel;
+  - `CHANNEL_APPROVAL_REQUIRED`: the row requires approval, and the command has no approval flow. Endorsement submission, settlement requests, claim payment instructions and payout batches have one.
+- **Recorded:** the channel is stored on General quotes, policies and claims, Life claims and Health memberships. On a Life proposal, the request's own channel replaces the `channelCode` sent, where the tenant has channels.
+
+### Static data
+- **`channel.cfg_channel_definitions`** gains `clientIds` (a list).
+
+## Wave 0b batch 1 (merged, `19a9bb2`): F103 access scopes
 
 ### Changed requests
 - **Creation requests take an optional `orgNodeCode`**, the organisation node (branch, region or legal entity) the record belongs to:
@@ -37,7 +52,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **Not scoped:** parties, static data, Health schemes and provider payment runs, payouts, and approvals of other types.
 - **Existing records** were placed at the tenant's root legal entity.
 
-## Wave 0 batch 7 (branch `wave0-7`, not merged)
+## Wave 0 batch 7 (merged, `7614b84`)
 
 ### Changed requests
 - **`POST /api/v1/tenancy/tenants`** needs `timeZone`, an IANA name (for example `Africa/Johannesburg`); a Windows name or an unknown zone is refused with 422 (ADR-025).

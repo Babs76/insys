@@ -47,6 +47,7 @@ public static class IntegrationInfrastructure
         services.AddStaticData<IntegrationDbContext>(IntegrationDbContext.SchemaName, IntegrationStaticData.Descriptors);
         services.AddModuleHandlers<IntegrationDbContext>(typeof(DeadLetterMessage).Assembly);
         services.AddScoped<IDeadLetterRepository, DeadLetterRepository>();
+        services.AddScoped<BuildingBlocks.Application.Context.IChannelPolicy, Channels.ChannelPolicy>();
         services.AddScoped<IDeadLetterQueries, DeadLetterQueries>();
         services.AddScoped<IDeadLetterSink, DeadLetterSink>();
         services.AddMemoryCache();

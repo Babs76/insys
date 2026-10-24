@@ -58,6 +58,9 @@ public sealed class ClaimsFrameworkModule : IModule
 {
     public string Name => "ClaimsFramework";
 
+    /// <summary>F005: its commands create or change a customer's business, so they are checked against the request's channel.</summary>
+    public bool ChannelScoped => true;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddClaimsFrameworkInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)
@@ -152,7 +155,8 @@ public sealed class ClaimsFrameworkModule : IModule
             .Produces<InstructionView>(StatusCodes.Status200OK)
             .WithName("ClaimsSubmitInstruction")
             .WithSummary("Submit for a second person's approval in Workflow (SRS-002)")
-            .RequirePermission(ClaimsPermissions.InstructionCreate);
+            .RequirePermission(ClaimsPermissions.InstructionCreate)
+            .HasApprovalFlow();
 
         claims.MapPost("/payment-instructions/{id:guid}/release", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ChangeInstruction(id, InstructionAction.Release), ct)).ToHttp(Results.Ok))

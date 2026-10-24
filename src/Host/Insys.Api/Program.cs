@@ -79,6 +79,11 @@ foreach (var module in modules)
 {
     // ADR-024: business modules refuse the operator tenant; platform modules are mapped as they are.
     var moduleGroup = ((RouteGroupBuilder)v1).MapGroup("").ApplyRequestScope();
+    if (module.ChannelScoped)
+    {
+        moduleGroup.WithMetadata(new ChannelScopedMetadata());
+    }
+
     module.MapEndpoints(module.HoldsBusinessData ? moduleGroup.RefuseOperatorTenant() : moduleGroup);
 }
 

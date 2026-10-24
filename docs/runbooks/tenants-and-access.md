@@ -52,6 +52,16 @@ Follow a request with `GET /api/v1/identity/tenant-administrators/{id}` (or `?te
 
 Conflicting permissions cannot be held together (SRS-002): an assignment that would combine them is refused.
 
+### Scopes and channels
+- **Scopes (F103).** A role assignment with `scopeProducts` or `scopeBranches` (organisation nodes, each covering the nodes below it) limits its permissions to those records. Outside them a record reads as not found and an action is refused with `OUT_OF_SCOPE`. `GET /api/v1/identity/role-assignments/scoped` lists the scoped assignments for review.
+- **Channels (F005).** Until a tenant has channel definitions (`channel.cfg_channel_definitions`), channels do not apply.
+- **Once it has any:**
+  - every command of General, Life, Health, the Claims Framework and payouts must come from a client listed in a channel's `client_ids` (the token's `azp`, for example `insys-web`);
+  - the caller's roles need an allowed row in `channel.cfg_channel_transaction_permissions` for that channel, the command's permission code and the product.
+- **Set up the back office first:** before adding a partner channel, add the back-office channel with `insys-web` in `client_ids` and rows for the staff roles. Otherwise staff commands are refused with `CHANNEL_NOT_ENABLED`.
+- **The refusals:** `CHANNEL_NOT_ENABLED` (client on no channel, or the transaction not enabled), `CHANNEL_NOT_ALLOWED` (no allowed row for the roles and product), `CHANNEL_APPROVAL_REQUIRED` (the row requires approval and the command has no approval flow).
+- **Reads** are never channel-scoped.
+
 ## Privileged access (TEN-007)
 
 Time-limited access for support, for example to look at a tenant's data during an incident.

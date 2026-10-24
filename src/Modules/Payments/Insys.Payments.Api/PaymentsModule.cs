@@ -170,7 +170,9 @@ public sealed class PaymentsModule : IModule
             .WithName("PaymentsBuildBatch")
             .WithSummary("Batch the payouts waiting for a purpose and currency; a second person approves the batch in Workflow (SRS-002)")
             .RequirePermission(PaymentPermissions.PayoutCreate)
-            .RequireIdempotencyKey();
+            .RequireIdempotencyKey()
+            .ChannelScoped() // F005: payments out
+            .HasApprovalFlow();
 
         payments.MapGet("/payout-batches/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetBatch(id), ct)).ToHttp(Results.Ok))
             .Produces<BatchView>(StatusCodes.Status200OK)
@@ -191,7 +193,8 @@ public sealed class PaymentsModule : IModule
             .Produces<BatchView>(StatusCodes.Status200OK)
             .WithName("PaymentsReleaseBatch")
             .WithSummary("Release an approved batch: each payment is sent to its provider")
-            .RequirePermission(PaymentPermissions.PayoutRelease);
+            .RequirePermission(PaymentPermissions.PayoutRelease)
+            .ChannelScoped(); // F005: payments out
 
         payments.MapPost("/bank-statements", async (ImportStatementRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ImportStatement(r.AccountRef, r.Lines), ct)).ToHttp(Results.Ok))

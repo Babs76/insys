@@ -273,6 +273,15 @@ public sealed class HealthMembership : AggregateRoot<Guid>
     /// </summary>
     public string? OrgNodeCode { get; private set; }
 
+    /// <summary>The channel the record was created through (F005, addenda/channel-permissions.md §3); null when the tenant has no channels.</summary>
+    public string? ChannelCode { get; private set; }
+
+    /// <summary>Records the channel of the command that created the record, once (F005).</summary>
+    public void RecordChannel(string? channelCode)
+    {
+        ChannelCode ??= channelCode is null ? null : Guard.MaxLength(channelCode, 12);
+    }
+
     public string MemberNumber { get; private set; } = "";
 
     public Guid PrincipalPartyId { get; private set; }

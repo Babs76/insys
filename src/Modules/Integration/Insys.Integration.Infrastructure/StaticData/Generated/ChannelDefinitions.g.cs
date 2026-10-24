@@ -52,6 +52,8 @@ public sealed class ChannelDefinitions : StaticRecord<ChannelDefinitionsInput>
 
     public string? BrandingTheme { get; set; }
 
+    public string[]? ClientIds { get; set; }
+
     public override void ApplyFields(ChannelDefinitionsInput input, IFieldProtector protector)
     {
         ChannelCode = input.ChannelCode!;
@@ -60,6 +62,7 @@ public sealed class ChannelDefinitions : StaticRecord<ChannelDefinitionsInput>
         EnabledProducts = input.EnabledProducts;
         EnabledTransactions = input.EnabledTransactions;
         BrandingTheme = input.BrandingTheme;
+        ClientIds = input.ClientIds;
     }
 }
 
@@ -78,6 +81,8 @@ public sealed record ChannelDefinitionsInput : StaticRecordInput
     public string[]? EnabledTransactions { get; init; }
 
     public string? BrandingTheme { get; init; }
+
+    public string[]? ClientIds { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

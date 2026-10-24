@@ -155,6 +155,15 @@ public sealed class LifeClaim : AggregateRoot<Guid>
 
     public string? OrgNodeCode { get; private set; }
 
+    /// <summary>The channel the record was created through (F005, addenda/channel-permissions.md §3); null when the tenant has no channels.</summary>
+    public string? ChannelCode { get; private set; }
+
+    /// <summary>Records the channel of the command that created the record, once (F005).</summary>
+    public void RecordChannel(string? channelCode)
+    {
+        ChannelCode ??= channelCode is null ? null : Guard.MaxLength(channelCode, 12);
+    }
+
     public Guid PolicyId { get; private set; }
 
     public string ClaimType { get; private set; } = "";

@@ -67,6 +67,12 @@ public interface IExecutionContext
 
     /// <summary>Whether the current request only reads (GET): a record outside the scope is then not found, rather than refused.</summary>
     bool RequestIsRead { get; }
+
+    /// <summary>The channel the request came through (F005), when the tenant has channels and the command is channel-scoped.</summary>
+    string? ChannelCode { get; }
+
+    /// <summary>Why the request's channel refuses a product for this command (F005), or null when it allows it or does not apply.</summary>
+    (string Code, string Message)? ChannelRefusal(string? product);
 }
 
 public sealed class TenantContextMissingException()
@@ -105,7 +111,26 @@ public sealed class ExecutionScope : ITenantContext, IExecutionContext
         : _grants is not null && _grants.TryGetValue(permission, out var grants) ? new AccessScope(grants)
         : AccessScope.Unrestricted;
 
-    public AccessScope CurrentScope => RequestPermission is null ? AccessScope.Unrestricted : ScopeFor(RequestPermission);
+    /// <summary>The scope for the endpoint's permission; for a channel-scoped command, narrowed to the products its channel allows (F005).</summary>
+    public AccessScope CurrentScope =>
+        RequestPermission is null ? AccessScope.Unrestricted
+        : _channel is { AllowsEveryProduct: false } channel && !RequestIsRead ? ScopeFor(RequestPermission).RestrictProducts(channel.Products)
+        : ScopeFor(RequestPermission);
+
+    private ChannelGate? _channel;
+
+    public string? ChannelCode => _channel?.ChannelCode;
+
+    public (string Code, string Message)? ChannelRefusal(string? product) => RequestIsRead ? null : _channel?.Refusal(product);
+
+    /// <summary>The token's OAuth client (azp), which names the request's channel (F005 §1).</summary>
+    public string? ClientId { get; private set; }
+
+    /// <summary>The caller's role codes in effect, for the channel's permission rows (F005 §3).</summary>
+    public IReadOnlyCollection<string> RoleCodes { get; private set; } = [];
+
+    /// <summary>Set by the endpoint filter for a channel-scoped command (F005).</summary>
+    public void UseChannel(ChannelGate channel) => _channel = channel;
 
     /// <summary>Set once per request by the business modules' endpoint filter, from the endpoint's required permission (F103).</summary>
     public void UseRequest(string permission, bool isRead)
@@ -115,10 +140,12 @@ public sealed class ExecutionScope : ITenantContext, IExecutionContext
     }
 
     public void InitialiseForUser(Guid? tenantId, string actorId, IEnumerable<string> permissions, Guid? correlationId,
-        IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? grants = null)
+        IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? grants = null, string? clientId = null, IReadOnlyCollection<string>? roleCodes = null)
     {
         EnsureNotInitialised();
         _grants = grants;
+        ClientId = clientId;
+        RoleCodes = roleCodes ?? [];
         TenantId = tenantId;
         ActorId = actorId;
         ActorType = ActorType.User;

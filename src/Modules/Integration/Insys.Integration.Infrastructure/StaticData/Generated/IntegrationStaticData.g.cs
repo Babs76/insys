@@ -67,6 +67,7 @@ public static class IntegrationStaticData
             entity.Property(x => x.EnabledProducts).HasColumnName("enabled_products");
             entity.Property(x => x.EnabledTransactions).HasColumnName("enabled_transactions");
             entity.Property(x => x.BrandingTheme).HasColumnName("branding_theme").HasMaxLength(80);
+            entity.Property(x => x.ClientIds).HasColumnName("client_ids");
         });
         modelBuilder.Entity<ChannelTransactionPermissions>(entity =>
         {

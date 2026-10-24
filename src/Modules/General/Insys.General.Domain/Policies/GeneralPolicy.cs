@@ -224,6 +224,9 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     /// <summary>The organisation node (normally a branch) that owns the record (F103, addenda/access-scopes.md §2); its children inherit it.</summary>
     public string? OrgNodeCode { get; private set; }
 
+    /// <summary>The channel of the quote the policy was issued from (F005); a renewal keeps it.</summary>
+    public string? ChannelCode { get; private set; }
+
 
     public int ProductVersion { get; private set; }
 
@@ -298,6 +301,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
             quote.PeriodEnd, quote.IntermediaryCode, billing, renewalOfId, quote.Id);
         policy.CoverStartsOn = coverStartsOn;
         policy.OrgNodeCode = quote.OrgNodeCode;
+        policy.ChannelCode = quote.ChannelCode;
         policy._risks.AddRange(quote.Risks.Select(r => PolicyRisk.Create(id, r.ToRequest(), quote.PeriodStart)));
         policy.SetPremium(quote.Premium!.Value);
         return policy.Issued(today, now);
@@ -316,6 +320,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
             NextPeriodEnd(expiring.PeriodStart, expiring.PeriodEnd, start), expiring.IntermediaryCode, expiring.Billing, expiring.Id, null);
         renewal.CoverStartsOn = expiring.CoverStartsOn;
         renewal.OrgNodeCode = expiring.OrgNodeCode;
+        renewal.ChannelCode = expiring.ChannelCode;
         foreach (var risk in expiring._risks.Where(r => r.DetachedOn is null))
         {
             renewal._risks.Add(PolicyRisk.Create(id, new RiskRequest(risk.RiskObjectId, risk.SumInsured,

@@ -57,6 +57,10 @@ public sealed class AccessScope(IReadOnlyList<PermissionGrant> grants)
 
     public bool Allows(string? product, string? orgNode) => Grants.Any(g => g.Allows(product, orgNode));
 
+    /// <summary>The scope with every grant's products narrowed to <paramref name="products"/> (F005: what the channel allows).</summary>
+    public AccessScope RestrictProducts(IReadOnlySet<string> products) =>
+        new(Grants.Select(g => g with { Products = g.Products is null ? products : g.Products.Where(products.Contains).ToHashSet(StringComparer.Ordinal) }).ToList());
+
     /// <summary>The one organisation node the scope names, when every grant names exactly that one (a new record's default node, §2).</summary>
     public string? SingleOrgNode =>
         Grants.Count > 0 && Grants.All(g => g.OrgNodes is { Count: > 0 }) && Grants.SelectMany(g => g.OrgNodes!).Distinct(StringComparer.Ordinal).ToList() is [var only]
@@ -89,7 +93,18 @@ public static class AccessScopeChecks
             return record;
         }
 
-        return execution.RequestIsRead ? null : throw new OutOfScopeException(execution.RequestPermission ?? "the request");
+        if (execution.RequestIsRead)
+        {
+            return null;
+        }
+
+        // Within the caller's own scope, so the channel refused it (F005).
+        if (execution.ChannelRefusal(product) is { } refusal && execution.ScopeFor(execution.RequestPermission!).Allows(product, orgNode))
+        {
+            throw new ChannelRefusedException(refusal.Code, refusal.Message);
+        }
+
+        throw new OutOfScopeException(execution.RequestPermission ?? "the request");
     }
 
     /// <summary>
@@ -107,9 +122,17 @@ public static class AccessScopeChecks
 
         if (!execution.CurrentScope.Allows(product, node))
         {
-            return Error.Forbidden(ErrorCodes.OutOfScope, "The product or organisation node is outside your scope for creating this record.");
+            return execution.ChannelRefusal(product) is { } refusal && execution.RequestPermission is { } permission && execution.ScopeFor(permission).Allows(product, node)
+                ? Error.Forbidden(refusal.Code, refusal.Message)
+                : Error.Forbidden(ErrorCodes.OutOfScope, "The product or organisation node is outside your scope for creating this record.");
         }
 
         return node;
     }
+}
+
+/// <summary>A command refused by the channel it came through (F005, addenda/channel-permissions.md §3). Answered 403 with the code.</summary>
+public sealed class ChannelRefusedException(string code, string message) : InvalidOperationException(message)
+{
+    public string Code { get; } = code;
 }

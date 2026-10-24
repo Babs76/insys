@@ -52,6 +52,28 @@ public interface IModule
     /// data, Audit, Integration and Workflow administer the platform and say false.
     /// </summary>
     bool HoldsBusinessData => true;
+
+    /// <summary>
+    /// Whether the module's commands are channel-scoped (F005, addenda/channel-permissions.md §2): they create or change a
+    /// customer's business. General, Life, Health and the Claims Framework say true; static data and platform endpoints
+    /// are never channel-scoped.
+    /// </summary>
+    bool ChannelScoped => false;
+}
+
+/// <summary>Marks a channel-scoped command (F005): a group of a channel-scoped module, or one endpoint (payments out).</summary>
+public sealed record ChannelScopedMetadata;
+
+/// <summary>Marks a command that always goes to maker-checker approval, which satisfies a channel's requires_approval (F005 §3).</summary>
+public sealed record ChannelApprovalFlowMetadata;
+
+public static class ChannelScoping
+{
+    public static TBuilder ChannelScoped<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder => builder.WithMetadata(new ChannelScopedMetadata());
+
+    public static TBuilder HasApprovalFlow<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder => builder.WithMetadata(new ChannelApprovalFlowMetadata());
 }
 
 /// <summary>Marks an endpoint of a business module, which refuses the operator tenant (ADR-024).</summary>
@@ -68,9 +90,36 @@ public static class RequestAccessScope
         group.AddEndpointFilter(async (context, next) =>
         {
             var http = context.HttpContext;
-            if (http.GetEndpoint()?.Metadata.GetMetadata<RequiredPermissionMetadata>()?.Permission is { } permission)
+            var metadata = http.GetEndpoint()?.Metadata;
+            if (metadata?.GetMetadata<RequiredPermissionMetadata>()?.Permission is { } permission)
             {
-                http.RequestServices.GetRequiredService<ExecutionScope>().UseRequest(permission, HttpMethods.IsGet(http.Request.Method) || HttpMethods.IsHead(http.Request.Method));
+                var scope = http.RequestServices.GetRequiredService<ExecutionScope>();
+                var isRead = HttpMethods.IsGet(http.Request.Method) || HttpMethods.IsHead(http.Request.Method);
+                scope.UseRequest(permission, isRead);
+
+                // F005 §3: a channel-scoped command is checked against the channel of the token's client, after the permission.
+                if (!isRead && metadata.GetMetadata<ChannelScopedMetadata>() is not null && metadata.GetMetadata<StaticDataEndpointMetadata>() is null
+                    && metadata.GetMetadata<PlatformOperatorEndpointMetadata>() is null && scope.ActorType == ActorType.User && scope.TenantId is { } tenantId
+                    && http.RequestServices.GetService<IChannelPolicy>() is { } policy)
+                {
+                    var day = http.RequestServices.GetRequiredService<IBusinessDate>().Today;
+                    var decision = await policy.Decide(tenantId, scope.ClientId, permission, scope.RoleCodes, day, http.RequestAborted);
+                    if (decision.RefusalCode is { } code)
+                    {
+                        return Problems.For(code, decision.RefusalMessage ?? "The channel does not allow this transaction.", StatusCodes.Status403Forbidden);
+                    }
+
+                    if (decision.IsScoped)
+                    {
+                        var gate = new ChannelGate(decision, metadata.GetMetadata<ChannelApprovalFlowMetadata>() is not null);
+                        if (gate.RefusalForEveryProduct is { } refusal)
+                        {
+                            return Problems.For(refusal.Code, refusal.Message, StatusCodes.Status403Forbidden);
+                        }
+
+                        scope.UseChannel(gate);
+                    }
+                }
             }
 
             return await next(context);

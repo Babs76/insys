@@ -45,12 +45,18 @@ public static class TestTokens
     public static string For(Guid? tenantId, string subject) => For(tenantId, subject, DateTime.UtcNow);
 
     /// <summary>A token valid around <paramref name="now"/>, for a host whose clock is fixed (business date tests).</summary>
-    public static string For(Guid? tenantId, string subject, DateTime now)
+    /// <param name="clientId">The OAuth client the token was issued to (azp), which names the request's channel (F005).</param>
+    public static string For(Guid? tenantId, string subject, DateTime now, string? clientId = null)
     {
         var claims = new List<Claim> { new("sub", subject) };
         if (tenantId is not null)
         {
             claims.Add(new Claim("tenant_id", tenantId.Value.ToString()));
+        }
+
+        if (clientId is not null)
+        {
+            claims.Add(new Claim("azp", clientId));
         }
 
         return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor

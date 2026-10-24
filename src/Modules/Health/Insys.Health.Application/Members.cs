@@ -223,6 +223,7 @@ internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealth
             return membership.Error;
         }
 
+        membership.Value.RecordChannel(execution.ChannelCode);
         health.Add(membership.Value);
         audit.Record(new AuditEntry("HEALTH", "EnrolMember", nameof(HealthMembership), id.ToString()));
         return MembershipView.From(membership.Value);

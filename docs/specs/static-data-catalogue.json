@@ -45,6 +45,13 @@
      "sample": "QUOTE, PROPOSAL_SUBMIT"
     },
     {
+     "name": "client_ids",
+     "logicalType": "List<Code>",
+     "mandatory": false,
+     "sample": "insys-web, broker-portal",
+     "note": "Added by addenda/channel-permissions.md §1 (F005): the OAuth clients (token azp) whose requests are on this channel."
+    },
+    {
      "name": "branding_theme",
      "logicalType": "Ref BrandingTheme",
      "mandatory": false,

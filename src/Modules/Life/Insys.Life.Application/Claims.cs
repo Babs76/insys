@@ -103,7 +103,8 @@ internal static class LifeClaims
         || policy.BeneficiariesOn(claim.EventDate).Any(b => b.PartyId == partyId);
 }
 
-internal sealed class NotifyLifeClaimHandler(ILifeRepository life, ILifeCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<NotifyLifeClaim, LifeClaimView>
+internal sealed class NotifyLifeClaimHandler(ILifeRepository life, ILifeCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit, IExecutionContext execution)
+    : ICommandHandler<NotifyLifeClaim, LifeClaimView>
 {
     public async Task<Result<LifeClaimView>> Handle(NotifyLifeClaim command, CancellationToken cancellationToken)
     {
@@ -130,6 +131,7 @@ internal sealed class NotifyLifeClaimHandler(ILifeRepository life, ILifeCodes co
             return claim.Error;
         }
 
+        claim.Value.RecordChannel(execution.ChannelCode);
         life.Add(claim.Value);
         audit.Record(new AuditEntry("LIFE", "NotifyClaim", nameof(LifeClaim), claim.Value.Id.ToString()));
         return LifeClaimView.From(claim.Value);

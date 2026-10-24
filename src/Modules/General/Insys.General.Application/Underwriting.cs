@@ -282,6 +282,7 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
             }
 
             quote.Value.PlaceAt(node.Value);
+            quote.Value.RecordChannel(execution.ChannelCode);
         }
 
         general.Add(quote.Value);

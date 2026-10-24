@@ -65,6 +65,18 @@ public static class ErrorCodes
     [ErrorCode(403, "error.access.out_of_scope")]
     public const string OutOfScope = "OUT_OF_SCOPE";
 
+    /// <summary>F005: the request's client is on no channel in force in the tenant, or the channel does not enable the transaction.</summary>
+    [ErrorCode(403, "error.access.channel_not_enabled")]
+    public const string ChannelNotEnabled = "CHANNEL_NOT_ENABLED";
+
+    /// <summary>F005: the caller's roles may not make this transaction, for this product, on this channel.</summary>
+    [ErrorCode(403, "error.access.channel_not_allowed")]
+    public const string ChannelNotAllowed = "CHANNEL_NOT_ALLOWED";
+
+    /// <summary>F005: the channel requires approval for this transaction, which has no approval flow.</summary>
+    [ErrorCode(403, "error.access.channel_approval_required")]
+    public const string ChannelApprovalRequired = "CHANNEL_APPROVAL_REQUIRED";
+
     /// <summary>ADR-024: a business module's endpoint was called in the platform operator tenant.</summary>
     [ErrorCode(403, "error.access.operator_tenant_not_business")]
     public const string OperatorTenantNotBusiness = "OPERATOR_TENANT_NOT_BUSINESS";

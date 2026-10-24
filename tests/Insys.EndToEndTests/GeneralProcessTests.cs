@@ -248,12 +248,73 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await productClient.GetAsync("/api/v1/general/quotes?limit=200")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
     }
 
+    /// <summary>
+    /// F005 (addenda/channel-permissions.md): once a tenant has channels, a command comes through the channel of its
+    /// token's client, and the caller's roles need an allowed row for that channel, transaction and product. Reads are not
+    /// channel-scoped. The channel is recorded on the quote.
+    /// </summary>
+    [Fact]
+    public async Task ChannelPermissions_AllowOnlyTheTransactionsAndProductsTheChannelGivesTheRoles_F005()
+    {
+        // Risk objects are General commands too, so the vehicles are registered before the tenant has channels.
+        var vehicles = new Queue<Guid>();
+        for (var i = 0; i < 6; i++)
+        {
+            vehicles.Enqueue(await Vehicle());
+        }
+
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-BRK", ("channel_code", "BRK"), ("audience", "BROKER"), ("name", "Broker portal"),
+            ("client_ids", new[] { "broker-portal" }), ("enabled_products", new[] { Product }));
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-SVC", ("channel_code", "SVC"), ("audience", "CUSTOMER"), ("name", "Self service"),
+            ("client_ids", new[] { "self-service" }), ("enabled_transactions", new[] { GeneralPermissions.QuoteRead }));
+
+        async Task<HttpClient> User(string subject, string? product, bool requiresApproval, bool withRow = true)
+        {
+            var role = await _db.RoleWithPermissions(Tenant, Permissions);
+            await _db.AssignRole(Tenant, await _db.UserWithPermissions(Tenant, subject), role);
+            if (withRow)
+            {
+                await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", $"CP-{subject}", ("channel_code", "BRK"), ("role_code", role),
+                    ("transaction_type", GeneralPermissions.QuoteCreate), ("product_code", (object?)product ?? DBNull.Value), ("allowed", true),
+                    ("requires_approval", requiresApproval));
+            }
+
+            return _factory.ClientFor(Tenant, subject, "broker-portal");
+        }
+
+        async Task<HttpResponseMessage> Quote(HttpClient client) =>
+            await client.Send(HttpMethod.Post, "/api/v1/general/quotes", QuoteBody(vehicles.Dequeue(), null), idempotent: true);
+
+        var allowed = await User("ch-any-product", null, false);
+        var created = await Quote(allowed);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        var quote = (await created.Json()).GetProperty("id").GetGuid();
+        (await _db.ScalarAsOwner<string>("SELECT channel_code FROM general.quote WHERE id = @q", ("q", quote))).ShouldBe("BRK", "the channel is recorded (§3)");
+
+        foreach (var (client, code) in new[]
+                 {
+                     (await User("ch-other-product", "OTHER-PROD", false), "CHANNEL_NOT_ALLOWED"),
+                     (await User("ch-approval", null, true), "CHANNEL_APPROVAL_REQUIRED"),
+                     (await User("ch-no-row", null, false, withRow: false), "CHANNEL_NOT_ALLOWED"),
+                     (_factory.ClientFor(Tenant, "ch-any-product"), "CHANNEL_NOT_ENABLED"),
+                     (_factory.ClientFor(Tenant, "ch-any-product", "self-service"), "CHANNEL_NOT_ENABLED"),
+                 })
+        {
+            var refused = await Quote(client);
+            refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden, code);
+            (await refused.Code()).ShouldBe(code);
+        }
+
+        // Reads are not channel-scoped: the same user reads the quote with no client at all.
+        (await _factory.ClientFor(Tenant, "ch-any-product").GetAsync($"/api/v1/general/quotes/{quote}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
     private async Task<Guid> Vehicle() => await Created("/api/v1/general/risk-objects", new
     {
         objectType = "VEHICLE", attributes = new { registration = "CA" + Random.Shared.Next(100_000, 999_999), vehicle_group = "G3", year = Today.Year - 2 },
     });
 
-    private static object QuoteBody(Guid vehicle, string orgNodeCode) => new
+    private static object QuoteBody(Guid vehicle, string? orgNodeCode) => new
     {
         productCode = Product, proposerPartyId = Guid.CreateVersion7(), currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1), orgNodeCode,
         risks = new[] { new { riskObjectId = vehicle, sumInsured = 100_000m, coverages = new object[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 100_000m, excessScheduleCode = "MOT-EXC" } } } },

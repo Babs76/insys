@@ -78,11 +78,12 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
     }
 
     /// <summary>A client whose token carries only sub and tenant_id.</summary>
-    public HttpClient ClientFor(Guid? tenantId, string subject)
+    /// <param name="clientId">The OAuth client (azp) the token names, for a request on a channel (F005).</param>
+    public HttpClient ClientFor(Guid? tenantId, string subject, string? clientId = null)
     {
         var client = CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
-            time is null ? TestTokens.For(tenantId, subject) : TestTokens.For(tenantId, subject, time.GetUtcNow().UtcDateTime));
+            TestTokens.For(tenantId, subject, time?.GetUtcNow().UtcDateTime ?? DateTime.UtcNow, clientId));
         return client;
     }
 

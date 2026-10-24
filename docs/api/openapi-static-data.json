@@ -160908,6 +160908,15 @@
               "string"
             ]
           },
+          "clientIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -161128,6 +161137,15 @@
               "null",
               "string"
             ]
+          },
+          "clientIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           },
           "code": {
             "type": "string"
