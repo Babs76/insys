@@ -29,6 +29,7 @@ using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Application.Security;
+using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.Party.Domain.Parties;
 
@@ -82,5 +83,80 @@ internal sealed class RegisterPartyThroughPortalHandler(IPartyRepository parties
         audit.Record(new AuditEntry("PARTY", "RegisterPartyThroughPortal", nameof(Domain.Parties.Party), id.ToString(),
             new Dictionary<string, string?> { ["review"] = matched is null ? "no" : "yes" }));
         return new PortalRegistration(id, "Received");
+    }
+}
+
+/// <summary>
+/// Command ResolvePartyMatch (external-user access §6), by staff: link a matched portal registration to the party it
+/// matched, or confirm it as a new party. A second person approves the proposal in Workflow (PARTY_MATCH_RESOLUTION,
+/// SRS-002); only then is it applied. <paramref name="ExistingPartyId"/> is needed only for registrations made before
+/// the match was recorded.
+/// </summary>
+public sealed record ResolvePartyMatch(Guid PartyId, string Resolution, Guid? ExistingPartyId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+
+internal sealed class ResolvePartyMatchHandler(IPartyRepository parties, IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<ResolvePartyMatch, long>
+{
+    public async Task<Result<long>> Handle(ResolvePartyMatch command, CancellationToken cancellationToken)
+    {
+        var user = Parties.User(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (command.Resolution is not ("LINK" or "NEW"))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "The resolution is LINK or NEW.");
+        }
+
+        audit.Record(new AuditEntry("PARTY", "ResolvePartyMatch", nameof(Domain.Parties.Party), command.PartyId.ToString(),
+            new Dictionary<string, string?> { ["resolution"] = command.Resolution }));
+        return await Parties.Change(parties, command.PartyId, command.ExpectedVersion,
+            p => p.ProposeMatchResolution(command.Resolution == "LINK", command.ExistingPartyId, user.Value, clock.UtcNow), cancellationToken);
+    }
+}
+
+/// <summary>
+/// Workflow's decision on a party-match resolution. Approved: a link merges the registration into the existing party
+/// (PTY-004, with its merge history), and a new party is confirmed. Rejected: the registration goes back to review.
+/// Workflow has checked that the checker is not the maker.
+/// </summary>
+public sealed class PartyMatchResolutionPolicy(IPartyRepository parties, IClock clock, IAuditTrail audit) :
+    IIntegrationEventHandler<Workflow.Contracts.ApprovalGranted>,
+    IIntegrationEventHandler<Workflow.Contracts.ApprovalRejected>
+{
+    public Task Handle(Workflow.Contracts.ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Decide(granted.BusinessRefType, granted.BusinessRefId, true, granted.ApprovalId, granted.CheckerId, cancellationToken);
+
+    public Task Handle(Workflow.Contracts.ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Decide(rejected.BusinessRefType, rejected.BusinessRefId, false, rejected.ApprovalId, rejected.CheckerId, cancellationToken);
+
+    private async Task Decide(string businessRefType, Guid partyId, bool approved, Guid approvalId, Guid checkerId, CancellationToken cancellationToken)
+    {
+        if (businessRefType != Contracts.PartyApprovals.MatchBusinessRefType || await parties.Get(partyId, cancellationToken) is not { } registration)
+        {
+            return;
+        }
+
+        var decided = registration.DecideMatchResolution(approved, clock.UtcNow);
+        if (decided.IsFailure)
+        {
+            throw new InvalidOperationException($"Approval {approvalId} cannot be applied to party {partyId}: {decided.Error.Code}");
+        }
+
+        if (approved && registration.MatchResolution == "LINK")
+        {
+            var existing = await parties.Get(registration.MatchedPartyId!.Value, cancellationToken)
+                ?? throw new InvalidOperationException($"The party {registration.MatchedPartyId} that registration {partyId} matched no longer exists.");
+            var snapshot = System.Text.Json.JsonSerializer.Serialize(new { source = "PORTAL", registeredBy = registration.RegisteredBy, approval = approvalId });
+            var merged = registration.MergeInto(existing, checkerId, "Portal registration linked to the party it matched, after review", snapshot, clock.UtcNow);
+            if (merged.IsFailure)
+            {
+                throw new InvalidOperationException($"Registration {partyId} cannot be merged into {existing.Id}: {merged.Error.Code}");
+            }
+        }
+
+        audit.Record(new AuditEntry("PARTY", approved ? "ApprovePartyMatchResolution" : "RejectPartyMatchResolution", nameof(Domain.Parties.Party), partyId.ToString(),
+            new Dictionary<string, string?> { ["approval"] = approvalId.ToString(), ["resolution"] = registration.MatchResolution }));
     }
 }

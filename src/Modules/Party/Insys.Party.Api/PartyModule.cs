@@ -56,6 +56,9 @@ public sealed record RelationshipRequest(Guid ToPartyId, string RelationshipCode
 
 public sealed record PartyRoleRequest(string RoleCode, string Domain, string ContextType, Guid ContextId, DateOnly ValidFrom);
 
+/// <param name="Resolution">LINK or NEW.</param>
+public sealed record MatchResolutionRequest([property: BuildingBlocks.Domain.OneOf("LINK", "NEW")] string Resolution, Guid? ExistingPartyId);
+
 public sealed record DeathRequest(DateOnly DeceasedDate);
 
 public sealed record MergePartiesRequest(Guid SurvivorId, Guid MergedId, string Reason);
@@ -252,6 +255,18 @@ public sealed class PartyModule : IModule
             .RequireIfMatch()
             .WithName("PartyRecordDeath")
             .WithSummary("Record an individual's death")
+            .RequirePermission(PartyPermissions.PartyUpdate);
+
+        parties.MapPost("/{id:guid}/match-resolution", (Guid id, MatchResolutionRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, v => dispatcher.Send(new ResolvePartyMatch(id, r.Resolution, r.ExistingPartyId, v), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("PartyResolveMatch")
+            .WithSummary("Resolve a portal registration that matched an existing party: LINK it to that party, or confirm it as NEW")
+            .WithDescription("External-user access §6. The party must be waiting for review (reviewStatus PENDING_REVIEW). existingPartyId is needed only for a "
+                + "registration made before its match was recorded, and must be the matched party otherwise.")
+            .WithEventualEffects("the PARTY_MATCH_RESOLUTION approval appears in Workflow. Approved, a LINK merges the registration into the existing party "
+                + "(party.PartiesMerged) and NEW confirms it, and the review task is closed; rejected, the registration is back to PENDING_REVIEW.")
             .RequirePermission(PartyPermissions.PartyUpdate);
 
         parties.MapPost("/{id:guid}/anonymise", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

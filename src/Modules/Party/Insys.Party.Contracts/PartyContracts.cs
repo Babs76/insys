@@ -33,6 +33,11 @@ public static class PartyApprovals
 {
     public const string BankAccountBusinessRefType = "BANK_ACCOUNT";
     public const string BankAccountVerificationType = "BANK_ACCOUNT_VERIFICATION";
+
+    /// <summary>A matched portal registration's resolution (external-user access §6); the business reference is the registration's party.</summary>
+    public const string MatchBusinessRefType = "PARTY_MATCH";
+
+    public const string MatchResolutionType = "PARTY_MATCH_RESOLUTION";
 }
 
 public static class PartyPermissions
@@ -65,6 +70,13 @@ public static class PartyPermissions
 /// </summary>
 [IntegrationEvent("party.PartyMatchReviewRequested")]
 public sealed record PartyMatchReviewRequested(Guid PartyId, Guid MatchedPartyId) : IIntegrationEvent;
+
+/// <summary>
+/// A matched portal registration was resolved after a second person's approval (external-user access §6): LINK merged it
+/// into the existing party (party.PartiesMerged follows), NEW confirmed it. Workflow closes the review task.
+/// </summary>
+[IntegrationEvent("party.PartyMatchResolved")]
+public sealed record PartyMatchResolved(Guid PartyId, string Resolution, Guid? ExistingPartyId) : IIntegrationEvent;
 
 [IntegrationEvent("party.PartyRegistered")]
 public sealed record PartyRegistered(Guid PartyId, string Kind) : IIntegrationEvent;
@@ -130,6 +142,9 @@ public interface IPartyDirectory
 
     /// <summary>Who registered the party through a portal ("INTERMEDIARY:BRK-1"), if anyone (external-user access §3).</summary>
     Task<string?> RegisteredBy(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
+
+    /// <summary>The party a merged party was merged into (PTY-004), for example a portal registration linked after review (§6); null if it was not merged.</summary>
+    Task<Guid?> MergedInto(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
 }
 
 public interface IPersonFacts

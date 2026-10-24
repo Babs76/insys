@@ -59,6 +59,8 @@ public static class PartyInfrastructure
         services.AddSingleton<IPartyDirectory>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddSingleton<IPartyLanguage>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, BankAccountVerificationPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalGranted");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, PartyMatchResolutionPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalGranted");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, PartyMatchResolutionPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalRejected");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, BankAccountVerificationPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalRejected");
         return services;
     }

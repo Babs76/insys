@@ -39,6 +39,28 @@ public sealed class PartyTests
     private static Domain.Parties.Party Individual() => Domain.Parties.Party.RegisterIndividual(Guid.CreateVersion7(), Thandi, Now);
 
     [Fact]
+    public void MatchedPortalRegistration_IsResolvedOnlyOnApproval_AndARejectionReturnsItToReview_ExternalUserAccess()
+    {
+        var existing = Guid.CreateVersion7();
+        var registration = Individual();
+        registration.RegisteredThroughPortal("INTERMEDIARY:BRK-1", existing, Now);
+        registration.DecideMatchResolution(true, Now).IsFailure.ShouldBeTrue("nothing is proposed yet");
+        registration.ProposeMatchResolution(true, Guid.CreateVersion7(), Guid.CreateVersion7(), Now).IsFailure.ShouldBeTrue("a link is to the matched party");
+
+        registration.ProposeMatchResolution(false, null, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        (registration.ReviewStatus, registration.MatchResolution).ShouldBe(("PROPOSED", "NEW"));
+        registration.ProposeMatchResolution(true, null, Guid.CreateVersion7(), Now).IsFailure.ShouldBeTrue("one proposal at a time");
+        registration.DecideMatchResolution(false, Now).IsSuccess.ShouldBeTrue();
+        (registration.ReviewStatus, registration.MatchResolution).ShouldBe(("PENDING_REVIEW", (string?)null));
+
+        registration.ProposeMatchResolution(false, null, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        registration.DecideMatchResolution(true, Now).IsSuccess.ShouldBeTrue();
+        registration.ReviewStatus.ShouldBe("CONFIRMED_NEW");
+        registration.DomainEvents.OfType<PartyMatchResolved>().Single().ExistingPartyId.ShouldBeNull();
+        registration.Status.ShouldBe(PartyStatus.Active);
+    }
+
+    [Fact]
     public void Party_Lifecycle_MatchesDomainModel()
     {
         var specified = DomainModelSpec.Transitions("party", "Party")

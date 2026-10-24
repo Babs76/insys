@@ -79,6 +79,7 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             party.ToTable("party");
             party.Property(p => p.ReviewStatus).HasMaxLength(15);
             party.Property(p => p.RegisteredBy).HasMaxLength(40);
+            party.Property(p => p.MatchResolution).HasMaxLength(4);
             party.HasKey(p => new { p.TenantId, p.Id });
             party.HasAuditColumns();
             party.Ignore(p => p.DomainEvents);

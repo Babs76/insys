@@ -92,9 +92,12 @@ public sealed record GetPortalClaim(Guid ClaimId) : IQuery<PortalClaimView>;
 
 /// <summary>
 /// Before a broker's quote (§3): the proposer is a client the broker services or one it registered. Gives the broker's own
-/// intermediary code, which the quote is made under whatever the request says.
+/// intermediary code, which the quote is made under whatever the request says, and the proposer to quote for: a
+/// registration staff linked to an existing party after review (§6) is quoted for as that party.
 /// </summary>
-public sealed record PortalQuoteAllowed(Guid ProposerPartyId) : IQuery<string>;
+public sealed record PortalQuoteAllowed(Guid ProposerPartyId) : IQuery<PortalQuoter>;
+
+public sealed record PortalQuoter(string IntermediaryCode, Guid ProposerPartyId);
 
 /// <summary>Before a member's claim notification (§3): the policy is theirs.</summary>
 public sealed record PortalClaimAllowed(Guid PolicyId) : IQuery<bool>;
@@ -118,7 +121,7 @@ internal sealed class GeneralPortalHandlers(IGeneralRepository general, IGeneral
     IQueryHandler<ListPortalQuotes, IReadOnlyList<PortalQuoteView>>,
     IQueryHandler<GetPortalQuote, PortalQuoteView>,
     IQueryHandler<GetPortalClaim, PortalClaimView>,
-    IQueryHandler<PortalQuoteAllowed, string>,
+    IQueryHandler<PortalQuoteAllowed, PortalQuoter>,
     IQueryHandler<PortalClaimAllowed, bool>
 {
     private static readonly Error PolicyNotFound = Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
@@ -147,15 +150,21 @@ internal sealed class GeneralPortalHandlers(IGeneralRepository general, IGeneral
             ? PortalClaimView.From(claim)
             : Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
 
-    public async Task<Result<string>> Handle(PortalQuoteAllowed query, CancellationToken cancellationToken)
+    public async Task<Result<PortalQuoter>> Handle(PortalQuoteAllowed query, CancellationToken cancellationToken)
     {
         var broker = Related.Require(execution);
         var registeredBy = await parties.RegisteredBy(tenant.RequireTenantId(), query.ProposerPartyId, cancellationToken);
         var registered = registeredBy is not null && registeredBy.StartsWith($"{ExternalSubject.Intermediary}:", StringComparison.Ordinal)
             && broker.Brokers(registeredBy[(ExternalSubject.Intermediary.Length + 1)..]);
-        return broker.IntermediaryCode is { } code && (registered || await queries.Services(broker, query.ProposerPartyId, cancellationToken))
-            ? code
-            : Error.Forbidden(ErrorCodes.OutOfScope, "You can quote only for a client you service or one you registered.");
+        if (broker.IntermediaryCode is not { } code || !(registered || await queries.Services(broker, query.ProposerPartyId, cancellationToken)))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "You can quote only for a client you service or one you registered.");
+        }
+
+        var proposer = registered && await parties.MergedInto(tenant.RequireTenantId(), query.ProposerPartyId, cancellationToken) is { } existing
+            ? existing
+            : query.ProposerPartyId;
+        return new PortalQuoter(code, proposer);
     }
 
     public async Task<Result<bool>> Handle(PortalClaimAllowed query, CancellationToken cancellationToken) =>

@@ -60,6 +60,11 @@ public sealed record IndividualData(string? TitleCode, string FirstNames, string
 /// <summary>A portal registration matched an existing party: staff link the two or confirm a new one (external-user access §6).</summary>
 public sealed record PartyMatchReviewRequested(Guid PartyId, Guid MatchedPartyId, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>Staff proposed how to resolve a matched portal registration; a second person decides it in Workflow (SRS-002).</summary>
+public sealed record PartyMatchResolved(Guid PartyId, string Resolution, Guid? ExistingPartyId, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record PartyMatchResolutionProposed(Guid PartyId, string Resolution, Guid ExistingPartyId, Guid RequestedBy, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>The details of an organisation (party.organisation).</summary>
 public sealed record OrganisationData(string LegalName, string? TradingName, string LegalFormCode, string? RegistrationNumber, string? IndustryCode);
 
@@ -511,11 +516,70 @@ public sealed class Party : AggregateRoot<Guid>
         RegisteredBy = Guard.MaxLength(registeredBy, 40);
         if (matchedPartyId is { } matched)
         {
-            ReviewStatus = "PENDING_REVIEW";
+            ReviewStatus = PendingReview;
+            MatchedPartyId = matched;
             Raise(new PartyMatchReviewRequested(Id, matched, now));
         }
 
         MarkChanged();
+    }
+
+    public const string PendingReview = "PENDING_REVIEW";
+
+    /// <summary>The existing party a portal registration matched; null for registrations before V0046.</summary>
+    public Guid? MatchedPartyId { get; private set; }
+
+    /// <summary>LINK or NEW: the proposed, then approved, resolution of a matched portal registration.</summary>
+    public string? MatchResolution { get; private set; }
+
+    public Guid? ResolutionRequestedBy { get; private set; }
+
+    /// <summary>
+    /// Command ResolvePartyMatch (external-user access §6): staff propose to link this registration to the party it
+    /// matched, or to confirm it as a new party. Nothing changes until a second person approves the proposal.
+    /// </summary>
+    public Result ProposeMatchResolution(bool link, Guid? existingPartyId, Guid requestedBy, DateTimeOffset now)
+    {
+        if (ReviewStatus != PendingReview)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a portal registration waiting for review is resolved.");
+        }
+
+        var existing = MatchedPartyId ?? existingPartyId;
+        if (existing is not { } target || (MatchedPartyId is { } matched && existingPartyId is { } named && named != matched))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "A link is to the party the registration matched.");
+        }
+
+        (ReviewStatus, MatchResolution, ResolutionRequestedBy, MatchedPartyId) = ("PROPOSED", link ? "LINK" : "NEW", requestedBy, target);
+        Raise(new PartyMatchResolutionProposed(Id, MatchResolution, target, requestedBy, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Workflow's decision on the proposal. Approved: a link is applied by merging this registration into the existing
+    /// party (the caller does that, as it needs both parties), and a new party is simply confirmed. Rejected: back to review.
+    /// </summary>
+    public Result DecideMatchResolution(bool approved, DateTimeOffset now)
+    {
+        if (ReviewStatus != "PROPOSED")
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "No resolution is waiting for a decision.");
+        }
+
+        if (approved)
+        {
+            ReviewStatus = MatchResolution == "LINK" ? "LINKED" : "CONFIRMED_NEW";
+            Raise(new PartyMatchResolved(Id, MatchResolution!, MatchResolution == "LINK" ? MatchedPartyId : null, now));
+        }
+        else
+        {
+            (ReviewStatus, MatchResolution, ResolutionRequestedBy) = (PendingReview, null, null);
+        }
+
+        MarkChanged();
+        return Result.Success();
     }
 
     public Individual? Individual { get; private set; }

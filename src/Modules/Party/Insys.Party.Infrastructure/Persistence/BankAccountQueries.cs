@@ -65,6 +65,10 @@ internal sealed class BankAccountQueries([FromKeyedServices(PartyDbContext.Schem
         await Query(tenantId, "SELECT registered_by FROM party.party WHERE tenant_id = @t AND id = @id", partyId, r => r.IsDBNull(0) ? null : r.GetString(0),
             cancellationToken);
 
+    public async Task<Guid?> MergedInto(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
+        await Query(tenantId, "SELECT merged_into_id FROM party.party WHERE tenant_id = @t AND id = @id", partyId, r => r.IsDBNull(0) ? null : r.GetGuid(0).ToString(),
+            cancellationToken) is { } survivor ? Guid.Parse(survivor) : null;
+
     public async Task<string?> PreferredLanguage(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
         (await Query(tenantId, "SELECT preferred_language FROM party.individual WHERE tenant_id = @t AND party_id = @id", partyId,
             r => r.IsDBNull(0) ? null : r.GetString(0).Trim(), cancellationToken)) is { Length: > 0 } language ? language : null;

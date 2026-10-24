@@ -67,7 +67,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         PaymentPermissions.CallbackEndpointUpdate, ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate,
         ClaimsPermissions.InstructionRead, ClaimsPermissions.InstructionRelease, ClaimsPermissions.InstructionCreate, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate,
         WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove, IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate,
-        DocumentPermissions.DocumentRead, DocumentPermissions.DocumentCreate, Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.BankAccountCreate,
+        DocumentPermissions.DocumentRead, DocumentPermissions.DocumentCreate, Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.PartyUpdate,
+        Insys.Party.Contracts.PartyPermissions.PartyRead, Insys.Party.Contracts.PartyPermissions.BankAccountCreate,
         Insys.Party.Contracts.PartyPermissions.BankAccountRead, Insys.Party.Contracts.PartyPermissions.BankAccountVerify,
     ];
 
@@ -87,7 +88,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _db.AllowBankAccountVerification(Tenant, approverRole, Today.AddYears(-1));
         var from = Today.AddDays(-30);
 
-        foreach (var type in new[] { GeneralApprovals.EndorsementApprovalType, GeneralApprovals.SettlementApprovalType, PaymentApprovals.PayoutApprovalType, ClaimsApprovals.InstructionApprovalType })
+        foreach (var type in new[] { GeneralApprovals.EndorsementApprovalType, GeneralApprovals.SettlementApprovalType, PaymentApprovals.PayoutApprovalType, ClaimsApprovals.InstructionApprovalType,
+                     PartyApprovals.MatchResolutionType })
         {
             await Seed("workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}",
                 ("role_code", approverRole), ("transaction_type", type), ("limit_value", 1_000_000m), ("delegation_allowed", false));
@@ -531,6 +533,40 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // The broker may now quote for the client it registered.
         (await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", Quote(fresh.GetProperty("id").GetGuid()), idempotent: true)).StatusCode
             .ShouldBe(HttpStatusCode.Created);
+
+        async Task<JsonElement> Get(string url)
+        {
+            var response = await _maker.GetAsync(url);
+            response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+            return await response.Json();
+        }
+
+        // Staff resolve the match (§6): a LINK waits for a second person; approved, the registration is merged into the
+        // existing party and the review task closes; the broker's quote for its registration is then made for that party.
+        var registration = match.GetProperty("id").GetGuid();
+        var reviewed = await Get($"/api/v1/party/parties/{registration}");
+        (reviewed.GetProperty("review").GetProperty("status").GetString(), reviewed.GetProperty("review").GetProperty("matchedPartyId").GetGuid())
+            .ShouldBe(("PENDING_REVIEW", known));
+        var etag = $"\"{reviewed.GetProperty("rowVersion").GetInt64()}\"";
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/party/parties/{registration}/match-resolution", new { resolution = "LINK", existingPartyId = fresh.GetProperty("id").GetGuid() },
+            ifMatch: etag)).Code()).ShouldBe("VALIDATION_FAILED", "a link is to the party it matched");
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/party/parties/{registration}/match-resolution", new { resolution = "LINK" }, ifMatch: etag)).StatusCode
+            .ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+        (await Get($"/api/v1/party/parties/{registration}")).GetProperty("review").GetProperty("status").GetString().ShouldBe("PROPOSED");
+        var approval = (await Get($"/api/v1/workflow/approvals?status=Requested&businessRefType={PartyApprovals.MatchBusinessRefType}&businessRefId={registration}"))
+            .GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        (await _checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+        var linked = await Get($"/api/v1/party/parties/{registration}");
+        (linked.GetProperty("status").GetString(), linked.GetProperty("mergedIntoId").GetGuid(), linked.GetProperty("review").GetProperty("status").GetString())
+            .ShouldBe(("Merged", known, "LINKED"));
+        (await _db.ScalarAsOwner<string>("SELECT state FROM workflow.process_instance WHERE process_code = 'PARTY_MATCH_REVIEW' AND business_ref_id = @p AND ended_at IS NOT NULL",
+            ("p", registration))).ShouldBe("COMPLETED:REVIEWED");
+        var forKnown = await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", Quote(registration), idempotent: true);
+        forKnown.StatusCode.ShouldBe(HttpStatusCode.Created, await forKnown.Content.ReadAsStringAsync());
+        (await forKnown.Json()).GetProperty("proposerPartyId").GetGuid().ShouldBe(known);
     }
 
     private async Task<Guid> Vehicle() => await Created("/api/v1/general/risk-objects", new

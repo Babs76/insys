@@ -343,7 +343,8 @@ public sealed class GeneralModule : IModule
                         return allowed.ToHttp(_ => Results.Ok());
                     }
 
-                    var created = await d.Send(new CreateQuote(r.ProductCode, null, r.ProposerPartyId, allowed.Value, r.Currency, r.PeriodStart, r.PeriodEnd, r.Risks, null), ct);
+                    var created = await d.Send(new CreateQuote(r.ProductCode, null, allowed.Value.ProposerPartyId, allowed.Value.IntermediaryCode, r.Currency, r.PeriodStart,
+                        r.PeriodEnd, r.Risks, null), ct);
                     return created.IsFailure
                         ? created.ToHttp(_ => Results.Ok())
                         : (await d.Query(new GetPortalQuote(created.Value.Id), ct)).ToHttp(v => Results.Created($"/api/v1/portal/general/quotes/{v.Id}", v));

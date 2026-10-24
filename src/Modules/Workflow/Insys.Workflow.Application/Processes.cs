@@ -504,3 +504,33 @@ public sealed class OpenPartyMatchReviewTask(IProcessRepository processes, IProc
             }));
     }
 }
+
+/// <summary>
+/// Closes a party-match review task once its resolution is approved (external-user access §6): the task moves to
+/// REVIEWED and the process completes. A task staff already completed is left as it is.
+/// </summary>
+public sealed class ClosePartyMatchReviewTask(IProcessRepository processes, IProcessQueries queries, IClock clock, IAuditTrail audit)
+    : IIntegrationEventHandler<Party.Contracts.PartyMatchResolved>
+{
+    public async Task Handle(Party.Contracts.PartyMatchResolved resolved, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        foreach (var running in (await queries.List(OpenPartyMatchReviewTask.BusinessRefType, resolved.PartyId, null, 20, cancellationToken))
+                 .Where(p => p.ProcessCode == BuiltInProcesses.PartyMatchReview.ProcessCode && p.Status == ProcessStatus.Running))
+        {
+            if (await processes.Get(running.Id, cancellationToken) is not { OpenTask: { } task } process)
+            {
+                continue;
+            }
+
+            var completed = process.CompleteTask(task.Id, "REVIEWED", BuiltInProcesses.PartyMatchReview, new Dictionary<string, object?>(),
+                _ => new TaskRouting(OpenPartyMatchReviewTask.Queue, null, clock.UtcNow), clock.UtcNow);
+            if (completed.IsFailure)
+            {
+                throw new InvalidOperationException($"The review of party {resolved.PartyId} cannot be closed: {completed.Error.Code}");
+            }
+
+            audit.Record(new AuditEntry("WORKFLOW", "CompleteTask", nameof(ProcessInstance), process.Id.ToString(),
+                new Dictionary<string, string?> { ["resolution"] = resolved.Resolution }));
+        }
+    }
+}

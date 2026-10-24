@@ -85,9 +85,13 @@ public sealed record RoleView(Guid Id, string RoleCode, string Domain, string Co
 
 public sealed record RelationshipView(Guid Id, Guid ToPartyId, string RelationshipCode, DateOnly ValidFrom, DateOnly? ValidTo);
 
+/// <summary>A portal registration's review (external-user access §6): its status, who registered it, the party it matched and the resolution.</summary>
+public sealed record PartyReviewView([property: OneOf("PENDING_REVIEW", "PROPOSED", "LINKED", "CONFIRMED_NEW")] string Status, string? RegisteredBy, Guid? MatchedPartyId,
+    [property: OneOf("LINK", "NEW")] string? Resolution);
+
 public sealed record PartyView(Guid Id, string Kind, string DisplayName, PartyStatus Status, Guid? MergedIntoId, IndividualData? Individual, OrganisationData? Organisation,
     DateOnly? DeceasedDate, IReadOnlyList<AddressView> Addresses, IReadOnlyList<ContactPointView> ContactPoints, IReadOnlyList<IdentifierView> Identifiers,
-    IReadOnlyList<RoleView> Roles, IReadOnlyList<RelationshipView> Relationships, long RowVersion)
+    IReadOnlyList<RoleView> Roles, IReadOnlyList<RelationshipView> Relationships, long RowVersion, PartyReviewView? Review = null)
 {
     public static PartyView From(Domain.Parties.Party p) => new(p.Id, p.Kind.ToString(), p.DisplayName, p.Status, p.MergedIntoId,
         p.Individual is { } i ? new IndividualData(i.TitleCode, i.FirstNames, i.Surname, i.BirthDate, i.GenderCode, i.MaritalStatusCode, i.Nationality, i.PreferredLanguage) : null,
@@ -98,7 +102,8 @@ public sealed record PartyView(Guid Id, string Kind, string DisplayName, PartySt
         p.Identifiers.Select(i => new IdentifierView(i.Id, i.DocType, i.Country, i.VerifiedAt is not null, i.VerifiedAt)).ToList(),
         p.Roles.Select(r => new RoleView(r.Id, r.RoleCode, r.Domain, r.ContextType, r.ContextId, r.ValidFrom, r.ValidTo)).ToList(),
         p.Relationships.Select(r => new RelationshipView(r.Id, r.ToPartyId, r.RelationshipCode, r.ValidFrom, r.ValidTo)).ToList(),
-        p.RowVersion);
+        p.RowVersion,
+        p.ReviewStatus is null ? null : new PartyReviewView(p.ReviewStatus, p.RegisteredBy, p.MatchedPartyId, p.MatchResolution));
 }
 
 public sealed record ConsentView(string PurposeCode, bool Granted, DateTimeOffset CapturedAt, string CaptureChannel, string? EvidenceRef, DateTimeOffset? WithdrawnAt);
