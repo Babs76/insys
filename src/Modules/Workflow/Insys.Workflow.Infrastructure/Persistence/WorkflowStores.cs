@@ -348,7 +348,7 @@ internal sealed class WorkflowConfiguration(WorkflowDbContext db, IOptions<Workf
 /// Business time in the current tenant (ADR-022 decision 6): the named calendar when in force, else Monday to Friday,
 /// 08:00 to 17:00, in the tenant's time zone.
 /// </summary>
-internal sealed class BusinessTime(WorkflowConfiguration configuration, ITenantTimeZone timeZones, ITenantContext tenant, BuildingBlocks.Application.Context.IClock clock) : IBusinessTime
+internal sealed class BusinessTime(WorkflowConfiguration configuration, ITenantTimeZone timeZones, ITenantContext tenant, BuildingBlocks.Application.Context.IBusinessDate businessDate) : IBusinessTime
 {
     public const string DefaultTimeZone = "Africa/Johannesburg";
 
@@ -362,12 +362,12 @@ internal sealed class BusinessTime(WorkflowConfiguration configuration, ITenantT
         BusinessCalendar? calendar = null;
         if (!string.IsNullOrWhiteSpace(calendarCode))
         {
-            calendar = (await configuration.Calendars([calendarCode], clock.UtcToday, cancellationToken)).GetValueOrDefault(calendarCode);
+            calendar = (await configuration.Calendars([calendarCode], businessDate.Today, cancellationToken)).GetValueOrDefault(calendarCode);
         }
 
         if (calendar is null)
         {
-            var zone = await timeZones.TimeZone(tenantId, clock.UtcToday, cancellationToken);
+            var zone = await timeZones.TimeZone(tenantId, businessDate.Today, cancellationToken);
             var inZone = Default(string.IsNullOrWhiteSpace(zone) ? DefaultTimeZone : zone);
             calendar = inZone.IsSuccess ? inZone.Value : Default(DefaultTimeZone).Value;
         }

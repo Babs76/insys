@@ -60,10 +60,12 @@ public sealed class OperatorTenantTests(DatabaseFixture fixture) : IClassFixture
             .ToList();
         endpoints.ShouldNotBeEmpty();
 
-        // The Static data module's own routes (and its shared approval routes) are platform routes under /static-data and /{module}/static.
+        // The Static data module's own routes (and its shared approval routes) are platform routes under /static-data and /{module}/static;
+        // the test-only daily job runner (ADR-025) acts in the caller's own tenant.
         static bool IsPlatform((string Route, List<string> Tags, bool Refused) e) =>
             e.Tags.Any(t => PlatformModules.Any(m => t == m || t == $"{m} static data"))
-            || e.Route.Contains("/static-data/", StringComparison.Ordinal) || e.Route.Contains("/{module}/static/", StringComparison.Ordinal);
+            || e.Route.Contains("/static-data/", StringComparison.Ordinal) || e.Route.Contains("/{module}/static/", StringComparison.Ordinal)
+            || e.Route.Contains("/testing/", StringComparison.Ordinal);
         endpoints.Where(e => !e.Refused && !IsPlatform(e)).Select(e => e.Route).ShouldBeEmpty("business module endpoints that do not refuse the operator tenant");
         endpoints.Where(e => e.Refused && IsPlatform(e)).Select(e => e.Route).ShouldBeEmpty("platform module endpoints that refuse the operator tenant");
     }

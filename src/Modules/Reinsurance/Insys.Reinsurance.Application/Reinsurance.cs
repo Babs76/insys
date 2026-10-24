@@ -158,7 +158,7 @@ internal sealed class ReinsuranceQueries(IReinsuranceRepository repository) :
         await repository.Bordereau(query.BordereauId, cancellationToken) is { } b ? BordereauView.From(b) : Error.NotFound(ErrorCodes.NotFound, "The bordereau was not found.");
 }
 
-internal sealed class RecoveryHandlers(IReinsuranceRepository repository, IReinsuranceCodes codes, IReinsurerAdapter reinsurers, ITenantContext tenant, IClock clock,
+internal sealed class RecoveryHandlers(IReinsuranceRepository repository, IReinsuranceCodes codes, IReinsurerAdapter reinsurers, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
     IAuditTrail audit) :
     ICommandHandler<BillRecovery, RecoveryView>,
     ICommandHandler<SettleRecovery, RecoveryView>
@@ -171,7 +171,7 @@ internal sealed class RecoveryHandlers(IReinsuranceRepository repository, IReins
         }
 
         audit.Record(new AuditEntry("REINSURANCE", "BillRecovery", nameof(ReinsuranceRecovery), recovery.Id.ToString()));
-        var billed = await Recoveries.Bill(recovery, codes, reinsurers, tenant, clock, cancellationToken);
+        var billed = await Recoveries.Bill(recovery, codes, reinsurers, tenant, clock, businessDate, cancellationToken);
         return billed.IsFailure ? billed.Error : RecoveryView.From(recovery);
     }
 
@@ -189,7 +189,7 @@ internal sealed class RecoveryHandlers(IReinsuranceRepository repository, IReins
     }
 }
 
-internal sealed class BordereauHandlers(IReinsuranceRepository repository, IReinsuranceCodes codes, IReinsurerAdapter reinsurers, ITenantContext tenant, IClock clock,
+internal sealed class BordereauHandlers(IReinsuranceRepository repository, IReinsuranceCodes codes, IReinsurerAdapter reinsurers, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
     IAuditTrail audit) :
     ICommandHandler<PrepareBordereau, BordereauView>,
     ICommandHandler<SendBordereau, BordereauView>,
@@ -197,7 +197,7 @@ internal sealed class BordereauHandlers(IReinsuranceRepository repository, IRein
 {
     public async Task<Result<BordereauView>> Handle(PrepareBordereau command, CancellationToken cancellationToken)
     {
-        if (await codes.Layout(command.LayoutCode, clock.UtcToday, cancellationToken) is not { } layout)
+        if (await codes.Layout(command.LayoutCode, businessDate.Today, cancellationToken) is not { } layout)
         {
             return Error.Validation(ErrorCodes.ValidationFailed, $"{command.LayoutCode} is not a bordereaux layout in force.");
         }
@@ -228,7 +228,7 @@ internal sealed class BordereauHandlers(IReinsuranceRepository repository, IRein
     public Task<Result<BordereauView>> Handle(SendBordereau command, CancellationToken cancellationToken) =>
         Apply(command.BordereauId, "SendBordereau", async bordereau =>
         {
-            var treaty = await codes.Treaty(bordereau.TreatyCode, clock.UtcToday, cancellationToken);
+            var treaty = await codes.Treaty(bordereau.TreatyCode, businessDate.Today, cancellationToken);
             var sent = await reinsurers.SendBordereau(tenant.RequireTenantId(), treaty?.LeadReinsurer ?? bordereau.TreatyCode, bordereau.TreatyCode, bordereau.PeriodCode,
                 bordereau.Content, cancellationToken);
             return sent.Accepted
@@ -256,18 +256,18 @@ internal static class Recoveries
 {
     /// <summary>BillRecovery through the reinsurer adapter (the treaty's lead reinsurer); only an accepted bill is billed.</summary>
     public static async Task<Result> Bill(ReinsuranceRecovery recovery, IReinsuranceCodes codes, IReinsurerAdapter reinsurers, ITenantContext tenant, IClock clock,
-        CancellationToken cancellationToken)
+        IBusinessDate businessDate, CancellationToken cancellationToken)
     {
         if (recovery.Status != RecoveryStatus.Identified)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"The recovery on {recovery.ClaimNumber} is {recovery.Status}.");
         }
 
-        var treaty = await codes.Treaty(recovery.TreatyCode, clock.UtcToday, cancellationToken);
+        var treaty = await codes.Treaty(recovery.TreatyCode, businessDate.Today, cancellationToken);
         var billed = await reinsurers.BillRecovery(tenant.RequireTenantId(), treaty?.LeadReinsurer ?? recovery.TreatyCode, recovery.TreatyCode, recovery.ClaimNumber,
             recovery.Recoverable, recovery.Currency, cancellationToken);
         return billed.Accepted
-            ? recovery.BillRecovery(clock.UtcToday, clock.UtcNow)
+            ? recovery.BillRecovery(businessDate.Today, clock.UtcNow)
             : Error.Conflict(ErrorCodes.InvalidStateTransition, $"The reinsurer did not accept the recovery bill: {billed.Error}");
     }
 }
@@ -281,7 +281,7 @@ internal static class Recoveries
 /// TODO(spec): Health claims are not ceded until a treaty names Health products; MedicalClaimSettled is not consumed (OQ-063).
 /// </summary>
 public sealed class ReinsurancePolicies(IReinsuranceRepository repository, IReinsuranceCodes codes, IReinsurerAdapter reinsurers, IPolicyArrears billing,
-    IEnumerable<IPolicyDistribution> policies, ITenantContext tenant, IClock clock, ILogger<ReinsurancePolicies> logger) :
+    IEnumerable<IPolicyDistribution> policies, ITenantContext tenant, IBusinessDate businessDate, IClock clock, ILogger<ReinsurancePolicies> logger) :
     IIntegrationEventHandler<GeneralPolicyIssued>,
     IIntegrationEventHandler<GeneralPolicyEndorsed>,
     IIntegrationEventHandler<LifePolicyIssued>,
@@ -309,23 +309,25 @@ public sealed class ReinsurancePolicies(IReinsuranceRepository repository, IRein
             Result<Cession> recalculated;
             if (current.ArrangementCode is { } arrangementCode)
             {
+                // A missing arrangement or rule is configuration: parked until it is published (ADR-022), never dead-lettered.
                 recalculated = await codes.Facultative(endorsed.PolicyNumber, endorsed.EffectiveDate, cancellationToken) is { } arrangement
                                && arrangement.ArrangementCode == arrangementCode
                     ? Cession.CalculateFacultative(Guid.CreateVersion7(), risk, arrangement, current, clock.UtcNow)
-                    : Error.NotFound(ErrorCodes.NotFound, $"Facultative arrangement {arrangementCode} is not in force on {endorsed.EffectiveDate:yyyy-MM-dd}.");
+                    : throw new PrerequisiteMissingException(PrerequisiteCodes.FacultativeArrangementNotInForce, arrangementCode);
             }
             else
             {
                 var arrangement = (await codes.ArrangementsFor(endorsed.ProductCode, endorsed.EffectiveDate, cancellationToken))
                     .FirstOrDefault(a => a.Treaty.TreatyCode == current.TreatyCode);
                 recalculated = arrangement.Rule is null
-                    ? Error.NotFound(ErrorCodes.NotFound, $"No cession rule for {endorsed.ProductCode} under {current.TreatyCode} is in force on {endorsed.EffectiveDate:yyyy-MM-dd}.")
+                    ? throw new PrerequisiteMissingException(PrerequisiteCodes.CessionRuleNotInForce, $"{endorsed.ProductCode}:{current.TreatyCode}")
                     : Cession.CalculateCession(Guid.CreateVersion7(), risk, arrangement.Treaty, arrangement.Rule, current, clock.UtcNow);
             }
 
             if (recalculated.IsFailure)
             {
-                throw new InvalidOperationException($"Cession {current.Id} of {endorsed.PolicyNumber} was not recalculated: {recalculated.Error.Message}");
+                // As on issue: a treaty that cannot be applied is configuration, parked until it is fixed (ADR-022).
+                throw new PrerequisiteMissingException(PrerequisiteCodes.TreatyNotApplicable, recalculated.Error.Code);
             }
 
             repository.Add(recalculated.Value);
@@ -414,7 +416,7 @@ public sealed class ReinsurancePolicies(IReinsuranceRepository repository, IRein
         foreach (var recovery in found)
         {
             repository.Add(recovery);
-            var billed = await Recoveries.Bill(recovery, codes, reinsurers, tenant, clock, cancellationToken);
+            var billed = await Recoveries.Bill(recovery, codes, reinsurers, tenant, clock, businessDate, cancellationToken);
             if (billed.IsFailure)
             {
                 logger.LogWarning("Recovery on {ClaimNumber} under {TreatyCode} identified but not billed: {Code}", recovery.ClaimNumber, recovery.TreatyCode, billed.Error.Code);

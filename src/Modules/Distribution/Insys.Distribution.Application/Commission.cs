@@ -156,7 +156,7 @@ internal static class Users
 /// The statement and the entitlements it takes change in one transaction, so no entitlement is on two statements.
 /// </summary>
 internal sealed class PrepareStatementHandler(IDistributionRepository repository, IDistributionCodes codes, IBankAccounts bankAccounts, ITenantContext tenant,
-    IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<PrepareStatement, StatementView>
+    IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<PrepareStatement, StatementView>
 {
     public async Task<Result<StatementView>> Handle(PrepareStatement command, CancellationToken cancellationToken)
     {
@@ -166,7 +166,7 @@ internal sealed class PrepareStatementHandler(IDistributionRepository repository
             return user.Error;
         }
 
-        if (await codes.Intermediary(command.IntermediaryCode, clock.UtcToday, cancellationToken) is not { PartyId: { } partyId }
+        if (await codes.Intermediary(command.IntermediaryCode, businessDate.Today, cancellationToken) is not { PartyId: { } partyId }
             || await bankAccounts.Current(tenant.RequireTenantId(), partyId, command.Currency, cancellationToken) is not { IsPayable: true } account)
         {
             return Error.Validation(DistributionErrorCodes.IntermediaryNotPayable,
@@ -199,7 +199,7 @@ internal sealed class PrepareStatementHandler(IDistributionRepository repository
     }
 }
 
-internal sealed class ClawBackCommissionHandler(IDistributionRepository repository, IClock clock, IAuditTrail audit) : ICommandHandler<ClawBackCommission, EntitlementView>
+internal sealed class ClawBackCommissionHandler(IDistributionRepository repository, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<ClawBackCommission, EntitlementView>
 {
     public async Task<Result<EntitlementView>> Handle(ClawBackCommission command, CancellationToken cancellationToken)
     {
@@ -210,12 +210,12 @@ internal sealed class ClawBackCommissionHandler(IDistributionRepository reposito
 
         audit.Record(new AuditEntry("COMMISSION", "ClawBack", nameof(CommissionEntitlement), entitlement.Id.ToString(),
             new Dictionary<string, string?> { ["reason"] = command.Reason }));
-        var result = entitlement.ClawBack(command.Reason, clock.UtcToday, clock.UtcNow);
+        var result = entitlement.ClawBack(command.Reason, businessDate.Today, clock.UtcNow);
         return result.IsFailure ? result.Error : EntitlementView.From(entitlement);
     }
 }
 
-internal sealed class DistributionQueries(IDistributionRepository repository, IIntermediaries intermediaries, ITenantContext tenant, IClock clock) :
+internal sealed class DistributionQueries(IDistributionRepository repository, IIntermediaries intermediaries, ITenantContext tenant, IBusinessDate businessDate) :
     IQueryHandler<GetEntitlement, EntitlementView>,
     IQueryHandler<ListEntitlements, IReadOnlyList<EntitlementView>>,
     IQueryHandler<GetStatement, StatementView>,
@@ -233,7 +233,7 @@ internal sealed class DistributionQueries(IDistributionRepository repository, II
 
     public async Task<Result<IntermediaryCheckView>> Handle(CheckIntermediary query, CancellationToken cancellationToken)
     {
-        var refusal = await intermediaries.CanSell(tenant.RequireTenantId(), query.IntermediaryCode, query.ProductCode, IntermediaryTransactions.NewBusiness, clock.UtcToday,
+        var refusal = await intermediaries.CanSell(tenant.RequireTenantId(), query.IntermediaryCode, query.ProductCode, IntermediaryTransactions.NewBusiness, businessDate.Today,
             cancellationToken);
         return new IntermediaryCheckView(query.IntermediaryCode, query.ProductCode, refusal is null, refusal?.Code, refusal?.Message);
     }
@@ -247,7 +247,7 @@ internal sealed class DistributionQueries(IDistributionRepository repository, II
 /// success pays it.
 /// </summary>
 public sealed class CommissionPolicies(IDistributionRepository repository, IDistributionCodes codes, IEnumerable<IPolicyDistribution> policies, ITenantContext tenant,
-    IClock clock, ILogger<CommissionPolicies> logger) :
+    IBusinessDate businessDate, IClock clock, ILogger<CommissionPolicies> logger) :
     IIntegrationEventHandler<InvoiceIssued>,
     IIntegrationEventHandler<InvoiceSettled>,
     IIntegrationEventHandler<GeneralPolicyCancelled>,
@@ -341,7 +341,7 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
                 continue;
             }
 
-            entitlement.ClawBack(reason, clock.UtcToday, clock.UtcNow);
+            entitlement.ClawBack(reason, businessDate.Today, clock.UtcNow);
         }
     }
 

@@ -201,6 +201,47 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
     public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
 
+    /// <summary>
+    /// GAP-044, ADR-025: at 23:30 UTC it is 01:30 the next day in Johannesburg, and business dates follow the tenant's time
+    /// zone. A policy whose cover starts on that (local) day is in force when issued, its first debit order falls due and
+    /// is invoiced, and a claim for an event on the first day of cover is accepted. On UTC dates all three would wait a day.
+    /// </summary>
+    [Fact]
+    public async Task AtOneThirtyInJohannesburg_CoverStartingThatDayIsInForce_ItsDebitOrderIsDue_AndAFirstDayClaimIsAccepted_GAP044()
+    {
+        var utcDay = DateOnly.FromDateTime(DateTime.UtcNow);
+        var localDay = utcDay.AddDays(1);
+        await using var boundary = new InsysApiFactory(_db, new Dictionary<string, string?> { ["Identity:PermissionCache:AllowMultipleInstances"] = "true" },
+            time: new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(utcDay.ToDateTime(new TimeOnly(23, 30)), TimeSpan.Zero)));
+        var (factory, maker, checker) = (_factory, _maker, _checker);
+        (_factory, _maker, _checker) = (boundary, boundary.ClientFor(Tenant, "underwriter"), boundary.ClientFor(Tenant, "senior-underwriter"));
+        try
+        {
+            var (policy, vehicle) = await IssuedPolicy(start: localDay);
+            await _factory.DrainOutbox();
+
+            // In force on issue: its start date is today in the tenant's time zone.
+            (await Policy(policy)).GetProperty("status").GetString().ShouldBe("InForce");
+
+            // The first monthly debit order falls due on the start date, today locally, and is invoiced now.
+            (await _db.ScalarAsOwner<DateOnly>("SELECT min(due_date) FROM billing.invoice WHERE policy_ref = @p AND document_type = 'INVOICE'", ("p", policy)))
+                .ShouldBe(localDay);
+
+            // A claim for an event on the first day of cover is not "in the future".
+            var claim = await Created("/api/v1/general/claims", new
+            {
+                policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = localDay, causeCode = "COLLISION", perilCode = "ACC",
+                description = "Reversed into a pole on the first morning",
+            });
+            var registered = await _maker.PostAsync($"/api/v1/general/claims/{claim}/register", null);
+            registered.StatusCode.ShouldBe(HttpStatusCode.OK, await registered.Content.ReadAsStringAsync());
+        }
+        finally
+        {
+            (_factory, _maker, _checker) = (factory, maker, checker);
+        }
+    }
+
     [Fact]
     public async Task GeneralQuoteToCash_WithItsCompensations()
     {
@@ -526,8 +567,9 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>A vehicle, a quote rated through Rating, issued and accepted (GeneralQuoteAccepted), a proposal, and the policy issued from it.</summary>
-    private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product)
+    private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null)
     {
+        var periodStart = start ?? Today;
         var vehicle = await Created("/api/v1/general/risk-objects", new
         {
             objectType = "VEHICLE", attributes = new { registration = "CA123456", vehicle_group = "G3", year = Today.Year - 2 }, valuation = 180_000m, valuationBasis = (string?)null,
@@ -538,7 +580,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         });
         var quote = await Created("/api/v1/general/quotes", new
         {
-            productCode = product, proposerPartyId = Guid.CreateVersion7(), currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1),
+            productCode = product, proposerPartyId = Guid.CreateVersion7(), currency = "ZAR", periodStart, periodEnd = periodStart.AddYears(1).AddDays(-1),
             risks = new[]
             {
                 new

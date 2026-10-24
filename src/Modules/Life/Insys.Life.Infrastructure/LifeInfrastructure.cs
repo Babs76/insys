@@ -55,6 +55,7 @@ public static class LifeInfrastructure
         services.AddDomainEventMapper<LifeEventMapper>(schema);
         services.AddScoped<ILifeRepository, LifeRepository>();
         services.AddScoped<ILifeCodes, LifeCodes>();
+        services.AddScoped<ILifeLists, LifeLists>();
         services.AddSingleton<Distribution.Contracts.IPolicyDistribution, LifePolicyDistribution>();
         services.AddSingleton<Workflow.Contracts.IApprovalAuthoritySource, ClaimsAuthority>();
         services.AddIntegrationEventHandler<PremiumCalculated, LifeEventPolicies, LifeDbContext>(schema, "PremiumCalculated");
@@ -93,16 +94,17 @@ public sealed class LifeJobOptions
 /// inception; policies past grace with enough missed payments lapse (LIF-005); lapsed policies past their
 /// reinstatement window terminate; group schemes start.
 /// </summary>
-public sealed class LifeJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, IClock clock, ILogger<LifeJobs> logger)
+public sealed class LifeJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, ILogger<LifeJobs> logger)
 {
     public const string ServiceName = "life-jobs";
 
     public async Task<int> Run(CancellationToken cancellationToken)
     {
         var done = 0;
-        var day = clock.UtcToday;
         foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
         {
+            // The tenant's business date (GAP-044, ADR-025).
+            var day = businessDates.TodayFor(tenantId);
             LifeDueWork work;
             await using (var scope = Scope(tenantId))
             {

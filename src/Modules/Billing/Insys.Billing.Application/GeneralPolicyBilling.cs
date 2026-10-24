@@ -37,7 +37,7 @@ namespace Insys.Billing.Application;
 /// GeneralPolicyEndorsed and GeneralPolicyCancelled). Obligations come only from these authorised transactions (BIL-001).
 /// A failure is retried and then dead-lettered; it is never silently dropped.
 /// </summary>
-public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCodes codes, IClock clock) :
+public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<GeneralPolicyIssued>,
     IIntegrationEventHandler<GeneralPolicyEndorsed>,
     IIntegrationEventHandler<GeneralPolicyCancelled>
@@ -58,7 +58,7 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
         var account = await billing.Account(issued.BillingAccountRef, cancellationToken);
         if (account is null)
         {
-            if (!await codes.CollectionMethodExists(issued.CollectionMethod, clock.UtcToday, cancellationToken))
+            if (!await codes.CollectionMethodExists(issued.CollectionMethod, businessDate.Today, cancellationToken))
             {
                 throw new PrerequisiteMissingException(PrerequisiteCodes.CollectionMethodNotInForce, issued.CollectionMethod);
             }
@@ -80,7 +80,7 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
             throw new InvalidOperationException($"Policy {issued.PolicyNumber} cannot be scheduled: {schedule.Error.Message}");
         }
 
-        var invoices = await DueInvoices.Issue(account, clock.UtcToday, billing, codes, clock, cancellationToken);
+        var invoices = await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken);
         if (invoices.IsFailure)
         {
             throw new InvalidOperationException($"Policy {issued.PolicyNumber} cannot be invoiced: {invoices.Error.Message}");
@@ -123,10 +123,10 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
             return;
         }
 
-        var reason = await codes.AdjustmentReason(cancelled.ReasonCode, clock.UtcToday, cancellationToken)
-            ?? await codes.AdjustmentReason("CANCELLATION", clock.UtcToday, cancellationToken)
+        var reason = await codes.AdjustmentReason(cancelled.ReasonCode, businessDate.Today, cancellationToken)
+            ?? await codes.AdjustmentReason("CANCELLATION", businessDate.Today, cancellationToken)
             ?? throw new PrerequisiteMissingException(PrerequisiteCodes.AdjustmentReasonNotInForce, "CANCELLATION");
-        var prefix = await codes.NumberPrefix("CREDIT_NOTE", clock.UtcToday, cancellationToken);
+        var prefix = await codes.NumberPrefix("CREDIT_NOTE", businessDate.Today, cancellationToken);
         var remaining = cancelled.RefundAmount;
         foreach (var invoice in (await billing.Invoices(account.Id, cancellationToken))
                      .Where(i => i.PolicyRef == cancelled.PolicyId && i.DocumentType == DocumentType.Invoice && i.Status != InvoiceStatus.Credited)
@@ -138,7 +138,7 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
                 continue;
             }
 
-            var credit = invoice.RaiseCreditNote(Guid.CreateVersion7(), prefix, amount, reason, Guid.Empty, clock.UtcToday, clock.UtcNow);
+            var credit = invoice.RaiseCreditNote(Guid.CreateVersion7(), prefix, amount, reason, Guid.Empty, businessDate.Today, clock.UtcNow);
             if (credit.IsSuccess)
             {
                 billing.Add(credit.Value);
@@ -153,7 +153,7 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
     }
 
     private async Task<BillingFrequency> Frequency(string code, string policyNumber, CancellationToken cancellationToken) =>
-        await codes.Frequency(code, clock.UtcToday, cancellationToken)
+        await codes.Frequency(code, businessDate.Today, cancellationToken)
         ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, code);
 
     /// <summary>The annual premium spread over the year's instalments. TODO(spec): instalment rounding is not specified; each is rounded half up (OQ-059).</summary>

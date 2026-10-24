@@ -73,11 +73,11 @@ public sealed class EvaluateRuleSetValidator : AbstractValidator<EvaluateRuleSet
     }
 }
 
-internal sealed class EvaluateRuleSetHandler(IRuleSetReader reader, IRuleDecisionRepository decisions, IClock clock) : ICommandHandler<EvaluateRuleSet, RuleDecisionView>
+internal sealed class EvaluateRuleSetHandler(IRuleSetReader reader, IRuleDecisionRepository decisions, IBusinessDate businessDate, IClock clock) : ICommandHandler<EvaluateRuleSet, RuleDecisionView>
 {
     public async Task<Result<RuleDecisionView>> Handle(EvaluateRuleSet command, CancellationToken cancellationToken)
     {
-        var ruleSet = await reader.Read(command.Kind, command.Code, clock.UtcToday, cancellationToken);
+        var ruleSet = await reader.Read(command.Kind, command.Code, businessDate.Today, cancellationToken);
         if (ruleSet.IsFailure)
         {
             return ruleSet.Error;

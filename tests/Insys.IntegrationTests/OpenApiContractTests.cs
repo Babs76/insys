@@ -165,7 +165,8 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
             operations += json.RootElement.GetProperty("paths").EnumerateObject().Sum(p => p.Value.EnumerateObject().Count(o => o.Name != "parameters"));
         }
 
-        operations.ShouldBe(ApiEndpoints().Count);
+        // The test-only daily job runner (ADR-025) is mapped in Testing only and kept out of every document.
+        operations.ShouldBe(ApiEndpoints().Count(e => e.RoutePattern.RawText?.Contains("/testing/", StringComparison.Ordinal) != true));
     }
 
     [Fact]

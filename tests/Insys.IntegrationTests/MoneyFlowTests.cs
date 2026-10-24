@@ -30,10 +30,12 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Insys.Billing.Contracts;
+using Insys.BuildingBlocks.Application.Messaging;
 using Insys.ClaimsFramework.Contracts;
 using Insys.Finance.Contracts;
 using Insys.Payments.Contracts;
 using Insys.Workflow.Contracts;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.IntegrationTests;
 
@@ -310,6 +312,47 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         var paidMovement = financials.GetProperty("movements").EnumerateArray().Single(m => m.GetProperty("movementType").GetString() == "Payment").GetProperty("id").GetGuid();
         (await Journals("CLAIM_MOVEMENT", paidMovement)).Single().GetProperty("lines").EnumerateArray().First().GetProperty("postingRuleCode").GetString()
             .ShouldBe("PR-CLM-PAID");
+    }
+
+    /// <summary>
+    /// An automatic release refused by the reserve never stops silently: the approved instruction is held with why, the
+    /// claims role gets a Workflow task, and a person releases it once the reserve is raised.
+    /// </summary>
+    [Fact]
+    public async Task AutomaticRelease_RefusedByTheReserve_IsHeldWithItsReason_AndTasksTheClaimsRole()
+    {
+        var number = (await (await _maker.PostAsJsonAsync("/api/v1/claims/claims",
+            new { domain = "GENERAL", domainClaimId = Guid.CreateVersion7(), policyRef = Guid.CreateVersion7() })).Json()).GetProperty("claimNumber").GetString()!;
+        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 100m, currency = "ZAR" }))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        var payee = await _maker.RegisterPerson("Held Payee");
+        var bankAccount = await _maker.AddVerifiedBankAccount(_checker, _factory, payee, "62000888801");
+        var hash = await fixture.Database.ScalarAsOwner<string>("SELECT account_number_hash FROM party.bank_account WHERE id = @a", ("a", bankAccount));
+
+        var approved = new Insys.General.Contracts.GeneralClaimApproved(Guid.CreateVersion7(), number, payee, bankAccount, hash!, 400m, "ZAR", "INDEMNITY",
+            Guid.CreateVersion7(), Guid.CreateVersion7());
+        await _factory.Services.GetRequiredService<IEventBus>().Publish(new Insys.BuildingBlocks.Contracts.EventEnvelope(
+            Guid.CreateVersion7(), Tenant, "general.GeneralClaimApproved", 1, DateTimeOffset.UtcNow, "GeneralClaim", approved.ClaimId, Guid.CreateVersion7(), null,
+            JsonSerializer.SerializeToElement(approved, JsonSerializerOptions.Web)), CancellationToken.None);
+
+        var instruction = (await (await _maker.GetAsync($"/api/v1/claims/claims/{number}/payment-instructions")).Json()).EnumerateArray().Single();
+        instruction.GetProperty("status").GetString().ShouldBe("Approved");
+        instruction.GetProperty("heldReason").GetString().ShouldBe("RESERVE_BELOW_ZERO");
+        instruction.GetProperty("heldDetail").GetString()!.ShouldContain("400");
+        var id = instruction.GetProperty("id").GetGuid();
+
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT t.queue_code FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
+            WHERE p.process_code = 'CLAIM_PAYMENT_HELD' AND p.business_ref_id = @i AND t.status = 'OPEN'
+            """, ("i", id))).ShouldBe("CLAIMS_MANAGER");
+
+        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 500m, currency = "ZAR" }))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsync($"/api/v1/claims/payment-instructions/{id}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var released = await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{id}")).Json();
+        released.GetProperty("status").GetString().ShouldBe("Released");
+        released.GetProperty("heldReason").ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
     private static void ShouldMatchDocumented(JsonElement response, string operationId) =>

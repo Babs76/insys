@@ -35,7 +35,7 @@ namespace Insys.Documents.Application;
 /// The language of a generated document (docs/specs/addenda/localisation.md §5, OQ-068): the first language of the chain
 /// "party's preferred language, tenant default, English" that has a template. Without one, generation fails as before.
 /// </summary>
-public sealed class DocumentLanguages(ILanguageSettings settings, IPartyLanguage parties, IDocumentCatalogue catalogue, ITenantContext tenant, IClock clock)
+public sealed class DocumentLanguages(ILanguageSettings settings, IPartyLanguage parties, IDocumentCatalogue catalogue, ITenantContext tenant, IBusinessDate businessDate)
 {
     /// <summary>The chain for a recipient; without a party (or for an organisation) it starts at the tenant default.</summary>
     public async Task<IReadOnlyList<string>> Chain(Guid? partyId, CancellationToken cancellationToken)
@@ -50,7 +50,7 @@ public sealed class DocumentLanguages(ILanguageSettings settings, IPartyLanguage
     {
         foreach (var language in chain)
         {
-            if (await catalogue.Template(templateCode, language, clock.UtcToday, cancellationToken) is { } template)
+            if (await catalogue.Template(templateCode, language, businessDate.Today, cancellationToken) is { } template)
             {
                 return template;
             }

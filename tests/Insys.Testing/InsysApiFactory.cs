@@ -27,6 +27,7 @@
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -36,7 +37,7 @@ namespace Insys.Testing;
 /// <param name="environment">The host environment; Testing unless a test checks environment-specific behaviour.</param>
 /// <param name="waitForWarmup">False only for tests of requests that arrive while the endpoints are still being built.</param>
 public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<string, string?>? settings = null, string environment = "Testing",
-    bool waitForWarmup = true) : WebApplicationFactory<Program>
+    bool waitForWarmup = true, TimeProvider? time = null) : WebApplicationFactory<Program>
 {
     public TestDatabase Database { get; } = database;
 
@@ -68,13 +69,20 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
             builder.UseSetting(key, value);
         }
         builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(TestTokens.HostSettings(Database)).AddInMemoryCollection(settings ?? new Dictionary<string, string?>()));
+
+        // A fixed clock, for business date tests (ADR-025): every IClock and token check in the host reads it.
+        if (time is not null)
+        {
+            builder.ConfigureTestServices(services => services.AddSingleton(time));
+        }
     }
 
     /// <summary>A client whose token carries only sub and tenant_id.</summary>
     public HttpClient ClientFor(Guid? tenantId, string subject)
     {
         var client = CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TestTokens.For(tenantId, subject));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            time is null ? TestTokens.For(tenantId, subject) : TestTokens.For(tenantId, subject, time.GetUtcNow().UtcDateTime));
         return client;
     }
 

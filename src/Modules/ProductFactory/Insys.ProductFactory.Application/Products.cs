@@ -196,7 +196,7 @@ internal static class Versions
     }
 }
 
-internal sealed class RegisterProductHandler(IProductVersionRepository versions, IProductCatalogue catalogue, IClock clock, IAuditTrail audit)
+internal sealed class RegisterProductHandler(IProductVersionRepository versions, IProductCatalogue catalogue, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<RegisterProduct, ProductVersionView>
 {
     public async Task<Result<ProductVersionView>> Handle(RegisterProduct command, CancellationToken cancellationToken)
@@ -206,7 +206,7 @@ internal sealed class RegisterProductHandler(IProductVersionRepository versions,
             return Error.Conflict(ProductErrorCodes.CodeInUse, $"Product code {command.ProductCode} is in use or was used before; codes are never reused.");
         }
 
-        if (!await catalogue.FamilyExists(command.Domain, command.FamilyCode, command.ClassCode, clock.UtcToday, cancellationToken))
+        if (!await catalogue.FamilyExists(command.Domain, command.FamilyCode, command.ClassCode, businessDate.Today, cancellationToken))
         {
             return Error.Validation(ProductErrorCodes.FamilyNotFound,
                 $"The product taxonomy in force has no family {command.FamilyCode}{(command.ClassCode is null ? "" : $" with class {command.ClassCode}")} for {command.Domain}.");
@@ -266,7 +266,7 @@ internal sealed class EditConfigurationHandler(IProductVersionRepository version
     }
 }
 
-internal sealed class ValidateVersionHandler(IProductVersionRepository versions, IProductCatalogue catalogue, IClock clock) : ICommandHandler<ValidateVersion, long>
+internal sealed class ValidateVersionHandler(IProductVersionRepository versions, IProductCatalogue catalogue, IBusinessDate businessDate, IClock clock) : ICommandHandler<ValidateVersion, long>
 {
     public async Task<Result<long>> Handle(ValidateVersion command, CancellationToken cancellationToken)
     {
@@ -276,7 +276,7 @@ internal sealed class ValidateVersionHandler(IProductVersionRepository versions,
             return version.Error;
         }
 
-        var context = await catalogue.ValidationContext(version.Value, clock.UtcToday, cancellationToken);
+        var context = await catalogue.ValidationContext(version.Value, businessDate.Today, cancellationToken);
         var result = version.Value.ValidateVersion(context, clock.UtcNow);
         return result.IsFailure ? result.Error : version.Value.RowVersion + 1;
     }
@@ -311,7 +311,7 @@ internal sealed class RunSimulationHandler(IProductVersionRepository versions, I
 }
 
 internal sealed class SubmitForApprovalHandler(IProductVersionRepository versions, ISimulationRuns runs, IProductCatalogue catalogue, IExecutionContext execution,
-    IClock clock, IAuditTrail audit) : ICommandHandler<SubmitForApproval, long>
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<SubmitForApproval, long>
 {
     public async Task<Result<long>> Handle(SubmitForApproval command, CancellationToken cancellationToken)
     {
@@ -322,7 +322,7 @@ internal sealed class SubmitForApprovalHandler(IProductVersionRepository version
             return user.IsFailure ? user.Error : version.Error!;
         }
 
-        var passed = !await catalogue.SimulationRequired(clock.UtcToday, cancellationToken)
+        var passed = !await catalogue.SimulationRequired(businessDate.Today, cancellationToken)
             || (await runs.For(command.ProductCode, command.Version, cancellationToken)).FirstOrDefault()?.Status == SimulationStatus.Passed;
         audit.Record(new AuditEntry("PRODUCT", "SubmitForApproval", nameof(ProductVersion), version.Value.Id.ToString(),
             new Dictionary<string, string?> { ["product"] = command.ProductCode, ["version"] = command.Version.ToString(CultureInfo.InvariantCulture) }));
@@ -331,7 +331,7 @@ internal sealed class SubmitForApprovalHandler(IProductVersionRepository version
     }
 }
 
-internal sealed class WithdrawVersionHandler(IProductVersionRepository versions, IClock clock, IAuditTrail audit) : ICommandHandler<WithdrawVersion, long>
+internal sealed class WithdrawVersionHandler(IProductVersionRepository versions, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<WithdrawVersion, long>
 {
     public async Task<Result<long>> Handle(WithdrawVersion command, CancellationToken cancellationToken)
     {
@@ -342,7 +342,7 @@ internal sealed class WithdrawVersionHandler(IProductVersionRepository versions,
         }
 
         audit.Record(new AuditEntry("PRODUCT", "WithdrawVersion", nameof(ProductVersion), version.Value.Id.ToString()));
-        var result = version.Value.WithdrawVersion(command.EffectiveTo, clock.UtcToday, clock.UtcNow);
+        var result = version.Value.WithdrawVersion(command.EffectiveTo, businessDate.Today, clock.UtcNow);
         return result.IsFailure ? result.Error : version.Value.RowVersion + 1;
     }
 }
@@ -363,7 +363,7 @@ internal sealed class RetireVersionHandler(IProductVersionRepository versions, I
     }
 }
 
-internal sealed class MakeVersionEffectiveHandler(IProductVersionRepository versions, IClock clock) : ICommandHandler<MakeVersionEffective, long>
+internal sealed class MakeVersionEffectiveHandler(IProductVersionRepository versions, IBusinessDate businessDate) : ICommandHandler<MakeVersionEffective, long>
 {
     public async Task<Result<long>> Handle(MakeVersionEffective command, CancellationToken cancellationToken)
     {
@@ -373,7 +373,7 @@ internal sealed class MakeVersionEffectiveHandler(IProductVersionRepository vers
             return Error.NotFound(ErrorCodes.NotFound, "The product version was not found.");
         }
 
-        var result = version.BecomeEffective(clock.UtcToday);
+        var result = version.BecomeEffective(businessDate.Today);
         return result.IsFailure ? result.Error : version.RowVersion + 1;
     }
 }
@@ -428,7 +428,7 @@ internal static class SimulationRuns
 /// effective date; rejected → back to Draft. A change to the coverage library or benefit dependency rules
 /// revalidates Validated versions (StaticDataVersionActivated → "Revalidate drafts that depend on changed static data").
 /// </summary>
-public sealed class ProductPolicies(IProductVersionRepository versions, ISimulationRuns runs, IProductCatalogue catalogue, IClock clock) :
+public sealed class ProductPolicies(IProductVersionRepository versions, ISimulationRuns runs, IProductCatalogue catalogue, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<StaticDataVersionActivated>
@@ -475,7 +475,7 @@ public sealed class ProductPolicies(IProductVersionRepository versions, ISimulat
         foreach (var id in await versions.InStatus(ProductVersionStatus.Validated, null, 500, cancellationToken))
         {
             if (await versions.Get(id, cancellationToken) is { } version
-                && version.Revalidate(await catalogue.ValidationContext(version, clock.UtcToday, cancellationToken)))
+                && version.Revalidate(await catalogue.ValidationContext(version, businessDate.Today, cancellationToken)))
             {
                 await SimulationRuns.MarkStale(runs, version, cancellationToken);
             }

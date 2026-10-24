@@ -112,11 +112,11 @@ public sealed class RatingRequestValidator : AbstractValidator<RatingRequest>
 }
 
 /// <summary>Rates a request with the configuration in force on its rating date.</summary>
-public sealed class PremiumRater(IRatingConfigurationReader configuration, IClock clock)
+public sealed class PremiumRater(IRatingConfigurationReader configuration, IBusinessDate businessDate)
 {
     public async Task<Result<(PremiumBreakdown Breakdown, string InputsJson)>> Rate(RatingRequest request, CancellationToken cancellationToken)
     {
-        var day = request.RatingDate ?? clock.UtcToday;
+        var day = request.RatingDate ?? businessDate.Today;
         var config = await configuration.Read(request.ProductCode, request.ProductVersion, request.Currency, day, cancellationToken);
         if (config.IsFailure)
         {

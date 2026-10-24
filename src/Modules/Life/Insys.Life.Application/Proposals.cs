@@ -91,12 +91,12 @@ public sealed class CaptureProposalValidator : AbstractValidator<CaptureProposal
 }
 
 internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, IPersonFacts persons, IIntermediaries intermediaries,
-    ITenantContext tenant, IClock clock, IAuditTrail audit) : ICommandHandler<CaptureProposal, ProposalView>
+    ITenantContext tenant, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<CaptureProposal, ProposalView>
 {
     public async Task<Result<ProposalView>> Handle(CaptureProposal command, CancellationToken cancellationToken)
     {
         var tenantId = tenant.RequireTenantId();
-        var product = await Products.Sellable(products, tenantId, command.ProductCode, command.ProductVersion, clock.UtcToday, cancellationToken);
+        var product = await Products.Sellable(products, tenantId, command.ProductCode, command.ProductVersion, businessDate.Today, cancellationToken);
         if (product.IsFailure)
         {
             return product.Error;
@@ -104,7 +104,7 @@ internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes co
 
         // DST-001: a proposal through an intermediary needs one that may sell the product.
         if (command.IntermediaryCode is { Length: > 0 } intermediary
-            && await intermediaries.CanSell(tenantId, intermediary, product.Value.ProductCode, IntermediaryTransactions.NewBusiness, clock.UtcToday, cancellationToken)
+            && await intermediaries.CanSell(tenantId, intermediary, product.Value.ProductCode, IntermediaryTransactions.NewBusiness, businessDate.Today, cancellationToken)
                 is { } refusal)
         {
             return Error.Validation(refusal.Code, refusal.Message);
@@ -124,7 +124,7 @@ internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes co
         var nominations = command.Nominations ?? [];
         foreach (var relationship in nominations.Select(n => n.RelationshipCode).Distinct())
         {
-            if (!await codes.Exists(LifeCode.BeneficiaryRelationship, relationship, clock.UtcToday, cancellationToken))
+            if (!await codes.Exists(LifeCode.BeneficiaryRelationship, relationship, businessDate.Today, cancellationToken))
             {
                 return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{relationship} is not a beneficiary relationship in force.");
             }
@@ -134,7 +134,7 @@ internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes co
         var id = Guid.CreateVersion7();
         var proposal = LifeProposal.CaptureProposal(id, Numbers.Of("LP", id, 15), product.Value, command.ApplicantPartyId, command.IntermediaryCode, command.ChannelCode,
             command.Currency, command.InceptionDate, new ProposalBilling(command.PayerPartyId ?? command.ApplicantPartyId, command.Frequency, command.CollectionMethod),
-            lives, command.Covers, disclosures, nominations, await codes.NominationRule(product.Value.ProductCode, clock.UtcToday, cancellationToken));
+            lives, command.Covers, disclosures, nominations, await codes.NominationRule(product.Value.ProductCode, businessDate.Today, cancellationToken));
         if (proposal.IsFailure)
         {
             return proposal.Error;

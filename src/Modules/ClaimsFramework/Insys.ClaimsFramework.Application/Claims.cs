@@ -108,10 +108,12 @@ public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementVi
 
 public sealed record InstructionView(Guid Id, string ClaimNumber, string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency,
     string ReserveType, InstructionStatus Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId, string? PayeeBankHash, Guid? PendingPayeePartyId,
-    Guid? PendingBankAccountId)
+    Guid? PendingBankAccountId,
+    [property: OneOf("RESERVE_BELOW_ZERO", "PAYEE_ACCOUNT_CHANGED")] string? HeldReason = null, string? HeldDetail = null, DateTimeOffset? HeldAt = null)
 {
     public static InstructionView From(ClaimPaymentInstruction i) => new(i.Id, i.ClaimNumber, i.InstructionRef, i.PayeePartyId, i.Amount, i.ApprovedAmount, i.Currency,
-        i.ReserveType, i.Status, i.ApprovalId, i.PaymentId, i.Attempt, i.BankAccountId, i.PayeeBankHash, i.PendingPayeePartyId, i.PendingBankAccountId);
+        i.ReserveType, i.Status, i.ApprovalId, i.PaymentId, i.Attempt, i.BankAccountId, i.PayeeBankHash, i.PendingPayeePartyId, i.PendingBankAccountId, i.HeldReason,
+        i.HeldDetail, i.HeldAt);
 }
 
 /// <summary>Command AllocateClaimNumber; a repeat for the same domain claim returns the same number (CLM-005).</summary>
@@ -134,6 +136,15 @@ public enum ReserveAction
 
 /// <summary>Commands SetReserve, ChangeReserve and RecordRecovery (CLM-004).</summary>
 public sealed record MoveReserve(string ClaimNumber, ReserveAction Action, string ReserveType, decimal Amount, string Currency) : ICommand<FinancialsView>;
+
+public sealed class ClaimsPaymentOptions
+{
+    /// <summary>
+    /// The role whose queue gets the task when an approved instruction cannot be released automatically. The catalogue's
+    /// sample claims roles are CLAIMS_ASSESSOR and CLAIMS_MANAGER; TODO(spec): which role resolves a held payment.
+    /// </summary>
+    public string HeldReleaseRole { get; set; } = "CLAIMS_MANAGER";
+}
 
 /// <summary>Command DraftInstruction; a repeat for the same claim and reference returns the same instruction (PAY-001).</summary>
 /// <param name="BankAccountId">The payee's verified bank account (party.bank_account); the approval covers it.</param>
@@ -222,7 +233,7 @@ internal static class Loaded
         new(claim.ClaimNumber, claim.Domain, currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
 }
 
-internal sealed class AllocateClaimNumberHandler(IClaimsRepository claims, IClaimsCodes codes, IClock clock) : ICommandHandler<AllocateClaimNumber, ClaimView>
+internal sealed class AllocateClaimNumberHandler(IClaimsRepository claims, IClaimsCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<AllocateClaimNumber, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(AllocateClaimNumber command, CancellationToken cancellationToken)
     {
@@ -231,14 +242,14 @@ internal sealed class AllocateClaimNumberHandler(IClaimsRepository claims, IClai
             return ClaimView.From(existing);
         }
 
-        var prefix = await codes.NumberPrefix(command.Domain, clock.UtcToday, cancellationToken) ?? command.Domain[..3];
+        var prefix = await codes.NumberPrefix(command.Domain, businessDate.Today, cancellationToken) ?? command.Domain[..3];
         var claim = ClaimRegistration.AllocateClaimNumber(Guid.CreateVersion7(), prefix, command.Domain, command.DomainClaimId, command.PolicyRef, clock.UtcNow);
         claims.Add(claim);
         return ClaimView.From(claim);
     }
 }
 
-internal sealed class RequestEvidenceHandler(IClaimsRepository claims, IClaimsCodes codes, IClock clock) : ICommandHandler<RequestEvidence, ClaimView>
+internal sealed class RequestEvidenceHandler(IClaimsRepository claims, IClaimsCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<RequestEvidence, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(RequestEvidence command, CancellationToken cancellationToken)
     {
@@ -248,7 +259,7 @@ internal sealed class RequestEvidenceHandler(IClaimsRepository claims, IClaimsCo
             return claim.Error;
         }
 
-        if (!await codes.EvidenceTypeExists(command.EvidenceType, clock.UtcToday, cancellationToken))
+        if (!await codes.EvidenceTypeExists(command.EvidenceType, businessDate.Today, cancellationToken))
         {
             return Error.Validation(ClaimsErrorCodes.CodeNotInForce, $"{command.EvidenceType} is not an evidence type in force.");
         }
@@ -258,7 +269,7 @@ internal sealed class RequestEvidenceHandler(IClaimsRepository claims, IClaimsCo
     }
 }
 
-internal sealed class RecordEvidenceHandler(IClaimsRepository claims, IClaimsCodes codes, IClock clock) : ICommandHandler<RecordEvidence, ClaimView>
+internal sealed class RecordEvidenceHandler(IClaimsRepository claims, IClaimsCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<RecordEvidence, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(RecordEvidence command, CancellationToken cancellationToken)
     {
@@ -268,7 +279,7 @@ internal sealed class RecordEvidenceHandler(IClaimsRepository claims, IClaimsCod
             return claim.Error;
         }
 
-        if (!await codes.EvidenceTypeExists(command.EvidenceType, clock.UtcToday, cancellationToken))
+        if (!await codes.EvidenceTypeExists(command.EvidenceType, businessDate.Today, cancellationToken))
         {
             return Error.Validation(ClaimsErrorCodes.CodeNotInForce, $"{command.EvidenceType} is not an evidence type in force.");
         }
@@ -293,7 +304,7 @@ internal sealed class RecordCommunicationHandler(IClaimsRepository claims, ICloc
     }
 }
 
-internal sealed class EvaluateFraudIndicatorsHandler(IClaimsRepository claims, IClaimsCodes codes, IClock clock, ILogger<EvaluateFraudIndicatorsHandler> logger)
+internal sealed class EvaluateFraudIndicatorsHandler(IClaimsRepository claims, IClaimsCodes codes, IBusinessDate businessDate, IClock clock, ILogger<EvaluateFraudIndicatorsHandler> logger)
     : ICommandHandler<EvaluateFraudIndicators, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(EvaluateFraudIndicators command, CancellationToken cancellationToken)
@@ -304,7 +315,7 @@ internal sealed class EvaluateFraudIndicatorsHandler(IClaimsRepository claims, I
             return claim.Error;
         }
 
-        var indicators = await codes.FraudIndicators(clock.UtcToday, cancellationToken);
+        var indicators = await codes.FraudIndicators(businessDate.Today, cancellationToken);
         if (indicators.IsFailure)
         {
             return indicators.Error;
@@ -325,7 +336,7 @@ internal sealed class EvaluateFraudIndicatorsHandler(IClaimsRepository claims, I
     }
 }
 
-internal sealed class MoveReserveHandler(IClaimsRepository claims, IClaimsCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<MoveReserve, FinancialsView>
+internal sealed class MoveReserveHandler(IClaimsRepository claims, IClaimsCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<MoveReserve, FinancialsView>
 {
     public async Task<Result<FinancialsView>> Handle(MoveReserve command, CancellationToken cancellationToken)
     {
@@ -335,7 +346,7 @@ internal sealed class MoveReserveHandler(IClaimsRepository claims, IClaimsCodes 
             return claim.Error;
         }
 
-        if (!await codes.ReserveTypeExists(command.ReserveType, clock.UtcToday, cancellationToken))
+        if (!await codes.ReserveTypeExists(command.ReserveType, businessDate.Today, cancellationToken))
         {
             return Error.Validation(ClaimsErrorCodes.CodeNotInForce, $"{command.ReserveType} is not a reserve type in force.");
         }
@@ -345,9 +356,9 @@ internal sealed class MoveReserveHandler(IClaimsRepository claims, IClaimsCodes 
             new Dictionary<string, string?> { ["claim"] = command.ClaimNumber, ["reserveType"] = command.ReserveType }));
         var movement = command.Action switch
         {
-            ReserveAction.Set => financials.SetReserve(command.ReserveType, command.Amount, clock.UtcToday, clock.UtcNow),
-            ReserveAction.Change => financials.ChangeReserve(command.ReserveType, command.Amount, clock.UtcToday, clock.UtcNow),
-            _ => financials.RecordRecovery(command.ReserveType, command.Amount, clock.UtcToday, clock.UtcNow),
+            ReserveAction.Set => financials.SetReserve(command.ReserveType, command.Amount, businessDate.Today, clock.UtcNow),
+            ReserveAction.Change => financials.ChangeReserve(command.ReserveType, command.Amount, businessDate.Today, clock.UtcNow),
+            _ => financials.RecordRecovery(command.ReserveType, command.Amount, businessDate.Today, clock.UtcNow),
         };
         if (movement.IsFailure)
         {
@@ -376,7 +387,7 @@ internal static class Payees
 }
 
 internal sealed class DraftInstructionHandler(IClaimsRepository claims, IClaimsCodes codes, IBankAccounts bankAccounts, ITenantContext tenant, IExecutionContext execution,
-    IClock clock, IAuditTrail audit)
+    IBusinessDate businessDate, IAuditTrail audit)
     : ICommandHandler<DraftInstruction, InstructionView>
 {
     public async Task<Result<InstructionView>> Handle(DraftInstruction command, CancellationToken cancellationToken)
@@ -393,7 +404,7 @@ internal sealed class DraftInstructionHandler(IClaimsRepository claims, IClaimsC
             return InstructionView.From(existing);
         }
 
-        if (!await codes.ReserveTypeExists(command.ReserveType, clock.UtcToday, cancellationToken))
+        if (!await codes.ReserveTypeExists(command.ReserveType, businessDate.Today, cancellationToken))
         {
             return Error.Validation(ClaimsErrorCodes.CodeNotInForce, $"{command.ReserveType} is not a reserve type in force.");
         }
@@ -567,7 +578,7 @@ internal sealed class GetInstructionHandler(IClaimsRepository claims) : IQueryHa
 /// Claims' policies (domain-model.json: claims consumes): Workflow's decision on an instruction; the payout's outcome
 /// (RecordOutcome); and its own ClaimPaymentCompleted, which records the payment movement against the reserve (CLM-004).
 /// </summary>
-public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankAccounts, ITenantContext tenant, IClock clock, ILogger<ClaimsPolicies> logger) :
+public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankAccounts, ITenantContext tenant, IBusinessDate businessDate, IClock clock, ILogger<ClaimsPolicies> logger) :
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<PaymentSucceeded>,
@@ -598,7 +609,7 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
         Outcome(succeeded.BusinessRefType, succeeded.BusinessRefId, true, succeeded.PaymentId, succeeded.ValueDate, cancellationToken);
 
     public Task Handle(PaymentFailed failed, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Outcome(failed.BusinessRefType, failed.BusinessRefId, false, failed.PaymentId, clock.UtcToday, cancellationToken);
+        Outcome(failed.BusinessRefType, failed.BusinessRefId, false, failed.PaymentId, businessDate.Today, cancellationToken);
 
     public async Task Handle(Contracts.ClaimPaymentCompleted completed, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -642,12 +653,33 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
         claims.Add(instruction.Value);
         if (!await Payees.Unchanged(bankAccounts, tenant, instruction.Value.Payee, cancellationToken))
         {
-            logger.LogWarning("Settlement of {ClaimNumber} not released: the payee's bank account changed after approval", approved.ClaimNumber);
+            Hold(instruction.Value, ReleaseHoldReasons.PayeeAccountChanged, "The payee's bank account changed after approval.", claim.Domain);
             return;
         }
 
         var financials = new ClaimFinancials(claim.ClaimNumber, claim.Domain, approved.Currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
-        instruction.Value.ReleaseInstruction(approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType), clock.UtcNow);
+        Release(instruction.Value, approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType));
+    }
+
+    /// <summary>An automatic release: refused, the instruction is held with why, and the claims role gets a task (never a silent stop).</summary>
+    private void Release(ClaimPaymentInstruction instruction, Guid releasedBy, string domain, decimal outstanding)
+    {
+        var released = instruction.ReleaseInstruction(releasedBy, domain, outstanding, clock.UtcNow);
+        if (released.IsFailure)
+        {
+            Hold(instruction, released.Error.Code == ClaimsErrorCodes.ReserveBelowZero ? ReleaseHoldReasons.ReserveBelowZero : released.Error.Code,
+                released.Error.Code == ClaimsErrorCodes.ReserveBelowZero
+                    ? $"{instruction.Amount} {instruction.Currency} exceeds the outstanding {instruction.ReserveType} reserve of {outstanding}; raise the reserve, then release."
+                    : released.Error.Message, domain);
+        }
+    }
+
+    private void Hold(ClaimPaymentInstruction instruction, string reason, string detail, string domain)
+    {
+        instruction.HoldRelease(reason, detail, domain, clock.UtcNow);
+
+        // The log alarm (Cloud Eye) matches ClaimPaymentReleaseHeld: claim number and reason only, never payee or bank details.
+        logger.LogWarning("ClaimPaymentReleaseHeld: claim {ClaimNumber} instruction {InstructionId} held: {Reason}", instruction.ClaimNumber, instruction.Id, reason);
     }
 
     /// <summary>
@@ -681,11 +713,11 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
             claims.Add(instruction.Value);
             if (await Payees.Unchanged(bankAccounts, tenant, instruction.Value.Payee, cancellationToken))
             {
-                instruction.Value.ReleaseInstruction(approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType), clock.UtcNow);
+                Release(instruction.Value, approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType));
             }
             else
             {
-                logger.LogWarning("Claim {ClaimNumber} payee {Index} not released: the bank account changed after approval", approved.ClaimNumber, index);
+                Hold(instruction.Value, ReleaseHoldReasons.PayeeAccountChanged, $"Payee {index}'s bank account changed after approval.", claim.Domain);
             }
         }
     }
@@ -699,7 +731,7 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
         }
 
         var financials = new ClaimFinancials(claim.ClaimNumber, claim.Domain, recovered.Currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
-        var movement = financials.RecordRecovery(recovered.ReserveType, recovered.Amount, clock.UtcToday, clock.UtcNow);
+        var movement = financials.RecordRecovery(recovered.ReserveType, recovered.Amount, businessDate.Today, clock.UtcNow);
         if (movement.IsSuccess)
         {
             claims.Add(movement.Value);

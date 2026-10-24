@@ -75,6 +75,23 @@ public static class StaticConverters
 
     public static bool IsIntRange(string value) => TryParse(() => NpgsqlRange<int>.Parse(value));
 
+    /// <summary>
+    /// Whether an integer range in the form the validator accepts and PostgreSQL stores ("[50,200)", "[200,)") holds the value,
+    /// honouring inclusive and exclusive bounds and open ends (GAP-043).
+    /// </summary>
+    public static bool IntRangeContains(string range, int value)
+    {
+        var r = NpgsqlRange<int>.Parse(range);
+        if (r.IsEmpty)
+        {
+            return false;
+        }
+
+        var aboveLower = r.LowerBoundInfinite || (r.LowerBoundIsInclusive ? value >= r.LowerBound : value > r.LowerBound);
+        var belowUpper = r.UpperBoundInfinite || (r.UpperBoundIsInclusive ? value <= r.UpperBound : value < r.UpperBound);
+        return aboveLower && belowUpper;
+    }
+
     public static bool IsDecimalRange(string value) => TryParse(() => NpgsqlRange<decimal>.Parse(value));
 
     public static bool IsCidr(string value) => IPNetwork.TryParse(value, out _);

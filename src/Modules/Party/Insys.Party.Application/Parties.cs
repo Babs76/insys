@@ -418,12 +418,12 @@ internal sealed class UpdateIndividualDetailsHandler(IPartyRepository parties, I
     }
 }
 
-internal sealed class ChangePreferredLanguageHandler(IPartyRepository parties, ILanguageRegister languages, IClock clock, IAuditTrail audit)
+internal sealed class ChangePreferredLanguageHandler(IPartyRepository parties, ILanguageRegister languages, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<ChangePreferredLanguage, long>
 {
     public async Task<Result<long>> Handle(ChangePreferredLanguage command, CancellationToken cancellationToken)
     {
-        if (command.Language is { } language && !await languages.Exists(language, clock.UtcToday, cancellationToken))
+        if (command.Language is { } language && !await languages.Exists(language, businessDate.Today, cancellationToken))
         {
             return Error.Validation(ErrorCodes.ValidationFailed, $"{language} is not a language in the register.");
         }
@@ -456,7 +456,7 @@ internal sealed class AddContactPointHandler(IPartyRepository parties, IClock cl
 }
 
 /// <summary>AddIdentifier: unique per document type and country in the tenant, checked by keyed hash (and by uq_party_identifier_1).</summary>
-internal sealed class AddIdentifierHandler(IPartyRepository parties, IPartyCodes codes, IFieldProtector protector, IClock clock, IAuditTrail audit)
+internal sealed class AddIdentifierHandler(IPartyRepository parties, IPartyCodes codes, IFieldProtector protector, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<AddIdentifier, Guid>
 {
     public async Task<Result<Guid>> Handle(AddIdentifier command, CancellationToken cancellationToken)
@@ -467,7 +467,7 @@ internal sealed class AddIdentifierHandler(IPartyRepository parties, IPartyCodes
             return party.Error;
         }
 
-        var (exists, pattern) = await codes.IdentityDocumentType(command.Country, command.DocType, clock.UtcToday, cancellationToken);
+        var (exists, pattern) = await codes.IdentityDocumentType(command.Country, command.DocType, businessDate.Today, cancellationToken);
         var number = command.Number.Trim();
         if (!exists)
         {
@@ -498,11 +498,11 @@ internal sealed class VerifyIdentifierHandler(IPartyRepository parties, IClock c
             cancellationToken);
 }
 
-internal sealed class RecordRelationshipHandler(IPartyRepository parties, IPartyCodes codes, IClock clock) : ICommandHandler<RecordRelationship, long>
+internal sealed class RecordRelationshipHandler(IPartyRepository parties, IPartyCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<RecordRelationship, long>
 {
     public async Task<Result<long>> Handle(RecordRelationship command, CancellationToken cancellationToken)
     {
-        if (!await codes.RelationshipTypeExists(command.RelationshipCode, clock.UtcToday, cancellationToken))
+        if (!await codes.RelationshipTypeExists(command.RelationshipCode, businessDate.Today, cancellationToken))
         {
             return Error.Validation(PartyErrorCodes.CodeNotInForce, $"{command.RelationshipCode} is not a relationship type in force.");
         }
@@ -517,7 +517,7 @@ internal sealed class RecordRelationshipHandler(IPartyRepository parties, IParty
     }
 }
 
-internal sealed class AssignPartyRoleHandler(IPartyRepository parties, IPartyCodes codes, IClock clock) : ICommandHandler<AssignPartyRole, long>
+internal sealed class AssignPartyRoleHandler(IPartyRepository parties, IPartyCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<AssignPartyRole, long>
 {
     public async Task<Result<long>> Handle(AssignPartyRole command, CancellationToken cancellationToken)
     {
@@ -527,7 +527,7 @@ internal sealed class AssignPartyRoleHandler(IPartyRepository parties, IPartyCod
             return party.Error;
         }
 
-        if (!await codes.RoleAllowed(command.RoleCode, party.Value.Kind, command.Domain, clock.UtcToday, cancellationToken))
+        if (!await codes.RoleAllowed(command.RoleCode, party.Value.Kind, command.Domain, businessDate.Today, cancellationToken))
         {
             return Error.Validation(PartyErrorCodes.CodeNotInForce,
                 $"{command.RoleCode} is not a role type in force for an {party.Value.Kind.ToString().ToLowerInvariant()} in {command.Domain}.");
@@ -538,12 +538,12 @@ internal sealed class AssignPartyRoleHandler(IPartyRepository parties, IPartyCod
     }
 }
 
-internal sealed class RecordDeathHandler(IPartyRepository parties, IClock clock, IAuditTrail audit) : ICommandHandler<RecordDeath, long>
+internal sealed class RecordDeathHandler(IPartyRepository parties, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<RecordDeath, long>
 {
     public Task<Result<long>> Handle(RecordDeath command, CancellationToken cancellationToken)
     {
         audit.Record(new AuditEntry("PARTY", "RecordDeath", nameof(Domain.Parties.Party), command.PartyId.ToString()));
-        return Parties.Change(parties, command.PartyId, command.ExpectedVersion, p => p.RecordDeath(command.DeceasedDate, clock.UtcToday, clock.UtcNow), cancellationToken);
+        return Parties.Change(parties, command.PartyId, command.ExpectedVersion, p => p.RecordDeath(command.DeceasedDate, businessDate.Today, clock.UtcNow), cancellationToken);
     }
 }
 
@@ -590,23 +590,23 @@ internal sealed class AnonymisePartyHandler(IPartyRepository parties, IClock clo
     }
 }
 
-internal sealed class GrantConsentHandler(IPartyRepository parties, IPartyCodes codes, IClock clock) : ICommandHandler<GrantConsent, IReadOnlyList<ConsentView>>
+internal sealed class GrantConsentHandler(IPartyRepository parties, IPartyCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<GrantConsent, IReadOnlyList<ConsentView>>
 {
     public Task<Result<IReadOnlyList<ConsentView>>> Handle(GrantConsent command, CancellationToken cancellationToken) =>
-        Consents.Change(parties, codes, clock, command.PartyId, command.PurposeCode,
+        Consents.Change(parties, codes, clock, businessDate, command.PartyId, command.PurposeCode,
             ledger => ledger.GrantConsent(command.PurposeCode, command.CaptureChannel, command.EvidenceRef, clock.UtcNow), cancellationToken);
 }
 
-internal sealed class WithdrawConsentHandler(IPartyRepository parties, IPartyCodes codes, IClock clock) : ICommandHandler<WithdrawConsent, IReadOnlyList<ConsentView>>
+internal sealed class WithdrawConsentHandler(IPartyRepository parties, IPartyCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<WithdrawConsent, IReadOnlyList<ConsentView>>
 {
     public Task<Result<IReadOnlyList<ConsentView>>> Handle(WithdrawConsent command, CancellationToken cancellationToken) =>
-        Consents.Change(parties, codes, clock, command.PartyId, command.PurposeCode,
+        Consents.Change(parties, codes, clock, businessDate, command.PartyId, command.PurposeCode,
             ledger => ledger.WithdrawConsent(command.PurposeCode, command.CaptureChannel, command.EvidenceRef, clock.UtcNow), cancellationToken);
 }
 
 internal static class Consents
 {
-    public static async Task<Result<IReadOnlyList<ConsentView>>> Change(IPartyRepository parties, IPartyCodes codes, IClock clock, Guid partyId, string purpose,
+    public static async Task<Result<IReadOnlyList<ConsentView>>> Change(IPartyRepository parties, IPartyCodes codes, IClock clock, IBusinessDate businessDate, Guid partyId, string purpose,
         Func<ConsentLedger, ConsentRecord?> change, CancellationToken cancellationToken)
     {
         if (await parties.Get(partyId, cancellationToken) is not { } party)
@@ -619,7 +619,7 @@ internal static class Consents
             return Error.Conflict(PartyErrorCodes.PartyReadOnly, "Consent is recorded on an active party.");
         }
 
-        if (!await codes.ConsentPurposeExists(purpose, clock.UtcToday, cancellationToken))
+        if (!await codes.ConsentPurposeExists(purpose, businessDate.Today, cancellationToken))
         {
             return Error.Validation(PartyErrorCodes.CodeNotInForce, $"{purpose} is not a consent purpose in force.");
         }

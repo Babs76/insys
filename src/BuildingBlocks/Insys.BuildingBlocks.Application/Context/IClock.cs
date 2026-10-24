@@ -32,7 +32,8 @@ public interface IClock
     DateTimeOffset UtcNow { get; }
 
     /// <summary>
-    /// Today's date in UTC. TODO(spec): business dates may need the tenant's time zone; the SRS does not say.
+    /// Today's date in UTC: for technical dates only (partitions, retention). Business dates use
+    /// <see cref="IBusinessDate"/>, in the tenant's time zone (GAP-044, ADR-025).
     /// </summary>
     DateOnly UtcToday => DateOnly.FromDateTime(UtcNow.UtcDateTime);
 }

@@ -59,6 +59,12 @@ public static class PrerequisiteCodes
     /// <summary>Item: product and document type ("GEN-MOTOR:POLICY_SCHEDULE"), or the template code.</summary>
     public const string DocumentTemplateNotInForce = "DOCUMENT_TEMPLATE_NOT_IN_FORCE";
 
+    /// <summary>Item: product and treaty ("GEN-MOTOR:QS-2026"); no cession rule in force for a cession being recalculated.</summary>
+    public const string CessionRuleNotInForce = "CESSION_RULE_NOT_IN_FORCE";
+
+    /// <summary>Item: the facultative arrangement code that is no longer in force for a cession being recalculated.</summary>
+    public const string FacultativeArrangementNotInForce = "FACULTATIVE_ARRANGEMENT_NOT_IN_FORCE";
+
     /// <summary>Item: the treaty code, or the error code when no single treaty is at fault.</summary>
     public const string TreatyNotApplicable = "TREATY_NOT_APPLICABLE";
 }

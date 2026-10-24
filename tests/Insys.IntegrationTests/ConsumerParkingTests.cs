@@ -108,6 +108,27 @@ public sealed class ConsumerParkingTests(DatabaseFixture fixture) : IClassFixtur
             ("e", issued.EventId), ("c", consumer))).ShouldBe(2);
     }
 
+    [Fact]
+    public async Task Reinsurance_ParksARecalculationOnEndorsement_WhenTheCessionRuleIsNotInForce_ADR022()
+    {
+        const string consumer = "reinsurance.ReinsurancePolicies.GeneralPolicyEndorsed";
+        var policy = Guid.CreateVersion7();
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO reinsurance.cession (tenant_id, id, created_at, created_by, treaty_code, source_type, source_id, period_start, period_end, ceded_sum_insured,
+              ceded_premium, currency, rule_code, rule_version, calculated_at, product_code, treaty_version, gross_sum_insured, gross_premium, ceded_share)
+            VALUES (@t, @id, now(), 'seed', 'QS-TEST', 'GENERAL_POLICY', @p, @from, @to, 250000, 600, 'ZAR', 'QS-RULE', 1, now(), 'GEN-NORULE', 1, 500000, 1200, 0.5)
+            """, ("t", Tenant), ("id", Guid.CreateVersion7()), ("p", policy), ("from", Today), ("to", Today.AddDays(364)));
+        var endorsed = new Insys.General.Contracts.GeneralPolicyEndorsed(policy, "GEN-ENDORSE-1", Guid.CreateVersion7(), "END-1", Today, 1300m, 100m, "ZAR", "GEN-NORULE", 1,
+            [], NewSumInsured: 600_000m);
+        var envelope = Envelope(endorsed, "general.GeneralPolicyEndorsed", "GeneralPolicy", policy);
+
+        var outcome = (await _factory.Services.GetRequiredService<IEventBus>().Deliver(envelope, CancellationToken.None)).Single(d => d.Consumer == consumer);
+
+        // Before: retried and dead-lettered. Now: parked, naming the product and treaty whose rule is missing.
+        outcome.Status.ShouldBe(DeliveryStatus.Parked);
+        (await Parked((envelope.EventId, Guid.Empty), consumer)).ShouldBe($"{PrerequisiteCodes.CessionRuleNotInForce} GEN-NORULE:QS-TEST");
+    }
+
     private async Task<(Guid EventId, Guid BillingAccountRef)> Issue(string collectionMethod, string frequency)
     {
         var policy = Guid.CreateVersion7();

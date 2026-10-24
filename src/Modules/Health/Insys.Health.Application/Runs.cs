@@ -69,11 +69,11 @@ public sealed class OpenPaymentRunValidator : AbstractValidator<OpenPaymentRun>
     }
 }
 
-internal sealed class OpenPaymentRunHandler(IHealthRepository health, IHealthCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<OpenPaymentRun, PaymentRunView>
+internal sealed class OpenPaymentRunHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<OpenPaymentRun, PaymentRunView>
 {
     public async Task<Result<PaymentRunView>> Handle(OpenPaymentRun command, CancellationToken cancellationToken)
     {
-        if (!await codes.RunCalendarExists(command.RunCode, clock.UtcToday, cancellationToken))
+        if (!await codes.RunCalendarExists(command.RunCode, businessDate.Today, cancellationToken))
         {
             return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.RunCode} is not a payment run calendar in force.");
         }
@@ -93,7 +93,7 @@ internal sealed class OpenPaymentRunHandler(IHealthRepository health, IHealthCod
 /// principal member's verified account (Phase 5 review, item 5).
 /// </summary>
 internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes codes, IBankAccounts bankAccounts, ITenantContext tenant, IExecutionContext execution,
-    IClock clock, IAuditTrail audit) :
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
     ICommandHandler<CutOffPaymentRun, PaymentRunView>,
     ICommandHandler<CalculatePaymentRun, PaymentRunView>,
     ICommandHandler<ReleasePaymentRun, PaymentRunView>
@@ -126,7 +126,7 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
 
             foreach (var group in claims.Where(c => c.Source != ClaimSources.Member).GroupBy(c => c.ProviderId!))
             {
-                if (await codes.Provider(group.Key, clock.UtcToday, cancellationToken) is not { PartyId: { } partyId }
+                if (await codes.Provider(group.Key, businessDate.Today, cancellationToken) is not { PartyId: { } partyId }
                     || await bankAccounts.Current(tenant.RequireTenantId(), partyId, run.Currency, cancellationToken) is not { IsPayable: true } account)
                 {
                     return Error.Validation(HealthErrorCodes.ProviderNotPayable, $"Provider {group.Key} has no party with a verified bank account in {run.Currency}.");
@@ -155,8 +155,8 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
 
     /// <summary>Releasing needs a remittance advice format in force, whose template Documents generates each advice from.</summary>
     public Task<Result<PaymentRunView>> Handle(ReleasePaymentRun command, CancellationToken cancellationToken) =>
-        Apply(command.RunId, "ReleaseRun", async run => await codes.RemittanceTemplate(clock.UtcToday, cancellationToken) is { } template
-            ? run.ReleaseRun(clock.UtcToday, template, clock.UtcNow)
+        Apply(command.RunId, "ReleaseRun", async run => await codes.RemittanceTemplate(businessDate.Today, cancellationToken) is { } template
+            ? run.ReleaseRun(businessDate.Today, template, clock.UtcNow)
             : Error.Validation(HealthErrorCodes.CodeNotInForce, "No remittance advice format is in force."), cancellationToken);
 
     private async Task<Result<PaymentRunView>> Apply(Guid id, string operation, Func<ProviderPaymentRun, Task<Result>> change, CancellationToken cancellationToken)

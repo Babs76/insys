@@ -253,6 +253,15 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
             .ShouldBe("EXC-AVIATION");
         issued.GetProperty("beneficiaries").EnumerateArray().Single().GetProperty("partyId").GetGuid().ShouldBe(spouse);
         (await Get($"/api/v1/life/proposals/{proposal}")).GetProperty("status").GetString().ShouldBe("Converted");
+
+        // GAP-040: the policy is found in the list by its number, by the policyholder, and by status.
+        var policyNumber = issued.GetProperty("policyNumber").GetString()!;
+        var listed = await Get($"/api/v1/life/policies?policyNumber={policyNumber}");
+        DocumentedSchema.ResponseProblems(listed, "core", "LifeListPolicies").ShouldBeEmpty();
+        listed.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid().ShouldBe(policy);
+        (await Get($"/api/v1/life/policies?policyholderPartyId={issued.GetProperty("policyholderPartyId").GetGuid()}&status=InForce")).GetProperty("items")
+            .EnumerateArray().Select(p => p.GetProperty("id").GetGuid()).ShouldContain(policy);
+        (await Get($"/api/v1/life/proposals?status=Converted")).GetProperty("items").EnumerateArray().Select(p => p.GetProperty("id").GetGuid()).ShouldContain(proposal);
         (await _db.ScalarAsOwner<decimal>("SELECT total_amount FROM billing.invoice WHERE source_domain = 'LIFE' AND policy_ref = @p", ("p", policy))).ShouldBe(675m);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.premium_instalment i JOIN billing.premium_schedule s ON s.id = i.schedule_id WHERE s.policy_ref = @p",
             ("p", policy))).ShouldBe(240L);

@@ -50,6 +50,7 @@ public static class TenancyInfrastructure
         services.AddSingleton<TenantLocaleDefaults>();
         services.AddSingleton<ITenantBaseCurrency>(sp => sp.GetRequiredService<TenantLocaleDefaults>());
         services.AddSingleton<ITenantTimeZone>(sp => sp.GetRequiredService<TenantLocaleDefaults>());
+        services.AddSingleton<BuildingBlocks.Application.Context.ITenantTimeZoneSource>(sp => sp.GetRequiredService<TenantLocaleDefaults>());
         services.AddSingleton<ITenantProfiles, TenantProfiles>();
         services.AddMemoryCache();
         services.AddSingleton<IStaticRecordValidator, LocaleDefaultsValidator>();

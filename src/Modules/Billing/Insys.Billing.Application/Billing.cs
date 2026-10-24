@@ -201,11 +201,11 @@ internal static class Loaded
         await billing.Account(id, cancellationToken) is { } account ? account : Error.NotFound(ErrorCodes.NotFound, "The billing account was not found.");
 }
 
-internal sealed class OpenAccountHandler(IBillingRepository billing, IBillingCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<OpenAccount, AccountView>
+internal sealed class OpenAccountHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<OpenAccount, AccountView>
 {
     public async Task<Result<AccountView>> Handle(OpenAccount command, CancellationToken cancellationToken)
     {
-        if (!await codes.CollectionMethodExists(command.CollectionMethod, clock.UtcToday, cancellationToken))
+        if (!await codes.CollectionMethodExists(command.CollectionMethod, businessDate.Today, cancellationToken))
         {
             return Error.Validation(BillingErrorCodes.CodeNotInForce, $"{command.CollectionMethod} is not a collection method in force.");
         }
@@ -217,7 +217,7 @@ internal sealed class OpenAccountHandler(IBillingRepository billing, IBillingCod
     }
 }
 
-internal sealed class CreateScheduleHandler(IBillingRepository billing, IBillingCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<CreateSchedule, AccountView>
+internal sealed class CreateScheduleHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<CreateSchedule, AccountView>
 {
     public async Task<Result<AccountView>> Handle(CreateSchedule command, CancellationToken cancellationToken)
     {
@@ -227,7 +227,7 @@ internal sealed class CreateScheduleHandler(IBillingRepository billing, IBilling
             return account.Error;
         }
 
-        if (await codes.Frequency(command.Frequency, clock.UtcToday, cancellationToken) is not { } frequency)
+        if (await codes.Frequency(command.Frequency, businessDate.Today, cancellationToken) is not { } frequency)
         {
             return Error.Validation(BillingErrorCodes.CodeNotInForce, $"{command.Frequency} is not a billing frequency in force.");
         }
@@ -240,7 +240,7 @@ internal sealed class CreateScheduleHandler(IBillingRepository billing, IBilling
     }
 }
 
-internal sealed class AmendScheduleHandler(IBillingRepository billing, IBillingCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<AmendSchedule, AccountView>
+internal sealed class AmendScheduleHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<AmendSchedule, AccountView>
 {
     public async Task<Result<AccountView>> Handle(AmendSchedule command, CancellationToken cancellationToken)
     {
@@ -251,7 +251,7 @@ internal sealed class AmendScheduleHandler(IBillingRepository billing, IBillingC
         }
 
         var schedule = account.Value.Schedules.SingleOrDefault(s => s.Id == command.ScheduleId);
-        if (schedule is null || await codes.Frequency(schedule.Frequency, clock.UtcToday, cancellationToken) is not { } frequency)
+        if (schedule is null || await codes.Frequency(schedule.Frequency, businessDate.Today, cancellationToken) is not { } frequency)
         {
             return Error.NotFound(ErrorCodes.NotFound, "The schedule, or its frequency in force, was not found.");
         }
@@ -262,7 +262,7 @@ internal sealed class AmendScheduleHandler(IBillingRepository billing, IBillingC
     }
 }
 
-internal sealed class IssueDueInvoicesHandler(IBillingRepository billing, IBillingCodes codes, IClock clock) : ICommandHandler<IssueDueInvoices, IReadOnlyList<InvoiceView>>
+internal sealed class IssueDueInvoicesHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<IssueDueInvoices, IReadOnlyList<InvoiceView>>
 {
     public async Task<Result<IReadOnlyList<InvoiceView>>> Handle(IssueDueInvoices command, CancellationToken cancellationToken)
     {
@@ -272,7 +272,7 @@ internal sealed class IssueDueInvoicesHandler(IBillingRepository billing, IBilli
             return account.Error;
         }
 
-        var issued = await DueInvoices.Issue(account.Value, command.AsOf, billing, codes, clock, cancellationToken);
+        var issued = await DueInvoices.Issue(account.Value, command.AsOf, billing, codes, clock, businessDate, cancellationToken);
         return issued.IsFailure ? issued.Error : issued.Value.Select(InvoiceView.From).ToList();
     }
 }
@@ -281,15 +281,15 @@ internal sealed class IssueDueInvoicesHandler(IBillingRepository billing, IBilli
 public static class DueInvoices
 {
     public static async Task<Result<IReadOnlyList<Invoice>>> Issue(BillingAccount account, DateOnly asOf, IBillingRepository billing, IBillingCodes codes, IClock clock,
-        CancellationToken cancellationToken)
+        IBusinessDate businessDate, CancellationToken cancellationToken)
     {
-        var prefix = await codes.NumberPrefix("INVOICE", clock.UtcToday, cancellationToken);
-        var paymentMethod = await codes.PaymentMethodOf(account.CollectionMethod, clock.UtcToday, cancellationToken) ?? account.CollectionMethod;
+        var prefix = await codes.NumberPrefix("INVOICE", businessDate.Today, cancellationToken);
+        var paymentMethod = await codes.PaymentMethodOf(account.CollectionMethod, businessDate.Today, cancellationToken) ?? account.CollectionMethod;
         var issued = new List<Invoice>();
         foreach (var group in account.DueInstalments(asOf).GroupBy(d => d.Schedule).ToList())
         {
             var instalments = group.Select(g => g.Instalment).ToList();
-            var invoice = Invoice.IssueInvoice(Guid.CreateVersion7(), prefix, account, group.Key, instalments, paymentMethod, clock.UtcToday, clock.UtcNow);
+            var invoice = Invoice.IssueInvoice(Guid.CreateVersion7(), prefix, account, group.Key, instalments, paymentMethod, businessDate.Today, clock.UtcNow);
             if (invoice.IsFailure)
             {
                 return invoice.Error;
@@ -308,7 +308,7 @@ public static class DueInvoices
     }
 }
 
-internal sealed class RaiseCreditNoteHandler(IBillingRepository billing, IBillingCodes codes, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class RaiseCreditNoteHandler(IBillingRepository billing, IBillingCodes codes, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<RaiseCreditNote, InvoiceView>
 {
     public async Task<Result<InvoiceView>> Handle(RaiseCreditNote command, CancellationToken cancellationToken)
@@ -324,7 +324,7 @@ internal sealed class RaiseCreditNoteHandler(IBillingRepository billing, IBillin
             return Error.NotFound(ErrorCodes.NotFound, "The invoice was not found.");
         }
 
-        if (await codes.AdjustmentReason(command.ReasonCode, clock.UtcToday, cancellationToken) is not { } reason)
+        if (await codes.AdjustmentReason(command.ReasonCode, businessDate.Today, cancellationToken) is not { } reason)
         {
             return Error.Validation(BillingErrorCodes.CodeNotInForce, $"{command.ReasonCode} is not an adjustment reason in force.");
         }
@@ -337,8 +337,8 @@ internal sealed class RaiseCreditNoteHandler(IBillingRepository billing, IBillin
 
         audit.Record(new AuditEntry("BILLING", "RaiseCreditNote", nameof(Invoice), invoice.Id.ToString(),
             new Dictionary<string, string?> { ["reason"] = reason.Code, ["amount"] = command.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture) }));
-        var credit = invoice.RaiseCreditNote(Guid.CreateVersion7(), await codes.NumberPrefix("CREDIT_NOTE", clock.UtcToday, cancellationToken), command.Amount, reason,
-            user.Value, clock.UtcToday, clock.UtcNow);
+        var credit = invoice.RaiseCreditNote(Guid.CreateVersion7(), await codes.NumberPrefix("CREDIT_NOTE", businessDate.Today, cancellationToken), command.Amount, reason,
+            user.Value, businessDate.Today, clock.UtcNow);
         if (credit.IsFailure)
         {
             return credit.Error;
@@ -463,7 +463,7 @@ internal static class Views
 /// Billing's policies: payments allocated mark invoices settled (BIL-003); a reversed payment reopens them; Workflow's
 /// decision on a refund; a succeeded refund payment marks the refund paid.
 /// </summary>
-public sealed class BillingPolicies(IBillingRepository billing, IClock clock) :
+public sealed class BillingPolicies(IBillingRepository billing, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<PaymentAllocated>,
     IIntegrationEventHandler<PaymentReversed>,
     IIntegrationEventHandler<PaymentSucceeded>,
@@ -486,7 +486,7 @@ public sealed class BillingPolicies(IBillingRepository billing, IClock clock) :
         {
             if (await billing.Invoice(allocation.InvoiceId, cancellationToken) is { } invoice)
             {
-                invoice.ReverseAllocation(allocation.Amount, clock.UtcToday);
+                invoice.ReverseAllocation(allocation.Amount, businessDate.Today);
             }
         }
     }

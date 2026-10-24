@@ -42,7 +42,7 @@ public sealed class ProductJobOptions
 }
 
 /// <summary>Moves published product versions to Effective on their effective date ("Effective date reached"), one version per transaction.</summary>
-public sealed class ProductJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, IClock clock, ILogger<ProductJobs> logger)
+public sealed class ProductJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, ILogger<ProductJobs> logger)
 {
     public const string ServiceName = "product-jobs";
 
@@ -55,7 +55,7 @@ public sealed class ProductJobs(IServiceScopeFactory scopes, ITenantDirectory te
             await using (var scope = scopes.CreateAsyncScope())
             {
                 scope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(tenantId, ServiceName);
-                due = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new VersionsDueToBecomeEffective(clock.UtcToday), cancellationToken)
+                due = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new VersionsDueToBecomeEffective(businessDates.TodayFor(tenantId)), cancellationToken)
                     is { IsSuccess: true } r ? r.Value : [];
             }
 

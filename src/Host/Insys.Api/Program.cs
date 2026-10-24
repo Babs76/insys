@@ -62,6 +62,7 @@ builder.AddInsysTelemetry();
 builder.Services.AddInsysInfrastructure(builder.Configuration);
 builder.Services.AddInsysCloud(builder.Configuration);
 builder.Services.AddInsysApi();
+builder.Services.AddDailyJobRunner(builder.Configuration);
 foreach (var module in modules)
 {
     module.Register(builder.Services, builder.Configuration);
@@ -79,6 +80,9 @@ foreach (var module in modules)
     // ADR-024: business modules refuse the operator tenant; platform modules are mapped as they are.
     module.MapEndpoints(module.HoldsBusinessData ? ((RouteGroupBuilder)v1).MapGroup("").RefuseOperatorTenant() : v1);
 }
+
+// Test only (ADR-025), mapped last and kept out of the documents.
+v1.MapDailyJobRunner(app.Configuration, app.Environment);
 
 app.Run();
 

@@ -105,7 +105,7 @@ internal sealed class ClaimsCodes(ClaimsFrameworkDbContext db) : IClaimsCodes
         db.Set<T>().AsNoTracking().InForce(ClaimsFrameworkStaticData.Descriptors.Single(d => d.EntityType == typeof(T)).Lifecycle, day);
 }
 
-internal sealed class ClaimsEventMapper : IDomainEventMapper
+internal sealed class ClaimsEventMapper(Microsoft.Extensions.Options.IOptions<ClaimsPaymentOptions> heldReleaseRole) : IDomainEventMapper
 {
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
     {
@@ -115,6 +115,8 @@ internal sealed class ClaimsEventMapper : IDomainEventMapper
             e.Skipped.Select(s => new Contracts.SkippedFraudIndicator(s.IndicatorCode, s.Reason, s.MissingFacts, s.ErrorCode)).ToList()),
         ClaimReserveChanged e => new Contracts.ClaimReserveChanged(e.MovementId, e.ClaimNumber, e.Domain, e.ReserveType, e.Change, e.Outstanding, e.Currency, e.MovementDate),
         ClaimRecoveryRecorded e => new Contracts.ClaimRecoveryRecorded(e.MovementId, e.ClaimNumber, e.Domain, e.ReserveType, e.Amount, e.Currency, e.MovementDate),
+        ClaimPaymentReleaseHeld e => new Contracts.ClaimPaymentReleaseHeld(e.InstructionId, e.ClaimNumber, e.Domain, e.Reason, e.Amount, e.Currency, e.ReserveType,
+            heldReleaseRole.Value.HeldReleaseRole),
         ClaimPaymentInstructed e => new Contracts.ClaimPaymentInstructed(e.InstructionId, e.ClaimNumber, e.Domain, e.PayeePartyId, e.BankAccountId, e.Amount, e.Currency,
             e.Attempt),
         ClaimPaymentCompleted e => new Contracts.ClaimPaymentCompleted(e.InstructionId, e.MovementId, e.ClaimNumber, e.Domain, e.ReserveType, e.Amount, e.Currency, e.PaidOn),

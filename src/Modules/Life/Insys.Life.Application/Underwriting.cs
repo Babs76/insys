@@ -189,7 +189,7 @@ internal sealed class ReferUnderwritingCaseHandler(ILifeRepository life) : IComm
 /// otherwise it is requested in Workflow for a second person (an override, or above authority). Audited either way.
 /// </summary>
 internal sealed class DecideUnderwritingCaseHandler(ILifeRepository life, ILifeCodes codes, IUserRoleQuery roles, IUnderwritingAuthorities authorities, ITenantContext tenant,
-    IExecutionContext execution, IClock clock, IAuditTrail audit)
+    IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<DecideUnderwritingCase, CaseView>
 {
     public async Task<Result<CaseView>> Handle(DecideUnderwritingCase command, CancellationToken cancellationToken)
@@ -208,7 +208,7 @@ internal sealed class DecideUnderwritingCaseHandler(ILifeRepository life, ILifeC
         }
 
         var items = command.Items ?? [];
-        var decisionCodes = await codes.DecisionCodes(clock.UtcToday, cancellationToken);
+        var decisionCodes = await codes.DecisionCodes(businessDate.Today, cancellationToken);
         if (items.Select(i => i.DecisionCode).Append(command.DecisionCode).FirstOrDefault(c => !decisionCodes.ContainsKey(c)) is { } unknown)
         {
             return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{unknown} is not an underwriting decision code in force.");
@@ -223,7 +223,7 @@ internal sealed class DecideUnderwritingCaseHandler(ILifeRepository life, ILifeC
         var tenantId = tenant.RequireTenantId();
         var userRoles = await roles.EffectiveRoles(tenantId, user.Value, cancellationToken);
         var codesUsed = items.Select(i => i.DecisionCode).Append(command.DecisionCode).Distinct().ToList();
-        var authority = (await authorities.For(tenantId, userRoles, proposal.ProductCode, clock.UtcToday, cancellationToken))
+        var authority = (await authorities.For(tenantId, userRoles, proposal.ProductCode, businessDate.Today, cancellationToken))
             .FirstOrDefault(a => a.MaxSumAssured >= proposal.TotalSumAssured && codesUsed.All(a.DecisionTypes.Contains));
         var single = authority is not null && underwritingCase.MatchesRuleOutcome(command.Outcome);
         audit.Record(new AuditEntry("LIFE", "DecideCase", nameof(LifeUnderwritingCase), underwritingCase.Id.ToString(), new Dictionary<string, string?>

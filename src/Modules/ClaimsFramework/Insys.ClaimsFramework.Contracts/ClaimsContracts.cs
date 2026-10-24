@@ -77,6 +77,14 @@ public sealed record ClaimRecoveryRecorded(Guid MovementId, string ClaimNumber, 
 public sealed record ClaimPaymentInstructed(Guid InstructionId, string ClaimNumber, string Domain, Guid PayeePartyId, Guid BankAccountId, decimal Amount, string Currency,
     int Attempt) : IIntegrationEvent;
 
+/// <summary>
+/// An approved claim payment instruction was not released automatically, and is held (RESERVE_BELOW_ZERO,
+/// PAYEE_ACCOUNT_CHANGED). Workflow opens a task for <paramref name="TargetRole"/>.
+/// </summary>
+[IntegrationEvent("claims.ClaimPaymentReleaseHeld")]
+public sealed record ClaimPaymentReleaseHeld(Guid InstructionId, string ClaimNumber, string Domain, string Reason, decimal Amount, string Currency, string ReserveType,
+    string TargetRole) : IIntegrationEvent;
+
 [IntegrationEvent("claims.ClaimPaymentCompleted")]
 public sealed record ClaimPaymentCompleted(Guid InstructionId, Guid MovementId, string ClaimNumber, string Domain, string ReserveType, decimal Amount, string Currency,
     DateOnly PaidOn) : IIntegrationEvent;

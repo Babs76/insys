@@ -39,7 +39,7 @@ namespace Insys.Billing.Application;
 /// own (source domain HEALTH_ER). A change of members amends both; termination ends both. TODO(spec): the monthly
 /// billing frequency code and the contribution of individual members (no scheme) are not specified (OQ-061).
 /// </summary>
-public sealed class HealthContributionBilling(IBillingRepository billing, IBillingCodes codes, IClock clock) :
+public sealed class HealthContributionBilling(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<HealthMemberEnrolled>,
     IIntegrationEventHandler<DependantAdded>,
     IIntegrationEventHandler<HealthMemberStatusChanged>
@@ -102,7 +102,7 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
 
     private async Task<BillingAccount> Open(Guid id, Guid payerPartyId, HealthMemberEnrolled enrolled, CancellationToken cancellationToken)
     {
-        if (!await codes.CollectionMethodExists(enrolled.CollectionMethod, clock.UtcToday, cancellationToken))
+        if (!await codes.CollectionMethodExists(enrolled.CollectionMethod, businessDate.Today, cancellationToken))
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.CollectionMethodNotInForce, enrolled.CollectionMethod);
         }
@@ -121,7 +121,7 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
             throw new InvalidOperationException($"Member {enrolled.MemberNumber} cannot be scheduled: {schedule.Error.Message}");
         }
 
-        await DueInvoices.Issue(account, clock.UtcToday, billing, codes, clock, cancellationToken);
+        await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken);
     }
 
     private async Task Amend(string sourceDomain, Guid membershipId, string memberNumber, decimal? contribution, DateOnly from, CancellationToken cancellationToken)
@@ -140,6 +140,6 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
     }
 
     private async Task<BillingFrequency> Frequency(string memberNumber, CancellationToken cancellationToken) =>
-        await codes.Frequency(Monthly, clock.UtcToday, cancellationToken)
+        await codes.Frequency(Monthly, businessDate.Today, cancellationToken)
         ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, Monthly);
 }

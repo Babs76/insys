@@ -184,7 +184,7 @@ public sealed class ReturnValues(ILedgerBalances ledger, IProjectionTotals proje
     }
 }
 
-internal sealed class PrepareReturnHandler(IComplianceRepository repository, IComplianceCodes codes, ReturnValues values, IExecutionContext execution, IClock clock,
+internal sealed class PrepareReturnHandler(IComplianceRepository repository, IComplianceCodes codes, ReturnValues values, IExecutionContext execution, IBusinessDate businessDate,
     IAuditTrail audit) : ICommandHandler<PrepareReturn, ReturnView>
 {
     public async Task<Result<ReturnView>> Handle(PrepareReturn command, CancellationToken cancellationToken)
@@ -195,7 +195,7 @@ internal sealed class PrepareReturnHandler(IComplianceRepository repository, ICo
             return user.Error;
         }
 
-        var prepared = await Returns.Prepare(repository, codes, values, command.ReturnCode, command.PeriodCode, user.Value, clock.UtcToday, cancellationToken);
+        var prepared = await Returns.Prepare(repository, codes, values, command.ReturnCode, command.PeriodCode, user.Value, businessDate.Today, cancellationToken);
         if (prepared.IsFailure)
         {
             return prepared.Error;
@@ -238,7 +238,7 @@ internal static class Returns
 /// regulator adapter and is refused if the regulator does not accept it for processing.
 /// </summary>
 internal sealed class ChangeReturnHandler(IComplianceRepository repository, IComplianceCodes codes, ReturnValues values, IRegulatorAdapter regulators,
-    ITenantContext tenant, IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<ChangeReturn, ReturnView>
+    ITenantContext tenant, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<ChangeReturn, ReturnView>
 {
     public async Task<Result<ReturnView>> Handle(ChangeReturn command, CancellationToken cancellationToken)
     {
@@ -280,7 +280,7 @@ internal sealed class ChangeReturnHandler(IComplianceRepository repository, ICom
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"A return is submitted once approved; this one is {regulatoryReturn.Status}.");
         }
 
-        if (await codes.Definition(regulatoryReturn.ReturnCode, clock.UtcToday, cancellationToken) is not { } definition)
+        if (await codes.Definition(regulatoryReturn.ReturnCode, businessDate.Today, cancellationToken) is not { } definition)
         {
             return Error.Validation(ErrorCodes.ValidationFailed, $"{regulatoryReturn.ReturnCode} is not a regulatory return definition in force.");
         }
@@ -294,7 +294,7 @@ internal sealed class ChangeReturnHandler(IComplianceRepository repository, ICom
 
     private async Task<Result> Correct(RegulatoryReturn regulatoryReturn, Guid by, CancellationToken cancellationToken)
     {
-        if (await codes.Definition(regulatoryReturn.ReturnCode, clock.UtcToday, cancellationToken) is not { } definition)
+        if (await codes.Definition(regulatoryReturn.ReturnCode, businessDate.Today, cancellationToken) is not { } definition)
         {
             return Error.Validation(ErrorCodes.ValidationFailed, $"{regulatoryReturn.ReturnCode} is not a regulatory return definition in force.");
         }
@@ -306,7 +306,7 @@ internal sealed class ChangeReturnHandler(IComplianceRepository repository, ICom
 
 /// <summary>A report is run by users holding one of its catalogue roles; exported only where the catalogue allows (OQ-064 item 4).</summary>
 internal sealed class RunReportHandler(IComplianceRepository repository, IComplianceCodes codes, IProjectionTotals projections, IUserRoleQuery roles, ITenantContext tenant,
-    IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<RunReport, ReportRunView>
+    IExecutionContext execution, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<RunReport, ReportRunView>
 {
     public async Task<Result<ReportRunView>> Handle(RunReport command, CancellationToken cancellationToken)
     {
@@ -316,7 +316,7 @@ internal sealed class RunReportHandler(IComplianceRepository repository, ICompli
             return user.Error;
         }
 
-        if (await codes.Report(command.ReportCode, clock.UtcToday, cancellationToken) is not { } report)
+        if (await codes.Report(command.ReportCode, businessDate.Today, cancellationToken) is not { } report)
         {
             return Error.Validation(ErrorCodes.ValidationFailed, $"{command.ReportCode} is not a report in the catalogue.");
         }
@@ -367,7 +367,7 @@ internal sealed class ComplianceQueries(IComplianceRepository repository) :
 /// (OQ-064 item 2). A return that cannot be calculated (a mapping to an unknown account or metric) is retried, then
 /// dead-lettered for a person.
 /// </summary>
-public sealed class ReturnPolicies(IComplianceRepository repository, IComplianceCodes codes, ReturnValues values, IClock clock, ILogger<ReturnPolicies> logger)
+public sealed class ReturnPolicies(IComplianceRepository repository, IComplianceCodes codes, ReturnValues values, IBusinessDate businessDate, ILogger<ReturnPolicies> logger)
     : IIntegrationEventHandler<AccountingPeriodClosed>
 {
     public async Task Handle(AccountingPeriodClosed closed, EventEnvelope envelope, CancellationToken cancellationToken)
@@ -377,14 +377,14 @@ public sealed class ReturnPolicies(IComplianceRepository repository, ICompliance
             return;
         }
 
-        foreach (var definition in await codes.Definitions(clock.UtcToday, cancellationToken))
+        foreach (var definition in await codes.Definitions(businessDate.Today, cancellationToken))
         {
             if (!ReturnFrequencies.EndsWith(definition.Frequency, closed.PeriodCode) || await repository.Return(definition.ReturnCode, closed.PeriodCode, cancellationToken) is not null)
             {
                 continue;
             }
 
-            var prepared = await Returns.Prepare(repository, codes, values, definition.ReturnCode, closed.PeriodCode, null, clock.UtcToday, cancellationToken);
+            var prepared = await Returns.Prepare(repository, codes, values, definition.ReturnCode, closed.PeriodCode, null, businessDate.Today, cancellationToken);
             if (prepared.IsFailure)
             {
                 throw new InvalidOperationException($"Return {definition.ReturnCode} for {closed.PeriodCode} was not prepared: {prepared.Error.Message}");

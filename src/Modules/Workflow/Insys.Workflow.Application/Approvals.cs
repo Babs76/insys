@@ -111,7 +111,7 @@ internal static class Checker
 /// permission on the route is the authority, with maker and checker still different (SDM-003; OQ-050).
 /// </summary>
 public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader authority, IEnumerable<IApprovalAuthoritySource> sources, ITenantContext tenant,
-    IExecutionContext execution, IClock clock, IAuditTrail audit)
+    IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
 {
     private const string PermissionAuthority = "(static_data.approve)";
 
@@ -133,11 +133,11 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
         var checkerRoles = await roles.EffectiveRoles(tenant.RequireTenantId(), checkerId, cancellationToken);
         // A module that keeps the authority for this approval type in its own static data decides it (Life claims).
         var grants = sources.FirstOrDefault(s => s.Decides(approval.ApprovalType)) is { } source
-            ? (await source.For(tenant.RequireTenantId(), approval.BusinessRefType, approval.BusinessRefId, checkerRoles, clock.UtcToday, cancellationToken))
+            ? (await source.For(tenant.RequireTenantId(), approval.BusinessRefType, approval.BusinessRefId, checkerRoles, businessDate.Today, cancellationToken))
                 .Select(a => new AuthorityGrant(a.RoleCode, approval.ApprovalType, a.Limit)).ToList()
-            : await authority.For(checkerRoles, clock.UtcToday, cancellationToken);
+            : await authority.For(checkerRoles, businessDate.Today, cancellationToken);
         if (approval.ApprovalType.StartsWith(StaticDataApprovals.ApprovalTypePrefix, StringComparison.Ordinal)
-            && !await authority.IsConfigured(approval.ApprovalType, clock.UtcToday, cancellationToken))
+            && !await authority.IsConfigured(approval.ApprovalType, businessDate.Today, cancellationToken))
         {
             grants = [.. grants, new AuthorityGrant(PermissionAuthority, approval.ApprovalType, 0m)];
         }

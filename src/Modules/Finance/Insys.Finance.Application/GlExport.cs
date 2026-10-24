@@ -126,7 +126,7 @@ public static class GlExportCsv
     }
 }
 
-internal sealed class GlExportHandlers(IGlExports exports, IGeneralLedgerAdapter ledger, ITenantContext tenant, IClock clock, IAuditTrail audit) :
+internal sealed class GlExportHandlers(IGlExports exports, IGeneralLedgerAdapter ledger, ITenantContext tenant, IBusinessDate businessDate, IAuditTrail audit) :
     ICommandHandler<ExportToGeneralLedger, GlExportView>,
     ICommandHandler<RecordGlAcknowledgement, long>,
     IQueryHandler<GetGlExport, GlExportView>,
@@ -135,7 +135,7 @@ internal sealed class GlExportHandlers(IGlExports exports, IGeneralLedgerAdapter
 {
     public async Task<Result<GlExportView>> Handle(ExportToGeneralLedger command, CancellationToken cancellationToken)
     {
-        if (await exports.Layout(command.LayoutCode, clock.UtcToday, cancellationToken) is not { } layout)
+        if (await exports.Layout(command.LayoutCode, businessDate.Today, cancellationToken) is not { } layout)
         {
             return Error.Validation(GlExportErrorCodes.LayoutNotInForce, $"{command.LayoutCode} is not a GL export layout in force.");
         }

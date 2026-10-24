@@ -69,6 +69,10 @@ public static class InfrastructureRegistration
     {
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IClock, SystemClock>();
+        services.AddOptions<BusinessDateOptions>().Bind(configuration.GetSection("BusinessDate"));
+        services.TryAddSingleton<TenantTimeZones>();
+        services.TryAddSingleton<TenantBusinessDates>();
+        services.TryAddScoped<IBusinessDate, BusinessDate>();
         services.AddOptions<PlatformOptions>().Bind(configuration.GetSection("Platform"));
         services.AddDataSource(DataSourceKeys.Api, "Api", "insys_api");
         services.AddDataSource(DataSourceKeys.PlatformAdmin, "PlatformAdmin", "insys_platform_admin_login");

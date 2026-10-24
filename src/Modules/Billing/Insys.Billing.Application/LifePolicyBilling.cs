@@ -37,7 +37,7 @@ namespace Insys.Billing.Application;
 /// OpenAccount, CreateSchedule and IssueInvoice on issue; the schedule stops when the policy lapses and resumes when it
 /// is reinstated. Obligations come only from these authorised transactions (BIL-001).
 /// </summary>
-public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes codes, IClock clock) :
+public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<LifePolicyIssued>,
     IIntegrationEventHandler<LifePolicyLapsed>,
     IIntegrationEventHandler<LifePolicyReinstated>
@@ -55,7 +55,7 @@ public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes 
         var account = await billing.Account(issued.BillingAccountRef, cancellationToken);
         if (account is null)
         {
-            if (!await codes.CollectionMethodExists(issued.CollectionMethod, clock.UtcToday, cancellationToken))
+            if (!await codes.CollectionMethodExists(issued.CollectionMethod, businessDate.Today, cancellationToken))
             {
                 throw new PrerequisiteMissingException(PrerequisiteCodes.CollectionMethodNotInForce, issued.CollectionMethod);
             }
@@ -76,7 +76,7 @@ public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes 
             throw new InvalidOperationException($"Policy {issued.PolicyNumber} cannot be scheduled: {schedule.Error.Message}");
         }
 
-        var invoices = await DueInvoices.Issue(account, clock.UtcToday, billing, codes, clock, cancellationToken);
+        var invoices = await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken);
         if (invoices.IsFailure)
         {
             throw new InvalidOperationException($"Policy {issued.PolicyNumber} cannot be invoiced: {invoices.Error.Message}");
@@ -112,10 +112,10 @@ public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes 
             throw new InvalidOperationException($"Policy {reinstated.PolicyNumber}'s schedule cannot resume: {resumed.Error.Message}");
         }
 
-        await DueInvoices.Issue(account, clock.UtcToday, billing, codes, clock, cancellationToken);
+        await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken);
     }
 
     private async Task<BillingFrequency> Frequency(string code, string policyNumber, CancellationToken cancellationToken) =>
-        await codes.Frequency(code, clock.UtcToday, cancellationToken)
+        await codes.Frequency(code, businessDate.Today, cancellationToken)
         ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, code);
 }

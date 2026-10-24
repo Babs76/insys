@@ -103,7 +103,7 @@ internal static class LifeClaims
         || policy.BeneficiariesOn(claim.EventDate).Any(b => b.PartyId == partyId);
 }
 
-internal sealed class NotifyLifeClaimHandler(ILifeRepository life, ILifeCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<NotifyLifeClaim, LifeClaimView>
+internal sealed class NotifyLifeClaimHandler(ILifeRepository life, ILifeCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<NotifyLifeClaim, LifeClaimView>
 {
     public async Task<Result<LifeClaimView>> Handle(NotifyLifeClaim command, CancellationToken cancellationToken)
     {
@@ -113,12 +113,12 @@ internal sealed class NotifyLifeClaimHandler(ILifeRepository life, ILifeCodes co
             return policy.Error;
         }
 
-        if (await codes.ClaimBenefitType(command.ClaimType, clock.UtcToday, cancellationToken) is null)
+        if (await codes.ClaimBenefitType(command.ClaimType, businessDate.Today, cancellationToken) is null)
         {
             return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{command.ClaimType} is not a Life claim type in force.");
         }
 
-        if (command.CauseCode is { } cause && !await codes.Exists(LifeCode.CauseOfEvent, cause, clock.UtcToday, cancellationToken))
+        if (command.CauseCode is { } cause && !await codes.Exists(LifeCode.CauseOfEvent, cause, businessDate.Today, cancellationToken))
         {
             return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{cause} is not a cause of event in force.");
         }
@@ -142,7 +142,7 @@ internal sealed class NotifyLifeClaimHandler(ILifeRepository life, ILifeCodes co
 /// open for the same benefit and event (CLM-005). Then the Claims Framework allocates the number.
 /// </summary>
 internal sealed class RegisterLifeClaimHandler(ILifeRepository life, ILifeCodes codes, IExclusionCodes exclusions, IClaimRegistry registry, ITenantContext tenant,
-    IClock clock, IAuditTrail audit) : ICommandHandler<RegisterLifeClaim, LifeClaimView>
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<RegisterLifeClaim, LifeClaimView>
 {
     public async Task<Result<LifeClaimView>> Handle(RegisterLifeClaim command, CancellationToken cancellationToken)
     {
@@ -158,20 +158,20 @@ internal sealed class RegisterLifeClaimHandler(ILifeRepository life, ILifeCodes 
             return LifeClaimView.From(claim);
         }
 
-        if (await codes.ClaimBenefitType(claim.ClaimType, clock.UtcToday, cancellationToken) is not { } benefitType)
+        if (await codes.ClaimBenefitType(claim.ClaimType, businessDate.Today, cancellationToken) is not { } benefitType)
         {
             return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{claim.ClaimType} is not a Life claim type in force.");
         }
 
         var benefit = policy.CoversEvent(claim.InsuredLifeId, benefitType, claim.EventDate,
-            await codes.GraceRule(policy.PremiumFrequency, clock.UtcToday, cancellationToken));
+            await codes.GraceRule(policy.PremiumFrequency, businessDate.Today, cancellationToken));
         if (benefit.IsFailure)
         {
             return benefit.Error;
         }
 
         if (benefit.Value.ExclusionCodes is { Length: > 0 } excluded && claim.CauseCode is { } cause
-            && (await exclusions.InForce(tenant.RequireTenantId(), excluded, clock.UtcToday, cancellationToken)).FirstOrDefault(e => CodeRanges.Contains(e.DiagnosisCodes, cause)) is { } exclusion)
+            && (await exclusions.InForce(tenant.RequireTenantId(), excluded, businessDate.Today, cancellationToken)).FirstOrDefault(e => CodeRanges.Contains(e.DiagnosisCodes, cause)) is { } exclusion)
         {
             return Error.Validation(LifeErrorCodes.NotCovered, $"The cause is excluded from the benefit ({exclusion.Code}).");
         }

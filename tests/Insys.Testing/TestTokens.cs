@@ -42,7 +42,10 @@ public static class TestTokens
     /// <summary>The simulator provider's callback secret in tests (Payments:Providers:SIMULATOR:CallbackSecret).</summary>
     public const string SimulatorCallbackSecret = "test-simulator-callback-secret";
 
-    public static string For(Guid? tenantId, string subject)
+    public static string For(Guid? tenantId, string subject) => For(tenantId, subject, DateTime.UtcNow);
+
+    /// <summary>A token valid around <paramref name="now"/>, for a host whose clock is fixed (business date tests).</summary>
+    public static string For(Guid? tenantId, string subject, DateTime now)
     {
         var claims = new List<Claim> { new("sub", subject) };
         if (tenantId is not null)
@@ -55,7 +58,10 @@ public static class TestTokens
             Issuer = Issuer,
             Audience = Audience,
             Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.UtcNow.AddMinutes(30),
+            // Valid at the given time and at the real time, whichever the host checks a token against.
+            NotBefore = (now < DateTime.UtcNow ? now : DateTime.UtcNow).AddMinutes(-5),
+            IssuedAt = now,
+            Expires = (now > DateTime.UtcNow ? now : DateTime.UtcNow).AddMinutes(30),
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SigningKey)), SecurityAlgorithms.HmacSha256),
         });
     }
@@ -72,6 +78,7 @@ public static class TestTokens
         ["Authentication:DevelopmentSigningKey"] = SigningKey,
         ["Outbox:RelayEnabled"] = "false",
         ["Outbox:Parking:JobEnabled"] = "false",
+        ["Testing:DailyJobRunner:Enabled"] = "true",
         ["Workflow:TimersEnabled"] = "false",
         ["Billing:Jobs:Enabled"] = "false",
         ["Payments:Jobs:Enabled"] = "false",

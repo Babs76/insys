@@ -52,6 +52,10 @@ public sealed class OperationsTests(DatabaseFixture fixture) : IClassFixture<Dat
     public async Task Health_ReportsOutboxLag_DegradedThenUnhealthy_WhileReadinessStaysOk_GAP034()
     {
         var client = _factory.CreateClient();
+
+        // Events the host raised itself at start-up (its jobs' audit entries) are published first: the relay is off in tests,
+        // and under a loaded run they can pass the one-minute warning before this test reads /health.
+        await _factory.DrainOutbox();
         (await client.GetAsync("/health/ready")).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await Lag(client)).GetProperty("status").GetString().ShouldBe("Healthy");
 

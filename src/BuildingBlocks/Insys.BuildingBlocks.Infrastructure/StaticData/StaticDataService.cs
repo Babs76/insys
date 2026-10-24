@@ -84,7 +84,7 @@ public sealed class StaticDataService<TDbContext>(
     TDbContext tenantDb,
     StaticDataContextFactory<TDbContext> contexts,
     IExecutionContext execution,
-    IClock clock,
+    IBusinessDate businessDate, IClock clock,
     IFieldProtector protector,
     IEnumerable<IStaticChangeGuard> guards,
     IEnumerable<IStaticRecordValidator> validators)
@@ -147,7 +147,7 @@ public sealed class StaticDataService<TDbContext>(
                 TenantId = global ? null : db.CurrentTenantId,
                 Code = input.Code,
                 Version = existing.Count == 0 ? 1 : existing.Max(r => r.Version) + 1,
-                EffectiveFrom = input.EffectiveFrom ?? clock.UtcToday,
+                EffectiveFrom = input.EffectiveFrom ?? businessDate.Today,
                 RecordStatus = descriptor.Lifecycle.Draft,
                 SupersedesId = current?.Id,
             };
@@ -232,7 +232,7 @@ public sealed class StaticDataService<TDbContext>(
                 return Error.Validation(StaticDataErrorCodes.RetroactiveChange, "effectiveFrom must be after the start of the version in force.");
             }
 
-            if (current is not null && descriptor.Tier == 1 && entity.EffectiveFrom < clock.UtcToday)
+            if (current is not null && descriptor.Tier == 1 && entity.EffectiveFrom < businessDate.Today)
             {
                 return Error.Validation(StaticDataErrorCodes.RetroactiveChange,
                     "Tier 1 data in force cannot change retroactively; use the correction workflow (SDM-005).");
@@ -372,7 +372,7 @@ public sealed class StaticDataService<TDbContext>(
                     TenantId = global ? null : context.CurrentTenantId,
                     Code = lines[i].Code,
                     Version = 1,
-                    EffectiveFrom = lines[i].EffectiveFrom ?? clock.UtcToday,
+                    EffectiveFrom = lines[i].EffectiveFrom ?? businessDate.Today,
                     RecordStatus = descriptor.Lifecycle.Draft,
                 };
                 entity.ApplyCommon(lines[i]);

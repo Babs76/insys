@@ -468,6 +468,13 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var claimNumber = (await _db.ScalarAsOwner<string>("SELECT claim_number FROM health.medical_claim WHERE id = @c", ("c", claim)))!;
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM health.fraud_case WHERE subject_type = 'CLAIM' AND subject_ref = @n", ("n", claimNumber)))
             .ShouldBe(1L, "F009: fraud indicators are evaluated at submission");
+
+        // GAP-040: the fraud case is found from the claim it is about, and the claim from the membership.
+        var cases = await Get($"/api/v1/health/fraud-cases?claimNumber={claimNumber}");
+        DocumentedSchema.ResponseProblems(cases, "core", "HealthListFraudCases").ShouldBeEmpty();
+        var fraudCase = cases.GetProperty("items").EnumerateArray().Single();
+        (await Get($"/api/v1/health/fraud-cases/{fraudCase.GetProperty("id").GetGuid()}")).GetProperty("subjectRef").GetString().ShouldBe(claimNumber);
+        (await Get($"/api/v1/health/claims?membershipId={membership}")).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldContain(claim);
         (await _maker.PostAsync($"/api/v1/health/claims/{claim}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var adjudicated = await (await _maker.PostAsync($"/api/v1/health/claims/{claim}/adjudicate", null)).Json();
         adjudicated.GetProperty("status").GetString().ShouldBe("Adjudicated", adjudicated.ToString());

@@ -53,6 +53,7 @@ public static class HealthInfrastructure
         services.AddDomainEventMapper<HealthEventMapper>(schema);
         services.AddScoped<IHealthRepository, HealthRepository>();
         services.AddScoped<IHealthCodes, HealthCodes>();
+        services.AddScoped<IHealthLists, HealthLists>();
         services.AddScoped<BenefitContexts>();
         services.AddIntegrationEventHandler<PreauthorisationApproved, HealthEventPolicies, HealthDbContext>(schema, "PreauthorisationApproved");
         services.AddIntegrationEventHandler<PreauthorisationReservationsChanged, HealthEventPolicies, HealthDbContext>(schema, "ReservationsChanged");
@@ -84,16 +85,17 @@ public sealed class HealthJobOptions
 /// The daily transitions, one record per transaction, as a service identity: approved authorisations past their
 /// validity expire and release their reservation (HLT-005); memberships and schemes start.
 /// </summary>
-public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, IClock clock, ILogger<HealthJobs> logger)
+public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, ILogger<HealthJobs> logger)
 {
     public const string ServiceName = "health-jobs";
 
     public async Task<int> Run(CancellationToken cancellationToken)
     {
         var done = 0;
-        var day = clock.UtcToday;
         foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
         {
+            // The tenant's business date (GAP-044, ADR-025).
+            var day = businessDates.TodayFor(tenantId);
             HealthDueWork work;
             await using (var scope = Scope(tenantId))
             {

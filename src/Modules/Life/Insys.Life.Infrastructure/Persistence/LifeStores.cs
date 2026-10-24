@@ -161,11 +161,14 @@ internal sealed partial class LifeCodes(LifeDbContext db) : ILifeCodes
         await InForce<MemberCategoryDefinitions>(day).Where(c => c.Scheme == schemeNumber && c.CategoryCode == categoryCode)
             .Select(c => new MemberCategoryDefinition(c.CategoryCode, c.EligibilityRule, c.BenefitMultiple)).FirstOrDefaultAsync(cancellationToken);
 
-    /// <summary>The band whose range holds the member count: "50-199 members", or "200+ members" for an open band.</summary>
+    /// <summary>
+    /// The band whose range holds the member count. size_band is an int4range: the validator accepts interval notation
+    /// ("[50,200)", "[200,)") and PostgreSQL stores it so, which is the one format read here (GAP-043). Before, this read
+    /// "50-199 members", which no stored band could be, so no member ever had a free cover limit.
+    /// </summary>
     public async Task<decimal?> FreeCoverLimit(int members, DateOnly day, CancellationToken cancellationToken) =>
         (await InForce<FreeCoverLimits>(day).ToListAsync(cancellationToken))
-        .Where(b => Band().Match(b.SizeBand) is { Success: true } m && members >= int.Parse(m.Groups["from"].Value, CultureInfo.InvariantCulture)
-                    && (!m.Groups["to"].Success || members <= int.Parse(m.Groups["to"].Value, CultureInfo.InvariantCulture)))
+        .Where(b => StaticConverters.IntRangeContains(b.SizeBand, members))
         .Select(b => (decimal?)b.FreeCoverLimit).FirstOrDefault();
 
     public Task<bool> Exists(LifeCode kind, string code, DateOnly day, CancellationToken cancellationToken) => kind switch
@@ -176,8 +179,6 @@ internal sealed partial class LifeCodes(LifeDbContext db) : ILifeCodes
         _ => InForce<GroupSchemeTypes>(day).AnyAsync(c => c.Code == code, cancellationToken),
     };
 
-    [GeneratedRegex(@"^\s*(?<from>\d+)\s*(?:(?:-|to)\s*(?<to>\d+)|\+)")]
-    private static partial Regex Band();
 
     private IQueryable<T> InForce<T>(DateOnly day) where T : StaticRecord =>
         db.Set<T>().AsNoTracking().InForce(LifeStaticData.Descriptors.Single(d => d.EntityType == typeof(T)).Lifecycle, day);

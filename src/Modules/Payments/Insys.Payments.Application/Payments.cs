@@ -229,7 +229,7 @@ internal static class Users
 
 /// <summary>Starts payments: one per idempotency key (PAY-001); inbound collections are sent at once, payouts wait for a batch.</summary>
 public sealed class PaymentStarter(IPaymentRepository payments, IPaymentCodes codes, IEnumerable<IPaymentGateway> gateways, IBankAccounts bankAccounts,
-    IBankAccountDetails bankAccountDetails, ITenantContext tenant, IAuditTrail audit, IClock clock)
+    IBankAccountDetails bankAccountDetails, ITenantContext tenant, IAuditTrail audit, IBusinessDate businessDate, IClock clock)
 {
     public async Task<Result<Payment>> Start(InitiatePayment command, CancellationToken cancellationToken)
     {
@@ -238,7 +238,7 @@ public sealed class PaymentStarter(IPaymentRepository payments, IPaymentCodes co
             return existing;
         }
 
-        var day = clock.UtcToday;
+        var day = businessDate.Today;
         if (!await codes.MethodUsable(command.MethodCode, command.Direction, command.Currency, day, cancellationToken))
         {
             return Error.Validation(PaymentErrorCodes.CodeNotInForce, $"{command.MethodCode} is not a {command.Direction} payment method in force for {command.Currency}.");
@@ -280,7 +280,7 @@ public sealed class PaymentStarter(IPaymentRepository payments, IPaymentCodes co
             if (await bankAccounts.Get(tenantId, accountId, cancellationToken) is not { IsPayable: true }
                 || (payee = await bankAccountDetails.ForPayment(tenantId, accountId, cancellationToken)) is null)
             {
-                payment.Sent(ProviderOutcome.Failed, null, "The payee's bank account changed after approval", clock.UtcToday, clock.UtcNow);
+                payment.Sent(ProviderOutcome.Failed, null, "The payee's bank account changed after approval", businessDate.Today, clock.UtcNow);
                 return;
             }
 
@@ -299,7 +299,7 @@ public sealed class PaymentStarter(IPaymentRepository payments, IPaymentCodes co
             answer = (ProviderOutcome.Unknown, null, ex.GetType().Name);
         }
 
-        payment.Sent(answer.Outcome, answer.ExternalRef, answer.Reason, clock.UtcToday, clock.UtcNow);
+        payment.Sent(answer.Outcome, answer.ExternalRef, answer.Reason, businessDate.Today, clock.UtcNow);
     }
 }
 
@@ -318,7 +318,7 @@ internal sealed class InitiatePaymentHandler(PaymentStarter starter, IAuditTrail
     }
 }
 
-internal sealed class RecordProviderCallbackHandler(IPaymentRepository payments, IPaymentCodes codes, IEnumerable<IPaymentGateway> gateways, IClock clock)
+internal sealed class RecordProviderCallbackHandler(IPaymentRepository payments, IPaymentCodes codes, IEnumerable<IPaymentGateway> gateways, IBusinessDate businessDate, IClock clock)
     : ICommandHandler<RecordProviderCallback, PaymentView>
 {
     public async Task<Result<PaymentView>> Handle(RecordProviderCallback command, CancellationToken cancellationToken)
@@ -337,8 +337,8 @@ internal sealed class RecordProviderCallbackHandler(IPaymentRepository payments,
             return Error.NotFound(ErrorCodes.NotFound, "No payment has this provider reference; the callback was recorded.");
         }
 
-        var outcome = await codes.MapStatus(command.ProviderCode, command.ProviderStatus, clock.UtcToday, cancellationToken);
-        var result = payment.RecordCallback(outcome, $"Provider status {command.ProviderStatus}", clock.UtcToday, clock.UtcNow);
+        var outcome = await codes.MapStatus(command.ProviderCode, command.ProviderStatus, businessDate.Today, cancellationToken);
+        var result = payment.RecordCallback(outcome, $"Provider status {command.ProviderStatus}", businessDate.Today, clock.UtcNow);
         return result.IsFailure ? result.Error : PaymentView.From(payment);
     }
 }
@@ -357,7 +357,7 @@ internal sealed class MarkUnknownHandler(IPaymentRepository payments, IClock clo
     }
 }
 
-internal sealed class ResolveUnknownHandler(IPaymentRepository payments, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class ResolveUnknownHandler(IPaymentRepository payments, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<ResolveUnknown, PaymentView>
 {
     public async Task<Result<PaymentView>> Handle(ResolveUnknown command, CancellationToken cancellationToken)
@@ -375,12 +375,12 @@ internal sealed class ResolveUnknownHandler(IPaymentRepository payments, IExecut
 
         audit.Record(new AuditEntry("PAYMENT", "ResolveUnknown", nameof(Payment), payment.Id.ToString(),
             new Dictionary<string, string?> { ["succeeded"] = command.Succeeded.ToString(), ["evidence"] = command.Evidence }));
-        var result = payment.ResolveUnknown(command.Succeeded, command.Evidence, clock.UtcToday, clock.UtcNow);
+        var result = payment.ResolveUnknown(command.Succeeded, command.Evidence, businessDate.Today, clock.UtcNow);
         return result.IsFailure ? result.Error : PaymentView.From(payment);
     }
 }
 
-internal sealed class ReversePaymentHandler(IPaymentRepository payments, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class ReversePaymentHandler(IPaymentRepository payments, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<ReversePayment, PaymentView>
 {
     public async Task<Result<PaymentView>> Handle(ReversePayment command, CancellationToken cancellationToken)
@@ -397,13 +397,13 @@ internal sealed class ReversePaymentHandler(IPaymentRepository payments, IExecut
         }
 
         audit.Record(new AuditEntry("PAYMENT", "ReversePayment", nameof(Payment), payment.Id.ToString(), new Dictionary<string, string?> { ["reason"] = command.Reason }));
-        var result = payment.ReversePayment(command.Reason, clock.UtcToday, clock.UtcNow);
+        var result = payment.ReversePayment(command.Reason, businessDate.Today, clock.UtcNow);
         return result.IsFailure ? result.Error : PaymentView.From(payment);
     }
 }
 
 /// <summary>Command AllocatePayment: Billing's allocation plan applied to a received payment (BIL-003).</summary>
-internal sealed class AllocatePaymentHandler(IPaymentRepository payments, IAllocationPlanner planner, ITenantContext tenant, IClock clock)
+internal sealed class AllocatePaymentHandler(IPaymentRepository payments, IAllocationPlanner planner, ITenantContext tenant, IBusinessDate businessDate, IClock clock)
     : ICommandHandler<AllocatePayment, PaymentView>
 {
     public async Task<Result<PaymentView>> Handle(AllocatePayment command, CancellationToken cancellationToken)
@@ -413,7 +413,7 @@ internal sealed class AllocatePaymentHandler(IPaymentRepository payments, IAlloc
             return Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
         }
 
-        var result = await Allocation.Allocate(payment, planner, tenant, clock, cancellationToken);
+        var result = await Allocation.Allocate(payment, planner, tenant, clock, businessDate, cancellationToken);
         return result.IsFailure ? result.Error : PaymentView.From(payment);
     }
 }
@@ -422,7 +422,8 @@ internal static class Allocation
 {
     public const string Rule = "OLDEST_FIRST";
 
-    public static async Task<Result> Allocate(Payment payment, IAllocationPlanner planner, ITenantContext tenant, IClock clock, CancellationToken cancellationToken)
+    public static async Task<Result> Allocate(Payment payment, IAllocationPlanner planner, ITenantContext tenant, IClock clock, IBusinessDate businessDate,
+        CancellationToken cancellationToken)
     {
         if (payment.Direction != Direction.In || payment.Status != PaymentStatus.Succeeded)
         {
@@ -442,7 +443,7 @@ internal static class Allocation
             return Result.Success();
         }
 
-        var plan = await planner.Plan(tenant.RequireTenantId(), account, invoice, remaining, payment.Currency, clock.UtcToday, cancellationToken);
+        var plan = await planner.Plan(tenant.RequireTenantId(), account, invoice, remaining, payment.Currency, businessDate.Today, cancellationToken);
         return plan.Count == 0 ? Result.Success() : payment.AllocatePayment(plan.Select(p => (p.InvoiceId, p.Amount)).ToList(), Rule, clock.UtcNow);
     }
 }
@@ -503,11 +504,11 @@ internal sealed class ReleaseBatchHandler(IPaymentRepository payments, PaymentSt
 }
 
 /// <summary>Matches bank statement lines to payments (PAY-003): by payment or provider reference and amount within tolerance; anything else is an exception.</summary>
-internal sealed class ImportStatementHandler(IPaymentRepository payments, IPaymentCodes codes, IClock clock) : ICommandHandler<ImportStatement, StatementResult>
+internal sealed class ImportStatementHandler(IPaymentRepository payments, IPaymentCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<ImportStatement, StatementResult>
 {
     public async Task<Result<StatementResult>> Handle(ImportStatement command, CancellationToken cancellationToken)
     {
-        var tolerance = await codes.MatchingTolerance(clock.UtcToday, cancellationToken);
+        var tolerance = await codes.MatchingTolerance(businessDate.Today, cancellationToken);
         var (matched, exceptions) = (0, 0);
         foreach (var line in command.Lines)
         {
@@ -642,7 +643,7 @@ public static class PaymentPrerequisites
 }
 
 public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter starter, IPaymentCodes codes, IAllocationPlanner planner, ITenantContext tenant,
-    IClock clock) :
+    IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<InvoiceIssued>,
     IIntegrationEventHandler<RefundApproved>,
     IIntegrationEventHandler<ClaimPaymentInstructed>,
@@ -657,7 +658,7 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     public async Task Handle(InvoiceIssued issued, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         // Only methods a provider collects (a debit order, say); otherwise the payer pays and the bank statement shows it.
-        if (await codes.ProviderFor(issued.PaymentMethod, clock.UtcToday, cancellationToken) is null)
+        if (await codes.ProviderFor(issued.PaymentMethod, businessDate.Today, cancellationToken) is null)
         {
             return;
         }
@@ -701,7 +702,7 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     {
         if (await payments.Get(received.PaymentId, cancellationToken) is { } payment)
         {
-            await Allocation.Allocate(payment, planner, tenant, clock, cancellationToken);
+            await Allocation.Allocate(payment, planner, tenant, clock, businessDate, cancellationToken);
         }
     }
 
@@ -721,7 +722,7 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     {
         // GAP-038, ADR-022 decision 7: a payout that cannot start is parked, visible and escalated, never skipped. It is
         // retried when a payout method or provider is published, and the payment is then created once (its idempotency key).
-        if (await codes.PayoutMethod(currency, clock.UtcToday, cancellationToken) is not { } method)
+        if (await codes.PayoutMethod(currency, businessDate.Today, cancellationToken) is not { } method)
         {
             throw new PrerequisiteMissingException(PaymentPrerequisites.PayoutMethodNotInForce, currency);
         }

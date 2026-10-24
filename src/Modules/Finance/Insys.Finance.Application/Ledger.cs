@@ -284,7 +284,7 @@ internal sealed class ReverseJournalHandler(IJournalRepository journals, IAccoun
     }
 }
 
-internal sealed class ChangePeriodHandler(IAccountingPeriods periods, IPostingConfiguration configuration, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class ChangePeriodHandler(IAccountingPeriods periods, IPostingConfiguration configuration, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<ChangePeriod, PeriodView>
 {
     public async Task<Result<PeriodView>> Handle(ChangePeriod command, CancellationToken cancellationToken)
@@ -298,7 +298,7 @@ internal sealed class ChangePeriodHandler(IAccountingPeriods periods, IPostingCo
         var period = await periods.ByCode(command.PeriodCode, cancellationToken);
         if (period is null)
         {
-            if (await configuration.CalendarPeriod(command.PeriodCode, clock.UtcToday, cancellationToken) is not { } dates)
+            if (await configuration.CalendarPeriod(command.PeriodCode, businessDate.Today, cancellationToken) is not { } dates)
             {
                 return Error.NotFound(FinanceErrorCodes.PeriodNotDefined, $"The accounting calendar in force has no period {command.PeriodCode}.");
             }

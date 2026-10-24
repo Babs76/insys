@@ -202,18 +202,18 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
     }
 }
 
-internal sealed class RequestAuthorisationHandler(IHealthRepository health, IHealthCodes codes, IClock clock, IAuditTrail audit)
+internal sealed class RequestAuthorisationHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IAuditTrail audit)
     : ICommandHandler<RequestAuthorisation, PreauthorisationView>
 {
     public async Task<Result<PreauthorisationView>> Handle(RequestAuthorisation command, CancellationToken cancellationToken)
     {
         // The member is eligible (HLT-005); the provider is in the register.
-        if (await health.Membership(command.MembershipId, cancellationToken) is not { } membership || !membership.Covers(command.PatientPartyId, clock.UtcToday))
+        if (await health.Membership(command.MembershipId, cancellationToken) is not { } membership || !membership.Covers(command.PatientPartyId, businessDate.Today))
         {
             return Error.Conflict(HealthErrorCodes.MemberNotCovered, "The patient is not covered by the membership today.");
         }
 
-        if (await codes.Provider(command.ProviderId, clock.UtcToday, cancellationToken) is not { Status: "ACTIVE" })
+        if (await codes.Provider(command.ProviderId, businessDate.Today, cancellationToken) is not { Status: "ACTIVE" })
         {
             return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.ProviderId} is not an active provider.");
         }
@@ -232,7 +232,7 @@ internal sealed class RequestAuthorisationHandler(IHealthRepository health, IHea
     }
 }
 
-internal sealed class AuthorisationHandlers(IHealthRepository health, IHealthCodes codes, BenefitContexts contexts, IExecutionContext execution, IClock clock,
+internal sealed class AuthorisationHandlers(IHealthRepository health, IHealthCodes codes, BenefitContexts contexts, IExecutionContext execution, IBusinessDate businessDate, IClock clock,
     IAuditTrail audit) :
     ICommandHandler<ReviewAuthorisation, PreauthorisationView>,
     ICommandHandler<ApproveAuthorisation, PreauthorisationView>,
@@ -259,7 +259,7 @@ internal sealed class AuthorisationHandlers(IHealthRepository health, IHealthCod
                 return Error.NotFound(ErrorCodes.NotFound, "The membership was not found.");
             }
 
-            if (await codes.ValidityDays(preauth.ServiceType ?? "", clock.UtcToday, cancellationToken) is not { } days)
+            if (await codes.ValidityDays(preauth.ServiceType ?? "", businessDate.Today, cancellationToken) is not { } days)
             {
                 return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{preauth.ServiceType} has no authorisation validity period in force.");
             }
@@ -340,7 +340,7 @@ internal sealed class GetAuthorisationHandler(IHealthRepository health) : IQuery
 /// scores reach an indicator's threshold, a fraud case opens (as the Claims Framework reads them). An indicator that
 /// cannot be evaluated is logged and skipped.
 /// </summary>
-internal sealed class SubmitMedicalClaimHandler(IHealthRepository health, IHealthCodes codes, IClock clock, IAuditTrail audit, ILogger<SubmitMedicalClaimHandler> logger)
+internal sealed class SubmitMedicalClaimHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit, ILogger<SubmitMedicalClaimHandler> logger)
     : ICommandHandler<SubmitMedicalClaim, MedicalClaimView>
 {
     public async Task<Result<MedicalClaimView>> Handle(SubmitMedicalClaim command, CancellationToken cancellationToken)
@@ -359,13 +359,13 @@ internal sealed class SubmitMedicalClaimHandler(IHealthRepository health, IHealt
         var facts = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["total_claimed"] = claim.Value.TotalClaimed, ["line_count"] = (decimal)claim.Value.Lines.Count, ["source"] = claim.Value.Source,
-            ["provider_id"] = claim.Value.ProviderId, ["days_to_submission"] = (decimal)(clock.UtcToday.DayNumber - command.ServiceDate.DayNumber),
+            ["provider_id"] = claim.Value.ProviderId, ["days_to_submission"] = (decimal)(businessDate.Today.DayNumber - command.ServiceDate.DayNumber),
         };
         var fired = new List<FraudIndicator>();
-        foreach (var indicator in await codes.FraudIndicators(clock.UtcToday, cancellationToken))
+        foreach (var indicator in await codes.FraudIndicators(businessDate.Today, cancellationToken))
         {
             var logic = Expression.Parse(indicator.Logic);
-            var hit = logic.IsSuccess && logic.Value.Variables.All(facts.ContainsKey) ? logic.Value.Evaluate(facts, today: clock.UtcToday) : null;
+            var hit = logic.IsSuccess && logic.Value.Variables.All(facts.ContainsKey) ? logic.Value.Evaluate(facts, today: businessDate.Today) : null;
             if (hit is null || hit.IsFailure)
             {
                 logger.LogWarning("Fraud indicator {Indicator} could not be evaluated on claim {ClaimId}", indicator.Code, id);
@@ -387,7 +387,7 @@ internal sealed class SubmitMedicalClaimHandler(IHealthRepository health, IHealt
 }
 
 /// <summary>Command ValidateClaim (HLT-007): the membership covers the patient on the service date, the format, provider and codes are known.</summary>
-internal sealed class ValidateMedicalClaimHandler(IHealthRepository health, IHealthCodes codes, IClock clock) : ICommandHandler<ValidateMedicalClaim, MedicalClaimView>
+internal sealed class ValidateMedicalClaimHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<ValidateMedicalClaim, MedicalClaimView>
 {
     public async Task<Result<MedicalClaimView>> Handle(ValidateMedicalClaim command, CancellationToken cancellationToken)
     {
@@ -405,7 +405,7 @@ internal sealed class ValidateMedicalClaimHandler(IHealthRepository health, IHea
         {
             problem = "NOT_COVERED";
         }
-        else if (!await codes.ClaimFormatExists(claim.FormatCode, clock.UtcToday, cancellationToken))
+        else if (!await codes.ClaimFormatExists(claim.FormatCode, businessDate.Today, cancellationToken))
         {
             problem = "UNKNOWN_FORMAT";
         }

@@ -90,7 +90,7 @@ public interface ISearchLogRetention
 }
 
 internal sealed class SearchLogRetentionHandlers(ISearchLogRetention log, IAuditRetention retention, IOptions<SearchLogRetentionOptions> options, IExecutionContext execution,
-    IClock clock, IAuditTrail audit) :
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
     ICommandHandler<ApplySearchLogRetention, SearchLogRetentionRun>,
     ICommandHandler<PlaceSearchLogHold, Guid>,
     ICommandHandler<ReleaseSearchLogHold, long>,
@@ -99,7 +99,7 @@ internal sealed class SearchLogRetentionHandlers(ISearchLogRetention log, IAudit
     public async Task<Result<SearchLogRetentionRun>> Handle(ApplySearchLogRetention command, CancellationToken cancellationToken)
     {
         var now = clock.UtcNow;
-        var period = await retention.Period(RetentionClasses.Security, clock.UtcToday, cancellationToken)
+        var period = await retention.Period(RetentionClasses.Security, businessDate.Today, cancellationToken)
             ?? new RetentionPeriod(options.Value.DefaultRetentionYears, 0, 0);
         var minimiseBefore = now.AddMonths(-options.Value.MinimiseAfterMonths);
         var deleteBefore = period.Before(now);

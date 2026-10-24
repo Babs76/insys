@@ -123,11 +123,38 @@ internal sealed class TenantStatusQuery([FromKeyedServices(TenancyDbContext.Sche
     }
 }
 
-internal sealed class TenantLocaleDefaults([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantBaseCurrency, ITenantTimeZone
+internal sealed class TenantLocaleDefaults([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantBaseCurrency, ITenantTimeZone, BuildingBlocks.Application.Context.ITenantTimeZoneSource
 {
     public Task<string?> BaseCurrency(Guid tenantId, DateOnly day, CancellationToken cancellationToken) => Column("base_currency", tenantId, day, cancellationToken);
 
     public Task<string?> TimeZone(Guid tenantId, DateOnly day, CancellationToken cancellationToken) => Column("time_zone", tenantId, day, cancellationToken);
+
+    /// <summary>
+    /// For the business date (GAP-044), read synchronously and cached by the building blocks for a minute. The locale
+    /// defaults in force on the tenant's UTC date: the business date cannot be known before the zone is.
+    /// </summary>
+    public string? TimeZoneOf(Guid tenantId)
+    {
+        using var connection = dataSource.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        using (var set = new NpgsqlCommand(TenantSession.SetTenantSql, connection, transaction))
+        {
+            set.Parameters.AddWithValue("tenantId", tenantId.ToString());
+            set.ExecuteNonQuery();
+        }
+
+        using var command = new NpgsqlCommand("""
+            SELECT time_zone FROM tenant.cfg_locale_defaults
+            WHERE tenant_id = @t AND record_status = ANY(@statuses) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
+            ORDER BY version DESC LIMIT 1
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("statuses", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce);
+        command.Parameters.AddWithValue("day", DateOnly.FromDateTime(DateTime.UtcNow));
+        var value = command.ExecuteScalar() as string;
+        transaction.Commit();
+        return value;
+    }
 
     private async Task<string?> Column(string column, Guid tenantId, DateOnly day, CancellationToken cancellationToken)
     {

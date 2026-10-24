@@ -90,7 +90,7 @@ internal sealed class ListPartySearchesHandler(IPartySearch search) : IQueryHand
         Result.Success(await search.Searches(query, cancellationToken));
 }
 
-internal sealed class SearchPartiesHandler(IPartySearch search, IFieldProtector protector, IExecutionContext execution, IClock clock)
+internal sealed class SearchPartiesHandler(IPartySearch search, IFieldProtector protector, IExecutionContext execution, IBusinessDate businessDate, IClock clock)
     : ICommandHandler<SearchParties, IReadOnlyList<PartySummary>>
 {
     public async Task<Result<IReadOnlyList<PartySummary>>> Handle(SearchParties command, CancellationToken cancellationToken)
@@ -99,7 +99,7 @@ internal sealed class SearchPartiesHandler(IPartySearch search, IFieldProtector 
         (string DocType, string Country, string Hash)? identifier = command.Identifier is { } i
             ? (i.DocType, i.Country.ToUpperInvariant(), protector.Hash(i.Number.Trim()))
             : null;
-        var results = await search.Search(name, identifier, command.RoleCode, command.Status, clock.UtcToday, command.AfterId, command.Limit, cancellationToken);
+        var results = await search.Search(name, identifier, command.RoleCode, command.Status, businessDate.Today, command.AfterId, command.Limit, cancellationToken);
         search.Log(PartySearchLog.Record(execution.ActorId, name, identifier, command.RoleCode, command.Status?.ToString(), results.Count, clock.UtcNow));
         return Result.Success(results);
     }

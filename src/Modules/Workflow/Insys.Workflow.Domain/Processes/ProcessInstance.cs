@@ -98,8 +98,12 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition ConfigurationReview = new("CONFIG_REVIEW", 1, ["REVIEW", "REVIEWED"],
         [new TransitionDefinition("REVIEW", "REVIEWED", null)], null);
 
+    /// <summary>An approved claim payment whose automatic release was refused: a person puts it right, then releases it.</summary>
+    public static readonly ProcessDefinition HeldClaimPayment = new("CLAIM_PAYMENT_HELD", 1, ["RESOLVE_HOLD", "RESOLVED"],
+        [new TransitionDefinition("RESOLVE_HOLD", "RESOLVED", null)], null);
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
-        new[] { ParkedDelivery, ConfigurationReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+        new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>

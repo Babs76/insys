@@ -102,17 +102,17 @@ public sealed class CheckEligibilityValidator : AbstractValidator<CheckEligibili
     }
 }
 
-internal sealed class RegisterHealthSchemeHandler(IHealthRepository health, IHealthCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<RegisterHealthScheme, SchemeView>
+internal sealed class RegisterHealthSchemeHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<RegisterHealthScheme, SchemeView>
 {
     public async Task<Result<SchemeView>> Handle(RegisterHealthScheme command, CancellationToken cancellationToken)
     {
-        if (!await codes.SponsorExists(command.SponsorCode, clock.UtcToday, cancellationToken))
+        if (!await codes.SponsorExists(command.SponsorCode, businessDate.Today, cancellationToken))
         {
             return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.SponsorCode} is not a sponsor in the register.");
         }
 
         var id = Guid.CreateVersion7();
-        var scheme = HealthScheme.RegisterScheme(id, Numbers.Of("HS", id, 12), command.SponsorCode, command.StartDate, command.RenewalDate, command.Currency, clock.UtcToday);
+        var scheme = HealthScheme.RegisterScheme(id, Numbers.Of("HS", id, 12), command.SponsorCode, command.StartDate, command.RenewalDate, command.Currency, businessDate.Today);
         if (scheme.IsFailure)
         {
             return scheme.Error;
@@ -144,11 +144,11 @@ internal sealed class GetHealthSchemeHandler(IHealthRepository health) : IQueryH
         await health.Scheme(query.SchemeId, cancellationToken) is { } scheme ? SchemeView.From(scheme) : Error.NotFound(ErrorCodes.NotFound, "The scheme was not found.");
 }
 
-internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealthCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<EnrolHealthMember, MembershipView>
+internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<EnrolHealthMember, MembershipView>
 {
     public async Task<Result<MembershipView>> Handle(EnrolHealthMember command, CancellationToken cancellationToken)
     {
-        var day = clock.UtcToday;
+        var day = businessDate.Today;
         if (await codes.Plan(command.PlanCode, command.OptionCode, day, cancellationToken) is not { } plan)
         {
             return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.PlanCode}/{command.OptionCode} is not a plan option in force.");
@@ -248,7 +248,7 @@ internal static class Rules
     }
 }
 
-internal sealed class AddHealthDependantHandler(IHealthRepository health, IHealthCodes codes, IPersonFacts persons, ITenantContext tenant, IClock clock, IAuditTrail audit)
+internal sealed class AddHealthDependantHandler(IHealthRepository health, IHealthCodes codes, IPersonFacts persons, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<AddHealthDependant, MembershipView>
 {
     public async Task<Result<MembershipView>> Handle(AddHealthDependant command, CancellationToken cancellationToken)
@@ -258,7 +258,7 @@ internal sealed class AddHealthDependantHandler(IHealthRepository health, IHealt
             return Error.NotFound(ErrorCodes.NotFound, "The membership was not found.");
         }
 
-        if (await codes.DependantType(command.DependantType, clock.UtcToday, cancellationToken) is not { } rule)
+        if (await codes.DependantType(command.DependantType, businessDate.Today, cancellationToken) is not { } rule)
         {
             return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.DependantType} is not a dependant type in force.");
         }
@@ -268,7 +268,7 @@ internal sealed class AddHealthDependantHandler(IHealthRepository health, IHealt
             return Error.Validation(ErrorCodes.ValidationFailed, "The dependant is not a person with a date of birth.");
         }
 
-        var rate = await Contributions.Rate(health, codes, membership, clock.UtcToday, cancellationToken);
+        var rate = await Contributions.Rate(health, codes, membership, businessDate.Today, cancellationToken);
         if (rate.IsFailure)
         {
             return rate.Error;
@@ -304,7 +304,7 @@ internal static class Contributions
     }
 }
 
-internal sealed class RemoveHealthDependantHandler(IHealthRepository health, IHealthCodes codes, IClock clock) : ICommandHandler<RemoveHealthDependant, MembershipView>
+internal sealed class RemoveHealthDependantHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<RemoveHealthDependant, MembershipView>
 {
     public async Task<Result<MembershipView>> Handle(RemoveHealthDependant command, CancellationToken cancellationToken)
     {
@@ -313,7 +313,7 @@ internal sealed class RemoveHealthDependantHandler(IHealthRepository health, IHe
             return Error.NotFound(ErrorCodes.NotFound, "The membership was not found.");
         }
 
-        var rate = await Contributions.Rate(health, codes, membership, clock.UtcToday, cancellationToken);
+        var rate = await Contributions.Rate(health, codes, membership, businessDate.Today, cancellationToken);
         if (rate.IsFailure)
         {
             return rate.Error;
@@ -324,7 +324,7 @@ internal sealed class RemoveHealthDependantHandler(IHealthRepository health, IHe
     }
 }
 
-internal sealed class ChangeHealthPlanHandler(IHealthRepository health, IHealthCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<ChangeHealthPlan, MembershipView>
+internal sealed class ChangeHealthPlanHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<ChangeHealthPlan, MembershipView>
 {
     public async Task<Result<MembershipView>> Handle(ChangeHealthPlan command, CancellationToken cancellationToken)
     {
@@ -333,7 +333,7 @@ internal sealed class ChangeHealthPlanHandler(IHealthRepository health, IHealthC
             return Error.NotFound(ErrorCodes.NotFound, "The membership was not found.");
         }
 
-        if (await codes.Plan(command.PlanCode, command.OptionCode, clock.UtcToday, cancellationToken) is not { } plan)
+        if (await codes.Plan(command.PlanCode, command.OptionCode, businessDate.Today, cancellationToken) is not { } plan)
         {
             return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.PlanCode}/{command.OptionCode} is not a plan option in force.");
         }
@@ -384,17 +384,17 @@ internal sealed class GetAccumulatorsHandler(IHealthRepository health) : IQueryH
 /// and NOT_FOUND when there is no such member. The answer is the tenant's response code configured for that outcome
 /// (health.ref_eligibility_response_codes.outcome); an outcome without one is refused (Phase 5 review, item 5).
 /// </summary>
-internal sealed class CheckEligibilityHandler(IHealthRepository health, IHealthCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<CheckEligibility, EligibilityView>
+internal sealed class CheckEligibilityHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<CheckEligibility, EligibilityView>
 {
     public async Task<Result<EligibilityView>> Handle(CheckEligibility command, CancellationToken cancellationToken)
     {
-        var day = command.ServiceDate ?? clock.UtcToday;
+        var day = command.ServiceDate ?? businessDate.Today;
         var membership = await health.MembershipByNumber(command.MemberNumber, cancellationToken);
         var outcome = membership is null || membership.PartyFor(command.DependantSuffix) is not { } party ? "NOT_FOUND"
             : !membership.Covers(party, day) ? "NOT_ELIGIBLE"
             : membership.WaitingPeriods.Any(w => w.Type == "GENERAL" && w.EndsOn > day) ? "WAITING_PERIOD"
             : "ELIGIBLE";
-        if (await codes.EligibilityResponseCode(outcome, clock.UtcToday, cancellationToken) is not { } code)
+        if (await codes.EligibilityResponseCode(outcome, businessDate.Today, cancellationToken) is not { } code)
         {
             return Error.Validation(HealthErrorCodes.CodeNotInForce, $"No eligibility response code is configured for the outcome {outcome}.");
         }

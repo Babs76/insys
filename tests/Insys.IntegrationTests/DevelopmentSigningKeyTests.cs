@@ -47,13 +47,27 @@ public sealed class DevelopmentSigningKeyTests(DatabaseFixture fixture) : IClass
         refused.Message.ShouldContain(environment);
     }
 
+    /// <summary>ADR-025: the test-only daily job runner refuses to start anywhere but Development and Testing, like the signing key.</summary>
+    [Theory]
+    [InlineData("Staging")]
+    [InlineData("Production")]
+    public async Task Host_WithTheTestOnlyDailyJobRunnerEnabled_RefusesToStart_OutsideDevelopmentAndTesting(string environment)
+    {
+        await using var factory = new InsysApiFactory(fixture.Database, new Dictionary<string, string?> { ["Authentication:DevelopmentSigningKey"] = "" }, environment);
+
+        var refused = Should.Throw<InvalidOperationException>(() => factory.CreateClient());
+        refused.Message.ShouldContain("Testing:DailyJobRunner:Enabled");
+        refused.Message.ShouldContain(environment);
+    }
+
     [Theory]
     [InlineData("Staging")]
     [InlineData("Production")]
     public async Task TokenSignedWithTheDevelopmentKey_IsRejected_OutsideDevelopmentAndTesting(string environment)
     {
         // Without the key the host starts; a token signed with it is still unauthenticated.
-        await using var factory = new InsysApiFactory(fixture.Database, new Dictionary<string, string?> { ["Authentication:DevelopmentSigningKey"] = "" }, environment);
+        await using var factory = new InsysApiFactory(fixture.Database,
+            new Dictionary<string, string?> { ["Authentication:DevelopmentSigningKey"] = "", ["Testing:DailyJobRunner:Enabled"] = "false" }, environment);
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "dev-key-user", "static_data.read");
 
         var response = await factory.ClientFor(DatabaseFixture.TenantA, "dev-key-user").GetAsync("/api/v1/static-data/static/currencies");

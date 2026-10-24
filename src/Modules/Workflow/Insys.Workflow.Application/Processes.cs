@@ -143,18 +143,18 @@ internal static class ProcessAccess
     public static Guid Actor(IExecutionContext execution) => Guid.TryParse(execution.ActorId, out var id) ? id : Guid.Empty;
 }
 
-internal sealed class StartProcessHandler(IProcessRepository processes, IWorkflowConfiguration configuration, IClock clock, IAuditTrail audit)
+internal sealed class StartProcessHandler(IProcessRepository processes, IWorkflowConfiguration configuration, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<StartProcess, Guid>
 {
     public async Task<Result<Guid>> Handle(StartProcess command, CancellationToken cancellationToken)
     {
-        var definition = await configuration.Definition(command.ProcessCode, null, clock.UtcToday, cancellationToken);
+        var definition = await configuration.Definition(command.ProcessCode, null, businessDate.Today, cancellationToken);
         if (definition.IsFailure)
         {
             return definition.Error;
         }
 
-        var route = await configuration.Routing(clock.UtcToday, clock.UtcNow, cancellationToken);
+        var route = await configuration.Routing(businessDate.Today, clock.UtcNow, cancellationToken);
         var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), definition.Value, command.BusinessRefType, command.BusinessRefId, route, clock.UtcNow);
         if (process.IsFailure)
         {
@@ -194,7 +194,7 @@ internal sealed class AssignTaskHandler(IProcessRepository processes, IExecution
 
 /// <summary>CompleteTask, after the owning domain's validation of the transition (WFL-002).</summary>
 internal sealed class CompleteTaskHandler(IProcessRepository processes, IWorkflowConfiguration configuration, IEnumerable<IWorkflowTransitionValidator> validators,
-    IClock clock, IAuditTrail audit) : ICommandHandler<CompleteTask, long>
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<CompleteTask, long>
 {
     public async Task<Result<long>> Handle(CompleteTask command, CancellationToken cancellationToken)
     {
@@ -204,7 +204,7 @@ internal sealed class CompleteTaskHandler(IProcessRepository processes, IWorkflo
             return process.Error;
         }
 
-        var definition = await configuration.Definition(process.Value.ProcessCode, process.Value.ProcessVersion, clock.UtcToday, cancellationToken);
+        var definition = await configuration.Definition(process.Value.ProcessCode, process.Value.ProcessVersion, businessDate.Today, cancellationToken);
         if (definition.IsFailure)
         {
             return definition.Error;
@@ -230,7 +230,7 @@ internal sealed class CompleteTaskHandler(IProcessRepository processes, IWorkflo
 
         audit.Record(new AuditEntry("WORKFLOW", "CompleteTask", nameof(ProcessInstance), command.ProcessId.ToString(),
             new Dictionary<string, string?> { ["from"] = process.Value.DefinitionState, ["to"] = command.ToState }));
-        var route = await configuration.Routing(clock.UtcToday, clock.UtcNow, cancellationToken);
+        var route = await configuration.Routing(businessDate.Today, clock.UtcNow, cancellationToken);
         var result = process.Value.CompleteTask(command.TaskId, command.ToState, definition.Value, variables, route, clock.UtcNow);
         return result.IsFailure ? result.Error : process.Value.RowVersion + 1;
     }
@@ -294,13 +294,13 @@ internal sealed class FireTimersHandler(IProcessRepository processes, IClock clo
 }
 
 /// <summary>EscalateTask: the next escalation rule above the task's current level decides the target (WFL-003).</summary>
-public sealed class TaskEscalation(IWorkflowConfiguration configuration, IExecutionContext execution, IClock clock, IAuditTrail audit)
+public sealed class TaskEscalation(IWorkflowConfiguration configuration, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
 {
     public async Task<Result> Escalate(ProcessInstance process, Guid taskId, CancellationToken cancellationToken)
     {
         var task = process.Tasks.SingleOrDefault(t => t.Id == taskId);
         var currentLevel = task?.Outcome is { } outcome && outcome.StartsWith("ESCALATED_L", StringComparison.Ordinal) ? int.Parse(outcome[11..]) : 0;
-        var next = await configuration.NextEscalation(currentLevel, clock.UtcToday, cancellationToken);
+        var next = await configuration.NextEscalation(currentLevel, businessDate.Today, cancellationToken);
         if (next is null)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "No escalation rule applies above the current level.");
@@ -436,5 +436,36 @@ public sealed class OpenConfigurationReviewTask(IProcessRepository processes, IP
     {
         var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{FraudIndicatorRefType}:{indicatorCode}"));
         return new Guid(hash.AsSpan(0, 16));
+    }
+}
+
+/// <summary>
+/// A claim payment instruction was held instead of released (RESERVE_BELOW_ZERO, PAYEE_ACCOUNT_CHANGED): a task for the
+/// claims role, due in one business day, on the built-in process CLAIM_PAYMENT_HELD. One open task per instruction.
+/// </summary>
+public sealed class OpenHeldClaimPaymentTask(IProcessRepository processes, IProcessQueries queries, Contracts.IBusinessTime businessTime, ITenantContext tenant,
+    IClock clock, IAuditTrail audit) : IIntegrationEventHandler<ClaimsFramework.Contracts.ClaimPaymentReleaseHeld>
+{
+    public async Task Handle(ClaimsFramework.Contracts.ClaimPaymentReleaseHeld held, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if ((await queries.List(ClaimsFramework.Contracts.ClaimsApprovals.InstructionBusinessRefType, held.InstructionId, null, 20, cancellationToken))
+            .Any(p => p.ProcessCode == BuiltInProcesses.HeldClaimPayment.ProcessCode && p.Status == ProcessStatus.Running))
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.HeldClaimPayment, ClaimsFramework.Contracts.ClaimsApprovals.InstructionBusinessRefType,
+            held.InstructionId, _ => new TaskRouting(held.TargetRole, null, due), now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
+            new Dictionary<string, string?>
+            {
+                ["process"] = $"{BuiltInProcesses.HeldClaimPayment.ProcessCode}@{BuiltInProcesses.HeldClaimPayment.Version}",
+                ["claim"] = held.ClaimNumber,
+                ["reason"] = held.Reason,
+                ["queue"] = held.TargetRole,
+            }));
     }
 }

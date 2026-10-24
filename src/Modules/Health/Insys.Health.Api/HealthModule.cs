@@ -74,6 +74,7 @@ public sealed class HealthModule : IModule
     {
         HealthStaticDataEndpoints.MapStaticData(api);
         var health = api.MapGroup("/health").WithTags(Name);
+        MapLists(health);
         MapMembers(health);
         MapCare(health);
         MapRuns(health);
@@ -251,5 +252,55 @@ public sealed class HealthModule : IModule
                 (await d.Send(new ReleasePaymentRun(id), ct)).ToHttp(Results.Ok))
             .Produces<PaymentRunView>(StatusCodes.Status200OK)
             .WithName("HealthReleaseRun").WithSummary("Release the approved run to Payments").RequirePermission(HealthPermissions.RunUpdate);
+    }
+
+    /// <summary>GAP-040: Health's lists, by party, number and status, with cursor paging; fraud cases by the claim they are about.</summary>
+    private static void MapLists(RouteGroupBuilder health)
+    {
+        health.MapGet("/memberships", async (Guid? principalPartyId, string? memberNumber, Guid? schemeId, Domain.Members.MembershipStatus? status, string? cursor, int? limit,
+                IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListMemberships(principalPartyId, memberNumber, schemeId, status, after, size), ct), m => m.Id))
+            .Produces<CursorPage<MembershipSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListMemberships").WithSummary("List memberships, by principal member, number, scheme or status (GAP-040)")
+            .RequirePermission(HealthPermissions.MembershipRead);
+        health.MapGet("/preauthorisations", async (Guid? membershipId, Guid? patientPartyId, string? authNumber, Domain.Care.PreauthStatus? status, string? cursor, int? limit,
+                IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPreauthorisations(membershipId, patientPartyId, authNumber, status, after, size), ct), p => p.Id))
+            .Produces<CursorPage<PreauthorisationSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListAuthorisations").WithSummary("List preauthorisations, by membership, patient, number or status (GAP-040)")
+            .RequirePermission(HealthPermissions.PreauthRead);
+        health.MapGet("/claims", async (Guid? membershipId, Guid? patientPartyId, string? claimNumber, Domain.Care.MedicalClaimStatus? status, string? cursor, int? limit,
+                IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListMedicalClaims(membershipId, patientPartyId, claimNumber, status, after, size), ct), c => c.Id))
+            .Produces<CursorPage<MedicalClaimSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListClaims").WithSummary("List medical claims, by membership, patient, number or status (GAP-040)")
+            .RequirePermission(HealthPermissions.ClaimRead);
+        health.MapGet("/utilisation-cases", async (Guid? membershipId, Guid? claimId, Domain.Care.UtilisationStatus? status, string? cursor, int? limit, IDispatcher d,
+                CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListUtilisationCases(membershipId, claimId, status, after, size), ct), c => c.Id))
+            .Produces<CursorPage<UtilisationCaseSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListUtilisationCases").WithSummary("List utilisation cases, by membership, claim or status (GAP-040)")
+            .RequirePermission(HealthPermissions.CaseRead);
+        health.MapGet("/fraud-cases", async (string? claimNumber, Domain.Care.FraudStatus? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListFraudCases(claimNumber, status, after, size), ct), c => c.Id))
+            .Produces<CursorPage<FraudCaseSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListFraudCases").WithSummary("Find fraud cases, by the medical claim's number or status (GAP-040)")
+            .RequirePermission(HealthPermissions.CaseRead);
+        health.MapGet("/payment-runs", async (string? runCode, Domain.Payments.RunStatus? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPaymentRuns(runCode, status, after, size), ct), r => r.Id))
+            .Produces<CursorPage<PaymentRunSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListRuns").WithSummary("List provider payment runs, by code or status (GAP-040)")
+            .RequirePermission(HealthPermissions.RunRead);
+    }
+
+    private static async Task<IResult> Page<T>(string? cursor, int? limit, Func<Guid?, int, Task<BuildingBlocks.Domain.Result<IReadOnlyList<T>>>> query, Func<T, Guid> id)
+    {
+        if (!Cursor.TryDecode(cursor, out var after))
+        {
+            return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+        }
+
+        var size = Cursor.ClampLimit(limit);
+        return (await query(after, size)).ToHttp(items => Results.Ok(new CursorPage<T>(items, items.Count == size ? Cursor.Encode(id(items[^1])) : null)));
     }
 }

@@ -44,7 +44,7 @@ namespace Insys.General.Application;
 /// General's policies (domain-model.json: general consumes PremiumCalculated, ApprovalGranted, ClaimPaymentCompleted),
 /// and the reactions that keep its own aggregates consistent with each other through its events.
 /// </summary>
-public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, ITenantContext tenant, IClock clock,
+public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
     ILogger<GeneralPolicies> logger) :
     IIntegrationEventHandler<PremiumCalculated>,
     IIntegrationEventHandler<ApprovalGranted>,
@@ -62,7 +62,7 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
     {
         if (settled.SourceDomain == GeneralRatingSubjects.SourceDomain && await general.Policy(settled.PolicyRef, cancellationToken) is { CoverStartsOn: "FIRST_PAYMENT" } policy)
         {
-            policy.RecordFirstPayment(clock.UtcToday, clock.UtcToday);
+            policy.RecordFirstPayment(businessDate.Today, businessDate.Today);
         }
     }
 
@@ -84,7 +84,7 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
         }
         else if (calculated.SubjectType == GeneralRatingSubjects.Endorsement && await general.Endorsement(calculated.SubjectId, cancellationToken) is { } endorsement
                  && await general.Policy(endorsement.PolicyId, cancellationToken) is { } policy
-                 && await codes.EndorsementType(endorsement.EndorsementType, clock.UtcToday, cancellationToken) is { } type)
+                 && await codes.EndorsementType(endorsement.EndorsementType, businessDate.Today, cancellationToken) is { } type)
         {
             result = calculated.ProductCode == policy.ProductCode && calculated.Currency == policy.Currency
                 ? endorsement.RateEndorsement(calculated.CalculationId, calculated.Premium, policy, type)
@@ -136,8 +136,8 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
             return;
         }
 
-        var product = await Products.Issued(products, tenant.RequireTenantId(), policy.ProductCode, policy.ProductVersion, clock.UtcToday, cancellationToken);
-        var type = await codes.EndorsementType(endorsement.EndorsementType, clock.UtcToday, cancellationToken);
+        var product = await Products.Issued(products, tenant.RequireTenantId(), policy.ProductCode, policy.ProductVersion, businessDate.Today, cancellationToken);
+        var type = await codes.EndorsementType(endorsement.EndorsementType, businessDate.Today, cancellationToken);
         var applied = product.IsFailure ? product : policy.ApplyEndorsement(endorsement, product.Value, type?.Documents ?? [], clock.UtcNow);
         if (applied.IsFailure)
         {

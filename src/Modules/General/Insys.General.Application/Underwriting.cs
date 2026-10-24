@@ -122,24 +122,24 @@ public sealed class DecideReferralValidator : AbstractValidator<DecideReferral>
     public DecideReferralValidator() => RuleFor(c => c.DecisionCode).NotEmpty().MaximumLength(15);
 }
 
-internal sealed class RegisterRiskObjectHandler(IGeneralRepository general, IGeneralCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<RegisterRiskObject, RiskObjectView>
+internal sealed class RegisterRiskObjectHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<RegisterRiskObject, RiskObjectView>
 {
     public async Task<Result<RiskObjectView>> Handle(RegisterRiskObject command, CancellationToken cancellationToken)
     {
-        var schema = await RiskSchemas.Load(codes, command.ObjectType, clock.UtcToday, cancellationToken);
+        var schema = await RiskSchemas.Load(codes, command.ObjectType, businessDate.Today, cancellationToken);
         var values = Attributes.Read(command.Attributes);
         if (schema.IsFailure || values.IsFailure)
         {
             return schema.IsFailure ? schema.Error : values.Error!;
         }
 
-        if (command.ValuationBasis is { } basis && !await codes.Exists(GeneralCode.ValuationBasis, basis, clock.UtcToday, cancellationToken))
+        if (command.ValuationBasis is { } basis && !await codes.Exists(GeneralCode.ValuationBasis, basis, businessDate.Today, cancellationToken))
         {
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{basis} is not a valuation basis in force.");
         }
 
         var risk = RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema.Value, values.Value, command.Attributes.GetRawText(), command.Valuation, command.ValuationBasis,
-            new RiskLocation(command.Subdivision, command.PostalCode, command.RiskZone), clock.UtcToday, clock.UtcNow);
+            new RiskLocation(command.Subdivision, command.PostalCode, command.RiskZone), businessDate.Today, clock.UtcNow);
         if (risk.IsFailure)
         {
             return risk.Error;
@@ -151,7 +151,7 @@ internal sealed class RegisterRiskObjectHandler(IGeneralRepository general, IGen
     }
 }
 
-internal sealed class UpdateRiskAttributesHandler(IGeneralRepository general, IGeneralCodes codes, IClock clock) : ICommandHandler<UpdateRiskAttributes, RiskObjectView>
+internal sealed class UpdateRiskAttributesHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate) : ICommandHandler<UpdateRiskAttributes, RiskObjectView>
 {
     public async Task<Result<RiskObjectView>> Handle(UpdateRiskAttributes command, CancellationToken cancellationToken)
     {
@@ -160,19 +160,19 @@ internal sealed class UpdateRiskAttributesHandler(IGeneralRepository general, IG
             return Error.NotFound(ErrorCodes.NotFound, "The risk object was not found.");
         }
 
-        var schema = await RiskSchemas.Load(codes, risk.ObjectType, clock.UtcToday, cancellationToken);
+        var schema = await RiskSchemas.Load(codes, risk.ObjectType, businessDate.Today, cancellationToken);
         var values = Attributes.Read(command.Attributes);
         if (schema.IsFailure || values.IsFailure)
         {
             return schema.IsFailure ? schema.Error : values.Error!;
         }
 
-        var result = risk.UpdateAttributes(schema.Value, values.Value, command.Attributes.GetRawText(), clock.UtcToday);
+        var result = risk.UpdateAttributes(schema.Value, values.Value, command.Attributes.GetRawText(), businessDate.Today);
         return result.IsFailure ? result.Error : RiskObjectView.From(risk);
     }
 }
 
-internal sealed class RevalueRiskObjectHandler(IGeneralRepository general, IGeneralCodes codes, IClock clock) : ICommandHandler<RevalueRiskObject, RiskObjectView>
+internal sealed class RevalueRiskObjectHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate) : ICommandHandler<RevalueRiskObject, RiskObjectView>
 {
     public async Task<Result<RiskObjectView>> Handle(RevalueRiskObject command, CancellationToken cancellationToken)
     {
@@ -181,7 +181,7 @@ internal sealed class RevalueRiskObjectHandler(IGeneralRepository general, IGene
             return Error.NotFound(ErrorCodes.NotFound, "The risk object was not found.");
         }
 
-        if (command.ValuationBasis is { } basis && !await codes.Exists(GeneralCode.ValuationBasis, basis, clock.UtcToday, cancellationToken))
+        if (command.ValuationBasis is { } basis && !await codes.Exists(GeneralCode.ValuationBasis, basis, businessDate.Today, cancellationToken))
         {
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{basis} is not a valuation basis in force.");
         }
@@ -219,7 +219,7 @@ internal static class RiskSchemas
             : Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{objectType} is not a risk object type in force.");
 }
 
-internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellableProducts products, IIntermediaries intermediaries, ITenantContext tenant, IClock clock,
+internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellableProducts products, IIntermediaries intermediaries, ITenantContext tenant, IBusinessDate businessDate,
     IAuditTrail audit)
     : ICommandHandler<CreateQuote, QuoteView>
 {
@@ -236,7 +236,7 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
             previous = await general.LatestQuoteVersion(from.QuoteNumber, cancellationToken);
         }
 
-        var product = await Products.Sellable(products, tenant.RequireTenantId(), command.ProductCode, command.ProductVersion, clock.UtcToday, cancellationToken);
+        var product = await Products.Sellable(products, tenant.RequireTenantId(), command.ProductCode, command.ProductVersion, businessDate.Today, cancellationToken);
         if (product.IsFailure)
         {
             return product.Error;
@@ -244,7 +244,7 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
 
         // DST-001: a quote through an intermediary needs one that may sell the product.
         if (command.IntermediaryCode is { Length: > 0 } intermediary
-            && await intermediaries.CanSell(tenant.RequireTenantId(), intermediary, product.Value.ProductCode, IntermediaryTransactions.NewBusiness, clock.UtcToday,
+            && await intermediaries.CanSell(tenant.RequireTenantId(), intermediary, product.Value.ProductCode, IntermediaryTransactions.NewBusiness, businessDate.Today,
                 cancellationToken) is { } refusal)
         {
             return Error.Validation(refusal.Code, refusal.Message);
@@ -261,7 +261,7 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
         // A draft is valid only once issued, for the product's quote validity period; until then the date is today.
         var id = Guid.CreateVersion7();
         var quote = GeneralQuote.CreateQuote(id, References.Of("GQ-", id, 15), previous, product.Value, command.ProposerPartyId, command.IntermediaryCode,
-            command.Currency, command.PeriodStart, command.PeriodEnd, command.Risks, clock.UtcToday);
+            command.Currency, command.PeriodStart, command.PeriodEnd, command.Risks, businessDate.Today);
         if (quote.IsFailure)
         {
             return quote.Error;
@@ -273,7 +273,7 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
     }
 }
 
-internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<ChangeQuote, QuoteView>
+internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<ChangeQuote, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(ChangeQuote command, CancellationToken cancellationToken)
     {
@@ -288,15 +288,15 @@ internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCod
         {
             case QuoteAction.Issue:
                 // The validity period counts from issue (general.cfg_quote_validity_periods).
-                if (await codes.QuoteValidityDays(quote.ProductCode, clock.UtcToday, cancellationToken) is not { } days)
+                if (await codes.QuoteValidityDays(quote.ProductCode, businessDate.Today, cancellationToken) is not { } days)
                 {
                     return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{quote.ProductCode} has no quote validity period in force.");
                 }
 
-                result = quote.IssueQuote(clock.UtcToday.AddDays(days), clock.UtcNow);
+                result = quote.IssueQuote(businessDate.Today.AddDays(days), clock.UtcNow);
                 break;
             case QuoteAction.Accept:
-                result = quote.AcceptQuote(clock.UtcToday, clock.UtcNow);
+                result = quote.AcceptQuote(businessDate.Today, clock.UtcNow);
                 break;
             default:
                 result = quote.RejectQuote();
@@ -307,7 +307,7 @@ internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCod
     }
 }
 
-internal sealed class ReferQuoteHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IClock clock) : ICommandHandler<ReferQuote, QuoteView>
+internal sealed class ReferQuoteHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate) : ICommandHandler<ReferQuote, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(ReferQuote command, CancellationToken cancellationToken)
     {
@@ -322,7 +322,7 @@ internal sealed class ReferQuoteHandler(IGeneralRepository general, IGeneralCode
             return Error.NotFound(ErrorCodes.NotFound, "The quote was not found.");
         }
 
-        if (!await codes.Exists(GeneralCode.ReferralReason, command.ReasonCode, clock.UtcToday, cancellationToken))
+        if (!await codes.Exists(GeneralCode.ReferralReason, command.ReasonCode, businessDate.Today, cancellationToken))
         {
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{command.ReasonCode} is not a referral reason in force.");
         }
@@ -332,7 +332,7 @@ internal sealed class ReferQuoteHandler(IGeneralRepository general, IGeneralCode
     }
 }
 
-internal sealed class DecideReferralHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class DecideReferralHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<DecideReferral, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(DecideReferral command, CancellationToken cancellationToken)
@@ -348,7 +348,7 @@ internal sealed class DecideReferralHandler(IGeneralRepository general, IGeneral
             return Error.NotFound(ErrorCodes.NotFound, "The quote was not found.");
         }
 
-        if (!await codes.Exists(GeneralCode.UnderwritingDecision, command.DecisionCode, clock.UtcToday, cancellationToken))
+        if (!await codes.Exists(GeneralCode.UnderwritingDecision, command.DecisionCode, businessDate.Today, cancellationToken))
         {
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{command.DecisionCode} is not an underwriting decision code in force.");
         }

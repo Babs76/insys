@@ -46,7 +46,7 @@ namespace Insys.Life.Application;
 /// consistent through its events. PaymentAllocated carries no policy, so a payment in grace is seen through Billing's
 /// InvoiceSettled, which does.
 /// </summary>
-public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IPolicyArrears arrears, ISellableProducts products, ITenantContext tenant, IClock clock,
+public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IPolicyArrears arrears, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
     ILogger<LifeEventPolicies> logger) :
     IIntegrationEventHandler<PremiumCalculated>,
     IIntegrationEventHandler<RuleDecisionRecorded>,
@@ -99,7 +99,7 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
 
         if (decided.SubjectType == LifeSubjects.Proposal && await life.Proposal(decided.SubjectId, cancellationToken) is { } proposal)
         {
-            var product = await products.Version(tenant.RequireTenantId(), proposal.ProductCode, proposal.ProductVersion, clock.UtcToday, cancellationToken);
+            var product = await products.Version(tenant.RequireTenantId(), proposal.ProductCode, proposal.ProductVersion, businessDate.Today, cancellationToken);
             if (product?.EligibilityRulesetCode is not { } ruleset || ruleset != decided.RulesetCode)
             {
                 logger.LogWarning("Rule decision {DecisionId} not attached to proposal {ProposalId}: rule set {RulesetCode} is not the product's eligibility rule set {Expected}",
@@ -197,7 +197,7 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
 
         foreach (var loan in await life.ActiveLoans(approved.PolicyId, cancellationToken))
         {
-            loan.OffsetAgainstBenefit(clock.UtcToday);
+            loan.OffsetAgainstBenefit(businessDate.Today);
         }
     }
 
@@ -217,12 +217,12 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
             return;
         }
 
-        if (await codes.GraceRule(policy.PremiumFrequency, clock.UtcToday, cancellationToken) is not { } grace)
+        if (await codes.GraceRule(policy.PremiumFrequency, businessDate.Today, cancellationToken) is not { } grace)
         {
             throw new InvalidOperationException($"No grace period rule is in force for {policy.PremiumFrequency}; policy {policy.PolicyNumber}'s arrears are not recorded.");
         }
 
-        var overdue = await arrears.For(tenant.RequireTenantId(), LifeSubjects.SourceDomain, policy.Id, clock.UtcToday, cancellationToken);
+        var overdue = await arrears.For(tenant.RequireTenantId(), LifeSubjects.SourceDomain, policy.Id, businessDate.Today, cancellationToken);
         policy.RecordArrears(overdue.OverdueInstalments, overdue.OldestDueDate, grace);
     }
 

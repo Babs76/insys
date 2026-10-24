@@ -91,16 +91,17 @@ public sealed class GeneralJobOptions
 /// renews them by themselves are renewed when it ends (GEN-004); policies in force that were not renewed expire after
 /// it; issued quotes expire after their validity; and the day's exposure snapshot is refreshed (OQ-066).
 /// </summary>
-public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, IClock clock, ILogger<GeneralJobs> logger)
+public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, ILogger<GeneralJobs> logger)
 {
     public const string ServiceName = "general-jobs";
 
     public async Task<int> Run(CancellationToken cancellationToken)
     {
         var done = 0;
-        var day = clock.UtcToday;
         foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
         {
+            // The tenant's business date (GAP-044, ADR-025).
+            var day = businessDates.TodayFor(tenantId);
             DueWork work;
             await using (var scope = Scope(tenantId))
             {
@@ -155,7 +156,7 @@ public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory te
         foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
         {
             await using var scope = Scope(tenantId);
-            var refreshed = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RefreshExposureSnapshot(clock.UtcToday), cancellationToken);
+            var refreshed = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RefreshExposureSnapshot(businessDates.TodayFor(tenantId)), cancellationToken);
             if (refreshed.IsSuccess)
             {
                 rows += refreshed.Value;

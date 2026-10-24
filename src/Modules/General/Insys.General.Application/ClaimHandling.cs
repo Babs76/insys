@@ -194,7 +194,7 @@ internal static class ClaimContext
     }
 }
 
-internal sealed class NotifyLossHandler(IGeneralRepository general, IGeneralCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<NotifyLoss, ClaimView>
+internal sealed class NotifyLossHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<NotifyLoss, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(NotifyLoss command, CancellationToken cancellationToken)
     {
@@ -206,14 +206,14 @@ internal sealed class NotifyLossHandler(IGeneralRepository general, IGeneralCode
         foreach (var (kind, code) in new[] { (GeneralCode.LossCause, command.CauseCode), (GeneralCode.Peril, command.PerilCode) }
                      .Concat(command.CatEventCode is { } cat ? [(GeneralCode.CatastropheEvent, cat)] : []))
         {
-            if (!await codes.Exists(kind, code, clock.UtcToday, cancellationToken))
+            if (!await codes.Exists(kind, code, businessDate.Today, cancellationToken))
             {
                 return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{code} is not a {kind} code in force.");
             }
         }
 
         var claim = GeneralClaim.NotifyLoss(Guid.CreateVersion7(), command.PolicyId, command.RiskObjectId, command.CoverageCode, command.LossDate, command.CauseCode,
-            command.PerilCode, command.CatEventCode, command.Description, clock.UtcToday, clock.UtcNow);
+            command.PerilCode, command.CatEventCode, command.Description, businessDate.Today, clock.UtcNow);
         if (claim.IsFailure)
         {
             return claim.Error;
@@ -283,7 +283,7 @@ internal sealed class AddClaimPartyHandler(IGeneralRepository general) : IComman
     }
 }
 
-internal sealed class AppointAssessorHandler(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, ITenantContext tenant, IClock clock)
+internal sealed class AppointAssessorHandler(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IClock clock)
     : ICommandHandler<AppointAssessor, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(AppointAssessor command, CancellationToken cancellationToken)
@@ -295,13 +295,13 @@ internal sealed class AppointAssessorHandler(IGeneralRepository general, IGenera
         }
 
         var (claim, policy) = loaded.Value;
-        var product = await Products.Issued(products, tenant.RequireTenantId(), policy.ProductCode, policy.ProductVersion, clock.UtcToday, cancellationToken);
+        var product = await Products.Issued(products, tenant.RequireTenantId(), policy.ProductCode, policy.ProductVersion, businessDate.Today, cancellationToken);
         if (product.IsFailure)
         {
             return product.Error;
         }
 
-        if (!await codes.OnPanel(command.AssessorPartyId, product.Value.Line, repairer: false, clock.UtcToday, cancellationToken))
+        if (!await codes.OnPanel(command.AssessorPartyId, product.Value.Line, repairer: false, businessDate.Today, cancellationToken))
         {
             return Error.Validation(GeneralErrorCodes.AssessorNotOnPanel, $"The assessor is not on an approved panel for {product.Value.Line} (GEN-007).");
         }
@@ -312,7 +312,7 @@ internal sealed class AppointAssessorHandler(IGeneralRepository general, IGenera
 }
 
 internal sealed class RequestSettlementHandler(IGeneralRepository general, ISellableProducts products, IBankAccounts bankAccounts, ITenantContext tenant,
-    IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<RequestSettlement, ClaimView>
+    IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<RequestSettlement, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(RequestSettlement command, CancellationToken cancellationToken)
     {
@@ -330,7 +330,7 @@ internal sealed class RequestSettlementHandler(IGeneralRepository general, ISell
             return Error.Conflict(GeneralErrorCodes.AssessmentNotAccepted, "The settlement follows an accepted loss assessment.");
         }
 
-        var coverage = await ClaimContext.Coverage(claim, policy, products, tenant.RequireTenantId(), clock.UtcToday, cancellationToken);
+        var coverage = await ClaimContext.Coverage(claim, policy, products, tenant.RequireTenantId(), businessDate.Today, cancellationToken);
         if (coverage.IsFailure)
         {
             return coverage.Error;
@@ -418,7 +418,7 @@ internal sealed class ChangeAssessmentHandler(IGeneralRepository general, IExecu
     }
 }
 
-internal sealed class RecordEstimateHandler(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, ITenantContext tenant, IClock clock)
+internal sealed class RecordEstimateHandler(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate)
     : ICommandHandler<RecordEstimate, AssessmentView>
 {
     public async Task<Result<AssessmentView>> Handle(RecordEstimate command, CancellationToken cancellationToken)
@@ -434,14 +434,14 @@ internal sealed class RecordEstimateHandler(IGeneralRepository general, IGeneral
             return loaded.Error;
         }
 
-        var product = await Products.Issued(products, tenant.RequireTenantId(), loaded.Value.Policy.ProductCode, loaded.Value.Policy.ProductVersion, clock.UtcToday,
+        var product = await Products.Issued(products, tenant.RequireTenantId(), loaded.Value.Policy.ProductCode, loaded.Value.Policy.ProductVersion, businessDate.Today,
             cancellationToken);
         if (product.IsFailure)
         {
             return product.Error;
         }
 
-        if (!await codes.OnPanel(command.RepairerPartyId, product.Value.Line, repairer: true, clock.UtcToday, cancellationToken))
+        if (!await codes.OnPanel(command.RepairerPartyId, product.Value.Line, repairer: true, businessDate.Today, cancellationToken))
         {
             return Error.Validation(GeneralErrorCodes.AssessorNotOnPanel, $"The repairer is not on an approved panel for {product.Value.Line} (GEN-007).");
         }
@@ -451,7 +451,7 @@ internal sealed class RecordEstimateHandler(IGeneralRepository general, IGeneral
     }
 }
 
-internal sealed class SubmitReportHandler(IGeneralRepository general, ISellableProducts products, ITenantContext tenant, IClock clock) : ICommandHandler<SubmitReport, AssessmentView>
+internal sealed class SubmitReportHandler(IGeneralRepository general, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IClock clock) : ICommandHandler<SubmitReport, AssessmentView>
 {
     public async Task<Result<AssessmentView>> Handle(SubmitReport command, CancellationToken cancellationToken)
     {
@@ -466,7 +466,7 @@ internal sealed class SubmitReportHandler(IGeneralRepository general, ISellableP
             return loaded.Error;
         }
 
-        var coverage = await ClaimContext.Coverage(loaded.Value.Claim, loaded.Value.Policy, products, tenant.RequireTenantId(), clock.UtcToday, cancellationToken);
+        var coverage = await ClaimContext.Coverage(loaded.Value.Claim, loaded.Value.Policy, products, tenant.RequireTenantId(), businessDate.Today, cancellationToken);
         if (coverage.IsFailure)
         {
             return coverage.Error;
@@ -494,7 +494,7 @@ internal sealed class ListAssessmentsHandler(IGeneralRepository general) : IQuer
         (await general.Assessments(query.ClaimId, cancellationToken)).Select(AssessmentView.From).ToList();
 }
 
-internal sealed class OpenRecoveryHandler(IGeneralRepository general, IGeneralCodes codes, IClock clock) : ICommandHandler<OpenRecovery, RecoveryView>
+internal sealed class OpenRecoveryHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate) : ICommandHandler<OpenRecovery, RecoveryView>
 {
     public async Task<Result<RecoveryView>> Handle(OpenRecovery command, CancellationToken cancellationToken)
     {
@@ -503,7 +503,7 @@ internal sealed class OpenRecoveryHandler(IGeneralRepository general, IGeneralCo
             return Error.NotFound(ErrorCodes.NotFound, "No registered claim was found.");
         }
 
-        if (!await codes.Exists(GeneralCode.RecoveryType, command.RecoveryType, clock.UtcToday, cancellationToken))
+        if (!await codes.Exists(GeneralCode.RecoveryType, command.RecoveryType, businessDate.Today, cancellationToken))
         {
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{command.RecoveryType} is not a recovery type in force.");
         }
@@ -552,7 +552,7 @@ internal sealed class AddSalvageItemHandler(IGeneralRepository general) : IComma
     }
 }
 
-internal sealed class DisposeSalvageHandler(IGeneralRepository general, IGeneralCodes codes, IClock clock) : ICommandHandler<DisposeSalvage, RecoveryView>
+internal sealed class DisposeSalvageHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate) : ICommandHandler<DisposeSalvage, RecoveryView>
 {
     public async Task<Result<RecoveryView>> Handle(DisposeSalvage command, CancellationToken cancellationToken)
     {
@@ -561,7 +561,7 @@ internal sealed class DisposeSalvageHandler(IGeneralRepository general, IGeneral
             return Error.NotFound(ErrorCodes.NotFound, "The recovery was not found.");
         }
 
-        if (!await codes.Exists(GeneralCode.SalvageDisposal, command.DisposalMethod, clock.UtcToday, cancellationToken))
+        if (!await codes.Exists(GeneralCode.SalvageDisposal, command.DisposalMethod, businessDate.Today, cancellationToken))
         {
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{command.DisposalMethod} is not a salvage disposal method in force.");
         }

@@ -174,7 +174,7 @@ internal sealed class CallbackEndpointHandlers(ICallbackEndpoints endpoints, IFi
         Result.Success<IReadOnlyList<CallbackEndpointView>>((await endpoints.All(cancellationToken)).Select(CallbackEndpointView.From).ToList());
 }
 
-internal sealed class ReceiveCallbackHandler(ICallbackEndpoints endpoints, IPaymentRepository payments, IPaymentCodes codes, IFieldProtector protector, IClock clock,
+internal sealed class ReceiveCallbackHandler(ICallbackEndpoints endpoints, IPaymentRepository payments, IPaymentCodes codes, IFieldProtector protector, IBusinessDate businessDate, IClock clock,
     IOptions<CallbackOptions> options, ILogger<ReceiveCallbackHandler> logger) : ICommandHandler<ReceiveCallback, CallbackHandled>
 {
     public async Task<Result<CallbackHandled>> Handle(ReceiveCallback command, CancellationToken cancellationToken)
@@ -215,8 +215,8 @@ internal sealed class ReceiveCallbackHandler(ICallbackEndpoints endpoints, IPaym
             return new CallbackHandled(CallbackResult.NoPayment);
         }
 
-        var outcome = await codes.MapStatus(endpoint.ProviderCode, status, clock.UtcToday, cancellationToken);
-        var result = payment.RecordCallback(outcome, $"Provider status {status}", clock.UtcToday, now);
+        var outcome = await codes.MapStatus(endpoint.ProviderCode, status, businessDate.Today, cancellationToken);
+        var result = payment.RecordCallback(outcome, $"Provider status {status}", businessDate.Today, now);
         return result.IsFailure ? result.Error : new CallbackHandled(CallbackResult.Applied, PaymentView.From(payment));
     }
 

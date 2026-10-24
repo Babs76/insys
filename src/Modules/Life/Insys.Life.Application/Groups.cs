@@ -121,25 +121,25 @@ internal static class Categories
     }
 }
 
-internal sealed class SetUpGroupSchemeHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, ITenantContext tenant, IClock clock, IAuditTrail audit)
+internal sealed class SetUpGroupSchemeHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IAuditTrail audit)
     : ICommandHandler<SetUpGroupScheme, SchemeView>
 {
     public async Task<Result<SchemeView>> Handle(SetUpGroupScheme command, CancellationToken cancellationToken)
     {
-        var product = await Products.Sellable(products, tenant.RequireTenantId(), command.ProductCode, command.ProductVersion, clock.UtcToday, cancellationToken);
+        var product = await Products.Sellable(products, tenant.RequireTenantId(), command.ProductCode, command.ProductVersion, businessDate.Today, cancellationToken);
         if (product.IsFailure)
         {
             return product.Error;
         }
 
-        if (!await codes.Exists(LifeCode.GroupSchemeType, command.SchemeType, clock.UtcToday, cancellationToken))
+        if (!await codes.Exists(LifeCode.GroupSchemeType, command.SchemeType, businessDate.Today, cancellationToken))
         {
             return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{command.SchemeType} is not a group scheme type in force.");
         }
 
         var id = Guid.CreateVersion7();
         var scheme = GroupScheme.SetUpScheme(id, Numbers.Of("GS", id, 12), command.EmployerPartyId, product.Value.ProductCode, product.Value.Version, command.SchemeType,
-            command.StartDate, command.RenewalDate, command.Currency, clock.UtcToday);
+            command.StartDate, command.RenewalDate, command.Currency, businessDate.Today);
         if (scheme.IsFailure)
         {
             return scheme.Error;
@@ -151,7 +151,7 @@ internal sealed class SetUpGroupSchemeHandler(ILifeRepository life, ILifeCodes c
     }
 }
 
-internal sealed class EnrolGroupMemberHandler(ILifeRepository life, ILifeCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<EnrolGroupMember, SchemeView>
+internal sealed class EnrolGroupMemberHandler(ILifeRepository life, ILifeCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<EnrolGroupMember, SchemeView>
 {
     public async Task<Result<SchemeView>> Handle(EnrolGroupMember command, CancellationToken cancellationToken)
     {
@@ -160,7 +160,7 @@ internal sealed class EnrolGroupMemberHandler(ILifeRepository life, ILifeCodes c
             return Error.NotFound(ErrorCodes.NotFound, "The scheme was not found.");
         }
 
-        var category = await Categories.Resolve(codes, scheme, command.CategoryCode, command.Facts, scheme.CurrentMembers + 1, clock.UtcToday, cancellationToken);
+        var category = await Categories.Resolve(codes, scheme, command.CategoryCode, command.Facts, scheme.CurrentMembers + 1, businessDate.Today, cancellationToken);
         if (category.IsFailure)
         {
             return category.Error;
@@ -172,7 +172,7 @@ internal sealed class EnrolGroupMemberHandler(ILifeRepository life, ILifeCodes c
     }
 }
 
-internal sealed class ChangeGroupMemberHandler(ILifeRepository life, ILifeCodes codes, IClock clock) : ICommandHandler<ChangeGroupMember, SchemeView>
+internal sealed class ChangeGroupMemberHandler(ILifeRepository life, ILifeCodes codes, IBusinessDate businessDate) : ICommandHandler<ChangeGroupMember, SchemeView>
 {
     public async Task<Result<SchemeView>> Handle(ChangeGroupMember command, CancellationToken cancellationToken)
     {
@@ -181,7 +181,7 @@ internal sealed class ChangeGroupMemberHandler(ILifeRepository life, ILifeCodes 
             return Error.NotFound(ErrorCodes.NotFound, "The scheme was not found.");
         }
 
-        var category = await Categories.Resolve(codes, scheme, command.CategoryCode, command.Facts, scheme.CurrentMembers, clock.UtcToday, cancellationToken);
+        var category = await Categories.Resolve(codes, scheme, command.CategoryCode, command.Facts, scheme.CurrentMembers, businessDate.Today, cancellationToken);
         if (category.IsFailure)
         {
             return category.Error;

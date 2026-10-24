@@ -106,7 +106,7 @@ internal static class LifePolicies
         await life.Policy(id, cancellationToken) is { } policy ? policy : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
 }
 
-internal sealed class IssueLifePolicyHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, ITenantContext tenant, IClock clock, IAuditTrail audit)
+internal sealed class IssueLifePolicyHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<IssueLifePolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(IssueLifePolicy command, CancellationToken cancellationToken)
@@ -127,20 +127,20 @@ internal sealed class IssueLifePolicyHandler(ILifeRepository life, ILifeCodes co
         }
 
         // Issued on the approved product version (LIF-003), still on sale when the policy is issued.
-        var product = await Products.Sellable(products, tenant.RequireTenantId(), proposal.ProductCode, proposal.ProductVersion, clock.UtcToday, cancellationToken);
+        var product = await Products.Sellable(products, tenant.RequireTenantId(), proposal.ProductCode, proposal.ProductVersion, businessDate.Today, cancellationToken);
         if (product.IsFailure)
         {
             return product.Error;
         }
 
         var id = Guid.CreateVersion7();
-        var number = await Numbers.Policy(codes, id, clock.UtcToday, cancellationToken);
+        var number = await Numbers.Policy(codes, id, businessDate.Today, cancellationToken);
         if (number.IsFailure)
         {
             return number.Error;
         }
 
-        var policy = LifePolicy.IssuePolicy(id, number.Value, proposal, decided, command.BillingAccountId ?? Guid.CreateVersion7(), clock.UtcToday, clock.UtcNow);
+        var policy = LifePolicy.IssuePolicy(id, number.Value, proposal, decided, command.BillingAccountId ?? Guid.CreateVersion7(), businessDate.Today, clock.UtcNow);
         if (policy.IsFailure)
         {
             return policy.Error;
@@ -161,7 +161,7 @@ internal sealed class GetLifePolicyHandler(ILifeRepository life) : IQueryHandler
     }
 }
 
-internal sealed class ChangeBeneficiariesHandler(ILifeRepository life, ILifeCodes codes, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class ChangeBeneficiariesHandler(ILifeRepository life, ILifeCodes codes, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<ChangeBeneficiaries, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(ChangeBeneficiaries command, CancellationToken cancellationToken)
@@ -175,7 +175,7 @@ internal sealed class ChangeBeneficiariesHandler(ILifeRepository life, ILifeCode
 
         foreach (var relationship in command.Nominations.Select(n => n.RelationshipCode).Distinct())
         {
-            if (!await codes.Exists(LifeCode.BeneficiaryRelationship, relationship, clock.UtcToday, cancellationToken))
+            if (!await codes.Exists(LifeCode.BeneficiaryRelationship, relationship, businessDate.Today, cancellationToken))
             {
                 return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{relationship} is not a beneficiary relationship in force.");
             }
@@ -183,14 +183,14 @@ internal sealed class ChangeBeneficiariesHandler(ILifeRepository life, ILifeCode
 
         audit.Record(new AuditEntry("LIFE", "ChangeBeneficiaries", nameof(LifePolicy), policy.Value.Id.ToString()));
         var result = policy.Value.ChangeBeneficiaries(command.Nominations, command.EffectiveDate,
-            await codes.NominationRule(policy.Value.ProductCode, clock.UtcToday, cancellationToken), user.Value, clock.UtcNow);
+            await codes.NominationRule(policy.Value.ProductCode, businessDate.Today, cancellationToken), user.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : PolicyView.From(policy.Value);
     }
 }
 
 /// <summary>An alteration is applied only by a user holding the alteration type's authority role (life.cfg_alteration_types.authority_role).</summary>
 internal sealed class AlterLifePolicyHandler(ILifeRepository life, ILifeCodes codes, IUserRoleQuery roles, ITenantContext tenant, IExecutionContext execution,
-    IClock clock, IAuditTrail audit)
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<AlterLifePolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(AlterLifePolicy command, CancellationToken cancellationToken)
@@ -202,7 +202,7 @@ internal sealed class AlterLifePolicyHandler(ILifeRepository life, ILifeCodes co
             return user.IsFailure ? user.Error : policy.Error!;
         }
 
-        if (await codes.AlterationType(command.AlterationCode, clock.UtcToday, cancellationToken) is not { } alteration)
+        if (await codes.AlterationType(command.AlterationCode, businessDate.Today, cancellationToken) is not { } alteration)
         {
             return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{command.AlterationCode} is not an alteration type in force.");
         }
@@ -222,7 +222,7 @@ internal sealed class AlterLifePolicyHandler(ILifeRepository life, ILifeCodes co
 
 /// <summary>Arrears are checked only when the product version requires them to be paid first (reinstatement_arrears REQUIRED).</summary>
 internal sealed class ReinstateLifePolicyHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, IPolicyArrears arrears, ITenantContext tenant,
-    IExecutionContext execution, IClock clock, IAuditTrail audit)
+    IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<ReinstateLifePolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(ReinstateLifePolicy command, CancellationToken cancellationToken)
@@ -234,18 +234,18 @@ internal sealed class ReinstateLifePolicyHandler(ILifeRepository life, ILifeCode
             return user.IsFailure ? user.Error : policy.Error!;
         }
 
-        if (await codes.LapseRule(policy.Value.ProductCode, clock.UtcToday, cancellationToken) is not { } rule)
+        if (await codes.LapseRule(policy.Value.ProductCode, businessDate.Today, cancellationToken) is not { } rule)
         {
             return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{policy.Value.ProductCode} has no lapse and reinstatement rule in force.");
         }
 
         var tenantId = tenant.RequireTenantId();
-        var product = await products.Version(tenantId, policy.Value.ProductCode, policy.Value.ProductVersion, clock.UtcToday, cancellationToken);
+        var product = await products.Version(tenantId, policy.Value.ProductCode, policy.Value.ProductVersion, businessDate.Today, cancellationToken);
         var unpaid = product?.ReinstatementArrears == "REQUIRED"
-            ? (await arrears.For(tenantId, LifeSubjects.SourceDomain, policy.Value.Id, clock.UtcToday, cancellationToken)).OverdueInstalments
+            ? (await arrears.For(tenantId, LifeSubjects.SourceDomain, policy.Value.Id, businessDate.Today, cancellationToken)).OverdueInstalments
             : 0;
         audit.Record(new AuditEntry("LIFE", "ReinstatePolicy", nameof(LifePolicy), policy.Value.Id.ToString()));
-        var result = policy.Value.ReinstatePolicy(rule, clock.UtcToday, command.EvidenceRef, unpaid, user.Value, clock.UtcNow);
+        var result = policy.Value.ReinstatePolicy(rule, businessDate.Today, command.EvidenceRef, unpaid, user.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : PolicyView.From(policy.Value);
     }
 }
@@ -262,7 +262,7 @@ internal sealed class RequestPolicyValueHandler(ILifeRepository life) : ICommand
     }
 }
 
-internal sealed class IssuePolicyLoanHandler(ILifeRepository life, ILifeCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<IssuePolicyLoan, LoanView>
+internal sealed class IssuePolicyLoanHandler(ILifeRepository life, ILifeCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<IssuePolicyLoan, LoanView>
 {
     public async Task<Result<LoanView>> Handle(IssuePolicyLoan command, CancellationToken cancellationToken)
     {
@@ -272,7 +272,7 @@ internal sealed class IssuePolicyLoanHandler(ILifeRepository life, ILifeCodes co
             return policy.Error;
         }
 
-        if (!await codes.Exists(LifeCode.LoanRate, command.RateCode, clock.UtcToday, cancellationToken))
+        if (!await codes.Exists(LifeCode.LoanRate, command.RateCode, businessDate.Today, cancellationToken))
         {
             return Error.Validation(LifeErrorCodes.CodeNotInForce, $"{command.RateCode} is not a policy loan rate in force.");
         }
@@ -281,8 +281,8 @@ internal sealed class IssuePolicyLoanHandler(ILifeRepository life, ILifeCodes co
         var sequence = await life.LoanCount(policy.Value.Id, cancellationToken) + 1;
         var id = Guid.CreateVersion7();
         var loan = LifePolicyLoan.IssueLoan(id, $"{policy.Value.PolicyNumber[..Math.Min(12, policy.Value.PolicyNumber.Length)]}L{sequence:D2}", policy.Value,
-            await codes.LoanRule(policy.Value.ProductCode, clock.UtcToday, cancellationToken), await life.CashValue(policy.Value.Id, clock.UtcToday, cancellationToken),
-            outstanding, command.Principal, command.RateCode, clock.UtcToday, clock.UtcNow);
+            await codes.LoanRule(policy.Value.ProductCode, businessDate.Today, cancellationToken), await life.CashValue(policy.Value.Id, businessDate.Today, cancellationToken),
+            outstanding, command.Principal, command.RateCode, businessDate.Today, clock.UtcNow);
         if (loan.IsFailure)
         {
             return loan.Error;
@@ -294,7 +294,7 @@ internal sealed class IssuePolicyLoanHandler(ILifeRepository life, ILifeCodes co
     }
 }
 
-internal sealed class RepayPolicyLoanHandler(ILifeRepository life, IClock clock, IAuditTrail audit) : ICommandHandler<RepayPolicyLoan, LoanView>
+internal sealed class RepayPolicyLoanHandler(ILifeRepository life, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<RepayPolicyLoan, LoanView>
 {
     public async Task<Result<LoanView>> Handle(RepayPolicyLoan command, CancellationToken cancellationToken)
     {
@@ -304,7 +304,7 @@ internal sealed class RepayPolicyLoanHandler(ILifeRepository life, IClock clock,
         }
 
         audit.Record(new AuditEntry("LIFE", "RecordRepayment", nameof(LifePolicyLoan), loan.Id.ToString()));
-        var result = loan.RecordRepayment(command.Amount, clock.UtcToday, command.PaymentRef, clock.UtcNow);
+        var result = loan.RecordRepayment(command.Amount, businessDate.Today, command.PaymentRef, clock.UtcNow);
         return result.IsFailure ? result.Error : LoanView.From(loan);
     }
 }

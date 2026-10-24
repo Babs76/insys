@@ -203,11 +203,11 @@ internal sealed class GenerateDocumentHandler(DocumentGenerator generator) : ICo
 
 /// <summary>Renders the template version in force with the data, stores it, and records the template and product versions (DOC-002).</summary>
 public sealed class DocumentGenerator(IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentRenderer renderer, IDocumentStorage storage,
-    ITenantContext tenant, IClock clock)
+    ITenantContext tenant, IBusinessDate businessDate, IClock clock)
 {
     public async Task<Result<Document>> Generate(GenerateDocument command, CancellationToken cancellationToken)
     {
-        var today = clock.UtcToday;
+        var today = businessDate.Today;
         var category = await catalogue.Category(command.CategoryCode, today, cancellationToken);
         var template = await catalogue.Template(command.TemplateCode, command.Language, today, cancellationToken);
         if (category is null || template is null)
@@ -236,12 +236,12 @@ public sealed class DocumentGenerator(IDocumentRepository documents, IDocumentCa
     }
 }
 
-internal sealed class StoreDocumentHandler(IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentStorage storage, ITenantContext tenant, IClock clock)
+internal sealed class StoreDocumentHandler(IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentStorage storage, ITenantContext tenant, IBusinessDate businessDate, IClock clock)
     : ICommandHandler<StoreDocument, DocumentView>
 {
     public async Task<Result<DocumentView>> Handle(StoreDocument command, CancellationToken cancellationToken)
     {
-        var today = clock.UtcToday;
+        var today = businessDate.Today;
         if (await catalogue.Category(command.CategoryCode, today, cancellationToken) is not { } category)
         {
             return Error.Validation(DocumentErrorCodes.CodeNotInForce, $"{command.CategoryCode} is not a document category in force.");
@@ -257,7 +257,7 @@ internal sealed class StoreDocumentHandler(IDocumentRepository documents, IDocum
 }
 
 internal sealed class DeliverDocumentHandler(IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentStorage storage, IDocumentDelivery delivery,
-    ITenantContext tenant, IClock clock, IAuditTrail audit) : ICommandHandler<DeliverDocument, DeliveryView>
+    ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<DeliverDocument, DeliveryView>
 {
     public async Task<Result<DeliveryView>> Handle(DeliverDocument command, CancellationToken cancellationToken)
     {
@@ -267,7 +267,7 @@ internal sealed class DeliverDocumentHandler(IDocumentRepository documents, IDoc
             return document.Error;
         }
 
-        if (!await catalogue.DeliveryChannelExists(command.Channel, clock.UtcToday, cancellationToken))
+        if (!await catalogue.DeliveryChannelExists(command.Channel, businessDate.Today, cancellationToken))
         {
             return Error.Validation(DocumentErrorCodes.CodeNotInForce, $"No delivery channel {command.Channel} is configured.");
         }
@@ -285,7 +285,7 @@ internal sealed class DeliverDocumentHandler(IDocumentRepository documents, IDoc
     }
 }
 
-internal sealed class PlaceLegalHoldHandler(IDocumentRepository documents, IDocumentCatalogue catalogue, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class PlaceLegalHoldHandler(IDocumentRepository documents, IDocumentCatalogue catalogue, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<PlaceLegalHold, Guid>
 {
     public async Task<Result<Guid>> Handle(PlaceLegalHold command, CancellationToken cancellationToken)
@@ -297,7 +297,7 @@ internal sealed class PlaceLegalHoldHandler(IDocumentRepository documents, IDocu
             return user.IsFailure ? user.Error : document.Error!;
         }
 
-        if (!await catalogue.LegalHoldReasonExists(command.ReasonCode, clock.UtcToday, cancellationToken))
+        if (!await catalogue.LegalHoldReasonExists(command.ReasonCode, businessDate.Today, cancellationToken))
         {
             return Error.Validation(DocumentErrorCodes.CodeNotInForce, $"{command.ReasonCode} is not a legal hold reason in force.");
         }
@@ -324,7 +324,7 @@ internal sealed class ReleaseLegalHoldHandler(IDocumentRepository documents, ICl
     }
 }
 
-internal sealed class DisposeDocumentHandler(IDocumentRepository documents, IDocumentStorage storage, ITenantContext tenant, IClock clock, IAuditTrail audit)
+internal sealed class DisposeDocumentHandler(IDocumentRepository documents, IDocumentStorage storage, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<DisposeDocument, long>
 {
     public async Task<Result<long>> Handle(DisposeDocument command, CancellationToken cancellationToken)
@@ -341,7 +341,7 @@ internal sealed class DisposeDocumentHandler(IDocumentRepository documents, IDoc
         }
 
         audit.Record(new AuditEntry("DOCUMENT", "DisposeDocument", nameof(Document), command.DocumentId.ToString()));
-        var result = document.Value.DisposeDocument(clock.UtcToday, clock.UtcNow);
+        var result = document.Value.DisposeDocument(businessDate.Today, clock.UtcNow);
         if (result.IsFailure)
         {
             return result.Error;
@@ -354,7 +354,7 @@ internal sealed class DisposeDocumentHandler(IDocumentRepository documents, IDoc
 }
 
 internal sealed class ReadDocumentContentHandler(IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentStorage storage, IUserRoleQuery roles,
-    IExecutionContext execution, ITenantContext tenant, IClock clock, IAuditTrail audit) : ICommandHandler<ReadDocumentContent, DocumentContent>
+    IExecutionContext execution, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<ReadDocumentContent, DocumentContent>
 {
     public async Task<Result<DocumentContent>> Handle(ReadDocumentContent command, CancellationToken cancellationToken)
     {
@@ -380,7 +380,7 @@ internal sealed class ReadDocumentContentHandler(IDocumentRepository documents, 
 
             if (Classifications.NeedsAllowedRole(doc.Classification))
             {
-                var category = await catalogue.Category(doc.CategoryCode, clock.UtcToday, cancellationToken);
+                var category = await catalogue.Category(doc.CategoryCode, businessDate.Today, cancellationToken);
                 var held = await roles.EffectiveRoles(tenant.RequireTenantId(), user.Value, cancellationToken);
                 if (category is null || !held.Intersect(category.Value.AllowedRoles, StringComparer.Ordinal).Any())
                 {

@@ -92,6 +92,7 @@ public sealed class LifeModule : IModule
     {
         LifeStaticDataEndpoints.MapStaticData(api);
         var life = api.MapGroup("/life").WithTags(Name);
+        MapLists(life);
         MapProposals(life);
         MapPolicies(life);
         MapClaims(life);
@@ -266,5 +267,40 @@ public sealed class LifeModule : IModule
                 (await d.Send(new TerminateGroupScheme(id, r.On), ct)).ToHttp(Results.Ok))
             .Produces<SchemeView>(StatusCodes.Status200OK)
             .WithName("LifeTerminateScheme").WithSummary("Terminate the scheme; its members leave").RequirePermission(LifePermissions.SchemeUpdate);
+    }
+
+    /// <summary>GAP-040: Life's lists, by party, number and status, with cursor paging.</summary>
+    private static void MapLists(RouteGroupBuilder life)
+    {
+        life.MapGet("/proposals", async (Guid? applicantPartyId, string? proposalNumber, ProposalStatus? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListLifeProposals(applicantPartyId, proposalNumber, status, after, size), ct), p => p.Id))
+            .Produces<CursorPage<LifeProposalSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("LifeListProposals").WithSummary("List proposals, by applicant, number or status (GAP-040)").RequirePermission(LifePermissions.ProposalRead);
+        life.MapGet("/policies", async (Guid? policyholderPartyId, string? policyNumber, Domain.Policies.LifePolicyStatus? status, string? cursor, int? limit, IDispatcher d,
+                CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListLifePolicies(policyholderPartyId, policyNumber, status, after, size), ct), p => p.Id))
+            .Produces<CursorPage<LifePolicySummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("LifeListPolicies").WithSummary("List policies, by policyholder, number or status (GAP-040)").RequirePermission(LifePermissions.PolicyRead);
+        life.MapGet("/claims", async (Guid? policyId, Guid? claimantPartyId, string? claimNumber, LifeClaimStatus? status, string? cursor, int? limit, IDispatcher d,
+                CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListLifeClaims(policyId, claimantPartyId, claimNumber, status, after, size), ct), c => c.Id))
+            .Produces<CursorPage<LifeClaimSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("LifeListClaims").WithSummary("List claims, by policy, claimant, number or status (GAP-040)").RequirePermission(LifePermissions.ClaimRead);
+        life.MapGet("/group-schemes", async (Guid? employerPartyId, string? schemeNumber, Domain.Groups.SchemeStatus? status, string? cursor, int? limit, IDispatcher d,
+                CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListGroupSchemes(employerPartyId, schemeNumber, status, after, size), ct), s => s.Id))
+            .Produces<CursorPage<GroupSchemeSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("LifeListGroupSchemes").WithSummary("List group schemes, by employer, number or status (GAP-040)").RequirePermission(LifePermissions.SchemeRead);
+    }
+
+    private static async Task<IResult> Page<T>(string? cursor, int? limit, Func<Guid?, int, Task<BuildingBlocks.Domain.Result<IReadOnlyList<T>>>> query, Func<T, Guid> id)
+    {
+        if (!Cursor.TryDecode(cursor, out var after))
+        {
+            return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+        }
+
+        var size = Cursor.ClampLimit(limit);
+        return (await query(after, size)).ToHttp(items => Results.Ok(new CursorPage<T>(items, items.Count == size ? Cursor.Encode(id(items[^1])) : null)));
     }
 }

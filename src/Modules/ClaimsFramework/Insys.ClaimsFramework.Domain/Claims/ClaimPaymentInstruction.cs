@@ -67,6 +67,17 @@ public sealed record ClaimPaymentInstructed(Guid InstructionId, string ClaimNumb
     int Attempt,
     DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>An automatic release was refused and the instruction is held, with why (RESERVE_BELOW_ZERO, PAYEE_ACCOUNT_CHANGED).</summary>
+public sealed record ClaimPaymentReleaseHeld(Guid InstructionId, string ClaimNumber, string Domain, string Reason, decimal Amount, string Currency, string ReserveType,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>Why an approved instruction was not released automatically.</summary>
+public static class ReleaseHoldReasons
+{
+    public const string ReserveBelowZero = "RESERVE_BELOW_ZERO";
+    public const string PayeeAccountChanged = "PAYEE_ACCOUNT_CHANGED";
+}
+
 public sealed record ClaimPaymentCompleted(Guid InstructionId, Guid MovementId, string ClaimNumber, string Domain, string ReserveType, decimal Amount, string Currency,
     DateOnly PaidOn, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -128,6 +139,14 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
     public Guid? PendingBankAccountId { get; private set; }
 
     public string? PendingPayeeBankHash { get; private set; }
+
+    /// <summary>Why an automatic release was refused (ReleaseHoldReasons), until the instruction is released.</summary>
+    public string? HeldReason { get; private set; }
+
+    /// <summary>What the person who resolves it needs to know: amounts and reserve type, never bank details.</summary>
+    public string? HeldDetail { get; private set; }
+
+    public DateTimeOffset? HeldAt { get; private set; }
 
     public Guid? RetryRequestedBy { get; private set; }
 
@@ -235,10 +254,26 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
         if (result.IsSuccess)
         {
             ReleasedBy = releasedBy;
+            HeldReason = null;
+            HeldDetail = null;
+            HeldAt = null;
             Raise(new ClaimPaymentInstructed(Id, ClaimNumber, domain, PayeePartyId, BankAccountId!.Value, Amount, Currency, Attempt, now));
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// An automatic release was refused: the instruction stays Approved, shows why, and raises ClaimPaymentReleaseHeld so
+    /// that the claims role gets a task and operations an alert. A person releases it once the cause is put right.
+    /// </summary>
+    public void HoldRelease(string reason, string detail, string domain, DateTimeOffset now)
+    {
+        HeldReason = Guard.MaxLength(reason, 30);
+        HeldDetail = detail.Length <= 200 ? detail : detail[..200];
+        HeldAt = now;
+        Raise(new ClaimPaymentReleaseHeld(Id, ClaimNumber, domain, reason, Amount, Currency, ReserveType, now));
+        MarkChanged();
     }
 
     /// <summary>

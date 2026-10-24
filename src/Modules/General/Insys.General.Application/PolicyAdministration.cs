@@ -101,7 +101,7 @@ internal static class PolicyNumbers
             : Error.Validation(GeneralErrorCodes.CodeNotInForce, "No General policy numbering scheme is in force.");
 }
 
-internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, ITenantContext tenant, IClock clock, IAuditTrail audit)
+internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<IssuePolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(IssuePolicy command, CancellationToken cancellationToken)
@@ -117,7 +117,7 @@ internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCod
         }
 
         // The product version is still on sale when the policy is issued.
-        var product = await Products.Sellable(products, tenant.RequireTenantId(), quote.ProductCode, quote.ProductVersion, clock.UtcToday, cancellationToken);
+        var product = await Products.Sellable(products, tenant.RequireTenantId(), quote.ProductCode, quote.ProductVersion, businessDate.Today, cancellationToken);
         if (product.IsFailure)
         {
             return product.Error;
@@ -129,7 +129,7 @@ internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCod
         }
 
         var id = Guid.CreateVersion7();
-        var number = await PolicyNumbers.Next(codes, id, clock.UtcToday, cancellationToken);
+        var number = await PolicyNumbers.Next(codes, id, businessDate.Today, cancellationToken);
         if (number.IsFailure)
         {
             return number.Error;
@@ -137,7 +137,7 @@ internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCod
 
         var billing = new BillingArrangement(command.BillingAccountId ?? Guid.CreateVersion7(), command.PayerPartyId ?? quote.ProposerPartyId, command.BillingFrequency,
             command.CollectionMethod);
-        var policy = GeneralPolicy.IssuePolicy(id, number.Value, quote, billing, command.RenewalOfPolicyId, clock.UtcToday, clock.UtcNow, product.Value.CoverStartsOn);
+        var policy = GeneralPolicy.IssuePolicy(id, number.Value, quote, billing, command.RenewalOfPolicyId, businessDate.Today, clock.UtcNow, product.Value.CoverStartsOn);
         if (policy.IsFailure)
         {
             return policy.Error;
@@ -149,7 +149,7 @@ internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCod
     }
 }
 
-internal sealed class RenewPolicyHandler(IGeneralRepository general, IGeneralCodes codes, IClock clock, IAuditTrail audit) : ICommandHandler<RenewPolicy, PolicyView>
+internal sealed class RenewPolicyHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<RenewPolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(RenewPolicy command, CancellationToken cancellationToken)
     {
@@ -164,7 +164,7 @@ internal sealed class RenewPolicyHandler(IGeneralRepository general, IGeneralCod
         }
 
         // Renewal follows the product's renewal rule (GEN-004): one that re-rates is renewed through a new quote.
-        if (await codes.RenewalRule(expiring.ProductCode, clock.UtcToday, cancellationToken) is not { } rule)
+        if (await codes.RenewalRule(expiring.ProductCode, businessDate.Today, cancellationToken) is not { } rule)
         {
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{expiring.ProductCode} has no renewal rule in force.");
         }
@@ -175,13 +175,13 @@ internal sealed class RenewPolicyHandler(IGeneralRepository general, IGeneralCod
         }
 
         var id = Guid.CreateVersion7();
-        var number = await PolicyNumbers.Next(codes, id, clock.UtcToday, cancellationToken);
+        var number = await PolicyNumbers.Next(codes, id, businessDate.Today, cancellationToken);
         if (number.IsFailure)
         {
             return number.Error;
         }
 
-        var renewal = GeneralPolicy.RenewPolicy(id, number.Value, expiring, clock.UtcToday, clock.UtcNow);
+        var renewal = GeneralPolicy.RenewPolicy(id, number.Value, expiring, businessDate.Today, clock.UtcNow);
         if (renewal.IsFailure)
         {
             return renewal.Error;
@@ -193,7 +193,7 @@ internal sealed class RenewPolicyHandler(IGeneralRepository general, IGeneralCod
     }
 }
 
-internal sealed class CancelPolicyHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class CancelPolicyHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<CancelPolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(CancelPolicy command, CancellationToken cancellationToken)
@@ -209,7 +209,7 @@ internal sealed class CancelPolicyHandler(IGeneralRepository general, IGeneralCo
             return Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
         }
 
-        if (await codes.CancellationRule(command.ReasonCode, clock.UtcToday, cancellationToken) is not { } rule)
+        if (await codes.CancellationRule(command.ReasonCode, businessDate.Today, cancellationToken) is not { } rule)
         {
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{command.ReasonCode} is not a cancellation reason in force.");
         }
@@ -220,7 +220,7 @@ internal sealed class CancelPolicyHandler(IGeneralRepository general, IGeneralCo
     }
 }
 
-internal sealed class ReinstatePolicyHandler(IGeneralRepository general, IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<ReinstatePolicy, PolicyView>
+internal sealed class ReinstatePolicyHandler(IGeneralRepository general, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<ReinstatePolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(ReinstatePolicy command, CancellationToken cancellationToken)
     {
@@ -236,7 +236,7 @@ internal sealed class ReinstatePolicyHandler(IGeneralRepository general, IExecut
         }
 
         audit.Record(new AuditEntry("GENERAL", "ReinstatePolicy", nameof(GeneralPolicy), policy.Id.ToString()));
-        var result = policy.ReinstatePolicy(user.Value, clock.UtcToday, clock.UtcNow);
+        var result = policy.ReinstatePolicy(user.Value, businessDate.Today, clock.UtcNow);
         return result.IsFailure ? result.Error : PolicyView.From(policy);
     }
 }
@@ -247,7 +247,7 @@ internal sealed class GetPolicyHandler(IGeneralRepository general) : IQueryHandl
         await general.Policy(query.PolicyId, cancellationToken) is { } policy ? PolicyView.From(policy) : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
 }
 
-internal sealed class DraftEndorsementHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class DraftEndorsementHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate, IAuditTrail audit)
     : ICommandHandler<DraftEndorsement, EndorsementView>
 {
     public async Task<Result<EndorsementView>> Handle(DraftEndorsement command, CancellationToken cancellationToken)
@@ -263,7 +263,7 @@ internal sealed class DraftEndorsementHandler(IGeneralRepository general, IGener
             return Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
         }
 
-        if (await codes.EndorsementType(command.EndorsementType, clock.UtcToday, cancellationToken) is not { } type)
+        if (await codes.EndorsementType(command.EndorsementType, businessDate.Today, cancellationToken) is not { } type)
         {
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{command.EndorsementType} is not an endorsement type in force.");
         }
