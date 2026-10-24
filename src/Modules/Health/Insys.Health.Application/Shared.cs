@@ -43,7 +43,7 @@ public interface IHealthRepository
     /// Memberships with no product take their plan option's, once a version in force names one (addenda/health-plan-products.md §4).
     /// Returns how many were given one.
     /// </summary>
-    Task<int> AssignPlanProducts(DateOnly day, CancellationToken cancellationToken);
+    Task<int> AssignPlanProducts(DateOnly day, DateTimeOffset now, CancellationToken cancellationToken);
 
     Task<HealthScheme?> Scheme(Guid id, CancellationToken cancellationToken);
 

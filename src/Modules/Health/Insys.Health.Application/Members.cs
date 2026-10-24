@@ -349,7 +349,7 @@ internal sealed class RemoveHealthDependantHandler(IHealthRepository health, IHe
 }
 
 internal sealed class ChangeHealthPlanHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IAuditTrail audit, ISellableProducts products,
-    ITenantContext tenant, IExecutionContext execution) : ICommandHandler<ChangeHealthPlan, MembershipView>
+    ITenantContext tenant, IExecutionContext execution, IClock clock) : ICommandHandler<ChangeHealthPlan, MembershipView>
 {
     public async Task<Result<MembershipView>> Handle(ChangeHealthPlan command, CancellationToken cancellationToken)
     {
@@ -379,7 +379,7 @@ internal sealed class ChangeHealthPlanHandler(IHealthRepository health, IHealthC
         var result = membership.ChangePlan(new PlanOption(plan.Terms.PlanCode, plan.Terms.OptionCode, plan.Version), command.EffectiveDate, command.Reason);
         if (result.IsSuccess)
         {
-            membership.UseProduct(product.Value.Code, product.Value.Version);
+            membership.UseProduct(product.Value.Code, product.Value.Version, clock.UtcNow);
         }
 
         return result.IsFailure ? result.Error : MembershipView.From(membership);

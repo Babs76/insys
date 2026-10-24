@@ -568,14 +568,61 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         }
 
         // A plan with no product is listed on /health; its membership takes the product once the next version names one.
+        // So are plan options naming an unknown product, a product of another domain, or not the one their plan's other options name.
+        await _db.ExecuteAsOwner("""
+            INSERT INTO product.cfg_product_definitions_and_versions (tenant_id, id, code, version, effective_from, record_status, created_by, change_reason,
+                                                                     product_code, domain, name, coverages, family_code, class_code, cover_starts_on)
+            VALUES (@t, gen_random_uuid(), 'GEN-X', 1, @from, 'DRAFT', 'seed', 'draft', 'GEN-X', 'GENERAL', 'Motor', @coverages, 'MOTOR', 'PRIVATE', 'ISSUE')
+            """, ("t", Tenant), ("from", Today.AddYears(-1)), ("coverages", new[] { "OWN_DAMAGE" }));
+        await Seed("health.cfg_plans_and_options", "EFFECTIVE", "HLT-GEN-A", Plan("HLT-GEN", "GEN-X"));
+        await Seed("health.cfg_plans_and_options", "EFFECTIVE", "HLT-MIX-A", Plan("HLT-MIX", "HLT-PROD"));
+        await Seed("health.cfg_plans_and_options", "EFFECTIVE", "HLT-MIX-B", [.. Plan("HLT-MIX", "HLT-PROD").Select(f => f.Item1 switch
+        {
+            "option_code" => (f.Item1, (object)"B"),
+            "product_code" => (f.Item1, "HLT-OTHER"),
+            _ => f,
+        })]);
         var check = (await (await _factory.CreateClient().GetAsync("/health")).Json()).GetProperty("checks").GetProperty("health-plan-products");
         check.GetProperty("status").GetString().ShouldBe("Degraded");
-        check.GetProperty("description").GetString()!.ShouldContain("HLT-LATE");
-        var late = await Created("/api/v1/health/memberships", Enrolment("HLT-LATE"));
+        var problems = check.GetProperty("data").GetProperty("planOptions").EnumerateArray().Select(p => p.GetString()!).ToList();
+        foreach (var expected in new[]
+                 {
+                     "HLT-LATE/A names no product", "HLT-OFF/A names HLT-NONE, which is not a product", "HLT-GEN/A names GEN-X, a GENERAL product",
+                     "HLT-MIX's options name different products (HLT-PROD, HLT-OTHER)",
+                 })
+        {
+            problems.ShouldContain(p => p.EndsWith(expected), expected);
+        }
+
+        problems.ShouldNotContain(p => p.Contains("HLT-PRD/"), "a plan naming one Health product is fine");
+        // Enrolled through a scheme, so it is billed: its schedule and first invoice have no product yet.
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var schemeNumber = (await Get($"/api/v1/health/schemes/{scheme}")).GetProperty("schemeNumber").GetString()!;
+        await Seed("health.cfg_scheme_member_categories", "EFFECTIVE", "LATE_STAFF", ("category_code", "LATE_STAFF"), ("eligibility_rule", "employment_type = 'PERMANENT'"),
+            ("plan", "HLT-LATE"));
+        await Seed("health.cfg_contribution_rules", "EFFECTIVE", "CR-LATE", ("scheme", schemeNumber), ("member_category", "LATE_STAFF"), ("rate", 1_000m), ("employer_share", 0m));
+        var late = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "LATE_STAFF", planCode = "HLT-LATE", optionCode = "A", startDate = Today, currency = "ZAR",
+            collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<string>("SELECT product_code FROM health.membership WHERE id = @m", ("m", late))).ShouldBeNull();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.premium_schedule WHERE policy_ref = @m AND product_code IS NULL", ("m", late))).ShouldBe(1L);
+
+        // The next version names the product: the daily job gives it to the membership, and Billing to its schedule and later invoices.
         await _db.UserWithPermissions(Tenant, "hlt-jobs", "daily_job.run");
-        (await _factory.ClientFor(Tenant, "hlt-jobs").PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = Today.AddDays(1) })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var jobs = _factory.ClientFor(Tenant, "hlt-jobs");
+        (await jobs.PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = Today.AddDays(1) })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<string>("SELECT product_code FROM health.membership WHERE id = @m", ("m", late))).ShouldBe("HLT-PROD");
+        (await _db.ScalarAsOwner<string>("SELECT product_code FROM billing.premium_schedule WHERE policy_ref = @m", ("m", late))).ShouldBe("HLT-PROD");
+        (await jobs.PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = Today.AddMonths(1) })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var laterInvoice = await _db.ScalarAsOwner<Guid>(
+            "SELECT id FROM billing.invoice WHERE policy_ref = @m AND product_code = 'HLT-PROD' ORDER BY due_date DESC LIMIT 1", ("m", late));
+        laterInvoice.ShouldNotBe(Guid.Empty, "an invoice raised after the product is assigned carries it");
+        (await _factory.ClientFor(Tenant, "hlt-own-product").GetAsync($"/api/v1/billing/invoices/{laterInvoice}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _factory.ClientFor(Tenant, "hlt-other-product").GetAsync($"/api/v1/billing/invoices/{laterInvoice}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     private async Task Organisation()

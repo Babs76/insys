@@ -93,6 +93,9 @@ public sealed record HealthMemberEnrolled(Guid MembershipId, string MemberNumber
 public sealed record HealthMemberStatusChanged(Guid MembershipId, string MemberNumber, string Status, DateOnly EffectiveDate, decimal? MonthlyContribution,
     decimal? EmployerContribution, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>The membership is now on a product: its plan's, given later, or another plan's (addenda/health-plan-products.md).</summary>
+public sealed record MembershipProductAssigned(Guid MembershipId, string MemberNumber, string ProductCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record DependantAdded(Guid MembershipId, string MemberNumber, Guid DependantId, Guid PartyId, string Suffix, DateOnly StartDate, decimal? MonthlyContribution,
     decimal? EmployerContribution, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -296,11 +299,21 @@ public sealed class HealthMembership : AggregateRoot<Guid>
 
     public int? ProductVersion { get; private set; }
 
-    /// <summary>The product the membership is on, from enrolment or a plan change, or from its plan once the plan names one.</summary>
-    public void UseProduct(string? productCode, int? version)
+    /// <summary>
+    /// The product the membership is on, from a plan change, or from its plan once the plan names one. A change is
+    /// announced (MembershipProductAssigned), so Billing gives the membership's schedules the same product.
+    /// </summary>
+    public void UseProduct(string? productCode, int? version, DateTimeOffset now)
     {
+        var changed = productCode != ProductCode;
         ProductCode = productCode is null ? null : Guard.MaxLength(productCode, 15);
         ProductVersion = productCode is null ? null : version;
+        if (changed && ProductCode is not null)
+        {
+            Raise(new MembershipProductAssigned(Id, MemberNumber, ProductCode, now));
+        }
+
+        MarkChanged();
     }
 
     public string PlanCode { get; private set; } = "";

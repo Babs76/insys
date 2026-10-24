@@ -88,6 +88,13 @@ public sealed record HealthMemberEnrolled(Guid MembershipId, string MemberNumber
     decimal? EmployerContribution = null, Guid? SponsorPartyId = null, string? OrgNodeCode = null, string? ProductCode = null) : IIntegrationEvent;
 
 /// <summary>The membership's status or its members changed; a new monthly contribution applies from <paramref name="EffectiveDate"/> when given.</summary>
+/// <summary>
+/// The membership is now on a product (addenda/health-plan-products.md): Billing gives its schedules the same product, so
+/// its invoices from then on are scoped by it (F103).
+/// </summary>
+[IntegrationEvent("health.MembershipProductAssigned")]
+public sealed record MembershipProductAssigned(Guid MembershipId, string MemberNumber, string ProductCode) : IIntegrationEvent;
+
 [IntegrationEvent("health.HealthMemberStatusChanged")]
 public sealed record HealthMemberStatusChanged(Guid MembershipId, string MemberNumber, string Status, DateOnly EffectiveDate, decimal? MonthlyContribution,
     decimal? EmployerContribution = null) : IIntegrationEvent;

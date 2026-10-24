@@ -135,6 +135,9 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
 
     public string? OrgNodeCode { get; private set; }
 
+    /// <summary>The product the schedule's membership is now on (addenda/health-plan-products.md); its invoices from now on carry it.</summary>
+    public void UseProduct(string productCode) => ProductCode = Guard.MaxLength(productCode, 15);
+
     public void ScopeTo(string? productCode, string? orgNodeCode)
     {
         ProductCode = productCode is null ? null : Guard.MaxLength(productCode, 15);

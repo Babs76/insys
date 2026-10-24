@@ -42,7 +42,8 @@ namespace Insys.Billing.Application;
 public sealed class HealthContributionBilling(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<HealthMemberEnrolled>,
     IIntegrationEventHandler<DependantAdded>,
-    IIntegrationEventHandler<HealthMemberStatusChanged>
+    IIntegrationEventHandler<HealthMemberStatusChanged>,
+    IIntegrationEventHandler<MembershipProductAssigned>
 {
     public const string SourceDomain = HealthReferences.SourceDomain;
     public const string EmployerSourceDomain = HealthReferences.EmployerSourceDomain;
@@ -144,4 +145,22 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
     private async Task<BillingFrequency> Frequency(string memberNumber, CancellationToken cancellationToken) =>
         await codes.Frequency(Monthly, businessDate.Today, cancellationToken)
         ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, Monthly);
+
+    /// <summary>
+    /// The membership is now on a product: its schedules (member's and employer's) carry it, and so do the invoices raised
+    /// from them from now on (F103). Invoices already raised keep what they had.
+    /// </summary>
+    public async Task Handle(MembershipProductAssigned assigned, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        foreach (var domain in new[] { SourceDomain, EmployerSourceDomain })
+        {
+            if (await billing.AccountForPolicy(domain, assigned.MembershipId, cancellationToken) is { } account)
+            {
+                foreach (var schedule in account.Schedules.Where(s => s.SourceDomain == domain && s.PolicyRef == assigned.MembershipId))
+                {
+                    schedule.UseProduct(assigned.ProductCode);
+                }
+            }
+        }
+    }
 }

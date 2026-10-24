@@ -67,6 +67,7 @@ public static class BillingInfrastructure
         services.AddIntegrationEventHandler<Health.Contracts.HealthMemberEnrolled, HealthContributionBilling, BillingDbContext>(schema, "HealthMemberEnrolled");
         services.AddIntegrationEventHandler<Health.Contracts.DependantAdded, HealthContributionBilling, BillingDbContext>(schema, "DependantAdded");
         services.AddIntegrationEventHandler<Health.Contracts.HealthMemberStatusChanged, HealthContributionBilling, BillingDbContext>(schema, "MemberStatusChanged");
+        services.AddIntegrationEventHandler<Health.Contracts.MembershipProductAssigned, HealthContributionBilling, BillingDbContext>(schema, "MembershipProductAssigned");
         services.AddOptions<BillingJobOptions>().BindConfiguration("Billing:Jobs");
         services.AddSingleton<BillingJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)

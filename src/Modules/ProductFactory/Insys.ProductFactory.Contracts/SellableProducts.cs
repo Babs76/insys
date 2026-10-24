@@ -69,3 +69,13 @@ public interface IExclusionCodes
 {
     Task<IReadOnlyList<ExclusionCodes>> InForce(Guid tenantId, IReadOnlyCollection<string>? codes, DateOnly day, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Public query interface: the domain (LIFE, GENERAL, HEALTH) of each product code the tenant has defined, in any status
+/// (draft to published), by its latest version. For checks of configuration that names products before they are on
+/// sale, such as Health plans (addenda/health-plan-products.md). Codes with no definition are left out.
+/// </summary>
+public interface IProductDomains
+{
+    Task<IReadOnlyDictionary<string, string>> DomainsOf(Guid tenantId, IReadOnlyCollection<string> productCodes, CancellationToken cancellationToken);
+}

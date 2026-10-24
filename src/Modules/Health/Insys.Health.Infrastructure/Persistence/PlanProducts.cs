@@ -68,10 +68,12 @@ internal sealed class PlanProductsGuard : IStaticSetGuard
 }
 
 /// <summary>
-/// /health "health-plan-products": Degraded while any tenant has a plan option in force that names no product. Its
-/// memberships have no product, so product-scoped users see none of them (OQ-080 fail-safe), until a new version names one.
+/// /health "health-plan-products": Degraded while any tenant has a plan option in force whose product is missing, is not
+/// a product the tenant has defined, is not a Health product, or is not the one its plan's other options name
+/// (addenda/health-plan-products.md §1, §4). Until fixed, its memberships are outside product scopes or wrongly scoped.
 /// </summary>
-internal sealed class PlanProductsHealthCheck([FromKeyedServices(HealthDbContext.SchemaName)] NpgsqlDataSource dataSource, ITenantDirectory tenants) : IHealthCheck
+internal sealed class PlanProductsHealthCheck([FromKeyedServices(HealthDbContext.SchemaName)] NpgsqlDataSource dataSource, ITenantDirectory tenants,
+    ProductFactory.Contracts.IProductDomains products) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
@@ -79,26 +81,66 @@ internal sealed class PlanProductsHealthCheck([FromKeyedServices(HealthDbContext
         var found = new List<string>();
         foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
         {
-            await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-            await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
-            await using var command = new NpgsqlCommand("""
-                SELECT string_agg(DISTINCT plan_code, ',') FROM health.cfg_plans_and_options
-                WHERE tenant_id = @t AND product_code IS NULL AND record_status = ANY(@s) AND effective_from <= CURRENT_DATE AND (effective_to IS NULL OR effective_to > CURRENT_DATE)
-                """, connection, transaction);
-            command.Parameters.AddWithValue("t", tenantId);
-            command.Parameters.AddWithValue("s", statuses);
-            if (await command.ExecuteScalarAsync(cancellationToken) is string plans)
+            var options = new List<(string Plan, string Option, string? Product)>();
+            await using (var connection = await dataSource.OpenConnectionAsync(cancellationToken))
+            await using (var transaction = await connection.BeginTransactionAsync(cancellationToken))
             {
-                found.Add($"{tenantId}: {plans}");
+                await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+                await using var command = new NpgsqlCommand("""
+                    SELECT DISTINCT ON (plan_code, option_code) plan_code, option_code, product_code FROM health.cfg_plans_and_options
+                    WHERE tenant_id = @t AND record_status = ANY(@s) AND effective_from <= CURRENT_DATE AND (effective_to IS NULL OR effective_to > CURRENT_DATE)
+                    ORDER BY plan_code, option_code, version DESC
+                    """, connection, transaction);
+                command.Parameters.AddWithValue("t", tenantId);
+                command.Parameters.AddWithValue("s", statuses);
+                await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+                {
+                    while (await reader.ReadAsync(cancellationToken))
+                    {
+                        options.Add((reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
+                    }
+                }
+
+                await transaction.CommitAsync(cancellationToken);
             }
 
-            await transaction.CommitAsync(cancellationToken);
+            var domains = await products.DomainsOf(tenantId, options.Where(o => o.Product is not null).Select(o => o.Product!).Distinct().ToList(), cancellationToken);
+            found.AddRange(Problems(options, domains).Select(p => $"{tenantId}: {p}"));
         }
 
         return found.Count == 0
-            ? HealthCheckResult.Healthy("Every Health plan in force names its product.")
-            : HealthCheckResult.Degraded($"{found.Count} tenant(s) have Health plans with no product (OQ-080): {string.Join("; ", found.Take(20))}",
-                data: new Dictionary<string, object> { ["plansWithoutProduct"] = found });
+            ? HealthCheckResult.Healthy("Every Health plan in force names one Health product.")
+            : HealthCheckResult.Degraded($"{found.Count} Health plan option(s) need their product fixed (addenda/health-plan-products.md): {string.Join("; ", found.Take(20))}",
+                data: new Dictionary<string, object> { ["planOptions"] = found });
+    }
+
+    /// <summary>What is wrong with each plan option's product, if anything.</summary>
+    internal static IEnumerable<string> Problems(IReadOnlyList<(string Plan, string Option, string? Product)> options, IReadOnlyDictionary<string, string> domains)
+    {
+        foreach (var plan in options.GroupBy(o => o.Plan).OrderBy(g => g.Key))
+        {
+            var named = plan.Where(o => o.Product is not null).Select(o => o.Product!).Distinct().ToList();
+            foreach (var option in plan.OrderBy(o => o.Option))
+            {
+                var where = $"{option.Plan}/{option.Option}";
+                if (option.Product is null)
+                {
+                    yield return $"{where} names no product";
+                }
+                else if (!domains.TryGetValue(option.Product, out var domain))
+                {
+                    yield return $"{where} names {option.Product}, which is not a product";
+                }
+                else if (domain != "HEALTH")
+                {
+                    yield return $"{where} names {option.Product}, a {domain} product";
+                }
+            }
+
+            if (named.Count > 1)
+            {
+                yield return $"{plan.Key}'s options name different products ({string.Join(", ", named)})";
+            }
+        }
     }
 }

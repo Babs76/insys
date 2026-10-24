@@ -127,7 +127,7 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 | OQ-077 | 8 | How a payment provider authenticates its callbacks (GAP-035) | Resolved 23 Oct 2026: ADR-023 revision 2 |
 | OQ-078 | 8 | Business use of the operator tenant | Resolved: ADR-024 |
 | OQ-079 | 8 | A Life death claim's reserve at registration | Resolved 24 Oct 2026: initial reserve from the sum assured, built |
-| OQ-080 | 8 | What a product scope means for Health records (F103) | Resolved: `docs/specs/addenda/health-plan-products.md` built in Wave 0b batch 4; closed when it is merged |
+| OQ-080 | 8 | What a product scope means for Health records (F103) | Resolved: `docs/specs/addenda/health-plan-products.md` built and merged (`537f4cb`) |
 | OQ-081 | 8 | Scope rules for shared billing accounts and approvals (F103) | Resolved 24 Oct 2026: confirmed, with account figures from in-scope schedules only; built |
 | OQ-082 | 8 | Choices the channel addendum leaves open (F005) | Resolved 24 Oct 2026: confirmed as built |
 
@@ -855,7 +855,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - memberships and what follows them carry it;
   - plans without one stay fail-safe and are listed on `/health`.
 
-  **Closed when the batch is merged.**
+  **Closed** (merged, `537f4cb`, 24 October 2026).
 
 ### OQ-081 Two scope rules the access-scopes addendum leaves open (Phase 8 Wave 0b, F103)
 - **Source:** `docs/specs/addenda/access-scopes.md` §1 and §4.

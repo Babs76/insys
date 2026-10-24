@@ -49,6 +49,7 @@ public static class ProductFactoryInfrastructure
         services.AddScoped<ISimulationRuns, SimulationRunStore>();
         services.AddScoped<IProductCatalogue, ProductCatalogue>();
         services.AddSingleton<ISellableProducts, SellableProducts>();
+        services.AddSingleton<IProductDomains, ProductDomains>();
         services.AddSingleton<IExclusionCodes, ExclusionCodesQuery>();
         services.AddIntegrationEventHandler<ApprovalGranted, ProductPolicies, ProductFactoryDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, ProductPolicies, ProductFactoryDbContext>(schema, "ApprovalRejected");

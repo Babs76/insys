@@ -63,17 +63,22 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
         await db.Memberships.AsNoTracking().Where(m => membershipIds.Contains(m.Id))
             .ToDictionaryAsync(m => m.Id, m => new MembershipScope(m.MemberNumber, m.ProductCode, m.OrgNodeCode), cancellationToken);
 
-    public async Task<int> AssignPlanProducts(DateOnly day, CancellationToken cancellationToken)
+    public async Task<int> AssignPlanProducts(DateOnly day, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var plans = (await db.Set<PlansAndOptions>().AsNoTracking()
                 .InForce(HealthStaticData.Descriptors.Single(d => d.EntityType == typeof(PlansAndOptions)).Lifecycle, day)
                 .Where(p => p.ProductCode != null).Select(p => new { p.PlanCode, p.OptionCode, p.ProductCode, p.Version }).ToListAsync(cancellationToken))
             .GroupBy(p => (p.PlanCode, p.OptionCode)).Select(g => g.MaxBy(p => p.Version)!).ToList();
+        // Through the aggregate, so each membership announces its product and Billing follows (MembershipProductAssigned).
         var assigned = 0;
         foreach (var plan in plans)
         {
-            assigned += await db.Memberships.Where(m => m.ProductCode == null && m.PlanCode == plan.PlanCode && m.OptionCode == plan.OptionCode)
-                .ExecuteUpdateAsync(set => set.SetProperty(m => m.ProductCode, plan.ProductCode), cancellationToken);
+            foreach (var membership in await db.Memberships.Where(m => m.ProductCode == null && m.PlanCode == plan.PlanCode && m.OptionCode == plan.OptionCode)
+                         .ToListAsync(cancellationToken))
+            {
+                membership.UseProduct(plan.ProductCode, null, now);
+                assigned++;
+            }
         }
 
         return assigned;
@@ -327,6 +332,7 @@ internal sealed class HealthEventMapper : IDomainEventMapper
         Domain.Members.HealthMemberEnrolled e => new Contracts.HealthMemberEnrolled(e.MembershipId, e.MemberNumber, e.PrincipalPartyId, e.SchemeId, e.PlanCode, e.OptionCode,
             e.StartDate, e.PayerPartyId, e.BillingAccountRef, e.CollectionMethod, e.Currency, e.MonthlyContribution, e.EmployerContribution, e.SponsorPartyId,
             e.OrgNodeCode, e.ProductCode),
+        Domain.Members.MembershipProductAssigned e => new Contracts.MembershipProductAssigned(e.MembershipId, e.MemberNumber, e.ProductCode),
         Domain.Members.HealthMemberStatusChanged e => new Contracts.HealthMemberStatusChanged(e.MembershipId, e.MemberNumber, e.Status, e.EffectiveDate,
             e.MonthlyContribution, e.EmployerContribution),
         Domain.Members.DependantAdded e => new Contracts.DependantAdded(e.MembershipId, e.MemberNumber, e.DependantId, e.PartyId, e.Suffix, e.StartDate, e.MonthlyContribution,
