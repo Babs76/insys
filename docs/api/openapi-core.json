@@ -275,6 +275,43 @@
         "x-permission": "dead_letter.update"
       }
     },
+    "/api/v1/integration/deliveries/summary": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Dashboard figures (GAP-046): parked deliveries by prerequisite, failing deliveries, open dead letters, failing webhooks, oldest parked",
+        "operationId": "IntegrationDeliveriesSummary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "dead_letter.read"
+      }
+    },
     "/api/v1/integration/parked-deliveries": {
       "get": {
         "tags": [
@@ -2119,6 +2156,86 @@
           }
         },
         "x-permission": "party.update"
+      }
+    },
+    "/api/v1/party/parties/{id}/match-resolution": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Resolve a portal registration that matched an existing party: LINK it to that party, or confirm it as NEW",
+        "description": "External-user access \u00A76. The party must be waiting for review (reviewStatus PENDING_REVIEW). existingPartyId is needed only for a registration made before its match was recorded, and must be the matched party otherwise. Completes asynchronously (GAP-027): the PARTY_MATCH_RESOLUTION approval appears in Workflow. Approved, a LINK merges the registration into the existing party (party.PartiesMerged) and NEW confirms it, and the review task is closed; rejected, the registration is back to PENDING_REVIEW.",
+        "operationId": "PartyResolveMatch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyMatchResolutionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "party.update",
+        "x-eventual-effects": "the PARTY_MATCH_RESOLUTION approval appears in Workflow. Approved, a LINK merges the registration into the existing party (party.PartiesMerged) and NEW confirms it, and the review task is closed; rejected, the registration is back to PENDING_REVIEW."
       }
     },
     "/api/v1/party/parties/{id}/anonymise": {
@@ -5596,6 +5713,120 @@
         "x-permission": "document.dispose"
       }
     },
+    "/api/v1/portal/documents": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "The documents of a record in your relationship (a policy, endorsement, invoice, statement or remittance)",
+        "description": "Only documents in categories whose allowed roles include one of yours: each tenant names its portal roles on the categories its portals may show. A record outside your relationship is not found.",
+        "operationId": "PortalDocumentsList",
+        "parameters": [
+          {
+            "name": "businessRefType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "businessRefId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentsPortalDocumentView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "document.read"
+      }
+    },
+    "/api/v1/portal/documents/{id}/content": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Read a document\u0027s content; every read is recorded in its access log with purpose PORTAL (DOC-003)",
+        "operationId": "PortalDocumentsReadContent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "document.read"
+      }
+    },
     "/api/v1/billing/accounts": {
       "post": {
         "tags": [
@@ -6404,6 +6635,160 @@
         "x-permission": "refund.read"
       }
     },
+    "/api/v1/billing/summary": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Dashboard figure OPEN_ARREARS (GAP-046): open arrears cases and their amount overdue per currency",
+        "description": "Only accounts wholly in your scope: an account that also bills policies outside it is left out (OQ-081).",
+        "operationId": "BillingSummary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "billing_account.read"
+      }
+    },
+    "/api/v1/portal/billing/invoices": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "The member\u0027s invoices (accounts they pay) or the broker\u0027s (its policies and its sub-brokers\u0027), by ID after afterId",
+        "operationId": "PortalBillingListInvoices",
+        "parameters": [
+          {
+            "name": "afterId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BillingPortalInvoiceView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "invoice.read"
+      }
+    },
+    "/api/v1/portal/billing/invoices/{id}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "An invoice of the member or broker, without the account\u0027s collection details or allocations",
+        "operationId": "PortalBillingGetInvoice",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingPortalInvoiceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "invoice.read"
+      }
+    },
     "/api/v1/payments/payments": {
       "post": {
         "tags": [
@@ -6607,6 +6992,43 @@
           },
           "404": {
             "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "payment.read"
+      }
+    },
+    "/api/v1/payments/summary": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Dashboard figure PAYMENTS_UNKNOWN (GAP-046): payments waiting for a decision on an unknown outcome, per currency, and the oldest",
+        "operationId": "PaymentsSummary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
           }
         },
         "x-permission": "payment.read"
@@ -11428,6 +11850,122 @@
           }
         },
         "x-permission": "life_policy.read"
+      }
+    },
+    "/api/v1/portal/life/claims": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "The member\u0027s Life claims (claimant, policyholder or nominated beneficiary) or the broker\u0027s (its policies), by ID after afterId",
+        "operationId": "PortalLifeListClaims",
+        "parameters": [
+          {
+            "name": "afterId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LifePortalLifeClaimView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "life_claim.read"
+      }
+    },
+    "/api/v1/portal/life/claims/{id}": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "A Life claim of the member or broker, without its assessment, reserve or decision reasons (external-user access)",
+        "operationId": "PortalLifeGetClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifePortalLifeClaimView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "life_claim.read"
       }
     },
     "/api/v1/general/risk-objects": {
@@ -18311,7 +18849,7 @@
         "tags": [
           "Health"
         ],
-        "summary": "The provider\u0027s own claims",
+        "summary": "The provider\u0027s own claims; for a member, their own claims and, as principal, every claim of their membership",
         "operationId": "PortalHealthListClaims",
         "parameters": [
           {
@@ -18435,7 +18973,7 @@
         "tags": [
           "Health"
         ],
-        "summary": "A claim of the provider\u0027s",
+        "summary": "A claim of the provider\u0027s, or of the member\u0027s (as patient, or as principal of the membership)",
         "operationId": "PortalHealthGetClaim",
         "parameters": [
           {
@@ -20038,6 +20576,122 @@
         "x-permission": "commission_statement.read"
       }
     },
+    "/api/v1/portal/distribution/statements": {
+      "get": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "The broker\u0027s approved and paid commission statements, and its sub-brokers\u0027, by ID after afterId",
+        "operationId": "PortalDistributionListStatements",
+        "parameters": [
+          {
+            "name": "afterId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DistributionPortalStatementView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "commission_statement.read"
+      }
+    },
+    "/api/v1/portal/distribution/statements/{id}": {
+      "get": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "An approved or paid commission statement of the broker or a sub-broker, without its approval or bank account",
+        "operationId": "PortalDistributionGetStatement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DistributionPortalStatementView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "commission_statement.read"
+      }
+    },
     "/api/v1/reinsurance/cessions": {
       "get": {
         "tags": [
@@ -20686,6 +21340,62 @@
                   "items": {
                     "$ref": "#/components/schemas/ComplianceReturnView"
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "regulatory_return.read"
+      }
+    },
+    "/api/v1/compliance/returns/summary": {
+      "get": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Dashboard figures (GAP-046): returns by status, awaiting action, and overdue, for the periods fromPeriod to toPeriod (yyyy-MM)",
+        "description": "RETURNS_OVERDUE counts returns not yet submitted past their definition\u0027s submissionDays after the period end. A definition without submissionDays has no deadline: its returns are never overdue, and its code is listed in by as NO_DEADLINE:\u003Ccode\u003E (OQ-083).",
+        "operationId": "ComplianceReturnsSummary",
+        "parameters": [
+          {
+            "name": "fromPeriod",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "toPeriod",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummary"
                 }
               }
             }
@@ -21566,7 +22276,7 @@
         "tags": [
           "Analytics"
         ],
-        "summary": "Written premium and policy count by day, product, channel and branch",
+        "summary": "Written premium and policy count by day, product, channel and branch, within your scope (F103)",
         "operationId": "AnalyticsWrittenPremium",
         "parameters": [
           {
@@ -21626,7 +22336,7 @@
         "tags": [
           "Analytics"
         ],
-        "summary": "Claims incurred and claim count by month (yyyy-MM), product and cause",
+        "summary": "Claims incurred and claim count by month (yyyy-MM), product, cause and branch, within your scope (F103)",
         "operationId": "AnalyticsClaimsIncurred",
         "parameters": [
           {
@@ -21656,6 +22366,64 @@
                   "items": {
                     "$ref": "#/components/schemas/AnalyticsClaimsIncurredRow"
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "analytics.read"
+      }
+    },
+    "/api/v1/analytics/summary": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Dashboard figures (GAP-046): written premium, policies written, claims incurred and claims reported, within your scope",
+        "description": "WRITTEN_PREMIUM (per currency) and POLICIES_WRITTEN over the days from and to, both included; CLAIMS_INCURRED (per currency, the net change in claim reserves) and CLAIMS_REPORTED over the months those days fall in. General and Life only: notIncluded lists HEALTH. Definitions: docs/specs/addenda/dashboard-figures.md.",
+        "operationId": "AnalyticsSummary",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummary"
                 }
               }
             }
@@ -21916,7 +22684,7 @@
           "Identity"
         ],
         "summary": "Provision a user",
-        "description": "The user is Invited until the first request with a token for the external subject.",
+        "description": "For INSYS\u0027s own realm (idpCode KEYCLOAK) give email and no externalSubject: the user is PendingIdentity until INSYS has created its Keycloak user, then Invited (Keycloak emails it to set a password, and a one-time code with mfaEnrolled) until its first sign-in. For a federated identity provider give externalSubject: the user is Invited until the first request with a token for it. A user with no roles can sign in, and do nothing until a role is assigned. Completes asynchronously (GAP-027): for INSYS\u0027s own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the creation is parked (KEYCLOAK_UNAVAILABLE) and retried.",
         "operationId": "ProvisionUser",
         "parameters": [
           {
@@ -21976,7 +22744,8 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "user.create"
+        "x-permission": "user.create",
+        "x-eventual-effects": "for INSYS\u0027s own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the creation is parked (KEYCLOAK_UNAVAILABLE) and retried."
       },
       "get": {
         "tags": [
@@ -22033,6 +22802,76 @@
           }
         },
         "x-permission": "user.read"
+      }
+    },
+    "/api/v1/identity/users/{id}/resend-invitation": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Send Keycloak\u0027s invitation email again, to a user of INSYS\u0027s own realm who has not signed in yet",
+        "description": "Completes asynchronously (GAP-027): Keycloak sends the email; if it cannot be reached, sending is parked (KEYCLOAK_UNAVAILABLE) and retried.",
+        "operationId": "ResendInvitation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "user.update",
+        "x-eventual-effects": "Keycloak sends the email; if it cannot be reached, sending is parked (KEYCLOAK_UNAVAILABLE) and retried."
       }
     },
     "/api/v1/identity/users/{id}": {
@@ -24237,6 +25076,10 @@
           },
           "currency": {
             "type": "string"
+          },
+          "branchCode": {
+            "type": "string",
+            "default": "ALL"
           }
         }
       },
@@ -24807,6 +25650,67 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "BillingPortalInvoiceView": {
+        "required": [
+          "id",
+          "invoiceNumber",
+          "sourceDomain",
+          "policyRef",
+          "issueDate",
+          "dueDate",
+          "currency",
+          "totalAmount",
+          "outstanding",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceNumber": {
+            "type": "string"
+          },
+          "sourceDomain": {
+            "type": "string"
+          },
+          "policyRef": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issueDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "totalAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "outstanding": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BillingInvoiceStatus"
           }
         }
       },
@@ -26469,6 +27373,86 @@
           }
         }
       },
+      "DashboardFigure": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "amounts": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/MoneyAmount"
+            }
+          },
+          "by": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FigurePart"
+            }
+          },
+          "at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DashboardSummary": {
+        "required": [
+          "asOf",
+          "figures"
+        ],
+        "type": "object",
+        "properties": {
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "figures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardFigure"
+            }
+          },
+          "refreshedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "notIncluded": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "DistributionClawBackRequest": {
         "required": [
           "reason"
@@ -26670,6 +27654,69 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "DistributionPortalStatementView": {
+        "required": [
+          "id",
+          "intermediaryCode",
+          "periodCode",
+          "currency",
+          "grossAmount",
+          "taxAmount",
+          "netAmount",
+          "status",
+          "paidOn"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intermediaryCode": {
+            "type": "string"
+          },
+          "periodCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "grossAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "taxAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "netAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DistributionStatementStatus"
+          },
+          "paidOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         }
       },
@@ -27080,6 +28127,44 @@
           }
         }
       },
+      "DocumentsPortalDocumentView": {
+        "required": [
+          "id",
+          "categoryCode",
+          "mimeType",
+          "sizeBytes",
+          "businessRefType",
+          "businessRefId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryCode": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "businessRefType": {
+            "type": "string"
+          },
+          "businessRefId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "DocumentsStoreDocumentRequest": {
         "required": [
           "categoryCode",
@@ -27119,6 +28204,26 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "FigurePart": {
+        "required": [
+          "key",
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -32712,10 +33817,19 @@
             "type": "string"
           },
           "externalSubject": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "mfaEnrolled": {
             "type": "boolean"
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -33225,6 +34339,7 @@
       },
       "IdentityUserStatus": {
         "enum": [
+          "PendingIdentity",
           "Invited",
           "Active",
           "Locked",
@@ -33291,6 +34406,12 @@
               "string"
             ],
             "format": "int64"
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -35466,6 +36587,71 @@
           }
         }
       },
+      "LifePortalLifeClaimView": {
+        "required": [
+          "id",
+          "claimNumber",
+          "policyId",
+          "claimType",
+          "eventDate",
+          "notifiedAt",
+          "status",
+          "approvedAmount",
+          "paidAmount",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimType": {
+            "type": "string"
+          },
+          "eventDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "notifiedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LifeClaimStatus"
+          },
+          "approvedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "paidAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
       "LifePortalLifePolicyView": {
         "required": [
           "id",
@@ -36045,6 +37231,26 @@
           }
         }
       },
+      "MoneyAmount": {
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "PartyAddressData": {
         "required": [
           "addressType",
@@ -36511,6 +37717,29 @@
           "Organisation"
         ]
       },
+      "PartyMatchResolutionRequest": {
+        "required": [
+          "resolution",
+          "existingPartyId"
+        ],
+        "type": "object",
+        "properties": {
+          "resolution": {
+            "enum": [
+              "LINK",
+              "NEW"
+            ],
+            "type": "string"
+          },
+          "existingPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "PartyMergePartiesRequest": {
         "required": [
           "survivorId",
@@ -36737,6 +37966,50 @@
               "string"
             ],
             "format": "date"
+          }
+        }
+      },
+      "PartyReviewView": {
+        "required": [
+          "status",
+          "registeredBy",
+          "matchedPartyId",
+          "resolution"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "PENDING_REVIEW",
+              "PROPOSED",
+              "LINKED",
+              "CONFIRMED_NEW"
+            ],
+            "type": "string"
+          },
+          "registeredBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "matchedPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "resolution": {
+            "enum": [
+              "LINK",
+              "NEW",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -37162,6 +38435,16 @@
               "string"
             ],
             "format": "int64"
+          },
+          "review": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PartyReviewView"
+              }
+            ]
           }
         }
       },

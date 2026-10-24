@@ -229,7 +229,7 @@ internal sealed class CompleteOnboardingStepHandler(ITenantRepository tenants, O
 
         // Onboarding readiness: the current step's checks must all be ready (a step out of order is refused by the domain).
         if (tenant.Value.Onboarding is { IsCompleted: false } onboarding && onboarding.CurrentStep == command.Step
-            && OnboardingReadiness.NotReady(await readiness.For(tenant.Value, cancellationToken), command.Step) is { } notReady)
+            && OnboardingReadiness.NotReady(await readiness.For(tenant.Value, cancellationToken, command.Step), command.Step) is { } notReady)
         {
             return notReady;
         }

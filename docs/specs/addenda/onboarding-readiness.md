@@ -1,6 +1,6 @@
 # Addendum: onboarding readiness checks (TEN-008)
 
-**Signed off 24 October 2026** (Ade), including §5 (channels). Planned in Wave 0b after external-user access. Who performs each step, and in which tenant status, is to be settled when it is built and reported before merging.
+**Signed off 24 October 2026** (Ade), including §5 (channels). **Built in Wave 0b batch 6.** Who performs each step, and in which tenant status, was settled when it was built: see the batch 6 report.
 
 - **Basis:**
   - TEN-008: "Tenant onboarding, suspension, reactivation, and termination MUST be governed by defined workflows."

@@ -76,7 +76,7 @@ public static class WorkflowInfrastructure
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.WorkflowDbContext.SchemaName, WorkflowStaticData.Descriptors,
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("SHARED_OPERATIONAL_SETUP", "BUSINESS_CALENDAR", "workflow.ref_business_calendars", "A business calendar, the tenant's or global", null, GlobalRows: true),
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("SHARED_OPERATIONAL_SETUP", "WORK_QUEUES", "workflow.cfg_task_types_and_work_queues", "Task types and work queues"));
-        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.WorkflowDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.WorkflowDbContext.SchemaName, ["SHARED_OPERATIONAL_SETUP"], async (context, connection, transaction, ct) =>
         {
             // The maker-checker approval types in use (onboarding readiness §2): refunds, payout batches, claim payment
             // instructions, endorsements and claim settlements.

@@ -36,6 +36,8 @@ namespace Insys.ProductFactory.Infrastructure;
 /// </summary>
 internal sealed class ProductReadiness(IPublishedProducts published, ISellableProducts products) : IReadinessCheck
 {
+    public IReadOnlyCollection<string> Steps { get; } = ["PRODUCT_FACTORY"];
+
     public async Task<IReadOnlyList<ReadinessResult>> Check(ReadinessContext context, CancellationToken cancellationToken)
     {
         var sellable = await published.Sellable(context.TenantId, context.Day, cancellationToken);

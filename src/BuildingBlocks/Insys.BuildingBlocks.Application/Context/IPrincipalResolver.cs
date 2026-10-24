@@ -41,6 +41,6 @@ public sealed record ResolvedPrincipal(Guid UserId, IReadOnlySet<string> Permiss
 /// </summary>
 public interface IPrincipalResolver
 {
-    /// <summary>Returns null when the subject is unknown, locked or disabled in the tenant, or the tenant is not active.</summary>
+    /// <summary>Returns null when the subject is unknown, locked or disabled in the tenant, or the tenant is neither active nor onboarding.</summary>
     Task<ResolvedPrincipal?> Resolve(Guid tenantId, string subject, CancellationToken cancellationToken);
 }

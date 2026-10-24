@@ -88,7 +88,7 @@ public static class IdentityInfrastructure
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.IdentityDbContext.SchemaName, IdentityStaticData.Descriptors,
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("ORGANISATION_AND_ACCESS", "ROLES", "iam.cfg_roles_and_permission_sets", "At least one role besides TENANT_ADMIN", "role_code <> 'TENANT_ADMIN'"),
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("ORGANISATION_AND_ACCESS", "AUTHENTICATION_POLICY", "iam.cfg_authentication_and_session_policies", "An authentication and session policy, the tenant's or global", null, GlobalRows: true));
-        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.IdentityDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.IdentityDbContext.SchemaName, ["ORGANISATION_AND_ACCESS"], async (context, connection, transaction, ct) =>
         {
             var admins = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, """
                 SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN' AND status = 'ACTIVE'

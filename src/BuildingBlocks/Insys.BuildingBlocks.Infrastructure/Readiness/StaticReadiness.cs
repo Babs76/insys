@@ -91,11 +91,13 @@ public static class ReadinessSql
 internal sealed class StaticReadinessCheck(NpgsqlDataSource dataSource, IReadOnlyList<StaticDataDescriptor> descriptors, IReadOnlyList<StaticCheck> checks)
     : IReadinessCheck
 {
+    public IReadOnlyCollection<string> Steps { get; } = checks.Select(c => c.Step).Distinct(StringComparer.Ordinal).ToList();
+
     public Task<IReadOnlyList<ReadinessResult>> Check(ReadinessContext context, CancellationToken cancellationToken) =>
         ReadinessSql.InTenant<IReadOnlyList<ReadinessResult>>(dataSource, context.TenantId, async (connection, transaction) =>
         {
             var results = new List<ReadinessResult>();
-            foreach (var check in checks)
+            foreach (var check in checks.Where(c => context.Step is null || c.Step == context.Step))
             {
                 var descriptor = descriptors.Single(d => $"{d.Schema}.{d.Table}" == check.Table);
                 var owner = check.GlobalRows ? "(tenant_id = @t OR tenant_id IS NULL)" : "tenant_id = @t";
@@ -109,9 +111,11 @@ internal sealed class StaticReadinessCheck(NpgsqlDataSource dataSource, IReadOnl
         }, cancellationToken);
 }
 
-internal sealed class SqlReadinessCheck(NpgsqlDataSource dataSource,
+internal sealed class SqlReadinessCheck(NpgsqlDataSource dataSource, IReadOnlyCollection<string> steps,
     Func<ReadinessContext, NpgsqlConnection, NpgsqlTransaction, CancellationToken, Task<IReadOnlyList<ReadinessResult>>> check) : IReadinessCheck
 {
+    public IReadOnlyCollection<string> Steps => steps;
+
     public Task<IReadOnlyList<ReadinessResult>> Check(ReadinessContext context, CancellationToken cancellationToken) =>
         ReadinessSql.InTenant(dataSource, context.TenantId, (connection, transaction) => check(context, connection, transaction, cancellationToken), cancellationToken);
 }
@@ -119,9 +123,10 @@ internal sealed class SqlReadinessCheck(NpgsqlDataSource dataSource,
 public static class ReadinessRegistration
 {
     /// <summary>Registers a module's own readiness check, run in the tenant on the module's own connection.</summary>
-    public static IServiceCollection AddSqlReadiness(this IServiceCollection services, string schema,
+    /// <param name="steps">The onboarding steps the check's results belong to; it is run only for them.</param>
+    public static IServiceCollection AddSqlReadiness(this IServiceCollection services, string schema, IReadOnlyCollection<string> steps,
         Func<ReadinessContext, NpgsqlConnection, NpgsqlTransaction, CancellationToken, Task<IReadOnlyList<ReadinessResult>>> check) =>
-        services.AddSingleton<IReadinessCheck>(sp => new SqlReadinessCheck(sp.GetRequiredKeyedService<NpgsqlDataSource>(schema), check));
+        services.AddSingleton<IReadinessCheck>(sp => new SqlReadinessCheck(sp.GetRequiredKeyedService<NpgsqlDataSource>(schema), steps, check));
 
     /// <summary>Registers a module's static-data readiness checks, run on its own connection (the data source keyed by its schema).</summary>
     public static IServiceCollection AddStaticReadiness(this IServiceCollection services, string schema, IReadOnlyList<StaticDataDescriptor> descriptors,

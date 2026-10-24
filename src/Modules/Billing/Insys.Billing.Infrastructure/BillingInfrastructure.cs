@@ -84,7 +84,7 @@ public static class BillingInfrastructure
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PAYMENTS_AND_DISTRIBUTION", "COLLECTION_METHODS", "billing.ref_collection_methods", "Collection methods, billing frequencies, document numbering and ageing buckets covering every day to the last action"),
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PAYMENTS_AND_DISTRIBUTION", "COLLECTION_METHODS", "billing.ref_billing_frequencies", "Collection methods, billing frequencies, document numbering and ageing buckets covering every day to the last action", null, GlobalRows: true),
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PAYMENTS_AND_DISTRIBUTION", "COLLECTION_METHODS", "billing.cfg_document_numbering_schemes", "Collection methods, billing frequencies, document numbering and ageing buckets covering every day to the last action"));
-        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.BillingDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.BillingDbContext.SchemaName, ["PAYMENTS_AND_DISTRIBUTION"], async (context, connection, transaction, ct) =>
         {
             // Request 46: the buckets cover every day overdue from day 1 to the last action, with no gaps or overlaps.
             var buckets = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction,

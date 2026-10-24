@@ -123216,6 +123216,15 @@
             ],
             "type": "string"
           },
+          "submissionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -123420,6 +123429,15 @@
               "null",
               "string"
             ]
+          },
+          "submissionDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           },
           "code": {
             "type": "string"

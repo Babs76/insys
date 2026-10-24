@@ -914,3 +914,9 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **The gap:** neither the SRS nor `reporting.cfg_regulatory_return_definitions` says by when each return must be submitted to its regulator, so no return can be shown as due or overdue.
 - **Decided (24 October 2026, Ade):** the deadline becomes tenant configuration on each return definition, set by compliance. No deadline is invented in code, seed data or tests other than as test data.
 - **Open:** the actual deadline of each return the tenants file (for example the Prudential Authority's quarterly and annual returns), and whether a deadline counts calendar or business days after the period end.
+
+### OQ-084 What a member sees of a Health membership's claims (Phase 8 Wave 0b, external-user access)
+- **Source:** `docs/specs/addenda/external-user-access.md` §2: Health records are in scope for "the principal member or a dependant of the membership, or the patient on a preauthorisation or medical claim".
+- **Built:** a member sees the medical claims where they are the patient; the principal also sees every claim of the membership; a dependant does not see the principal's or another dependant's claims. The view leaves out diagnosis codes.
+- **Why:** medical data is the most sensitive personal information (POPIA section 26); an adult dependant's claims are not obviously the principal's to see, but the principal is responsible for the membership and its statements.
+- **Confirm or change:** for example, a dependant aged 18 or over hidden from the principal, or the principal seeing only claim totals.

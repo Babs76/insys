@@ -121,6 +121,14 @@ internal sealed class TenantStatusQuery([FromKeyedServices(TenancyDbContext.Sche
         command.Parameters.AddWithValue("id", tenantId);
         return await command.ExecuteScalarAsync(cancellationToken) is string status && status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Active);
     }
+
+    public async Task<bool> AcceptsUsers(Guid tenantId, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("SELECT status FROM tenant.tenant WHERE id = @id");
+        command.Parameters.AddWithValue("id", tenantId);
+        return await command.ExecuteScalarAsync(cancellationToken) is string status
+               && (status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Active) || status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Onboarding));
+    }
 }
 
 internal sealed class TenantLocaleDefaults([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantBaseCurrency, ITenantTimeZone, BuildingBlocks.Application.Context.ITenantTimeZoneSource

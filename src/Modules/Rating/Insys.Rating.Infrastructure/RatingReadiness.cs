@@ -44,6 +44,8 @@ namespace Insys.Rating.Infrastructure;
 internal sealed class RatingReadiness([FromKeyedServices(RatingDbContext.SchemaName)] NpgsqlDataSource dataSource, IPublishedProducts products,
     IServiceScopeFactory scopes) : IReadinessCheck
 {
+    public IReadOnlyCollection<string> Steps { get; } = ["PRODUCT_FACTORY"];
+
     public async Task<IReadOnlyList<ReadinessResult>> Check(ReadinessContext context, CancellationToken cancellationToken)
     {
         var missing = new List<string>();

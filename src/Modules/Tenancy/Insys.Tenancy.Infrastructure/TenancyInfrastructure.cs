@@ -68,7 +68,7 @@ public static class TenancyInfrastructure
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PRODUCT_FACTORY", "PRODUCT_PUBLISHED", "tenant.cfg_tenant_product_availability", "A product published and made available to the tenant", "enabled"));
         services.AddScoped<Application.Tenants.OnboardingReadiness>();
         services.AddSingleton<Application.Tenants.ITenantLocale, Persistence.TenantLocale>();
-        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.TenancyDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.TenancyDbContext.SchemaName, ["FINANCIAL_FOUNDATIONS", "TENANT_REGISTRATION"], async (context, connection, transaction, ct) =>
         {
             // TIME_ZONE: given at registration, or in the locale defaults (ADR-025); BASE_CURRENCY: the locale defaults' base currency.
             var zones = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, $"""

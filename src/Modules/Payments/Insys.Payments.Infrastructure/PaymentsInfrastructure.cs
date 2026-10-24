@@ -75,7 +75,7 @@ public static class PaymentsInfrastructure
         // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.PaymentsDbContext.SchemaName, PaymentsStaticData.Descriptors,
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PAYMENTS_AND_DISTRIBUTION", "TENANT_BANK_ACCOUNT", "payment.mst_tenant_bank_accounts", "A tenant bank account"));
-        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.PaymentsDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.PaymentsDbContext.SchemaName, ["PAYMENTS_AND_DISTRIBUTION"], async (context, connection, transaction, ct) =>
         {
             var reference = BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Reference.InForce;
             var currency = context.BaseCurrency ?? "";

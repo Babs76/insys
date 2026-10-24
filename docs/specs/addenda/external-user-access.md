@@ -7,11 +7,7 @@
   - a Life policy;
   - Health memberships, provider claims, preauthorisations and remittances;
   - a broker's client registration.
-- **Not yet built:**
-  - portal reads of documents, invoices and commission statements;
-  - the member claim view for Life and Health;
-  - the staff screen that resolves a party-match review (the task is created);
-  - the portal Keycloak clients in the realm export.
+- **Built in Wave 0b batch 6:** portal reads of documents (categories whose allowed roles include a portal role), invoices and commission statements; member claim views for Life and Health (OQ-084); the staff resolution of a party-match review, under maker-checker; the portal Keycloak clients (broker and provider with a one-time code always, member when set up) and the `amr` mapper.
 
 - **Basis:**
   - SRS-003 (access by product, organisation and relationship);

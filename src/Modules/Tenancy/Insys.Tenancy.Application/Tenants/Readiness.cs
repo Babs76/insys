@@ -64,20 +64,24 @@ public sealed class OnboardingReadiness(IEnumerable<IReadinessCheck> checks, ITe
 {
     public const string SmokeRun = "SMOKE_RUN";
 
-    public async Task<TenantReadinessView> For(Tenant tenant, CancellationToken cancellationToken)
+    /// <param name="step">Only this step's checks are run (completing a step); null runs every step's (the readiness view).</param>
+    public async Task<TenantReadinessView> For(Tenant tenant, CancellationToken cancellationToken, string? step = null)
     {
         var day = dates.TodayFor(tenant.Id);
         var (currency, language) = await locale.For(tenant.Id, day, cancellationToken);
-        var context = new ReadinessContext(tenant.Id, day, currency, language);
+        var context = new ReadinessContext(tenant.Id, day, currency, language, step);
         var results = new List<ReadinessResult>();
-        foreach (var check in checks)
+        foreach (var check in checks.Where(c => step is null || c.Steps.Contains(step)))
         {
             results.AddRange(await check.Check(context, cancellationToken));
         }
 
         // Proposed in the addendum as a step the operator records, with its reference, until an automated run exists.
-        results.Add(ReadinessResult.Of("END_TO_END_TESTS", SmokeRun, "A recorded end-to-end run: quote, policy, invoice, collection, journal and claim registration",
-            ["the run's reference, recorded as evidence"]));
+        if (step is null or "END_TO_END_TESTS")
+        {
+            results.Add(ReadinessResult.Of("END_TO_END_TESTS", SmokeRun, "A recorded end-to-end run: quote, policy, invoice, collection, journal and claim registration",
+                ["the run's reference, recorded as evidence"]));
+        }
 
         var attestations = tenant.Onboarding?.Attestations ?? [];
         var current = tenant.Onboarding is { IsCompleted: false } onboarding ? OnboardingSteps.All.ToList().IndexOf(onboarding.CurrentStep) : OnboardingSteps.All.Count;

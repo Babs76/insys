@@ -109,11 +109,11 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         DocumentedSchema.ResponseProblems(tenantView, "platform-operator", "GetTenant").ShouldBeEmpty();
         tenantView.GetProperty("onboardingStep").GetString().ShouldBe("FINANCIAL_FOUNDATIONS");
 
-        // The tenant's users act once it is active (TEN-008); then the administrator administers its users.
+        // The tenant's users act while it is onboarding, to load its configuration (decided in Wave 0b batch 6), and once active;
+        // the administrator administers its users.
         var admin = _factory.ClientFor(tenantId, "firstadm-admin");
-        (await admin.GetAsync("/api/v1/identity/me")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await admin.GetAsync("/api/v1/identity/me")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await CompleteOnboardingAndActivate(one, tenantUrl, tenant.ETag());
-        _factory.ResetState(); // the permission cache holds the refused principal for up to its duration (30 seconds, ADR-006)
         var me = await admin.GetAsync("/api/v1/identity/me");
         me.StatusCode.ShouldBe(HttpStatusCode.OK, await me.Content.ReadAsStringAsync());
         var body = await me.Json();

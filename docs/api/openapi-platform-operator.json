@@ -26531,8 +26531,8 @@
         "tags": [
           "Tenancy"
         ],
-        "summary": "Complete the current onboarding step",
-        "description": "Steps follow the tenant load sequence in order; activation needs them all (TEN-008).",
+        "summary": "Complete the current onboarding step, once its readiness checks pass",
+        "description": "Steps follow the tenant load sequence in order; activation needs them all (TEN-008). The step\u0027s checks run in the tenant on its business date; if any is not ready the step is refused with ONBOARDING_STEP_NOT_READY, whose errors name each check and what is missing, and nothing changes. attestations record a waiver for TREATIES or WEBHOOKS_OR_NONE, or the end-to-end run\u0027s reference for SMOKE_RUN.",
         "operationId": "CompleteOnboardingStep",
         "parameters": [
           {
@@ -26568,6 +26568,9 @@
           "204": {
             "description": "No Content"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
           "412": {
             "$ref": "#/components/responses/Problem412"
           },
@@ -26597,12 +26600,63 @@
           },
           "409": {
             "$ref": "#/components/responses/Problem409"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
           }
         },
         "x-permission": "tenant.update"
+      }
+    },
+    "/api/v1/tenancy/tenants/{id}/readiness": {
+      "get": {
+        "tags": [
+          "Tenancy"
+        ],
+        "summary": "Every onboarding step\u0027s readiness checks and their results, without completing anything (onboarding readiness)",
+        "operationId": "GetTenantReadiness",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenancyTenantReadinessView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "tenant.read"
       }
     },
     "/api/v1/tenancy/tenants/{id}/activate": {
@@ -37411,7 +37465,10 @@
             "type": "string"
           },
           "externalSubject": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "mfaEnrolled": {
             "type": "boolean"
@@ -37421,6 +37478,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -37469,7 +37532,10 @@
             "type": "string"
           },
           "externalSubject": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "mfaEnrolled": {
             "type": "boolean"
@@ -51456,6 +51522,46 @@
           }
         }
       },
+      "TenancyOnboardingAttestationRequest": {
+        "required": [
+          "check",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "check": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "TenancyOnboardingAttestationView": {
+        "required": [
+          "kind",
+          "note",
+          "by",
+          "at"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "by": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "TenancyOnboardingStepRequest": {
         "required": [
           "step"
@@ -51464,6 +51570,15 @@
         "properties": {
           "step": {
             "type": "string"
+          },
+          "attestations": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/TenancyOnboardingAttestationRequest"
+            }
           }
         }
       },
@@ -51761,6 +51876,43 @@
           }
         }
       },
+      "TenancyReadinessCheckView": {
+        "required": [
+          "code",
+          "ready",
+          "what",
+          "missing",
+          "attestation"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "what": {
+            "type": "string"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attestation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TenancyOnboardingAttestationView"
+              }
+            ]
+          }
+        }
+      },
       "TenancyRegisterTenantRequest": {
         "required": [
           "tenantCode",
@@ -51810,6 +51962,32 @@
           "changedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "TenancyStepReadinessView": {
+        "required": [
+          "step",
+          "completed",
+          "ready",
+          "checks"
+        ],
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenancyReadinessCheckView"
+            }
           }
         }
       },
@@ -51886,6 +52064,30 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "TenancyTenantReadinessView": {
+        "required": [
+          "tenantId",
+          "day",
+          "steps"
+        ],
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenancyStepReadinessView"
+            }
           }
         }
       },

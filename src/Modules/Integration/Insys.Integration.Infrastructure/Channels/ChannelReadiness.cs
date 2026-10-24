@@ -45,6 +45,8 @@ internal sealed class ChannelReadiness([FromKeyedServices(IntegrationDbContext.S
 {
     public const string BackOfficeClient = "insys-web";
 
+    public IReadOnlyCollection<string> Steps { get; } = ["ORGANISATION_AND_ACCESS"];
+
     public async Task<IReadOnlyList<ReadinessResult>> Check(ReadinessContext context, CancellationToken cancellationToken)
     {
         var staff = await roles.InForce(context.TenantId, context.Day, cancellationToken);

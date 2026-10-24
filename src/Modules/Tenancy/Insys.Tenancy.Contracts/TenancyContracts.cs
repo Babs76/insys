@@ -40,10 +40,17 @@ public static class TenancyPermissions
 [IntegrationEvent("tenant.TenantSuspended")]
 public sealed record TenantSuspended(Guid TenantId) : IIntegrationEvent;
 
-/// <summary>Public query interface: whether a tenant may be used (Active). Read on the Tenancy module's own connection.</summary>
+/// <summary>Public query interface: whether a tenant may be used. Read on the Tenancy module's own connection.</summary>
 public interface ITenantStatusQuery
 {
     Task<bool> IsActive(Guid tenantId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the tenant's users may sign in: Active, or Onboarding, so they can load its configuration and run the
+    /// end-to-end test the last onboarding step records (onboarding readiness, decided in Wave 0b batch 6). Suspended
+    /// and Terminated tenants are refused. The background jobs still run for Active tenants only.
+    /// </summary>
+    Task<bool> AcceptsUsers(Guid tenantId, CancellationToken cancellationToken);
 }
 
 /// <summary>Public query interface: the tenant's base currency on a day (tenant.cfg_locale_defaults), or null when none is in force.</summary>

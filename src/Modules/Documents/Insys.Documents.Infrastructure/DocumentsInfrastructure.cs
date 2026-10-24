@@ -64,7 +64,7 @@ public static class DocumentsInfrastructure
         services.AddIntegrationEventHandler<Life.Contracts.LifePolicyIssued, LifeDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "LifePolicyIssued");
         services.AddIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased, HealthDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName,
             "ProviderPaymentRunReleased");
-        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.DocumentsDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.DocumentsDbContext.SchemaName, ["SHARED_OPERATIONAL_SETUP"], async (context, connection, transaction, ct) =>
         {
             var language = context.DefaultLanguage ?? "";
             var templates = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,

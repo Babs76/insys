@@ -76,7 +76,7 @@ public static class FinanceInfrastructure
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.FinanceDbContext.SchemaName, FinanceStaticData.Descriptors,
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("FINANCIAL_FOUNDATIONS", "CHART_OF_ACCOUNTS", "finance.mst_chart_of_accounts", "At least one account in the chart of accounts"),
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("INTEGRATION_AND_REPORTING", "GL_EXPORT_LAYOUT", "finance.cfg_gl_export_layouts", "A GL export layout (F055)"));
-        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.FinanceDbContext.SchemaName, async (context, connection, transaction, ct) =>
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.FinanceDbContext.SchemaName, ["FINANCIAL_FOUNDATIONS"], async (context, connection, transaction, ct) =>
         {
             // The transaction types every tenant's business raises (onboarding readiness §2, "only those used", proposed).
             string[] used = [Contracts.TransactionTypes.PremiumDue, Contracts.TransactionTypes.PaymentReceived, Contracts.TransactionTypes.RefundPaid,

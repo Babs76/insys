@@ -54,7 +54,7 @@ public sealed class OnboardingAccessPolicy(TenancyDbContext db, ITenantRepositor
                 return;
             }
 
-            if (tenant.Onboarding?.CurrentStep == Step && OnboardingReadiness.NotReady(await readiness.For(tenant, cancellationToken), Step) is { } notReady)
+            if (tenant.Onboarding?.CurrentStep == Step && OnboardingReadiness.NotReady(await readiness.For(tenant, cancellationToken, Step), Step) is { } notReady)
             {
                 logger.LogInformation("Tenant {TenantId} has its first administrator; {Step} is left to the operator: {Reason}",
                     provisioned.TargetTenantId, Step, notReady.Message);

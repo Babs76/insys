@@ -106,7 +106,7 @@ public sealed class PrincipalResolver(
             return cached;
         }
 
-        var principal = await tenants.IsActive(tenantId, cancellationToken) ? await Load(tenantId, subject, cancellationToken) : null;
+        var principal = await tenants.AcceptsUsers(tenantId, cancellationToken) ? await Load(tenantId, subject, cancellationToken) : null;
         cache.Set(tenantId, subject, principal);
         return principal;
     }

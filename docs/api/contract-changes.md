@@ -2,9 +2,51 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 0b batch 6 (branch `wave0b-6`, not merged)
+## Wave 0b batch 6 (branch `wave0b-6`, not merged): external-user remainder; arrears past the last bucket; dashboard figures; onboarding readiness; Keycloak users
 
-In progress.
+### New endpoints
+
+| Endpoint | Permission | Notes |
+|---|---|---|
+| `GET /api/v1/portal/billing/invoices`, `…/invoices/{id}` | `invoice.read` | Member (accounts they pay), broker (its policies and sub-brokers') |
+| `GET /api/v1/portal/documents?businessRefType&businessRefId`, `…/{id}/content` | `document.read` | Any portal. Only categories whose `allowed_roles` include one of the caller's roles; each read logged with purpose `PORTAL` |
+| `GET /api/v1/portal/distribution/statements`, `…/statements/{id}` | `commission_statement.read` | Broker: approved and paid statements, its own and its sub-brokers' |
+| `GET /api/v1/portal/life/claims`, `…/claims/{id}` | `life_claim.read` | Member (claimant, policyholder or nominated beneficiary), broker |
+| `POST /api/v1/party/parties/{id}/match-resolution` `{resolution: LINK \| NEW, existingPartyId?}` (If-Match) | `party.update` | Staff resolve a matched portal registration; a second person approves `PARTY_MATCH_RESOLUTION` in Workflow |
+| `GET /api/v1/analytics/summary?from&to` | `analytics.read` | Dashboard: `WRITTEN_PREMIUM`, `POLICIES_WRITTEN`, `CLAIMS_INCURRED`, `CLAIMS_REPORTED`; `notIncluded: [HEALTH]` |
+| `GET /api/v1/compliance/returns/summary?fromPeriod&toPeriod` | `regulatory_return.read` | `RETURNS_BY_STATUS`, `RETURNS_AWAITING_ACTION`, `RETURNS_OVERDUE` |
+| `GET /api/v1/integration/deliveries/summary` | `dead_letter.read` | `DELIVERIES_PARKED` (by prerequisite), `DELIVERIES_FAILING`, `DEAD_LETTERS_OPEN`, `WEBHOOK_DELIVERIES_FAILING`, `OLDEST_PARKED_AT` |
+| `GET /api/v1/billing/summary` | `billing_account.read` | `OPEN_ARREARS` (whole accounts in scope only) |
+| `GET /api/v1/payments/summary` | `payment.read` | `PAYMENTS_UNKNOWN` |
+| `GET /api/v1/tenancy/tenants/{id}/readiness` (platform) | `tenant.read` | Every onboarding step's checks and results |
+| `POST /api/v1/identity/users/{id}/resend-invitation` (If-Match) | `user.update` | Keycloak's invitation again, for a user of realm insys who has not signed in |
+
+Every summary has one shape, `DashboardSummary {asOf, refreshedAt?, notIncluded?, figures: [{code, count?, amounts?: [{currency, amount}], by?: [{key, count}], at?}]}`.
+
+### Changed requests
+- **`POST /identity/users` and `POST /identity/tenant-administrators`:** for INSYS's own realm (`idpCode` `KEYCLOAK`) give `email` and no `externalSubject`; INSYS creates the Keycloak user. `externalSubject` is still required for a federated identity provider.
+- **`POST /tenancy/tenants/{id}/complete-onboarding-step`** takes `attestations: [{check, note}]`: a waiver for `TREATIES` or `WEBHOOKS_OR_NONE` (the reason), or evidence for `SMOKE_RUN` (the run's reference).
+
+### Changed responses
+- **`/portal/health/claims`** and **`/portal/health/claims/{id}`** are open to members too: their own claims, and as principal every claim of their membership.
+- **`GET /party/parties/{id}`** gains `review {status, registeredBy, matchedPartyId, resolution}` for portal registrations.
+- **`GET /analytics/claims-incurred`** rows gain `branchCode`; `/analytics/written-premium` and `/claims-incurred` now return only rows in the caller's scope (F103).
+- **Users** gain `email`, and the status `PendingIdentity`.
+- **A return definition** (static data) gains `submissionDays`.
+
+### Changed behaviour
+- **Onboarding readiness:** a step completes only when its checks pass; otherwise 422 `ONBOARDING_STEP_NOT_READY` with `errors` naming each check and what is missing. `ATTESTATION_NOT_ALLOWED` (422) for an attestation a check does not take.
+- **A tenant's users may sign in while it is Onboarding** (to load its configuration and run the end-to-end test); Suspended and Terminated tenants are refused as before.
+- **Arrears:** an open case past every ageing bucket stays in its bucket with its true days overdue, and is parked once (`billing.ArrearsAgeingBlocked`, `ARREARS_AGEING_BUCKET_NOT_IN_FORCE`) until a bucket covers it.
+- **Analytics** projects by the policy's organisation node (it was `ALL`).
+- **Locking a user** now also disables its Keycloak user (realm insys), and unlocking enables it.
+- **A broker quoting for a registration staff linked to an existing party** quotes for that party.
+
+### New events
+- `billing.ArrearsAgeingBlocked {accountId, bucketCode, daysOverdue}`; `party.PartyMatchResolved {partyId, resolution, existingPartyId}`; `iam.UserIdentityRequested {userId}`, `iam.UserInvitationRequested {userId, actions}`, `iam.UserReenabled {userId}`.
+
+### New error codes
+- `ONBOARDING_STEP_NOT_READY`, `ATTESTATION_NOT_ALLOWED` (Tenancy).
 
 ## Wave 0b batch 5 (merged, `0f66f05`): external-user access; Health product follow-ups
 

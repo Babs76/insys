@@ -97,11 +97,8 @@ public sealed class OnboardingCase : Entity<Guid>, ITenantScoped
 
     public bool IsCompleted => Status == "COMPLETED";
 
-    /// <summary>The waivers and evidence recorded so far, as JSON (tenant.onboarding_case.attestations).</summary>
-    public string AttestationsJson { get; private set; } = "[]";
-
-    public IReadOnlyList<OnboardingAttestation> Attestations =>
-        System.Text.Json.JsonSerializer.Deserialize<List<OnboardingAttestation>>(AttestationsJson, System.Text.Json.JsonSerializerOptions.Web) ?? [];
+    /// <summary>The waivers and evidence recorded so far (tenant.onboarding_case.attestations).</summary>
+    public IReadOnlyList<OnboardingAttestation> Attestations { get; private set; } = [];
 
     internal Result Attest(string check, string note, Guid by, DateTimeOffset now)
     {
@@ -111,8 +108,7 @@ public sealed class OnboardingCase : Entity<Guid>, ITenantScoped
                 $"{check} cannot be recorded here: waivers are for TREATIES and WEBHOOKS_OR_NONE, evidence for SMOKE_RUN, each in its own step.");
         }
 
-        var recorded = Attestations.Where(a => a.Check != check).Append(new OnboardingAttestation(allowed.Step, check, allowed.Kind, Guard.MaxLength(note, 500), by, now));
-        AttestationsJson = System.Text.Json.JsonSerializer.Serialize(recorded, System.Text.Json.JsonSerializerOptions.Web);
+        Attestations = [.. Attestations.Where(a => a.Check != check), new OnboardingAttestation(allowed.Step, check, allowed.Kind, Guard.MaxLength(note, 500), by, now)];
         return Result.Success();
     }
 
@@ -375,5 +371,5 @@ public static class TenancyErrorCodes
     public const string OnboardingStepNotReady = "ONBOARDING_STEP_NOT_READY";
 
     [ErrorCode(422, "error.tenancy.attestation_not_allowed")]
-    public const string AttestationNotAllowed = "ONBOARDING_ATTESTATION_NOT_ALLOWED";
+    public const string AttestationNotAllowed = "ATTESTATION_NOT_ALLOWED";
 }

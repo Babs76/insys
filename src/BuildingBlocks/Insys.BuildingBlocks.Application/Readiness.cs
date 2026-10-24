@@ -38,11 +38,17 @@ public sealed record ReadinessResult(string Step, string Code, bool Ready, strin
     public static ReadinessResult Of(string step, string code, string what, IReadOnlyList<string> missing) => new(step, code, missing.Count == 0, what, missing);
 }
 
-/// <summary>What a check is run for: the tenant, its business date (ADR-025), and its locale defaults as far as they are set.</summary>
-public sealed record ReadinessContext(Guid TenantId, DateOnly Day, string? BaseCurrency, string? DefaultLanguage);
+/// <summary>
+/// What a check is run for: the tenant, its business date (ADR-025), its locale defaults as far as they are set, and the
+/// step being completed (null for every step, as the readiness view asks).
+/// </summary>
+public sealed record ReadinessContext(Guid TenantId, DateOnly Day, string? BaseCurrency, string? DefaultLanguage, string? Step = null);
 
 /// <summary>A module's readiness checks. Results with the same step and code from several modules are combined by Tenancy.</summary>
 public interface IReadinessCheck
 {
+    /// <summary>The onboarding steps this check answers for; it is run only for them.</summary>
+    IReadOnlyCollection<string> Steps { get; }
+
     Task<IReadOnlyList<ReadinessResult>> Check(ReadinessContext context, CancellationToken cancellationToken);
 }

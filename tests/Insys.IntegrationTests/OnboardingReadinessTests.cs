@@ -91,7 +91,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         (await noWaiver.Json()).GetProperty("errors").EnumerateObject().Select(e => e.Name).ShouldBe(["TREATIES"]);
         var wrongCheck = await _operator.Send(HttpMethod.Post, $"{url}/complete-onboarding-step",
             new { step = "REINSURANCE", attestations = new[] { new { check = "SMOKE_RUN", note = "RUN-1" } } }, ifMatch: etag);
-        (await wrongCheck.Code()).ShouldBe("ONBOARDING_ATTESTATION_NOT_ALLOWED");
+        (await wrongCheck.Code()).ShouldBe("ATTESTATION_NOT_ALLOWED");
         foreach (var step in new[] { "REINSURANCE", "INTEGRATION_AND_REPORTING", "END_TO_END_TESTS" })
         {
             etag = await Complete(url, etag, step);
