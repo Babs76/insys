@@ -31,6 +31,7 @@ using Insys.Communications.Contracts;
 using Insys.Communications.Infrastructure.Channels;
 using Insys.Communications.Infrastructure.Persistence;
 using Insys.Communications.Infrastructure.StaticData;
+using Insys.Communications.Infrastructure.Triggers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Communications.Infrastructure;
@@ -59,6 +60,7 @@ public static class CommunicationsInfrastructure
         services.AddStubNotificationChannels();
 
         services.AddIntegrationEventHandler<NotificationRequested, QueueRequestedNotification, CommunicationsDbContext>(schema);
+        services.AddNotificationTriggers();
         services.AddIntegrationEventHandler<Party.Contracts.ConsentWithdrawn, SuppressMarketingOnWithdrawal, CommunicationsDbContext>(schema);
         services.AddIntegrationEventHandler<Party.Contracts.PartyAnonymised, AnonymiseNotifications, CommunicationsDbContext>(schema);
 

@@ -155,7 +155,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         await Seed("general.cfg_cancellation_reasons_and_refund_rules", "EFFECTIVE", "INS_REQUEST", ("reason_code", "INS_REQUEST"), ("initiator", "INSURED"),
             ("refund_basis", "PRO_RATA"), ("fee", 0m));
         await Seed("general.cfg_renewal_rules", "EFFECTIVE", "RR-EMOT", ("product_code", Product), ("notice_days", 400), ("auto_renew", true), ("re_rating", false),
-            ("invitation_template", "TPL-RENEWAL_NOTICE"));
+            ("invitation_template", "TPL-RENEWAL_NOTICE"), ("reminder_days", new[] { 30 }));
         await Seed("general.ref_risk_zones", "ACTIVE", "CPT1", ("zone_code", "CPT1"), ("geography", JsonSerializer.SerializeToElement(new { city = "Cape Town" })),
             ("peril", "ACC"));
         await Seed("general.ref_loss_cause_codes", "ACTIVE", "COLLISION", ("cause_code", "COLLISION"), ("peril", "ACC"), ("label", "Collision"));
@@ -469,6 +469,38 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         invoiced.StatusCode.ShouldBe(HttpStatusCode.OK, await invoiced.Content.ReadAsStringAsync());
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @r AND document_type = 'INVOICE'", ("r", renewal)))
             .ShouldBe(1L);
+    }
+
+    /// <summary>
+    /// F021 and F100 (addenda/communications.md §6.2, OQ-089): the renewal invitation reaches the policyholder by email, and
+    /// on the rule's reminder day a reminder follows, once, however often the job runs that day.
+    /// </summary>
+    [Fact]
+    public async Task RenewalInvitation_AndItsReminder_ReachThePolicyholder_OnceEach_F021_F100()
+    {
+        await _db.SeedEmailNotices(Tenant, Today.AddDays(-30), "EPT",
+            (Insys.Communications.Contracts.NotificationTypes.RenewalInvitation, "Renew {policy_number}", "{policy_number} ends on {period_end}."),
+            (Insys.Communications.Contracts.NotificationTypes.RenewalReminder, "Reminder {policy_number}", "{policy_number} ends in {days_to_renewal} days."));
+        var policy = await IssuedPolicy(await Vehicle());
+        var holder = await _maker.RegisterPerson("Renewing");
+        await _db.AddContact(Tenant, holder, "EMAIL", "renewal@example.com");
+        var periodEnd = BusinessDates.Today.AddDays(30);
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @d, policyholder_party_id = @h WHERE id = @p", ("d", periodEnd), ("h", holder),
+            ("p", policy));
+        var jobs = _factory.Services.GetRequiredService<GeneralJobs>();
+        var sender = _factory.Services.GetRequiredService<Insys.Communications.Infrastructure.NotificationSender>();
+        for (var run = 0; run < 3; run++)
+        {
+            await jobs.Run(CancellationToken.None);
+            await _factory.DrainOutbox();
+        }
+
+        await sender.RunForTenant(Tenant, CancellationToken.None);
+        var number = (await Get($"/api/v1/general/policies/{policy}")).GetProperty("policyNumber").GetString();
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(type_code || ':' || status || ':' || body, '|' ORDER BY type_code) FROM communication.notification WHERE recipient_party_id = @h
+            """, ("h", holder))).ShouldBe(
+            $"RENEWAL_INVITATION:SENT:{number} ends on {periodEnd:yyyy-MM-dd}.|RENEWAL_REMINDER:SENT:{number} ends in 30 days.");
     }
 
     /// <summary>

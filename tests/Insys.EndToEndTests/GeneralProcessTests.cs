@@ -408,6 +408,36 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>
+    /// F101 (addenda/communications.md §6.3): a claim's status notice reaches the policyholder by email, in the tenant's
+    /// templates, and the claim's correspondence log records it as outbound.
+    /// </summary>
+    [Fact]
+    public async Task ClaimStatusNotice_ReachesThePolicyholder_AndTheClaimLogsIt_F101()
+    {
+        await _db.SeedEmailNotices(Tenant, Today.AddDays(-30), "GPT", (Insys.Communications.Contracts.NotificationTypes.ClaimStatus, "Claim {claim_number}",
+            "Your claim {claim_number} is {status} ({status_date})."));
+        var (policy, vehicle) = await IssuedPolicy();
+        var holder = await _maker.RegisterPerson("Holder");
+        await _db.ExecuteAsOwner("UPDATE general.policy SET policyholder_party_id = @h WHERE id = @p", ("h", holder), ("p", policy));
+        await _db.AddContact(Tenant, holder, "EMAIL", "holder@example.com");
+        var claim = await Created("/api/v1/general/claims", new
+        {
+            policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC",
+        });
+        var number = (await (await _maker.PostAsync($"/api/v1/general/claims/{claim}/register", null)).Json()).GetProperty("claimNumber").GetString()!;
+        await _factory.DrainOutbox();
+        await _factory.Services.GetRequiredService<Insys.Communications.Infrastructure.NotificationSender>().RunForTenant(Tenant, CancellationToken.None);
+        await _factory.DrainOutbox();
+
+        (await _db.ScalarAsOwner<string>("""
+            SELECT status || ':' || channel || ':' || body FROM communication.notification
+            WHERE recipient_party_id = @h AND type_code = 'CLAIM_STATUS' AND source_type = 'GENERAL_CLAIM' AND source_id = @c
+            """, ("h", holder), ("c", claim))).ShouldBe($"SENT:EMAIL:Your claim {number} is REGISTERED ({BusinessDates.Today:yyyy-MM-dd}).");
+        (await _db.ScalarAsOwner<string>("SELECT direction || ':' || channel FROM claims.claim_communication WHERE claim_number = @n", ("n", number)))
+            .ShouldBe("OUT:EMAIL", "the claim's correspondence log records the notice");
+    }
+
+    /// <summary>
     /// External-user access (addenda/external-user-access.md): brokers and members act only through their portal, on the
     /// records of their relationship. A broker cannot see another broker's client, nor quote for one; a member cannot open
     /// another member's policy, even by guessing its ID. Staff endpoints, the staff client and a token without MFA are refused.
