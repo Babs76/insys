@@ -24461,7 +24461,6 @@
                 "BenefitAccumulator",
                 "BillingAccount",
                 "Bordereau",
-                "CallbackEndpoint",
                 "Cession",
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
@@ -24470,6 +24469,7 @@
                 "CommissionStatement",
                 "ConsentRecord",
                 "DeadLetter",
+                "DeviceRegistration",
                 "Document",
                 "EligibilityDecision",
                 "Endpoint",
@@ -24494,6 +24494,8 @@
                 "LifeUnderwritingCase",
                 "LossAssessment",
                 "MedicalClaim",
+                "Notification",
+                "NotificationPreference",
                 "ParkedDelivery",
                 "ParkingSetting",
                 "Party",
@@ -24548,6 +24550,7 @@
                 "cfg_cancellation_reasons_and_r",
                 "cfg_cession_rules",
                 "cfg_channel_definitions",
+                "cfg_channel_providers",
                 "cfg_channel_transaction_permis",
                 "cfg_chronic_condition_list",
                 "cfg_claim_format_definitions",
@@ -24613,6 +24616,8 @@
                 "cfg_network_restriction_rules",
                 "cfg_nomination_rules",
                 "cfg_notification_lead_times",
+                "cfg_notification_templates",
+                "cfg_notification_types",
                 "cfg_operational_limits",
                 "cfg_package_section_definition",
                 "cfg_payment_release_limits",
@@ -24698,6 +24703,7 @@
                 "ref_business_calendars",
                 "ref_cargo_commodity_classes",
                 "ref_cause_of_event_codes",
+                "ref_channels",
                 "ref_claim_adjustment_reason_co",
                 "ref_claim_decision_reason_code",
                 "ref_claim_status_model",
@@ -24866,7 +24872,6 @@
                 "BenefitAccumulator",
                 "BillingAccount",
                 "Bordereau",
-                "CallbackEndpoint",
                 "Cession",
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
@@ -24875,6 +24880,7 @@
                 "CommissionStatement",
                 "ConsentRecord",
                 "DeadLetter",
+                "DeviceRegistration",
                 "Document",
                 "EligibilityDecision",
                 "Endpoint",
@@ -24899,6 +24905,8 @@
                 "LifeUnderwritingCase",
                 "LossAssessment",
                 "MedicalClaim",
+                "Notification",
+                "NotificationPreference",
                 "ParkedDelivery",
                 "ParkingSetting",
                 "Party",
@@ -24953,6 +24961,7 @@
                 "cfg_cancellation_reasons_and_r",
                 "cfg_cession_rules",
                 "cfg_channel_definitions",
+                "cfg_channel_providers",
                 "cfg_channel_transaction_permis",
                 "cfg_chronic_condition_list",
                 "cfg_claim_format_definitions",
@@ -25018,6 +25027,8 @@
                 "cfg_network_restriction_rules",
                 "cfg_nomination_rules",
                 "cfg_notification_lead_times",
+                "cfg_notification_templates",
+                "cfg_notification_types",
                 "cfg_operational_limits",
                 "cfg_package_section_definition",
                 "cfg_payment_release_limits",
@@ -25103,6 +25114,7 @@
                 "ref_business_calendars",
                 "ref_cargo_commodity_classes",
                 "ref_cause_of_event_codes",
+                "ref_channels",
                 "ref_claim_adjustment_reason_co",
                 "ref_claim_decision_reason_code",
                 "ref_claim_status_model",
@@ -25246,6 +25258,874 @@
           }
         },
         "x-permission": "audit_event.read"
+      }
+    },
+    "/api/v1/communications/notifications": {
+      "get": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "Notifications, by recipient party, type, status or source record, oldest first (\u00A75)",
+        "description": "Within the caller\u0027s scope (F103): a notification is in scope when the product and organisation node of the record it is about are.",
+        "operationId": "CommunicationsListNotifications",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "typeCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CommunicationsNotificationStatus"
+            }
+          },
+          {
+            "name": "sourceType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfCommunicationsNotificationSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "notification.read"
+      }
+    },
+    "/api/v1/communications/notifications/{id}": {
+      "get": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "A notification: the text as sent, and every delivery attempt with the address masked (\u00A75)",
+        "operationId": "CommunicationsGetNotification",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunicationsNotificationView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "notification.read"
+      }
+    },
+    "/api/v1/communications/parties/{partyId}/preferences": {
+      "get": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "A party\u0027s channel preferences per notification type (\u00A74); a type with none uses its default order",
+        "operationId": "CommunicationsGetPreferences",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommunicationsPreferenceView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "notification_preference.read"
+      }
+    },
+    "/api/v1/communications/parties/{partyId}/preferences/{typeCode}": {
+      "put": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "Set a party\u0027s channels for a type, in order, or opt out of a marketing type (\u00A74)",
+        "description": "A whole replacement, so repeating it changes nothing. A service notice keeps at least one channel (PREFERENCE_NOT_ALLOWED to opt out). Opting out of marketing also records the withdrawal of its consent purpose in Party. Completes asynchronously (GAP-027): an opt-out reaches the party\u0027s consent ledger as a withdrawal (party consents); read the consents again to see it.",
+        "operationId": "CommunicationsSetPreference",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "typeCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommunicationsPreferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunicationsPreferenceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "notification_preference.update",
+        "x-eventual-effects": "an opt-out reaches the party\u0027s consent ledger as a withdrawal (party consents); read the consents again to see it."
+      }
+    },
+    "/api/v1/communications/callbacks/{endpointKey}": {
+      "post": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "A messaging provider reports a message\u0027s delivery at its callback address (ADR-023, \u00A75.1)",
+        "description": "Headers X-Callback-Timestamp (Unix seconds), X-Callback-Id and X-Signature: HMAC-SHA256 of \u0022timestamp.callbackId.body\u0022 under the endpoint\u0027s signing secret, hex. 204 when applied, and also for an unknown provider reference, so the provider does not retry it forever.",
+        "operationId": "CommunicationsSignedDeliveryCallback",
+        "parameters": [
+          {
+            "name": "endpointKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommunicationsDeliveryCallbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "signed provider callback"
+      }
+    },
+    "/api/v1/communications/callback-endpoints": {
+      "get": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "The tenant\u0027s delivery callback endpoints, without their keys or secrets (ADR-023)",
+        "operationId": "CommunicationsListCallbackEndpoints",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommunicationsCommunicationCallbackEndpointView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "communication_callback_endpoint.read"
+      },
+      "post": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "Issue a messaging provider\u0027s delivery callback endpoint; an active one is rotated (ADR-023)",
+        "description": "The key and signing secret are shown once, in this response. The rotated endpoint is still accepted until Communications:Callbacks:Overlap (7 days) has passed. Audited.",
+        "operationId": "CommunicationsIssueCallbackEndpoint",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommunicationsCommunicationCallbackEndpointRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunicationsIssuedCommunicationCallbackEndpoint"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "communication_callback_endpoint.update"
+      }
+    },
+    "/api/v1/communications/callback-endpoints/{id}/revoke": {
+      "post": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "Revoke a delivery callback endpoint at once, for a leaked key or secret (ADR-023)",
+        "operationId": "CommunicationsRevokeCallbackEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunicationsCommunicationCallbackEndpointView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "communication_callback_endpoint.update"
+      }
+    },
+    "/api/v1/portal/communications/notifications": {
+      "get": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "The member\u0027s own notifications of types the tenant shows in the portal, newest first (\u00A78)",
+        "operationId": "PortalCommunicationsListNotifications",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfCommunicationsPortalNotificationView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "notification.read"
+      }
+    },
+    "/api/v1/portal/communications/notifications/{id}": {
+      "get": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "One of the member\u0027s own notifications; another\u0027s is not found (\u00A78)",
+        "operationId": "PortalCommunicationsGetNotification",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunicationsPortalNotificationView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "notification.read"
+      }
+    },
+    "/api/v1/portal/communications/preferences": {
+      "get": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "The member\u0027s own channel preferences (\u00A74)",
+        "operationId": "PortalCommunicationsGetPreferences",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommunicationsPreferenceView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "notification_preference.read"
+      }
+    },
+    "/api/v1/portal/communications/preferences/{typeCode}": {
+      "put": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "The member sets their channels for a type, or opts out of a marketing type (\u00A74)",
+        "description": "Completes asynchronously (GAP-027): an opt-out reaches the member\u0027s consent ledger as a withdrawal.",
+        "operationId": "PortalCommunicationsSetPreference",
+        "parameters": [
+          {
+            "name": "typeCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommunicationsPreferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunicationsPreferenceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "notification_preference.update",
+        "x-eventual-effects": "an opt-out reaches the member\u0027s consent ledger as a withdrawal."
+      }
+    },
+    "/api/v1/portal/communications/devices": {
+      "post": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "A portal app registers the member\u0027s device for push (\u00A73); the token is kept encrypted",
+        "operationId": "PortalCommunicationsRegisterDevice",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommunicationsDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunicationsDeviceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "notification_device.update"
+      }
+    },
+    "/api/v1/portal/communications/devices/{id}": {
+      "delete": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "The member removes one of their devices; push stops at once",
+        "operationId": "PortalCommunicationsRevokeDevice",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunicationsDeviceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "notification_device.update"
       }
     }
   },
@@ -26092,6 +26972,13 @@
           }
         }
       },
+      "CallbackEndpointState": {
+        "enum": [
+          "Active",
+          "Retiring",
+          "Revoked"
+        ]
+      },
       "ClaimsFrameworkAllocateClaimNumber": {
         "required": [
           "domain",
@@ -26704,6 +27591,549 @@
           }
         }
       },
+      "CommunicationsCommunicationCallbackEndpointRequest": {
+        "required": [
+          "providerCode",
+          "requireClientToken"
+        ],
+        "type": "object",
+        "properties": {
+          "providerCode": {
+            "type": "string"
+          },
+          "requireClientToken": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CommunicationsCommunicationCallbackEndpointView": {
+        "required": [
+          "id",
+          "providerCode",
+          "status",
+          "requireClientToken",
+          "issuedAt",
+          "issuedBy",
+          "retiresAt",
+          "revokedAt",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerCode": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CallbackEndpointState"
+          },
+          "requireClientToken": {
+            "type": "boolean"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "issuedBy": {
+            "type": "string"
+          },
+          "retiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "CommunicationsDeliveryAttemptView": {
+        "required": [
+          "attemptNo",
+          "channel",
+          "providerCode",
+          "providerRef",
+          "maskedAddress",
+          "status",
+          "failureCode",
+          "attemptedAt",
+          "statusAt"
+        ],
+        "type": "object",
+        "properties": {
+          "attemptNo": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int16"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "providerCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "providerRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "maskedAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "enum": [
+              "SENT",
+              "DELIVERED",
+              "FAILED",
+              "BOUNCED",
+              "UNDELIVERABLE"
+            ],
+            "type": "string"
+          },
+          "failureCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attemptedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "statusAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CommunicationsDeliveryCallbackRequest": {
+        "required": [
+          "providerRef",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "providerRef": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "DELIVERED",
+              "BOUNCED",
+              "FAILED"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      "CommunicationsDeviceRequest": {
+        "required": [
+          "platform",
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "platform": {
+            "enum": [
+              "IOS",
+              "ANDROID",
+              "WEB"
+            ],
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "CommunicationsDeviceView": {
+        "required": [
+          "id",
+          "platform",
+          "registeredAt",
+          "revokedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "platform": {
+            "enum": [
+              "IOS",
+              "ANDROID",
+              "WEB"
+            ],
+            "type": "string"
+          },
+          "registeredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "CommunicationsIssuedCommunicationCallbackEndpoint": {
+        "required": [
+          "endpoint",
+          "callbackPath",
+          "endpointKey",
+          "signingSecret"
+        ],
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "$ref": "#/components/schemas/CommunicationsCommunicationCallbackEndpointView"
+          },
+          "callbackPath": {
+            "type": "string"
+          },
+          "endpointKey": {
+            "type": "string"
+          },
+          "signingSecret": {
+            "type": "string"
+          }
+        }
+      },
+      "CommunicationsNotificationStatus": {
+        "enum": [
+          "Queued",
+          "Sent",
+          "Delivered",
+          "Failed",
+          "Undeliverable",
+          "SuppressedNoConsent"
+        ]
+      },
+      "CommunicationsNotificationSummary": {
+        "required": [
+          "id",
+          "typeCode",
+          "recipientPartyId",
+          "sourceType",
+          "sourceId",
+          "status",
+          "channel",
+          "sentAt",
+          "endedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "typeCode": {
+            "type": "string"
+          },
+          "recipientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommunicationsNotificationStatus"
+          },
+          "channel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sentAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "CommunicationsNotificationView": {
+        "required": [
+          "id",
+          "typeCode",
+          "category",
+          "recipientPartyId",
+          "sourceType",
+          "sourceId",
+          "productCode",
+          "orgNodeCode",
+          "channels",
+          "language",
+          "status",
+          "channel",
+          "subject",
+          "body",
+          "sentAt",
+          "deliveredAt",
+          "endedAt",
+          "attempts",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "typeCode": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "SERVICE",
+              "MARKETING"
+            ],
+            "type": "string"
+          },
+          "recipientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "orgNodeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "language": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommunicationsNotificationStatus"
+          },
+          "channel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "subject": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "body": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sentAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "deliveredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "attempts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommunicationsDeliveryAttemptView"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "CommunicationsPortalNotificationView": {
+        "required": [
+          "id",
+          "typeCode",
+          "status",
+          "channel",
+          "subject",
+          "body",
+          "sentAt",
+          "deliveredAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "typeCode": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommunicationsNotificationStatus"
+          },
+          "channel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "subject": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "body": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sentAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "deliveredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "CommunicationsPreferenceRequest": {
+        "required": [
+          "channels",
+          "optedOut"
+        ],
+        "type": "object",
+        "properties": {
+          "channels": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "optedOut": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CommunicationsPreferenceView": {
+        "required": [
+          "typeCode",
+          "channels",
+          "optedOut",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "typeCode": {
+            "type": "string"
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "optedOut": {
+            "type": "boolean"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "CompliancePrepareReturn": {
         "required": [
           "returnCode",
@@ -26967,6 +28397,48 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AuditEventView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfCommunicationsNotificationSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommunicationsNotificationSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfCommunicationsPortalNotificationView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommunicationsPortalNotificationView"
             }
           },
           "nextCursor": {
@@ -41330,6 +42802,9 @@
     },
     {
       "name": "Audit"
+    },
+    {
+      "name": "Communications"
     }
   ]
 }
