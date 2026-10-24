@@ -23059,7 +23059,8 @@
           "status",
           "schedules",
           "arrears",
-          "rowVersion"
+          "rowVersion",
+          "partlyInScope"
         ],
         "type": "object",
         "properties": {
@@ -23102,6 +23103,9 @@
               "string"
             ],
             "format": "int64"
+          },
+          "partlyInScope": {
+            "type": "boolean"
           }
         }
       },

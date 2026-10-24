@@ -47,6 +47,7 @@ public static class PaymentsInfrastructure
         services.AddModuleHandlers<PaymentsDbContext>(typeof(InitiatePayment).Assembly);
         services.AddDomainEventMapper<PaymentsEventMapper>(schema);
         services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<PaymentScopes>();
         services.AddScoped<ICallbackEndpoints, CallbackEndpoints>();
         services.AddSingleton<ICallbackEndpointResolver, CallbackEndpointResolver>();
         services.AddOptions<CallbackOptions>().BindConfiguration("Payments:Callbacks");

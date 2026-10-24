@@ -48,6 +48,7 @@ public static class BillingInfrastructure
         services.AddModuleHandlers<BillingDbContext>(typeof(OpenAccount).Assembly);
         services.AddDomainEventMapper<BillingEventMapper>(schema);
         services.AddScoped<IBillingRepository, BillingRepository>();
+        services.AddSingleton<BuildingBlocks.Contracts.IBusinessRecordScopes, BillingRecordScopes>();
         services.AddScoped<IBillingCodes, BillingCodes>();
         services.AddSingleton<IAllocationPlanner, AllocationPlanner>();
         services.AddSingleton<IPolicyArrears, PolicyArrearsQuery>();

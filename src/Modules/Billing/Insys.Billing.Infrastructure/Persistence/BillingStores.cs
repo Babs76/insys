@@ -42,8 +42,8 @@ namespace Insys.Billing.Infrastructure.Persistence;
 
 /// <summary>
 /// Billing's records, checked against the caller's scope for the endpoint's permission as they are loaded (F103,
-/// addenda/access-scopes.md §1, §4): an invoice by its product and node; an account, and its refunds, when any of its
-/// schedules is in scope. Outside it, a read finds nothing (404) and an action is refused (403 OUT_OF_SCOPE). Jobs and
+/// addenda/access-scopes.md §1, §4; OQ-081): an invoice by its product and node; an account when any of its schedules is
+/// in scope (its view then shows only that part); a refund only when all of them are. Outside it, a read finds nothing (404) and an action is refused (403 OUT_OF_SCOPE). Jobs and
 /// consumers are unrestricted.
 /// </summary>
 internal sealed class BillingRepository(BillingDbContext db, IExecutionContext execution) : IBillingRepository
@@ -75,9 +75,11 @@ internal sealed class BillingRepository(BillingDbContext db, IExecutionContext e
             return refund;
         }
 
-        var inScope = await db.Set<PremiumSchedule>().AsNoTracking().Where(s => s.BillingAccountId == refund.BillingAccountId)
-            .InScope(execution.CurrentScope, s => s.ProductCode, s => s.OrgNodeCode).AnyAsync(cancellationToken);
-        return inScope ? refund : execution.InScope(refund, null, null);
+        // A refund is paid from the whole account's credit: only a caller covering every schedule on the account sees it (OQ-081).
+        var schedules = db.Set<PremiumSchedule>().AsNoTracking().Where(s => s.BillingAccountId == refund.BillingAccountId);
+        var whole = await schedules.CountAsync(cancellationToken)
+            == await schedules.InScope(execution.CurrentScope, s => s.ProductCode, s => s.OrgNodeCode).CountAsync(cancellationToken);
+        return whole ? refund : execution.InScope(refund, null, null);
     }
 
     public async Task<BillingAccount?> AccountForPolicy(string sourceDomain, Guid policyRef, CancellationToken cancellationToken) =>

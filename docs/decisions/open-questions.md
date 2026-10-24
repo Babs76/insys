@@ -842,6 +842,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   2. **Link plans to products:** a `product_code` on `health.cfg_plan_definitions`, and scope by that product.
   3. **Health is organisation-scoped only:** a grant restricted to products never covers a Health record.
 - **Built meanwhile (fail safe):** Health records are scoped by organisation node. A grant restricted to products does not cover them, because a record with no product is outside any product scope. A grant with no product scope is unaffected.
+- **Decision (24 October 2026, Ade):** keep the fail-safe for now. An addendum linking each Health plan to a Product Factory product of domain Health is proposed for sign-off (`docs/specs/addenda/health-plan-products.md`, on the next batch's branch). Not built until signed off. **Open.**
 
 ### OQ-081 Two scope rules the access-scopes addendum leaves open (Phase 8 Wave 0b, F103)
 - **Source:** `docs/specs/addenda/access-scopes.md` §1 and §4.
@@ -864,3 +865,16 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
     - Workflow records them when the approval is requested, from the module that owns the record.
   - **Alternative:** the scope of the record's own permission, for example `claim_payment.release` for a payment instruction.
 - **Confirm or change.** Either change is local to Billing's repository or Workflow's decision.
+- **Resolved (24 October 2026, decided by Ade):**
+  - **Approvals:** confirmed as built. A checker must be in scope for the approval they decide.
+  - **Billing accounts:** confirmed, with a condition: a user never sees another branch's or product's figures through a shared account.
+  - **Built for the condition:**
+    - a caller who covers only part of an account sees only its schedules in scope;
+    - the account-level arrears are left out, and the view says `partlyInScope`;
+    - the account's invoice list shows only invoices in scope;
+    - account-wide operations need the whole account in scope (ageing, closing, issuing due invoices, refunds, new schedules), else 403 `OUT_OF_SCOPE`;
+    - a refund is seen only by a caller covering the whole account;
+    - payments against an invoice, an account or a refund are shown only when the caller covers all of that record (`IBusinessRecordScopes`).
+  - **Tested** with one account billing policies in two branches.
+  - **Closed.**
+

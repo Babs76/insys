@@ -15,6 +15,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **Role assignments with `scopeProducts` or `scopeBranches` are accepted** (`POST /identity/users/{id}/assign-role`); `SCOPES_NOT_ENFORCED` is gone.
 
 ### Changed responses
+- **Billing `AccountView`** gains `partlyInScope`. When the account also bills policies outside the caller's scope, only the in-scope schedules are listed and `arrears` is empty (OQ-081).
 - **`/identity/me`** `scopesEnforced` is now `true`.
 - **Error code `OUT_OF_SCOPE`** (403): an action on a record outside the caller's scope for that permission.
 
@@ -28,7 +29,9 @@ What changed in the API contract, newest first, so the front end can sync. The O
   - Life proposals, underwriting cases, policies, loans, claims and group schemes;
   - Health memberships, and their preauthorisations, medical claims, utilisation cases and fraud cases;
   - Claims Framework claims, reserves and payment instructions (as their domain claim);
-  - Billing invoices, and accounts and refunds (an account is in scope when any of its schedules is);
+  - Billing invoices and accounts. An account is in scope when any of its schedules is; a caller covering only part of it sees only that part.
+  - **Whole account needed:** ageing, closing, issuing due invoices, refunds and new schedules (else 403 `OUT_OF_SCOPE`), and reading a refund.
+  - Payments against an invoice, a billing account or a refund, shown only when the caller covers all of that record;
   - Workflow approvals about any of those (a checker sees and decides them only within their scope).
 - **Health has no product** (OQ-080): a grant restricted to products reaches no Health record.
 - **Not scoped:** parties, static data, Health schemes and provider payment runs, payouts, and approvals of other types.

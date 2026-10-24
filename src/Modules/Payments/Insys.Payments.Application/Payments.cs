@@ -581,17 +581,41 @@ internal sealed class ResolveExceptionHandler(IPaymentRepository payments, IExec
     }
 }
 
-internal sealed class GetPaymentHandler(IPaymentRepository payments) : IQueryHandler<GetPayment, PaymentView>
+/// <summary>
+/// A payment against a scoped business record (an invoice, a billing account or a refund) is shown only to a caller whose
+/// scope covers all of that record (F103, OQ-081), so no other branch's or product's figures show through a shared account.
+/// </summary>
+public sealed class PaymentScopes(IEnumerable<IBusinessRecordScopes> sources, ITenantContext tenant, IExecutionContext execution)
 {
-    public async Task<Result<PaymentView>> Handle(GetPayment query, CancellationToken cancellationToken) =>
-        await payments.Get(query.PaymentId, cancellationToken) is { } p ? PaymentView.From(p) : Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
+    public async Task<bool> Covers(string? businessRefType, Guid? businessRefId, CancellationToken cancellationToken)
+    {
+        if (execution.CurrentScope.IsUnrestricted || businessRefType is null || businessRefId is not { } id
+            || sources.FirstOrDefault(s => s.Covers(businessRefType)) is not { } source)
+        {
+            return true;
+        }
+
+        var scopes = await source.ScopesOf(tenant.RequireTenantId(), businessRefType, id, cancellationToken);
+        return scopes is { Count: > 0 } && scopes.All(s => execution.CurrentScope.Allows(s.ProductCode, s.OrgNodeCode));
+    }
 }
 
-internal sealed class ListPaymentsHandler(IPaymentRepository payments) : IQueryHandler<ListPayments, IReadOnlyList<PaymentView>>, IQueryHandler<ListBatchPayments, IReadOnlyList<PaymentView>>
+internal sealed class GetPaymentHandler(IPaymentRepository payments, PaymentScopes scopes) : IQueryHandler<GetPayment, PaymentView>
+{
+    public async Task<Result<PaymentView>> Handle(GetPayment query, CancellationToken cancellationToken) =>
+        await payments.Get(query.PaymentId, cancellationToken) is { } p && await scopes.Covers(p.BusinessRefType, p.BusinessRefId, cancellationToken)
+            ? PaymentView.From(p)
+            : Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
+}
+
+internal sealed class ListPaymentsHandler(IPaymentRepository payments, PaymentScopes scopes)
+    : IQueryHandler<ListPayments, IReadOnlyList<PaymentView>>, IQueryHandler<ListBatchPayments, IReadOnlyList<PaymentView>>
 {
     public async Task<Result<IReadOnlyList<PaymentView>>> Handle(ListPayments query, CancellationToken cancellationToken) =>
-        Result.Success<IReadOnlyList<PaymentView>>((await payments.ForBusinessRef(query.BusinessRefType, query.BusinessRefId, query.AfterId, query.Limit, cancellationToken))
-            .Select(PaymentView.From).ToList());
+        await scopes.Covers(query.BusinessRefType, query.BusinessRefId, cancellationToken)
+            ? Result.Success<IReadOnlyList<PaymentView>>((await payments.ForBusinessRef(query.BusinessRefType, query.BusinessRefId, query.AfterId, query.Limit,
+                cancellationToken)).Select(PaymentView.From).ToList())
+            : Result.Success<IReadOnlyList<PaymentView>>([]);
 
     public async Task<Result<IReadOnlyList<PaymentView>>> Handle(ListBatchPayments query, CancellationToken cancellationToken) =>
         await payments.Batch(query.BatchId, cancellationToken) is null

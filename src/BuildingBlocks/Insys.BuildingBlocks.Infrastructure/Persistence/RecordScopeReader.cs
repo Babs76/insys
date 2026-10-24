@@ -54,4 +54,26 @@ public static class RecordScopeReader
         await transaction.CommitAsync(cancellationToken);
         return scope;
     }
+
+    /// <param name="sql">A query with the parameter <c>@id</c>, returning one row of product and node for each part of the record.</param>
+    public static async Task<IReadOnlyList<(string? Product, string? OrgNode)>> ReadAll(NpgsqlDataSource dataSource, Guid tenantId, string sql, Guid id,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("id", id);
+        var scopes = new List<(string?, string?)>();
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                scopes.Add((reader.IsDBNull(0) ? null : reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1)));
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return scopes;
+    }
 }

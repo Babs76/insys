@@ -92,13 +92,36 @@ public sealed record ScheduleView(Guid Id, string SourceDomain, Guid PolicyRef, 
 
 public sealed record ArrearsView(string BucketCode, int DaysOverdue, decimal AmountOverdue, string NextAction, [property: OneOf("OPEN", "CLEARED")] string Status);
 
+/// <param name="PartlyInScope">
+/// True when the account also bills policies outside the caller's scope (F103, OQ-081): only the schedules in scope are
+/// shown, and the account-level arrears are left out, so no other branch's or product's figures show through it.
+/// </param>
 public sealed record AccountView(Guid Id, string AccountNumber, Guid PayerPartyId, string Currency, string CollectionMethod, AccountStatus Status,
-    IReadOnlyList<ScheduleView> Schedules, IReadOnlyList<ArrearsView> Arrears, long RowVersion)
+    IReadOnlyList<ScheduleView> Schedules, IReadOnlyList<ArrearsView> Arrears, long RowVersion, bool PartlyInScope)
 {
-    public static AccountView From(BillingAccount a) => new(a.Id, a.AccountNumber, a.PayerPartyId, a.Currency, a.CollectionMethod, a.Status,
-        a.Schedules.Select(s => new ScheduleView(s.Id, s.SourceDomain, s.PolicyRef, s.ProductVersionRef, s.Frequency, s.StartDate, s.EndDate, s.InstalmentAmount,
+    public static AccountView From(BillingAccount a, AccessScope scope)
+    {
+        var whole = AccountScopes.Whole(a, scope);
+        return new(a.Id, a.AccountNumber, a.PayerPartyId, a.Currency, a.CollectionMethod, a.Status,
+        a.Schedules.Where(s => whole || scope.Allows(s.ProductCode, s.OrgNodeCode)).Select(s => new ScheduleView(s.Id, s.SourceDomain, s.PolicyRef, s.ProductVersionRef, s.Frequency, s.StartDate, s.EndDate, s.InstalmentAmount,
             s.Currency, s.Instalments.OrderBy(i => i.DueDate).Select(i => new InstalmentView(i.Id, i.DueDate, i.Amount, i.Status, i.InvoiceId)).ToList())).ToList(),
-        a.Arrears.Select(r => new ArrearsView(r.BucketCode, r.DaysOverdue, r.AmountOverdue, r.NextAction, r.Status)).ToList(), a.RowVersion);
+        whole ? a.Arrears.Select(r => new ArrearsView(r.BucketCode, r.DaysOverdue, r.AmountOverdue, r.NextAction, r.Status)).ToList() : [], a.RowVersion, !whole);
+    }
+}
+
+/// <summary>
+/// An account shared by policies of several products or branches (F103, OQ-081): a caller covering only part of it sees
+/// only that part, and may not run what works on the whole account (ageing, closing, issuing, refunds, new schedules).
+/// </summary>
+internal static class AccountScopes
+{
+    public static bool Whole(BillingAccount account, AccessScope scope) =>
+        scope.IsUnrestricted || account.Schedules.All(s => scope.Allows(s.ProductCode, s.OrgNodeCode));
+
+    public static Result RequireWhole(BillingAccount account, IExecutionContext execution) =>
+        Whole(account, execution.CurrentScope)
+            ? Result.Success()
+            : Error.Forbidden(ErrorCodes.OutOfScope, "The account also bills policies outside your scope, so this account-wide operation is refused.");
 }
 
 public sealed record InvoiceLineView(int LineNo, string ChargeType, string Description, decimal Amount);
@@ -201,7 +224,7 @@ internal static class Loaded
         await billing.Account(id, cancellationToken) is { } account ? account : Error.NotFound(ErrorCodes.NotFound, "The billing account was not found.");
 }
 
-internal sealed class OpenAccountHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<OpenAccount, AccountView>
+internal sealed class OpenAccountHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit, IExecutionContext execution) : ICommandHandler<OpenAccount, AccountView>
 {
     public async Task<Result<AccountView>> Handle(OpenAccount command, CancellationToken cancellationToken)
     {
@@ -213,11 +236,11 @@ internal sealed class OpenAccountHandler(IBillingRepository billing, IBillingCod
         var account = BillingAccount.OpenAccount(Guid.CreateVersion7(), command.PayerPartyId, command.Currency, command.CollectionMethod, command.MandateRef, clock.UtcNow);
         billing.Add(account);
         audit.Record(new AuditEntry("BILLING", "OpenAccount", nameof(BillingAccount), account.Id.ToString()));
-        return AccountView.From(account);
+        return AccountView.From(account, execution.CurrentScope);
     }
 }
 
-internal sealed class CreateScheduleHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<CreateSchedule, AccountView>
+internal sealed class CreateScheduleHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IAuditTrail audit, IExecutionContext execution) : ICommandHandler<CreateSchedule, AccountView>
 {
     public async Task<Result<AccountView>> Handle(CreateSchedule command, CancellationToken cancellationToken)
     {
@@ -225,6 +248,11 @@ internal sealed class CreateScheduleHandler(IBillingRepository billing, IBilling
         if (account.IsFailure)
         {
             return account.Error;
+        }
+
+        if (AccountScopes.RequireWhole(account.Value, execution) is { IsFailure: true } partly)
+        {
+            return partly.Error;
         }
 
         if (await codes.Frequency(command.Frequency, businessDate.Today, cancellationToken) is not { } frequency)
@@ -236,11 +264,11 @@ internal sealed class CreateScheduleHandler(IBillingRepository billing, IBilling
             new Dictionary<string, string?> { ["policy"] = command.PolicyRef.ToString() }));
         var schedule = account.Value.CreateSchedule(command.SourceDomain, command.PolicyRef, command.ProductVersionRef, frequency, command.StartDate, command.EndDate,
             command.InstalmentAmount);
-        return schedule.IsFailure ? schedule.Error : AccountView.From(account.Value);
+        return schedule.IsFailure ? schedule.Error : AccountView.From(account.Value, execution.CurrentScope);
     }
 }
 
-internal sealed class AmendScheduleHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<AmendSchedule, AccountView>
+internal sealed class AmendScheduleHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IAuditTrail audit, IExecutionContext execution) : ICommandHandler<AmendSchedule, AccountView>
 {
     public async Task<Result<AccountView>> Handle(AmendSchedule command, CancellationToken cancellationToken)
     {
@@ -251,6 +279,11 @@ internal sealed class AmendScheduleHandler(IBillingRepository billing, IBillingC
         }
 
         var schedule = account.Value.Schedules.SingleOrDefault(s => s.Id == command.ScheduleId);
+        if (schedule is not null && !execution.CurrentScope.Allows(schedule.ProductCode, schedule.OrgNodeCode))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "The schedule bills a policy outside your scope.");
+        }
+
         if (schedule is null || await codes.Frequency(schedule.Frequency, businessDate.Today, cancellationToken) is not { } frequency)
         {
             return Error.NotFound(ErrorCodes.NotFound, "The schedule, or its frequency in force, was not found.");
@@ -258,11 +291,11 @@ internal sealed class AmendScheduleHandler(IBillingRepository billing, IBillingC
 
         audit.Record(new AuditEntry("BILLING", "AmendSchedule", nameof(BillingAccount), account.Value.Id.ToString()));
         var result = account.Value.AmendSchedule(command.ScheduleId, frequency, command.InstalmentAmount, command.EffectiveFrom);
-        return result.IsFailure ? result.Error : AccountView.From(account.Value);
+        return result.IsFailure ? result.Error : AccountView.From(account.Value, execution.CurrentScope);
     }
 }
 
-internal sealed class IssueDueInvoicesHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<IssueDueInvoices, IReadOnlyList<InvoiceView>>
+internal sealed class IssueDueInvoicesHandler(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock, IExecutionContext execution) : ICommandHandler<IssueDueInvoices, IReadOnlyList<InvoiceView>>
 {
     public async Task<Result<IReadOnlyList<InvoiceView>>> Handle(IssueDueInvoices command, CancellationToken cancellationToken)
     {
@@ -270,6 +303,11 @@ internal sealed class IssueDueInvoicesHandler(IBillingRepository billing, IBilli
         if (account.IsFailure)
         {
             return account.Error;
+        }
+
+        if (AccountScopes.RequireWhole(account.Value, execution) is { IsFailure: true } partly)
+        {
+            return partly.Error;
         }
 
         var issued = await DueInvoices.Issue(account.Value, command.AsOf, billing, codes, clock, businessDate, cancellationToken);
@@ -349,7 +387,7 @@ internal sealed class RaiseCreditNoteHandler(IBillingRepository billing, IBillin
     }
 }
 
-internal sealed class AgeAccountHandler(IBillingRepository billing, IBillingCodes codes, IClock clock) : ICommandHandler<AgeAccount, AccountView>
+internal sealed class AgeAccountHandler(IBillingRepository billing, IBillingCodes codes, IClock clock, IExecutionContext execution) : ICommandHandler<AgeAccount, AccountView>
 {
     public async Task<Result<AccountView>> Handle(AgeAccount command, CancellationToken cancellationToken)
     {
@@ -357,6 +395,11 @@ internal sealed class AgeAccountHandler(IBillingRepository billing, IBillingCode
         if (account.IsFailure)
         {
             return account.Error;
+        }
+
+        if (AccountScopes.RequireWhole(account.Value, execution) is { IsFailure: true } partly)
+        {
+            return partly.Error;
         }
 
         var invoices = await billing.Invoices(account.Value.Id, cancellationToken);
@@ -368,11 +411,11 @@ internal sealed class AgeAccountHandler(IBillingRepository billing, IBillingCode
         var overdue = invoices.Where(i => i.Outstanding > 0 && i.DueDate < command.Today).ToList();
         var days = overdue.Count == 0 ? 0 : command.Today.DayNumber - overdue.Min(i => i.DueDate).DayNumber;
         var result = account.Value.DetectArrears(days, overdue.Sum(i => i.Outstanding), await codes.AgeingBuckets(command.Today, cancellationToken), clock.UtcNow);
-        return result.IsFailure ? result.Error : AccountView.From(account.Value);
+        return result.IsFailure ? result.Error : AccountView.From(account.Value, execution.CurrentScope);
     }
 }
 
-internal sealed class CloseAccountHandler(IBillingRepository billing, IAuditTrail audit) : ICommandHandler<CloseAccount, AccountView>
+internal sealed class CloseAccountHandler(IBillingRepository billing, IAuditTrail audit, IExecutionContext execution) : ICommandHandler<CloseAccount, AccountView>
 {
     public async Task<Result<AccountView>> Handle(CloseAccount command, CancellationToken cancellationToken)
     {
@@ -382,10 +425,15 @@ internal sealed class CloseAccountHandler(IBillingRepository billing, IAuditTrai
             return account.Error;
         }
 
+        if (AccountScopes.RequireWhole(account.Value, execution) is { IsFailure: true } partly)
+        {
+            return partly.Error;
+        }
+
         audit.Record(new AuditEntry("BILLING", "CloseAccount", nameof(BillingAccount), account.Value.Id.ToString()));
         var open = (await billing.Invoices(account.Value.Id, cancellationToken)).Any(i => i.Outstanding > 0);
         var result = account.Value.CloseAccount(open);
-        return result.IsFailure ? result.Error : AccountView.From(account.Value);
+        return result.IsFailure ? result.Error : AccountView.From(account.Value, execution.CurrentScope);
     }
 }
 
@@ -399,6 +447,11 @@ internal sealed class RequestRefundHandler(IBillingRepository billing, IBankAcco
         if (user.IsFailure || account.IsFailure)
         {
             return user.IsFailure ? user.Error : account.Error!;
+        }
+
+        if (AccountScopes.RequireWhole(account.Value, execution) is { IsFailure: true } partly)
+        {
+            return partly.Error;
         }
 
         // Refunded only to the payer's own verified, current account in the account's currency.
@@ -421,10 +474,10 @@ internal sealed class RequestRefundHandler(IBillingRepository billing, IBankAcco
     }
 }
 
-internal sealed class GetAccountHandler(IBillingRepository billing) : IQueryHandler<GetAccount, AccountView>
+internal sealed class GetAccountHandler(IBillingRepository billing, IExecutionContext execution) : IQueryHandler<GetAccount, AccountView>
 {
     public async Task<Result<AccountView>> Handle(GetAccount query, CancellationToken cancellationToken) =>
-        await billing.Account(query.AccountId, cancellationToken) is { } a ? AccountView.From(a) : Error.NotFound(ErrorCodes.NotFound, "The billing account was not found.");
+        await billing.Account(query.AccountId, cancellationToken) is { } a ? AccountView.From(a, execution.CurrentScope) : Error.NotFound(ErrorCodes.NotFound, "The billing account was not found.");
 }
 
 internal sealed class GetInvoiceHandler(IBillingRepository billing) : IQueryHandler<GetInvoice, InvoiceView>

@@ -425,7 +425,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         var policyInB = await IssuedPolicy(applicant, spouse, Today, "ORG-BR-B");
         (await _db.ScalarAsOwner<string>("SELECT org_node_code FROM life.policy WHERE id = @p", ("p", policyInB))).ShouldBe("ORG-BR-B", "a policy keeps its proposal's node");
 
-        var north = await _db.UserWithPermissions(Tenant, "life-north", Permissions);
+        var north = await _db.UserWithPermissions(Tenant, "life-north", [.. Permissions, BillingPermissions.AccountUpdate]);
         await _db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_branches = '{ORG-NORTH}' WHERE user_id = @u", ("u", north));
         var northClient = _factory.ClientFor(Tenant, "life-north");
 
@@ -450,6 +450,34 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         (await northClient.GetAsync($"/api/v1/billing/accounts/{account}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await northClient.GetAsync($"/api/v1/billing/accounts/{account}/invoices")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await _maker.GetAsync($"/api/v1/billing/invoices/{invoice}")).StatusCode.ShouldBe(HttpStatusCode.OK, "an unscoped user still reads it");
+
+        // The payment collecting that invoice is not shown either.
+        var collections = $"/api/v1/payments/payments?businessRefType=INVOICE&businessRefId={invoice}";
+        var collection = (await (await _maker.GetAsync(collections)).Json()).GetProperty("items").EnumerateArray().First().GetProperty("id").GetGuid();
+        (await (await northClient.GetAsync(collections)).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+        (await northClient.GetAsync($"/api/v1/payments/payments/{collection}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        // OQ-081: one account billing policies in two branches. The North user sees its branch-A part only: no arrears, no
+        // branch-B schedule, invoice or payment, and no account-wide operation.
+        var policyInA = await IssuedPolicy(applicant, spouse, Today, "ORG-BR-A");
+        await _db.ExecuteAsOwner("UPDATE billing.premium_schedule SET billing_account_id = @a WHERE policy_ref = @p", ("a", account), ("p", policyInA));
+        await _db.ExecuteAsOwner("UPDATE billing.invoice SET billing_account_id = @a WHERE policy_ref = @p", ("a", account), ("p", policyInA));
+        await _db.ExecuteAsOwner("""
+            INSERT INTO billing.arrears_case (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, billing_account_id, bucket_code, days_overdue,
+                                              amount_overdue, currency, next_action, status)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @a, '30', 31, 999.00, 'ZAR', 'REMIND', 'OPEN')
+            """, ("t", Tenant), ("a", account));
+        var shared = await (await northClient.GetAsync($"/api/v1/billing/accounts/{account}")).Json();
+        shared.GetProperty("partlyInScope").GetBoolean().ShouldBeTrue();
+        shared.GetProperty("schedules").EnumerateArray().Select(x => x.GetProperty("policyRef").GetGuid()).ShouldBe([policyInA]);
+        shared.GetProperty("arrears").GetArrayLength().ShouldBe(0, "account-level figures are not shown to a user covering only part of the account");
+        (await (await northClient.GetAsync($"/api/v1/billing/accounts/{account}/invoices")).Json()).EnumerateArray()
+            .ShouldAllBe(i => i.GetProperty("policyRef").GetGuid() == policyInA);
+        var aged = await northClient.PostAsync($"/api/v1/billing/accounts/{account}/age", null);
+        aged.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await aged.Code()).ShouldBe("OUT_OF_SCOPE");
+        var whole = await (await _maker.GetAsync($"/api/v1/billing/accounts/{account}")).Json();
+        (whole.GetProperty("partlyInScope").GetBoolean(), whole.GetProperty("schedules").GetArrayLength(), whole.GetProperty("arrears").GetArrayLength()).ShouldBe((false, 2, 1));
     }
 
     private static int Ages(DateOnly on)
