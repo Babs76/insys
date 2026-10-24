@@ -53,6 +53,7 @@ public static class BillingInfrastructure
         services.AddSingleton<IAllocationPlanner, AllocationPlanner>();
         services.AddSingleton<IPolicyArrears, PolicyArrearsQuery>();
         services.AddIntegrationEventHandler<Contracts.InvoiceOverdue, ArrearsOnOverdue, BillingDbContext>(schema, "InvoiceOverdue");
+        services.AddIntegrationEventHandler<Contracts.ArrearsAgeingBlocked, ArrearsOnOverdue, BillingDbContext>(schema, "ArrearsAgeingBlocked");
         services.AddIntegrationEventHandler<PaymentAllocated, BillingPolicies, BillingDbContext>(schema, "PaymentAllocated");
         services.AddIntegrationEventHandler<PaymentReversed, BillingPolicies, BillingDbContext>(schema, "PaymentReversed");
         services.AddIntegrationEventHandler<PaymentSucceeded, BillingPolicies, BillingDbContext>(schema, "PaymentSucceeded");

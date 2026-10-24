@@ -60,6 +60,9 @@ public sealed record BillingAccountOpened(Guid AccountId, string AccountNumber, 
 
 public sealed record ArrearsDetected(Guid AccountId, string BucketCode, int DaysOverdue, decimal AmountOverdue, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>An open arrears case aged past every ageing bucket in force: it stays in its bucket until one covers its days (request 46).</summary>
+public sealed record ArrearsAgeingBlocked(Guid AccountId, string BucketCode, int DaysOverdue, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>Entity PremiumInstalment (billing.premium_instalment): one amount due on one date.</summary>
 public sealed class Instalment : Entity<Guid>, ITenantScoped
 {
@@ -414,7 +417,22 @@ public sealed class BillingAccount : AggregateRoot<Guid>
 
         if (buckets.FirstOrDefault(b => daysOverdue >= b.DaysFrom && daysOverdue <= b.DaysTo) is not { } bucket)
         {
-            return Error.Validation(BillingErrorCodes.NoAgeingBucket, $"No arrears ageing bucket covers {daysOverdue} days overdue.");
+            if (open is null)
+            {
+                return Error.Validation(BillingErrorCodes.NoAgeingBucket, $"No arrears ageing bucket covers {daysOverdue} days overdue.");
+            }
+
+            // Request 46: an open case past every bucket stays in its bucket with its true days overdue, and says so once,
+            // on the day it leaves its bucket's range, so the delivery that ages it on is parked until a bucket covers it.
+            var within = buckets.FirstOrDefault(b => b.BucketCode == open.BucketCode) is not { } current || open.DaysOverdue <= current.DaysTo;
+            open.Age(new AgeingBucket(open.BucketCode, 0, 0, open.NextAction), daysOverdue, amountOverdue);
+            if (within)
+            {
+                Raise(new ArrearsAgeingBlocked(Id, open.BucketCode, daysOverdue, now));
+            }
+
+            MarkChanged();
+            return Result.Success();
         }
 
         var changed = open is null || open.BucketCode != bucket.BucketCode;

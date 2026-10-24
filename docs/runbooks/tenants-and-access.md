@@ -36,6 +36,15 @@ Two platform administrators provision it while the tenant is Onboarding, before 
 
 Follow a request with `GET /api/v1/identity/tenant-administrators/{id}` (or `?tenantId=` for a tenant's requests). Every later user and privileged assignment goes through the tenant's own administrators and maker-checker.
 
+### Arrears ageing buckets (request 46)
+- **Cover every day overdue, from day 1 to the last action,** in `billing.cfg_arrears_ageing_buckets`: no gaps or overlaps between buckets, and the last bucket's action is `LAPSE` or `CANCEL`. The onboarding readiness check `COLLECTION_METHODS` checks it.
+- **Without a bucket for the days overdue,** nothing is lost, but nothing moves either:
+  - an account's first overdue premium cannot open its arrears case;
+  - an open case past the last bucket stays in it.
+
+  Each is a parked delivery (`ARREARS_AGEING_BUCKET_NOT_IN_FORCE`, with the days overdue as item), which alerts as parked deliveries do (ADR-022). Publishing the missing bucket retries it: the case opens, or ages on, and Life's grace and lapse follow from the arrears events.
+- **Until then a missed premium cannot lead to a lapse,** so publish the buckets before the tenant's first policy is billed.
+
 ## Users and roles (IAM)
 
 - **Provisioning.** A user is provisioned (`POST /api/v1/identity/users` [user.create]) with the IdP subject they will sign in with.

@@ -45,6 +45,7 @@ public sealed class ArrearsAgeingTests(DatabaseFixture fixture) : IClassFixture<
 {
     private const string Consumer = "billing.ArrearsOnOverdue.InvoiceOverdue";
     private static readonly Guid Tenant = DatabaseFixture.TenantA;
+    private static readonly Guid TenantB = DatabaseFixture.TenantB;
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
     private InsysApiFactory _factory = null!;
     private HttpClient _clerk = null!;
@@ -56,6 +57,9 @@ public sealed class ArrearsAgeingTests(DatabaseFixture fixture) : IClassFixture<
         await fixture.Database.UserWithPermissions(Tenant, "arrears-clerk", BillingPermissions.AccountCreate, BillingPermissions.AccountRead, BillingPermissions.AccountUpdate,
             BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate, "daily_job.run");
         _clerk = _factory.ClientFor(Tenant, "arrears-clerk");
+        await fixture.Database.SeedBillingAndPayments(TenantB, Today.AddDays(-60));
+        await fixture.Database.UserWithPermissions(TenantB, "arrears-clerk-b", BillingPermissions.AccountCreate, BillingPermissions.AccountRead,
+            BillingPermissions.AccountUpdate, BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate, "daily_job.run");
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -88,13 +92,45 @@ public sealed class ArrearsAgeingTests(DatabaseFixture fixture) : IClassFixture<
         account.GetProperty("status").GetString().ShouldBe("InArrears");
     }
 
-    private async Task<(Guid Account, DateOnly DueOn)> Schedule(DateOnly start)
+    [Fact]
+    public async Task ACasePastItsLastBucket_StaysInItAndIsParkedOnce_ThenAgesOnWhenABucketCoversIt_Request46_ADR022()
     {
-        var account = await _clerk.Send(HttpMethod.Post, "/api/v1/billing/accounts/", new { payerPartyId = Guid.CreateVersion7(), currency = "ZAR", collectionMethod = "DEBIT_ORDER" },
+        // In tenant B, buckets cover only 1 to 3 days. The case opens at 1 day, then ages past the last bucket.
+        var clerk = _factory.ClientFor(TenantB, "arrears-clerk-b");
+        await fixture.Database.SeedStatic(TenantB, "billing.cfg_arrears_ageing_buckets", "EFFECTIVE", "B1", Today.AddDays(-60), ("bucket_code", "B1"), ("days_from", 1),
+            ("days_to", 3), ("action", "REMINDER"));
+        var (account, dueOn) = await Schedule(Today.AddDays(-10), clerk);
+        await RunAsOf(dueOn.AddDays(1), clerk);
+        (await Case(account)).ShouldBe(("B1", 1));
+
+        await RunAsOf(dueOn.AddDays(5), clerk);
+        (await Case(account)).ShouldBe(("B1", 5), "it stays in its bucket, with its true days overdue");
+        await RunAsOf(dueOn.AddDays(6), clerk);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM integration.parked_delivery WHERE consumer = @c AND payload ->> 'accountId' = @a",
+            ("c", "billing.ArrearsOnOverdue.ArrearsAgeingBlocked"), ("a", account.ToString()))).ShouldBe(1L, "parked once, not once a day");
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT prerequisite_code || ' ' || prerequisite_item FROM integration.parked_delivery WHERE consumer = @c AND payload ->> 'accountId' = @a AND status = 'PARKED'
+            """, ("c", "billing.ArrearsOnOverdue.ArrearsAgeingBlocked"), ("a", account.ToString()))).ShouldBe($"{PrerequisiteCodes.ArrearsAgeingBucketNotInForce} 5");
+
+        // A bucket for the later days is published: the parked delivery ages the case on (10 days overdue by now).
+        await fixture.Database.SeedStatic(TenantB, "billing.cfg_arrears_ageing_buckets", "EFFECTIVE", "B2", Today.AddDays(-60), ("bucket_code", "B2"), ("days_from", 4),
+            ("days_to", 9999), ("action", "LAPSE"));
+        await RetryAfterPublishing(TenantB);
+        (await Case(account)).ShouldBe(("B2", 10));
+    }
+
+    private async Task<(string? Bucket, int Days)> Case(Guid account) =>
+        (await fixture.Database.ScalarAsOwner<string>("SELECT bucket_code FROM billing.arrears_case WHERE billing_account_id = @a AND status = 'OPEN'", ("a", account)),
+         await fixture.Database.ScalarAsOwner<int>("SELECT days_overdue FROM billing.arrears_case WHERE billing_account_id = @a AND status = 'OPEN'", ("a", account)));
+
+    private async Task<(Guid Account, DateOnly DueOn)> Schedule(DateOnly start, HttpClient? client = null)
+    {
+        var clerk = client ?? _clerk;
+        var account = await clerk.Send(HttpMethod.Post, "/api/v1/billing/accounts/", new { payerPartyId = Guid.CreateVersion7(), currency = "ZAR", collectionMethod = "DEBIT_ORDER" },
             idempotent: true);
         account.StatusCode.ShouldBe(HttpStatusCode.Created, await account.Content.ReadAsStringAsync());
         var id = (await account.Json()).GetProperty("id").GetGuid();
-        var schedule = await _clerk.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{id}/schedules", new
+        var schedule = await clerk.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{id}/schedules", new
         {
             sourceDomain = "GENERAL", policyRef = Guid.CreateVersion7(), productVersionRef = "TEST v1", frequency = "MONTHLY", startDate = start,
             endDate = start.AddMonths(11), instalmentAmount = 80m,
@@ -103,21 +139,22 @@ public sealed class ArrearsAgeingTests(DatabaseFixture fixture) : IClassFixture<
         return (id, start);
     }
 
-    private async Task RunAsOf(DateOnly day)
+    private async Task RunAsOf(DateOnly day, HttpClient? client = null)
     {
-        var run = await _clerk.PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = day });
+        var run = await (client ?? _clerk).PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = day });
         run.StatusCode.ShouldBe(HttpStatusCode.OK, await run.Content.ReadAsStringAsync());
     }
 
-    private async Task RetryAfterPublishing()
+    private async Task RetryAfterPublishing(Guid? tenant = null)
     {
+        var tenantId = tenant ?? Tenant;
         var activated = new StaticDataVersionActivated(null,
             new StaticRecordRef("billing", "cfg_arrears_ageing_buckets", "ARREARS_AGEING_BUCKETS", "billing", "arrears-ageing-buckets", Guid.CreateVersion7(), "D1", 1, false),
             Today, null);
-        var envelope = new EventEnvelope(Guid.CreateVersion7(), Tenant, "sdm.StaticDataVersionActivated", 1, DateTimeOffset.UtcNow, "StaticRecord", Guid.CreateVersion7(),
+        var envelope = new EventEnvelope(Guid.CreateVersion7(), tenantId, "sdm.StaticDataVersionActivated", 1, DateTimeOffset.UtcNow, "StaticRecord", Guid.CreateVersion7(),
             Guid.CreateVersion7(), null, JsonSerializer.SerializeToElement(activated, JsonSerializerOptions.Web));
         await _factory.Services.GetRequiredService<IEventBus>().Publish(envelope, CancellationToken.None);
-        await _factory.Services.GetRequiredService<ParkingJob>().RunForTenant(Tenant, CancellationToken.None);
+        await _factory.Services.GetRequiredService<ParkingJob>().RunForTenant(tenantId, CancellationToken.None);
         await _factory.DrainOutbox();
     }
 

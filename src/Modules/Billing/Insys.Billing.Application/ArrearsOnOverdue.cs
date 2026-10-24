@@ -33,12 +33,37 @@ using Insys.BuildingBlocks.Contracts;
 namespace Insys.Billing.Application;
 
 /// <summary>
-/// Opens an account's arrears case when one of its invoices passes its due date (request 46), so the first daily run
-/// that finds a premium overdue opens the case. The run itself opens it when a bucket covers the days overdue, and this
-/// finds it open; with no bucket in force the delivery is parked (ADR-022) and retried when buckets are published.
+/// Request 46. Opens an account's arrears case when one of its invoices passes its due date, so the first daily run that
+/// finds a premium overdue opens the case: the run itself opens it when a bucket covers the days overdue, and this finds
+/// it open. And ages on a case that went past every bucket. Either way, with no bucket in force for the days overdue the
+/// delivery is parked (ADR-022), which alerts, and it is retried when buckets are published.
 /// </summary>
-public sealed class ArrearsOnOverdue(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) : IIntegrationEventHandler<InvoiceOverdue>
+public sealed class ArrearsOnOverdue(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) :
+    IIntegrationEventHandler<InvoiceOverdue>,
+    IIntegrationEventHandler<ArrearsAgeingBlocked>
 {
+    public async Task Handle(ArrearsAgeingBlocked blocked, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await billing.Account(blocked.AccountId, cancellationToken) is not { } account || !Ageing.HasOpenCase(account))
+        {
+            return;
+        }
+
+        var today = businessDate.Today;
+        var invoices = await billing.Invoices(account.Id, cancellationToken);
+        var days = Ageing.DaysOverdue(invoices.Where(i => i.Outstanding > 0 && i.DueDate < today).ToList(), today);
+        if (days > 0 && !(await codes.AgeingBuckets(today, cancellationToken)).Any(b => days >= b.DaysFrom && days <= b.DaysTo))
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ArrearsAgeingBucketNotInForce, days.ToString(CultureInfo.InvariantCulture));
+        }
+
+        var result = await Ageing.Detect(account, invoices, today, codes, clock.UtcNow, cancellationToken);
+        if (result.IsFailure)
+        {
+            throw new InvalidOperationException($"Account {account.AccountNumber} cannot be aged: {result.Error.Code}");
+        }
+    }
+
     public async Task Handle(InvoiceOverdue overdue, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         if (await billing.Account(overdue.BillingAccountId, cancellationToken) is not { } account || Ageing.HasOpenCase(account))

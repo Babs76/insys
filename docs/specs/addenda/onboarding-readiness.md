@@ -38,7 +38,7 @@ Static data is read through each module's own query interface (Contracts), never
 | | `WORK_QUEUES` | `workflow.cfg_task_types_and_work_queues` |
 | | `APPROVAL_AUTHORITY` | `workflow.cfg_delegation_and_approval_authority` for every maker-checker approval type in use (refunds, payout batches, claim instructions, endorsements, settlements) |
 | | `DOCUMENT_TEMPLATES` | `document.cfg_document_templates`: at least one in force in the default language |
-| `PAYMENTS_AND_DISTRIBUTION` | `COLLECTION_METHODS` | `billing.ref_collection_methods`, `billing.ref_billing_frequencies`, `billing.cfg_document_numbering_schemes`, `billing.cfg_arrears_ageing_buckets` |
+| `PAYMENTS_AND_DISTRIBUTION` | `COLLECTION_METHODS` | `billing.ref_collection_methods`, `billing.ref_billing_frequencies`, `billing.cfg_document_numbering_schemes`, and `billing.cfg_arrears_ageing_buckets` covering every day overdue from day 1 to the last action (added 24 October 2026, request 46): no gaps or overlaps between buckets, and the last bucket's action is `LAPSE` or `CANCEL`. A case past the last bucket is parked until one covers it |
 | | `PAYMENT_METHODS` | `payment.ref_payment_methods`: a collect and a pay method in the base currency |
 | | `PAYMENT_PROVIDER` | `payment.mst_payment_provider_and_bank_register` supporting those methods, with `payment.ref_payment_status_mappings`, and a callback endpoint issued (ADR-023) |
 | | `TENANT_BANK_ACCOUNT` | `payment.mst_tenant_bank_accounts` |

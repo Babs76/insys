@@ -73,6 +73,13 @@ public sealed record InvoiceSettled(Guid InvoiceId, Guid BillingAccountId, strin
 public sealed record InvoiceOverdue(Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef, DateOnly DueDate, decimal Outstanding, string Currency)
     : IIntegrationEvent;
 
+/// <summary>
+/// An open arrears case aged past every ageing bucket in force (request 46). Billing's own consumer ages it on once a
+/// bucket covers its days, and the delivery is parked until then (ADR-022), which raises the parked-delivery alert.
+/// </summary>
+[IntegrationEvent("billing.ArrearsAgeingBlocked")]
+public sealed record ArrearsAgeingBlocked(Guid AccountId, string BucketCode, int DaysOverdue) : IIntegrationEvent;
+
 [IntegrationEvent("billing.ArrearsDetected")]
 public sealed record ArrearsDetected(Guid AccountId, string BucketCode, int DaysOverdue, decimal AmountOverdue, string Currency) : IIntegrationEvent;
 
