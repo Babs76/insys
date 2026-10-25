@@ -153,8 +153,18 @@ public sealed class PeriodReopenPolicy(IAccountingPeriods periods) : IIntegratio
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, cancellationToken);
 
-    public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.CheckerId, cancellationToken);
+    /// <summary>
+    /// The reopen request's approval ended without being granted, whether rejected, expired or withdrawn: the request is
+    /// cleared. A period that will not take the ending (the requester as checker) parks the delivery (ADR-022, D-5).
+    /// </summary>
+    public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (rejected.BusinessRefType == FinanceApprovals.PeriodBusinessRefType && await periods.Get(rejected.BusinessRefId, cancellationToken) is { } period
+            && period.DecideReopen(false, rejected.CheckerId).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
+        }
+    }
 
     private async Task Decide(string businessRefType, Guid periodId, bool approved, Guid checkerId, CancellationToken cancellationToken)
     {

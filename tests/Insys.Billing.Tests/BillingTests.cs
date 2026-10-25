@@ -151,4 +151,25 @@ public sealed class BillingTests
         refund.DomainEvents.OfType<RefundApproved>().Single().BankAccountId.ShouldBe(bankAccount);
         refund.MarkPaid(Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RefundEnding_RejectsItForGood_WhetherRejectedExpiredOrWithdrawn_SRS002(bool rejectedByAChecker)
+    {
+        var (account, _) = Issued();
+        var maker = Guid.CreateVersion7();
+        var refund = RefundRequest.RequestRefund(Guid.CreateVersion7(), account, 50m, "OVERPAID", Guid.CreateVersion7(), new string('a', 64), maker, Now).Value;
+        var checker = rejectedByAChecker ? Guid.CreateVersion7() : Guid.Empty;
+
+        refund.Decide(false, maker, refund.SubjectHash, Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        refund.Decide(false, checker, "another subject", Now).Error!.Code.ShouldBe(BillingErrorCodes.ApprovalSubjectChanged);
+        refund.Decide(false, checker, refund.SubjectHash, Now).IsSuccess.ShouldBeTrue();
+        (refund.Status, refund.DecidedBy).ShouldBe((RefundStatus.Rejected, rejectedByAChecker ? checker : null));
+
+        // Applied again (a redelivery), it changes nothing; an approval no longer applies.
+        refund.Decide(false, checker, refund.SubjectHash, Now).IsSuccess.ShouldBeTrue();
+        refund.Decide(true, Guid.CreateVersion7(), refund.SubjectHash, Now).IsFailure.ShouldBeTrue();
+        refund.DomainEvents.OfType<RefundApproved>().ShouldBeEmpty();
+    }
 }

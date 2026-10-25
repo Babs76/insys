@@ -217,12 +217,22 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
         return result;
     }
 
+    /// <summary>True when this approval's ending (rejected, expired or withdrawn) was already applied: a redelivery changes nothing.</summary>
+    public bool EndedBy(Guid approvalId) => Status == InstructionStatus.Rejected && ApprovalId == approvalId;
+
     /// <summary>
     /// Workflow's decision. The checker was never the maker (Workflow refuses that). It applies only to the subject it
-    /// was asked for: the payee, bank account and amount as they were when approval was requested.
+    /// was asked for: the payee, bank account and amount as they were when approval was requested. Every ending other
+    /// than approval (rejected, expired, withdrawn) is a rejection: a new instruction is rejected for good; new payee
+    /// details waiting for approval are dropped and the instruction keeps its approved payee.
     /// </summary>
     public Result Decide(bool approved, Guid approvalId, string? subjectHash, string domain, DateTimeOffset now)
     {
+        if (!approved && EndedBy(approvalId))
+        {
+            return Result.Success();
+        }
+
         if (PendingPayeePartyId is { } pendingPayee)
         {
             return DecidePayeeChange(approved, pendingPayee, subjectHash, domain, now);

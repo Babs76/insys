@@ -392,15 +392,25 @@ public sealed class RefundRequest : AggregateRoot<Guid>
         return refund;
     }
 
-    /// <summary>Workflow's decision (ApproveRefund or RejectRefund). The checker is never the requester.</summary>
+    /// <summary>
+    /// Workflow's decision (ApproveRefund or RejectRefund). The checker is never the requester. Every ending other than
+    /// approval (rejected, expired, withdrawn) rejects the refund for good; an expired or withdrawn one has no checker
+    /// (Guid.Empty), so no checker is compared or recorded. A refund already rejected takes a redelivered ending unchanged.
+    /// </summary>
     public Result Decide(bool approved, Guid checkerId, string? subjectHash, DateTimeOffset now)
     {
+        if (!approved && Status == RefundStatus.Rejected)
+        {
+            return Result.Success();
+        }
+
         if (subjectHash != SubjectHash)
         {
             return Error.Conflict(BillingErrorCodes.ApprovalSubjectChanged, "The approval was for another payee account or amount.");
         }
 
-        if (checkerId == RequestedBy)
+        var hasChecker = approved || checkerId != Guid.Empty;
+        if (hasChecker && checkerId == RequestedBy)
         {
             return MakerChecker.EnsureDifferentPeople(RequestedBy.ToString()!, checkerId.ToString());
         }
@@ -408,7 +418,7 @@ public sealed class RefundRequest : AggregateRoot<Guid>
         var result = Fire(approved ? RefundTrigger.ApproveRefund : RefundTrigger.RejectRefund);
         if (result.IsSuccess)
         {
-            DecidedBy = checkerId;
+            DecidedBy = hasChecker ? checkerId : null;
             if (approved)
             {
                 Raise(new RefundApproved(Id, BillingAccountId, PayerPartyId, BankAccountId!.Value, Amount, Currency, now));

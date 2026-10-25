@@ -308,4 +308,21 @@ public sealed class ClaimsTests
         claim.Evidence.Count.ShouldBe(2);
         claim.Evidence.ShouldAllBe(e => e.Status == "RECEIVED");
     }
+
+    [Fact]
+    public void InstructionEnding_RejectsItForGood_AndARedeliveryChangesNothing_SRS002()
+    {
+        var claim = Claim();
+        var instruction = Draft(claim, Guid.CreateVersion7());
+        instruction.SubmitInstruction(Guid.CreateVersion7(), Now);
+        var approvalId = Guid.CreateVersion7();
+
+        instruction.Decide(false, Guid.CreateVersion7(), "another subject", claim.Domain, Now).Error!.Code.ShouldBe(ClaimsErrorCodes.ApprovalSubjectChanged);
+        instruction.Decide(false, approvalId, instruction.SubjectHash, claim.Domain, Now).IsSuccess.ShouldBeTrue();
+        (instruction.Status, instruction.EndedBy(approvalId)).ShouldBe((InstructionStatus.Rejected, true));
+
+        instruction.Decide(false, approvalId, instruction.SubjectHash, claim.Domain, Now).IsSuccess.ShouldBeTrue();
+        instruction.Decide(false, Guid.CreateVersion7(), instruction.SubjectHash, claim.Domain, Now).IsFailure.ShouldBeTrue();
+        instruction.Status.ShouldBe(InstructionStatus.Rejected);
+    }
 }

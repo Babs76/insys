@@ -158,4 +158,49 @@ public sealed class CommissionTests
         Intermediary.CheckChange("TERMINATED", "ACTIVE").Error!.Code.ShouldBe(DistributionErrorCodes.IntermediaryTransition);
         Intermediary.CheckChange("TERMINATED", "TERMINATED").IsFailure.ShouldBeTrue();
     }
+
+    [Fact]
+    public void StatementEnding_ReturnsItToDraft_AndReleasesItsEntitlementsAndRecoveriesForTheNextStatement_DST004()
+    {
+        // Clawed back after its statement was approved, so paid with it: its recovery goes on the next statement.
+        var paid = Accrued();
+        paid.MarkPayable();
+        var september = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-09", "ZAR");
+        september.PrepareStatement([paid], [], [], Payee, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        september.ApproveStatement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), september.SubjectHash, Now);
+        paid.ClawBack("POLICY_CANCELLED", Today, Now).IsSuccess.ShouldBeTrue();
+        september.PayoutSettled(Guid.CreateVersion7(), Today, [paid]);
+        paid.NeedsRecovery.ShouldBeTrue();
+
+        var payable = Accrued(2_000m);
+        payable.MarkPayable();
+        var october = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-10", "ZAR");
+        october.PrepareStatement([payable], [paid], [], Payee, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        (payable.StatementId, paid.Clawback!.StatementId).ShouldBe((october.Id, october.Id));
+
+        // Expired (no checker): back to draft; nothing held by it any more.
+        var approvalId = Guid.CreateVersion7();
+        october.ApproveStatement(false, approvalId, Guid.Empty, october.SubjectHash, Now, [payable, paid]).IsSuccess.ShouldBeTrue();
+        (october.Status, october.ApprovalPending, october.EndedBy(approvalId)).ShouldBe((StatementStatus.Draft, false, true));
+        (payable.StatementId, paid.Clawback!.StatementId, paid.NeedsRecovery).ShouldBe(((Guid?)null, (Guid?)null, true));
+
+        // Applied again (a redelivery), it changes nothing; the next prepared statement takes them.
+        october.ApproveStatement(false, approvalId, Guid.Empty, october.SubjectHash, Now, [payable, paid]).IsSuccess.ShouldBeTrue();
+        var november = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-11", "ZAR");
+        november.PrepareStatement([payable], [paid], [], Payee, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        (payable.StatementId, paid.Clawback!.StatementId).ShouldBe((november.Id, november.Id));
+    }
+
+    [Fact]
+    public void StatementEnding_ForAnotherSubjectOrAStatementNotAwaitingApproval_IsRefused_D5()
+    {
+        var payable = Accrued();
+        payable.MarkPayable();
+        var statement = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-10", "ZAR");
+        statement.ApproveStatement(false, Guid.CreateVersion7(), Guid.Empty, null, Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        statement.PrepareStatement([payable], [], [], Payee, Guid.CreateVersion7(), Now);
+
+        statement.ApproveStatement(false, Guid.CreateVersion7(), Guid.CreateVersion7(), "other", Now, [payable]).Error!.Code.ShouldBe(DistributionErrorCodes.StatementChanged);
+        (statement.ApprovalPending, payable.StatementId).ShouldBe((true, (Guid?)statement.Id));
+    }
 }

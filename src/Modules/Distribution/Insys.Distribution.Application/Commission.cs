@@ -104,7 +104,8 @@ public sealed record EntitlementView(Guid Id, string IntermediaryCode, string So
 }
 
 public sealed record StatementView(Guid Id, string IntermediaryCode, string PeriodCode, string Currency, decimal GrossAmount, decimal TaxAmount, decimal NetAmount,
-    StatementStatus Status, bool ApprovalPending, Guid? ApprovedBy, Guid? PayeePartyId, Guid? BankAccountId, Guid? PaymentRef, DateOnly? PaidOn, long RowVersion)
+    StatementStatus Status, bool ApprovalPending, Guid? ApprovedBy, Guid? PayeePartyId, Guid? BankAccountId, Guid? PaymentRef, DateOnly? PaidOn, long RowVersion,
+    LatestRejection? LatestRejection = null)
 {
     public static StatementView From(CommissionStatement s) => new(s.Id, s.IntermediaryCode, s.PeriodCode, s.Currency, s.GrossAmount, s.TaxAmount, s.NetAmount,
         s.Status, s.ApprovalPending, s.ApprovedBy, s.PayeePartyId, s.BankAccountId, s.PaymentRef, s.PaidOn, s.RowVersion);
@@ -215,7 +216,8 @@ internal sealed class ClawBackCommissionHandler(IDistributionRepository reposito
     }
 }
 
-internal sealed class DistributionQueries(IDistributionRepository repository, IIntermediaries intermediaries, ITenantContext tenant, IBusinessDate businessDate) :
+internal sealed class DistributionQueries(IDistributionRepository repository, IIntermediaries intermediaries, ITenantContext tenant, IBusinessDate businessDate,
+    IApprovalHistory approvals) :
     IQueryHandler<GetEntitlement, EntitlementView>,
     IQueryHandler<ListEntitlements, IReadOnlyList<EntitlementView>>,
     IQueryHandler<GetStatement, StatementView>,
@@ -228,8 +230,11 @@ internal sealed class DistributionQueries(IDistributionRepository repository, II
         (await repository.List(query.IntermediaryCode, query.PolicyRef, query.Status, query.AfterId, Math.Clamp(query.Limit, 1, 200), cancellationToken))
         .Select(EntitlementView.From).ToList();
 
+    /// <summary>The statement, with how its latest approval ended without being granted, if one did (OQ-113).</summary>
     public async Task<Result<StatementView>> Handle(GetStatement query, CancellationToken cancellationToken) =>
-        await repository.Statement(query.StatementId, cancellationToken) is { } s ? StatementView.From(s) : Error.NotFound(ErrorCodes.NotFound, "The commission statement was not found.");
+        await repository.Statement(query.StatementId, cancellationToken) is { } s
+            ? StatementView.From(s) with { LatestRejection = await approvals.Latest(DistributionApprovals.StatementBusinessRefType, s.Id, cancellationToken) }
+            : Error.NotFound(ErrorCodes.NotFound, "The commission statement was not found.");
 
     public async Task<Result<IntermediaryCheckView>> Handle(CheckIntermediary query, CancellationToken cancellationToken)
     {
@@ -309,8 +314,26 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Decide(granted.BusinessRefType, granted.BusinessRefId, true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash, cancellationToken);
 
-    public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(rejected.BusinessRefType, rejected.BusinessRefId, false, rejected.ApprovalId, rejected.CheckerId, rejected.SubjectHash, cancellationToken);
+    /// <summary>
+    /// The statement's approval ended without being granted, whether rejected, expired or withdrawn: it returns to draft and
+    /// its entitlements and clawback recoveries are released for the next prepared statement. A statement that will not
+    /// take the ending (another subject, not awaiting approval) parks the delivery (ADR-022, D-5); one already returned to
+    /// draft by this approval is a redelivery.
+    /// </summary>
+    public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (rejected.BusinessRefType != DistributionApprovals.StatementBusinessRefType || await repository.Statement(rejected.BusinessRefId, cancellationToken) is not { } statement
+            || statement.EndedBy(rejected.ApprovalId))
+        {
+            return;
+        }
+
+        var onStatement = await repository.OnStatement(statement.Id, cancellationToken);
+        if (statement.ApproveStatement(false, rejected.ApprovalId, rejected.CheckerId, rejected.SubjectHash, clock.UtcNow, onStatement).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
+        }
+    }
 
     /// <summary>"Payout settled": the statement and its payable entitlements are paid.</summary>
     public async Task Handle(PaymentSucceeded succeeded, EventEnvelope envelope, CancellationToken cancellationToken)
