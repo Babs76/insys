@@ -273,7 +273,7 @@ public sealed record RemittanceView(Guid Id, string ProviderId, Guid ProviderPar
 /// are listed, and the count and total are of those, so no other branch's or product's figures show through the run.
 /// </param>
 public sealed record PaymentRunView(Guid Id, string RunCode, DateTimeOffset CutOff, RunStatus Status, string Currency, int ClaimCount, decimal TotalAmount,
-    IReadOnlyList<RemittanceView> Remittances, long RowVersion, bool PartlyInScope)
+    IReadOnlyList<RemittanceView> Remittances, long RowVersion, bool PartlyInScope, Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static PaymentRunView From(ProviderPaymentRun r) => Of(r, r.Remittances, false);
 

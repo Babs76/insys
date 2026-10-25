@@ -189,7 +189,8 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
 }
 
 /// <summary>A run, with only its remittances in the caller's scope; one with none in scope is not found (F103).</summary>
-internal sealed class GetPaymentRunHandler(IHealthRepository health, IExecutionContext execution) : IQueryHandler<GetPaymentRun, PaymentRunView>
+internal sealed class GetPaymentRunHandler(IHealthRepository health, IExecutionContext execution, Workflow.Contracts.IApprovalHistory approvals)
+    : IQueryHandler<GetPaymentRun, PaymentRunView>
 {
     public async Task<Result<PaymentRunView>> Handle(GetPaymentRun query, CancellationToken cancellationToken)
     {
@@ -200,14 +201,19 @@ internal sealed class GetPaymentRunHandler(IHealthRepository health, IExecutionC
 
         if (execution.CurrentScope.IsUnrestricted)
         {
-            return PaymentRunView.From(run);
+            return PaymentRunView.From(run) with { LatestRejection = await Latest(run, cancellationToken) };
         }
 
         var claims = await health.ClaimsInRun(run.Id, cancellationToken);
         var (visible, partly) = RunVisibility.Of(run.Remittances, claims,
             await health.MembershipScopes(claims.Select(c => c.MembershipId).Distinct().ToList(), cancellationToken), execution.CurrentScope);
-        return visible.Count == 0 && run.Remittances.Count > 0 ? Error.NotFound(ErrorCodes.NotFound, "The payment run was not found.") : PaymentRunView.Of(run, visible, partly);
+        return visible.Count == 0 && run.Remittances.Count > 0
+            ? Error.NotFound(ErrorCodes.NotFound, "The payment run was not found.")
+            : PaymentRunView.Of(run, visible, partly) with { LatestRejection = await Latest(run, cancellationToken) };
     }
+
+    private Task<Workflow.Contracts.LatestRejection?> Latest(ProviderPaymentRun run, CancellationToken cancellationToken) =>
+        approvals.Latest(Contracts.HealthApprovals.RunBusinessRefType, run.Id, cancellationToken);
 }
 
 internal sealed class CaseHandlers(IHealthRepository health, IExecutionContext execution, IClock clock, IAuditTrail audit) :

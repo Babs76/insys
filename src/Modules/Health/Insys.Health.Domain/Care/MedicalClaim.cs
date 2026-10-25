@@ -318,6 +318,22 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
         return Result.Success();
     }
 
+    /// <summary>
+    /// Leaves a payment run whose approval ended without being granted, so a new run takes the claim (D-2). Only a claim
+    /// still in that run and not yet paid leaves it; returns whether it did.
+    /// </summary>
+    public bool LeaveRun(Guid runId)
+    {
+        if (PaymentRunId != runId || Status != MedicalClaimStatus.ApprovedForPayment)
+        {
+            return false;
+        }
+
+        PaymentRunId = null;
+        MarkChanged();
+        return true;
+    }
+
     /// <summary>Transition "Payment run released".</summary>
     public Result MarkPaid(Guid runId, DateOnly paidOn, DateTimeOffset now)
     {

@@ -92,8 +92,29 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Decide(granted.BusinessRefType, granted.BusinessRefId, true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash, cancellationToken);
 
-    public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(rejected.BusinessRefType, rejected.BusinessRefId, false, rejected.ApprovalId, rejected.CheckerId, rejected.SubjectHash, cancellationToken);
+    /// <summary>
+    /// The run's approval ended without being granted, whether rejected, expired or withdrawn (D-2): the run ends as
+    /// Rejected and its claims are released for a new run. A run that will not take the ending (another subject, or no
+    /// longer calculated) parks the delivery (ADR-022, D-5); one already ended by this approval is a redelivery.
+    /// </summary>
+    public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (rejected.BusinessRefType != HealthApprovals.RunBusinessRefType || await health.Run(rejected.BusinessRefId, cancellationToken) is not { } run
+            || run.EndedBy(rejected.ApprovalId))
+        {
+            return;
+        }
+
+        if (run.DecideApproval(false, rejected.ApprovalId, rejected.CheckerId, rejected.SubjectHash).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
+        }
+
+        foreach (var claim in await health.ClaimsInRun(run.Id, cancellationToken))
+        {
+            claim.LeaveRun(run.Id);
+        }
+    }
 
     /// <summary>The run was released: its claims are paid ("Payment run released") and settled.</summary>
     public async Task Handle(ProviderPaymentRunReleased released, EventEnvelope envelope, CancellationToken cancellationToken)

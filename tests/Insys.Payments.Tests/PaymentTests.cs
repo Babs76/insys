@@ -53,8 +53,9 @@ public sealed class PaymentTests
     [Fact]
     public void PayoutBatch_Lifecycle_MatchesDomainModel()
     {
+        // D-1 (Wave 2 batch 1, V0056) adds "Built-RejectBatch->Rejected", not yet in domain-model.json.
         var specified = DomainModelSpec.Transitions("payments", "PayoutBatch").Select(t => t.Replace("All payments final", "AllPaymentsFinal", StringComparison.Ordinal))
-            .OrderBy(t => t, StringComparer.Ordinal).ToList();
+            .Append("Built-RejectBatch->Rejected").OrderBy(t => t, StringComparer.Ordinal).ToList();
         PayoutBatch.Lifecycle.Transitions.Select(t => $"{t.From}-{t.Trigger}->{t.To}").OrderBy(t => t, StringComparer.Ordinal).ToList().ShouldBe(specified);
     }
 
@@ -153,4 +154,57 @@ public sealed class PaymentTests
     [Fact]
     public void EmptyBatch_IsRefused() =>
         PayoutBatch.BuildBatch(Guid.CreateVersion7(), "REFUND", "ZAR", [], Guid.CreateVersion7(), Now).Error!.Code.ShouldBe(PaymentErrorCodes.BatchEmpty);
+
+    private static Payment Payout(decimal amount = 100m) =>
+        Payment.InitiatePayment(Guid.CreateVersion7(), "KEY-" + Guid.NewGuid(), Direction.Out, "REFUND", "EFT", "SIMULATOR", amount, "ZAR", null, "REFUND", Guid.CreateVersion7(),
+            Now, Guid.CreateVersion7()).Value;
+
+    [Fact]
+    public void RejectedPayoutBatch_EndsRejected_AndReleasesItsUnsentPaymentsForTheNextBatch_D1()
+    {
+        var waiting = Payout();
+        var other = Payout(50m);
+        var batch = PayoutBatch.BuildBatch(Guid.CreateVersion7(), "REFUND", "ZAR", [waiting, other], Guid.CreateVersion7(), Now).Value;
+        var moved = Payout(25m);
+        moved.AssignToBatch(Guid.CreateVersion7());
+
+        var released = batch.RejectBatch([waiting, other, moved]);
+
+        released.IsSuccess.ShouldBeTrue();
+        batch.Status.ShouldBe(BatchStatus.Rejected);
+        released.Value.ShouldBe([waiting.Id, other.Id], ignoreOrder: true);
+        foreach (var payment in new[] { waiting, other, moved })
+        {
+            payment.LeaveBatch(batch.Id);
+        }
+
+        (waiting.PayoutBatchId, other.PayoutBatchId).ShouldBe((null, null));
+        moved.PayoutBatchId.ShouldNotBeNull();
+        PayoutBatch.BuildBatch(Guid.CreateVersion7(), "REFUND", "ZAR", [waiting, other], Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void OnlyABatchNotYetApproved_CanBeRejected_SoNoPaymentIsPaidTwice_D1()
+    {
+        var builder = Guid.CreateVersion7();
+        var payment = Payout();
+        var batch = PayoutBatch.BuildBatch(Guid.CreateVersion7(), "REFUND", "ZAR", [payment], builder, Now).Value;
+        batch.ApproveBatch(Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
+
+        batch.RejectBatch([payment]).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        batch.Status.ShouldBe(BatchStatus.Approved);
+        payment.PayoutBatchId.ShouldBe(batch.Id);
+    }
+
+    [Fact]
+    public void ASentPayment_NeverLeavesItsBatch_D1()
+    {
+        var payment = Payout();
+        var batch = PayoutBatch.BuildBatch(Guid.CreateVersion7(), "REFUND", "ZAR", [payment], Guid.CreateVersion7(), Now).Value;
+        payment.Sent(ProviderOutcome.Pending, "EXT-1", null, Today, Now).IsSuccess.ShouldBeTrue();
+
+        batch.RejectBatch([payment]).Value.ShouldBeEmpty();
+        payment.LeaveBatch(batch.Id).ShouldBeFalse();
+        payment.PayoutBatchId.ShouldBe(batch.Id);
+    }
 }

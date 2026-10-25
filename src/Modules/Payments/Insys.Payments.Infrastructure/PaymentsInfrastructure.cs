@@ -63,6 +63,7 @@ public static class PaymentsInfrastructure
         services.AddIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased, PaymentPolicies, PaymentsDbContext>(schema, "ProviderPaymentRunReleased");
         services.AddIntegrationEventHandler<Distribution.Contracts.CommissionStatementApproved, PaymentPolicies, PaymentsDbContext>(schema, "CommissionStatementApproved");
         services.AddIntegrationEventHandler<ApprovalGranted, PaymentPolicies, PaymentsDbContext>(schema, "ApprovalGranted");
+        services.AddIntegrationEventHandler<ApprovalRejected, PaymentPolicies, PaymentsDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<PaymentReceived, PaymentPolicies, PaymentsDbContext>(schema, "PaymentReceived");
         services.AddIntegrationEventHandler<PaymentSucceeded, PaymentPolicies, PaymentsDbContext>(schema, "PaymentSucceeded");
         services.AddIntegrationEventHandler<PaymentFailed, PaymentPolicies, PaymentsDbContext>(schema, "PaymentFailed");

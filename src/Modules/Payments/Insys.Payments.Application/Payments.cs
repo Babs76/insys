@@ -128,14 +128,14 @@ public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, [
 /// in scope only, so no other branch's or product's figures show through the batch.
 /// </param>
 public sealed record BatchView(Guid Id, string BatchRef, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission)] string Purpose, int PaymentCount, decimal TotalAmount, string Currency, BatchStatus Status, Guid? BuiltBy,
-    Guid? ApprovedBy, Guid? ReleasedBy, bool PartlyInScope)
+    Guid? ApprovedBy, Guid? ReleasedBy, bool PartlyInScope, LatestRejection? LatestRejection = null)
 {
     public static BatchView From(PayoutBatch b) => new(b.Id, b.BatchRef, b.Purpose, b.PaymentCount, b.TotalAmount, b.Currency, b.Status, b.BuiltBy,
         b.ApprovedBy, b.ReleasedBy, false);
 
-    public static BatchView Of(PayoutBatch b, IReadOnlyList<Payment> visible, bool partly) => partly
-        ? new(b.Id, b.BatchRef, b.Purpose, visible.Count, visible.Sum(p => p.Amount), b.Currency, b.Status, b.BuiltBy, b.ApprovedBy, b.ReleasedBy, true)
-        : From(b);
+    public static BatchView Of(PayoutBatch b, IReadOnlyList<Payment> visible, bool partly, LatestRejection? latestRejection = null) => partly
+        ? new(b.Id, b.BatchRef, b.Purpose, visible.Count, visible.Sum(p => p.Amount), b.Currency, b.Status, b.BuiltBy, b.ApprovedBy, b.ReleasedBy, true, latestRejection)
+        : From(b) with { LatestRejection = latestRejection };
 }
 
 public sealed record ExceptionView(Guid Id, string ExceptionType, Guid? PaymentId, Guid? StatementLineId, decimal Amount, ExceptionStatus Status, Guid? AssignedTo)
@@ -694,7 +694,7 @@ public sealed class ListPaymentsValidator : AbstractValidator<ListPayments>
 }
 
 /// <summary>A batch, with the count and total of the payments in the caller's scope; one with none in scope is not found (F103).</summary>
-internal sealed class GetBatchHandler(IPaymentRepository payments, PaymentScopes scopes) : IQueryHandler<GetBatch, BatchView>
+internal sealed class GetBatchHandler(IPaymentRepository payments, PaymentScopes scopes, IApprovalHistory approvals) : IQueryHandler<GetBatch, BatchView>
 {
     public async Task<Result<BatchView>> Handle(GetBatch query, CancellationToken cancellationToken)
     {
@@ -705,7 +705,12 @@ internal sealed class GetBatchHandler(IPaymentRepository payments, PaymentScopes
 
         var all = await payments.InBatch(batch.Id, cancellationToken);
         var (visible, partly) = await scopes.Of(all, cancellationToken);
-        return visible.Count == 0 && all.Count > 0 ? Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.") : BatchView.Of(batch, visible, partly);
+        if (visible.Count == 0 && all.Count > 0)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The payout batch was not found.");
+        }
+
+        return BatchView.Of(batch, visible, partly, await approvals.Latest(PaymentApprovals.PayoutBusinessRefType, batch.Id, cancellationToken));
     }
 }
 
@@ -745,6 +750,7 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     IIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased>,
     IIntegrationEventHandler<Distribution.Contracts.CommissionStatementApproved>,
     IIntegrationEventHandler<ApprovalGranted>,
+    IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<PaymentReceived>,
     IIntegrationEventHandler<PaymentSucceeded>,
     IIntegrationEventHandler<Contracts.PaymentFailed>,
@@ -790,6 +796,32 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
         if (granted.BusinessRefType == PaymentApprovals.PayoutBusinessRefType && await payments.Batch(granted.BusinessRefId, cancellationToken) is { } batch)
         {
             batch.ApproveBatch(granted.CheckerId);
+        }
+    }
+
+    /// <summary>
+    /// The batch's approval ended without being granted, whether rejected, expired or withdrawn (D-1): the batch ends as
+    /// Rejected and its unsent payments are released for the next batch. A batch already Rejected was handled by an earlier
+    /// delivery; one that has moved on (approved, released) cannot take the ending, and the delivery parks (ADR-022, D-5).
+    /// </summary>
+    public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (rejected.BusinessRefType != PaymentApprovals.PayoutBusinessRefType || await payments.Batch(rejected.BusinessRefId, cancellationToken) is not { } batch
+            || batch.Status == BatchStatus.Rejected)
+        {
+            return;
+        }
+
+        var inBatch = await payments.InBatch(batch.Id, cancellationToken);
+        var released = batch.RejectBatch(inBatch);
+        if (released.IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
+        }
+
+        foreach (var payment in inBatch.Where(p => released.Value.Contains(p.Id)))
+        {
+            payment.LeaveBatch(batch.Id);
         }
     }
 

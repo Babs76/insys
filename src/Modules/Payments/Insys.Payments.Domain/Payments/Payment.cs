@@ -250,6 +250,25 @@ public sealed class Payment : AggregateRoot<Guid>
         MarkChanged();
     }
 
+    /// <summary>True when the payment is in the batch and not yet sent, so it can be released from it.</summary>
+    public bool CanLeaveBatch(Guid batchId) => PayoutBatchId == batchId && Status == PaymentStatus.Initiated;
+
+    /// <summary>
+    /// Releases the payment from a batch whose approval ended without being granted, so the next batch takes it (D-1).
+    /// Only a payment still in that batch and not yet sent is released; returns whether it was.
+    /// </summary>
+    public bool LeaveBatch(Guid batchId)
+    {
+        if (!CanLeaveBatch(batchId))
+        {
+            return false;
+        }
+
+        PayoutBatchId = null;
+        MarkChanged();
+        return true;
+    }
+
     /// <summary>The payment was sent: the provider's immediate answer decides where it goes; no answer is Unknown (PAY-005).</summary>
     public Result Sent(ProviderOutcome outcome, string? externalRef, string? reason, DateOnly today, DateTimeOffset now)
     {
