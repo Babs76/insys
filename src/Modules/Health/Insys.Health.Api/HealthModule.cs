@@ -58,7 +58,7 @@ public sealed record PendReviewRequest(IReadOnlyList<LineReview> Reviews);
 
 public sealed record ReasonRequest(string Reason);
 
-/// <param name="ReasonCode">A partial approval's reason (OQ-102): a claim decision reason of type PARTIAL, required when less than was claimed is paid.</param>
+/// <param name="ReasonCode">A partial approval's reason (OQ-102): a claim decision reason of type PARTIAL, required when some lines were declined.</param>
 public sealed record ApproveClaimRequest(string? ReasonCode);
 
 public sealed record CaseOutcomeRequest(string Outcome);

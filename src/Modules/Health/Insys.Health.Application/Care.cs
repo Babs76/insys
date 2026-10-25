@@ -74,7 +74,7 @@ public sealed record LineReview(int LineNo, ReviewDecision Decision);
 /// <summary>"Information received": a reviewer accepts or rejects the pended lines, and the claim is adjudicated again.</summary>
 public sealed record ReviewPendedClaim(Guid ClaimId, IReadOnlyList<LineReview> Reviews) : ICommand<MedicalClaimView>, IRetryOnConflict;
 
-/// <param name="ReasonCode">A partial approval's reason (OQ-102): a claim decision reason of type PARTIAL, required when less than was claimed is paid.</param>
+/// <param name="ReasonCode">A partial approval's reason (OQ-102): a claim decision reason of type PARTIAL, required when some lines were declined.</param>
 public sealed record ApproveMedicalClaim(Guid ClaimId, string? ReasonCode = null) : ICommand<MedicalClaimView>;
 
 public sealed record RejectMedicalClaim(Guid ClaimId, string Reason) : ICommand<MedicalClaimView>;

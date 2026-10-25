@@ -217,7 +217,7 @@ public sealed class HealthTests
         claim.AdjudicateClaim(resolved, Now).IsSuccess.ShouldBeTrue();
         (claim.Status, claim.TotalPaid).ShouldBe((MedicalClaimStatus.Adjudicated, 900m));
 
-        // OQ-102: paying 900 of the 1 300 claimed is a partial approval, which gives a PARTIAL decision reason.
+        // OQ-102: a declined line, with the rest paid, is a partial approval, which gives a PARTIAL decision reason.
         claim.ApproveForPayment(Principal, Now).Error!.Code.ShouldBe(HealthErrorCodes.RationaleRequired);
         claim.ApproveForPayment(Principal, Now, "LINE_DECLINED", "DECLINE").IsFailure.ShouldBeTrue();
         claim.ApproveForPayment(Principal, Now, "LINE_DECLINED", MedicalClaimOutcomes.PartialReasonType).IsSuccess.ShouldBeTrue();

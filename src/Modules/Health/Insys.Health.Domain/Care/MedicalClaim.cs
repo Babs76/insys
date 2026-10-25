@@ -234,7 +234,7 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
 
     public DateTimeOffset? ReversedAt { get; private set; }
 
-    /// <summary>The approval's outcome (OQ-102): APPROVED, or PARTLY_APPROVED when less than was claimed is paid; null until approved.</summary>
+    /// <summary>The approval's outcome (OQ-102): APPROVED, or PARTLY_APPROVED when some lines were declined; null until approved.</summary>
     public string? DecisionOutcome { get; private set; }
 
     /// <summary>A partial approval's reason (claims.ref_claim_decision_reason_codes, decision type PARTIAL).</summary>
@@ -308,17 +308,18 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Command ApproveForPayment: the adjudicated amount is approved by a person. Paying less than was claimed is a partial
-    /// approval (OQ-102), which gives a decision reason of type PARTIAL.
+    /// Command ApproveForPayment: the adjudicated amount is approved by a person. A claim some of whose lines adjudication
+    /// declined, while it pays the rest, is a partial approval (OQ-102), which gives a decision reason of type PARTIAL. Paying
+    /// a line at the tariff, or less a co-payment or deductible, is the plan's terms, not a decline.
     /// </summary>
     /// <param name="reasonType">The decision type of <paramref name="reasonCode"/> as a claim decision reason in force, or null when it is none.</param>
     public Result ApproveForPayment(Guid by, DateTimeOffset now, string? reasonCode = null, string? reasonType = null)
     {
-        var partly = Status == MedicalClaimStatus.Adjudicated && (TotalPaid ?? 0) < TotalClaimed;
+        var partly = Status == MedicalClaimStatus.Adjudicated && TotalPaid > 0 && _lines.Any(l => l.Outcome == "REJECT");
         if (partly && (string.IsNullOrWhiteSpace(reasonCode) || reasonType != MedicalClaimOutcomes.PartialReasonType))
         {
             return Error.Validation(HealthErrorCodes.RationaleRequired,
-                $"Claim {ClaimNumber} pays {TotalPaid ?? 0:0.00} of {TotalClaimed:0.00} {Currency} claimed: a partial approval gives a decision reason of type PARTIAL (OQ-102).");
+                $"Claim {ClaimNumber} declines some of its lines and pays {TotalPaid:0.00} {Currency}: a partial approval gives a decision reason of type PARTIAL (OQ-102).");
         }
 
         var result = Fire(MedicalClaimTrigger.ApproveForPayment);

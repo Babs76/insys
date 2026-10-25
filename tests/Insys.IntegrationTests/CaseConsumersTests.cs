@@ -299,6 +299,10 @@ public sealed class CaseConsumersTests(DatabaseFixture fixture) : IClassFixture<
             INSERT INTO health.medical_claim (tenant_id, id, {Audit}, claim_number, source, provider_id, membership_id, patient_party_id, service_date, submitted_at,
                                               format_code, total_claimed, total_paid, status, currency)
             VALUES (@t, @c, {Stamp}, @cn, 'PROVIDER', 'PRV-1', @m, @pp, current_date - 3, now(), 'API', @claimed, @paid, @s, 'ZAR');
+            INSERT INTO health.medical_claim_line (tenant_id, id, {Audit}, claim_id, line_no, tariff_code, quantity, claimed_amount, allowed_amount, copay_amount,
+                                                   paid_amount, outcome)
+            VALUES (@t, gen_random_uuid(), {Stamp}, @c, 1, '0190', 1, @paid, @paid, 0, @paid, 'PAY'),
+                   (@t, gen_random_uuid(), {Stamp}, @c, 2, '0300', 1, @claimed - @paid, 0, 0, 0, 'REJECT');
             """, ("t", Tenant), ("m", membership), ("c", claim), ("pp", principal), ("mn", "M" + membership.ToString("N")[..10]),
             ("cn", $"HC-{claim:N}"[..25]), ("claimed", claimed), ("paid", paid), ("s", status));
         return claim;
