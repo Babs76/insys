@@ -104,6 +104,7 @@ public sealed class FunctionCatalogueTests(DatabaseFixture fixture) : IClassFixt
             Insys.Life.Infrastructure.LifeJobs.Function, Insys.General.Infrastructure.GeneralJobs.Function, Insys.Health.Infrastructure.HealthJobs.Function,
             Insys.Billing.Infrastructure.BillingJobs.Function, Insys.Payments.Infrastructure.PaymentJobs.Function,
             Insys.Integration.Infrastructure.Webhooks.WebhookJobs.Function, Insys.Communications.Infrastructure.NotificationSender.Function,
+            Insys.Workflow.Infrastructure.CaseTimelineJobs.Function,
         ];
         FunctionRegistry.All().Where(f => f.Function.Kind == FunctionKind.Job).Select(f => f.Function.Code).Order(StringComparer.Ordinal)
             .ShouldBe(jobs.Distinct().Order(StringComparer.Ordinal), "every JOB function is one a consumer or daily job runs under, and every one is catalogued");

@@ -5522,6 +5522,2178 @@
         ]
       }
     },
+    "/api/v1/workflow/cases": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "List cases: by family, type, status, category, overdue, or a linked record (linkType, linkId)",
+        "description": "Within the caller\u0027s scope (F103): a case is in scope when its product and node are, and a case with no scoped record is tenant-wide. A Health-linked case (a membership, provider, remittance or payment run, or raised by a provider) is listed only to callers with medical_claim.read. status is a case status in any case (InProgress or IN_PROGRESS); overdue means open and past its expected date. Oldest first by ID, cursor paged.",
+        "operationId": "WorkflowListCases",
+        "parameters": [
+          {
+            "name": "family",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "overdue",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "linkType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowCaseSummaryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "SERVICE_COMPLAINTS"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "a case is Health-linked: without it the case is left out"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Open (receive) a case: numbered, its case type\u0027s process started, its first timeline as the expected date",
+        "description": "422 CASE_TYPE_NOT_IN_FORCE for a type not in force; CASE_CATEGORY_REQUIRED when the type requires a category; CASE_LINK_NOT_ALLOWED for a link type the case type does not allow. A case raised by a person is never refused for missing timelines: it opens without an expected date. An appeal names parentCaseId, a decided case whose type\u0027s review type is this type. Completes asynchronously (GAP-027): workflow.CaseOpened reaches Communications and other modules; the case type\u0027s process has its first task in its queue.",
+        "operationId": "WorkflowOpenCase",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowOpenCaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.create",
+        "x-function": [
+          "CASE_REGISTER"
+        ],
+        "x-eventual-effects": "workflow.CaseOpened reaches Communications and other modules; the case type\u0027s process has its first task in its queue."
+      }
+    },
+    "/api/v1/workflow/cases/summary": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Case figures (\u00A78): open by family and status, overdue, complaints received, upheld, rejected, referred to an ombud, redress paid per currency",
+        "description": "CASES_OPEN is broken down by FAMILY:STATUS; COMPLAINTS_UPHELD by UPHELD and PARTLY_UPHELD. Complaint figures count every complaint the caller may see (F103, and Health-linked cases only with medical_claim.read); REDRESS_PAID is the paid redress per currency.",
+        "operationId": "WorkflowCasesSummary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "SERVICE_CASE_REPORTS"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/complaints-report": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "The PPR 18.8.3 complaints report: complaints received from..to (business dates), per category",
+        "description": "Per category: received, upheld, partly upheld, rejected (with the reasons given), escalated, referred to an ombud with the ombuds\u0027 outcomes, compensation and goodwill approved or paid (number and amount per currency), outstanding, reportable (\u00A76.2) and within their timelines (never overdue). The format of the return to the Authority is open (OQ-105).",
+        "operationId": "WorkflowComplaintsReport",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowComplaintsReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case_report.read",
+        "x-function": [
+          "SERVICE_CASE_REPORTS"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "A case with its links, history, messages and redress",
+        "operationId": "WorkflowGetCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "SERVICE_COMPLAINTS"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "the case is Health-linked: without it the case is not found"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}/redress/{redressId}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "A redress on a case, with how its approval last ended without being granted (latestRejection, OQ-113)",
+        "operationId": "WorkflowGetCaseRedress",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "redressId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseRedressView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "SERVICE_COMPLAINTS"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}/acknowledge": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Acknowledge the case to the complainant (CASE_ACKNOWLEDGED, OQ-107)",
+        "description": "The expected date becomes the resolution step\u0027s (RESOLVE; REVIEW for an appeal) from receipt. Completes asynchronously (GAP-027): workflow.CaseAcknowledged: Communications sends CASE_ACKNOWLEDGED.",
+        "operationId": "WorkflowAcknowledgeCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_ACKNOWLEDGE"
+        ],
+        "x-eventual-effects": "workflow.CaseAcknowledged: Communications sends CASE_ACKNOWLEDGED."
+      }
+    },
+    "/api/v1/workflow/cases/{id}/messages": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Send the complainant a message on the case",
+        "description": "While the case is open; the portal shows it (\u00A75).",
+        "operationId": "WorkflowAddCaseMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCaseMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_UPDATE"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}/links": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Link a record to the case",
+        "description": "422 CASE_LINK_NOT_ALLOWED for a link type the case type does not allow. An invoice, billing account or remittance is checked with its module, and places the case in that record\u0027s product and node (F103).",
+        "operationId": "WorkflowLinkCaseRecord",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCaseLinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_LINK_RECORD"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}/extend": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Extend the current step\u0027s timeline, with a reason",
+        "description": "422 CASE_TIMELINE_NOT_EXTENDABLE when the step\u0027s timeline does not allow an extension, or the new date would be more than its maxExtension after the step\u0027s own date. Completes asynchronously (GAP-027): workflow.CaseUpdated (EXTENDED): Communications tells the complainant the new date (CASE_UPDATE).",
+        "operationId": "WorkflowExtendCaseTimeline",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowExtendCaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_EXTEND_TIMELINE"
+        ],
+        "x-eventual-effects": "workflow.CaseUpdated (EXTENDED): Communications tells the complainant the new date (CASE_UPDATE)."
+      }
+    },
+    "/api/v1/workflow/cases/{id}/escalate": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Escalate the case to the next level",
+        "description": "Completes asynchronously (GAP-027): workflow.CaseEscalated reaches Communications.",
+        "operationId": "WorkflowEscalateCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_ESCALATE"
+        ],
+        "x-eventual-effects": "workflow.CaseEscalated reaches Communications."
+      }
+    },
+    "/api/v1/workflow/cases/{id}/start": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Start work on an acknowledged or reopened case (IN_PROGRESS)",
+        "operationId": "WorkflowStartCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_UPDATE"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}/await-complainant": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Wait for the complainant (AWAITING_COMPLAINANT)",
+        "operationId": "WorkflowCaseAwaitComplainant",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_UPDATE"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}/resume": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Resume work after the complainant answered (IN_PROGRESS)",
+        "operationId": "WorkflowResumeCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_UPDATE"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}/decide": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Decide the case, with reasons",
+        "description": "An appeal is decided only by a holder of the privileged function CASE_DECIDE_APPEAL (403 FUNCTION_NOT_GRANTED, OQ-109) and by someone other than the person who decided the case appealed (409 CASE_DECIDER_SAME_PERSON, PPR 18.6). 422 CASE_REASONS_REQUIRED for a rejection without reasons. Completes asynchronously (GAP-027): the case\u0027s events reach Communications (the complainant\u0027s notice) and, for a decided dispute or appeal upheld, the claim\u0027s module (reassessment); read the case again for its own state.",
+        "operationId": "WorkflowDecideCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowDecideCaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.decide",
+        "x-function": [
+          "CASE_DECIDE"
+        ],
+        "x-eventual-effects": "the case\u0027s events reach Communications (the complainant\u0027s notice) and, for a decided dispute or appeal upheld, the claim\u0027s module (reassessment); read the case again for its own state."
+      }
+    },
+    "/api/v1/workflow/cases/{id}/close": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Close a decided case (or answer an enquiry straight from RECEIVED)",
+        "description": "A complaint\u0027s reportable flag is computed now (\u00A76.2); retainUntil is set from the family\u0027s retention (5 years when none is in force, OQ-106). A case referred to an ombud stays open for the ombud\u0027s outcome. Completes asynchronously (GAP-027): workflow.CaseClosed reaches Communications.",
+        "operationId": "WorkflowCloseCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_CLOSE"
+        ],
+        "x-eventual-effects": "workflow.CaseClosed reaches Communications."
+      }
+    },
+    "/api/v1/workflow/cases/{id}/withdraw": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Withdraw the case, with a reason",
+        "description": "From any open status; kept as a closed case is (OQ-106). Completes asynchronously (GAP-027): workflow.CaseClosed (outcome WITHDRAWN).",
+        "operationId": "WorkflowWithdrawCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCaseReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_WITHDRAW"
+        ],
+        "x-eventual-effects": "workflow.CaseClosed (outcome WITHDRAWN)."
+      }
+    },
+    "/api/v1/workflow/cases/{id}/reopen": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Reopen a closed case, with a reason (privileged, OQ-109)",
+        "description": "Its decision is cleared (the history keeps it) and its retention date removed. Completes asynchronously (GAP-027): workflow.CaseReopened reaches Communications.",
+        "operationId": "WorkflowReopenCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCaseReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_REOPEN"
+        ],
+        "x-eventual-effects": "workflow.CaseReopened reaches Communications."
+      }
+    },
+    "/api/v1/workflow/cases/{id}/ombud-referral": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Record that a decided case was referred to an ombud",
+        "description": "The scheme is one the case type names; the case stays open for the ombud\u0027s outcome. Completes asynchronously (GAP-027): workflow.CaseReferredToOmbud reaches Communications.",
+        "operationId": "WorkflowReferCaseToOmbud",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowOmbudReferralRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_REFER_TO_OMBUD"
+        ],
+        "x-eventual-effects": "workflow.CaseReferredToOmbud reaches Communications."
+      }
+    },
+    "/api/v1/workflow/cases/{id}/ombud-outcome": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Record the ombud\u0027s outcome on the referral",
+        "operationId": "WorkflowRecordCaseOmbudOutcome",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowOmbudOutcomeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_RECORD_OMBUD_OUTCOME"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}/share-with-broker": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Let the broker of the case\u0027s policies see it (OQ-108)",
+        "description": "A broker sees the cases it raised; a shared case is also seen by the broker of a policy the case links.",
+        "operationId": "WorkflowShareCaseWithBroker",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_SHARE_WITH_BROKER"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}/legal-hold": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Place a legal hold on the case (privileged)",
+        "description": "Open or closed: a held case is not disposed of after its retention date (OQ-106).",
+        "operationId": "WorkflowPlaceCaseLegalHold",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCaseReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_PLACE_LEGAL_HOLD"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}/legal-hold/release": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Release the case\u0027s legal hold (privileged)",
+        "operationId": "WorkflowReleaseCaseLegalHold",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCaseReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.update",
+        "x-function": [
+          "CASE_RELEASE_LEGAL_HOLD"
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/{id}/redress": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Record compensation or goodwill on an open case, for a second person\u0027s approval (privileged, OQ-104, OQ-109)",
+        "description": "Recorded REQUESTED with an approval of type CASE_REDRESS for its amount; approved by someone else (APPROVED) it is paid through Payments (PAID); rejected, expired or withdrawn it is REJECTED. Completes asynchronously (GAP-027): the approval appears in Workflow\u0027s approvals; once approved, workflow.CaseRedressApproved reaches Payments, which pays it; read the redress again for its status.",
+        "operationId": "WorkflowRecordCaseRedress",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCaseRedressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseRedressView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.redress",
+        "x-function": [
+          "CASE_RECORD_REDRESS"
+        ],
+        "x-eventual-effects": "the approval appears in Workflow\u0027s approvals; once approved, workflow.CaseRedressApproved reaches Payments, which pays it; read the redress again for its status."
+      }
+    },
+    "/api/v1/portal/cases": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "The portal user\u0027s cases: a member\u0027s own, a provider\u0027s own, a broker\u0027s raised or shared with it (OQ-108)",
+        "operationId": "PortalListCases",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowPortalCaseSummaryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_CASES",
+          "BROKER_PORTAL_CASES",
+          "PROVIDER_PORTAL_DISPUTES"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Raise a case: a case type whose portal audiences name this portal, about records of the user\u0027s own",
+        "description": "403 OUT_OF_SCOPE when a linked record is not the user\u0027s (\u00A75). A broker\u0027s complaint for a client gives onBehalfOfPartyId and links the client\u0027s policy that the broker brokers. Completes asynchronously (GAP-027): workflow.CaseOpened reaches Communications.",
+        "operationId": "PortalRaiseCase",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowPortalCaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowPortalCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.create",
+        "x-function": [
+          "CUSTOMER_PORTAL_RAISE_CASE",
+          "BROKER_PORTAL_RAISE_CASE",
+          "PROVIDER_PORTAL_RAISE_DISPUTE"
+        ],
+        "x-eventual-effects": "workflow.CaseOpened reaches Communications."
+      }
+    },
+    "/api/v1/portal/cases/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "A case of the portal user: status, dates, messages, the decision with reasons and the review and ombud options",
+        "operationId": "PortalGetCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowPortalCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_CASES",
+          "BROKER_PORTAL_CASES",
+          "PROVIDER_PORTAL_DISPUTES"
+        ]
+      }
+    },
+    "/api/v1/portal/cases/{id}/messages": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Send a message on one\u0027s own open case",
+        "operationId": "PortalAddCaseMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCaseMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.create",
+        "x-function": [
+          "CUSTOMER_PORTAL_CASE_MESSAGE",
+          "BROKER_PORTAL_CASE_MESSAGE",
+          "PROVIDER_PORTAL_DISPUTE_MESSAGE"
+        ]
+      }
+    },
+    "/api/v1/portal/cases/{id}/appeal": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Appeal one\u0027s own decided case: an internal review of its type\u0027s review type (PPR 18.6)",
+        "description": "Completes asynchronously (GAP-027): workflow.CaseOpened reaches Communications.",
+        "operationId": "PortalAppealCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowPortalAppealRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowPortalCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.create",
+        "x-function": [
+          "CUSTOMER_PORTAL_APPEAL_CASE",
+          "BROKER_PORTAL_APPEAL_CASE",
+          "PROVIDER_PORTAL_APPEAL_DISPUTE"
+        ],
+        "x-eventual-effects": "workflow.CaseOpened reaches Communications."
+      }
+    },
     "/api/v1/documents/documents/generate": {
       "post": {
         "tags": [
@@ -25876,6 +28048,7 @@
                 "BillingAccount",
                 "Bordereau",
                 "CallbackEndpoint",
+                "CaseRedress",
                 "Cession",
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
@@ -25933,6 +28106,7 @@
                 "RiskObject",
                 "RuleDecision",
                 "SearchLogHold",
+                "ServiceCase",
                 "SimulationRun",
                 "StaticDataChange",
                 "Tenant",
@@ -26302,6 +28476,7 @@
                 "BillingAccount",
                 "Bordereau",
                 "CallbackEndpoint",
+                "CaseRedress",
                 "Cession",
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
@@ -26359,6 +28534,7 @@
                 "RiskObject",
                 "RuleDecision",
                 "SearchLogHold",
+                "ServiceCase",
                 "SimulationRun",
                 "StaticDataChange",
                 "Tenant",
@@ -30854,6 +33030,48 @@
           }
         }
       },
+      "CursorPageOfWorkflowCaseSummaryView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowCaseSummaryView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfWorkflowPortalCaseSummaryView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPortalCaseSummaryView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfWorkflowProcessView": {
         "required": [
           "items",
@@ -30883,8 +33101,14 @@
         "properties": {
           "code": {
             "enum": [
+              "CASES_OPEN",
+              "CASES_OVERDUE",
               "CLAIMS_INCURRED",
               "CLAIMS_REPORTED",
+              "COMPLAINTS_RECEIVED",
+              "COMPLAINTS_REFERRED_TO_OMBUD",
+              "COMPLAINTS_REJECTED",
+              "COMPLAINTS_UPHELD",
               "DEAD_LETTERS_OPEN",
               "DELIVERIES_FAILING",
               "DELIVERIES_PARKED",
@@ -30893,6 +33117,7 @@
               "OPEN_ARREARS",
               "PAYMENTS_UNKNOWN",
               "POLICIES_WRITTEN",
+              "REDRESS_PAID",
               "RETURNS_AWAITING_ACTION",
               "RETURNS_BY_STATUS",
               "RETURNS_OVERDUE",
@@ -44277,6 +46502,7 @@
             "enum": [
               "ACCOUNTING_PERIOD",
               "BANK_ACCOUNT",
+              "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "COMMISSION_STATEMENT",
               "GENERAL_CLAIM",
@@ -44303,6 +46529,7 @@
           "approvalType": {
             "enum": [
               "BANK_ACCOUNT_VERIFICATION",
+              "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
               "COMMISSION_STATEMENT",
@@ -44464,6 +46691,7 @@
           "approvalType": {
             "enum": [
               "BANK_ACCOUNT_VERIFICATION",
+              "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
               "COMMISSION_STATEMENT",
@@ -44503,6 +46731,161 @@
           }
         }
       },
+      "WorkflowCaseHistoryView": {
+        "required": [
+          "eventType",
+          "occurredAt",
+          "actor",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "eventType": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "WorkflowCaseLinkInput": {
+        "required": [
+          "linkType",
+          "recordId",
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "linkType": {
+            "type": "string"
+          },
+          "recordId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowCaseLinkRequest": {
+        "required": [
+          "linkType",
+          "recordId",
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "linkType": {
+            "type": "string"
+          },
+          "recordId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowCaseLinkView": {
+        "required": [
+          "linkType",
+          "recordId",
+          "reference",
+          "addedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "linkType": {
+            "enum": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ],
+            "type": "string"
+          },
+          "recordId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "addedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WorkflowCaseMessageRequest": {
+        "required": [
+          "body"
+        ],
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowCaseMessageView": {
+        "required": [
+          "id",
+          "direction",
+          "authorAudience",
+          "body",
+          "sentAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "direction": {
+            "enum": [
+              "IN",
+              "OUT"
+            ],
+            "type": "string"
+          },
+          "authorAudience": {
+            "enum": [
+              "STAFF",
+              "CUSTOMER",
+              "BROKER",
+              "PROVIDER"
+            ],
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "WorkflowCaseNoteRequest": {
         "required": [
           "note"
@@ -44535,6 +46918,758 @@
           }
         }
       },
+      "WorkflowCaseReasonRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowCaseRedressRequest": {
+        "required": [
+          "redressType",
+          "amount",
+          "currency",
+          "payeePartyId",
+          "bankAccountId"
+        ],
+        "type": "object",
+        "properties": {
+          "redressType": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "payeePartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bankAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "WorkflowCaseRedressView": {
+        "required": [
+          "id",
+          "caseId",
+          "redressType",
+          "amount",
+          "currency",
+          "payeePartyId",
+          "bankAccountId",
+          "status",
+          "requestedBy",
+          "requestedAt",
+          "decidedBy",
+          "decidedAt",
+          "paidAt",
+          "paymentId",
+          "rowVersion",
+          "latestRejection"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "redressType": {
+            "enum": [
+              "COMPENSATION",
+              "GOODWILL"
+            ],
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "payeePartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bankAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowRedressStatus"
+          },
+          "requestedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "paidAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "paymentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
+          }
+        }
+      },
+      "WorkflowCaseStatus": {
+        "enum": [
+          "Received",
+          "Acknowledged",
+          "InProgress",
+          "AwaitingComplainant",
+          "Decided",
+          "Closed",
+          "Withdrawn",
+          "Reopened"
+        ]
+      },
+      "WorkflowCaseSummaryView": {
+        "required": [
+          "id",
+          "caseNumber",
+          "caseTypeCode",
+          "family",
+          "status",
+          "outcome",
+          "categoryCode",
+          "receivedAt",
+          "expectedBy",
+          "overdue",
+          "complainantPartyId",
+          "parentCaseId",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "caseTypeCode": {
+            "type": "string"
+          },
+          "family": {
+            "enum": [
+              "ENQUIRY",
+              "COMPLAINT",
+              "DISPUTE",
+              "APPEAL"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowCaseStatus"
+          },
+          "outcome": {
+            "enum": [
+              "UPHELD",
+              "PARTLY_UPHELD",
+              "REJECTED",
+              "WITHDRAWN",
+              "ANSWERED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "categoryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expectedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "complainantPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "parentCaseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "WorkflowCaseView": {
+        "required": [
+          "id",
+          "caseNumber",
+          "caseTypeCode",
+          "family",
+          "status",
+          "outcome",
+          "receivedAt",
+          "receivedChannel",
+          "complainantPartyId",
+          "complainantName",
+          "complainantContact",
+          "onBehalfOfPartyId",
+          "raisedByAudience",
+          "raisedByUserId",
+          "raisedByIntermediaryCode",
+          "raisedByProviderId",
+          "sharedWithBroker",
+          "categoryCode",
+          "summary",
+          "upheldAtReceipt",
+          "reportable",
+          "decisionReasons",
+          "decidedBy",
+          "decidedAt",
+          "parentCaseId",
+          "processInstanceId",
+          "productCode",
+          "orgNodeCode",
+          "acknowledgedAt",
+          "expectedBy",
+          "overdue",
+          "closedAt",
+          "retainUntil",
+          "legalHold",
+          "ombudSchemeCode",
+          "ombudReference",
+          "ombudReferredAt",
+          "ombudOutcome",
+          "ombudOutcomeAt",
+          "links",
+          "history",
+          "messages",
+          "redress",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "caseTypeCode": {
+            "type": "string"
+          },
+          "family": {
+            "enum": [
+              "ENQUIRY",
+              "COMPLAINT",
+              "DISPUTE",
+              "APPEAL"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowCaseStatus"
+          },
+          "outcome": {
+            "enum": [
+              "UPHELD",
+              "PARTLY_UPHELD",
+              "REJECTED",
+              "WITHDRAWN",
+              "ANSWERED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "receivedChannel": {
+            "type": "string"
+          },
+          "complainantPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "complainantName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "complainantContact": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "onBehalfOfPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "raisedByAudience": {
+            "enum": [
+              "STAFF",
+              "CUSTOMER",
+              "BROKER",
+              "PROVIDER"
+            ],
+            "type": "string"
+          },
+          "raisedByUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "raisedByIntermediaryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "raisedByProviderId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sharedWithBroker": {
+            "type": "boolean"
+          },
+          "categoryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "upheldAtReceipt": {
+            "type": "boolean"
+          },
+          "reportable": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "decisionReasons": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "parentCaseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "processInstanceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "orgNodeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acknowledgedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "expectedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "closedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "retainUntil": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "legalHold": {
+            "type": "boolean"
+          },
+          "ombudSchemeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ombudReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ombudReferredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "ombudOutcome": {
+            "enum": [
+              "UPHELD",
+              "PARTLY_UPHELD",
+              "REJECTED",
+              "SETTLED",
+              "DISMISSED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ombudOutcomeAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowCaseLinkView"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowCaseHistoryView"
+            }
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowCaseMessageView"
+            }
+          },
+          "redress": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowCaseRedressView"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "WorkflowComplaintCategoryFigures": {
+        "required": [
+          "categoryCode",
+          "pprCategory",
+          "received",
+          "upheld",
+          "partlyUpheld",
+          "rejected",
+          "rejectionReasons",
+          "escalated",
+          "referredToOmbud",
+          "ombudOutcomes",
+          "compensation",
+          "goodwill",
+          "outstanding",
+          "reportable",
+          "withinTimelines"
+        ],
+        "type": "object",
+        "properties": {
+          "categoryCode": {
+            "type": "string"
+          },
+          "pprCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "received": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "upheld": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "partlyUpheld": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "rejected": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "rejectionReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "escalated": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "referredToOmbud": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "ombudOutcomes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FigurePart"
+            }
+          },
+          "compensation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowCurrencyAmount"
+            }
+          },
+          "goodwill": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowCurrencyAmount"
+            }
+          },
+          "outstanding": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "reportable": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "withinTimelines": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "WorkflowComplaintsReport": {
+        "required": [
+          "from",
+          "to",
+          "asOf",
+          "categories"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowComplaintCategoryFigures"
+            }
+          }
+        }
+      },
       "WorkflowCompleteTaskRequest": {
         "required": [
           "toState",
@@ -44554,6 +47689,68 @@
                 "$ref": "#/components/schemas/JsonElement"
               }
             ]
+          }
+        }
+      },
+      "WorkflowCurrencyAmount": {
+        "required": [
+          "currency",
+          "count",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "WorkflowDecideCaseRequest": {
+        "required": [
+          "outcome",
+          "reasons"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "WorkflowExtendCaseRequest": {
+        "required": [
+          "extendBy",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "extendBy": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -44578,6 +47775,7 @@
           "approvalType": {
             "enum": [
               "BANK_ACCOUNT_VERIFICATION",
+              "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
               "COMMISSION_STATEMENT",
@@ -44614,6 +47812,140 @@
           }
         }
       },
+      "WorkflowOmbudOutcomeRequest": {
+        "required": [
+          "outcome",
+          "at"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string"
+          },
+          "at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "WorkflowOmbudReferralRequest": {
+        "required": [
+          "schemeCode",
+          "ombudReference",
+          "referredAt"
+        ],
+        "type": "object",
+        "properties": {
+          "schemeCode": {
+            "type": "string"
+          },
+          "ombudReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "referredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "WorkflowOpenCaseRequest": {
+        "required": [
+          "caseTypeCode",
+          "receivedChannel",
+          "receivedAt",
+          "complainantPartyId",
+          "complainantName",
+          "complainantContact",
+          "onBehalfOfPartyId",
+          "categoryCode",
+          "summary",
+          "upheldAtReceipt",
+          "parentCaseId",
+          "links"
+        ],
+        "type": "object",
+        "properties": {
+          "caseTypeCode": {
+            "type": "string"
+          },
+          "receivedChannel": {
+            "type": "string"
+          },
+          "receivedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "complainantPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "complainantName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "complainantContact": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "onBehalfOfPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "categoryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "upheldAtReceipt": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "parentCaseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "links": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WorkflowCaseLinkInput"
+            }
+          }
+        }
+      },
       "WorkflowOpenTaskView": {
         "required": [
           "processId",
@@ -44627,6 +47959,346 @@
           },
           "task": {
             "$ref": "#/components/schemas/WorkflowTaskView"
+          }
+        }
+      },
+      "WorkflowPortalAppealRequest": {
+        "required": [
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowPortalCaseLinkView": {
+        "required": [
+          "linkType",
+          "recordId",
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "linkType": {
+            "enum": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ],
+            "type": "string"
+          },
+          "recordId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowPortalCaseMessageView": {
+        "required": [
+          "direction",
+          "body",
+          "sentAt"
+        ],
+        "type": "object",
+        "properties": {
+          "direction": {
+            "enum": [
+              "IN",
+              "OUT"
+            ],
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WorkflowPortalCaseRequest": {
+        "required": [
+          "caseTypeCode",
+          "categoryCode",
+          "summary",
+          "onBehalfOfPartyId",
+          "links"
+        ],
+        "type": "object",
+        "properties": {
+          "caseTypeCode": {
+            "type": "string"
+          },
+          "categoryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "onBehalfOfPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "links": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WorkflowCaseLinkInput"
+            }
+          }
+        }
+      },
+      "WorkflowPortalCaseSummaryView": {
+        "required": [
+          "id",
+          "caseNumber",
+          "caseTypeCode",
+          "family",
+          "status",
+          "outcome",
+          "receivedAt",
+          "expectedBy"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "caseTypeCode": {
+            "type": "string"
+          },
+          "family": {
+            "enum": [
+              "ENQUIRY",
+              "COMPLAINT",
+              "DISPUTE",
+              "APPEAL"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowCaseStatus"
+          },
+          "outcome": {
+            "enum": [
+              "UPHELD",
+              "PARTLY_UPHELD",
+              "REJECTED",
+              "WITHDRAWN",
+              "ANSWERED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expectedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "WorkflowPortalCaseView": {
+        "required": [
+          "id",
+          "caseNumber",
+          "caseTypeCode",
+          "family",
+          "status",
+          "outcome",
+          "receivedAt",
+          "expectedBy",
+          "categoryCode",
+          "summary",
+          "decisionReasons",
+          "decidedAt",
+          "reviewOptions",
+          "ombudDetails",
+          "escalationLevel",
+          "ombudSchemeCode",
+          "ombudReference",
+          "ombudReferredAt",
+          "ombudOutcome",
+          "parentCaseId",
+          "links",
+          "messages"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "caseTypeCode": {
+            "type": "string"
+          },
+          "family": {
+            "enum": [
+              "ENQUIRY",
+              "COMPLAINT",
+              "DISPUTE",
+              "APPEAL"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowCaseStatus"
+          },
+          "outcome": {
+            "enum": [
+              "UPHELD",
+              "PARTLY_UPHELD",
+              "REJECTED",
+              "WITHDRAWN",
+              "ANSWERED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expectedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "categoryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "decisionReasons": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "reviewOptions": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ombudDetails": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationLevel": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "ombudSchemeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ombudReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ombudReferredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "ombudOutcome": {
+            "enum": [
+              "UPHELD",
+              "PARTLY_UPHELD",
+              "REJECTED",
+              "SETTLED",
+              "DISMISSED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "parentCaseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPortalCaseLinkView"
+            }
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPortalCaseMessageView"
+            }
           }
         }
       },
@@ -44715,6 +48387,14 @@
             "format": "int64"
           }
         }
+      },
+      "WorkflowRedressStatus": {
+        "enum": [
+          "Requested",
+          "Approved",
+          "Rejected",
+          "Paid"
+        ]
       },
       "WorkflowRejectApprovalRequest": {
         "required": [

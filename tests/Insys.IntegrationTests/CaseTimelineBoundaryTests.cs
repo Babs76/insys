@@ -27,6 +27,7 @@
 using System.Net;
 using Insys.Workflow.Application;
 using Microsoft.Extensions.Time.Testing;
+using Insys.Workflow.Contracts;
 
 namespace Insys.IntegrationTests;
 

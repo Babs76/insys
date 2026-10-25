@@ -26,6 +26,7 @@
  */
 using Insys.BuildingBlocks.Api.Functions;
 using Insys.Workflow.Application;
+using Insys.Workflow.Contracts;
 
 namespace Insys.Workflow.Api;
 

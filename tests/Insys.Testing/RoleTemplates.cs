@@ -69,6 +69,11 @@ public static class RoleTemplates
         new("TENANT_SWITCH_OFF_MONEY_JOBS", "Stops a tenant's billing and payment jobs (OQ-098)", Flagged: true),
         new("STATIC_DATA_CHANGE_TIER2_MAKER_CHECKER", "Changes which static data changes need a second person", Flagged: true),
         new("TERMINATE_TENANT", "Ends a tenant for good: its users lose access and its data enters retention", Flagged: true),
+        new("CASE_DECIDE_APPEAL", "Decides an appeal against a case's decision (OQ-109)", Flagged: true),
+        new("CASE_RECORD_REDRESS", "Records compensation or goodwill to be paid on a case (OQ-109)", Flagged: true),
+        new("CASE_REOPEN", "Reopens a closed case, a complaint among them (OQ-109)", Flagged: true),
+        new("CASE_PLACE_LEGAL_HOLD", "Keeps a case past its retention (legal hold)", Flagged: true),
+        new("CASE_RELEASE_LEGAL_HOLD", "Lets a held case be disposed of when its retention ends", Flagged: true),
         new("SUSPEND_TENANT", "Stops every user of a tenant from working"),
         new("CHANGE_ISOLATION_PROFILE", "Changes where a tenant's data is held and how it is separated"),
         new("ASSIGN_ROLE", "Grants a user functions; the way to every other privilege"),
@@ -130,10 +135,10 @@ public static class RoleTemplates
             ["LIFE_NEW_BUSINESS", "LIFE_UNDERWRITING", "LIFE_POLICY_ADMIN", "LIFE_POLICY_VALUES", "LIFE_GROUP_SCHEMES", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"],
             Excluded: ["PARTY_BANK_ACCOUNT_VERIFY"], Approves: ["LIFE_UNDERWRITING"]),
         new("CLAIMS_HANDLER", "Claims handler", "STAFF", "Registers, assesses and reserves General and Life claims and recoveries, and drafts payment instructions (the maker)",
-            ["CLAIM_REGISTER", "CLAIM_FINANCIALS", "GENERAL_CLAIMS", "GENERAL_RECOVERIES", "LIFE_CLAIMS", "PARTIES", "DOCUMENTS"],
+            ["CLAIM_REGISTER", "CLAIM_FINANCIALS", "GENERAL_CLAIMS", "GENERAL_RECOVERIES", "LIFE_CLAIMS", "PARTIES", "DOCUMENTS", "DISPUTES_APPEALS"],
             Excluded: ["CLAIMS_RELEASE_INSTRUCTION", "PARTY_BANK_ACCOUNT_VERIFY"]),
         new("CLAIMS_MANAGER", "Claims manager", "STAFF", "Releases payment instructions and approves settlements and Life claims within authority; does not draft instructions",
-            ["CLAIM_REGISTER", "CLAIM_FINANCIALS", "GENERAL_CLAIMS", "GENERAL_RECOVERIES", "LIFE_CLAIMS", "PARTIES", "DOCUMENTS"], Extra: Approving,
+            ["CLAIM_REGISTER", "CLAIM_FINANCIALS", "GENERAL_CLAIMS", "GENERAL_RECOVERIES", "LIFE_CLAIMS", "PARTIES", "DOCUMENTS", "DISPUTES_APPEALS"], Extra: Approving,
             Excluded: ["CLAIMS_DRAFT_INSTRUCTION", "PARTY_BANK_ACCOUNT_VERIFY"], Approves: ["CLAIM_SETTLEMENT", "LIFE_CLAIM", "CLAIM_PAYMENT"]),
         new("HEALTH_CLAIMS_ASSESSOR", "Health claims assessor", "STAFF", "Medical claims, preauthorisations, fraud and utilisation cases",
             ["HEALTH_MEDICAL_CLAIMS", "HEALTH_ACCESS_TO_CARE", "HEALTH_FRAUD_UTILISATION", "PARTIES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY"]),
@@ -146,19 +151,21 @@ public static class RoleTemplates
             ["BILLING", "PAYMENTS", "FINANCE", "HEALTH_PROVIDER_PAYMENTS", "CONFIG_BILLING", "CONFIG_PAYMENTS", "CONFIG_FINANCE"],
             Excluded: ["PAYMENTS_BUILD_BATCH", .. CallbackScreens], Extra: [.. Approving, "PARTY_BANK_ACCOUNTS", "PARTY_BANK_ACCOUNT_VERIFY"],
             PrivilegedGrants: ["TENANT_SWITCH_OFF_MONEY_JOBS", "PAYMENTS_REVERSE"],
-            Approves: ["REFUND", "CLAIM_PAYMENT", "PAYOUT_RELEASE", "PERIOD_REOPEN", "PROVIDER_PAYMENT_RUN", "COMMISSION_STATEMENT", "BANK_ACCOUNT_VERIFICATION"]),
+            Approves: ["REFUND", "CLAIM_PAYMENT", "PAYOUT_RELEASE", "PERIOD_REOPEN", "PROVIDER_PAYMENT_RUN", "COMMISSION_STATEMENT", "BANK_ACCOUNT_VERIFICATION", "CASE_REDRESS"]),
         new("DISTRIBUTION_ADMINISTRATOR", "Distribution administrator", "STAFF", "Intermediaries, commission and their configuration",
             ["INTERMEDIARIES", "COMMISSION", "CONFIG_DISTRIBUTION"]),
         new("REINSURANCE_OFFICER", "Reinsurance officer", "STAFF", "Treaties, cessions and bordereaux", ["REINSURANCE", "CONFIG_REINSURANCE"]),
-        new("COMPLIANCE_OFFICER", "Compliance officer", "STAFF", "Regulatory returns, risk limits, consent, the audit trail and the party search log",
-            ["REGULATORY_REPORTING", "RISK_LIMITS", "CONSENT_PREFERENCES", "AUDIT", "CONFIG_COMPLIANCE"], Extra: ["PARTY_SEARCH_LOG"]),
+        new("COMPLIANCE_OFFICER", "Compliance officer", "STAFF",
+            "Regulatory returns, risk limits, consent, the audit trail and the party search log; complaints, and the impartial review of appeals (PPR 18.6)",
+            ["REGULATORY_REPORTING", "RISK_LIMITS", "CONSENT_PREFERENCES", "AUDIT", "CONFIG_COMPLIANCE", "CUSTOMER_SERVICE"], Extra: ["PARTY_SEARCH_LOG"],
+            PrivilegedGrants: ["CASE_DECIDE_APPEAL"]),
         new("DATA_PROTECTION_OFFICER", "Data protection officer", "STAFF",
             "Anonymises and merges parties, disposes of documents, and places and releases legal holds on documents and the party search log",
             ["CONSENT_PREFERENCES", "AUDIT"], Extra: ["PARTY_SEARCH_LOG"],
             PrivilegedGrants: ["PARTY_ANONYMISE", "PARTY_MERGE_PARTIES", "DOCUMENTS_DISPOSE", "DOCUMENTS_PLACE_LEGAL_HOLD", "DOCUMENTS_RELEASE_LEGAL_HOLD",
-                "PARTY_PLACE_SEARCH_LOG_HOLD", "PARTY_RELEASE_SEARCH_LOG_HOLD"]),
-        new("CUSTOMER_SERVICE_AGENT", "Customer service agent", "STAFF", "Looks up parties, policies and claims, and their notices and documents (cases join it in Wave 2)",
-            ["PARTIES", "CONSENT_PREFERENCES", "NOTIFICATIONS", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. CallbackScreens]),
+                "PARTY_PLACE_SEARCH_LOG_HOLD", "PARTY_RELEASE_SEARCH_LOG_HOLD", "CASE_PLACE_LEGAL_HOLD", "CASE_RELEASE_LEGAL_HOLD"]),
+        new("CUSTOMER_SERVICE_AGENT", "Customer service agent", "STAFF", "Looks up parties, policies and claims, and their notices and documents; handles enquiries and complaints",
+            ["PARTIES", "CONSENT_PREFERENCES", "NOTIFICATIONS", "DOCUMENTS", "CUSTOMER_SERVICE"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. CallbackScreens]),
         new("OPERATIONS_ANALYST", "Operations analyst", "STAFF", "Dashboards, parked deliveries and dead letters (retry and replay), webhooks and work queues; decides no approvals and discards nothing",
             ["ANALYTICS", "INTEGRATION_OPERATIONS", "WORKFLOW"], Excluded: ["WORKFLOW_APPROVE", "WORKFLOW_REJECT"]),
         new("INTEGRATION_ADMINISTRATOR", "Integration administrator", "STAFF",
@@ -234,9 +241,12 @@ public static class RoleTemplates
             + "audit trail, a record's audit history and the party search log (tested). The tenant and platform administrators no longer read the audit trail.");
         s.AppendLine("- **Revised (25 October 2026)** after the first draft was not signed off: the claims and finance templates no longer hold both sides of a payment; "
             + "only the finance manager verifies payee accounts; privileged functions moved to a data protection officer and an integration administrator; the "
-            + "operations analyst decides no approvals and discards nothing; the platform administrator is split. Cases functions join after Wave 2 is built.");
+            + "operations analyst decides no approvals and discards nothing; the platform administrator is split.");
         s.AppendLine("- **Revised again (25 October 2026):** every operational template held the party search log, pulled in from `PARTIES`; only audit roles "
-            + "now hold a function that needs audit read. The Health auditor is approved.").AppendLine();
+            + "now hold a function that needs audit read. The Health auditor is approved. The Wave 2 case functions joined: complaints and enquiries for "
+            + "the customer service agent and the compliance officer (who also decides appeals, PPR 18.6), disputes and appeals for the claims templates, "
+            + "case legal holds for the data protection officer, case redress approved by the finance manager; recording redress and reopening a case are "
+            + "granted one by one.").AppendLine();
 
         s.AppendLine("## Templates").AppendLine();
         s.AppendLine("| Template | For | Sub-domains | Screens | Actions | Privileged it holds | Approves (authority rows) |");

@@ -42,17 +42,6 @@ namespace Insys.Workflow.Application;
 // Free text (summary, messages, complainant name and contact, reasons) is never logged, audited in detail or put in an
 // event or an exception message (§9).
 
-/// <summary>The case permissions (§9). TODO: to move to Workflow.Contracts' WorkflowPermissions with the contract owner.</summary>
-public static class CasePermissions
-{
-    public const string Read = "case.read";
-    public const string Create = "case.create";
-    public const string Update = "case.update";
-    public const string Decide = "case.decide";
-    public const string Redress = "case.redress";
-    public const string ReportRead = "case_report.read";
-}
-
 /// <summary>The privileged functions a handler requires (OQ-109), as TENANT_SWITCH_OFF_MONEY_JOBS is required (OQ-098).</summary>
 public static class CaseFunctions
 {
@@ -61,13 +50,6 @@ public static class CaseFunctions
 
     /// <summary>The JOB function of the case timeline (overdue) and retention jobs.</summary>
     public const string Timelines = "CASE_TIMELINES";
-}
-
-/// <summary>Prerequisite codes cases park on (ADR-022). TODO: to move to PrerequisiteCodes with the building-block owner.</summary>
-public static class CasePrerequisites
-{
-    /// <summary>Item: the case type. A case raised from an event whose type has no timelines in force.</summary>
-    public const string TimelineNotConfigured = "CASE_TIMELINE_NOT_CONFIGURED";
 }
 
 /// <summary>The dashboard figures cases serve (§8, docs/specs/addenda/dashboard-figures.md).</summary>
@@ -492,7 +474,7 @@ public sealed class CaseOpening(ICaseRepository cases, ICaseConfiguration config
         var timelines = await times.Timelines(type.Code, cancellationToken);
         if (timelines.Count == 0 && raisedFromEvent)
         {
-            throw new PrerequisiteMissingException(CasePrerequisites.TimelineNotConfigured, type.Code);
+            throw new PrerequisiteMissingException(PrerequisiteCodes.CaseTimelineNotConfigured, type.Code);
         }
 
         var expectedBy = await times.Due(timelines, CaseSteps.Acknowledge, received, cancellationToken)

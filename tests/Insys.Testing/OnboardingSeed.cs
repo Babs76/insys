@@ -180,6 +180,16 @@ public static class OnboardingSeed
         // SHARED_OPERATIONAL_SETUP
         await database.SeedStaticFilled(tenantId, "workflow.ref_business_calendars", "ACTIVE", "CAL", from);
         await database.SeedStaticFilled(tenantId, "workflow.cfg_task_types_and_work_queues", "EFFECTIVE", "TASKS", from, ("assignment_rule", "MANUAL_PULL"));
+        // Cases (Wave 2, OQ-110): a complaint type with its review type, and its ACKNOWLEDGE and RESOLVE timelines (calendar days, so no calendar is named).
+        await database.SeedStaticFilled(tenantId, "workflow.cfg_case_types", "EFFECTIVE", "COMPLAINT", from, ("case_type_code", "COMPLAINT"), ("family", "COMPLAINT"),
+            ("process_code", "COMPLAINT"), ("link_types", new[] { "POLICY", "CLAIM" }), ("requires_category", false), ("review_case_type_code", "COMPLAINT_REVIEW"),
+            ("appeal_route", "PPR_NFO"), ("ombud_scheme_codes", Array.Empty<string>()), ("portal_audiences", Array.Empty<string>()));
+        foreach (var (step, duration) in new[] { ("ACKNOWLEDGE", "P2D"), ("RESOLVE", "P42D") })
+        {
+            await database.SeedStaticFilled(tenantId, "workflow.cfg_case_timelines", "EFFECTIVE", $"COMPLAINT-{step}", from, ("case_type_code", "COMPLAINT"),
+                ("step", step), ("duration", duration), ("basis", "CALENDAR"), ("extension_allowed", false));
+        }
+
         foreach (var type in new[] { "REFUND", "PAYOUT_RELEASE", "CLAIM_PAYMENT", "ENDORSEMENT", "CLAIM_SETTLEMENT" })
         {
             await database.SeedStaticFilled(tenantId, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", from, ("role_code", "CLERK"),

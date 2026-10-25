@@ -107,6 +107,9 @@ public static class PrerequisiteCodes
     /// </summary>
     public const string ApprovalNotApplied = "APPROVAL_NOT_APPLIED";
 
+    /// <summary>Item: the case type. A case raised from an event whose type has no timelines in force (Wave 2 cases, addenda/cases.md §3).</summary>
+    public const string CaseTimelineNotConfigured = "CASE_TIMELINE_NOT_CONFIGURED";
+
     /// <summary>Item: the JOB function (ADR-026 §2): the tenant disabled it, or is not entitled to its feature. Enabling it retries the delivery.</summary>
     public const string FunctionDisabled = "FUNCTION_DISABLED";
 }

@@ -58048,6 +58048,7 @@
           "approvalType": {
             "enum": [
               "BANK_ACCOUNT_VERIFICATION",
+              "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
               "COMMISSION_STATEMENT",

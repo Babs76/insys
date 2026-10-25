@@ -28,6 +28,17 @@ using Insys.BuildingBlocks.Contracts;
 
 namespace Insys.Workflow.Contracts;
 
+/// <summary>The case permissions (§9). TODO: to move to Workflow.Contracts' WorkflowPermissions with the contract owner.</summary>
+public static class CasePermissions
+{
+    public const string Read = "case.read";
+    public const string Create = "case.create";
+    public const string Update = "case.update";
+    public const string Decide = "case.decide";
+    public const string Redress = "case.redress";
+    public const string ReportRead = "case_report.read";
+}
+
 /// <summary>The four families of case (addenda/cases.md §1): each case type belongs to one.</summary>
 public static class CaseFamilies
 {
