@@ -8,6 +8,18 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`DashboardFigure.code` is an enum** of every figure code the summaries return: `WRITTEN_PREMIUM`, `POLICIES_WRITTEN`, `CLAIMS_INCURRED`, `CLAIMS_REPORTED`, `OPEN_ARREARS`, `PAYMENTS_UNKNOWN`, `RETURNS_BY_STATUS`, `RETURNS_AWAITING_ACTION`, `RETURNS_OVERDUE`, `DELIVERIES_PARKED`, `DELIVERIES_FAILING`, `DEAD_LETTERS_OPEN`, `WEBHOOK_DELIVERIES_FAILING`, `OLDEST_PARKED_AT`, `JOB_FUNCTIONS_OFF`.
 - **Months are `yyyy-MM`:** `fromMonth` and `toMonth` of `GET /analytics/claims-incurred`, and `monthKey` in its rows, have the pattern `^[0-9]{4}-(0[1-9]|1[0-2])$`.
 
+### Approval endings (D-1 to D-5): every way an approval ends leaves its record in a defined state
+- **New endpoint:** `POST /api/v1/workflow/approvals/{id}/withdraw` `{reason}` (If-Match), by the person who asked for the approval only (403 `APPROVAL_NOT_REQUESTER`). The record is put back as for a rejection.
+- **Expiry:** an approval with no decision within its time limit expires; the time limit is per approval type in the new static table `workflow/static/approval-expiry` (`approvalType`, `expiresAfter` as an ISO 8601 duration; 14 days when none is in force). Expiry and withdrawal reach the record's module like a rejection, and the requester gets a follow-up task (process `APPROVAL_FOLLOW_UP`, in their `GET /workflow/tasks?assigneeId=`).
+- **`ApprovalView`:** `status` can be `Expired` or `Withdrawn` with `decisionReason` set (why it expired, or the withdrawal reason) and `decidedAt`.
+- **`latestRejection`** `{ending: REJECTED | EXPIRED | WITHDRAWN, approvalType, by, at, reason}` on every record an approval is about (OQ-113): refund request, commission statement, claim payment instruction, provider payment run, accounting periods (in the list), payout batch, General endorsement and claim, Life underwriting case and claim, product version, static data change request, bank accounts, role assignments that need approval, subject link, first-administrator request. `by` is the checker; null when it expired or was withdrawn.
+- **Statuses:** `PayoutBatch.status` and `ProviderPaymentRun.status` gain `Rejected`. A rejected batch's payments return to the pool for a new batch; a rejected run's claims are released for a new run.
+- **Bank accounts (D-3):** adding an account no longer supersedes the party's active account in that currency; the active one stays active until the new one is verified (then it is `Superseded`). A rejected, expired or withdrawn verification leaves the previous account active.
+- **Commission statements:** a statement whose approval does not end in approval goes back to `Draft` and releases its entitlements and recoveries for the next statement.
+- **Parking (D-5):** an ending a module cannot apply parks with the code `APPROVAL_ENDING_NOT_APPLIED` (item: approval type and ID), shown in the operations view and `/health`, escalated and retried.
+- **Authority (OQ-112):** `workflow/static/delegation-and-approval-authority` gains `currency` (empty: the tenant's base currency). A limit counts only for approvals in its currency.
+- **Error codes:** `APPROVAL_NOT_REQUESTER` (403) is new.
+
 ### Changed behaviour
 - **Analytics' rebuild by business date runs by itself** once per tenant after the release (recorded in `analytics.release_task`); no manual step.
 

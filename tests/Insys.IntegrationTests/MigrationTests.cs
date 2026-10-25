@@ -51,14 +51,14 @@ public sealed class MigrationTests(DatabaseFixture fixture) : IClassFixture<Data
         // V0031: integration.parked_delivery and integration.parking_setting (ADR-022); V0032: claims.fraud_evaluation (F009);
         // V0033: payment.callback_endpoint and payment.callback_receipt (ADR-023); V0045: iam.user_subject_link (external-user access);
         // V0050: general.aggregation_alert (GAP-051); V0051: twelve communication tables (outbox, inbox, four static, six of its own);
-        // V0052: five function catalogue tables (ADR-026); V0055: analytics.release_task.
+        // V0052: five function catalogue tables (ADR-026); V0055: analytics.release_task; V0056: workflow.cfg_approval_expiry.
         // Partitions excluded.
         var tables = await fixture.Database.ScalarAsOwner<long>("""
             SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition
               AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'test_mod')
             """);
-        tables.ShouldBe(154 + 252 + 23 + 3 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 2 + 1 + 1 + 12 + 5 + 1);
+        tables.ShouldBe(154 + 252 + 23 + 3 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 2 + 1 + 1 + 12 + 5 + 1 + 1);
     }
 
     [Fact]
