@@ -315,6 +315,18 @@ public sealed class HealthTests
     }
 
     [Fact]
+    public void ARunApprovedByAnApproval_IsGrantedByIt_AndAChangedOneIsNot_D5()
+    {
+        var run = CalculatedRun();
+        var approvalId = Guid.CreateVersion7();
+
+        run.DecideApproval(true, approvalId, Guid.CreateVersion7(), "the run before a change").Error!.Code.ShouldBe(HealthErrorCodes.ApprovalSubjectChanged);
+        run.GrantedBy(approvalId).ShouldBeFalse();
+        run.DecideApproval(true, approvalId, Guid.CreateVersion7(), run.SubjectHash).IsSuccess.ShouldBeTrue();
+        (run.GrantedBy(approvalId), run.GrantedBy(Guid.CreateVersion7())).ShouldBe((true, false));
+    }
+
+    [Fact]
     public void RejectedPaymentRun_EndsRejected_KeepsItsRemittances_AndReleasesItsClaimsForANewRun_D2()
     {
         var claim = ApprovedForPayment();

@@ -214,6 +214,35 @@ public sealed class LedgerTests
         period.ReopenRequestedBy.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task ReopenGrant_ThePeriodWillNotTake_ParksTheDelivery_ARedeliveryChangesNothing_D5()
+    {
+        var period = OpenOctober();
+        var maker = Guid.CreateVersion7();
+        period.SoftClosePeriod(maker, Now);
+        period.RequestReopen(maker, Now);
+        var policy = new Insys.Finance.Application.PeriodReopenPolicy(new OnePeriod(period));
+        var approvalId = Guid.CreateVersion7();
+        var envelope = new Insys.BuildingBlocks.Contracts.EventEnvelope(Guid.CreateVersion7(), Guid.CreateVersion7(), "workflow.ApprovalGranted", 1, Now, "Approval",
+            approvalId, Guid.CreateVersion7(), null, default);
+
+        // The requester as checker: the period will not take the grant, and the delivery parks (never only logged).
+        var refused = new Insys.Workflow.Contracts.ApprovalGranted(approvalId, "ACCOUNTING_PERIOD", period.Id, "PERIOD_REOPEN", maker, maker);
+        var parked = await Should.ThrowAsync<Insys.BuildingBlocks.Application.Messaging.PrerequisiteMissingException>(() =>
+            policy.Handle(refused, envelope, TestContext.Current.CancellationToken));
+        (parked.Code, parked.Item).ShouldBe(("APPROVAL_NOT_APPLIED", $"PERIOD_REOPEN:{approvalId}"));
+        (period.Status, period.ReopenRequestedBy).ShouldBe((PeriodStatus.SoftClose, maker));
+
+        var granted = refused with { CheckerId = Guid.CreateVersion7() };
+        await policy.Handle(granted, envelope, TestContext.Current.CancellationToken);
+        (period.Status, period.ReopenApplied).ShouldBe((PeriodStatus.Open, true));
+
+        // Delivered again, it changes nothing; another business reference type is not Finance's.
+        await policy.Handle(granted, envelope, TestContext.Current.CancellationToken);
+        await policy.Handle(granted with { BusinessRefType = "OTHER" }, envelope, TestContext.Current.CancellationToken);
+        period.Status.ShouldBe(PeriodStatus.Open);
+    }
+
     private sealed class OnePeriod(AccountingPeriod period) : Insys.Finance.Application.IAccountingPeriods
     {
         public Task<AccountingPeriod?> Covering(DateOnly date, CancellationToken cancellationToken) => Task.FromResult<AccountingPeriod?>(period);

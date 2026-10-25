@@ -392,6 +392,9 @@ public sealed class RefundRequest : AggregateRoot<Guid>
         return refund;
     }
 
+    /// <summary>True when this checker's approval was already applied (approved, and perhaps paid since): a redelivered grant changes nothing.</summary>
+    public bool GrantedBy(Guid checkerId) => Status is RefundStatus.Approved or RefundStatus.Paid && DecidedBy == checkerId;
+
     /// <summary>
     /// Workflow's decision (ApproveRefund or RejectRefund). The checker is never the requester. Every ending other than
     /// approval (rejected, expired, withdrawn) rejects the refund for good; an expired or withdrawn one has no checker

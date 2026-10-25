@@ -157,6 +157,12 @@ public sealed class AccountingPeriod : AggregateRoot<Guid>
     }
 
     /// <summary>
+    /// True when a granted reopen was already applied: no request waits and the period is open (a decided request is not
+    /// kept). A redelivered grant changes nothing.
+    /// </summary>
+    public bool ReopenApplied => ReopenRequestedBy is null && Status == PeriodStatus.Open;
+
+    /// <summary>
     /// Workflow's decision on a reopen request (transition "Reopened with approval"). The checker is never the requester.
     /// Every ending other than approval (rejected, expired, withdrawn) clears the request and the period stays as it is;
     /// an expired or withdrawn one has no checker (Guid.Empty). With no request waiting, such an ending was already applied.

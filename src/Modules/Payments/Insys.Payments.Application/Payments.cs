@@ -791,11 +791,22 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
         Payout($"COMMISSION:{approved.StatementId:N}", PaymentPurposes.Commission, approved.NetAmount, approved.Currency, approved.PayeePartyId,
             Distribution.Contracts.DistributionApprovals.StatementBusinessRefType, approved.StatementId, approved.BankAccountId, cancellationToken);
 
+    /// <summary>
+    /// The batch's approval was granted: the batch is approved for release. A batch already approved by this checker was
+    /// handled by an earlier delivery; one that will not take the approval (it changed after it was submitted: no longer
+    /// built, say, or the checker built it) parks the delivery (APPROVAL_NOT_APPLIED, ADR-022, D-5), never only logged.
+    /// </summary>
     public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (granted.BusinessRefType == PaymentApprovals.PayoutBusinessRefType && await payments.Batch(granted.BusinessRefId, cancellationToken) is { } batch)
+        if (granted.BusinessRefType != PaymentApprovals.PayoutBusinessRefType || await payments.Batch(granted.BusinessRefId, cancellationToken) is not { } batch
+            || batch.GrantedBy(granted.CheckerId))
         {
-            batch.ApproveBatch(granted.CheckerId);
+            return;
+        }
+
+        if (batch.ApproveBatch(granted.CheckerId).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
         }
     }
 

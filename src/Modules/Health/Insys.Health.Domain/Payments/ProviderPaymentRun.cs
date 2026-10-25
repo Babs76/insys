@@ -200,6 +200,9 @@ public sealed class ProviderPaymentRun : AggregateRoot<Guid>
     /// <summary>True when this approval's ending (rejected, expired or withdrawn) was already applied: a redelivery changes nothing.</summary>
     public bool EndedBy(Guid approvalId) => Status == RunStatus.Rejected && ApprovalId == approvalId;
 
+    /// <summary>True when this approval's grant was already applied (approved, and perhaps released since): a redelivered grant changes nothing.</summary>
+    public bool GrantedBy(Guid approvalId) => Status is RunStatus.Approved or RunStatus.Released or RunStatus.Reconciled && ApprovalId == approvalId;
+
     /// <summary>
     /// Command ApproveRun, from Workflow's decision; it applies only to the run as calculated. An approval that ended
     /// without being granted (rejected, expired or withdrawn) ends the run as Rejected (D-2): the caller releases its claims

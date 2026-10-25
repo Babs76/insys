@@ -628,8 +628,24 @@ public sealed class BillingPolicies(IBillingRepository billing, IBusinessDate bu
         }
     }
 
-    public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        DecideRefund(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, granted.SubjectHash, cancellationToken);
+    /// <summary>
+    /// The refund's approval was granted: the refund is approved and its payout follows. A refund already approved by this
+    /// checker is a redelivery; one that will not take the approval (it changed after it was submitted: another subject,
+    /// already decided otherwise) parks the delivery (APPROVAL_NOT_APPLIED, ADR-022, D-5), never only logged.
+    /// </summary>
+    public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (granted.BusinessRefType != BillingApprovals.RefundBusinessRefType || await billing.Refund(granted.BusinessRefId, cancellationToken) is not { } refund
+            || refund.GrantedBy(granted.CheckerId))
+        {
+            return;
+        }
+
+        if (refund.Decide(true, granted.CheckerId, granted.SubjectHash, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
+        }
+    }
 
     /// <summary>
     /// The refund's approval ended without being granted, whether rejected, expired or withdrawn: the refund is rejected for
@@ -642,14 +658,6 @@ public sealed class BillingPolicies(IBillingRepository billing, IBusinessDate bu
             && refund.Decide(false, rejected.CheckerId, rejected.SubjectHash, clock.UtcNow).IsFailure)
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
-        }
-    }
-
-    private async Task DecideRefund(string businessRefType, Guid refundId, bool approved, Guid checkerId, string? subjectHash, CancellationToken cancellationToken)
-    {
-        if (businessRefType == BillingApprovals.RefundBusinessRefType && await billing.Refund(refundId, cancellationToken) is { } refund)
-        {
-            refund.Decide(approved, checkerId, subjectHash, clock.UtcNow);
         }
     }
 }

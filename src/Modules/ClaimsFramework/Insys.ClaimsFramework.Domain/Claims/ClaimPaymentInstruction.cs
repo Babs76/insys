@@ -221,6 +221,15 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
     public bool EndedBy(Guid approvalId) => Status == InstructionStatus.Rejected && ApprovalId == approvalId;
 
     /// <summary>
+    /// True when this approval's grant was already applied: the instruction was approved by it (and has perhaps moved on
+    /// since), or, for new payee details, none wait and the instruction already carries the ones approved. A redelivered
+    /// grant changes nothing.
+    /// </summary>
+    public bool GrantedBy(Guid approvalId, string? subjectHash) =>
+        Status is not (InstructionStatus.Drafted or InstructionStatus.PendingApproval or InstructionStatus.Rejected) && PendingPayeePartyId is null
+        && (ApprovalId == approvalId || subjectHash == SubjectHash);
+
+    /// <summary>
     /// Workflow's decision. The checker was never the maker (Workflow refuses that). It applies only to the subject it
     /// was asked for: the payee, bank account and amount as they were when approval was requested. Every ending other
     /// than approval (rejected, expired, withdrawn) is a rejection: a new instruction is rejected for good; new payee

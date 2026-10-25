@@ -150,8 +150,25 @@ public sealed class PostingPolicies(EventPoster poster) :
 /// <summary>Workflow's decision on reopening a soft-closed period (ADR-009).</summary>
 public sealed class PeriodReopenPolicy(IAccountingPeriods periods) : IIntegrationEventHandler<ApprovalGranted>, IIntegrationEventHandler<ApprovalRejected>
 {
-    public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, cancellationToken);
+    /// <summary>
+    /// The reopen request's approval was granted: the period is open again. A period already reopened, with no request
+    /// waiting, is a redelivery; one that will not take the approval (it changed after the request: no request waits while
+    /// it stays closed, say, or the requester as checker) parks the delivery (APPROVAL_NOT_APPLIED, ADR-022, D-5), never
+    /// only logged.
+    /// </summary>
+    public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (granted.BusinessRefType != FinanceApprovals.PeriodBusinessRefType || await periods.Get(granted.BusinessRefId, cancellationToken) is not { } period
+            || period.ReopenApplied)
+        {
+            return;
+        }
+
+        if (period.DecideReopen(true, granted.CheckerId).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
+        }
+    }
 
     /// <summary>
     /// The reopen request's approval ended without being granted, whether rejected, expired or withdrawn: the request is
@@ -163,14 +180,6 @@ public sealed class PeriodReopenPolicy(IAccountingPeriods periods) : IIntegratio
             && period.DecideReopen(false, rejected.CheckerId).IsFailure)
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
-        }
-    }
-
-    private async Task Decide(string businessRefType, Guid periodId, bool approved, Guid checkerId, CancellationToken cancellationToken)
-    {
-        if (businessRefType == FinanceApprovals.PeriodBusinessRefType && await periods.Get(periodId, cancellationToken) is { } period)
-        {
-            period.DecideReopen(approved, checkerId);
         }
     }
 }

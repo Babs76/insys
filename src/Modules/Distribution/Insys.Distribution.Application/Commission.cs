@@ -311,8 +311,24 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
     public Task Handle(LifePolicyLapsed lapsed, EventEnvelope envelope, CancellationToken cancellationToken) =>
         ClawBack(LifeSubjects.SourceDomain, lapsed.PolicyId, lapsed.LapseDate, "POLICY_LAPSED", cancellationToken);
 
-    public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(granted.BusinessRefType, granted.BusinessRefId, true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash, cancellationToken);
+    /// <summary>
+    /// The statement's approval was granted: it is approved and its net amount is paid to the intermediary. One already
+    /// approved by this approval is a redelivery; one that will not take it (it changed after it was submitted: another
+    /// subject, no longer awaiting approval) parks the delivery (APPROVAL_NOT_APPLIED, ADR-022, D-5), never only logged.
+    /// </summary>
+    public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (granted.BusinessRefType != DistributionApprovals.StatementBusinessRefType || await repository.Statement(granted.BusinessRefId, cancellationToken) is not { } statement
+            || statement.GrantedBy(granted.ApprovalId))
+        {
+            return;
+        }
+
+        if (statement.ApproveStatement(true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
+        }
+    }
 
     /// <summary>
     /// The statement's approval ended without being granted, whether rejected, expired or withdrawn: it returns to draft and
@@ -365,19 +381,6 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
             }
 
             entitlement.ClawBack(reason, businessDate.Today, clock.UtcNow);
-        }
-    }
-
-    private async Task Decide(string businessRefType, Guid statementId, bool approved, Guid approvalId, Guid checkerId, string? subjectHash,
-        CancellationToken cancellationToken)
-    {
-        if (businessRefType == DistributionApprovals.StatementBusinessRefType && await repository.Statement(statementId, cancellationToken) is { } statement)
-        {
-            var decided = statement.ApproveStatement(approved, approvalId, checkerId, subjectHash, clock.UtcNow);
-            if (decided.IsFailure)
-            {
-                logger.LogWarning("Approval {ApprovalId} not applied to statement {StatementId}: {Code}", approvalId, statementId, decided.Error.Code);
-            }
         }
     }
 }

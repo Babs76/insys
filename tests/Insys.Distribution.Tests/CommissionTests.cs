@@ -192,6 +192,22 @@ public sealed class CommissionTests
     }
 
     [Fact]
+    public void AStatementApprovedByAnApproval_IsGrantedByIt_AndAChangedOneIsNot_D5()
+    {
+        var payable = Accrued();
+        payable.MarkPayable();
+        var statement = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-10", "ZAR");
+        statement.PrepareStatement([payable], [], [], Payee, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        var approvalId = Guid.CreateVersion7();
+
+        statement.ApproveStatement(true, approvalId, Guid.CreateVersion7(), "the statement before a change", Now).Error!.Code
+            .ShouldBe(DistributionErrorCodes.StatementChanged);
+        statement.GrantedBy(approvalId).ShouldBeFalse();
+        statement.ApproveStatement(true, approvalId, Guid.CreateVersion7(), statement.SubjectHash, Now).IsSuccess.ShouldBeTrue();
+        (statement.GrantedBy(approvalId), statement.GrantedBy(Guid.CreateVersion7())).ShouldBe((true, false));
+    }
+
+    [Fact]
     public void StatementEnding_ForAnotherSubjectOrAStatementNotAwaitingApproval_IsRefused_D5()
     {
         var payable = Accrued();

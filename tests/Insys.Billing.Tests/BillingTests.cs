@@ -152,6 +152,20 @@ public sealed class BillingTests
         refund.MarkPaid(Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
     }
 
+    [Fact]
+    public void ARefundApprovedByTheChecker_IsGrantedByThem_AndAChangedOneIsNot_D5()
+    {
+        var (account, _) = Issued();
+        var refund = RefundRequest.RequestRefund(Guid.CreateVersion7(), account, 50m, "OVERPAID", Guid.CreateVersion7(), new string('a', 64), Guid.CreateVersion7(), Now)
+            .Value;
+        var checker = Guid.CreateVersion7();
+
+        refund.Decide(true, checker, "the subject before a change", Now).Error!.Code.ShouldBe(BillingErrorCodes.ApprovalSubjectChanged);
+        refund.GrantedBy(checker).ShouldBeFalse();
+        refund.Decide(true, checker, refund.SubjectHash, Now).IsSuccess.ShouldBeTrue();
+        (refund.GrantedBy(checker), refund.GrantedBy(Guid.CreateVersion7())).ShouldBe((true, false));
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
