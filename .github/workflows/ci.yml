@@ -80,7 +80,8 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # About 27 minutes for 275 tests on wave1-1; Communications adds a module and 12 tests (Wave 1 batch 2).
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 

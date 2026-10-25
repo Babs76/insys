@@ -108,9 +108,6 @@ public sealed class WarmupGateMiddleware
             context.Response.Body = Stream.Null;
             await _next(context);
 
-            // Readiness and the channel check list the channel-scoped commands from every endpoint's metadata. Built here,
-            // before the gate opens, so no request (and no transaction it holds) waits while every endpoint is built again.
-            _ = scope.ServiceProvider.GetService<Application.Context.IChannelScopedTransactions>()?.All;
             _warmup.Complete();
             logger.LogInformation("Router built; ready {ElapsedMilliseconds} ms after host start", Math.Round((await _warmup.Completed).TotalMilliseconds));
         }

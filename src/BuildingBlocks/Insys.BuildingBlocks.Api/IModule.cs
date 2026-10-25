@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using System.Collections.Concurrent;
 using Insys.BuildingBlocks.Api.StaticData;
 using Insys.BuildingBlocks.Application.Context;
 using Microsoft.AspNetCore.Builder;
@@ -84,17 +85,36 @@ public sealed record ChannelApprovalFlowMetadata;
 public sealed record PortalEndpointMetadata(IReadOnlyList<string> Kinds);
 
 /// <summary>The channel-scoped transactions, read once from the endpoints: the permission of each channel-scoped command (F005 §2).</summary>
-internal sealed class EndpointChannelScopedTransactions(EndpointDataSource endpoints) : IChannelScopedTransactions
+/// <summary>
+/// The channel-scoped commands (F005), recorded as the router builds each endpoint (a Finally convention on ChannelScoped),
+/// so nothing builds the endpoints a second time to list them: that took 44 s on a busy CI runner inside a readiness
+/// request. The warm-up gate holds requests until the router is built, so the list is complete before any request reads it.
+/// </summary>
+internal static class ChannelScopedRegistry
 {
-    private readonly Lazy<IReadOnlySet<string>> _all = new(() => endpoints.Endpoints
-        .Where(e => e.Metadata.GetMetadata<ChannelScopedMetadata>() is not null && e.Metadata.GetMetadata<StaticDataEndpointMetadata>() is null
-                    && e.Metadata.GetMetadata<PlatformOperatorEndpointMetadata>() is null && e.Metadata.GetMetadata<PortalEndpointMetadata>() is null
-                    && e.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()?.HttpMethods.Any(m => m is not ("GET" or "HEAD")) == true)
-        .Select(e => e.Metadata.GetMetadata<RequiredPermissionMetadata>()?.Permission)
-        .OfType<string>()
-        .ToHashSet(StringComparer.Ordinal));
+    private static readonly ConcurrentDictionary<string, byte> Permissions = new(StringComparer.Ordinal);
 
-    public IReadOnlySet<string> All => _all.Value;
+    public static IReadOnlySet<string> All => Permissions.Keys.ToHashSet(StringComparer.Ordinal);
+
+    public static void Observe(IList<object> metadata)
+    {
+        if (metadata.OfType<StaticDataEndpointMetadata>().Any() || metadata.OfType<PlatformOperatorEndpointMetadata>().Any()
+            || metadata.OfType<PortalEndpointMetadata>().Any()
+            || metadata.OfType<Microsoft.AspNetCore.Routing.HttpMethodMetadata>().LastOrDefault()?.HttpMethods.Any(m => m is not ("GET" or "HEAD")) != true)
+        {
+            return;
+        }
+
+        if (metadata.OfType<RequiredPermissionMetadata>().LastOrDefault()?.Permission is { } permission)
+        {
+            Permissions[permission] = 0;
+        }
+    }
+}
+
+internal sealed class EndpointChannelScopedTransactions : IChannelScopedTransactions
+{
+    public IReadOnlySet<string> All => ChannelScopedRegistry.All;
 }
 
 public static class ChannelScoping
@@ -104,7 +124,12 @@ public static class ChannelScoping
         where TBuilder : IEndpointConventionBuilder => builder.WithMetadata(new OnboardingConfigurationMetadata());
 
     public static TBuilder ChannelScoped<TBuilder>(this TBuilder builder)
-        where TBuilder : IEndpointConventionBuilder => builder.WithMetadata(new ChannelScopedMetadata());
+        where TBuilder : IEndpointConventionBuilder
+    {
+        builder.WithMetadata(new ChannelScopedMetadata());
+        builder.Finally(endpoint => ChannelScopedRegistry.Observe(endpoint.Metadata));
+        return builder;
+    }
 
     public static TBuilder HasApprovalFlow<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder => builder.WithMetadata(new ChannelApprovalFlowMetadata());

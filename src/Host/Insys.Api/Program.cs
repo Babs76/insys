@@ -82,7 +82,7 @@ foreach (var module in modules)
     var moduleGroup = ((RouteGroupBuilder)v1).MapGroup("").ApplyRequestScope();
     if (module.ChannelScoped)
     {
-        moduleGroup.WithMetadata(new ChannelScopedMetadata());
+        moduleGroup.ChannelScoped();
     }
 
     if (module.TransactsBusiness)
