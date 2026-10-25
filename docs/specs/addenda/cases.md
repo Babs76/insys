@@ -1,6 +1,16 @@
 # Addendum: cases: enquiries, complaints, disputes and appeals (Wave 2: F010–F013, F032, F033, F050, F061, F066, F068–F073)
 
-**For sign-off.** Nothing here is built. The open points are OQ-101 to OQ-110.
+**Signed off (25 October 2026, Ade), with these decisions; being built in Wave 2 batch 2.**
+- **OQ-101:** both regimes, by configuration: each case type names its appeal route (`appeal_route`: `PPR_NFO` for insurer tenants, `CMS` for medical-scheme tenants).
+- **OQ-102:** a partial approval is its own claim outcome (settled below the claimed amount, with a required reason); the declined part sends `CLAIM_DECISION_RIGHTS`.
+- **OQ-103:** Life and Health claims gain a reopen, for upheld disputes.
+- **OQ-104:** redress is paid through Payments, with maker-checker.
+- **OQ-105:** open, for compliance.
+- **OQ-106:** case records are kept 5 years after closure, configurable (`workflow.cfg_case_retention`); a legal hold overrides it; for compliance to confirm.
+- **OQ-107:** no confirmation step: the acknowledgement to the complainant is the confirmation.
+- **OQ-108:** a broker sees only the cases it raised, unless staff mark a case shared with the broker (`shared_with_broker`).
+- **OQ-109:** privileged: `CASE_DECIDE_APPEAL` (deciding an appeal), `CASE_RECORD_REDRESS`, `CASE_REOPEN` (of a closed complaint).
+- **OQ-110:** the case checks join `SHARED_OPERATIONAL_SETUP`; no new onboarding step.
 
 - **Basis:**
   - The Workflow module as built: process definitions, tasks and queues, SLAs on business calendars, escalation rules, case notes (SRS workflow and case management; OQ-048, OQ-049).

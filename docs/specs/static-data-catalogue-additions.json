@@ -462,6 +462,282 @@
           "sample": "P14D"
         }
       ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Workflow and Case Management",
+      "subModule": "Cases",
+      "entity": "Case types",
+      "table": "workflow.cfg_case_types",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 1,
+      "proposedOwner": "Compliance Officer",
+      "provenance": "Wave 2 cases (addenda/cases.md, signed off 25 October 2026)",
+      "basis": "addenda/cases.md §3",
+      "fields": [
+        {
+          "name": "case_type_code",
+          "logicalType": "Code",
+          "mandatory": true,
+          "sample": "CUSTOMER_COMPLAINT"
+        },
+        {
+          "name": "family",
+          "logicalType": "Enum",
+          "mandatory": true,
+          "sample": "COMPLAINT"
+        },
+        {
+          "name": "process_code",
+          "logicalType": "Ref Workflow definition",
+          "mandatory": true,
+          "sample": "COMPLAINT"
+        },
+        {
+          "name": "default_queue_code",
+          "logicalType": "Ref Work queue",
+          "mandatory": false,
+          "sample": "COMPLAINTS"
+        },
+        {
+          "name": "link_types",
+          "logicalType": "Enum[]",
+          "mandatory": true,
+          "sample": "POLICY,CLAIM"
+        },
+        {
+          "name": "portal_audiences",
+          "logicalType": "Enum[]",
+          "mandatory": false,
+          "sample": "CUSTOMER"
+        },
+        {
+          "name": "notification_types",
+          "logicalType": "Ref Notification type[]",
+          "mandatory": false,
+          "sample": "CASE_ACKNOWLEDGED"
+        },
+        {
+          "name": "requires_category",
+          "logicalType": "Boolean",
+          "mandatory": true,
+          "sample": "true"
+        },
+        {
+          "name": "review_case_type_code",
+          "logicalType": "Ref Case type",
+          "mandatory": false,
+          "sample": "COMPLAINT_REVIEW"
+        },
+        {
+          "name": "appeal_route",
+          "logicalType": "Enum",
+          "mandatory": true,
+          "sample": "PPR_NFO"
+        },
+        {
+          "name": "ombud_scheme_codes",
+          "logicalType": "Ref Ombud scheme[]",
+          "mandatory": false,
+          "sample": "NFO"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Workflow and Case Management",
+      "subModule": "Cases",
+      "entity": "Case timelines",
+      "table": "workflow.cfg_case_timelines",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 1,
+      "proposedOwner": "Compliance Officer",
+      "provenance": "Wave 2 cases (addenda/cases.md, signed off 25 October 2026)",
+      "basis": "addenda/cases.md §3",
+      "fields": [
+        {
+          "name": "case_type_code",
+          "logicalType": "Ref Case type",
+          "mandatory": true,
+          "sample": "CUSTOMER_COMPLAINT"
+        },
+        {
+          "name": "step",
+          "logicalType": "Enum",
+          "mandatory": true,
+          "sample": "ACKNOWLEDGE"
+        },
+        {
+          "name": "duration",
+          "logicalType": "ISO 8601 duration",
+          "mandatory": true,
+          "sample": "P2D"
+        },
+        {
+          "name": "basis",
+          "logicalType": "Enum",
+          "mandatory": true,
+          "sample": "BUSINESS"
+        },
+        {
+          "name": "calendar_code",
+          "logicalType": "Ref Business calendar",
+          "mandatory": false,
+          "sample": "STANDARD"
+        },
+        {
+          "name": "extension_allowed",
+          "logicalType": "Boolean",
+          "mandatory": true,
+          "sample": "false"
+        },
+        {
+          "name": "max_extension",
+          "logicalType": "ISO 8601 duration",
+          "mandatory": false,
+          "sample": "P10D"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Workflow and Case Management",
+      "subModule": "Cases",
+      "entity": "Case categories",
+      "table": "workflow.ref_case_categories",
+      "class": "REF",
+      "scope": "GT",
+      "tier": 2,
+      "proposedOwner": "Compliance Officer",
+      "provenance": "Wave 2 cases (addenda/cases.md, signed off 25 October 2026)",
+      "basis": "addenda/cases.md §3",
+      "fields": [
+        {
+          "name": "category_code",
+          "logicalType": "Code",
+          "mandatory": true,
+          "sample": "CLAIMS"
+        },
+        {
+          "name": "family",
+          "logicalType": "Enum",
+          "mandatory": true,
+          "sample": "COMPLAINT"
+        },
+        {
+          "name": "ppr_category",
+          "logicalType": "Enum",
+          "mandatory": true,
+          "sample": "CLAIMS"
+        },
+        {
+          "name": "name",
+          "logicalType": "Text",
+          "mandatory": true,
+          "sample": "Insurance risk claims"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Workflow and Case Management",
+      "subModule": "Cases",
+      "entity": "Case reportability",
+      "table": "workflow.cfg_case_reportability",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 1,
+      "proposedOwner": "Compliance Officer",
+      "provenance": "Wave 2 cases (addenda/cases.md, signed off 25 October 2026)",
+      "basis": "addenda/cases.md §3",
+      "fields": [
+        {
+          "name": "case_type_code",
+          "logicalType": "Ref Case type",
+          "mandatory": true,
+          "sample": "CUSTOMER_COMPLAINT"
+        },
+        {
+          "name": "query_window",
+          "logicalType": "ISO 8601 duration",
+          "mandatory": true,
+          "sample": "P5D"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Workflow and Case Management",
+      "subModule": "Cases",
+      "entity": "Ombud schemes",
+      "table": "workflow.ref_ombud_schemes",
+      "class": "REF",
+      "scope": "GT",
+      "tier": 2,
+      "proposedOwner": "Compliance Officer",
+      "provenance": "Wave 2 cases (addenda/cases.md, signed off 25 October 2026)",
+      "basis": "addenda/cases.md §3",
+      "fields": [
+        {
+          "name": "scheme_code",
+          "logicalType": "Code",
+          "mandatory": true,
+          "sample": "NFO"
+        },
+        {
+          "name": "name",
+          "logicalType": "Text",
+          "mandatory": true,
+          "sample": "National Financial Ombud Scheme"
+        },
+        {
+          "name": "contact",
+          "logicalType": "Text",
+          "mandatory": false,
+          "sample": ""
+        },
+        {
+          "name": "referral_information",
+          "logicalType": "Text",
+          "mandatory": true,
+          "sample": ""
+        },
+        {
+          "name": "families",
+          "logicalType": "Enum[]",
+          "mandatory": true,
+          "sample": "COMPLAINT"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Workflow and Case Management",
+      "subModule": "Cases",
+      "entity": "Case retention",
+      "table": "workflow.cfg_case_retention",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 1,
+      "proposedOwner": "Compliance Officer",
+      "provenance": "Wave 2 cases (addenda/cases.md, signed off 25 October 2026)",
+      "basis": "addenda/cases.md §3",
+      "fields": [
+        {
+          "name": "family",
+          "logicalType": "Enum",
+          "mandatory": true,
+          "sample": "COMPLAINT"
+        },
+        {
+          "name": "retain_for",
+          "logicalType": "ISO 8601 duration",
+          "mandatory": true,
+          "sample": "P5Y"
+        }
+      ]
     }
   ]
 }

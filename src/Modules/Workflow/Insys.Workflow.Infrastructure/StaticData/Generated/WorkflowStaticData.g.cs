@@ -34,19 +34,25 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Workflow.Infrastructure.StaticData;
 
-/// <summary>The 8 static data tables owned by the Workflow module.</summary>
+/// <summary>The 14 static data tables owned by the Workflow module.</summary>
 public static class WorkflowStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
         new("workflow", "cfg_approval_expiry", "cfg_approval_expiry", "Approval expiry", "workflow", "approval-expiry", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ApprovalExpiry), typeof(ApprovalExpiryInput), "Workflow and Case Management"),
+        new("workflow", "cfg_case_reportability", "cfg_case_reportability", "Case reportability", "workflow", "case-reportability", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CaseReportability), typeof(CaseReportabilityInput), "Workflow and Case Management"),
+        new("workflow", "cfg_case_retention", "cfg_case_retention", "Case retention", "workflow", "case-retention", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CaseRetention), typeof(CaseRetentionInput), "Workflow and Case Management"),
+        new("workflow", "cfg_case_timelines", "cfg_case_timelines", "Case timelines", "workflow", "case-timelines", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CaseTimelines), typeof(CaseTimelinesInput), "Workflow and Case Management"),
+        new("workflow", "cfg_case_types", "cfg_case_types", "Case types", "workflow", "case-types", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CaseTypes), typeof(CaseTypesInput), "Workflow and Case Management"),
         new("workflow", "cfg_delegation_and_approval_authority", "cfg_delegation_and_approval_authority", "Delegation and approval authority", "workflow", "delegation-and-approval-authority", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DelegationAndApprovalAuthority), typeof(DelegationAndApprovalAuthorityInput), "Workflow and Case Management"),
         new("workflow", "cfg_escalation_rules", "cfg_escalation_rules", "Escalation rules", "workflow", "escalation-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(EscalationRules), typeof(EscalationRulesInput), "Workflow and Case Management"),
         new("workflow", "cfg_sla_definitions", "cfg_sla_definitions", "SLA definitions", "workflow", "sla-definitions", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(SLADefinitions), typeof(SLADefinitionsInput), "Workflow and Case Management"),
         new("workflow", "cfg_task_types_and_work_queues", "cfg_task_types_and_work_queues", "Task types and work queues", "workflow", "task-types-and-work-queues", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(TaskTypesAndWorkQueues), typeof(TaskTypesAndWorkQueuesInput), "Workflow and Case Management"),
         new("workflow", "cfg_workflow_definitions", "cfg_workflow_definitions", "Workflow definitions", "workflow", "workflow-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(WorkflowDefinitions), typeof(WorkflowDefinitionsInput), "Workflow and Case Management"),
         new("workflow", "ref_business_calendars", "ref_business_calendars", "Business calendars", "workflow", "business-calendars", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(BusinessCalendars), typeof(BusinessCalendarsInput), "Workflow and Case Management"),
+        new("workflow", "ref_case_categories", "ref_case_categories", "Case categories", "workflow", "case-categories", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(CaseCategories), typeof(CaseCategoriesInput), "Workflow and Case Management"),
         new("workflow", "ref_exception_codes", "ref_exception_codes", "Exception codes", "workflow", "exception-codes", StaticScope.T, 3, StaticLifecycle.Reference, typeof(ExceptionCodes), typeof(ExceptionCodesInput), "Workflow and Case Management"),
+        new("workflow", "ref_ombud_schemes", "ref_ombud_schemes", "Ombud schemes", "workflow", "ombud-schemes", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(OmbudSchemes), typeof(OmbudSchemesInput), "Workflow and Case Management"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)
@@ -57,6 +63,48 @@ public static class WorkflowStaticData
             StaticModel.ConfigureCommon(entity);
             entity.Property(x => x.ApprovalType).HasColumnName("approval_type").HasMaxLength(30);
             entity.Property(x => x.ExpiresAfter).HasColumnName("expires_after").HasMaxLength(20);
+        });
+        modelBuilder.Entity<CaseReportability>(entity =>
+        {
+            entity.ToTable("cfg_case_reportability", "workflow");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.CaseTypeCode).HasColumnName("case_type_code").HasMaxLength(30);
+            entity.Property(x => x.QueryWindow).HasColumnName("query_window").HasMaxLength(20);
+        });
+        modelBuilder.Entity<CaseRetention>(entity =>
+        {
+            entity.ToTable("cfg_case_retention", "workflow");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.Family).HasColumnName("family").HasMaxLength(12);
+            entity.Property(x => x.RetainFor).HasColumnName("retain_for").HasMaxLength(20);
+        });
+        modelBuilder.Entity<CaseTimelines>(entity =>
+        {
+            entity.ToTable("cfg_case_timelines", "workflow");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.CaseTypeCode).HasColumnName("case_type_code").HasMaxLength(30);
+            entity.Property(x => x.Step).HasColumnName("step").HasMaxLength(30);
+            entity.Property(x => x.Duration).HasColumnName("duration").HasMaxLength(20);
+            entity.Property(x => x.Basis).HasColumnName("basis").HasMaxLength(10);
+            entity.Property(x => x.CalendarCode).HasColumnName("calendar_code").HasMaxLength(30);
+            entity.Property(x => x.ExtensionAllowed).HasColumnName("extension_allowed");
+            entity.Property(x => x.MaxExtension).HasColumnName("max_extension").HasMaxLength(20);
+        });
+        modelBuilder.Entity<CaseTypes>(entity =>
+        {
+            entity.ToTable("cfg_case_types", "workflow");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.CaseTypeCode).HasColumnName("case_type_code").HasMaxLength(30);
+            entity.Property(x => x.Family).HasColumnName("family").HasMaxLength(12);
+            entity.Property(x => x.ProcessCode).HasColumnName("process_code").HasMaxLength(30);
+            entity.Property(x => x.DefaultQueueCode).HasColumnName("default_queue_code").HasMaxLength(30);
+            entity.Property(x => x.LinkTypes).HasColumnName("link_types");
+            entity.Property(x => x.PortalAudiences).HasColumnName("portal_audiences");
+            entity.Property(x => x.NotificationTypes).HasColumnName("notification_types");
+            entity.Property(x => x.RequiresCategory).HasColumnName("requires_category");
+            entity.Property(x => x.ReviewCaseTypeCode).HasColumnName("review_case_type_code").HasMaxLength(30);
+            entity.Property(x => x.AppealRoute).HasColumnName("appeal_route").HasMaxLength(10);
+            entity.Property(x => x.OmbudSchemeCodes).HasColumnName("ombud_scheme_codes");
         });
         modelBuilder.Entity<DelegationAndApprovalAuthority>(entity =>
         {
@@ -116,12 +164,31 @@ public static class WorkflowStaticData
             entity.Property(x => x.HolidayCalendar).HasColumnName("holiday_calendar").HasMaxLength(80);
             entity.Property(x => x.TimeZone).HasColumnName("time_zone").HasMaxLength(80);
         });
+        modelBuilder.Entity<CaseCategories>(entity =>
+        {
+            entity.ToTable("ref_case_categories", "workflow");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.CategoryCode).HasColumnName("category_code").HasMaxLength(30);
+            entity.Property(x => x.Family).HasColumnName("family").HasMaxLength(12);
+            entity.Property(x => x.PprCategory).HasColumnName("ppr_category").HasMaxLength(30);
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(200);
+        });
         modelBuilder.Entity<ExceptionCodes>(entity =>
         {
             entity.ToTable("ref_exception_codes", "workflow");
             StaticModel.ConfigureCommon(entity);
             entity.Property(x => x.Category).HasColumnName("category").HasMaxLength(40);
             entity.Property(x => x.DefaultQueue).HasColumnName("default_queue").HasMaxLength(80);
+        });
+        modelBuilder.Entity<OmbudSchemes>(entity =>
+        {
+            entity.ToTable("ref_ombud_schemes", "workflow");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.SchemeCode).HasColumnName("scheme_code").HasMaxLength(20);
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(200);
+            entity.Property(x => x.Contact).HasColumnName("contact");
+            entity.Property(x => x.ReferralInformation).HasColumnName("referral_information");
+            entity.Property(x => x.Families).HasColumnName("families");
         });
     }
 }

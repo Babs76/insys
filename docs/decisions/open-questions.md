@@ -1042,33 +1042,43 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 ### OQ-101 Which regime Health cases follow (Wave 2 cases, `addenda/cases.md` §6)
 - **The gap:** a medical scheme settles disputes through its own rules and the Council for Medical Schemes (Medical Schemes Act s29(1)(j), s47, s48, s50); a health insurance product under the Insurance Acts follows the PPR and the NFO.
 - **Open:** whether INSYS Health serves medical schemes, health insurance products, or both, which decides the Health claim appeal path (F032).
+- **Decided (25 October 2026, Ade; the cases addendum signed off):** both, by configuration. Each case type names its appeal route; insurer tenants use the PPR and the NFO, medical-scheme tenants the CMS. **Closed.**
 
 ### OQ-102 Partial approval of a claim (F010)
 - **Built:** a settlement below the claimed amount, with a rationale. **Open:** whether a partial approval is its own outcome.
+- **Decided (25 October 2026, Ade; the cases addendum signed off):** a partial approval is its own claim outcome (settled below the claimed amount, with a required reason), and the declined part sends `CLAIM_DECISION_RIGHTS`. **Closed.**
 
 ### OQ-103 Reopening Life and Health claims (F013)
 - **Built:** General only. **Proposed:** Life and Health gain a reopen for reassessment after an upheld dispute or appeal (`addenda/cases.md` §2). **Open:** confirm, and their states.
+- **Decided (25 October 2026, Ade; the cases addendum signed off):** yes: Life and Health claims gain a reopen, for upheld disputes. **Closed.**
 
 ### OQ-104 Redress payments (PPR 18.8.3)
 - **Open:** whether compensation and goodwill payments decided on a complaint are paid through INSYS (Payments, maker-checker) or only recorded.
+- **Decided (25 October 2026, Ade; the cases addendum signed off):** redress is paid through Payments, with maker-checker. **Closed.**
 
 ### OQ-105 Complaint reporting to the Authority (PPR 18.11)
 - **Open:** the prescribed format and frequency; not verified. The report of `addenda/cases.md` §8 gives the 18.8.3 data per category.
+- **Decided (25 October 2026, Ade; the cases addendum signed off):** stays open, for compliance. **Open.**
 
 ### OQ-106 How long case records are kept
 - **Open:** Rule 18 states no period; FAIS requires complaint records for at least 5 years. For compliance to set, with POPIA s14.
+- **Decided (25 October 2026, Ade; the cases addendum signed off):** 5 years after closure, configurable; a legal hold overrides it. For compliance to confirm. **Closed for the build.**
 
 ### OQ-107 Complaints taken by staff for a caller
 - **Open:** whether a complaint staff record from a call or visit needs the complainant's confirmation before it counts.
+- **Decided (25 October 2026, Ade; the cases addendum signed off):** no confirmation step: the acknowledgement to the complainant is the confirmation. **Closed.**
 
 ### OQ-108 What a broker sees of its clients' cases
 - **Proposed:** cases it raised, and those on records it brokers that staff mark shareable. **Open:** confirm.
+- **Decided (25 October 2026, Ade; the cases addendum signed off):** a broker sees only the cases it raised, unless staff mark a case shared with the broker. **Closed.**
 
 ### OQ-109 Privileged case functions
 - **Proposed:** deciding an appeal and recording redress. **Open:** confirm.
+- **Decided (25 October 2026, Ade; the cases addendum signed off):** privileged: `CASE_DECIDE` on an appeal, `CASE_RECORD_REDRESS`, and `CASE_REOPEN` of a closed complaint. **Closed.**
 
 ### OQ-110 Onboarding readiness for cases
 - **Open:** whether the case configuration (`addenda/cases.md` §10) is part of ORGANISATION_AND_ACCESS or a new step.
+- **Decided (25 October 2026, Ade; the cases addendum signed off):** the case checks join `SHARED_OPERATIONAL_SETUP`; no new onboarding step. **Closed.**
 
 ### OQ-111 Default roles for static data maintenance (front-end request 54)
 - **Built:** static data is maintained through `SD_{MODULE}_VIEW`, `_MAINTAIN` and `_APPROVE` functions granted to roles; scope decides who (tenant, platform, or both), tier decides approval. INSYS seeds no role beyond the first tenant administrator.

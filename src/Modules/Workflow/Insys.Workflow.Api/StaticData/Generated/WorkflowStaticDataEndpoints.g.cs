@@ -43,12 +43,18 @@ public static class WorkflowStaticDataEndpoints
     public static void MapStaticData(IEndpointRouteBuilder api)
     {
         api.MapStaticEntity<WorkflowDbContext, ApprovalExpiry, ApprovalExpiryInput>(WorkflowStaticData.Descriptors[0], Tag);
-        api.MapStaticEntity<WorkflowDbContext, DelegationAndApprovalAuthority, DelegationAndApprovalAuthorityInput>(WorkflowStaticData.Descriptors[1], Tag);
-        api.MapStaticEntity<WorkflowDbContext, EscalationRules, EscalationRulesInput>(WorkflowStaticData.Descriptors[2], Tag);
-        api.MapStaticEntity<WorkflowDbContext, SLADefinitions, SLADefinitionsInput>(WorkflowStaticData.Descriptors[3], Tag);
-        api.MapStaticEntity<WorkflowDbContext, TaskTypesAndWorkQueues, TaskTypesAndWorkQueuesInput>(WorkflowStaticData.Descriptors[4], Tag);
-        api.MapStaticEntity<WorkflowDbContext, WorkflowDefinitions, WorkflowDefinitionsInput>(WorkflowStaticData.Descriptors[5], Tag);
-        api.MapStaticEntity<WorkflowDbContext, BusinessCalendars, BusinessCalendarsInput>(WorkflowStaticData.Descriptors[6], Tag);
-        api.MapStaticEntity<WorkflowDbContext, ExceptionCodes, ExceptionCodesInput>(WorkflowStaticData.Descriptors[7], Tag);
+        api.MapStaticEntity<WorkflowDbContext, CaseReportability, CaseReportabilityInput>(WorkflowStaticData.Descriptors[1], Tag);
+        api.MapStaticEntity<WorkflowDbContext, CaseRetention, CaseRetentionInput>(WorkflowStaticData.Descriptors[2], Tag);
+        api.MapStaticEntity<WorkflowDbContext, CaseTimelines, CaseTimelinesInput>(WorkflowStaticData.Descriptors[3], Tag);
+        api.MapStaticEntity<WorkflowDbContext, CaseTypes, CaseTypesInput>(WorkflowStaticData.Descriptors[4], Tag);
+        api.MapStaticEntity<WorkflowDbContext, DelegationAndApprovalAuthority, DelegationAndApprovalAuthorityInput>(WorkflowStaticData.Descriptors[5], Tag);
+        api.MapStaticEntity<WorkflowDbContext, EscalationRules, EscalationRulesInput>(WorkflowStaticData.Descriptors[6], Tag);
+        api.MapStaticEntity<WorkflowDbContext, SLADefinitions, SLADefinitionsInput>(WorkflowStaticData.Descriptors[7], Tag);
+        api.MapStaticEntity<WorkflowDbContext, TaskTypesAndWorkQueues, TaskTypesAndWorkQueuesInput>(WorkflowStaticData.Descriptors[8], Tag);
+        api.MapStaticEntity<WorkflowDbContext, WorkflowDefinitions, WorkflowDefinitionsInput>(WorkflowStaticData.Descriptors[9], Tag);
+        api.MapStaticEntity<WorkflowDbContext, BusinessCalendars, BusinessCalendarsInput>(WorkflowStaticData.Descriptors[10], Tag);
+        api.MapStaticEntity<WorkflowDbContext, CaseCategories, CaseCategoriesInput>(WorkflowStaticData.Descriptors[11], Tag);
+        api.MapStaticEntity<WorkflowDbContext, ExceptionCodes, ExceptionCodesInput>(WorkflowStaticData.Descriptors[12], Tag);
+        api.MapStaticEntity<WorkflowDbContext, OmbudSchemes, OmbudSchemesInput>(WorkflowStaticData.Descriptors[13], Tag);
     }
 }

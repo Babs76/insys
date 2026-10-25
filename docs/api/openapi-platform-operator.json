@@ -12419,6 +12419,804 @@
         ]
       }
     },
+    "/api/v1/workflow/static/case-categories/global/{code}/versions": {
+      "get": {
+        "tags": [
+          "Workflow static data"
+        ],
+        "summary": "List every global (platform administrators) version of a Case categories code",
+        "operationId": "ListWorkflowCaseCategoriesVersionsGlobal",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowCaseCategories"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/workflow/static/case-categories/global": {
+      "post": {
+        "tags": [
+          "Workflow static data"
+        ],
+        "summary": "Create a global (platform administrators) Case categories draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreateWorkflowCaseCategoriesDraftGlobal",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCaseCategoriesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseCategories"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/workflow/static/case-categories/global/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Workflow static data"
+        ],
+        "summary": "Edit a global (platform administrators) Case categories draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditWorkflowCaseCategoriesDraftGlobal",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCaseCategoriesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseCategories"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/workflow/static/case-categories/global/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Workflow static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a global (platform administrators) Case categories version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangeWorkflowCaseCategoriesLifecycleGlobal",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseCategories"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/workflow/static/case-categories/global/imports": {
+      "post": {
+        "tags": [
+          "Workflow static data"
+        ],
+        "summary": "Import global (platform administrators) Case categories drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012).",
+        "operationId": "ImportWorkflowCaseCategoriesGlobal",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfWorkflowCaseCategoriesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/workflow/static/ombud-schemes/global/{code}/versions": {
+      "get": {
+        "tags": [
+          "Workflow static data"
+        ],
+        "summary": "List every global (platform administrators) version of a Ombud schemes code",
+        "operationId": "ListWorkflowOmbudSchemesVersionsGlobal",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowOmbudSchemes"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/workflow/static/ombud-schemes/global": {
+      "post": {
+        "tags": [
+          "Workflow static data"
+        ],
+        "summary": "Create a global (platform administrators) Ombud schemes draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreateWorkflowOmbudSchemesDraftGlobal",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowOmbudSchemesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowOmbudSchemes"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/workflow/static/ombud-schemes/global/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Workflow static data"
+        ],
+        "summary": "Edit a global (platform administrators) Ombud schemes draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditWorkflowOmbudSchemesDraftGlobal",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowOmbudSchemesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowOmbudSchemes"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/workflow/static/ombud-schemes/global/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Workflow static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a global (platform administrators) Ombud schemes version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangeWorkflowOmbudSchemesLifecycleGlobal",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowOmbudSchemes"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/workflow/static/ombud-schemes/global/imports": {
+      "post": {
+        "tags": [
+          "Workflow static data"
+        ],
+        "summary": "Import global (platform administrators) Ombud schemes drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012).",
+        "operationId": "ImportWorkflowOmbudSchemesGlobal",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfWorkflowOmbudSchemesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
     "/api/v1/{module}/static/{entity}/global/{code}/versions/{versionNumber}/approve": {
       "post": {
         "tags": [
@@ -53637,6 +54435,42 @@
           }
         }
       },
+      "StaticDataImportOfWorkflowCaseCategoriesInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowCaseCategoriesInput"
+            }
+          }
+        }
+      },
+      "StaticDataImportOfWorkflowOmbudSchemesInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowOmbudSchemesInput"
+            }
+          }
+        }
+      },
       "StaticDataImportResult": {
         "required": [
           "imported"
@@ -56786,6 +57620,335 @@
           }
         }
       },
+      "WorkflowCaseCategories": {
+        "type": "object",
+        "properties": {
+          "categoryCode": {
+            "type": "string"
+          },
+          "family": {
+            "enum": [
+              "ENQUIRY",
+              "COMPLAINT",
+              "DISPUTE",
+              "APPEAL"
+            ],
+            "type": "string"
+          },
+          "pprCategory": {
+            "enum": [
+              "POLICY_DESIGN",
+              "INFORMATION_PROVIDED",
+              "ADVICE",
+              "POLICY_PERFORMANCE",
+              "SERVICE",
+              "ACCESSIBILITY_CHANGES",
+              "COMPLAINTS_HANDLING",
+              "CLAIMS",
+              "OTHER"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "PENDING_APPROVAL",
+              "APPROVED",
+              "ACTIVE",
+              "DEPRECATED",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "WorkflowCaseCategoriesInput": {
+        "type": "object",
+        "properties": {
+          "categoryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "family": {
+            "enum": [
+              "ENQUIRY",
+              "COMPLAINT",
+              "DISPUTE",
+              "APPEAL",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pprCategory": {
+            "enum": [
+              "POLICY_DESIGN",
+              "INFORMATION_PROVIDED",
+              "ADVICE",
+              "POLICY_PERFORMANCE",
+              "SERVICE",
+              "ACCESSIBILITY_CHANGES",
+              "COMPLAINTS_HANDLING",
+              "CLAIMS",
+              "OTHER",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
       "WorkflowLatestRejection": {
         "required": [
           "ending",
@@ -56839,6 +58002,329 @@
             "format": "date-time"
           },
           "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowOmbudSchemes": {
+        "type": "object",
+        "properties": {
+          "schemeCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "contact": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "referralInformation": {
+            "type": "string"
+          },
+          "families": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "ENQUIRY",
+                "COMPLAINT",
+                "DISPUTE",
+                "APPEAL"
+              ],
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "PENDING_APPROVAL",
+              "APPROVED",
+              "ACTIVE",
+              "DEPRECATED",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "WorkflowOmbudSchemesInput": {
+        "type": "object",
+        "properties": {
+          "schemeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contact": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "referralInformation": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "families": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "enum": [
+                "ENQUIRY",
+                "COMPLAINT",
+                "DISPUTE",
+                "APPEAL"
+              ],
+              "type": "string"
+            }
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
             "type": "string"
           }
         }
