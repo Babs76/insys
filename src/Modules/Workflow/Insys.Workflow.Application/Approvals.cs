@@ -35,13 +35,14 @@ using Insys.Identity.Contracts;
 using Insys.StaticData.Contracts;
 using Insys.Workflow.Contracts;
 using Insys.Workflow.Domain.Approvals;
+using Insys.Workflow.Domain.Processes;
 using Microsoft.Extensions.Options;
 
 namespace Insys.Workflow.Application;
 
 public sealed class ApprovalOptions
 {
-    /// <summary>TODO(spec): how long an approval may wait is not specified.</summary>
+    /// <summary>How long an approval waits when its type has no expiry in force (workflow.cfg_approval_expiry); not specified, so 14 days.</summary>
     public TimeSpan DefaultExpiry { get; set; } = TimeSpan.FromDays(14);
 }
 
@@ -85,6 +86,15 @@ public sealed record DecideByReference(string BusinessRefType, Guid BusinessRefI
 
 public sealed record ExpireApproval(Guid ApprovalId) : ICommand<long>;
 
+/// <summary>Command WithdrawApproval: the requester no longer wants it; the owning module is told, as for a rejection.</summary>
+public sealed record WithdrawApproval(Guid ApprovalId, string Reason, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+
+/// <summary>How long an approval of each type waits before it expires (workflow.cfg_approval_expiry); the default when none is in force.</summary>
+public interface IApprovalExpiry
+{
+    Task<TimeSpan?> For(string approvalType, DateOnly day, CancellationToken cancellationToken);
+}
+
 public sealed record ListApprovals(string? Status, string? BusinessRefType, Guid? BusinessRefId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ApprovalView>>;
 
 public sealed record GetApproval(Guid ApprovalId) : IQuery<ApprovalView>;
@@ -94,6 +104,32 @@ public sealed record DueApprovals(DateTimeOffset Now) : IQuery<IReadOnlyList<Gui
 public sealed class RejectValidator : AbstractValidator<Reject>
 {
     public RejectValidator() => RuleFor(c => c.Reason).NotEmpty().MaximumLength(2000);
+}
+
+public sealed class WithdrawApprovalValidator : AbstractValidator<WithdrawApproval>
+{
+    public WithdrawApprovalValidator() => RuleFor(c => c.Reason).NotEmpty().MaximumLength(2000);
+}
+
+/// <summary>
+/// Tells the requester that their approval expired or was withdrawn for them: a follow-up task on the built-in process
+/// APPROVAL_FOLLOW_UP, assigned to them, due in one business day, so it is in their work list.
+/// </summary>
+public sealed class RequesterFollowUp(IProcessRepository processes, Contracts.IBusinessTime businessTime, ITenantContext tenant, IClock clock, IAuditTrail audit)
+{
+    public const string QueueCode = "REQUESTER";
+
+    public async Task Open(Approval approval, string ending, CancellationToken cancellationToken)
+    {
+        var now = clock.UtcNow;
+        var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ApprovalFollowUp, approval.BusinessRefType, approval.BusinessRefId,
+            _ => new TaskRouting(QueueCode, null, due), now).Value;
+        process.AssignTask(process.OpenTask!.Id, approval.MakerId);
+        processes.Add(process);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Id.ToString(),
+            new Dictionary<string, string?> { ["process"] = BuiltInProcesses.ApprovalFollowUp.ProcessCode, ["approval"] = approval.Id.ToString(), ["ending"] = ending }));
+    }
 }
 
 internal static class Checker
@@ -111,7 +147,7 @@ internal static class Checker
 /// permission on the route is the authority, with maker and checker still different (SDM-003; OQ-050).
 /// </summary>
 public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader authority, IEnumerable<IApprovalAuthoritySource> sources, ITenantContext tenant,
-    IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
+    IExecutionContext execution, IBusinessDate businessDate, Tenancy.Contracts.ITenantBaseCurrency baseCurrency, IClock clock, IAuditTrail audit)
 {
     private const string PermissionAuthority = "(static_data.approve)";
 
@@ -148,7 +184,8 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
             grants = [.. grants, new AuthorityGrant(PermissionAuthority, approval.ApprovalType, 0m)];
         }
 
-        return approval.Approve(checkerId, grants, clock.UtcNow);
+        return approval.Approve(checkerId, grants, clock.UtcNow,
+            await baseCurrency.BaseCurrency(tenant.RequireTenantId(), businessDate.Today, cancellationToken));
     }
 }
 
@@ -216,7 +253,30 @@ internal sealed class DecideByReferenceHandler(IApprovalRepository approvals, Ap
     }
 }
 
-internal sealed class ExpireApprovalHandler(IApprovalRepository approvals, IClock clock, IAuditTrail audit) : ICommandHandler<ExpireApproval, long>
+internal sealed class WithdrawApprovalHandler(IApprovalRepository approvals, IExecutionContext execution, IClock clock, IAuditTrail audit)
+    : ICommandHandler<WithdrawApproval, long>
+{
+    public async Task<Result<long>> Handle(WithdrawApproval command, CancellationToken cancellationToken)
+    {
+        var requester = Checker.Require(execution);
+        var approval = await approvals.Get(command.ApprovalId, cancellationToken);
+        if (requester.IsFailure || approval is null)
+        {
+            return requester.IsFailure ? requester.Error : Error.NotFound(ErrorCodes.NotFound, "The approval was not found.");
+        }
+
+        if (approval.RowVersion != command.ExpectedVersion)
+        {
+            return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The approval has changed since it was read.");
+        }
+
+        audit.Record(new AuditEntry("APPROVAL", "Withdraw", nameof(Approval), approval.Id.ToString(), new Dictionary<string, string?> { ["reason"] = command.Reason }));
+        var result = approval.WithdrawByRequester(requester.Value, command.Reason, clock.UtcNow);
+        return result.IsFailure ? result.Error : approval.RowVersion + 1;
+    }
+}
+
+internal sealed class ExpireApprovalHandler(IApprovalRepository approvals, RequesterFollowUp followUp, IClock clock, IAuditTrail audit) : ICommandHandler<ExpireApproval, long>
 {
     public async Task<Result<long>> Handle(ExpireApproval command, CancellationToken cancellationToken)
     {
@@ -228,7 +288,13 @@ internal sealed class ExpireApprovalHandler(IApprovalRepository approvals, ICloc
 
         audit.Record(new AuditEntry("APPROVAL", "Expire", nameof(Approval), approval.Id.ToString()));
         var result = approval.Expire(clock.UtcNow);
-        return result.IsFailure ? result.Error : approval.RowVersion + 1;
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        await followUp.Open(approval, Contracts.ApprovalEndings.Expired, cancellationToken);
+        return approval.RowVersion + 1;
     }
 }
 
@@ -255,7 +321,7 @@ internal sealed class DueApprovalsHandler(IApprovalRepository approvals) : IQuer
 /// reference that already has an approval waiting is a duplicate and changes nothing.
 /// </summary>
 public sealed class RequestApprovalPolicy(IApprovalRepository approvals, IClock clock, IOptions<ApprovalOptions> options, IEnumerable<IApprovalScopeSource> scopes,
-    ITenantContext tenant) : IIntegrationEventHandler<ApprovalRequested>
+    ITenantContext tenant, IApprovalExpiry expiry, IBusinessDate businessDate) : IIntegrationEventHandler<ApprovalRequested>
 {
     public async Task Handle(ApprovalRequested requested, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -266,7 +332,9 @@ public sealed class RequestApprovalPolicy(IApprovalRepository approvals, IClock 
 
         var now = clock.UtcNow;
         var approval = Approval.RequestApproval(Guid.CreateVersion7(), requested.BusinessRefType, requested.BusinessRefId, requested.ApprovalType, requested.MakerId,
-            requested.Amount, requested.Currency, requested.Reason, now, now + options.Value.DefaultExpiry, requested.SubjectHash, requested.RequiredPermission);
+            requested.Amount, requested.Currency, requested.Reason, now,
+            now + (await expiry.For(requested.ApprovalType, businessDate.Today, cancellationToken) ?? options.Value.DefaultExpiry), requested.SubjectHash,
+            requested.RequiredPermission);
 
         // F103 (addenda/access-scopes.md §4): an approval about a scoped record carries that record's product and node.
         if (scopes.FirstOrDefault(s => s.Covers(requested.BusinessRefType)) is { } source)
@@ -279,14 +347,18 @@ public sealed class RequestApprovalPolicy(IApprovalRepository approvals, IClock 
     }
 }
 
-/// <summary>Workflow's policy for workflow.ApprovalWithdrawn: the business reference's waiting approval is withdrawn.</summary>
-public sealed class WithdrawApprovalPolicy(IApprovalRepository approvals) : IIntegrationEventHandler<ApprovalWithdrawn>
+/// <summary>
+/// Workflow's policy for workflow.ApprovalWithdrawn: the business reference's waiting approval is withdrawn for the
+/// requester, who is told (a follow-up task); the owning module receives the ending, as for a rejection.
+/// </summary>
+public sealed class WithdrawApprovalPolicy(IApprovalRepository approvals, RequesterFollowUp followUp, IClock clock) : IIntegrationEventHandler<ApprovalWithdrawn>
 {
     public async Task Handle(ApprovalWithdrawn withdrawn, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (await approvals.FindRequested(withdrawn.BusinessRefType, withdrawn.BusinessRefId, cancellationToken) is { } approval)
+        if (await approvals.FindRequested(withdrawn.BusinessRefType, withdrawn.BusinessRefId, cancellationToken) is { } approval
+            && approval.Withdraw(withdrawn.Reason, clock.UtcNow).IsSuccess)
         {
-            approval.Withdraw();
+            await followUp.Open(approval, Contracts.ApprovalEndings.Withdrawn, cancellationToken);
         }
     }
 }

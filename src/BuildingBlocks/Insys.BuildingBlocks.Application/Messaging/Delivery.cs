@@ -89,6 +89,12 @@ public static class PrerequisiteCodes
     /// <summary>Item: type and channels: no enabled provider for any channel the party's order allows (communications §9).</summary>
     public const string ChannelProviderNotConfigured = "CHANNEL_PROVIDER_NOT_CONFIGURED";
 
+    /// <summary>
+    /// Item: the approval type and ID ("PAYOUT_RELEASE:…"): the record would not take an approval's ending (rejected,
+    /// expired, withdrawn). Parked and escalated rather than logged, so nothing waits for good (Wave 2 batch 1, D-5).
+    /// </summary>
+    public const string ApprovalEndingNotApplied = "APPROVAL_ENDING_NOT_APPLIED";
+
     /// <summary>Item: the JOB function (ADR-026 §2): the tenant disabled it, or is not entitled to its feature. Enabling it retries the delivery.</summary>
     public const string FunctionDisabled = "FUNCTION_DISABLED";
 }

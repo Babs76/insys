@@ -47,12 +47,15 @@ public sealed class DelegationAndApprovalAuthority : StaticRecord<DelegationAndA
 
     public bool DelegationAllowed { get; set; }
 
+    public string? Currency { get; set; }
+
     public override void ApplyFields(DelegationAndApprovalAuthorityInput input, IFieldProtector protector)
     {
         RoleCode = input.RoleCode!;
         TransactionType = input.TransactionType!;
         LimitValue = input.LimitValue.GetValueOrDefault();
         DelegationAllowed = input.DelegationAllowed.GetValueOrDefault();
+        Currency = input.Currency;
     }
 }
 
@@ -67,6 +70,8 @@ public sealed record DelegationAndApprovalAuthorityInput : StaticRecordInput
 
     public bool? DelegationAllowed { get; init; }
 
+    public string? Currency { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("roleCode", RoleCode);
@@ -75,5 +80,6 @@ public sealed record DelegationAndApprovalAuthorityInput : StaticRecordInput
         errors.MaxLength("transactionType", TransactionType, 30);
         errors.Required("limitValue", LimitValue);
         errors.Required("delegationAllowed", DelegationAllowed);
+        errors.MaxLength("currency", Currency, 3);
     }
 }

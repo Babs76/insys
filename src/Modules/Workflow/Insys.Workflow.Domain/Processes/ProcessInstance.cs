@@ -110,8 +110,12 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition AggregationReview = new("AGGREGATION_REVIEW", 1, ["REVIEW_EXPOSURE", "REVIEWED"],
         [new TransitionDefinition("REVIEW_EXPOSURE", "REVIEWED", null)], null);
 
+    /// <summary>An approval the requester asked for expired, or was withdrawn for them: they decide what to do next.</summary>
+    public static readonly ProcessDefinition ApprovalFollowUp = new("APPROVAL_FOLLOW_UP", 1, ["FOLLOW_UP", "DONE"],
+        [new TransitionDefinition("FOLLOW_UP", "DONE", null)], null);
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
-        new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+        new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>

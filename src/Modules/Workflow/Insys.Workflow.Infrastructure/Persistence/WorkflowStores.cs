@@ -196,7 +196,7 @@ public sealed class WorkflowOptions
 
 /// <summary>Reads workflow configuration from the Workflow module's static data in force.</summary>
 internal sealed class WorkflowConfiguration(WorkflowDbContext db, IOptions<WorkflowOptions> options, IHolidayCalendar holidayCalendar, ITenantContext tenant,
-    ILogger<WorkflowConfiguration> logger) : IWorkflowConfiguration, IAuthorityReader
+    ILogger<WorkflowConfiguration> logger) : IWorkflowConfiguration, IAuthorityReader, IApprovalExpiry
 {
     public async Task<Result<ProcessDefinition>> Definition(string processCode, int? version, DateOnly day, CancellationToken cancellationToken)
     {
@@ -294,7 +294,15 @@ internal sealed class WorkflowConfiguration(WorkflowDbContext db, IOptions<Workf
     {
         var roles = roleCodes.ToArray();
         return await db.Set<DelegationAndApprovalAuthority>().AsNoTracking().InForce(Descriptor<DelegationAndApprovalAuthority>().Lifecycle, day)
-            .Where(a => roles.Contains(a.RoleCode)).Select(a => new AuthorityGrant(a.RoleCode, a.TransactionType, a.LimitValue)).ToListAsync(cancellationToken);
+            .Where(a => roles.Contains(a.RoleCode)).Select(a => new AuthorityGrant(a.RoleCode, a.TransactionType, a.LimitValue, a.Currency)).ToListAsync(cancellationToken);
+    }
+
+    /// <summary>D-4: how long an approval of the type waits, from workflow.cfg_approval_expiry in force; null for the default.</summary>
+    public async Task<TimeSpan?> For(string approvalType, DateOnly day, CancellationToken cancellationToken)
+    {
+        var row = await db.Set<ApprovalExpiry>().AsNoTracking().InForce(Descriptor<ApprovalExpiry>().Lifecycle, day)
+            .Where(e => e.ApprovalType == approvalType).Select(e => e.ExpiresAfter).FirstOrDefaultAsync(cancellationToken);
+        return row is null ? null : System.Xml.XmlConvert.ToTimeSpan(row);
     }
 
     public Task<bool> IsConfigured(string approvalType, DateOnly day, CancellationToken cancellationToken) =>
@@ -395,8 +403,72 @@ internal sealed class WorkflowEventMapper : IDomainEventMapper
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
     {
         Domain.Approvals.ApprovalGranted e => new Contracts.ApprovalGranted(e.ApprovalId, e.BusinessRefType, e.BusinessRefId, e.ApprovalType, e.MakerId, e.CheckerId, e.SubjectHash),
-        Domain.Approvals.ApprovalRejected e => new Contracts.ApprovalRejected(e.ApprovalId, e.BusinessRefType, e.BusinessRefId, e.ApprovalType, e.MakerId, e.CheckerId, e.Reason, e.SubjectHash),
+        Domain.Approvals.ApprovalRejected e => new Contracts.ApprovalRejected(e.ApprovalId, e.BusinessRefType, e.BusinessRefId, e.ApprovalType, e.MakerId, e.CheckerId, e.Reason, e.SubjectHash,
+            e.Ending),
         Domain.Processes.SlaBreached e => new Contracts.SlaBreached(e.ProcessInstanceId, e.TaskId, e.TaskType, e.SlaCode),
         _ => null,
     };
+}
+
+/// <summary>D-4: an approval expiry is an ISO 8601 duration of at least an hour, in calendar time.</summary>
+internal sealed class ApprovalExpiryValidator : BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator
+{
+    public string Schema => WorkflowDbContext.SchemaName;
+
+    public string Table => "cfg_approval_expiry";
+
+    public string Rules => "expiresAfter is an ISO 8601 duration of at least one hour (P14D, PT48H), counted in calendar time from the request; "
+        + "a type with none in force waits 14 days.";
+
+    public IReadOnlyDictionary<string, string[]> Validate(BuildingBlocks.Infrastructure.StaticData.StaticRecord record)
+    {
+        if (record is not ApprovalExpiry expiry)
+        {
+            return new Dictionary<string, string[]>();
+        }
+
+        try
+        {
+            return System.Xml.XmlConvert.ToTimeSpan(expiry.ExpiresAfter) >= TimeSpan.FromHours(1)
+                ? new Dictionary<string, string[]>()
+                : new Dictionary<string, string[]> { ["expiresAfter"] = ["At least one hour."] };
+        }
+        catch (FormatException)
+        {
+            return new Dictionary<string, string[]> { ["expiresAfter"] = ["An ISO 8601 duration, such as P14D."] };
+        }
+    }
+}
+
+/// <summary>OQ-113: a record's latest approval ending other than approval, on Workflow's own connection, in the caller's tenant.</summary>
+internal sealed class ApprovalHistory([Microsoft.Extensions.DependencyInjection.FromKeyedServices(WorkflowDbContext.SchemaName)] Npgsql.NpgsqlDataSource dataSource,
+    ITenantContext tenant) : IApprovalHistory
+{
+    public async Task<LatestRejection?> Latest(string businessRefType, Guid businessRefId, CancellationToken cancellationToken)
+    {
+        var tenantId = tenant.RequireTenantId();
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await BuildingBlocks.Infrastructure.Persistence.TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new Npgsql.NpgsqlCommand("""
+            SELECT status, approval_type, checker_id, coalesce(decided_at, requested_at), coalesce(decision_reason, '') FROM workflow.approval
+            WHERE tenant_id = @t AND business_ref_type = @type AND business_ref_id = @id AND status IN ('REJECTED', 'EXPIRED', 'WITHDRAWN')
+            ORDER BY coalesce(decided_at, requested_at) DESC LIMIT 1
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("type", businessRefType);
+        command.Parameters.AddWithValue("id", businessRefId);
+        LatestRejection? latest = null;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                latest = new LatestRejection(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetGuid(2),
+                    reader.GetFieldValue<DateTimeOffset>(3), reader.GetString(4));
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return latest;
+    }
 }

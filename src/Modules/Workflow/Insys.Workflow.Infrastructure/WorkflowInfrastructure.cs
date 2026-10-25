@@ -53,6 +53,10 @@ public static class WorkflowInfrastructure
         services.AddScoped<WorkflowConfiguration>();
         services.AddScoped<IWorkflowConfiguration>(sp => sp.GetRequiredService<WorkflowConfiguration>());
         services.AddScoped<IAuthorityReader>(sp => sp.GetRequiredService<WorkflowConfiguration>());
+        services.AddScoped<IApprovalExpiry>(sp => sp.GetRequiredService<WorkflowConfiguration>());
+        services.AddScoped<RequesterFollowUp>();
+        services.AddScoped<Contracts.IApprovalHistory, ApprovalHistory>();
+        services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator, ApprovalExpiryValidator>();
         services.AddScoped<ApprovalDecision>();
         services.AddScoped<TaskEscalation>();
         services.AddScoped<Contracts.IBusinessTime, BusinessTime>();

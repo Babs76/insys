@@ -46,14 +46,21 @@ public enum ApprovalTrigger
     WithdrawnByRequester,
 }
 
-/// <summary>One row of workflow.cfg_delegation_and_approval_authority in force: a role may approve a type up to a limit.</summary>
-public sealed record AuthorityGrant(string RoleCode, string ApprovalType, decimal Limit);
+/// <summary>
+/// One row of workflow.cfg_delegation_and_approval_authority in force: a role may approve a type up to a limit, in a
+/// currency (null: the tenant's base currency, OQ-112).
+/// </summary>
+public sealed record AuthorityGrant(string RoleCode, string ApprovalType, decimal Limit, string? Currency = null);
 
 public sealed record ApprovalGranted(Guid ApprovalId, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid CheckerId,
     string? SubjectHash, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>
+/// The approval ended without being granted: rejected by a checker, expired, or withdrawn (<paramref name="Ending"/>). The
+/// owning module puts its record back in a defined state in each case. The checker is empty unless it was rejected.
+/// </summary>
 public sealed record ApprovalRejected(Guid ApprovalId, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid CheckerId,
-    string Reason, string? SubjectHash, DateTimeOffset OccurredAt) : IDomainEvent;
+    string Reason, string? SubjectHash, DateTimeOffset OccurredAt, string Ending = "REJECTED") : IDomainEvent;
 
 /// <summary>
 /// The Approval aggregate: maker-checker for sensitive operations (SRS-002). The checker is a different person from
@@ -157,7 +164,7 @@ public sealed class Approval : AggregateRoot<Guid>
     /// Command Approve. <paramref name="checkerAuthority"/> is what the checker's roles allow for this approval type,
     /// from the delegation and approval authority in force.
     /// </summary>
-    public Result Approve(Guid checkerId, IReadOnlyCollection<AuthorityGrant> checkerAuthority, DateTimeOffset now)
+    public Result Approve(Guid checkerId, IReadOnlyCollection<AuthorityGrant> checkerAuthority, DateTimeOffset now, string? baseCurrency = null)
     {
         var allowed = CheckChecker(checkerId, now);
         if (allowed.IsFailure)
@@ -171,7 +178,9 @@ public sealed class Approval : AggregateRoot<Guid>
             return Error.Forbidden(WorkflowErrorCodes.AuthorityMissing, $"The checker has no approval authority for {ApprovalType} (WFL-004).");
         }
 
-        if (Amount is { } amount && authority.Max(a => a.Limit) < amount)
+        // OQ-112: only limits in the approval's currency count (a limit without one is in the tenant's base currency).
+        var inCurrency = Currency is null ? authority : authority.Where(a => (a.Currency ?? baseCurrency ?? Currency) == Currency).ToList();
+        if (Amount is { } amount && (inCurrency.Count == 0 || inCurrency.Max(a => a.Limit) < amount))
         {
             return Error.Forbidden(WorkflowErrorCodes.AuthorityExceeded,
                 $"The checker's authority for {ApprovalType} does not cover {amount} {Currency} (WFL-004).");
@@ -216,14 +225,49 @@ public sealed class Approval : AggregateRoot<Guid>
         return result;
     }
 
-    /// <summary>Transition "Withdrawn by requester": what it was for changed, so it can no longer be decided.</summary>
-    public Result Withdraw() => Fire(ApprovalTrigger.WithdrawnByRequester);
+    /// <summary>
+    /// Transition "Withdrawn by requester": what it was for changed (the owning module withdrew it), or the requester no
+    /// longer wants it. The owning module is told, as for a rejection.
+    /// </summary>
+    public Result Withdraw(string reason, DateTimeOffset now)
+    {
+        var result = Fire(ApprovalTrigger.WithdrawnByRequester);
+        if (result.IsSuccess)
+        {
+            Decision = "WITHDRAWN";
+            DecisionReason = Guard.MaxLength(Guard.NotNullOrWhiteSpace(reason), 2000);
+            DecidedAt = now;
+            Raise(new ApprovalRejected(Id, BusinessRefType, BusinessRefId, ApprovalType, MakerId, Guid.Empty, DecisionReason, SubjectHash, now, "WITHDRAWN"));
+        }
 
-    /// <summary>Command Expire: transition "Time limit reached".</summary>
-    public Result Expire(DateTimeOffset now) =>
-        ExpiresAt is not { } limit || now < limit
-            ? Error.Conflict(ErrorCodes.InvalidStateTransition, "The approval has not reached its time limit.")
-            : Fire(ApprovalTrigger.Expire);
+        return result;
+    }
+
+    /// <summary>Command WithdrawApproval by the person who asked for it, with a reason.</summary>
+    public Result WithdrawByRequester(Guid by, string reason, DateTimeOffset now) =>
+        by != MakerId
+            ? Error.Forbidden(WorkflowErrorCodes.NotRequester, "Only the person who asked for the approval can withdraw it.")
+            : Withdraw(reason, now);
+
+    /// <summary>Command Expire: transition "Time limit reached". The owning module is told, as for a rejection.</summary>
+    public Result Expire(DateTimeOffset now)
+    {
+        if (ExpiresAt is not { } limit || now < limit)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "The approval has not reached its time limit.");
+        }
+
+        var result = Fire(ApprovalTrigger.Expire);
+        if (result.IsSuccess)
+        {
+            Decision = "EXPIRED";
+            DecisionReason = $"No decision by {limit:yyyy-MM-dd HH:mm} UTC.";
+            DecidedAt = now;
+            Raise(new ApprovalRejected(Id, BusinessRefType, BusinessRefId, ApprovalType, MakerId, Guid.Empty, DecisionReason, SubjectHash, now, "EXPIRED"));
+        }
+
+        return result;
+    }
 
     private Result CheckChecker(Guid checkerId, DateTimeOffset now)
     {
@@ -258,6 +302,10 @@ public sealed class Approval : AggregateRoot<Guid>
 
 public static class WorkflowErrorCodes
 {
+    /// <summary>Only the person who asked for an approval can withdraw it.</summary>
+    [ErrorCode(403, "error.workflow.not_requester")]
+    public const string NotRequester = "APPROVAL_NOT_REQUESTER";
+
     [ErrorCode(403, "error.workflow.authority_missing")]
     public const string AuthorityMissing = "APPROVAL_AUTHORITY_MISSING";
 

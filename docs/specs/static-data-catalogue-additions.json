@@ -1,215 +1,467 @@
 {
- "note": "Static data entities added after the original specification, each with the decision that added it. Same form as static-data-catalogue.json; the generator merges both.",
- "entities": [
-  {
-   "layer": "Domain",
-   "module": "Health claims",
-   "subModule": "Adjudication",
-   "entity": "Benefit category mappings",
-   "table": "health.cfg_benefit_category_mappings",
-   "class": "CFG",
-   "scope": "T",
-   "tier": 1,
-   "proposedOwner": "Health Product Manager",
-   "provenance": "ADR-012 (proposed, pending business sign-off)",
-   "basis": "OQ-060 item 1",
-   "fields": [
-    { "name": "code_system", "logicalType": "Ref CodeSystem", "mandatory": false, "sample": "NRPL" },
-    { "name": "code_from", "logicalType": "Code(15)", "mandatory": false, "sample": "0190" },
-    { "name": "code_to", "logicalType": "Code(15)", "mandatory": false, "sample": "0199" },
-    { "name": "provider_type", "logicalType": "Ref ProviderType", "mandatory": false, "sample": "GP" },
-    { "name": "benefit_category", "logicalType": "Ref BenefitCategory", "mandatory": true, "sample": "GP_VISITS" }
-   ]
-  },
-  {
-   "layer": "Domain",
-   "module": "Provider network management",
-   "subModule": "Effective-dated tariffs",
-   "entity": "Tariff modifiers",
-   "table": "health.cfg_tariff_modifiers",
-   "class": "CFG",
-   "scope": "T",
-   "tier": 1,
-   "proposedOwner": "Network Manager",
-   "provenance": "ADR-012 (proposed, pending business sign-off)",
-   "basis": "OQ-060 item 3",
-   "fields": [
-    { "name": "modifier_code", "logicalType": "Code(15)", "mandatory": true, "sample": "AFTER_HOURS" },
-    { "name": "type", "logicalType": "Enum{PERCENT_UPLIFT,FIXED_ADD,MULTIPLIER}", "mandatory": true, "sample": "PERCENT_UPLIFT" },
-    { "name": "value", "logicalType": "Decimal(12,4)", "mandatory": true, "sample": "25.0000" },
-    { "name": "applies_to", "logicalType": "List<Code or range>", "mandatory": false, "sample": "0190-0199" }
-   ]
-  },
-  {
-   "layer": "Platform",
-   "module": "Communications",
-   "subModule": "Channels",
-   "entity": "Channels",
-   "table": "communication.ref_channels",
-   "class": "REF",
-   "scope": "G",
-   "tier": 2,
-   "proposedOwner": "Platform Administrator",
-   "provenance": "addenda/communications.md (signed off 25 October 2026)",
-   "basis": "OQ-090",
-   "fields": [
-    { "name": "channel_code", "logicalType": "Enum{EMAIL,SMS,PUSH,WHATSAPP}", "mandatory": true, "sample": "EMAIL" }
-   ]
-  },
-  {
-   "layer": "Platform",
-   "module": "Communications",
-   "subModule": "Notification types",
-   "entity": "Notification types",
-   "table": "communication.cfg_notification_types",
-   "class": "CFG",
-   "scope": "T",
-   "tier": 1,
-   "proposedOwner": "Compliance Officer",
-   "provenance": "addenda/communications.md (signed off 25 October 2026)",
-   "basis": "§4, §6 of the addendum; POPIA s69",
-   "fields": [
-    { "name": "type_code", "logicalType": "Code(30)", "mandatory": true, "sample": "PAYMENT_REMINDER" },
-    { "name": "category", "logicalType": "Enum{SERVICE,MARKETING}", "mandatory": true, "sample": "SERVICE" },
-    { "name": "consent_purpose", "logicalType": "Ref ConsentPurpose", "mandatory": false, "sample": "MKT_EMAIL" },
-    { "name": "channels", "logicalType": "List<Ref Channel>", "mandatory": true, "sample": "EMAIL, SMS" },
-    { "name": "portal_visible", "logicalType": "Boolean", "mandatory": true, "sample": "true" }
-   ]
-  },
-  {
-   "layer": "Platform",
-   "module": "Communications",
-   "subModule": "Templates",
-   "entity": "Notification templates",
-   "table": "communication.cfg_notification_templates",
-   "class": "CFG",
-   "scope": "T",
-   "tier": 1,
-   "proposedOwner": "Compliance Officer",
-   "provenance": "addenda/communications.md (signed off 25 October 2026)",
-   "basis": "SRS §7.6",
-   "fields": [
-    { "name": "type_code", "logicalType": "Ref NotificationType", "mandatory": true, "sample": "PAYMENT_REMINDER" },
-    { "name": "channel", "logicalType": "Ref Channel", "mandatory": true, "sample": "EMAIL" },
-    { "name": "language", "logicalType": "Ref Language", "mandatory": true, "sample": "en" },
-    { "name": "subject", "logicalType": "String(200)", "mandatory": false, "sample": "Your premium is overdue" },
-    { "name": "body", "logicalType": "Text", "mandatory": true, "sample": "Dear customer, {amount_overdue} {currency} on {policy_number} is overdue." }
-   ]
-  },
-  {
-   "layer": "Platform",
-   "module": "Communications",
-   "subModule": "Providers",
-   "entity": "Channel providers",
-   "table": "communication.cfg_channel_providers",
-   "class": "CFG",
-   "scope": "T",
-   "tier": 1,
-   "proposedOwner": "Tenant Administrator",
-   "provenance": "addenda/communications.md (signed off 25 October 2026)",
-   "basis": "SRS §20.2",
-   "fields": [
-    { "name": "channel", "logicalType": "Ref Channel", "mandatory": true, "sample": "SMS" },
-    { "name": "provider_code", "logicalType": "Ref Partner", "mandatory": true, "sample": "SMS-PROV-01" },
-    { "name": "sender_identity", "logicalType": "String(120)", "mandatory": true, "sample": "INSYS" },
-    { "name": "enabled", "logicalType": "Boolean", "mandatory": true, "sample": "true" }
-   ]
-  },
-  {
-   "layer": "Platform",
-   "module": "Identity and Access Management",
-   "subModule": "Function catalogue",
-   "entity": "Business domains",
-   "table": "iam.ref_business_domains",
-   "class": "REF",
-   "scope": "G",
-   "tier": 2,
-   "proposedOwner": "Platform Administrator",
-   "provenance": "ADR-026 (signed off 25 October 2026)",
-   "basis": "addenda/function-catalogue.md",
-   "fields": [
-    { "name": "domain_code", "logicalType": "Code(30)", "mandatory": true, "sample": "GENERAL" },
-    { "name": "icon", "logicalType": "String(40)", "mandatory": false, "sample": "shield" }
-   ]
-  },
-  {
-   "layer": "Platform",
-   "module": "Identity and Access Management",
-   "subModule": "Function catalogue",
-   "entity": "Business sub-domains",
-   "table": "iam.ref_business_sub_domains",
-   "class": "REF",
-   "scope": "G",
-   "tier": 2,
-   "proposedOwner": "Platform Administrator",
-   "provenance": "ADR-026 (signed off 25 October 2026)",
-   "basis": "addenda/function-catalogue.md",
-   "fields": [
-    { "name": "sub_domain_code", "logicalType": "Code(40)", "mandatory": true, "sample": "GENERAL_CLAIMS" },
-    { "name": "domain_code", "logicalType": "Ref BusinessDomain", "mandatory": true, "sample": "GENERAL" },
-    { "name": "icon", "logicalType": "String(40)", "mandatory": false, "sample": "clipboard-list" }
-   ]
-  },
-  {
-   "layer": "Platform",
-   "module": "Identity and Access Management",
-   "subModule": "Function catalogue",
-   "entity": "Function catalogue",
-   "table": "iam.ref_function_catalogue",
-   "class": "REF",
-   "scope": "G",
-   "tier": 1,
-   "proposedOwner": "Platform Administrator",
-   "provenance": "ADR-026 (signed off 25 October 2026)",
-   "basis": "addenda/function-catalogue.md",
-   "fields": [
-    { "name": "function_code", "logicalType": "Code(80)", "mandatory": true, "sample": "GENERAL_DECLINE_CLAIM" },
-    { "name": "sub_domain_code", "logicalType": "Ref BusinessSubDomain", "mandatory": true, "sample": "GENERAL_CLAIMS" },
-    { "name": "process_area", "logicalType": "String(80)", "mandatory": true, "sample": "Registration" },
-    { "name": "interaction_type", "logicalType": "Enum{HUMAN,SYSTEM}", "mandatory": true, "sample": "HUMAN" },
-    { "name": "function_kind", "logicalType": "Enum{SCREEN,ACTION,JOB}", "mandatory": true, "sample": "ACTION" },
-    { "name": "parent_function_code", "logicalType": "Ref Function", "mandatory": false, "sample": "GENERAL_CLAIMS" },
-    { "name": "audiences", "logicalType": "List<Enum{PLATFORM,STAFF,BROKER,PROVIDER,CUSTOMER}>", "mandatory": true, "sample": "STAFF" },
-    { "name": "route_key", "logicalType": "String(120)", "mandatory": false, "sample": "general/claims" },
-    { "name": "required_permissions", "logicalType": "List<Ref Permission>", "mandatory": true, "sample": "general_claim.decide" },
-    { "name": "required_feature", "logicalType": "Enum{LIFE,GENERAL,HEALTH,REINSURANCE,BROKER_PORTAL,PROVIDER_PORTAL,CUSTOMER_PORTAL}", "mandatory": false, "sample": "GENERAL" },
-    { "name": "privileged", "logicalType": "Boolean", "mandatory": true, "sample": "false" },
-    { "name": "allowed_while_onboarding", "logicalType": "Boolean", "mandatory": true, "sample": "false" }
-   ]
-  },
-  {
-   "layer": "Platform",
-   "module": "Tenant Management",
-   "subModule": "Function availability",
-   "entity": "Tenant function availability",
-   "table": "tenant.cfg_tenant_function_availability",
-   "class": "CFG",
-   "scope": "T",
-   "tier": 1,
-   "proposedOwner": "Tenant Administrator",
-   "provenance": "ADR-026 (signed off 25 October 2026)",
-   "basis": "addenda/function-catalogue.md",
-   "fields": [
-    { "name": "function_code", "logicalType": "Ref Function", "mandatory": true, "sample": "GENERAL_DECLINE_CLAIM" },
-    { "name": "enabled", "logicalType": "Boolean", "mandatory": true, "sample": "false" }
-   ]
-  },
-  {
-   "layer": "Platform",
-   "module": "Identity and Access Management",
-   "subModule": "Role-based access control",
-   "entity": "Role function assignments",
-   "table": "iam.cfg_role_function_assignments",
-   "class": "CFG",
-   "scope": "T",
-   "tier": 1,
-   "proposedOwner": "Tenant Administrator",
-   "provenance": "ADR-026 (signed off 25 October 2026)",
-   "basis": "addenda/function-catalogue.md",
-   "fields": [
-    { "name": "role_code", "logicalType": "Ref Role", "mandatory": true, "sample": "CLAIMS_ASSESSOR" },
-    { "name": "function_code", "logicalType": "Ref Function", "mandatory": true, "sample": "GENERAL_DECLINE_CLAIM" }
-   ]
-  }
- ]
+  "note": "Static data entities added after the original specification, each with the decision that added it. Same form as static-data-catalogue.json; the generator merges both.",
+  "entities": [
+    {
+      "layer": "Domain",
+      "module": "Health claims",
+      "subModule": "Adjudication",
+      "entity": "Benefit category mappings",
+      "table": "health.cfg_benefit_category_mappings",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 1,
+      "proposedOwner": "Health Product Manager",
+      "provenance": "ADR-012 (proposed, pending business sign-off)",
+      "basis": "OQ-060 item 1",
+      "fields": [
+        {
+          "name": "code_system",
+          "logicalType": "Ref CodeSystem",
+          "mandatory": false,
+          "sample": "NRPL"
+        },
+        {
+          "name": "code_from",
+          "logicalType": "Code(15)",
+          "mandatory": false,
+          "sample": "0190"
+        },
+        {
+          "name": "code_to",
+          "logicalType": "Code(15)",
+          "mandatory": false,
+          "sample": "0199"
+        },
+        {
+          "name": "provider_type",
+          "logicalType": "Ref ProviderType",
+          "mandatory": false,
+          "sample": "GP"
+        },
+        {
+          "name": "benefit_category",
+          "logicalType": "Ref BenefitCategory",
+          "mandatory": true,
+          "sample": "GP_VISITS"
+        }
+      ]
+    },
+    {
+      "layer": "Domain",
+      "module": "Provider network management",
+      "subModule": "Effective-dated tariffs",
+      "entity": "Tariff modifiers",
+      "table": "health.cfg_tariff_modifiers",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 1,
+      "proposedOwner": "Network Manager",
+      "provenance": "ADR-012 (proposed, pending business sign-off)",
+      "basis": "OQ-060 item 3",
+      "fields": [
+        {
+          "name": "modifier_code",
+          "logicalType": "Code(15)",
+          "mandatory": true,
+          "sample": "AFTER_HOURS"
+        },
+        {
+          "name": "type",
+          "logicalType": "Enum{PERCENT_UPLIFT,FIXED_ADD,MULTIPLIER}",
+          "mandatory": true,
+          "sample": "PERCENT_UPLIFT"
+        },
+        {
+          "name": "value",
+          "logicalType": "Decimal(12,4)",
+          "mandatory": true,
+          "sample": "25.0000"
+        },
+        {
+          "name": "applies_to",
+          "logicalType": "List<Code or range>",
+          "mandatory": false,
+          "sample": "0190-0199"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Communications",
+      "subModule": "Channels",
+      "entity": "Channels",
+      "table": "communication.ref_channels",
+      "class": "REF",
+      "scope": "G",
+      "tier": 2,
+      "proposedOwner": "Platform Administrator",
+      "provenance": "addenda/communications.md (signed off 25 October 2026)",
+      "basis": "OQ-090",
+      "fields": [
+        {
+          "name": "channel_code",
+          "logicalType": "Enum{EMAIL,SMS,PUSH,WHATSAPP}",
+          "mandatory": true,
+          "sample": "EMAIL"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Communications",
+      "subModule": "Notification types",
+      "entity": "Notification types",
+      "table": "communication.cfg_notification_types",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 1,
+      "proposedOwner": "Compliance Officer",
+      "provenance": "addenda/communications.md (signed off 25 October 2026)",
+      "basis": "§4, §6 of the addendum; POPIA s69",
+      "fields": [
+        {
+          "name": "type_code",
+          "logicalType": "Code(30)",
+          "mandatory": true,
+          "sample": "PAYMENT_REMINDER"
+        },
+        {
+          "name": "category",
+          "logicalType": "Enum{SERVICE,MARKETING}",
+          "mandatory": true,
+          "sample": "SERVICE"
+        },
+        {
+          "name": "consent_purpose",
+          "logicalType": "Ref ConsentPurpose",
+          "mandatory": false,
+          "sample": "MKT_EMAIL"
+        },
+        {
+          "name": "channels",
+          "logicalType": "List<Ref Channel>",
+          "mandatory": true,
+          "sample": "EMAIL, SMS"
+        },
+        {
+          "name": "portal_visible",
+          "logicalType": "Boolean",
+          "mandatory": true,
+          "sample": "true"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Communications",
+      "subModule": "Templates",
+      "entity": "Notification templates",
+      "table": "communication.cfg_notification_templates",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 1,
+      "proposedOwner": "Compliance Officer",
+      "provenance": "addenda/communications.md (signed off 25 October 2026)",
+      "basis": "SRS §7.6",
+      "fields": [
+        {
+          "name": "type_code",
+          "logicalType": "Ref NotificationType",
+          "mandatory": true,
+          "sample": "PAYMENT_REMINDER"
+        },
+        {
+          "name": "channel",
+          "logicalType": "Ref Channel",
+          "mandatory": true,
+          "sample": "EMAIL"
+        },
+        {
+          "name": "language",
+          "logicalType": "Ref Language",
+          "mandatory": true,
+          "sample": "en"
+        },
+        {
+          "name": "subject",
+          "logicalType": "String(200)",
+          "mandatory": false,
+          "sample": "Your premium is overdue"
+        },
+        {
+          "name": "body",
+          "logicalType": "Text",
+          "mandatory": true,
+          "sample": "Dear customer, {amount_overdue} {currency} on {policy_number} is overdue."
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Communications",
+      "subModule": "Providers",
+      "entity": "Channel providers",
+      "table": "communication.cfg_channel_providers",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 1,
+      "proposedOwner": "Tenant Administrator",
+      "provenance": "addenda/communications.md (signed off 25 October 2026)",
+      "basis": "SRS §20.2",
+      "fields": [
+        {
+          "name": "channel",
+          "logicalType": "Ref Channel",
+          "mandatory": true,
+          "sample": "SMS"
+        },
+        {
+          "name": "provider_code",
+          "logicalType": "Ref Partner",
+          "mandatory": true,
+          "sample": "SMS-PROV-01"
+        },
+        {
+          "name": "sender_identity",
+          "logicalType": "String(120)",
+          "mandatory": true,
+          "sample": "INSYS"
+        },
+        {
+          "name": "enabled",
+          "logicalType": "Boolean",
+          "mandatory": true,
+          "sample": "true"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Identity and Access Management",
+      "subModule": "Function catalogue",
+      "entity": "Business domains",
+      "table": "iam.ref_business_domains",
+      "class": "REF",
+      "scope": "G",
+      "tier": 2,
+      "proposedOwner": "Platform Administrator",
+      "provenance": "ADR-026 (signed off 25 October 2026)",
+      "basis": "addenda/function-catalogue.md",
+      "fields": [
+        {
+          "name": "domain_code",
+          "logicalType": "Code(30)",
+          "mandatory": true,
+          "sample": "GENERAL"
+        },
+        {
+          "name": "icon",
+          "logicalType": "String(40)",
+          "mandatory": false,
+          "sample": "shield"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Identity and Access Management",
+      "subModule": "Function catalogue",
+      "entity": "Business sub-domains",
+      "table": "iam.ref_business_sub_domains",
+      "class": "REF",
+      "scope": "G",
+      "tier": 2,
+      "proposedOwner": "Platform Administrator",
+      "provenance": "ADR-026 (signed off 25 October 2026)",
+      "basis": "addenda/function-catalogue.md",
+      "fields": [
+        {
+          "name": "sub_domain_code",
+          "logicalType": "Code(40)",
+          "mandatory": true,
+          "sample": "GENERAL_CLAIMS"
+        },
+        {
+          "name": "domain_code",
+          "logicalType": "Ref BusinessDomain",
+          "mandatory": true,
+          "sample": "GENERAL"
+        },
+        {
+          "name": "icon",
+          "logicalType": "String(40)",
+          "mandatory": false,
+          "sample": "clipboard-list"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Identity and Access Management",
+      "subModule": "Function catalogue",
+      "entity": "Function catalogue",
+      "table": "iam.ref_function_catalogue",
+      "class": "REF",
+      "scope": "G",
+      "tier": 1,
+      "proposedOwner": "Platform Administrator",
+      "provenance": "ADR-026 (signed off 25 October 2026)",
+      "basis": "addenda/function-catalogue.md",
+      "fields": [
+        {
+          "name": "function_code",
+          "logicalType": "Code(80)",
+          "mandatory": true,
+          "sample": "GENERAL_DECLINE_CLAIM"
+        },
+        {
+          "name": "sub_domain_code",
+          "logicalType": "Ref BusinessSubDomain",
+          "mandatory": true,
+          "sample": "GENERAL_CLAIMS"
+        },
+        {
+          "name": "process_area",
+          "logicalType": "String(80)",
+          "mandatory": true,
+          "sample": "Registration"
+        },
+        {
+          "name": "interaction_type",
+          "logicalType": "Enum{HUMAN,SYSTEM}",
+          "mandatory": true,
+          "sample": "HUMAN"
+        },
+        {
+          "name": "function_kind",
+          "logicalType": "Enum{SCREEN,ACTION,JOB}",
+          "mandatory": true,
+          "sample": "ACTION"
+        },
+        {
+          "name": "parent_function_code",
+          "logicalType": "Ref Function",
+          "mandatory": false,
+          "sample": "GENERAL_CLAIMS"
+        },
+        {
+          "name": "audiences",
+          "logicalType": "List<Enum{PLATFORM,STAFF,BROKER,PROVIDER,CUSTOMER}>",
+          "mandatory": true,
+          "sample": "STAFF"
+        },
+        {
+          "name": "route_key",
+          "logicalType": "String(120)",
+          "mandatory": false,
+          "sample": "general/claims"
+        },
+        {
+          "name": "required_permissions",
+          "logicalType": "List<Ref Permission>",
+          "mandatory": true,
+          "sample": "general_claim.decide"
+        },
+        {
+          "name": "required_feature",
+          "logicalType": "Enum{LIFE,GENERAL,HEALTH,REINSURANCE,BROKER_PORTAL,PROVIDER_PORTAL,CUSTOMER_PORTAL}",
+          "mandatory": false,
+          "sample": "GENERAL"
+        },
+        {
+          "name": "privileged",
+          "logicalType": "Boolean",
+          "mandatory": true,
+          "sample": "false"
+        },
+        {
+          "name": "allowed_while_onboarding",
+          "logicalType": "Boolean",
+          "mandatory": true,
+          "sample": "false"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Tenant Management",
+      "subModule": "Function availability",
+      "entity": "Tenant function availability",
+      "table": "tenant.cfg_tenant_function_availability",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 1,
+      "proposedOwner": "Tenant Administrator",
+      "provenance": "ADR-026 (signed off 25 October 2026)",
+      "basis": "addenda/function-catalogue.md",
+      "fields": [
+        {
+          "name": "function_code",
+          "logicalType": "Ref Function",
+          "mandatory": true,
+          "sample": "GENERAL_DECLINE_CLAIM"
+        },
+        {
+          "name": "enabled",
+          "logicalType": "Boolean",
+          "mandatory": true,
+          "sample": "false"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Identity and Access Management",
+      "subModule": "Role-based access control",
+      "entity": "Role function assignments",
+      "table": "iam.cfg_role_function_assignments",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 1,
+      "proposedOwner": "Tenant Administrator",
+      "provenance": "ADR-026 (signed off 25 October 2026)",
+      "basis": "addenda/function-catalogue.md",
+      "fields": [
+        {
+          "name": "role_code",
+          "logicalType": "Ref Role",
+          "mandatory": true,
+          "sample": "CLAIMS_ASSESSOR"
+        },
+        {
+          "name": "function_code",
+          "logicalType": "Ref Function",
+          "mandatory": true,
+          "sample": "GENERAL_DECLINE_CLAIM"
+        }
+      ]
+    },
+    {
+      "layer": "Platform",
+      "module": "Workflow and Case Management",
+      "subModule": "Approvals",
+      "entity": "Approval expiry",
+      "table": "workflow.cfg_approval_expiry",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 2,
+      "proposedOwner": "Tenant Administrator",
+      "provenance": "Wave 2 batch 1 (D-4, 25 October 2026)",
+      "basis": "frontend-integration-guide.md §1",
+      "fields": [
+        {
+          "name": "approval_type",
+          "logicalType": "Ref Approval type",
+          "mandatory": true,
+          "sample": "CLAIM_SETTLEMENT"
+        },
+        {
+          "name": "expires_after",
+          "logicalType": "ISO 8601 duration",
+          "mandatory": true,
+          "sample": "P14D"
+        }
+      ]
+    }
+  ]
 }

@@ -42,12 +42,13 @@ public static class WorkflowStaticDataEndpoints
 
     public static void MapStaticData(IEndpointRouteBuilder api)
     {
-        api.MapStaticEntity<WorkflowDbContext, DelegationAndApprovalAuthority, DelegationAndApprovalAuthorityInput>(WorkflowStaticData.Descriptors[0], Tag);
-        api.MapStaticEntity<WorkflowDbContext, EscalationRules, EscalationRulesInput>(WorkflowStaticData.Descriptors[1], Tag);
-        api.MapStaticEntity<WorkflowDbContext, SLADefinitions, SLADefinitionsInput>(WorkflowStaticData.Descriptors[2], Tag);
-        api.MapStaticEntity<WorkflowDbContext, TaskTypesAndWorkQueues, TaskTypesAndWorkQueuesInput>(WorkflowStaticData.Descriptors[3], Tag);
-        api.MapStaticEntity<WorkflowDbContext, WorkflowDefinitions, WorkflowDefinitionsInput>(WorkflowStaticData.Descriptors[4], Tag);
-        api.MapStaticEntity<WorkflowDbContext, BusinessCalendars, BusinessCalendarsInput>(WorkflowStaticData.Descriptors[5], Tag);
-        api.MapStaticEntity<WorkflowDbContext, ExceptionCodes, ExceptionCodesInput>(WorkflowStaticData.Descriptors[6], Tag);
+        api.MapStaticEntity<WorkflowDbContext, ApprovalExpiry, ApprovalExpiryInput>(WorkflowStaticData.Descriptors[0], Tag);
+        api.MapStaticEntity<WorkflowDbContext, DelegationAndApprovalAuthority, DelegationAndApprovalAuthorityInput>(WorkflowStaticData.Descriptors[1], Tag);
+        api.MapStaticEntity<WorkflowDbContext, EscalationRules, EscalationRulesInput>(WorkflowStaticData.Descriptors[2], Tag);
+        api.MapStaticEntity<WorkflowDbContext, SLADefinitions, SLADefinitionsInput>(WorkflowStaticData.Descriptors[3], Tag);
+        api.MapStaticEntity<WorkflowDbContext, TaskTypesAndWorkQueues, TaskTypesAndWorkQueuesInput>(WorkflowStaticData.Descriptors[4], Tag);
+        api.MapStaticEntity<WorkflowDbContext, WorkflowDefinitions, WorkflowDefinitionsInput>(WorkflowStaticData.Descriptors[5], Tag);
+        api.MapStaticEntity<WorkflowDbContext, BusinessCalendars, BusinessCalendarsInput>(WorkflowStaticData.Descriptors[6], Tag);
+        api.MapStaticEntity<WorkflowDbContext, ExceptionCodes, ExceptionCodesInput>(WorkflowStaticData.Descriptors[7], Tag);
     }
 }

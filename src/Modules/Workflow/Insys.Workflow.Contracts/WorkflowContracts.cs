@@ -42,9 +42,23 @@ public static class WorkflowPermissions
 public sealed record ApprovalGranted(Guid ApprovalId, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid CheckerId,
     string? SubjectHash = null) : IIntegrationEvent;
 
+/// <summary>
+/// The approval ended without being granted (every ending other than approval): rejected by a checker, expired, or withdrawn
+/// (<see cref="Ending"/>, one of <see cref="ApprovalEndings"/>). The owning module puts its record back in a defined state
+/// for each; one it cannot apply it to parks (ADR-022). The checker is Guid.Empty unless it was rejected.
+/// </summary>
 [IntegrationEvent("workflow.ApprovalRejected")]
-public sealed record ApprovalRejected(Guid ApprovalId, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid CheckerId, string Reason, string? SubjectHash = null)
+public sealed record ApprovalRejected(Guid ApprovalId, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid CheckerId, string Reason, string? SubjectHash = null,
+    string Ending = ApprovalEndings.Rejected)
     : IIntegrationEvent;
+
+/// <summary>How an approval that was not granted ended.</summary>
+public static class ApprovalEndings
+{
+    public const string Rejected = "REJECTED";
+    public const string Expired = "EXPIRED";
+    public const string Withdrawn = "WITHDRAWN";
+}
 
 /// <summary>Consumed by Workflow itself: EscalateTask (domain-model.json).</summary>
 [IntegrationEvent("workflow.SlaBreached")]
@@ -91,4 +105,20 @@ public interface IBusinessTime
 {
     /// <param name="isoDuration">An ISO 8601 duration such as PT4H or P1D.</param>
     Task<DateTimeOffset> Add(Guid tenantId, string? calendarCode, DateTimeOffset start, string isoDuration, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// The latest way a record's approval ended without being granted (OQ-113): rejected (with the checker), expired or
+/// withdrawn, when and why. Each record's view shows it as <c>latestRejection</c>.
+/// </summary>
+/// <param name="Ending">REJECTED, EXPIRED or WITHDRAWN.</param>
+/// <param name="By">The checker who rejected it; null when it expired or was withdrawn.</param>
+public sealed record LatestRejection(string Ending,
+    string ApprovalType, Guid? By, DateTimeOffset At, string Reason);
+
+/// <summary>Public query interface: a record's latest approval that ended without being granted, or null (OQ-113).</summary>
+public interface IApprovalHistory
+{
+    /// <summary>For the current tenant: the most recent of the record's approvals that ended without being granted, or null if none did.</summary>
+    Task<LatestRejection?> Latest(string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
 }

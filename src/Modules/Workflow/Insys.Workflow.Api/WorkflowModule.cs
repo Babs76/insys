@@ -132,8 +132,19 @@ public sealed class WorkflowModule : IModule
             .AlsoChecks(PartyPermissions.BankAccountVerify, "the approval is a bank account verification (businessRefType BANK_ACCOUNT; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.PartyUpdate, "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)")
             .WithSummary("Reject, with a reason")
-            .WithEventualEffects("the rejection reaches the record that asked for it, which returns to its previous state; read that record again.")
+            .WithEventualEffects("the rejection reaches the record that asked for it, which is put back in a defined state (an expiry or withdrawal does the same); read that record again.")
             .RequirePermission(WorkflowPermissions.ApprovalApprove);
+
+        approvals.MapPost("/{id:guid}/withdraw", (Guid id, RejectApprovalRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new WithdrawApproval(id, request.Reason, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("WorkflowWithdraw")
+            .WithSummary("Withdraw your own request for approval, with a reason")
+            .WithDescription("Only the person who asked for it (403 APPROVAL_NOT_REQUESTER otherwise), while it is waiting. The record it was for is put "
+                + "back as for a rejection.")
+            .WithEventualEffects("the withdrawal reaches the record that asked for it, which is put back as for a rejection; read that record again.")
+            .RequireSignedInUser();
 
         var processes = workflow.MapGroup("/processes");
         processes.MapPost("/", async (StartProcessRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

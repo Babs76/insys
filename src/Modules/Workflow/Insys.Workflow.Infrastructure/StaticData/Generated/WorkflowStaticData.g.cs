@@ -34,11 +34,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Workflow.Infrastructure.StaticData;
 
-/// <summary>The 7 static data tables owned by the Workflow module.</summary>
+/// <summary>The 8 static data tables owned by the Workflow module.</summary>
 public static class WorkflowStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
+        new("workflow", "cfg_approval_expiry", "cfg_approval_expiry", "Approval expiry", "workflow", "approval-expiry", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ApprovalExpiry), typeof(ApprovalExpiryInput), "Workflow and Case Management"),
         new("workflow", "cfg_delegation_and_approval_authority", "cfg_delegation_and_approval_authority", "Delegation and approval authority", "workflow", "delegation-and-approval-authority", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DelegationAndApprovalAuthority), typeof(DelegationAndApprovalAuthorityInput), "Workflow and Case Management"),
         new("workflow", "cfg_escalation_rules", "cfg_escalation_rules", "Escalation rules", "workflow", "escalation-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(EscalationRules), typeof(EscalationRulesInput), "Workflow and Case Management"),
         new("workflow", "cfg_sla_definitions", "cfg_sla_definitions", "SLA definitions", "workflow", "sla-definitions", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(SLADefinitions), typeof(SLADefinitionsInput), "Workflow and Case Management"),
@@ -50,6 +51,13 @@ public static class WorkflowStaticData
 
     public static void Configure(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ApprovalExpiry>(entity =>
+        {
+            entity.ToTable("cfg_approval_expiry", "workflow");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.ApprovalType).HasColumnName("approval_type").HasMaxLength(30);
+            entity.Property(x => x.ExpiresAfter).HasColumnName("expires_after").HasMaxLength(20);
+        });
         modelBuilder.Entity<DelegationAndApprovalAuthority>(entity =>
         {
             entity.ToTable("cfg_delegation_and_approval_authority", "workflow");
@@ -58,6 +66,7 @@ public static class WorkflowStaticData
             entity.Property(x => x.TransactionType).HasColumnName("transaction_type").HasMaxLength(30);
             entity.Property(x => x.LimitValue).HasColumnName("limit_value").HasPrecision(18, 2);
             entity.Property(x => x.DelegationAllowed).HasColumnName("delegation_allowed");
+            entity.Property(x => x.Currency).HasColumnName("currency").HasMaxLength(3);
         });
         modelBuilder.Entity<EscalationRules>(entity =>
         {
