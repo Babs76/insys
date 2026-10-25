@@ -129079,7 +129079,7 @@
           "Communications static data"
         ],
         "summary": "Create a tenant Notification types draft",
-        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker. Rules (422 with field errors otherwise): The platform\u0027s types (PAYMENT_REMINDER, PAYMENT_FINAL_NOTICE, RENEWAL_INVITATION, RENEWAL_REMINDER, CLAIM_STATUS, HEALTH_CLAIM_DECISION, PREAUTH_DECISION) are SERVICE with no consent purpose. Any other type is MARKETING and names the consent purpose it needs (POPIA s69); SERVICE is refused for it. Channels are named once each.",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker. Rules (422 with field errors otherwise): The platform\u0027s types (PAYMENT_REMINDER, PAYMENT_FINAL_NOTICE, RENEWAL_INVITATION, RENEWAL_REMINDER, CLAIM_STATUS, HEALTH_CLAIM_DECISION, PREAUTH_DECISION, CASE_ACKNOWLEDGED, CASE_UPDATE, CASE_DECISION, CLAIM_DECISION_RIGHTS) are SERVICE with no consent purpose. Any other type is MARKETING and names the consent purpose it needs (POPIA s69); SERVICE is refused for it. Channels are named once each.",
         "operationId": "CreateCommunicationsNotificationTypesDraft",
         "parameters": [
           {
@@ -129275,7 +129275,7 @@
           "Communications static data"
         ],
         "summary": "Edit a tenant Notification types draft",
-        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002). Rules (422 with field errors otherwise): The platform\u0027s types (PAYMENT_REMINDER, PAYMENT_FINAL_NOTICE, RENEWAL_INVITATION, RENEWAL_REMINDER, CLAIM_STATUS, HEALTH_CLAIM_DECISION, PREAUTH_DECISION) are SERVICE with no consent purpose. Any other type is MARKETING and names the consent purpose it needs (POPIA s69); SERVICE is refused for it. Channels are named once each.",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002). Rules (422 with field errors otherwise): The platform\u0027s types (PAYMENT_REMINDER, PAYMENT_FINAL_NOTICE, RENEWAL_INVITATION, RENEWAL_REMINDER, CLAIM_STATUS, HEALTH_CLAIM_DECISION, PREAUTH_DECISION, CASE_ACKNOWLEDGED, CASE_UPDATE, CASE_DECISION, CLAIM_DECISION_RIGHTS) are SERVICE with no consent purpose. Any other type is MARKETING and names the consent purpose it needs (POPIA s69); SERVICE is refused for it. Channels are named once each.",
         "operationId": "EditCommunicationsNotificationTypesDraft",
         "parameters": [
           {

@@ -9512,7 +9512,7 @@
           "Payments"
         ],
         "summary": "The payments for a business record, oldest first (GAP-036)",
-        "description": "A refund (REFUND_REQUEST), claim payment instruction (CLAIM_PAYMENT), invoice (INVOICE), remittance or commission statement. A payment is listed from when it is created, before it completes.",
+        "description": "A refund (REFUND_REQUEST), claim payment instruction (CLAIM_PAYMENT), invoice (INVOICE), remittance, commission statement or case redress (CASE_REDRESS). A payment is listed from when it is created, before it completes.",
         "operationId": "PaymentsList",
         "parameters": [
           {
@@ -9528,7 +9528,8 @@
               "REFUND_REQUEST",
               "CLAIM_PAYMENT",
               "HEALTH_REMITTANCE",
-              "COMMISSION_STATEMENT"
+              "COMMISSION_STATEMENT",
+              "CASE_REDRESS"
             ]
           },
           {
@@ -21472,6 +21473,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/HealthApproveClaimRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -34904,6 +34921,27 @@
             ],
             "format": "int64"
           },
+          "outcome": {
+            "enum": [
+              "APPROVED",
+              "PARTLY_APPROVED",
+              "DECLINED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "claimedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
           "latestRejection": {
             "oneOf": [
               {
@@ -36925,6 +36963,20 @@
           }
         }
       },
+      "HealthApproveClaimRequest": {
+        "required": [
+          "reasonCode"
+        ],
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "HealthAuthorisationChangeRequest": {
         "required": [
           "lineId",
@@ -37724,6 +37776,23 @@
               "string"
             ],
             "format": "int64"
+          },
+          "outcome": {
+            "enum": [
+              "APPROVED",
+              "PARTLY_APPROVED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decisionReasonCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -41749,6 +41818,27 @@
             ],
             "format": "int64"
           },
+          "outcome": {
+            "enum": [
+              "APPROVED",
+              "PARTLY_APPROVED",
+              "DECLINED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "claimedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
           "latestRejection": {
             "oneOf": [
               {
@@ -44662,7 +44752,8 @@
               "REFUND",
               "CLAIM_PAYOUT",
               "RECOVERY",
-              "COMMISSION"
+              "COMMISSION",
+              "CASE_REDRESS"
             ],
             "type": "string"
           },
@@ -44735,7 +44826,8 @@
             "enum": [
               "REFUND",
               "CLAIM_PAYOUT",
-              "COMMISSION"
+              "COMMISSION",
+              "CASE_REDRESS"
             ],
             "type": "string"
           },
@@ -45042,7 +45134,8 @@
               "REFUND",
               "CLAIM_PAYOUT",
               "RECOVERY",
-              "COMMISSION"
+              "COMMISSION",
+              "CASE_REDRESS"
             ],
             "type": "string"
           },
