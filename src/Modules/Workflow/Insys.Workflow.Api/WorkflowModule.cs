@@ -47,7 +47,7 @@ namespace Insys.Workflow.Api;
 public sealed record RejectApprovalRequest(string Reason);
 
 /// <param name="Reason">Optional: why the checker approved (BR-001), kept on the approval as its decisionReason, at most 2000 characters.</param>
-public sealed record ApproveApprovalRequest(string? Reason);
+public sealed record ApproveApprovalRequest([property: System.ComponentModel.DataAnnotations.MaxLength(2000)] string? Reason);
 
 public sealed record StartProcessRequest(string ProcessCode, string BusinessRefType, Guid BusinessRefId);
 
@@ -94,6 +94,26 @@ public sealed class WorkflowModule : IModule
         foreach (var type in new[] { typeof(Infrastructure.StaticData.DelegationAndApprovalAuthority), typeof(Infrastructure.StaticData.DelegationAndApprovalAuthorityInput) })
         {
             StateEnums.Describe(type, "currency", currency);
+        }
+
+        StateEnums.Describe(typeof(Application.AuthorityView), "currency", "The limit's ISO 4217 currency: the authority row's own, or the tenant's base currency when the row has none.");
+        StateEnums.Describe(typeof(Application.ApprovalView), "screen",
+            "The SCREEN function (its code) that opens the record the approval is about, for example PAYMENT_PAYOUT_BATCHES (BR-005); the console maps it to its route.");
+        const string duration = "An ISO 8601 duration, for example P10D or PT48H.";
+        foreach (var (type, field, description) in new (Type, string, string)[]
+                 {
+                     (typeof(Infrastructure.StaticData.CaseTimelines), "duration", "How long the step may take. " + duration),
+                     (typeof(Infrastructure.StaticData.CaseTimelinesInput), "duration", "How long the step may take. " + duration),
+                     (typeof(Infrastructure.StaticData.CaseTimelines), "maxExtension", "The most the step's timeline may be extended in all. " + duration),
+                     (typeof(Infrastructure.StaticData.CaseTimelinesInput), "maxExtension", "The most the step's timeline may be extended in all. " + duration),
+                     (typeof(Infrastructure.StaticData.CaseReportability), "queryWindow", "Business days from receipt (PPR 18.1). " + duration),
+                     (typeof(Infrastructure.StaticData.CaseReportabilityInput), "queryWindow", "Business days from receipt (PPR 18.1). " + duration),
+                     (typeof(Infrastructure.StaticData.CaseRetention), "retainFor", "From closure; 5 years (P5Y) when none is in force (OQ-106). " + duration),
+                     (typeof(Infrastructure.StaticData.CaseRetentionInput), "retainFor", "From closure; 5 years (P5Y) when none is in force (OQ-106). " + duration),
+                     (typeof(ExtendCaseRequest), "extendBy", "Counted as the step's timeline is (business or calendar days). " + duration),
+                 })
+        {
+            StateEnums.Describe(type, field, description, "duration");
         }
     }
 

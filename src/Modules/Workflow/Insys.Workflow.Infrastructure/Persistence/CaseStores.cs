@@ -189,7 +189,9 @@ internal sealed class CaseQueries(WorkflowDbContext db, IExecutionContext execut
             c.Links.OrderBy(l => l.AddedAt).Select(l => new CaseLinkView(l.LinkType, l.RecordId, l.Reference, l.AddedAt)).ToList(),
             history.Select(h => new CaseHistoryView(h.EventType, h.OccurredAt, h.Actor, h.Detail)).ToList(),
             messages.Select(m => new CaseMessageView(m.Id, m.Direction, m.AuthorAudience, m.Body, m.SentAt)).ToList(),
-            redress.Select(r => CaseRedressView.Of(r)).ToList(), c.RowVersion);
+            redress.Select(r => CaseRedressView.Of(r)).ToList(), c.RowVersion,
+            // The step a timeline extension applies to while the case is open, and how many extensions it has had.
+            c.IsOpen ? c.CurrentStep : null, history.Count(h => h.EventType == CaseEventTypes.Extended));
     }
 
     /// <summary>§8: the cases dashboard. Complaint figures count every complaint the caller may see; redress paid is per currency.</summary>

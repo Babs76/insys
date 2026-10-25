@@ -244,8 +244,8 @@ public sealed record ClaimPayeeView(Guid PartyId, Guid BankAccountId, decimal Sh
 public sealed record LifeClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, string ClaimType, DateOnly EventDate, string? CauseCode, Guid ClaimantPartyId,
     Guid InsuredLifeId, LifeClaimStatus Status, string Currency, decimal? AssessedAmount, decimal? ApprovedAmount, decimal PaidAmount, string? DecisionReason,
     string? DecisionRationale, bool ApprovalPending, IReadOnlyList<ClaimLineView> Lines, IReadOnlyList<ClaimPayeeView> Payees, long RowVersion,
-    [property: BuildingBlocks.Domain.OneOf(LifeClaimOutcomes.Approved, LifeClaimOutcomes.PartlyApproved, LifeClaimOutcomes.Declined)] string? Outcome = null,
-    decimal? ClaimedAmount = null, Workflow.Contracts.LatestRejection? LatestRejection = null)
+    [property: BuildingBlocks.Domain.OneOf(LifeClaimOutcomes.Approved, LifeClaimOutcomes.PartlyApproved, LifeClaimOutcomes.Declined), BuildingBlocks.Contracts.AlwaysPresent] string? Outcome = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] decimal? ClaimedAmount = null, Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static LifeClaimView From(LifeClaim c) => new(c.Id, c.ClaimNumber, c.PolicyId, c.ClaimType, c.EventDate, c.CauseCode, c.ClaimantPartyId, c.InsuredLifeId,
         c.Status, c.Currency, c.AssessedAmount, c.ApprovedAmount, c.PaidAmount, c.DecisionReason, c.DecisionRationale, c.ApprovalPending,

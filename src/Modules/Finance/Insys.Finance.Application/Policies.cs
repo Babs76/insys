@@ -92,12 +92,17 @@ public sealed class PostingPolicies(EventPoster poster) :
         Post(envelope, "SHARED", TransactionTypes.PaymentReceived, e.ValueDate, e.Amount, e.Currency, "PAYMENT", e.PaymentId,
             new() { ["purpose"] = e.Purpose }, cancellationToken);
 
-    /// <summary>Outbound payments are posted by their purpose's owner (claims payments by ClaimPaymentCompleted); refunds and commission are posted here.</summary>
+    /// <summary>
+    /// Outbound payments are posted by their purpose's owner (claims payments by ClaimPaymentCompleted); refunds, commission
+    /// and case redress (OQ-104) are posted here. A tenant with no posting rule for the type parks the posting (ADR-022).
+    /// </summary>
     public Task Handle(PaymentSucceeded e, EventEnvelope envelope, CancellationToken cancellationToken) => e.Purpose switch
     {
         PaymentPurposes.Refund => Post(envelope, "SHARED", TransactionTypes.RefundPaid, e.ValueDate, e.Amount, e.Currency, "PAYMENT", e.PaymentId,
             new() { ["purpose"] = e.Purpose }, cancellationToken),
         PaymentPurposes.Commission => Post(envelope, "SHARED", TransactionTypes.CommissionPaid, e.ValueDate, e.Amount, e.Currency, "PAYMENT", e.PaymentId,
+            new() { ["purpose"] = e.Purpose }, cancellationToken),
+        PaymentPurposes.CaseRedress => Post(envelope, "SHARED", TransactionTypes.RedressPaid, e.ValueDate, e.Amount, e.Currency, "PAYMENT", e.PaymentId,
             new() { ["purpose"] = e.Purpose }, cancellationToken),
         _ => Task.CompletedTask,
     };

@@ -297,19 +297,21 @@ public sealed record EndorsementView(Guid Id, string EndorsementNumber, Guid Pol
 
 public sealed record ClaimPartyView(Guid PartyId, string Role, string? InsurerRef);
 
-public sealed record SettlementView(decimal Amount, string Currency, Guid PayeePartyId, string ReserveType, bool Pending, Guid? ApprovalId);
+/// <param name="ClaimedAmount">What the settlement is measured against (OQ-102): the accepted assessment less the excess, in the settlement's
+/// currency. A settlement below it is a partial approval.</param>
+public sealed record SettlementView(decimal Amount, string Currency, Guid PayeePartyId, string ReserveType, bool Pending, Guid? ApprovalId, decimal? ClaimedAmount = null);
 
 public sealed record ClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt,
     string CauseCode, string PerilCode, string? CatEventCode, ClaimStatus Status, string? DecisionCode, string? DecisionRationale, SettlementView? Settlement,
     IReadOnlyList<ClaimPartyView> Parties, long RowVersion,
-    [property: OneOf(ClaimDecisionOutcomes.Approved, ClaimDecisionOutcomes.PartlyApproved, ClaimDecisionOutcomes.Declined)] string? Outcome = null,
-    decimal? ClaimedAmount = null, Workflow.Contracts.LatestRejection? LatestRejection = null)
+    [property: OneOf(ClaimDecisionOutcomes.Approved, ClaimDecisionOutcomes.PartlyApproved, ClaimDecisionOutcomes.Declined), BuildingBlocks.Contracts.AlwaysPresent] string? Outcome = null,
+    Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static ClaimView From(GeneralClaim c) => new(c.Id, c.ClaimNumber, c.PolicyId, c.RiskObjectId, c.CoverageCode, c.LossDate, c.NotifiedAt, c.CauseCode, c.PerilCode,
         c.CatEventCode, c.Status, c.DecisionCode, c.DecisionRationale,
         c.SettlementAmount is { } amount ? new SettlementView(amount, c.SettlementCurrency!, c.SettlementPayeePartyId!.Value, c.SettlementReserveType!, c.SettlementPending,
-            c.SettlementApprovalId) : null,
-        c.Parties.Select(p => new ClaimPartyView(p.PartyId, p.Role, p.InsurerRef)).ToList(), c.RowVersion, c.DecisionOutcome, c.ClaimedAmount);
+            c.SettlementApprovalId, c.ClaimedAmount) : null,
+        c.Parties.Select(p => new ClaimPartyView(p.PartyId, p.Role, p.InsurerRef)).ToList(), c.RowVersion, c.DecisionOutcome);
 }
 
 public sealed record EstimateView(Guid Id, Guid RepairerPartyId, decimal Amount, [property: OneOf("SUBMITTED", "ACCEPTED", "REJECTED")] string Status);

@@ -107,7 +107,8 @@ public sealed record ListScopedAssignments : IQuery<IReadOnlyList<ScopedAssignme
 
 public sealed record UserView(
     Guid Id, string Username, string DisplayName, string IdpCode, string? ExternalSubject, UserStatus Status, bool MfaEnrolled, DateTimeOffset? LastLoginAt,
-    IReadOnlyList<RoleAssignmentView> RoleAssignments, long RowVersion, string? Email = null, ExternalSubjectLinkView? ExternalSubjectLink = null);
+    IReadOnlyList<RoleAssignmentView> RoleAssignments, long RowVersion, string? Email = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] ExternalSubjectLinkView? ExternalSubjectLink = null);
 
 /// <summary>
 /// The user's external-subject link on their view (BR-010): the pending or active one, else the latest. Key is the party

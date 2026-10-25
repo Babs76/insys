@@ -5528,36 +5528,58 @@
           "Workflow"
         ],
         "summary": "List cases: by family, type, status, category, overdue, or a linked record (linkType, linkId)",
-        "description": "Within the caller\u0027s scope (F103): a case is in scope when its product and node are, and a case with no scoped record is tenant-wide. A Health-linked case (a membership, provider, remittance or payment run, or raised by a provider) is listed only to callers with medical_claim.read. status is a case status in any case (InProgress or IN_PROGRESS); overdue means open and past its expected date. Oldest first by ID, cursor paged.",
+        "description": "Within the caller\u0027s scope (F103): a case is in scope when its product and node are, and a case with no scoped record is tenant-wide. A Health-linked case (a membership, provider, remittance or payment run, or raised by a provider) is listed only to callers with medical_claim.read. status is a case status (Received, Acknowledged, InProgress, AwaitingComplainant, Decided, Closed, Withdrawn, Reopened; any case is accepted); overdue means open and past its expected date. Oldest first by ID, cursor paged.",
         "operationId": "WorkflowListCases",
         "parameters": [
           {
             "name": "family",
             "in": "query",
+            "description": "The case family.",
             "schema": {
               "type": "string"
-            }
+            },
+            "x-known-values": [
+              "ENQUIRY",
+              "COMPLAINT",
+              "DISPUTE",
+              "APPEAL"
+            ]
           },
           {
             "name": "type",
             "in": "query",
+            "description": "A case type code (workflow/static/case-types).",
             "schema": {
               "type": "string"
-            }
+            },
+            "x-known-values": []
           },
           {
             "name": "status",
             "in": "query",
+            "description": "The case status.",
             "schema": {
               "type": "string"
-            }
+            },
+            "x-known-values": [
+              "Received",
+              "Acknowledged",
+              "InProgress",
+              "AwaitingComplainant",
+              "Decided",
+              "Closed",
+              "Withdrawn",
+              "Reopened"
+            ]
           },
           {
             "name": "category",
             "in": "query",
+            "description": "A case category code (workflow/static/case-categories).",
             "schema": {
               "type": "string"
-            }
+            },
+            "x-known-values": []
           },
           {
             "name": "overdue",
@@ -5569,9 +5591,23 @@
           {
             "name": "linkType",
             "in": "query",
+            "description": "With linkId: the cases that link that record.",
             "schema": {
               "type": "string"
-            }
+            },
+            "x-known-values": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ]
           },
           {
             "name": "linkId",
@@ -5948,7 +5984,7 @@
           "Workflow"
         ],
         "summary": "Acknowledge the case to the complainant (CASE_ACKNOWLEDGED, OQ-107)",
-        "description": "The expected date becomes the resolution step\u0027s (RESOLVE; REVIEW for an appeal) from receipt. Completes asynchronously (GAP-027): workflow.CaseAcknowledged: Communications sends CASE_ACKNOWLEDGED.",
+        "description": "The expected date becomes the resolution step\u0027s (RESOLVE; REVIEW for an appeal) from receipt. A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022). Completes asynchronously (GAP-027): workflow.CaseAcknowledged: Communications sends CASE_ACKNOWLEDGED.",
         "operationId": "WorkflowAcknowledgeCase",
         "parameters": [
           {
@@ -6021,7 +6057,7 @@
           "Workflow"
         ],
         "summary": "Send the complainant a message on the case",
-        "description": "While the case is open; the portal shows it (\u00A75).",
+        "description": "While the case is open; the portal shows it (\u00A75). A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022).",
         "operationId": "WorkflowAddCaseMessage",
         "parameters": [
           {
@@ -6102,7 +6138,7 @@
           "Workflow"
         ],
         "summary": "Link a record to the case",
-        "description": "422 CASE_LINK_NOT_ALLOWED for a link type the case type does not allow. An invoice, billing account or remittance is checked with its module, and places the case in that record\u0027s product and node (F103).",
+        "description": "422 CASE_LINK_NOT_ALLOWED for a link type the case type does not allow. An invoice, billing account or remittance is checked with its module, and places the case in that record\u0027s product and node (F103). A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022).",
         "operationId": "WorkflowLinkCaseRecord",
         "parameters": [
           {
@@ -6183,7 +6219,7 @@
           "Workflow"
         ],
         "summary": "Extend the current step\u0027s timeline, with a reason",
-        "description": "422 CASE_TIMELINE_NOT_EXTENDABLE when the step\u0027s timeline does not allow an extension, or the new date would be more than its maxExtension after the step\u0027s own date. Completes asynchronously (GAP-027): workflow.CaseUpdated (EXTENDED): Communications tells the complainant the new date (CASE_UPDATE).",
+        "description": "422 CASE_TIMELINE_NOT_EXTENDABLE when the step\u0027s timeline does not allow an extension, or the new date would be more than its maxExtension after the step\u0027s own date. A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022). Completes asynchronously (GAP-027): workflow.CaseUpdated (EXTENDED): Communications tells the complainant the new date (CASE_UPDATE).",
         "operationId": "WorkflowExtendCaseTimeline",
         "parameters": [
           {
@@ -6265,7 +6301,7 @@
           "Workflow"
         ],
         "summary": "Escalate the case to the next level",
-        "description": "Completes asynchronously (GAP-027): workflow.CaseEscalated reaches Communications.",
+        "description": "A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022). Completes asynchronously (GAP-027): workflow.CaseEscalated reaches Communications.",
         "operationId": "WorkflowEscalateCase",
         "parameters": [
           {
@@ -6337,7 +6373,8 @@
         "tags": [
           "Workflow"
         ],
-        "summary": "Start work on an acknowledged or reopened case (IN_PROGRESS)",
+        "summary": "Start work on an acknowledged or reopened case (InProgress)",
+        "description": "A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022).",
         "operationId": "WorkflowStartCase",
         "parameters": [
           {
@@ -6408,7 +6445,8 @@
         "tags": [
           "Workflow"
         ],
-        "summary": "Wait for the complainant (AWAITING_COMPLAINANT)",
+        "summary": "Wait for the complainant (AwaitingComplainant)",
+        "description": "A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022).",
         "operationId": "WorkflowCaseAwaitComplainant",
         "parameters": [
           {
@@ -6479,7 +6517,8 @@
         "tags": [
           "Workflow"
         ],
-        "summary": "Resume work after the complainant answered (IN_PROGRESS)",
+        "summary": "Resume work after the complainant answered (InProgress)",
+        "description": "A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022).",
         "operationId": "WorkflowResumeCase",
         "parameters": [
           {
@@ -6551,7 +6590,7 @@
           "Workflow"
         ],
         "summary": "Decide the case, with reasons",
-        "description": "An appeal is decided only by a holder of the privileged function CASE_DECIDE_APPEAL (403 FUNCTION_NOT_GRANTED, OQ-109) and by someone other than the person who decided the case appealed (409 CASE_DECIDER_SAME_PERSON, PPR 18.6). 422 CASE_REASONS_REQUIRED for a rejection without reasons. Completes asynchronously (GAP-027): the case\u0027s events reach Communications (the complainant\u0027s notice) and, for a decided dispute or appeal upheld, the claim\u0027s module (reassessment); read the case again for its own state.",
+        "description": "An appeal is decided only by a holder of the privileged function CASE_DECIDE_APPEAL (403 FUNCTION_NOT_GRANTED, OQ-109) and by someone other than the person who decided the case appealed (409 CASE_DECIDER_SAME_PERSON, PPR 18.6). 422 CASE_REASONS_REQUIRED for a rejection without reasons. A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022). Completes asynchronously (GAP-027): the case\u0027s events reach Communications (the complainant\u0027s notice) and, for a decided dispute or appeal upheld, the claim\u0027s module (reassessment); read the case again for its own state.",
         "operationId": "WorkflowDecideCase",
         "parameters": [
           {
@@ -6632,8 +6671,8 @@
         "tags": [
           "Workflow"
         ],
-        "summary": "Close a decided case (or answer an enquiry straight from RECEIVED)",
-        "description": "A complaint\u0027s reportable flag is computed now (\u00A76.2); retainUntil is set from the family\u0027s retention (5 years when none is in force, OQ-106). A case referred to an ombud stays open for the ombud\u0027s outcome. Completes asynchronously (GAP-027): workflow.CaseClosed reaches Communications.",
+        "summary": "Close a decided case (or answer an enquiry straight from Received)",
+        "description": "A complaint\u0027s reportable flag is computed now (\u00A76.2); retainUntil is set from the family\u0027s retention (5 years when none is in force, OQ-106). A case referred to an ombud stays open for the ombud\u0027s outcome. A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022). Completes asynchronously (GAP-027): workflow.CaseClosed reaches Communications.",
         "operationId": "WorkflowCloseCase",
         "parameters": [
           {
@@ -6706,7 +6745,7 @@
           "Workflow"
         ],
         "summary": "Withdraw the case, with a reason",
-        "description": "From any open status; kept as a closed case is (OQ-106). Completes asynchronously (GAP-027): workflow.CaseClosed (outcome WITHDRAWN).",
+        "description": "From any open status; kept as a closed case is (OQ-106). A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022). Completes asynchronously (GAP-027): workflow.CaseClosed (outcome WITHDRAWN).",
         "operationId": "WorkflowWithdrawCase",
         "parameters": [
           {
@@ -6788,7 +6827,7 @@
           "Workflow"
         ],
         "summary": "Reopen a closed case, with a reason (privileged, OQ-109)",
-        "description": "Its decision is cleared (the history keeps it) and its retention date removed. Completes asynchronously (GAP-027): workflow.CaseReopened reaches Communications.",
+        "description": "Its decision is cleared (the history keeps it) and its retention date removed. A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022). Completes asynchronously (GAP-027): workflow.CaseReopened reaches Communications.",
         "operationId": "WorkflowReopenCase",
         "parameters": [
           {
@@ -6870,7 +6909,7 @@
           "Workflow"
         ],
         "summary": "Record that a decided case was referred to an ombud",
-        "description": "The scheme is one the case type names; the case stays open for the ombud\u0027s outcome. Completes asynchronously (GAP-027): workflow.CaseReferredToOmbud reaches Communications.",
+        "description": "The scheme is one the case type names; the case stays open for the ombud\u0027s outcome. A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022). Completes asynchronously (GAP-027): workflow.CaseReferredToOmbud reaches Communications.",
         "operationId": "WorkflowReferCaseToOmbud",
         "parameters": [
           {
@@ -6952,6 +6991,7 @@
           "Workflow"
         ],
         "summary": "Record the ombud\u0027s outcome on the referral",
+        "description": "A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022).",
         "operationId": "WorkflowRecordCaseOmbudOutcome",
         "parameters": [
           {
@@ -7032,7 +7072,7 @@
           "Workflow"
         ],
         "summary": "Let the broker of the case\u0027s policies see it (OQ-108)",
-        "description": "A broker sees the cases it raised; a shared case is also seen by the broker of a policy the case links.",
+        "description": "A broker sees the cases it raised; a shared case is also seen by the broker of a policy the case links. A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022).",
         "operationId": "WorkflowShareCaseWithBroker",
         "parameters": [
           {
@@ -7104,7 +7144,7 @@
           "Workflow"
         ],
         "summary": "Place a legal hold on the case (privileged)",
-        "description": "Open or closed: a held case is not disposed of after its retention date (OQ-106).",
+        "description": "Open or closed: a held case is not disposed of after its retention date (OQ-106). A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022).",
         "operationId": "WorkflowPlaceCaseLegalHold",
         "parameters": [
           {
@@ -7185,6 +7225,7 @@
           "Workflow"
         ],
         "summary": "Release the case\u0027s legal hold (privileged)",
+        "description": "A closed case refuses the change (409 CASE_CLOSED); If-Match is the case\u0027s ETag, its rowVersion in double quotes (\u00223\u0022).",
         "operationId": "WorkflowReleaseCaseLegalHold",
         "parameters": [
           {
@@ -7545,6 +7586,7 @@
           "Workflow"
         ],
         "summary": "Send a message on one\u0027s own open case",
+        "description": "A repeat with the same Idempotency-Key does not post the message twice. Another user\u0027s case, or one outside the user\u0027s relationship, is 404, never 403, so a case\u0027s existence is not revealed (\u00A75).",
         "operationId": "PortalAddCaseMessage",
         "parameters": [
           {
@@ -7554,6 +7596,16 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
             }
           }
         ],
@@ -21461,6 +21513,7 @@
           "Health"
         ],
         "summary": "Approve the adjudicated claim for payment",
+        "description": "The body is optional. A claim adjudicated with some lines rejected while the rest are paid is a partial approval (OQ-102): it needs reasonCode, a decision reason of type PARTIAL (claims/static/claim-decision-reason-codes), else 422 HEALTH_RATIONALE_REQUIRED; the claim\u0027s outcome is then PARTLY_APPROVED and the member is sent CLAIM_DECISION_RIGHTS. Paying at the tariff, or less a co-payment, is the plan\u0027s terms and is not partial.",
         "operationId": "HealthApproveClaim",
         "parameters": [
           {
@@ -34834,6 +34887,7 @@
           "settlement",
           "parties",
           "rowVersion",
+          "outcome",
           "latestRejection"
         ],
         "type": "object",
@@ -34932,15 +34986,6 @@
               "null",
               "string"
             ]
-          },
-          "claimedAmount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
-            "type": [
-              "null",
-              "number",
-              "string"
-            ],
-            "format": "double"
           },
           "latestRejection": {
             "oneOf": [
@@ -36844,6 +36889,15 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "claimedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -36964,9 +37018,6 @@
         }
       },
       "HealthApproveClaimRequest": {
-        "required": [
-          "reasonCode"
-        ],
         "type": "object",
         "properties": {
           "reasonCode": {
@@ -37174,6 +37225,12 @@
             "format": "double"
           },
           "outcome": {
+            "enum": [
+              "PAY",
+              "PEND",
+              "REJECT",
+              null
+            ],
             "type": [
               "null",
               "string"
@@ -37695,7 +37752,9 @@
           "pendReason",
           "paymentRunId",
           "lines",
-          "rowVersion"
+          "rowVersion",
+          "outcome",
+          "decisionReasonCode"
         ],
         "type": "object",
         "properties": {
@@ -38237,6 +38296,12 @@
             "format": "double"
           },
           "outcome": {
+            "enum": [
+              "PAY",
+              "PEND",
+              "REJECT",
+              null
+            ],
             "type": [
               "null",
               "string"
@@ -40515,7 +40580,8 @@
           "mfaEnrolled",
           "lastLoginAt",
           "roleAssignments",
-          "rowVersion"
+          "rowVersion",
+          "externalSubjectLink"
         ],
         "type": "object",
         "properties": {
@@ -41712,6 +41778,8 @@
           "lines",
           "payees",
           "rowVersion",
+          "outcome",
+          "claimedAmount",
           "latestRejection"
         ],
         "type": "object",
@@ -46583,7 +46651,10 @@
           "expiresAt",
           "subjectHash",
           "requiredPermission",
-          "rowVersion"
+          "rowVersion",
+          "notAppliedBy",
+          "notAppliedAt",
+          "screen"
         ],
         "type": "object",
         "properties": {
@@ -46739,7 +46810,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "The SCREEN function (its code) that opens the record the approval is about, for example PAYMENT_PAYOUT_BATCHES (BR-005); the console maps it to its route."
           }
         }
       },
@@ -46750,6 +46822,7 @@
         "type": "object",
         "properties": {
           "reason": {
+            "maxLength": 2000,
             "type": [
               "null",
               "string"
@@ -46820,7 +46893,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "The limit\u0027s ISO 4217 currency: the authority row\u0027s own, or the tenant\u0027s base currency when the row has none."
           }
         }
       },
@@ -46834,6 +46908,32 @@
         "type": "object",
         "properties": {
           "eventType": {
+            "enum": [
+              "RECEIVED",
+              "ACKNOWLEDGED",
+              "ASSIGNED",
+              "UPDATED",
+              "LINKED",
+              "MESSAGE_SENT",
+              "MESSAGE_RECEIVED",
+              "EXTENDED",
+              "ESCALATED",
+              "AWAITING_COMPLAINANT",
+              "RESUMED",
+              "DECIDED",
+              "REDRESS_REQUESTED",
+              "REDRESS_APPROVED",
+              "REDRESS_REJECTED",
+              "REDRESS_PAID",
+              "REFERRED_TO_OMBUD",
+              "OMBUD_OUTCOME",
+              "SHARED_WITH_BROKER",
+              "REOPENED",
+              "WITHDRAWN",
+              "CLOSED",
+              "LEGAL_HOLD_PLACED",
+              "LEGAL_HOLD_RELEASED"
+            ],
             "type": "string"
           },
           "occurredAt": {
@@ -46860,6 +46960,19 @@
         "type": "object",
         "properties": {
           "linkType": {
+            "enum": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ],
             "type": "string"
           },
           "recordId": {
@@ -46880,6 +46993,19 @@
         "type": "object",
         "properties": {
           "linkType": {
+            "enum": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ],
             "type": "string"
           },
           "recordId": {
@@ -47033,6 +47159,10 @@
         "type": "object",
         "properties": {
           "redressType": {
+            "enum": [
+              "COMPENSATION",
+              "GOODWILL"
+            ],
             "type": "string"
           },
           "amount": {
@@ -47331,7 +47461,8 @@
           "history",
           "messages",
           "redress",
-          "rowVersion"
+          "rowVersion",
+          "currentStep"
         ],
         "type": "object",
         "properties": {
@@ -47604,6 +47735,27 @@
               "string"
             ],
             "format": "int64"
+          },
+          "currentStep": {
+            "enum": [
+              "ACKNOWLEDGE",
+              "RESOLVE",
+              "REVIEW",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "extensions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 0
           }
         }
       },
@@ -47822,6 +47974,12 @@
         "type": "object",
         "properties": {
           "outcome": {
+            "enum": [
+              "UPHELD",
+              "PARTLY_UPHELD",
+              "REJECTED",
+              "ANSWERED"
+            ],
             "type": "string"
           },
           "reasons": {
@@ -47840,7 +47998,9 @@
         "type": "object",
         "properties": {
           "extendBy": {
-            "type": "string"
+            "type": "string",
+            "description": "Counted as the step\u0027s timeline is (business or calendar days). An ISO 8601 duration, for example P10D or PT48H.",
+            "format": "duration"
           },
           "reason": {
             "type": "string"
@@ -47913,6 +48073,13 @@
         "type": "object",
         "properties": {
           "outcome": {
+            "enum": [
+              "UPHELD",
+              "PARTLY_UPHELD",
+              "REJECTED",
+              "SETTLED",
+              "DISMISSED"
+            ],
             "type": "string"
           },
           "at": {
@@ -47962,8 +48129,7 @@
           "categoryCode",
           "summary",
           "upheldAtReceipt",
-          "parentCaseId",
-          "links"
+          "parentCaseId"
         ],
         "type": "object",
         "properties": {
@@ -48128,8 +48294,7 @@
           "caseTypeCode",
           "categoryCode",
           "summary",
-          "onBehalfOfPartyId",
-          "links"
+          "onBehalfOfPartyId"
         ],
         "type": "object",
         "properties": {

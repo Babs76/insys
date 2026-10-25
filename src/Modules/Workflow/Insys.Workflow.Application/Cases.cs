@@ -126,7 +126,10 @@ public sealed record CaseLinkView([property: AllowedValues("POLICY", "CLAIM", "M
     string LinkType, Guid RecordId, string Reference, DateTimeOffset AddedAt);
 
 /// <param name="Detail">What happened, in codes and references (never the case's own text, except a reason staff gave for the step).</param>
-public sealed record CaseHistoryView(string EventType, DateTimeOffset OccurredAt, string Actor, string? Detail);
+public sealed record CaseHistoryView([property: AllowedValues("RECEIVED", "ACKNOWLEDGED", "ASSIGNED", "UPDATED", "LINKED", "MESSAGE_SENT", "MESSAGE_RECEIVED",
+    "EXTENDED", "ESCALATED", "AWAITING_COMPLAINANT", "RESUMED", "DECIDED", "REDRESS_REQUESTED", "REDRESS_APPROVED", "REDRESS_REJECTED", "REDRESS_PAID",
+    "REFERRED_TO_OMBUD", "OMBUD_OUTCOME", "SHARED_WITH_BROKER", "REOPENED", "WITHDRAWN", "CLOSED", "LEGAL_HOLD_PLACED", "LEGAL_HOLD_RELEASED")] string EventType,
+    DateTimeOffset OccurredAt, string Actor, string? Detail);
 
 public sealed record CaseMessageView(Guid Id, [property: AllowedValues("IN", "OUT")] string Direction, [property: AllowedValues("STAFF", "CUSTOMER", "BROKER", "PROVIDER")] string AuthorAudience,
     string Body, DateTimeOffset SentAt);
@@ -151,7 +154,8 @@ public sealed record CaseView(Guid Id, string CaseNumber, string CaseTypeCode, [
     DateTimeOffset? ExpectedBy, bool Overdue, DateTimeOffset? ClosedAt, DateOnly? RetainUntil, bool LegalHold, string? OmbudSchemeCode, string? OmbudReference,
     DateTimeOffset? OmbudReferredAt, [property: AllowedValues("UPHELD", "PARTLY_UPHELD", "REJECTED", "SETTLED", "DISMISSED")] string? OmbudOutcome,
     DateTimeOffset? OmbudOutcomeAt, IReadOnlyList<CaseLinkView> Links, IReadOnlyList<CaseHistoryView> History, IReadOnlyList<CaseMessageView> Messages,
-    IReadOnlyList<CaseRedressView> Redress, long RowVersion);
+    IReadOnlyList<CaseRedressView> Redress, long RowVersion,
+    [property: AllowedValues("ACKNOWLEDGE", "RESOLVE", "REVIEW"), BuildingBlocks.Contracts.AlwaysPresent] string? CurrentStep = null, int Extensions = 0);
 
 /// <summary>A case in a list: no free text.</summary>
 public sealed record CaseSummaryView(Guid Id, string CaseNumber, string CaseTypeCode, [property: AllowedValues("ENQUIRY", "COMPLAINT", "DISPUTE", "APPEAL")] string Family,
@@ -188,7 +192,7 @@ public sealed record ComplaintsReport(DateOnly From, DateOnly To, DateTimeOffset
 // Commands and queries
 // ---------------------------------------------------------------------------------------------------------------------
 
-public sealed record CaseLinkInput(string LinkType, Guid RecordId, string Reference);
+public sealed record CaseLinkInput([property: AllowedValues("POLICY", "CLAIM", "MEMBERSHIP", "PAYMENT", "INVOICE", "BILLING_ACCOUNT", "PARTY", "PROVIDER", "REMITTANCE", "PAYMENT_RUN", "INTERMEDIARY")] string LinkType, Guid RecordId, string Reference);
 
 /// <param name="ReceivedAt">When it was received, if earlier than now (a letter, a phone call taken earlier).</param>
 /// <param name="ParentCaseId">For an appeal: the case whose decision it appeals; its type is that case type's review type.</param>

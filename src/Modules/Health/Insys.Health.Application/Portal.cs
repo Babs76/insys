@@ -48,7 +48,8 @@ public sealed record PortalMembershipView(Guid Id, string MemberNumber, string? 
         m.PrincipalPartyId, m.Dependants.Select(d => new PortalDependantView(d.PartyId, d.DependantType, d.Suffix, d.StartDate, d.EndDate)).ToList());
 }
 
-public sealed record PortalClaimLineView(int LineNo, string TariffCode, int Quantity, decimal ClaimedAmount, decimal PaidAmount, string? Outcome);
+public sealed record PortalClaimLineView(int LineNo, string TariffCode, int Quantity, decimal ClaimedAmount, decimal PaidAmount,
+    [property: BuildingBlocks.Domain.OneOf("PAY", "PEND", "REJECT")] string? Outcome);
 
 public sealed record PortalMedicalClaimView(Guid Id, string ClaimNumber, string? ProviderId, DateOnly ServiceDate, MedicalClaimStatus Status, decimal TotalClaimed,
     decimal? TotalPaid, string Currency, IReadOnlyList<PortalClaimLineView> Lines)

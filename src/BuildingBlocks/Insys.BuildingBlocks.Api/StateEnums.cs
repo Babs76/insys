@@ -106,6 +106,18 @@ public static class StateEnums
             }
         }
 
+        // Fields marked AlwaysPresent: in every response, null or a value.
+        var present = context.JsonTypeInfo.Properties.Where(prop => prop.AttributeProvider is MemberInfo m && m.GetCustomAttribute<Contracts.AlwaysPresentAttribute>() is not null)
+            .Select(prop => prop.Name).ToList();
+        if (present.Count > 0 && schema.Properties is not null)
+        {
+            schema.Required = new HashSet<string>(schema.Required ?? new HashSet<string>(), StringComparer.Ordinal);
+            foreach (var name in present.Where(schema.Properties.ContainsKey))
+            {
+                schema.Required.Add(name);
+            }
+        }
+
         // A record's latest rejection (OQ-113) is always present: null when its approvals never ended without being granted.
         if (schema.Properties?.ContainsKey("latestRejection") == true)
         {

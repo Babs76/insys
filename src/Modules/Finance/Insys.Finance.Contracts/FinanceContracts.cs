@@ -64,6 +64,9 @@ public static class TransactionTypes
     public const string CommissionAccrued = "COMMISSION_ACCRUED";
     public const string CommissionClawedBack = "COMMISSION_CLAWBACK";
     public const string CommissionPaid = "COMMISSION_PAID";
+
+    /// <summary>Compensation or goodwill paid on a case (OQ-104, PPR 18.8.3).</summary>
+    public const string RedressPaid = "REDRESS_PAID";
     public const string PremiumCeded = "PREMIUM_CEDED";
     public const string ReinsuranceRecoverable = "RI_RECOVERABLE";
     public const string ReinsuranceRecovered = "RI_RECOVERED";

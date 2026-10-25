@@ -240,14 +240,15 @@ public sealed record PreauthorisationView(Guid Id, string AuthNumber, Guid Membe
         p.RowVersion);
 }
 
-public sealed record ClaimLineView(int LineNo, string TariffCode, int Quantity, decimal ClaimedAmount, string? Outcome, string? AdjustmentReason, string? BenefitCategory,
+public sealed record ClaimLineView(int LineNo, string TariffCode, int Quantity, decimal ClaimedAmount, [property: BuildingBlocks.Domain.OneOf("PAY", "PEND", "REJECT")] string? Outcome, string? AdjustmentReason, string? BenefitCategory,
     string? NetworkStatus, decimal? TariffAmount, decimal AllowedAmount, decimal DeductibleAmount, decimal CopayAmount, decimal PaidAmount, decimal MemberLiability,
     Guid? PreauthLineId);
 
 /// <summary>The claim without diagnosis codes: medical information is shown only to roles with a clinical purpose (HLT-008).</summary>
 public sealed record MedicalClaimView(Guid Id, string ClaimNumber, string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate,
     MedicalClaimStatus Status, string Currency, decimal TotalClaimed, decimal? TotalPaid, string? PendReason, Guid? PaymentRunId, IReadOnlyList<ClaimLineView> Lines, long RowVersion,
-    [property: BuildingBlocks.Domain.OneOf(MedicalClaimOutcomes.Approved, MedicalClaimOutcomes.PartlyApproved)] string? Outcome = null, string? DecisionReasonCode = null)
+    [property: BuildingBlocks.Domain.OneOf(MedicalClaimOutcomes.Approved, MedicalClaimOutcomes.PartlyApproved), BuildingBlocks.Contracts.AlwaysPresent] string? Outcome = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] string? DecisionReasonCode = null)
 {
     public static MedicalClaimView From(MedicalClaim c) => new(c.Id, c.ClaimNumber, c.Source, c.ProviderId, c.MembershipId, c.PatientPartyId, c.ServiceDate,
         c.Status, c.Currency, c.TotalClaimed, c.TotalPaid, c.PendReason, c.PaymentRunId,

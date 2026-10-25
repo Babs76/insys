@@ -255,12 +255,12 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
         var raised = await member.Send(HttpMethod.Post, Portal, new { caseTypeCode = "COMPLAINT_T", categoryCode = "SERVICE", summary = "Slow service" }, idempotent: true);
         raised.StatusCode.ShouldBe(HttpStatusCode.Created, await raised.Content.ReadAsStringAsync());
         var id = (await raised.Json()).GetProperty("id").GetGuid();
-        (await member.Send(HttpMethod.Post, $"{Portal}/{id}/messages", new { body = "Any news?" })).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await member.Send(HttpMethod.Post, $"{Portal}/{id}/messages", new { body = "Any news?" }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         (await (await member.GetAsync(Portal)).Json()).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldBe([id]);
         (await (await other.GetAsync(Portal)).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
         (await other.GetAsync($"{Portal}/{id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        (await other.Send(HttpMethod.Post, $"{Portal}/{id}/messages", new { body = "Hi" })).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await other.Send(HttpMethod.Post, $"{Portal}/{id}/messages", new { body = "Hi" }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         var staffView = await Get(_clerk, id);
         (staffView.GetProperty("raisedByAudience").GetString(), staffView.GetProperty("complainantPartyId").GetGuid(), staffView.GetProperty("receivedChannel").GetString())

@@ -70,8 +70,10 @@ public interface IAuthorityReader
 public sealed record ApprovalView(Guid Id, [property: BusinessRefTypeField] string BusinessRefType, Guid BusinessRefId, [property: ApprovalTypeField] string ApprovalType,
     Guid MakerId, Guid? CheckerId, ApprovalStatus Status,
     decimal? Amount, string? Currency, string? Reason, string? DecisionReason, DateTimeOffset RequestedAt, DateTimeOffset? DecidedAt, DateTimeOffset? ExpiresAt,
-    string? SubjectHash, string? RequiredPermission, long RowVersion, string? NotAppliedBy = null, DateTimeOffset? NotAppliedAt = null)
+    string? SubjectHash, string? RequiredPermission, long RowVersion, [property: BuildingBlocks.Contracts.AlwaysPresent] string? NotAppliedBy = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? NotAppliedAt = null)
 {
+    [BuildingBlocks.Contracts.AlwaysPresent]
     public string? Screen => ApprovalKinds.ScreenFor(BusinessRefType);
 
     public static ApprovalView Of(Approval a) =>

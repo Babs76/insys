@@ -45,11 +45,11 @@ namespace Insys.Workflow.Api;
 /// <param name="ParentCaseId">For an appeal: the decided case it appeals; the type is that case type's review type.</param>
 public sealed record OpenCaseRequest(string CaseTypeCode, string ReceivedChannel, DateTimeOffset? ReceivedAt, Guid? ComplainantPartyId, string? ComplainantName,
     string? ComplainantContact, Guid? OnBehalfOfPartyId, string? CategoryCode, string Summary, bool? UpheldAtReceipt, Guid? ParentCaseId,
-    IReadOnlyList<CaseLinkInput>? Links);
+    IReadOnlyList<CaseLinkInput>? Links = null);
 
 public sealed record CaseMessageRequest(string Body);
 
-public sealed record CaseLinkRequest(string LinkType, Guid RecordId, string Reference);
+public sealed record CaseLinkRequest([property: System.ComponentModel.DataAnnotations.AllowedValues("POLICY", "CLAIM", "MEMBERSHIP", "PAYMENT", "INVOICE", "BILLING_ACCOUNT", "PARTY", "PROVIDER", "REMITTANCE", "PAYMENT_RUN", "INTERMEDIARY")] string LinkType, Guid RecordId, string Reference);
 
 /// <param name="ExtendBy">An ISO 8601 duration (P5D), counted as the step's timeline is (business or calendar days).</param>
 /// <param name="Reason">Told to the complainant with the new date (PPR 18.9).</param>
@@ -57,22 +57,24 @@ public sealed record ExtendCaseRequest(string ExtendBy, string Reason);
 
 /// <param name="Outcome">ANSWERED for an enquiry; UPHELD, PARTLY_UPHELD or REJECTED otherwise.</param>
 /// <param name="Reasons">Required for REJECTED and PARTLY_UPHELD (PPR 18.7.2).</param>
-public sealed record DecideCaseRequest(string Outcome, string? Reasons);
+public sealed record DecideCaseRequest([property: System.ComponentModel.DataAnnotations.AllowedValues("UPHELD", "PARTLY_UPHELD", "REJECTED", "ANSWERED")] string Outcome,
+    string? Reasons);
 
 public sealed record CaseReasonRequest(string Reason);
 
 /// <param name="RedressType">COMPENSATION or GOODWILL.</param>
 /// <param name="BankAccountId">The payee's verified bank account Payments pays into.</param>
-public sealed record CaseRedressRequest(string RedressType, decimal Amount, string Currency, Guid PayeePartyId, Guid? BankAccountId);
+public sealed record CaseRedressRequest([property: System.ComponentModel.DataAnnotations.AllowedValues("COMPENSATION", "GOODWILL")] string RedressType, decimal Amount, string Currency, Guid PayeePartyId, Guid? BankAccountId);
 
 /// <param name="SchemeCode">One of the ombud schemes the case type names (workflow/static/ombud-schemes).</param>
 public sealed record OmbudReferralRequest(string SchemeCode, string? OmbudReference, DateTimeOffset? ReferredAt);
 
 /// <param name="Outcome">UPHELD, PARTLY_UPHELD, REJECTED, SETTLED or DISMISSED.</param>
-public sealed record OmbudOutcomeRequest(string Outcome, DateTimeOffset? At);
+public sealed record OmbudOutcomeRequest(
+    [property: System.ComponentModel.DataAnnotations.AllowedValues("UPHELD", "PARTLY_UPHELD", "REJECTED", "SETTLED", "DISMISSED")] string Outcome, DateTimeOffset? At);
 
 /// <param name="OnBehalfOfPartyId">A broker's complaint for a client: the client, whose policy (one the broker brokers) the case links.</param>
-public sealed record PortalCaseRequest(string CaseTypeCode, string? CategoryCode, string Summary, Guid? OnBehalfOfPartyId, IReadOnlyList<CaseLinkInput>? Links);
+public sealed record PortalCaseRequest(string CaseTypeCode, string? CategoryCode, string Summary, Guid? OnBehalfOfPartyId, IReadOnlyList<CaseLinkInput>? Links = null);
 
 public sealed record PortalAppealRequest(string Summary);
 
@@ -120,8 +122,15 @@ internal static class CaseEndpoints
             .WithSummary("List cases: by family, type, status, category, overdue, or a linked record (linkType, linkId)")
             .WithDescription("Within the caller's scope (F103): a case is in scope when its product and node are, and a case with no scoped record is tenant-wide. "
                 + "A Health-linked case (a membership, provider, remittance or payment run, or raised by a provider) is listed only to callers with medical_claim.read. "
-                + "status is a case status in any case (InProgress or IN_PROGRESS); overdue means open and past its expected date. Oldest first by ID, cursor paged.")
+                + "status is a case status (Received, Acknowledged, InProgress, AwaitingComplainant, Decided, Closed, Withdrawn, Reopened; any case is accepted); overdue means open and past its expected date. Oldest first by ID, cursor paged.")
             .AlsoChecks(Health.Contracts.HealthPermissions.ClaimRead, "a case is Health-linked: without it the case is left out")
+            .WithKnownValues("family", [CaseFamilies.Enquiry, CaseFamilies.Complaint, CaseFamilies.Dispute, CaseFamilies.Appeal], "The case family.")
+            .WithKnownValues("type", [], "A case type code (workflow/static/case-types).")
+            .WithKnownValues("category", [], "A case category code (workflow/static/case-categories).")
+            .WithKnownValues("linkType", [CaseLinkTypes.Policy, CaseLinkTypes.Claim, CaseLinkTypes.Membership, CaseLinkTypes.Payment, CaseLinkTypes.Invoice,
+                CaseLinkTypes.BillingAccount, CaseLinkTypes.Party, CaseLinkTypes.Provider, CaseLinkTypes.Remittance, CaseLinkTypes.PaymentRun, CaseLinkTypes.Intermediary],
+                "With linkId: the cases that link that record.")
+            .WithKnownValues("status", ["Received", "Acknowledged", "InProgress", "AwaitingComplainant", "Decided", "Closed", "Withdrawn", "Reopened"], "The case status.")
             .RequirePermission(CasePermissions.Read);
 
         cases.MapGet("/summary", async (IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new CasesSummary(), ct)).ToHttp(Results.Ok))
@@ -207,18 +216,18 @@ internal static class CaseEndpoints
             .WithEventualEffects("workflow.CaseUpdated (EXTENDED): Communications tells the complainant the new date (CASE_UPDATE).");
         Versioned(cases, "/{id:guid}/escalate", "WorkflowEscalateCase", "Escalate the case to the next level", CasePermissions.Update, (id, v) => new EscalateCase(id, v), null)
             .WithEventualEffects("workflow.CaseEscalated reaches Communications.");
-        Versioned(cases, "/{id:guid}/start", "WorkflowStartCase", "Start work on an acknowledged or reopened case (IN_PROGRESS)", CasePermissions.Update,
+        Versioned(cases, "/{id:guid}/start", "WorkflowStartCase", "Start work on an acknowledged or reopened case (InProgress)", CasePermissions.Update,
             (id, v) => new ProgressCase(id, CaseWork.Start, v), null);
-        Versioned(cases, "/{id:guid}/await-complainant", "WorkflowCaseAwaitComplainant", "Wait for the complainant (AWAITING_COMPLAINANT)", CasePermissions.Update,
+        Versioned(cases, "/{id:guid}/await-complainant", "WorkflowCaseAwaitComplainant", "Wait for the complainant (AwaitingComplainant)", CasePermissions.Update,
             (id, v) => new ProgressCase(id, CaseWork.AwaitComplainant, v), null);
-        Versioned(cases, "/{id:guid}/resume", "WorkflowResumeCase", "Resume work after the complainant answered (IN_PROGRESS)", CasePermissions.Update,
+        Versioned(cases, "/{id:guid}/resume", "WorkflowResumeCase", "Resume work after the complainant answered (InProgress)", CasePermissions.Update,
             (id, v) => new ProgressCase(id, CaseWork.Resume, v), null);
         Versioned<DecideCaseRequest>(cases, "/{id:guid}/decide", "WorkflowDecideCase", "Decide the case, with reasons", CasePermissions.Decide,
             (id, r, v) => new DecideCase(id, r.Outcome, r.Reasons, v),
             "An appeal is decided only by a holder of the privileged function CASE_DECIDE_APPEAL (403 FUNCTION_NOT_GRANTED, OQ-109) and by someone other than "
             + "the person who decided the case appealed (409 CASE_DECIDER_SAME_PERSON, PPR 18.6). 422 CASE_REASONS_REQUIRED for a rejection without reasons.")
             .WithEventualEffects(Effects);
-        Versioned(cases, "/{id:guid}/close", "WorkflowCloseCase", "Close a decided case (or answer an enquiry straight from RECEIVED)", CasePermissions.Update,
+        Versioned(cases, "/{id:guid}/close", "WorkflowCloseCase", "Close a decided case (or answer an enquiry straight from Received)", CasePermissions.Update,
             (id, v) => new CloseCase(id, v),
             "A complaint's reportable flag is computed now (§6.2); retainUntil is set from the family's retention (5 years when none is in force, OQ-106). A case "
             + "referred to an ombud stays open for the ombud's outcome.")
@@ -309,7 +318,9 @@ internal static class CaseEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .WithName("PortalAddCaseMessage")
             .WithSummary("Send a message on one's own open case")
-            .RequirePermission(CasePermissions.Create).ForPortal(all);
+            .WithDescription("A repeat with the same Idempotency-Key does not post the message twice. Another user's case, or one outside the user's "
+                + "relationship, is 404, never 403, so a case's existence is not revealed (§5).")
+            .RequirePermission(CasePermissions.Create).RequireIdempotencyKey().ForPortal(all);
 
         portal.MapPost("/{id:guid}/appeal", async (Guid id, PortalAppealRequest r, IDispatcher dispatcher, CancellationToken ct) =>
             {
@@ -325,6 +336,9 @@ internal static class CaseEndpoints
             .RequirePermission(CasePermissions.Create).RequireIdempotencyKey().ForPortal(all);
     }
 
+    /// <summary>Every change but a legal hold refuses a closed case.</summary>
+    private const string ClosedRule = "A closed case refuses the change (409 CASE_CLOSED); If-Match is the case's ETag, its rowVersion in double quotes (\"3\").";
+
     private static RouteHandlerBuilder Versioned(RouteGroupBuilder group, string pattern, string name, string summary, string permission,
         Func<Guid, long, ICommand<long>> command, string? description)
     {
@@ -335,7 +349,7 @@ internal static class CaseEndpoints
             .WithName(name)
             .WithSummary(summary)
             .RequirePermission(permission);
-        return description is null ? builder : builder.WithDescription(description);
+        return builder.WithDescription((description is null ? "" : description + " ") + ClosedRule);
     }
 
     private static RouteHandlerBuilder Versioned<TRequest>(RouteGroupBuilder group, string pattern, string name, string summary, string permission,
@@ -348,7 +362,7 @@ internal static class CaseEndpoints
             .WithName(name)
             .WithSummary(summary)
             .RequirePermission(permission);
-        return description is null ? builder : builder.WithDescription(description);
+        return builder.WithDescription((description is null ? "" : description + " ") + ClosedRule);
     }
 
     private static async Task<IResult> Send(HttpContext http, Func<long, Task<Result<long>>> send)

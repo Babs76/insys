@@ -59,7 +59,9 @@ public sealed record PendReviewRequest(IReadOnlyList<LineReview> Reviews);
 public sealed record ReasonRequest(string Reason);
 
 /// <param name="ReasonCode">A partial approval's reason (OQ-102): a claim decision reason of type PARTIAL, required when some lines were declined.</param>
-public sealed record ApproveClaimRequest(string? ReasonCode);
+/// <param name="ReasonCode">Required only for a partial approval (OQ-102): a claim adjudicated with some lines rejected while the rest are
+/// paid. A decision reason of type PARTIAL from claims/static/claim-decision-reason-codes; 422 HEALTH_RATIONALE_REQUIRED without one.</param>
+public sealed record ApproveClaimRequest(string? ReasonCode = null);
 
 public sealed record CaseOutcomeRequest(string Outcome);
 
@@ -207,7 +209,12 @@ public sealed class HealthModule : IModule
         health.MapPost("/claims/{id:guid}/approve", async (Guid id, ApproveClaimRequest? r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ApproveMedicalClaim(id, r?.ReasonCode), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
-            .WithName("HealthApproveClaim").WithSummary("Approve the adjudicated claim for payment").RequirePermission(HealthPermissions.ClaimApprove);
+            .WithName("HealthApproveClaim").WithSummary("Approve the adjudicated claim for payment")
+            .WithDescription("The body is optional. A claim adjudicated with some lines rejected while the rest are paid is a partial approval (OQ-102): it needs "
+                + "reasonCode, a decision reason of type PARTIAL (claims/static/claim-decision-reason-codes), else 422 HEALTH_RATIONALE_REQUIRED; the claim's "
+                + "outcome is then PARTLY_APPROVED and the member is sent CLAIM_DECISION_RIGHTS. Paying at the tariff, or less a co-payment, is the plan's terms "
+                + "and is not partial.")
+            .RequirePermission(HealthPermissions.ClaimApprove);
         health.MapPost("/claims/{id:guid}/reject", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RejectMedicalClaim(id, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)

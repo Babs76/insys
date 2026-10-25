@@ -103,6 +103,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-PREM", 3, Today.AddDays(5), null, Rule("PR-PREM", TransactionTypes.PremiumDue, "1100", "4002"));
         await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-RECEIPT", 1, Today.AddDays(-90), null, Rule("PR-RECEIPT", TransactionTypes.PaymentReceived, "1200", "1100"));
         await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-REFUND", 1, Today.AddDays(-90), null, Rule("PR-REFUND", TransactionTypes.RefundPaid, "2100", "1200"));
+        await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-REDRESS", 1, Today.AddDays(-90), null, Rule("PR-REDRESS", TransactionTypes.RedressPaid, "2100", "1200"));
         await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-CLM-UP", 1, Today.AddDays(-90), null, Rule("PR-CLM-UP", TransactionTypes.ClaimReserveIncrease, "5000", "2100"));
         await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-CLM-PAID", 1, Today.AddDays(-90), null, Rule("PR-CLM-PAID", TransactionTypes.ClaimPaid, "6000", "1200"));
         // Each test seeds the same database; the period is opened by the first.
@@ -399,6 +400,24 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         (await (await _maker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
         (await _checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         await _factory.DrainOutbox();
+    }
+
+    /// <summary>OQ-104: case redress paid out through Payments is posted to the ledger (REDRESS_PAID), as a refund is, once.</summary>
+    [Fact]
+    public async Task PaidCaseRedress_IsPostedToTheLedger_Once_OQ104()
+    {
+        var payment = Guid.CreateVersion7();
+        var succeeded = new BuildingBlocks.Contracts.EventEnvelope(Guid.CreateVersion7(), Tenant, "payment.PaymentSucceeded", 1, DateTimeOffset.UtcNow, "Payment", payment,
+            Guid.CreateVersion7(), null, JsonSerializer.SerializeToElement(new PaymentSucceeded(payment, "PAY-REDRESS-1", PaymentPurposes.CaseRedress, 750.25m, "ZAR", Today,
+                CaseApprovals.RedressBusinessRefType, Guid.CreateVersion7()), BuildingBlocks.Infrastructure.Persistence.ModuleDbContext.EventJson));
+        var bus = _factory.Services.GetRequiredService<IEventBus>();
+        await bus.Publish(succeeded, CancellationToken.None);
+        await bus.Publish(succeeded, CancellationToken.None);
+        await _factory.DrainOutbox();
+
+        var journal = (await Journals("PAYMENT", payment)).Single();
+        journal.GetProperty("lines").EnumerateArray().Sum(l => l.GetProperty("debit").GetDecimal()).ShouldBe(750.25m);
+        journal.GetProperty("lines").EnumerateArray().Sum(l => l.GetProperty("credit").GetDecimal()).ShouldBe(750.25m);
     }
 
     private async Task<List<JsonElement>> Journals(string businessRefType, Guid businessRefId)
