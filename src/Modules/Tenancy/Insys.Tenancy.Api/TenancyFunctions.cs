@@ -46,7 +46,7 @@ internal static class TenancyFunctions
         .Action("ACTIVATE_TENANT", "TENANTS", "ActivateTenant")
         .Action("SUSPEND_TENANT", "TENANTS", "SuspendTenant")
         .Action("REACTIVATE_TENANT", "TENANTS", "ReactivateTenant")
-        .Action("TERMINATE_TENANT", "TENANTS", "TerminateTenant")
+        .Action("TERMINATE_TENANT", "TENANTS", "TerminateTenant", privileged: true)
         .Action("CHANGE_ISOLATION_PROFILE", "TENANTS", "ChangeIsolationProfile")
             .Functions,
 
