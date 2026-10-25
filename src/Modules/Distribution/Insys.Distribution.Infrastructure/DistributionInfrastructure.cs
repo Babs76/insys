@@ -44,6 +44,8 @@ public static class DistributionInfrastructure
 {
     public static IServiceCollection AddDistributionInfrastructure(this IServiceCollection services)
     {
+        // ADR-026 §2: this module's event consumers run under its JOB function.
+        BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.DistributionDbContext.SchemaName, "DISTRIBUTION_EVENT_PROCESSING");
         const string schema = DistributionDbContext.SchemaName;
         services.AddModuleDbContext<DistributionDbContext>(schema, "Distribution");
         services.AddStaticData<DistributionDbContext>(schema, DistributionStaticData.Descriptors);

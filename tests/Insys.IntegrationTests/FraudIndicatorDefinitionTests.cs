@@ -39,7 +39,8 @@ public sealed class FraudIndicatorDefinitionTests(DatabaseFixture fixture) : ICl
     public async Task AnIndicatorWithInvalidLogic_IsRefusedWhenDrafted_F009(string url, string thresholdField)
     {
         var factory = await fixture.Host();
-        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "fraud-author", StaticDataPermissions.Read, StaticDataPermissions.Create);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "fraud-author", StaticDataPermissions.Read, StaticDataPermissions.Create,
+            StaticDataPermissions.Update);
         var client = factory.ClientFor(DatabaseFixture.TenantA, "fraud-author");
 
         var refused = await client.Send(HttpMethod.Post, url, Indicator("FI-BAD", "days_since_inception == 3", thresholdField), idempotent: true);

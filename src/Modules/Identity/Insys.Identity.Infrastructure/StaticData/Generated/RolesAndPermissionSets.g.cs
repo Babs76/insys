@@ -41,7 +41,7 @@ public sealed class RolesAndPermissionSets : StaticRecord<RolesAndPermissionSets
 {
     public string RoleCode { get; set; } = "";
 
-    public string[] Permissions { get; set; } = [];
+    public string[]? Permissions { get; set; }
 
     public string[]? ScopeProducts { get; set; }
 
@@ -50,7 +50,7 @@ public sealed class RolesAndPermissionSets : StaticRecord<RolesAndPermissionSets
     public override void ApplyFields(RolesAndPermissionSetsInput input, IFieldProtector protector)
     {
         RoleCode = input.RoleCode!;
-        Permissions = input.Permissions!;
+        Permissions = input.Permissions;
         ScopeProducts = input.ScopeProducts;
         ScopeBranches = input.ScopeBranches;
     }
@@ -71,6 +71,5 @@ public sealed record RolesAndPermissionSetsInput : StaticRecordInput
     {
         errors.Required("roleCode", RoleCode);
         errors.MaxLength("roleCode", RoleCode, 30);
-        errors.Required("permissions", Permissions);
     }
 }

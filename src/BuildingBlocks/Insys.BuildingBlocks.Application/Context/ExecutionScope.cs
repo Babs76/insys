@@ -140,6 +140,9 @@ public sealed class ExecutionScope : ITenantContext, IExecutionContext
     /// <summary>Whether the token shows a second factor (amr otp, mfa, hwk or swk, or acr 2 or above), for portal MFA (external-user access §6).</summary>
     public bool MultiFactor { get; private set; }
 
+    /// <summary>The user's functions (ADR-026); null for a service, or a caller Identity did not resolve.</summary>
+    public FunctionAccess? Functions { get; private set; }
+
     /// <summary>Set by the endpoint filter for a channel-scoped command (F005).</summary>
     public void UseChannel(ChannelGate channel) => _channel = channel;
 
@@ -152,9 +155,10 @@ public sealed class ExecutionScope : ITenantContext, IExecutionContext
 
     public void InitialiseForUser(Guid? tenantId, string actorId, IEnumerable<string> permissions, Guid? correlationId,
         IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? grants = null, string? clientId = null, IReadOnlyCollection<string>? roleCodes = null,
-        ExternalSubject? external = null, bool multiFactor = false, bool configurationOnly = false)
+        ExternalSubject? external = null, bool multiFactor = false, bool configurationOnly = false, FunctionAccess? functions = null)
     {
         EnsureNotInitialised();
+        Functions = functions;
         ConfigurationOnly = configurationOnly;
         _grants = grants;
         ClientId = clientId;

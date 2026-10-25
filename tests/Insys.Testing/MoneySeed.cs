@@ -97,7 +97,7 @@ public static class MoneySeed
 
     private static async Task<(string Path, string Secret)> IssueSimulatorEndpoint(HttpClient client)
     {
-        var issued = await client.PostAsJsonAsync("/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR" });
+        var issued = await client.Send(HttpMethod.Post, "/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR" }, idempotent: true);
         await Expect(issued, HttpStatusCode.Created);
         var json = await issued.Json();
         return (json.GetProperty("callbackPath").GetString()!, json.GetProperty("signingSecret").GetString()!);

@@ -88,6 +88,9 @@ public static class PrerequisiteCodes
 
     /// <summary>Item: type and channels: no enabled provider for any channel the party's order allows (communications §9).</summary>
     public const string ChannelProviderNotConfigured = "CHANNEL_PROVIDER_NOT_CONFIGURED";
+
+    /// <summary>Item: the JOB function (ADR-026 §2): the tenant disabled it, or is not entitled to its feature. Enabling it retries the delivery.</summary>
+    public const string FunctionDisabled = "FUNCTION_DISABLED";
 }
 
 public enum DeliveryStatus

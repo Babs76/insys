@@ -66,6 +66,12 @@ public interface IRolePolicyReader
 }
 
 /// <summary>The per-request permission cache (OQ-014). Evicted after a change commits, and again when its event arrives.</summary>
+/// <summary>The function catalogue seen from permissions (ADR-026 §7): which of a set no function needing only that set grants.</summary>
+public interface IFunctionCoverage
+{
+    Task<IReadOnlyList<string>> Uncovered(IReadOnlyCollection<string> permissions, DateOnly day, CancellationToken cancellationToken);
+}
+
 public interface IPermissionCache
 {
     void EvictTenant(Guid tenantId);

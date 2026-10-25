@@ -95,14 +95,17 @@ internal sealed class ConfigurationSecretStore(IConfiguration configuration) : I
 }
 
 /// <summary>Attempts the deliveries that are due, per tenant, one transaction each, as a service identity.</summary>
-public sealed class WebhookJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, IClock clock, ILogger<WebhookJobs> logger)
+public sealed class WebhookJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, IClock clock, IFunctionAvailability availability, ILogger<WebhookJobs> logger)
 {
+    /// <summary>The JOB function this job runs under (ADR-026 §2).</summary>
+    public const string Function = "WEBHOOK_DELIVERY";
+
     public const string ServiceName = "webhook-jobs";
 
     public async Task<int> Run(CancellationToken cancellationToken)
     {
         var attempted = 0;
-        foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+        foreach (var tenantId in await tenants.Running(availability, Function, logger, cancellationToken))
         {
             IReadOnlyList<Guid> due;
             await using (var scope = Scope(tenantId))

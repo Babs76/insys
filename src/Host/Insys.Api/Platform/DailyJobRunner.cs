@@ -52,8 +52,6 @@ public sealed record DailyJobsRun(DateOnly AsOf, int ProductVersions, int Invoic
 /// </summary>
 public sealed class DailyJobRunner(IServiceProvider services, OutboxProcessor relay)
 {
-    public const string Permission = "daily_job.run";
-
     public async Task<DailyJobsRun> Run(Guid tenantId, DateOnly asOf, CancellationToken cancellationToken)
     {
         var tenant = new OneTenant(tenantId);
@@ -133,6 +131,7 @@ public static class DailyJobRunnerEndpoints
                 + "business date, delivering the events they raise. Not in production documents.")
             .Produces<DailyJobsRun>(StatusCodes.Status200OK)
             .ExcludeFromDescription()
-            .RequirePermission(DailyJobRunner.Permission);
+            // Any user of the tenant: a test-only route with no function in the catalogue (ADR-026).
+            .RequireSignedInUser();
     }
 }

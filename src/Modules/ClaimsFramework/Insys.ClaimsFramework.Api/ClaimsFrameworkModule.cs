@@ -88,6 +88,14 @@ public sealed class ClaimsFrameworkModule : IModule
             .WithSummary("Get a claim's registration, evidence and fraud indicator hits")
             .RequirePermission(ClaimsPermissions.ClaimRead);
 
+        claims.MapGet("/claims/{claimNumber}/communications", async (string claimNumber, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListClaimCommunications(claimNumber), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<ClaimCommunicationView>>(StatusCodes.Status200OK)
+            .WithName("ClaimsListCommunications")
+            .WithSummary("List a claim's communications, newest first: each inbound or outbound entry of its correspondence log")
+            .WithDescription("Notices sent by Communications are logged here as outbound on their channel. The claim's view keeps the count.")
+            .RequirePermission(ClaimsPermissions.ClaimRead);
+
         claims.MapPost("/claims/{claimNumber}/evidence-requests", async (string claimNumber, EvidenceRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new RequestEvidence(claimNumber, r.EvidenceType), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)

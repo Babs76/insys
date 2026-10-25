@@ -127,7 +127,8 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
         var response = await _factory.ClientFor(DatabaseFixture.TenantA, Nobody).GetAsync("/api/v1/integration/dead-letters");
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await Code(response)).ShouldBe("FORBIDDEN");
+        // ADR-026 §2: the user's roles grant no function for the operation, which is checked before its permission.
+        (await Code(response)).ShouldBe("FUNCTION_NOT_GRANTED");
     }
 
     [Fact]

@@ -120,15 +120,16 @@ public sealed class IdentityTests(DatabaseFixture fixture) : IClassFixture<Datab
     }
 
     [Fact]
-    public async Task AssignRole_ThatCombinesBlockedPermissions_IsRefused_SRS002()
+    public async Task AssignRole_ThatCombinesBlockedFunctions_IsRefused_SRS002()
     {
+        // ADR-026 §4: the rule pairs functions, checked across the user's roles in effect.
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO iam.cfg_segregation_of_duties_conflict_rules
-              (tenant_id, code, version, effective_from, record_status, created_by, change_reason, permission_a, permission_b, conflict)
-            VALUES (@t, 'SOD_PAY', 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', 'payment.create', 'payment.approve', 'BLOCK')
+              (tenant_id, code, version, effective_from, record_status, created_by, change_reason, function_a, function_b, conflict)
+            VALUES (@t, 'SOD_BANK', 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', 'PARTY_BANK_ACCOUNTS', 'PARTY_BANK_ACCOUNT_VERIFY', 'BLOCK')
             """, ("t", DatabaseFixture.TenantA));
-        var userId = await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "clerk-sod", "payment.create");
-        var approver = await fixture.Database.RoleWithPermissions(DatabaseFixture.TenantA, "payment.approve");
+        var userId = await fixture.Database.UserWithFunctions(DatabaseFixture.TenantA, "clerk-sod", "PARTY_BANK_ACCOUNTS");
+        var approver = await fixture.Database.RoleWithFunctions(DatabaseFixture.TenantA, "PARTY_BANK_ACCOUNT_VERIFY");
 
         var admin = _factory.ClientFor(DatabaseFixture.TenantA, Admin);
         var user = await admin.GetAsync($"/api/v1/identity/users/{userId}");
@@ -141,7 +142,7 @@ public sealed class IdentityTests(DatabaseFixture fixture) : IClassFixture<Datab
     [Fact]
     public async Task AssignRole_ThatRequiresMfa_ToAUserWithoutMfa_IsRefused_IAM003()
     {
-        var privileged = await fixture.Database.RoleWithPermissions(DatabaseFixture.TenantA, "tenant_settings.update");
+        var privileged = await fixture.Database.RoleWithFunctions(DatabaseFixture.TenantA, "PARTIES");
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO iam.cfg_authentication_and_session_policies
               (tenant_id, code, version, effective_from, record_status, created_by, change_reason, policy_code, mfa_required_roles, session_timeout, lockout_attempts)

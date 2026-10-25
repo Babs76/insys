@@ -69,10 +69,16 @@ internal sealed class SendNotificationHandler(INotificationRepository notificati
 
         var tenantId = tenant.RequireTenantId();
         var now = clock.UtcNow;
-        if (notification.IsMarketing && !await consent.IsGranted(tenantId, notification.RecipientPartyId, notification.ConsentPurpose!, cancellationToken))
+        if (notification.IsMarketing)
         {
-            notification.SuppressForConsent(now);
-            return notification.Status;
+            // The consent record in force now is the message's proof of consent; none, and it is never sent.
+            if (await consent.GrantingRecord(tenantId, notification.RecipientPartyId, notification.ConsentPurpose!, cancellationToken) is not { } record)
+            {
+                notification.SuppressForConsent(now);
+                return notification.Status;
+            }
+
+            notification.RecordConsent(record);
         }
 
         if (notification.NextChannel() is not { } channelCode)

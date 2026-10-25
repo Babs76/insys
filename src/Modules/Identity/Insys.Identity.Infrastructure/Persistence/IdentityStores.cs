@@ -92,40 +92,62 @@ internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles,
     }
 }
 
-/// <summary>Role facts from iam static data in force (roles, authentication policies, segregation-of-duties rules).</summary>
-internal sealed class RolePolicyReader(IdentityDbContext db) : IRolePolicyReader
+/// <summary>
+/// Role facts from iam static data in force (roles, their function grants, authentication policies, segregation-of-duties
+/// rules). A role's permissions are those its functions require (ADR-026); it is privileged when a policy names it or it
+/// holds a privileged function (§4).
+/// </summary>
+internal sealed class RolePolicyReader(IdentityDbContext db, FunctionCatalogueReader catalogue) : IRolePolicyReader
 {
     public async Task<IReadOnlyList<RoleFacts>> Roles(IEnumerable<string> roleCodes, DateOnly day, CancellationToken cancellationToken)
     {
         var codes = roleCodes.Distinct().ToArray();
-        var roles = await db.Set<RolesAndPermissionSets>().AsNoTracking().InForce(Descriptor<RolesAndPermissionSets>().Lifecycle, day)
-            .Where(r => codes.Contains(r.RoleCode)).ToListAsync(cancellationToken);
         var policies = await db.Set<AuthenticationAndSessionPolicies>().AsNoTracking().InForce(Descriptor<AuthenticationAndSessionPolicies>().Lifecycle, day)
             .ToListAsync(cancellationToken);
         var mfaRoles = policies.SelectMany(p => p.MfaRequiredRoles).ToHashSet(StringComparer.Ordinal);
-        var mfaRoleCodes = mfaRoles.ToArray();
-        var mfaPermissions = (await db.Set<RolesAndPermissionSets>().AsNoTracking().InForce(Descriptor<RolesAndPermissionSets>().Lifecycle, day)
-                .Where(r => mfaRoleCodes.Contains(r.RoleCode)).Select(r => r.Permissions).ToListAsync(cancellationToken))
-            .SelectMany(p => p).ToHashSet(StringComparer.Ordinal);
+        var wanted = codes.Concat(mfaRoles).Distinct().ToArray();
+        var roles = await db.Set<RolesAndPermissionSets>().AsNoTracking().InForce(Descriptor<RolesAndPermissionSets>().Lifecycle, day)
+            .Where(r => codes.Contains(r.RoleCode)).ToListAsync(cancellationToken);
+        var grants = (await db.Set<RoleFunctionAssignments>().AsNoTracking().InForce(Descriptor<RoleFunctionAssignments>().Lifecycle, day)
+                .Where(g => wanted.Contains(g.RoleCode)).Select(g => new { g.TenantId, g.RoleCode, g.FunctionCode }).ToListAsync(cancellationToken));
+        var functions = await catalogue.Functions(day, cancellationToken);
+        // OQ-038: a role holding a function of a role that requires MFA is privileged too, without itself requiring MFA.
+        var mfaFunctions = grants.Where(g => mfaRoles.Contains(g.RoleCode)).Select(g => g.FunctionCode).ToHashSet(StringComparer.Ordinal);
 
-        // A tenant's own role definition overrides a global one with the same code.
-        return codes.Select(code => roles.Where(r => r.RoleCode == code).OrderBy(r => r.TenantId is null).FirstOrDefault() is { } role
-                ? new RoleFacts(code, true, role.Permissions.ToHashSet(StringComparer.Ordinal), mfaRoles.Contains(code),
-                    mfaRoles.Contains(code) || role.Permissions.Any(mfaPermissions.Contains)) { ScopeProducts = role.ScopeProducts, ScopeBranches = role.ScopeBranches }
-                : new RoleFacts(code, false, new HashSet<string>(), mfaRoles.Contains(code), mfaRoles.Contains(code)))
+        // A tenant's own role definition overrides a global one with the same code; its grants are those of the same scope.
+        return codes.Select(code =>
+            {
+                if (roles.Where(r => r.RoleCode == code).OrderBy(r => r.TenantId is null).FirstOrDefault() is not { } role)
+                {
+                    return new RoleFacts(code, false, new HashSet<string>(), mfaRoles.Contains(code), mfaRoles.Contains(code));
+                }
+
+                var held = grants.Where(g => g.RoleCode == code && g.TenantId == role.TenantId && functions.ContainsKey(g.FunctionCode))
+                    .Select(g => functions[g.FunctionCode]).ToList();
+                var requiresMfa = mfaRoles.Contains(code) || held.Any(f => f.Privileged);
+                var privileged = requiresMfa || held.Any(f => mfaFunctions.Contains(f.Code));
+                return new RoleFacts(code, true, held.SelectMany(f => f.Permissions).ToHashSet(StringComparer.Ordinal), requiresMfa, privileged)
+                {
+                    ScopeProducts = role.ScopeProducts,
+                    ScopeBranches = role.ScopeBranches,
+                    Functions = held.Select(f => f.Code).ToHashSet(StringComparer.Ordinal),
+                };
+            })
             .ToList();
     }
 
+    /// <summary>The rules on function pairs (ADR-026 §4); a rule still on permissions has been converted and retired.</summary>
     public async Task<IReadOnlyList<DutyConflictRule>> ConflictRules(DateOnly day, CancellationToken cancellationToken) =>
         await db.Set<SegregationOfDutiesConflictRules>().AsNoTracking().InForce(Descriptor<SegregationOfDutiesConflictRules>().Lifecycle, day)
-            .Select(r => new DutyConflictRule(r.PermissionA, r.PermissionB, r.Conflict)).ToListAsync(cancellationToken);
+            .Where(r => r.FunctionA != null && r.FunctionB != null)
+            .Select(r => new DutyConflictRule(r.FunctionA!, r.FunctionB!, r.Conflict)).ToListAsync(cancellationToken);
 
-    public async Task<IReadOnlySet<string>> PrivilegedRoles(DateOnly day, CancellationToken cancellationToken)
-    {
-        var policies = await db.Set<AuthenticationAndSessionPolicies>().AsNoTracking().InForce(Descriptor<AuthenticationAndSessionPolicies>().Lifecycle, day)
-            .ToListAsync(cancellationToken);
-        return policies.SelectMany(p => p.MfaRequiredRoles).ToHashSet(StringComparer.Ordinal);
-    }
+    /// <summary>The roles a policy names, and those holding a privileged function (ADR-026 §4).</summary>
+    public async Task<IReadOnlySet<string>> PrivilegedRoles(DateOnly day, CancellationToken cancellationToken) =>
+        (await AllRoles(day, cancellationToken)).Where(r => r.Privileged).Select(r => r.RoleCode)
+            .Concat((await db.Set<AuthenticationAndSessionPolicies>().AsNoTracking().InForce(Descriptor<AuthenticationAndSessionPolicies>().Lifecycle, day)
+                .ToListAsync(cancellationToken)).SelectMany(p => p.MfaRequiredRoles))
+            .ToHashSet(StringComparer.Ordinal);
 
     public async Task<IReadOnlyList<RoleFacts>> AllRoles(DateOnly day, CancellationToken cancellationToken)
     {

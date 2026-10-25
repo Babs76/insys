@@ -112,5 +112,6 @@ public sealed record TenantAdministratorProvisioned(Guid TargetTenantId, Guid Us
 /// </summary>
 public interface IStaffRoles
 {
-    Task<IReadOnlyList<(string RoleCode, IReadOnlyList<string> Permissions)>> InForce(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+    /// <summary>The staff roles in force with the functions they grant (ADR-026).</summary>
+    Task<IReadOnlyList<(string RoleCode, IReadOnlyList<string> Functions)>> InForce(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
 }

@@ -298,8 +298,10 @@ ALTER TABLE iam.cfg_roles_and_permission_sets ALTER COLUMN permissions DROP NOT 
 COMMENT ON COLUMN iam.cfg_roles_and_permission_sets.permissions IS 'Retired by ADR-026: a role holds functions (iam.cfg_role_function_assignments). Null on new versions.';
 
 -- Segregation of duties on function pairs.
-ALTER TABLE iam.cfg_segregation_of_duties_conflict_rules ADD COLUMN function_a varchar(80), ADD COLUMN function_b varchar(80);
-ALTER TABLE iam.cfg_segregation_of_duties_conflict_rules ALTER COLUMN permission_a DROP NOT NULL, ALTER COLUMN permission_b DROP NOT NULL;
+ALTER TABLE iam.cfg_segregation_of_duties_conflict_rules ADD COLUMN function_a varchar(80);
+ALTER TABLE iam.cfg_segregation_of_duties_conflict_rules ADD COLUMN function_b varchar(80);
+ALTER TABLE iam.cfg_segregation_of_duties_conflict_rules ALTER COLUMN permission_a DROP NOT NULL;
+ALTER TABLE iam.cfg_segregation_of_duties_conflict_rules ALTER COLUMN permission_b DROP NOT NULL;
 COMMENT ON COLUMN iam.cfg_segregation_of_duties_conflict_rules.permission_a IS 'Retired by ADR-026: rules pair functions (function_a, function_b).';
 
 -- Channel transaction permissions key on the function.
@@ -383,3 +385,13 @@ BEGIN
     UPDATE channel.cfg_channel_transaction_permissions SET record_status = 'RETIRED' WHERE id = r.id;
   END LOOP;
 END $$;
+
+-- Feature entitlements are enforced from this release (ADR-026 §2). The tenants that exist keep what they can do today:
+-- each is entitled to every feature, once, here. A tenant registered later is entitled by the platform.
+INSERT INTO tenant.cfg_feature_entitlements (tenant_id, code, version, effective_from, record_status, created_by, approved_at, approved_by, change_reason,
+                                             tenant, feature, enabled)
+SELECT NULL, t.tenant_code || ':' || f, 1, DATE '2026-10-01', 'EFFECTIVE', 'migration (ADR-026)', now(), 'migration (ADR-026)',
+       'Existing tenants keep every feature (ADR-026 §7)', t.tenant_code, f, true
+FROM tenant.tenant t CROSS JOIN unnest(ARRAY['LIFE', 'GENERAL', 'HEALTH', 'REINSURANCE', 'BROKER_PORTAL', 'PROVIDER_PORTAL', 'CUSTOMER_PORTAL']) AS f
+WHERE NOT EXISTS (SELECT 1 FROM tenant.cfg_feature_entitlements e WHERE e.tenant = t.tenant_code AND e.feature = f)
+ON CONFLICT DO NOTHING;

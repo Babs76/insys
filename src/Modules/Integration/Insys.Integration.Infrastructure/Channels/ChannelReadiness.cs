@@ -37,7 +37,7 @@ namespace Insys.Integration.Infrastructure.Channels;
 
 /// <summary>
 /// Onboarding readiness CHANNELS (addendum §5): a back-office channel (audience STAFF) whose client_ids list insys-web,
-/// and for every staff role an allowed row on it for each channel-scoped transaction the role's permissions include. A row
+/// and for every staff role an allowed row on it for each channel-scoped function the role holds (ADR-026 §5). A row
 /// with an empty product covers every product. Missing rows are named "ROLE: transaction".
 /// </summary>
 internal sealed class ChannelReadiness([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IStaffRoles roles,
@@ -59,8 +59,8 @@ internal sealed class ChannelReadiness([FromKeyedServices(IntegrationDbContext.S
             var allowed = channels.Count == 0
                 ? []
                 : await ReadinessSql.Strings(connection, transaction, $"""
-                    SELECT role_code || ' ' || transaction_type FROM channel.cfg_channel_transaction_permissions
-                    WHERE tenant_id = @t AND {ReadinessSql.InForce} AND channel_code = ANY(@channels) AND allowed
+                    SELECT role_code || ' ' || function_code FROM channel.cfg_channel_transaction_permissions
+                    WHERE tenant_id = @t AND {ReadinessSql.InForce} AND channel_code = ANY(@channels) AND allowed AND function_code IS NOT NULL
                     """, cancellationToken, ("t", context.TenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", context.Day),
                     ("channels", channels.ToArray()));
             return (channels, allowed.ToHashSet(StringComparer.Ordinal));
@@ -72,13 +72,13 @@ internal sealed class ChannelReadiness([FromKeyedServices(IntegrationDbContext.S
             missing.Add($"a back-office channel (audience STAFF) with {BackOfficeClient} in client_ids");
         }
 
-        foreach (var (role, permissions) in staff)
+        foreach (var (role, functions) in staff)
         {
-            missing.AddRange(permissions.Where(transactions.All.Contains).Where(p => !rows.Contains($"{role} {p}")).Order(StringComparer.Ordinal)
+            missing.AddRange(functions.Where(transactions.All.Contains).Where(p => !rows.Contains($"{role} {p}")).Order(StringComparer.Ordinal)
                 .Select(p => $"{role}: {p}"));
         }
 
         return [ReadinessResult.Of("ORGANISATION_AND_ACCESS", "CHANNELS",
-            "A back-office channel listing insys-web, with an allowed row for each staff role's channel-scoped transactions (F005)", missing)];
+            "A back-office channel listing insys-web, with an allowed row for each staff role's channel-scoped functions (F005, ADR-026)", missing)];
     }
 }

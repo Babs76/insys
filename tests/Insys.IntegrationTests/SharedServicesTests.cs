@@ -54,7 +54,8 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
         var assessor = await fixture.Database.UserWithPermissions(TenantA, "claims-assessor", All);
         await Static("document.ref_document_categories", "MEDICAL_EVIDENCE", "category_code, label, classification, domain, allowed_roles",
             "'MEDICAL_EVIDENCE', 'Medical evidence', 'HIGHLY_SENSITIVE', 'HEALTH', ARRAY['CLAIMS_ASSESSOR']", reference: true);
-        await Static("iam.cfg_roles_and_permission_sets", "CLAIMS_ASSESSOR", "role_code, permissions", "'CLAIMS_ASSESSOR', ARRAY['document.read']");
+        await Static("iam.cfg_roles_and_permission_sets", "CLAIMS_ASSESSOR", "role_code", "'CLAIMS_ASSESSOR'");
+        await fixture.Database.GrantFunctionsWithin(TenantA, "CLAIMS_ASSESSOR", DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1), "document.read");
         if (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE user_id = @u AND role_code = 'CLAIMS_ASSESSOR'", ("u", assessor)) == 0)
         {
             await fixture.Database.AssignRole(TenantA, assessor, "CLAIMS_ASSESSOR");

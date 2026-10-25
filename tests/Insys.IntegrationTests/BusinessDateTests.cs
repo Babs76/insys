@@ -72,7 +72,7 @@ public sealed class BusinessDateTests(DatabaseFixture fixture) : IClassFixture<D
         await db.UserWithPermissions(DatabaseFixture.TenantA, "date-clerk",
         [
             BillingPermissions.AccountCreate, BillingPermissions.AccountUpdate, BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate,
-            FinancePermissions.PeriodRead, FinancePermissions.PeriodUpdate, FinancePermissions.JournalRead, "daily_job.run",
+            FinancePermissions.PeriodRead, FinancePermissions.PeriodUpdate, FinancePermissions.JournalRead,
         ]);
         _clerk = _factory.ClientFor(DatabaseFixture.TenantA, "date-clerk");
     }

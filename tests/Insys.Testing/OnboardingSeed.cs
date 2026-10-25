@@ -154,7 +154,8 @@ public static class OnboardingSeed
         // ORGANISATION_AND_ACCESS (the first administrator is provisioned by the test; the back-office channel has no
         // staff roles to cover until roles with channel-scoped permissions exist).
         await database.SeedStaticFilled(tenantId, "iam.cfg_roles_and_permission_sets", "EFFECTIVE", "CLERK", from, ("role_code", "CLERK"),
-            ("permissions", new[] { "dead_letter.read" }));
+            ("permissions", DBNull.Value));
+        await database.GrantFunctionsWithin(tenantId, "CLERK", from, "dead_letter.read");
         await database.SeedStaticFilled(tenantId, "tenant.mst_organisation_structure", "ACTIVE", "ROOT", from, ("node_code", "ROOT"), ("type", "LEGAL_ENTITY"),
             ("parent", DBNull.Value), ("name", "Root"));
         await database.SeedStaticFilled(tenantId, "iam.cfg_authentication_and_session_policies", "EFFECTIVE", "AUTH", from, ("policy_code", "AUTH"),

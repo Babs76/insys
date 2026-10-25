@@ -13,6 +13,14 @@
 5. **OQ-091, the initial features:** `LIFE`, `GENERAL`, `HEALTH`, `REINSURANCE`, `BROKER_PORTAL`, `PROVIDER_PORTAL`, `CUSTOMER_PORTAL`. A function with no feature is base platform.
 6. **Members are `CUSTOMER`:** accepted.
 
+## As built (Wave 1 batch 3)
+- **The catalogue:** 549 functions (screens, actions and 15 JOB functions) in 14 domains: the 12 of `INSYS_NAVIGATION.md`, PORTALS and CONFIGURATION. Generated into `R__function_catalogue.sql` from each module's `Functions.cs` and the permissions its endpoints require as the router builds them; `FunctionCatalogueTests` fails when the file is stale.
+- **One permission per screen:** a screen whose reads needed two permissions was split (bank accounts, consent, claim financials, benefit accumulators), so converting a permission set loses nothing. The one exception is static data maintain, which needs create and update together (OQ-096).
+- **Static data:** view, maintain and approve per catalogue module (OQ-095).
+- **Names are labels:** a function's name is the common record model's `labels` column (`{"en": "…"}`, translations beside it); there is no name column. The catalogue is global and platform-maintained (`tenant_id IS NULL`), so a tenant cannot rename a function.
+- **Only what the release has:** every operation a function names must be an endpoint of the build, and every JOB function one a consumer or daily job runs under (`FunctionCatalogueTests`). Planned functions are not catalogued; a function removed from the code is closed by the next release's script.
+- **Deviations to confirm:** OQ-097 (the MFA code), OQ-098 (which background work is switchable), OQ-099 (the first administrator's request), OQ-100 (labels).
+
 - **Basis:** Ade's decisions 1–5 (ADR-026), SRS-001 to SRS-003, IAM-001, IAM-006, IAM-007, TEN-001, §4.1, §8.
 - **Today:**
   - **Roles:** a role is a permission set with F103 scopes (`iam.cfg_roles_and_permission_sets`).

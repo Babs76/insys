@@ -192,9 +192,22 @@ public sealed record TestDatabase(string Name, string OwnerConnectionString, str
         return result is null or DBNull ? default : (T)Convert.ChangeType(result, Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T));
     }
 
-    public Task SeedTenant(Guid tenantId, string code) =>
-        ExecuteAsOwner("""
+    /// <summary>An Active tenant entitled to every feature (ADR-026 §2), so a test needs no entitlement unless it is about them.</summary>
+    public async Task SeedTenant(Guid tenantId, string code)
+    {
+        await ExecuteAsOwner("""
             INSERT INTO tenant.tenant (id, tenant_code, legal_name, isolation_profile, status, created_at)
             VALUES (@id, @code, @name, 'A', 'ACTIVE', now())
             """, ("id", tenantId), ("code", code), ("name", $"Test tenant {code}"));
+        await EntitleToAllFeatures(code);
+    }
+
+    /// <summary>Global entitlement rows naming the tenant by its code, one per feature (OQ-091).</summary>
+    public Task EntitleToAllFeatures(string tenantCode) =>
+        ExecuteAsOwner("""
+            INSERT INTO tenant.cfg_feature_entitlements (tenant_id, code, version, effective_from, record_status, created_by, change_reason, tenant, feature, enabled)
+            SELECT NULL, @code || ':' || f, 1, DATE '2000-01-01', 'EFFECTIVE', 'seed', 'test seed', @code, f, true
+            FROM unnest(ARRAY['LIFE', 'GENERAL', 'HEALTH', 'REINSURANCE', 'BROKER_PORTAL', 'PROVIDER_PORTAL', 'CUSTOMER_PORTAL']) AS f
+            ON CONFLICT DO NOTHING
+            """, ("code", tenantCode));
 }

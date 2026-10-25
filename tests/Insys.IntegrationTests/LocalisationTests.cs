@@ -53,7 +53,7 @@ public sealed class LocalisationTests(DatabaseFixture fixture) : IClassFixture<D
 
     private static readonly string[] Permissions =
     [
-        StaticDataPermissions.Read, StaticDataPermissions.Create, PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.PartyUpdate,
+        StaticDataPermissions.Read, StaticDataPermissions.Create, StaticDataPermissions.Update, PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.PartyUpdate,
     ];
 
     private InsysApiFactory _factory = null!;

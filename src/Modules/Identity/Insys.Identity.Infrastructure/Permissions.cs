@@ -28,6 +28,7 @@ using System.Collections.Concurrent;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
+using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Identity.Application.Users;
@@ -72,6 +73,15 @@ public sealed class PermissionCache(IMemoryCache cache, IOptions<PermissionCache
         });
     }
 
+    /// <summary>Every tenant's entries: a global change (the catalogue, an entitlement) reaches every user.</summary>
+    public void EvictAll()
+    {
+        foreach (var tenantId in _tenantTokens.Keys)
+        {
+            EvictTenant(tenantId);
+        }
+    }
+
     public void EvictTenant(Guid tenantId)
     {
         if (_tenantTokens.TryRemove(tenantId, out var token))
@@ -95,9 +105,13 @@ public sealed class PrincipalResolver(
     ITenantStatusQuery tenants,
     IOrganisationStructure organisation,
     Distribution.Contracts.IIntermediaries intermediaries,
+    FunctionCatalogueReader catalogue,
+    ITenantFunctionSettings functionSettings,
+    IOptions<PlatformOptions> platform,
     IClock clock) : IPrincipalResolver
 {
     private static readonly string[] RoleStatuses = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RolesAndPermissionSets)).Lifecycle.InForce;
+    private static readonly string[] GrantStatuses = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RoleFunctionAssignments)).Lifecycle.InForce;
 
     public async Task<ResolvedPrincipal?> Resolve(Guid tenantId, string subject, CancellationToken cancellationToken)
     {
@@ -107,13 +121,12 @@ public sealed class PrincipalResolver(
         }
 
         var access = await tenants.UserAccess(tenantId, cancellationToken);
-        var principal = access == TenantUserAccess.None ? null : await Load(tenantId, subject, cancellationToken);
-        principal = principal is null ? null : principal with { ConfigurationOnly = access == TenantUserAccess.ConfigurationOnly };
+        var principal = access == TenantUserAccess.None ? null : await Load(tenantId, subject, access == TenantUserAccess.ConfigurationOnly, cancellationToken);
         cache.Set(tenantId, subject, principal);
         return principal;
     }
 
-    private async Task<ResolvedPrincipal?> Load(Guid tenantId, string subject, CancellationToken cancellationToken)
+    private async Task<ResolvedPrincipal?> Load(Guid tenantId, string subject, bool configurationOnly, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -162,30 +175,30 @@ public sealed class PrincipalResolver(
             await signIn.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        // Each assignment's permissions with its reach (F103): the assignment's own product and branch scopes, else its role's.
-        var permissions = new HashSet<string>(StringComparer.Ordinal);
-        var scoped = new List<(string Permission, string[]? Products, string[]? Branches)>();
+        // ADR-026: each assignment's functions in effect, with its reach (F103): the assignment's own product and branch scopes, else its role's.
+        var granted = new List<(string Function, string[]? Products, string[]? Branches)>();
         var roles = new HashSet<string>(StringComparer.Ordinal);
         await using (var load = new NpgsqlCommand("""
-            SELECT p.permission, coalesce(a.scope_products, r.scope_products), coalesce(a.scope_branches, r.scope_branches), a.role_code
+            SELECT g.function_code, coalesce(a.scope_products, r.scope_products), coalesce(a.scope_branches, r.scope_branches), a.role_code
             FROM iam.user_role_assignment a
             JOIN iam.cfg_roles_and_permission_sets r
               ON r.role_code = a.role_code AND r.tenant_id = a.tenant_id
              AND r.record_status = ANY(@statuses) AND r.effective_from <= @today AND (r.effective_to IS NULL OR r.effective_to > @today)
-            CROSS JOIN LATERAL unnest(r.permissions) AS p(permission)
+            JOIN iam.cfg_role_function_assignments g
+              ON g.role_code = a.role_code AND g.tenant_id = a.tenant_id
+             AND g.record_status = ANY(@grants) AND g.effective_from <= @today AND (g.effective_to IS NULL OR g.effective_to > @today)
             WHERE a.tenant_id = @t AND a.user_id = @id AND a.status = 'ACTIVE' AND a.valid_from <= @today AND (a.valid_to IS NULL OR a.valid_to > @today)
             """, connection, transaction))
         {
             load.Parameters.AddWithValue("statuses", RoleStatuses);
+            load.Parameters.AddWithValue("grants", GrantStatuses);
             load.Parameters.AddWithValue("today", clock.UtcToday);
             load.Parameters.AddWithValue("t", tenantId);
             load.Parameters.AddWithValue("id", userId);
             await using var reader = await load.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                var permission = reader.GetString(0);
-                permissions.Add(permission);
-                scoped.Add((permission, reader.IsDBNull(1) ? null : reader.GetFieldValue<string[]>(1), reader.IsDBNull(2) ? null : reader.GetFieldValue<string[]>(2)));
+                granted.Add((reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<string[]>(1), reader.IsDBNull(2) ? null : reader.GetFieldValue<string[]>(2)));
                 roles.Add(reader.GetString(3));
             }
         }
@@ -211,7 +224,31 @@ public sealed class PrincipalResolver(
             ? new ExternalSubject(l.Kind, l.Party, l.Intermediary,
                 l.Intermediary is { } code ? await intermediaries.WithSubBrokers(tenantId, code, clock.UtcToday, cancellationToken) : new HashSet<string>(), l.Provider)
             : null;
-        return new ResolvedPrincipal(userId, permissions, await Grants(tenantId, scoped, cancellationToken), roles, external);
+        // The functions the tenant allows now, and the permissions they require: the user's permissions (ADR-026 §2).
+        var refusals = await Refusals(tenantId, configurationOnly, cancellationToken);
+        var usable = granted.Where(g => refusals.TryGetValue(g.Function, out var refusal) && refusal == ErrorCodes.FunctionNotGranted).ToList();
+        var functions = await catalogue.Functions(clock.UtcToday, cancellationToken);
+        var scoped = usable.SelectMany(g => functions[g.Function].Permissions.Select(p => (Permission: p, g.Products, g.Branches))).ToList();
+        var permissions = scoped.Select(s => s.Permission).ToHashSet(StringComparer.Ordinal);
+        return new ResolvedPrincipal(userId, permissions, await Grants(tenantId, scoped, cancellationToken), roles, external, configurationOnly,
+            new FunctionAccess(usable.Select(g => g.Function).ToHashSet(StringComparer.Ordinal), refusals));
+    }
+
+    /// <summary>
+    /// Every function in force in the catalogue with the tenant's refusal, in the order of checks (ADR-026 §2): Onboarding,
+    /// disabled, not entitled; FUNCTION_NOT_GRANTED for one the tenant allows. The operator tenant keeps platform data for
+    /// every feature, so it needs no entitlement.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, string>> Refusals(Guid tenantId, bool configurationOnly, CancellationToken cancellationToken)
+    {
+        var day = clock.UtcToday;
+        var settings = await functionSettings.For(tenantId, day, cancellationToken);
+        var isOperator = tenantId == platform.Value.OperatorTenantId;
+        return (await catalogue.Functions(day, cancellationToken)).Values.ToDictionary(f => f.Code, f =>
+            configurationOnly && !f.AllowedWhileOnboarding ? ErrorCodes.TenantNotActive
+            : settings.DisabledFunctions.Contains(f.Code) ? ErrorCodes.FunctionDisabled
+            : f.Feature is { } feature && !isOperator && !settings.EntitledFeatures.Contains(feature) ? ErrorCodes.FeatureNotEntitled
+            : ErrorCodes.FunctionNotGranted, StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -219,7 +256,7 @@ public sealed class PrincipalResolver(
     /// gives without scope is left out: it is unrestricted. A branch scope covers the nodes below it (§3).
     /// </summary>
     private async Task<IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>?> Grants(Guid tenantId,
-        List<(string Permission, string[]? Products, string[]? Branches)> scoped, CancellationToken cancellationToken)
+        IReadOnlyList<(string Permission, string[]? Products, string[]? Branches)> scoped, CancellationToken cancellationToken)
     {
         static bool Empty(string[]? values) => values is null || values.Length == 0;
         if (scoped.All(s => Empty(s.Products) && Empty(s.Branches)))
@@ -269,6 +306,42 @@ internal sealed class PermissionCacheInvalidation(IPermissionCache cache) :
     private Task Evict(EventEnvelope envelope)
     {
         cache.EvictTenant(envelope.TenantId);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// ADR-026 §3: an activated role, role-function grant or function availability drops the tenant's cached principals; an
+/// activated catalogue row, taxonomy row or feature entitlement (global) drops every tenant's, and the cached catalogue.
+/// </summary>
+internal sealed class FunctionCacheInvalidation(PermissionCache cache, FunctionCatalogueReader catalogue, FunctionAvailability availability)
+    : IIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated>
+{
+    private static readonly HashSet<string> TenantTables = new(StringComparer.Ordinal)
+    {
+        "iam.cfg_roles_and_permission_sets", "iam.cfg_role_function_assignments", "tenant.cfg_tenant_function_availability",
+    };
+
+    private static readonly HashSet<string> GlobalTables = new(StringComparer.Ordinal)
+    {
+        "iam.ref_function_catalogue", "iam.ref_business_domains", "iam.ref_business_sub_domains", "tenant.cfg_feature_entitlements",
+    };
+
+    public Task Handle(BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated activated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var table = $"{activated.Record.Schema}.{activated.Record.Table}";
+        if (GlobalTables.Contains(table))
+        {
+            catalogue.Evict();
+            cache.EvictAll();
+            availability.Evict(null);
+        }
+        else if (TenantTables.Contains(table))
+        {
+            cache.EvictTenant(envelope.TenantId);
+            availability.Evict(envelope.TenantId);
+        }
+
         return Task.CompletedTask;
     }
 }

@@ -70,6 +70,10 @@ public sealed class IdempotencyFilter : IEndpointFilter
             case IdempotencyBeginOutcome.InProgress:
                 return Problems.For(ErrorCodes.IdempotencyInProgress, "A request with this Idempotency-Key is still being processed.",
                     StatusCodes.Status409Conflict);
+            case IdempotencyBeginOutcome.Replay when http.GetEndpoint()?.Metadata.GetMetadata<SecretShownOnceMetadata>() is not null:
+                return Problems.For(ErrorCodes.IdempotencyResponseNotKept,
+                    "This request was already carried out, and its response showed a secret once, which is not kept. Revoke what it issued and issue again.",
+                    StatusCodes.Status409Conflict);
             case IdempotencyBeginOutcome.Replay:
                 return new StoredResult(begin.Response!);
         }
@@ -92,7 +96,9 @@ public sealed class IdempotencyFilter : IEndpointFilter
         }
         else
         {
-            await store.Complete(key, response, CancellationToken.None);
+            // A secret shown once (a callback endpoint's key and signing secret) is never stored; only that the request ran.
+            var kept = http.GetEndpoint()?.Metadata.GetMetadata<SecretShownOnceMetadata>() is null ? response : response with { Body = null };
+            await store.Complete(key, kept, CancellationToken.None);
         }
 
         return new StoredResult(response, replayed: false);
@@ -181,9 +187,16 @@ public static class IdempotencyEndpointExtensions
     public static TBuilder RequireIdempotencyKey<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder =>
         builder.AddEndpointFilter<TBuilder, IdempotencyFilter>().WithMetadata(new IdempotentEndpointMetadata());
+
+    /// <summary>The response shows a secret once: it is not kept for repeats, which are refused (409 IDEMPOTENCY_RESPONSE_NOT_KEPT).</summary>
+    public static TBuilder ShowsSecretOnce<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder => builder.WithMetadata(new SecretShownOnceMetadata());
 }
 
 public sealed record IdempotentEndpointMetadata;
+
+/// <summary>The response shows a secret once (ADR-023): the idempotency store keeps no body, and a repeat is refused with IDEMPOTENCY_RESPONSE_NOT_KEPT.</summary>
+public sealed record SecretShownOnceMetadata;
 
 /// <summary>Buffers the request body of idempotent endpoints so the filter can hash it after model binding.</summary>
 public sealed class IdempotencyBufferingMiddleware(RequestDelegate next)

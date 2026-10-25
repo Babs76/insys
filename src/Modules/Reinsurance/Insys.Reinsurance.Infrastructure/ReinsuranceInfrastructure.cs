@@ -39,6 +39,8 @@ public static class ReinsuranceInfrastructure
 {
     public static IServiceCollection AddReinsuranceInfrastructure(this IServiceCollection services)
     {
+        // ADR-026 §2: this module's event consumers run under its JOB function.
+        BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.ReinsuranceDbContext.SchemaName, "REINSURANCE_EVENT_PROCESSING");
         const string schema = ReinsuranceDbContext.SchemaName;
         services.AddModuleDbContext<ReinsuranceDbContext>(schema, "Reinsurance");
         services.AddStaticData<ReinsuranceDbContext>(schema, ReinsuranceStaticData.Descriptors);

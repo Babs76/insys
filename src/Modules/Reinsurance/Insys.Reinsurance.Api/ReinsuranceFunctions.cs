@@ -46,6 +46,7 @@ internal static class ReinsuranceFunctions
         .Screen("REINSURANCE_RECOVERIES", "REINSURANCE", "Recoveries", "reinsurance/recoveries", "ReinsuranceListRecoveries", "ReinsuranceGetRecovery")
         .Action("REINSURANCE_BILL_RECOVERY", "REINSURANCE_RECOVERIES", "ReinsuranceBillRecovery")
         .Action("REINSURANCE_SETTLE_RECOVERY", "REINSURANCE_RECOVERIES", "ReinsuranceSettleRecovery")
+        .Job("REINSURANCE_EVENT_PROCESSING", "REINSURANCE", "Background processing")
             .Functions,
     ];
 }

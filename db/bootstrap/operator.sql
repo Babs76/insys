@@ -45,14 +45,21 @@ VALUES ('{{OPERATOR_TENANT_ID}}', '{{ADMIN_USER_ID}}', 1, now(), 'bootstrap', no
         'platform.admin', 'Platform administrator', 'OIDC', '{{ADMIN_SUBJECT}}', 'INVITED', true)
 ON CONFLICT DO NOTHING;
 
+-- The role holds the functions that need only these permissions (ADR-026), in force with it.
 INSERT INTO iam.cfg_roles_and_permission_sets (tenant_id, code, version, effective_from, record_status, created_by,
-                                               approved_at, approved_by, change_reason, role_code, permissions)
+                                               approved_at, approved_by, change_reason, role_code)
 VALUES ('{{OPERATOR_TENANT_ID}}', 'PLATFORM_ADMIN', 1, current_date, 'EFFECTIVE', 'bootstrap', now(), 'bootstrap',
-        'Bootstrap of the platform operator', 'PLATFORM_ADMIN',
-        ARRAY['tenant.read', 'tenant.create', 'tenant.update',
-              'user.read', 'user.create', 'user.update',
-              'static_data.read', 'static_data.create', 'static_data.update', 'static_data.approve',
-              'change_request.read', 'audit_event.read', 'dead_letter.read', 'dead_letter.update'])
+        'Bootstrap of the platform operator', 'PLATFORM_ADMIN')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO iam.cfg_role_function_assignments (tenant_id, code, version, effective_from, record_status, created_by, approved_at, approved_by,
+                                               change_reason, role_code, function_code)
+SELECT '{{OPERATOR_TENANT_ID}}', 'PLATFORM_ADMIN:' || f, 1, current_date, 'EFFECTIVE', 'bootstrap', now(), 'bootstrap',
+       'Bootstrap of the platform operator', 'PLATFORM_ADMIN', f
+FROM iam.functions_within(ARRAY['tenant.read', 'tenant.create', 'tenant.update',
+                                'user.read', 'user.create', 'user.update',
+                                'static_data.read', 'static_data.create', 'static_data.update', 'static_data.approve',
+                                'change_request.read', 'audit_event.read', 'dead_letter.read', 'dead_letter.update']) AS f
 ON CONFLICT DO NOTHING;
 
 -- The first platform administrator is the one assignment made without a second person: there is no one else yet

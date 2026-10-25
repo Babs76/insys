@@ -91,6 +91,9 @@ public sealed class Notification : AggregateRoot<Guid>
 
     public string? ConsentPurpose { get; private set; }
 
+    /// <summary>For marketing: the Party consent record granting the purpose when it was sent (proof of consent, POPIA s69).</summary>
+    public Guid? ConsentRecordId { get; private set; }
+
     public Guid RecipientPartyId { get; private set; }
 
     public string SourceType { get; private set; } = "";
@@ -182,6 +185,13 @@ public sealed class Notification : AggregateRoot<Guid>
     public string? NextChannel() => Channels.FirstOrDefault(c => !Exhausted(c));
 
     /// <summary>Marketing whose consent is not granted when it is due (§4): nothing is sent.</summary>
+    /// <summary>The consent in force as the marketing notification is sent: its proof of consent.</summary>
+    public void RecordConsent(Guid consentRecordId)
+    {
+        ConsentRecordId = consentRecordId;
+        MarkChanged();
+    }
+
     public void SuppressForConsent(DateTimeOffset now)
     {
         if (Status == NotificationStatus.Queued)

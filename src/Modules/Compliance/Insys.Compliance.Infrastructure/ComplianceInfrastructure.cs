@@ -38,6 +38,8 @@ public static class ComplianceInfrastructure
 {
     public static IServiceCollection AddComplianceInfrastructure(this IServiceCollection services)
     {
+        // ADR-026 §2: this module's event consumers run under its JOB function.
+        BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.ComplianceDbContext.SchemaName, "COMPLIANCE_EVENT_PROCESSING");
         const string schema = ComplianceDbContext.SchemaName;
         services.AddModuleDbContext<ComplianceDbContext>(schema, "Compliance");
         services.AddStaticData<ComplianceDbContext>(schema, ComplianceStaticData.Descriptors);

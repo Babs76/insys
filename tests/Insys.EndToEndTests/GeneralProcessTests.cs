@@ -291,6 +291,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
                 await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", $"CP-{subject}", ("channel_code", "BRK"), ("role_code", role),
                     ("transaction_type", GeneralPermissions.QuoteCreate), ("product_code", (object?)product ?? DBNull.Value), ("allowed", true),
                     ("requires_approval", requiresApproval));
+                await _db.AdoptFunctionCatalogue();
             }
 
             return _factory.ClientFor(Tenant, subject, "broker-portal");
@@ -370,7 +371,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await Seed("general.cfg_aggregation_zones_and_limits", "EFFECTIVE", "ZL-FLOOD", ("zone", "ZFLOOD"), ("peril", "FLOOD"), ("max_exposure", 1_000m),
             ("currency", "ZAR"), ("alert_at_pct", 99m));
         await Decide(GeneralApprovals.EndorsementBusinessRefType, endorsement, approve: true);
-        await _db.UserWithPermissions(Tenant, "job-runner", "daily_job.run");
+        await _db.UserWithPermissions(Tenant, "job-runner");
         var run = await _factory.ClientFor(Tenant, "job-runner").PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = Today });
         run.StatusCode.ShouldBe(HttpStatusCode.OK, await run.Content.ReadAsStringAsync());
         (await _db.ScalarAsOwner<string>("""
@@ -496,6 +497,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             ("transaction_type", GeneralPermissions.QuoteCreate), ("allowed", true));
         await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CP-MEM-C", ("channel_code", "MEM"), ("role_code", memberRole),
             ("transaction_type", GeneralPermissions.ClaimCreate), ("allowed", true));
+        await _db.AdoptFunctionCatalogue();
 
         var brokerA = _factory.ClientFor(Tenant, "broker-a", "broker-portal", multiFactor: true);
         var brokerB = _factory.ClientFor(Tenant, "broker-b", "broker-portal", multiFactor: true);

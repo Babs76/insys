@@ -2,7 +2,47 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 1 batch 2 (branch `wave1-2`, not merged): Communications (addenda/communications.md)
+## Wave 1 batch 3 (branch `wave1-3`, not merged): the function catalogue (ADR-026) and Communications follow-ups
+
+### Breaking
+- **`POST /api/v1/payments/callback-endpoints` needs `Idempotency-Key`**, as Communications' already does. Without it: 422 `IDEMPOTENCY_KEY_REQUIRED`.
+- **A repeat of either callback-endpoint issue (Payments, Communications) with the same key is refused** with 409 `IDEMPOTENCY_RESPONSE_NOT_KEPT`: the key and signing secret are shown once and were never meant to be stored, so the response is not kept for replay. Before this batch Communications stored and replayed it.
+- **Roles hold functions, not permissions.** On `…/identity/static/roles-and-permission-sets`, `permissions` is retired: a new version with permissions is refused (422, field `permissions`). A role is granted functions through the new `…/identity/static/role-function-assignments` (Tier 1, second person).
+- **Segregation-of-duties rules pair functions:** `functionA` and `functionB` are required; `permissionA` and `permissionB` are retired and must be empty (422).
+- **Channel transaction rows name a function:** `functionCode` is required (an ACTION function); `transactionType` is retired and must be empty (422). The channel check runs on the request's function.
+- **A signed-in user refused for lack of access now gets `FUNCTION_NOT_GRANTED`** (403) instead of `FORBIDDEN`: the function is checked before the permission. `FORBIDDEN` remains for callers Identity does not know.
+- **Onboarding readiness `CHANNELS`** names missing rows as `ROLE: FUNCTION_CODE` (was `ROLE: permission`).
+- **Feature entitlements are enforced.** `tenant.cfg_feature_entitlements.feature` is one of `LIFE`, `GENERAL`, `HEALTH`, `REINSURANCE`, `BROKER_PORTAL`, `PROVIDER_PORTAL`, `CUSTOMER_PORTAL`. Tenants that exist at the release keep every feature; a tenant registered later must be entitled by the platform before its users can use Life, General, Health, Reinsurance or the portals.
+
+### New endpoints
+
+| Endpoint | Permission | Notes |
+|---|---|---|
+| `GET /api/v1/identity/me/menu` | signed-in user (staff and portals) | `{audience, domains: [{code, labelKey, label, icon, subDomains: [{code, labelKey, label, icon, screens: [{functionCode, labelKey, label, routeKey, actions: [{functionCode, labelKey, label}]}]}]}]}`. Only what the user may use now, for their audience (`CUSTOMER`, `BROKER`, `PROVIDER`, `PLATFORM` in the operator tenant, else `STAFF`), in the catalogue's order. While Onboarding, only functions open then. `labelKey` is the translation key; `label` is in the request's language |
+| `GET /api/v1/claims/claims/{claimNumber}/communications` | `claim_register.read` | The claim's correspondence log, newest first: `[{id, direction: IN \| OUT, channel, documentId, sentAt}]`. The claim view keeps the count |
+
+Static data (generated endpoints): `identity/static/business-domains`, `business-sub-domains` and `function-catalogue` (global, platform-maintained; shipped with each release), `identity/static/role-function-assignments` (tenant, Tier 1) and `tenancy/static/tenant-function-availability` (tenant, Tier 1: `{functionCode, enabled}`; a function with no row is enabled).
+
+### Contract metadata
+- **`x-function`** on every operation except those about the signed-in user (`/identity/me…`) and signed provider callbacks: an array of function codes; the caller needs any one of them (one per portal for an operation the portals share). Static data operations name their catalogue module's `SD_{MODULE}_VIEW` or `_MAINTAIN`; the shared approve and reject operations show `SD_{catalogue module}_APPROVE`: for a table, take its own operations' `x-function` and replace `_VIEW` or `_MAINTAIN` with `_APPROVE`.
+- **Error responses:** `Problem403`, `Problem409` and `Problem422` list the codes any operation may return (the function refusals, idempotency and onboarding codes among them).
+
+### Changed responses
+- **`NotificationView`** gains `consentRecordId`: for marketing that was sent, the Party consent record that granted the purpose then (proof of consent).
+- **`RoleView`** (`GET /identity/roles`) and **`MeView`**: `permissions` are now derived: the permissions the role's functions require.
+
+### Error codes
+- New, all 403: `FUNCTION_NOT_GRANTED` (the user's roles do not grant the operation's function, even when another function gives its permission), `FUNCTION_DISABLED` (not available on the platform, or disabled by the tenant), `FEATURE_NOT_ENTITLED`.
+- While the tenant is Onboarding, a function not open then is refused with `TENANT_NOT_ACTIVE` (409), as before.
+- Prerequisite `FUNCTION_DISABLED` (item: the JOB function): a consumer's delivery for a tenant that disabled the function parks, and is retried when it is enabled (ADR-022).
+
+### Changed behaviour
+- **Access by functions** (ADR-026 §2). Checks in order: tenant status, platform availability, tenant enablement, feature entitlement, the user's grant, then the permission, F103 scope and F005 channel as before. A user's permissions are those their functions require. Existing roles, rules and channel rows were converted at the release with no change in what anyone can do (one exception: OQ-096).
+- **Privileged roles:** a role holding a privileged function is privileged: its assignment needs a second administrator and the user must be MFA-enrolled (`MFA_REQUIRED`, 409; OQ-097).
+- **The first tenant administrator** request still names permissions; they are converted to functions, and one no function grants on its own is refused (422 `VALIDATION_FAILED`, field `permissions`; OQ-099).
+- **Background work** a tenant disables (JOB functions, OQ-098) is held: consumers park, daily jobs skip the tenant and pick its due work up once enabled.
+
+## Wave 1 batch 2 (merged at `2562160`): Communications (addenda/communications.md)
 
 ### New endpoints
 
@@ -37,7 +77,7 @@ Static data (generated endpoints under `/api/v1/communications/static/…`): `ch
 - **Missing configuration parks** (ADR-022) with `NOTIFICATION_TYPE_NOT_CONFIGURED`, `CHANNEL_PROVIDER_NOT_CONFIGURED` or `NOTIFICATION_TEMPLATE_NOT_IN_FORCE`; a tenant that has not configured a type sees the trigger parked and escalated, not lost.
 - **Error codes:** `PREFERENCE_NOT_ALLOWED` (422) is new. `CALLBACK_SIGNATURE_INVALID` and `CALLBACK_REPLAYED` are now shared with Communications; the codes are unchanged, their message keys become `error.callback.signature` and `error.callback.replayed`.
 
-## Wave 1 batch 1 (branch `wave1-1`, not merged): requests 48–50, completing Wave 0b
+## Wave 1 batch 1 (merged at `8c007e7`): requests 48–50, completing Wave 0b
 
 ### New endpoints
 

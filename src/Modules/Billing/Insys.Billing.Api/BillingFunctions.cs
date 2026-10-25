@@ -38,7 +38,7 @@ internal static class BillingFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("BILLING_ACCOUNTS", "BILLING", "Accounts", "billing/accounts", "BillingGetAccount", "BillingListInvoices")
+        .Screen("BILLING_ACCOUNTS", "BILLING", "Accounts", "billing/accounts", "BillingGetAccount")
         .Action("BILLING_OPEN_ACCOUNT", "BILLING_ACCOUNTS", "BillingOpenAccount")
         .Action("BILLING_CREATE_SCHEDULE", "BILLING_ACCOUNTS", "BillingCreateSchedule")
         .Action("BILLING_AMEND_SCHEDULE", "BILLING_ACCOUNTS", "BillingAmendSchedule")
@@ -46,10 +46,11 @@ internal static class BillingFunctions
         .Action("BILLING_AGE_ACCOUNT", "BILLING_ACCOUNTS", "BillingAgeAccount")
         .Action("BILLING_CLOSE_ACCOUNT", "BILLING_ACCOUNTS", "BillingCloseAccount")
         .Action("BILLING_REQUEST_REFUND", "BILLING_ACCOUNTS", "BillingRequestRefund")
-        .Screen("BILLING_INVOICES", "BILLING", "Invoices & credit notes", "billing/invoices", "BillingGetInvoice")
+        .Screen("BILLING_INVOICES", "BILLING", "Invoices & credit notes", "billing/invoices", "BillingGetInvoice", "BillingListInvoices")
         .Action("BILLING_RAISE_CREDIT_NOTE", "BILLING_INVOICES", "BillingRaiseCreditNote")
         .Screen("BILLING_DASHBOARD", "BILLING", "Arrears ageing & cases", "billing/summary", "BillingSummary")
         .Screen("BILLING_REFUNDS", "BILLING", "Refunds (second person)", "billing/refunds", "BillingGetRefund")
+        .Job("BILLING_DAILY_JOBS", "BILLING", "Background processing")
             .Functions,
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
         .Screen("CUSTOMER_PORTAL_BILLING_INVOICES", "CUSTOMER_PORTAL", "Invoices", "portal/billing/invoices", "PortalBillingListInvoices", "PortalBillingGetInvoice")

@@ -41,6 +41,8 @@ public static class AnalyticsInfrastructure
 {
     public static IServiceCollection AddAnalyticsInfrastructure(this IServiceCollection services)
     {
+        // ADR-026 §2: this module's event consumers run under its JOB function.
+        BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.AnalyticsDbContext.SchemaName, "ANALYTICS_EVENT_PROCESSING");
         const string schema = AnalyticsDbContext.SchemaName;
         services.AddModuleDbContext<AnalyticsDbContext>(schema, "Analytics");
         services.AddStaticData<AnalyticsDbContext>(schema, AnalyticsStaticData.Descriptors);

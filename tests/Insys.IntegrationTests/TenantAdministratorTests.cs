@@ -98,8 +98,13 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
                 "SELECT status || ' ' || approved_by FROM iam.user_role_assignment WHERE tenant_id = @t AND user_id = @u AND role_code = 'TENANT_ADMIN'",
                 ("t", tenantId), ("u", userId)))
             .ShouldBe($"ACTIVE {checker}");
-        (await fixture.Database.ScalarAsOwner<string[]>(
-                "SELECT permissions FROM iam.cfg_roles_and_permission_sets WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN'", ("t", tenantId)))
+        // ADR-026: the role holds the functions that need only the agreed permissions, which give it exactly them.
+        (await fixture.Database.ScalarAsOwner<string[]>("""
+                SELECT array_agg(DISTINCT p) FROM iam.cfg_role_function_assignments g
+                JOIN iam.ref_function_catalogue c ON c.tenant_id IS NULL AND c.function_code = g.function_code AND c.record_status = 'ACTIVE' AND c.effective_to IS NULL
+                CROSS JOIN LATERAL unnest(c.required_permissions) AS p
+                WHERE g.tenant_id = @t AND g.role_code = 'TENANT_ADMIN'
+                """, ("t", tenantId)))
             .ShouldBe([IntegrationPermissions.DeadLetterRead, IdentityPermissions.UserCreate, IdentityPermissions.UserRead, IdentityPermissions.UserUpdate],
                 ignoreOrder: true);
 

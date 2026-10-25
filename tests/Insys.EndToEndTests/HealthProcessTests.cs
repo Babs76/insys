@@ -615,7 +615,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.premium_schedule WHERE policy_ref = @m AND product_code IS NULL", ("m", late))).ShouldBe(1L);
 
         // The next version names the product: the daily job gives it to the membership, and Billing to its schedule and later invoices.
-        await _db.UserWithPermissions(Tenant, "hlt-jobs", "daily_job.run");
+        await _db.UserWithPermissions(Tenant, "hlt-jobs");
         var jobs = _factory.ClientFor(Tenant, "hlt-jobs");
         (await jobs.PostAsJsonAsync("/api/v1/testing/daily-jobs", new { asOf = Today.AddDays(1) })).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
@@ -687,6 +687,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             ("client_ids", new[] { "member-portal" }));
         await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CP-PRV-C", ("channel_code", "PRV"), ("role_code", providerRole),
             ("transaction_type", HealthPermissions.ClaimCreate), ("allowed", true));
+        await _db.AdoptFunctionCatalogue();
         var provider1 = _factory.ClientFor(Tenant, "provider-1", "provider-portal", multiFactor: true);
         var provider2 = _factory.ClientFor(Tenant, "provider-2", "provider-portal", multiFactor: true);
 

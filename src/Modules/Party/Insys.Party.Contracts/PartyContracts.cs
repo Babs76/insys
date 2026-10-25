@@ -177,4 +177,7 @@ public interface IPartyContacts
 public interface IPartyConsent
 {
     Task<bool> IsGranted(Guid tenantId, Guid partyId, string purposeCode, CancellationToken cancellationToken);
+
+    /// <summary>The ID of the party's current consent record for the purpose when it grants it, else null: the proof of consent a marketing message keeps.</summary>
+    Task<Guid?> GrantingRecord(Guid tenantId, Guid partyId, string purposeCode, CancellationToken cancellationToken);
 }

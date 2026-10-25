@@ -101,7 +101,8 @@ public interface ITenantAdministrators
 }
 
 internal sealed class ProvisionTenantAdministratorHandler(ITenantAdministrators administrators, ITenantProfiles tenants, IExecutionContext execution,
-    ITenantContext tenant, IOptions<PlatformOptions> platform, IClock clock, IAuditTrail audit) : ICommandHandler<ProvisionTenantAdministrator, Guid>
+    ITenantContext tenant, IOptions<PlatformOptions> platform, IClock clock, IAuditTrail audit, Users.IFunctionCoverage coverage)
+    : ICommandHandler<ProvisionTenantAdministrator, Guid>
 {
     public async Task<Result<Guid>> Handle(ProvisionTenantAdministrator command, CancellationToken cancellationToken)
     {
@@ -134,6 +135,13 @@ internal sealed class ProvisionTenantAdministratorHandler(ITenantAdministrators 
         if (await administrators.TenantHasUsers(command.TargetTenantId, cancellationToken))
         {
             return Error.Conflict(IdentityErrorCodes.TenantHasUsers, $"Tenant {target.TenantCode} already has users; its administrators add the others.");
+        }
+
+        // ADR-026: the role is given the functions that need only these permissions, so each must be needed by such a function.
+        if (await coverage.Uncovered(command.Permissions, clock.UtcToday, cancellationToken) is { Count: > 0 } uncovered)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "Every permission must be one a function grants with the others (ADR-026).",
+                new Dictionary<string, string[]> { ["permissions"] = [$"No function needs only these permissions, so the role cannot hold: {string.Join(", ", uncovered)}."] });
         }
 
         var request = TenantAdministratorRequest.Create(command.TargetTenantId, command.Username, command.DisplayName, command.IdpCode, command.ExternalSubject,

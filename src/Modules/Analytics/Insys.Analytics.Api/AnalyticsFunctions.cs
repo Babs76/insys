@@ -43,6 +43,7 @@ internal static class AnalyticsFunctions
         .Action("ANALYTICS_REBUILD_PROJECTIONS", "ANALYTICS_PROJECTIONS", "AnalyticsRebuildProjections")
         .Screen("ANALYTICS_DASHBOARD", "ANALYTICS", "Dashboard figures", "analytics/summary", "AnalyticsSummary")
         .Screen("ANALYTICS_WRITTEN_PREMIUM", "ANALYTICS", "Written premium", "analytics/written-premium", "AnalyticsWrittenPremium")
+        .Job("ANALYTICS_EVENT_PROCESSING", "ANALYTICS", "Background processing")
             .Functions,
     ];
 }

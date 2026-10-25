@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Text.Json.Nodes;
+using Insys.BuildingBlocks.Domain;
 using Microsoft.OpenApi;
 
 namespace Insys.BuildingBlocks.Api;
@@ -106,7 +107,25 @@ public static class ErrorContract
                 operation.Responses![status] = new OpenApiResponseReference(id, document);
             }
         }
+
+        // The codes an operation can answer with for these statuses whatever it does (access, idempotency, state); its own
+        // codes are in the error code catalogue (x-error-codes-source).
+        foreach (var (id, codes) in KnownCodes)
+        {
+            if (document.Components.Responses.TryGetValue(id, out var shared) && shared is OpenApiResponse known)
+            {
+                known.Description = $"{known.Description?.TrimEnd('.')}. Codes any operation may return: {string.Join(", ", codes)}.";
+            }
+        }
     }
+
+    private static readonly (string Id, string[] Codes)[] KnownCodes =
+    [
+        ("Problem403", [ErrorCodes.Forbidden, ErrorCodes.TenantContextMissing, ErrorCodes.FunctionNotGranted, ErrorCodes.FunctionDisabled, ErrorCodes.FeatureNotEntitled,
+            ErrorCodes.OutOfScope, ErrorCodes.ChannelNotEnabled, ErrorCodes.ChannelNotAllowed, ErrorCodes.ChannelApprovalRequired]),
+        ("Problem409", [ErrorCodes.TenantNotActive, ErrorCodes.IdempotencyInProgress, ErrorCodes.IdempotencyResponseNotKept, ErrorCodes.InvalidStateTransition]),
+        ("Problem422", [ErrorCodes.ValidationFailed, ErrorCodes.IdempotencyKeyRequired, ErrorCodes.IdempotencyKeyReused]),
+    ];
 
     private static OpenApiHeader Header(string description, OpenApiSchema schema) => new() { Description = description, Schema = schema };
 

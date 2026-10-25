@@ -33,7 +33,22 @@ namespace Insys.BuildingBlocks.Application.Context;
 /// <param name="RoleCodes">The roles in effect, for channel permission rows (F005).</param>
 /// <param name="External">The party, intermediary or provider an external user is, from their approved link; null for staff.</param>
 public sealed record ResolvedPrincipal(Guid UserId, IReadOnlySet<string> Permissions, IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>? Grants = null,
-    IReadOnlyCollection<string>? RoleCodes = null, ExternalSubject? External = null, bool ConfigurationOnly = false);
+    IReadOnlyCollection<string>? RoleCodes = null, ExternalSubject? External = null, bool ConfigurationOnly = false, FunctionAccess? Functions = null);
+
+/// <summary>
+/// The functions a user may use now (ADR-026 §2), and why each other function of the catalogue is refused, in the
+/// order of checks: the tenant still Onboarding (TENANT_NOT_ACTIVE), disabled (FUNCTION_DISABLED), not entitled
+/// (FEATURE_NOT_ENTITLED), then not granted (FUNCTION_NOT_GRANTED). A code the catalogue does not have in force is
+/// not available on the platform (FUNCTION_DISABLED).
+/// </summary>
+/// <param name="Usable">The functions the user's roles in effect grant and the tenant allows now.</param>
+/// <param name="Refusals">For every function in force in the catalogue, the tenant's refusal; FUNCTION_NOT_GRANTED for one it allows.</param>
+public sealed record FunctionAccess(IReadOnlySet<string> Usable, IReadOnlyDictionary<string, string> Refusals)
+{
+    /// <summary>Null when the user may use any of the codes (an operation shared by two portals has one per portal); else the first one's refusal.</summary>
+    public string? Refusal(IReadOnlyList<string> codes) =>
+        codes.Any(Usable.Contains) ? null : codes.Count == 0 ? null : Refusals.GetValueOrDefault(codes[0], Domain.ErrorCodes.FunctionDisabled);
+}
 
 /// <summary>
 /// Resolves a token's subject to a user and permissions, per request, from IAM role assignments. Access tokens carry

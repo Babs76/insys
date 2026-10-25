@@ -205,7 +205,9 @@ public static class ApiRegistration
             {
                 Title = title,
                 Version = "v1",
-                Description = description + " Every response carries X-Correlation-Id: the caller's when it sent a valid one, else a new one; errors repeat it as correlationId.",
+                Description = description + " Every response carries X-Correlation-Id: the caller's when it sent a valid one, else a new one; errors repeat it as correlationId."
+                    + " x-function lists the functions an operation belongs to (ADR-026): the caller needs any one of them, one per portal for an operation the portals"
+                    + " share. Operations about the signed-in user and signed provider callbacks have none.",
             };
 
             // No servers: the document must be the same wherever it is generated (build time, tests, runtime).
@@ -245,6 +247,8 @@ public static class ApiRegistration
                 operation.Extensions ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiExtension>();
                 operation.Extensions["x-function"] = new Microsoft.OpenApi.JsonNodeExtension(new System.Text.Json.Nodes.JsonArray(
                     System.Text.Json.Nodes.JsonValue.Create("SD_{catalogue module}_APPROVE")));
+                operation.Description = (operation.Description is { Length: > 0 } d ? d + " " : "")
+                    + "The function is the table's approve function: the x-function of the table's own operations with _VIEW or _MAINTAIN replaced by _APPROVE (ADR-026).";
             }
 
             if (metadata.OfType<AdditionalPermissionMetadata>().ToList() is { Count: > 0 } additional)
@@ -333,7 +337,9 @@ public static class ApiRegistration
                     Name = IdempotencyFilter.HeaderName,
                     In = ParameterLocation.Header,
                     Required = true,
-                    Description = "A unique key for this operation. A retry with the same key returns the original response.",
+                    Description = metadata.OfType<SecretShownOnceMetadata>().Any()
+                        ? "A unique key for this operation. The response shows a secret once and is not kept: a repeat with the same key is refused (409 IDEMPOTENCY_RESPONSE_NOT_KEPT)."
+                        : "A unique key for this operation. A retry with the same key returns the original response.",
                     Schema = new OpenApiSchema { Type = JsonSchemaType.String, MaxLength = 80 },
                 });
             }

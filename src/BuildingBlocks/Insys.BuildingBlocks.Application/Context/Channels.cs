@@ -53,8 +53,12 @@ public sealed record ChannelDecision(string? ChannelCode, string? RefusalCode, s
 /// </summary>
 public interface IChannelPolicy
 {
-    Task<ChannelDecision> Decide(Guid tenantId, string? clientId, string transactionType, IReadOnlyCollection<string> roleCodes, DateOnly day,
-        CancellationToken cancellationToken);
+    /// <summary>
+    /// The channel decision for a command: <paramref name="transactionType"/> is its permission, which the channel must enable;
+    /// the roles' rows must allow one of <paramref name="functionCodes"/>, the command's functions (ADR-026 §5).
+    /// </summary>
+    Task<ChannelDecision> Decide(Guid tenantId, string? clientId, string transactionType, IReadOnlyList<string> functionCodes, IReadOnlyCollection<string> roleCodes,
+        DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>The channel in force whose client_ids hold the client, with its audience; null when none (external-user access §5).</summary>
     Task<(string Code, string Audience)?> ChannelOf(Guid tenantId, string? clientId, DateOnly day, CancellationToken cancellationToken);
@@ -126,5 +130,6 @@ public sealed class ChannelGate
 /// </summary>
 public interface IChannelScopedTransactions
 {
+    /// <summary>The functions of the channel-scoped commands (ADR-026 §5).</summary>
     IReadOnlySet<string> All { get; }
 }

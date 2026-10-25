@@ -48,6 +48,8 @@ public static class LifeInfrastructure
 {
     public static IServiceCollection AddLifeInfrastructure(this IServiceCollection services)
     {
+        // ADR-026 §2: this module's event consumers run under its JOB function.
+        BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.LifeDbContext.SchemaName, "LIFE_EVENT_PROCESSING");
         const string schema = LifeDbContext.SchemaName;
         services.AddModuleDbContext<LifeDbContext>(schema, "Life");
         services.AddStaticData<LifeDbContext>(schema, LifeStaticData.Descriptors);
@@ -124,14 +126,17 @@ public sealed class LifeJobOptions
 /// inception; policies past grace with enough missed payments lapse (LIF-005); lapsed policies past their
 /// reinstatement window terminate; group schemes start.
 /// </summary>
-public sealed class LifeJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, ILogger<LifeJobs> logger)
+public sealed class LifeJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, IFunctionAvailability availability, ILogger<LifeJobs> logger)
 {
+    /// <summary>The JOB function this job runs under (ADR-026 §2).</summary>
+    public const string Function = "LIFE_DAILY_JOBS";
+
     public const string ServiceName = "life-jobs";
 
     public async Task<int> Run(CancellationToken cancellationToken)
     {
         var done = 0;
-        foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+        foreach (var tenantId in await tenants.Running(availability, Function, logger, cancellationToken))
         {
             // The tenant's business date (GAP-044, ADR-025).
             var day = businessDates.TodayFor(tenantId);

@@ -45,6 +45,7 @@ public static class IntegrationInfrastructure
     {
         services.AddModuleDbContext<IntegrationDbContext>(IntegrationDbContext.SchemaName, "Integration");
         services.AddStaticData<IntegrationDbContext>(IntegrationDbContext.SchemaName, IntegrationStaticData.Descriptors);
+        services.AddSingleton<IStaticRecordValidator, Channels.ChannelRowValidator>();
         services.AddModuleHandlers<IntegrationDbContext>(typeof(DeadLetterMessage).Assembly);
         services.AddScoped<IDeadLetterRepository, DeadLetterRepository>();
         services.AddScoped<BuildingBlocks.Application.Context.IChannelPolicy, Channels.ChannelPolicy>();

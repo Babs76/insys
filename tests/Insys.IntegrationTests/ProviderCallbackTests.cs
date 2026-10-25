@@ -163,6 +163,34 @@ public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixtu
         _logs.Messages.ShouldContain(m => m.Contains(endpoint.Endpoint.Id.ToString(), StringComparison.Ordinal), "a refusal is logged by endpoint ID");
     }
 
+    [Fact]
+    public async Task IssuingAnEndpoint_NeedsAnIdempotencyKey_AndARepeatNeverShowsTheSecretAgain_ADR023()
+    {
+        var client = Client(DatabaseFixture.TenantB);
+        var missing = await client.PostAsJsonAsync("/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR" });
+        missing.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await missing.Code()).ShouldBe("IDEMPOTENCY_KEY_REQUIRED");
+
+        var key = Guid.NewGuid().ToString();
+        async Task<HttpResponseMessage> Post()
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/payments/callback-endpoints") { Content = JsonContent.Create(new { providerCode = "SIMULATOR" }) };
+            request.Headers.Add("Idempotency-Key", key);
+            return await client.SendAsync(request);
+        }
+
+        (await Post()).StatusCode.ShouldBe(HttpStatusCode.Created);
+        var repeat = await Post();
+
+        repeat.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await repeat.Code()).ShouldBe("IDEMPOTENCY_RESPONSE_NOT_KEPT");
+        var stored = await fixture.Database.ScalarAsOwner<string>("SELECT coalesce(response_ref::text, '') FROM integration.idempotency_key WHERE idem_key = @k",
+            ("k", key));
+        stored.ShouldNotBeNull();
+        stored.ShouldNotContain("signingSecret", Case.Insensitive, "the secret is shown once and never kept");
+        stored.ShouldNotContain("callbackPath", Case.Insensitive);
+    }
+
     private HttpClient Client(Guid tenant)
     {
         var client = _app.CreateClient();
@@ -172,7 +200,7 @@ public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixtu
 
     private async Task<IssuedCallbackEndpoint> Issue(Guid tenant)
     {
-        var response = await Client(tenant).PostAsJsonAsync("/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR" });
+        var response = await Client(tenant).Send(HttpMethod.Post, "/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR" }, idempotent: true);
         response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
         return (await response.Content.ReadFromJsonAsync<IssuedCallbackEndpoint>(Json))!;
     }

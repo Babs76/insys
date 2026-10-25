@@ -64,6 +64,18 @@ public enum TenantUserAccess
     Full,
 }
 
+/// <summary>What a tenant allows of the function catalogue on a day (ADR-026 §2): the functions it disabled and the features it is entitled to.</summary>
+public sealed record TenantFunctionSettings(IReadOnlySet<string> DisabledFunctions, IReadOnlySet<string> EntitledFeatures);
+
+/// <summary>
+/// Public query interface: tenant.cfg_tenant_function_availability (a function with no row in force is enabled) and
+/// tenant.cfg_feature_entitlements (global rows naming the tenant by its code), in force on the day.
+/// </summary>
+public interface ITenantFunctionSettings
+{
+    Task<TenantFunctionSettings> For(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+}
+
 /// <summary>Public query interface: the tenant's base currency on a day (tenant.cfg_locale_defaults), or null when none is in force.</summary>
 public interface ITenantBaseCurrency
 {

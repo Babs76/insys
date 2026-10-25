@@ -291,11 +291,15 @@ public sealed class PaymentsModule : IModule
                 }))
             .Produces<IssuedCallbackEndpoint>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .RequireIdempotencyKey()
+            .ShowsSecretOnce()
             .OnboardingConfiguration()
             .WithName("PaymentsIssueCallbackEndpoint")
             .WithSummary("Issue a provider's callback endpoint; an active one is rotated (ADR-023)")
             .WithDescription("Returns the callback path with its endpoint key, and the signing secret, once: they are never shown again. The provider's current endpoint "
-                + "is still accepted until Payments:Callbacks:Overlap (7 days) has passed. Audited.")
+                + "is still accepted until Payments:Callbacks:Overlap (7 days) has passed. Audited. The response is not kept: a repeat with the same Idempotency-Key "
+                + "is refused with 409 IDEMPOTENCY_RESPONSE_NOT_KEPT.")
             .RequirePermission(PaymentPermissions.CallbackEndpointUpdate);
 
         endpoints.MapPost("/{id:guid}/revoke", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>

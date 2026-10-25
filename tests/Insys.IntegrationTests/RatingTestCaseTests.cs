@@ -39,7 +39,8 @@ public sealed class RatingTestCaseTests(DatabaseFixture fixture) : IClassFixture
     public async Task ATestCase_NeedsCurrencyAndFrequency_InItsInputs_GAP024()
     {
         var factory = await fixture.Host();
-        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "rating-author", StaticDataPermissions.Read, StaticDataPermissions.Create);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "rating-author", StaticDataPermissions.Read, StaticDataPermissions.Create,
+            StaticDataPermissions.Update);
         var client = factory.ClientFor(DatabaseFixture.TenantA, "rating-author");
 
         var refused = await client.Send(HttpMethod.Post, Url, Case("TC-NO-FREQ", new { currency = "ZAR", sum_insured = 100_000 }), idempotent: true);

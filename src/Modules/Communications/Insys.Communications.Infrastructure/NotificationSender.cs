@@ -38,14 +38,17 @@ namespace Insys.Communications.Infrastructure;
 /// Sends the due notifications of each active tenant (communications §5), each in its own scope and transaction, so one
 /// failure stops only that notification. Background work runs for active tenants only.
 /// </summary>
-public sealed class NotificationSender(IServiceScopeFactory scopes, ITenantDirectory tenants, IOptions<CommunicationOptions> options, ILogger<NotificationSender> logger)
+public sealed class NotificationSender(IServiceScopeFactory scopes, ITenantDirectory tenants, IOptions<CommunicationOptions> options, IFunctionAvailability availability, ILogger<NotificationSender> logger)
 {
+    /// <summary>The JOB function this job runs under (ADR-026 §2).</summary>
+    public const string Function = "NOTIFICATION_SENDING";
+
     public const string ServiceName = "communication-sender";
 
     public async Task<int> RunOnce(CancellationToken cancellationToken)
     {
         var sent = 0;
-        foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+        foreach (var tenantId in await tenants.Running(availability, Function, logger, cancellationToken))
         {
             try
             {

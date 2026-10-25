@@ -55,11 +55,11 @@ public sealed class ArrearsAgeingTests(DatabaseFixture fixture) : IClassFixture<
         _factory = await fixture.Host();
         await fixture.Database.SeedBillingAndPayments(Tenant, Today.AddDays(-60));
         await fixture.Database.UserWithPermissions(Tenant, "arrears-clerk", BillingPermissions.AccountCreate, BillingPermissions.AccountRead, BillingPermissions.AccountUpdate,
-            BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate, "daily_job.run");
+            BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate);
         _clerk = _factory.ClientFor(Tenant, "arrears-clerk");
         await fixture.Database.SeedBillingAndPayments(TenantB, Today.AddDays(-60));
         await fixture.Database.UserWithPermissions(TenantB, "arrears-clerk-b", BillingPermissions.AccountCreate, BillingPermissions.AccountRead,
-            BillingPermissions.AccountUpdate, BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate, "daily_job.run");
+            BillingPermissions.AccountUpdate, BillingPermissions.InvoiceRead, BillingPermissions.InvoiceCreate);
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

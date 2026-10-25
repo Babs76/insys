@@ -85,6 +85,8 @@ internal static class GeneralFunctions
         .Action("GENERAL_UPDATE_RISK_ATTRIBUTES", "GENERAL_RISK_OBJECTS", "GeneralUpdateRiskAttributes")
         .Action("GENERAL_REVALUE_RISK_OBJECT", "GENERAL_RISK_OBJECTS", "GeneralRevalueRiskObject")
         .Action("GENERAL_DEACTIVATE_RISK_OBJECT", "GENERAL_RISK_OBJECTS", "GeneralDeactivateRiskObject")
+        .Job("GENERAL_EVENT_PROCESSING", "GENERAL_POLICY_ADMIN", "Background processing")
+        .Job("GENERAL_DAILY_JOBS", "GENERAL_POLICY_ADMIN", "Background processing")
             .Functions,
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
         .Screen("CUSTOMER_PORTAL_GENERAL_POLICIES", "CUSTOMER_PORTAL", "Policies", "portal/general/policies", "PortalGeneralListPolicies", "PortalGeneralGetPolicy")

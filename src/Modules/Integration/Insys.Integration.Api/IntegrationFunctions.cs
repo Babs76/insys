@@ -50,6 +50,7 @@ internal static class IntegrationFunctions
         .Action("CHANGE_PARKING_SETTING", "INTEGRATION_PARKING_SETTING", "ChangeParkingSetting")
         .Screen("INTEGRATION_WEBHOOK_DELIVERIES", "INTEGRATION_OPERATIONS", "Webhook deliveries", "integration/webhook-deliveries", "ListWebhookDeliveries")
         .Action("RETRY_WEBHOOK_DELIVERY", "INTEGRATION_WEBHOOK_DELIVERIES", "RetryWebhookDelivery")
+        .Job("WEBHOOK_DELIVERY", "INTEGRATION_OPERATIONS", "Background processing")
             .Functions,
     ];
 }

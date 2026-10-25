@@ -106,6 +106,8 @@ public static class IdentityStaticData
             entity.Property(x => x.PermissionB).HasColumnName("permission_b").HasMaxLength(80);
             entity.Property(x => x.Conflict).HasColumnName("conflict").HasMaxLength(40);
             entity.Property(x => x.OverrideRole).HasColumnName("override_role").HasMaxLength(80);
+            entity.Property(x => x.FunctionA).HasColumnName("function_a").HasMaxLength(80);
+            entity.Property(x => x.FunctionB).HasColumnName("function_b").HasMaxLength(80);
         });
         modelBuilder.Entity<ServiceAccountScopes>(entity =>
         {

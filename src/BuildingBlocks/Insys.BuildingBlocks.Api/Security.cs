@@ -195,6 +195,16 @@ public sealed class ProblemAuthorizationResultHandler : IAuthorizationMiddleware
 
         var tenantMissing = authorizeResult.AuthorizationFailure?.FailureReasons.Any(r => r.Message == ErrorCodes.TenantContextMissing) == true;
         await RecordDenial(context, policy);
+
+        // ADR-026 §2: the permissions come from the functions, so a missing permission is first explained by the function.
+        // A caller outside the operator tenant is refused as before, whatever its functions.
+        var notOperator = authorizeResult.AuthorizationFailure?.FailureReasons.Any(r => r.Message == PlatformOperatorRequirementHandler.FailureReason) == true;
+        if (!tenantMissing && !notOperator && Functions.FunctionChecks.Refusal(context) is { } functionRefused)
+        {
+            await functionRefused.ExecuteAsync(context);
+            return;
+        }
+
         await Write(context, StatusCodes.Status403Forbidden,
             tenantMissing ? ErrorCodes.TenantContextMissing : ErrorCodes.Forbidden,
             tenantMissing ? "No tenant is established for the caller." : "The caller does not hold the required permission.");
@@ -317,6 +327,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
         IReadOnlyCollection<string>? roles = null;
         ExternalSubject? external = null;
         var configurationOnly = false;
+        FunctionAccess? functions = null;
         if (tenantId is not null && subject is not null && context.RequestServices.GetService<IPrincipalResolver>() is { } resolver)
         {
             var principal = await resolver.Resolve(tenantId.Value, subject, context.RequestAborted);
@@ -328,6 +339,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
                 roles = principal.RoleCodes;
                 external = principal.External;
                 configurationOnly = principal.ConfigurationOnly;
+                functions = principal.Functions;
                 memberOf = tenantId;
                 context.Items[TenantMemberRequirement.MemberItem] = true;
             }
@@ -339,7 +351,7 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
 
         Guid? correlation = Guid.TryParse(context.Request.Headers[CorrelationHeader], out var c) ? c : null;
         scope.InitialiseForUser(tenantId, actor, permissions, correlation, grants, user.FindFirstValue(InsysClaims.AuthorisedParty), roles, external, MultiFactor(user),
-            configurationOnly);
+            configurationOnly, functions);
         context.Response.Headers[CorrelationHeader] = scope.CorrelationId.ToString();
         await next(context);
     }

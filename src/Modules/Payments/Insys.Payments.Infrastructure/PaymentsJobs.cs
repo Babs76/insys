@@ -45,14 +45,17 @@ public sealed class PaymentJobOptions
 }
 
 /// <summary>Marks payments pending too long as Unknown, one per transaction, as a service identity; each then goes to reconciliation (PAY-005).</summary>
-public sealed class PaymentJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, IClock clock, IOptions<PaymentJobOptions> options, ILogger<PaymentJobs> logger)
+public sealed class PaymentJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, IClock clock, IOptions<PaymentJobOptions> options, IFunctionAvailability availability, ILogger<PaymentJobs> logger)
 {
+    /// <summary>The JOB function this job runs under (ADR-026 §2).</summary>
+    public const string Function = "PAYMENTS_DAILY_JOBS";
+
     public const string ServiceName = "payment-jobs";
 
     public async Task<int> Run(CancellationToken cancellationToken)
     {
         var marked = 0;
-        foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+        foreach (var tenantId in await tenants.Running(availability, Function, logger, cancellationToken))
         {
             IReadOnlyList<Guid> pending;
             await using (var scope = Scope(tenantId))

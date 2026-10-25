@@ -53,12 +53,14 @@ public sealed record DeliveryAttemptView(short AttemptNo, [property: OneOf("EMAI
 /// <param name="SourceType">GENERAL_CLAIM, LIFE_CLAIM, HEALTH_CLAIM, HEALTH_PREAUTH, GENERAL_POLICY or BILLING_ACCOUNT; with SourceId, the record it is about.</param>
 /// <param name="SourceReference">That record's own reference (claim, authorisation, policy or account number).</param>
 /// <param name="ConsentPurpose">For marketing, the consent purpose it was sent under (POPIA s69).</param>
-public sealed record NotificationView(Guid Id, string TypeCode, [property: OneOf("SERVICE", "MARKETING")] string Category, string? ConsentPurpose, Guid RecipientPartyId,
+/// <param name="ConsentRecordId">For marketing that was sent, the Party consent record granting the purpose then: its proof of consent.</param>
+public sealed record NotificationView(Guid Id, string TypeCode, [property: OneOf("SERVICE", "MARKETING")] string Category, string? ConsentPurpose, Guid? ConsentRecordId,
+    Guid RecipientPartyId,
     string SourceType, Guid SourceId, string? SourceReference, string? ProductCode, string? OrgNodeCode, IReadOnlyList<string> Channels, string Language,
     NotificationStatus Status, [property: OneOf("EMAIL", "SMS", "PUSH", "WHATSAPP")] string? Channel, string? Subject, string? Body, bool BodyRedacted,
     DateTimeOffset RequestedAt, DateTimeOffset? SentAt, DateTimeOffset? DeliveredAt, DateTimeOffset? EndedAt, IReadOnlyList<DeliveryAttemptView> Attempts, long RowVersion)
 {
-    public static NotificationView From(Notification n, bool redact) => new(n.Id, n.TypeCode, n.Category, n.ConsentPurpose, n.RecipientPartyId, n.SourceType, n.SourceId,
+    public static NotificationView From(Notification n, bool redact) => new(n.Id, n.TypeCode, n.Category, n.ConsentPurpose, n.ConsentRecordId, n.RecipientPartyId, n.SourceType, n.SourceId,
         n.SourceReference, n.ProductCode, n.OrgNodeCode, n.Channels, n.Language, n.Status, n.Channel, redact ? null : n.Subject, redact ? null : n.Body,
         redact && n.Body is not null, n.RequestedAt, n.SentAt, n.DeliveredAt, n.EndedAt,
         n.DeliveryAttempts.OrderBy(a => a.AttemptNo).Select(a => new DeliveryAttemptView(a.AttemptNo, a.Channel, a.ProviderCode, a.ProviderRef, a.MaskedAddress,

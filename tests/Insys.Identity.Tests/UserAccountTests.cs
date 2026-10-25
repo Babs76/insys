@@ -38,7 +38,8 @@ public sealed class UserAccountTests
 
     private static UserAccount User(bool mfa = true) => UserAccount.ProvisionUser(Guid.CreateVersion7(), "jane", "Jane", "OIDC", "sub-jane", mfa);
 
-    private static RoleFacts Role(string code, bool mfa = false, params string[] permissions) => new(code, true, permissions.ToHashSet(), mfa);
+    private static RoleFacts Role(string code, bool mfa = false, params string[] functions) =>
+        new(code, true, new HashSet<string>(), mfa) { Functions = functions.ToHashSet() };
 
     [Fact]
     public void UserAccount_Lifecycle_MatchesDomainModel()
@@ -89,11 +90,11 @@ public sealed class UserAccountTests
     public void AssignRole_CombiningBlockedPermissions_IsRefused_SRS002()
     {
         var user = User();
-        var maker = Role("MAKER", permissions: "payment.create");
+        var maker = Role("MAKER", functions: "PAYMENTS_CREATE");
         user.AssignRole(maker, [], [], Today, null, null, null, Admin, Today, Now).IsSuccess.ShouldBeTrue();
 
-        var result = user.AssignRole(Role("CHECKER", permissions: "payment.approve"), [maker],
-            [new DutyConflictRule("payment.create", "payment.approve", "BLOCK")], Today, null, null, null, Admin, Today, Now);
+        var result = user.AssignRole(Role("CHECKER", functions: "PAYMENTS_APPROVE"), [maker],
+            [new DutyConflictRule("PAYMENTS_CREATE", "PAYMENTS_APPROVE", "BLOCK")], Today, null, null, null, Admin, Today, Now);
 
         result.Error!.Code.ShouldBe("SEGREGATION_OF_DUTIES");
     }
@@ -102,10 +103,10 @@ public sealed class UserAccountTests
     public void AssignRole_WarnRule_DoesNotBlock_SRS002()
     {
         var user = User();
-        var maker = Role("MAKER", permissions: "payment.create");
+        var maker = Role("MAKER", functions: "PAYMENTS_CREATE");
         user.AssignRole(maker, [], [], Today, null, null, null, Admin, Today, Now);
 
-        user.AssignRole(Role("CHECKER", permissions: "payment.approve"), [maker], [new DutyConflictRule("payment.create", "payment.approve", "WARN")],
+        user.AssignRole(Role("CHECKER", functions: "PAYMENTS_APPROVE"), [maker], [new DutyConflictRule("PAYMENTS_CREATE", "PAYMENTS_APPROVE", "WARN")],
             Today, null, null, null, Admin, Today, Now).IsSuccess.ShouldBeTrue();
     }
 

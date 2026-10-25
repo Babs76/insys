@@ -90,7 +90,6 @@ public sealed record ChannelApprovalFlowMetadata;
 /// <summary>Marks an endpoint of a portal (external-user access §5): external users of the kinds named may use it, and no other.</summary>
 public sealed record PortalEndpointMetadata(IReadOnlyList<string> Kinds);
 
-/// <summary>The channel-scoped transactions, read once from the endpoints: the permission of each channel-scoped command (F005 §2).</summary>
 /// <summary>
 /// The channel-scoped commands (F005), recorded as the router builds each endpoint (a Finally convention on ChannelScoped),
 /// so nothing builds the endpoints a second time to list them: that took 44 s on a busy CI runner inside a readiness
@@ -111,9 +110,13 @@ internal static class ChannelScopedRegistry
             return;
         }
 
-        if (metadata.OfType<RequiredPermissionMetadata>().LastOrDefault()?.Permission is { } permission)
+        // ADR-026 §5: channel rows name functions, so the command's functions are recorded.
+        if (metadata.OfType<IEndpointNameMetadata>().LastOrDefault()?.EndpointName is { } name && Functions.FunctionRegistry.ForEndpoint(name) is { } codes)
         {
-            Permissions[permission] = 0;
+            foreach (var code in codes)
+            {
+                Permissions[code] = 0;
+            }
         }
     }
 }
@@ -165,13 +168,12 @@ public static class RequestAccessScope
                 return refused;
             }
 
-            // A tenant still Onboarding loads its configuration; its business commands wait for activation.
-            if (http.RequestServices.GetRequiredService<ExecutionScope>().ConfigurationOnly && !HttpMethods.IsGet(http.Request.Method)
-                && !HttpMethods.IsHead(http.Request.Method) && metadata?.GetMetadata<BusinessTransactionMetadata>() is not null
-                && metadata.GetMetadata<OnboardingConfigurationMetadata>() is null && metadata.GetMetadata<StaticDataEndpointMetadata>() is null)
+            // ADR-026 §2: the tenant's status (a tenant still Onboarding uses only the functions allowed then), the function's
+            // availability, enablement and feature, and the user's grant, before the permission. The permission policy has
+            // already passed, so this refuses a user who holds the permission through another function.
+            if (Functions.FunctionChecks.Refusal(http) is { } functionRefused)
             {
-                return Problems.For(Domain.ErrorCodes.TenantNotActive, "The tenant is still onboarding: business transactions start once it is activated.",
-                    StatusCodes.Status409Conflict);
+                return functionRefused;
             }
 
             if (metadata?.GetMetadata<RequiredPermissionMetadata>()?.Permission is { } permission)
@@ -186,7 +188,8 @@ public static class RequestAccessScope
                     && http.RequestServices.GetService<IChannelPolicy>() is { } policy)
                 {
                     var day = http.RequestServices.GetRequiredService<IBusinessDate>().Today;
-                    var decision = await policy.Decide(tenantId, scope.ClientId, permission, scope.RoleCodes, day, http.RequestAborted);
+                    var decision = await policy.Decide(tenantId, scope.ClientId, permission, Functions.FunctionChecks.CodesFor(http), scope.RoleCodes, day,
+                        http.RequestAborted);
                     if (decision.RefusalCode is { } code)
                     {
                         return Problems.For(code, decision.RefusalMessage ?? "The channel does not allow this transaction.", StatusCodes.Status403Forbidden);

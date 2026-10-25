@@ -26,6 +26,7 @@
  */
 using Insys.BuildingBlocks.Api.Functions;
 using Insys.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.IntegrationTests;
 
@@ -81,5 +82,28 @@ public sealed class FunctionCatalogueTests(DatabaseFixture fixture) : IClassFixt
         functions.Where(f => f.Function.Kind != FunctionKind.Job && f.Permissions.Count == 0).Select(f => f.Function.Code).ToList().ShouldBeEmpty();
         functions.Where(f => f.Function.Kind == FunctionKind.Action && (f.Function.Parent is null || !codes.Contains(f.Function.Parent)))
             .Select(f => f.Function.Code).ToList().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// The catalogue holds only functions that exist in the release: every operation a function names is an endpoint of
+    /// this build, and every JOB function is one a consumer or daily job runs under. Planned functions are not catalogued.
+    /// </summary>
+    [Fact]
+    public async Task Catalogue_HoldsOnlyFunctionsThatExistInTheRelease_ADR026()
+    {
+        var factory = await fixture.Host();
+        var names = factory.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints
+            .Select(e => e.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IEndpointNameMetadata>()?.EndpointName).OfType<string>();
+        FunctionRegistry.Unmatched(names).ShouldBeEmpty("a function names an operation this build does not have");
+
+        string[] jobs =
+        [
+            .. Insys.BuildingBlocks.Application.Context.JobFunctions.All.Values,
+            Insys.Life.Infrastructure.LifeJobs.Function, Insys.General.Infrastructure.GeneralJobs.Function, Insys.Health.Infrastructure.HealthJobs.Function,
+            Insys.Billing.Infrastructure.BillingJobs.Function, Insys.Payments.Infrastructure.PaymentJobs.Function,
+            Insys.Integration.Infrastructure.Webhooks.WebhookJobs.Function, Insys.Communications.Infrastructure.NotificationSender.Function,
+        ];
+        FunctionRegistry.All().Where(f => f.Function.Kind == FunctionKind.Job).Select(f => f.Function.Code).Order(StringComparer.Ordinal)
+            .ShouldBe(jobs.Distinct().Order(StringComparer.Ordinal), "every JOB function is one a consumer or daily job runs under, and every one is catalogued");
     }
 }

@@ -235,8 +235,17 @@ public static class InfrastructureRegistration
             typeof(TEvent) == typeof(AnyIntegrationEvent) ? AnyIntegrationEvent.Wildcard : IntegrationEventTypes.Describe(typeof(TEvent)).Type,
             consumer,
             typeof(TEvent),
-            (sp, integrationEvent, envelope, cancellationToken) =>
-                sp.GetRequiredService<InboxEventHandler<TEvent, THandler, TDbContext>>().Handle(consumer, (TEvent)integrationEvent, envelope, cancellationToken)));
+            async (sp, integrationEvent, envelope, cancellationToken) =>
+            {
+                // ADR-026 §2: the module's consumers run under its JOB function; disabled for the tenant, the delivery parks.
+                if (Application.Context.JobFunctions.OfConsumers(schema) is { } job && sp.GetService<Application.Context.IFunctionAvailability>() is { } availability
+                    && !await availability.IsEnabled(envelope.TenantId, job, cancellationToken))
+                {
+                    throw new PrerequisiteMissingException(PrerequisiteCodes.FunctionDisabled, job);
+                }
+
+                await sp.GetRequiredService<InboxEventHandler<TEvent, THandler, TDbContext>>().Handle(consumer, (TEvent)integrationEvent, envelope, cancellationToken);
+            }));
         return services;
     }
 }

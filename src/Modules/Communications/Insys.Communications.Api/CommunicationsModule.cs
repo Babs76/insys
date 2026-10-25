@@ -137,8 +137,11 @@ public sealed class CommunicationsModule : IModule
             .WithName("CommunicationsIssueCallbackEndpoint")
             .WithSummary("Issue a messaging provider's delivery callback endpoint; an active one is rotated (ADR-023)")
             .WithDescription("The key and signing secret are shown once, in this response (Cache-Control: no-store). The key is part of the callback URL, so keep it "
-                + "out of logs. The rotated endpoint is still accepted until Communications:Callbacks:Overlap (7 days) has passed. Audited.")
+                + "out of logs. The rotated endpoint is still accepted until Communications:Callbacks:Overlap (7 days) has passed. Audited. The response is not "
+                + "kept: a repeat with the same Idempotency-Key is refused with 409 IDEMPOTENCY_RESPONSE_NOT_KEPT.")
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .RequireIdempotencyKey()
+            .ShowsSecretOnce()
             .OnboardingConfiguration()
             .RequirePermission(CommunicationPermissions.CallbackEndpointUpdate);
 

@@ -61,6 +61,18 @@ public static class ErrorCodes
     [ErrorCode(403, "error.access.forbidden")]
     public const string Forbidden = "FORBIDDEN";
 
+    /// <summary>ADR-026 §2: the user's roles in effect do not grant the operation's function.</summary>
+    [ErrorCode(403, "error.access.function_not_granted")]
+    public const string FunctionNotGranted = "FUNCTION_NOT_GRANTED";
+
+    /// <summary>ADR-026 §2: the function is not available on the platform, or the tenant has disabled it.</summary>
+    [ErrorCode(403, "error.access.function_disabled")]
+    public const string FunctionDisabled = "FUNCTION_DISABLED";
+
+    /// <summary>ADR-026 §2: the function needs a feature the tenant is not entitled to (OQ-091).</summary>
+    [ErrorCode(403, "error.access.feature_not_entitled")]
+    public const string FeatureNotEntitled = "FEATURE_NOT_ENTITLED";
+
     /// <summary>F103: an action on a record outside the caller's product or organisation scope for the permission.</summary>
     [ErrorCode(403, "error.access.out_of_scope")]
     public const string OutOfScope = "OUT_OF_SCOPE";
@@ -130,6 +142,10 @@ public static class ErrorCodes
 
     [ErrorCode(409, "error.idempotency.in_progress", retryable: true)]
     public const string IdempotencyInProgress = "IDEMPOTENCY_IN_PROGRESS";
+
+    /// <summary>A repeat of a request whose response showed a secret once: the secret is not kept, so the response cannot be repeated.</summary>
+    [ErrorCode(409, "error.idempotency.response_not_kept")]
+    public const string IdempotencyResponseNotKept = "IDEMPOTENCY_RESPONSE_NOT_KEPT";
 
     [ErrorCode(422, "error.money.currency_mismatch")]
     public const string CurrencyMismatch = "CURRENCY_MISMATCH";

@@ -40,6 +40,8 @@ public static class CommunicationsInfrastructure
 {
     public static IServiceCollection AddCommunicationsInfrastructure(this IServiceCollection services)
     {
+        // ADR-026 §2: this module's event consumers run under its JOB function.
+        BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.CommunicationsDbContext.SchemaName, "COMMUNICATIONS_EVENT_PROCESSING");
         const string schema = CommunicationsDbContext.SchemaName;
         services.AddModuleDbContext<CommunicationsDbContext>(schema, "Communications");
         services.AddStaticData<CommunicationsDbContext>(schema, CommunicationsStaticData.Descriptors);

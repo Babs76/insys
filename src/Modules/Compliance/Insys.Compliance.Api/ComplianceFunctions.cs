@@ -48,6 +48,7 @@ internal static class ComplianceFunctions
         .Action("COMPLIANCE_ACCEPT_RETURN", "COMPLIANCE_RETURNS", "ComplianceAcceptReturn")
         .Action("COMPLIANCE_REJECT_RETURN", "COMPLIANCE_RETURNS", "ComplianceRejectReturn")
         .Action("COMPLIANCE_CORRECT_RETURN", "COMPLIANCE_RETURNS", "ComplianceCorrectReturn")
+        .Job("COMPLIANCE_EVENT_PROCESSING", "REGULATORY_REPORTING", "Background processing")
             .Functions,
     ];
 }

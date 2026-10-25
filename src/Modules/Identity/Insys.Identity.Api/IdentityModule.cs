@@ -92,6 +92,18 @@ public sealed class IdentityModule : IModule
             .ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party, BuildingBlocks.Application.Context.ExternalSubject.Intermediary,
                 BuildingBlocks.Application.Context.ExternalSubject.Provider);
 
+        me.MapGet("/menu", async (IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetMyMenu(), ct)).ToHttp(view => Results.Ok(view)))
+            .Produces<MenuView>(StatusCodes.Status200OK)
+            .WithName("GetMyMenu")
+            .WithSummary("The signed-in user's menu: the domains, sub-domains, screens and actions they may use now (ADR-026 §3)")
+            .WithDescription("Filtered by the platform's catalogue, the tenant's enablement and feature entitlements, the user's roles in effect and their "
+                + "audience (CUSTOMER, BROKER or PROVIDER for an external user, PLATFORM in the operator tenant, else STAFF). While the tenant is Onboarding "
+                + "only the functions open then appear. Ordered by the catalogue; labelKey is the translation key, label the text in the request's language.")
+            .RequireSignedInUser()
+            .ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party, BuildingBlocks.Application.Context.ExternalSubject.Intermediary,
+                BuildingBlocks.Application.Context.ExternalSubject.Provider);
+
         me.MapPut("/preferred-language", (PreferredLanguageRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new ChangeMyPreferredLanguage(request.Language, v), ct)))
             .Produces(StatusCodes.Status204NoContent)

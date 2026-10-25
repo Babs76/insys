@@ -85,6 +85,13 @@ internal sealed class BankAccountQueries([FromKeyedServices(PartyDbContext.Schem
             ORDER BY captured_at DESC, id DESC LIMIT 1
             """, partyId, r => r.GetBoolean(0) ? "Y" : null, cancellationToken, ("purpose", purposeCode)) is not null;
 
+    public async Task<Guid?> GrantingRecord(Guid tenantId, Guid partyId, string purposeCode, CancellationToken cancellationToken) =>
+        await Query(tenantId, """
+            SELECT id::text FROM (SELECT id, granted FROM party.consent_record WHERE tenant_id = @t AND party_id = @id AND purpose_code = @purpose
+                                  ORDER BY captured_at DESC, id DESC LIMIT 1) latest
+            WHERE granted
+            """, partyId, r => r.GetString(0), cancellationToken, ("purpose", purposeCode)) is { } id ? Guid.Parse(id) : null;
+
     private Task<T?> Read<T>(Guid tenantId, Guid bankAccountId, Func<NpgsqlDataReader, T?> map, CancellationToken cancellationToken) where T : class =>
         Query(tenantId, $"SELECT {Columns} FROM party.bank_account WHERE tenant_id = @t AND id = @id", bankAccountId, map, cancellationToken);
 

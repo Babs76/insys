@@ -40,18 +40,18 @@ namespace Insys.Integration.Infrastructure.Channels;
 /// <item>a tenant with no channel definitions has no channel scoping;</item>
 /// <item>the request's channel is the one whose client_ids hold the token's client, in force; none is CHANNEL_NOT_ENABLED;</item>
 /// <item>the channel's enabled_transactions (empty: all) must hold the transaction, the command's permission code;</item>
-/// <item>the caller's roles must have a row with allowed = true for the channel and transaction; none is CHANNEL_NOT_ALLOWED.</item>
+/// <item>the caller's roles must have a row with allowed = true for the channel and the command's function (ADR-026 §5); none is CHANNEL_NOT_ALLOWED.</item>
 /// </list>
 /// The products those rows allow, within enabled_products (empty: all), are checked where the command's product is known.
 /// </summary>
 internal sealed class ChannelPolicy(IntegrationDbContext db) : IChannelPolicy
 {
-    public async Task<ChannelDecision> Decide(Guid tenantId, string? clientId, string transactionType, IReadOnlyCollection<string> roleCodes, DateOnly day,
-        CancellationToken cancellationToken)
+    public async Task<ChannelDecision> Decide(Guid tenantId, string? clientId, string transactionType, IReadOnlyList<string> functionCodes,
+        IReadOnlyCollection<string> roleCodes, DateOnly day, CancellationToken cancellationToken)
     {
         // Its own read-only transaction, which sets the tenant for row-level security; the command's own unit of work follows.
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        var decision = await DecideInTenant(clientId, transactionType, roleCodes, day, cancellationToken);
+        var decision = await DecideInTenant(clientId, transactionType, functionCodes, roleCodes, day, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return decision;
     }
@@ -70,8 +70,8 @@ internal sealed class ChannelPolicy(IntegrationDbContext db) : IChannelPolicy
         return channel is null ? null : (channel.ChannelCode, channel.Audience);
     }
 
-    private async Task<ChannelDecision> DecideInTenant(string? clientId, string transactionType, IReadOnlyCollection<string> roleCodes, DateOnly day,
-        CancellationToken cancellationToken)
+    private async Task<ChannelDecision> DecideInTenant(string? clientId, string transactionType, IReadOnlyList<string> functionCodes,
+        IReadOnlyCollection<string> roleCodes, DateOnly day, CancellationToken cancellationToken)
     {
         var channels = await InForce<ChannelDefinitions>(day).ToListAsync(cancellationToken);
         if (channels.Count == 0)
@@ -90,8 +90,9 @@ internal sealed class ChannelPolicy(IntegrationDbContext db) : IChannelPolicy
         }
 
         var roles = roleCodes.ToArray();
+        var functions = functionCodes.ToArray();
         var rules = await InForce<ChannelTransactionPermissions>(day)
-            .Where(p => p.ChannelCode == channel.ChannelCode && p.TransactionType == transactionType && p.Allowed && roles.Contains(p.RoleCode))
+            .Where(p => p.ChannelCode == channel.ChannelCode && p.FunctionCode != null && functions.Contains(p.FunctionCode) && p.Allowed && roles.Contains(p.RoleCode))
             .Select(p => new { p.ProductCode, p.RequiresApproval })
             .ToListAsync(cancellationToken);
         if (rules.Count == 0)

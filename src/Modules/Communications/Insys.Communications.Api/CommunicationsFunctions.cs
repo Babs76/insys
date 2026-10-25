@@ -44,6 +44,8 @@ internal static class CommunicationsFunctions
         .Screen("COMMUNICATION_NOTIFICATIONS", "NOTIFICATIONS", "Delivery tracking", "communications/notifications", "CommunicationsListNotifications", "CommunicationsGetNotification")
         .Screen("COMMUNICATION_PREFERENCES", "CONSENT_PREFERENCES", "Communication preferences", "communications/preferences", "CommunicationsGetPreferences")
         .Action("COMMUNICATIONS_SET_PREFERENCE", "COMMUNICATION_PREFERENCES", "CommunicationsSetPreference")
+        .Job("COMMUNICATIONS_EVENT_PROCESSING", "NOTIFICATIONS", "Background processing")
+        .Job("NOTIFICATION_SENDING", "NOTIFICATIONS", "Background processing")
             .Functions,
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
         .Screen("CUSTOMER_PORTAL_COMMUNICATIONS_NOTIFICATIONS", "CUSTOMER_PORTAL", "Notifications", "portal/communications/notifications", "PortalCommunicationsListNotifications", "PortalCommunicationsGetNotification")

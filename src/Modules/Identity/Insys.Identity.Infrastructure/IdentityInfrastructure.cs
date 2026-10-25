@@ -42,6 +42,8 @@ public static class IdentityInfrastructure
     {
         services.AddModuleDbContext<IdentityDbContext>(IdentityDbContext.SchemaName, "Identity");
         services.AddStaticData<IdentityDbContext>(IdentityDbContext.SchemaName, IdentityStaticData.Descriptors);
+        services.AddSingleton<IStaticRecordValidator, StaticData.RoleDefinitionValidator>();
+        services.AddSingleton<IStaticRecordValidator, StaticData.DutyConflictRuleValidator>();
         services.AddModuleHandlers<IdentityDbContext>(typeof(ProvisionUser).Assembly);
         services.AddDomainEventMapper<IdentityEventMapper>(IdentityDbContext.SchemaName);
         services.AddScoped<IUserRepository, UserRepository>();
@@ -53,6 +55,11 @@ public static class IdentityInfrastructure
         services.AddSingleton<PermissionCache>();
         services.AddSingleton<IPermissionCache>(sp => sp.GetRequiredService<PermissionCache>());
         services.AddSingleton<BuildingBlocks.Application.Context.IPortalAuthentication, PortalAuthentication>();
+        services.AddSingleton<FunctionCatalogueReader>();
+        services.AddSingleton<Application.Users.IFunctionCoverage, FunctionCoverage>();
+        services.AddSingleton<Application.Users.IMenuBuilder, MenuBuilder>();
+        services.AddSingleton<FunctionAvailability>();
+        services.AddSingleton<BuildingBlocks.Application.Context.IFunctionAvailability>(sp => sp.GetRequiredService<FunctionAvailability>());
         services.AddSingleton<IPrincipalResolver, PrincipalResolver>();
         services.AddSingleton<Contracts.IUserRoleQuery, UserRoleQuery>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
@@ -66,6 +73,8 @@ public static class IdentityInfrastructure
         services.AddIntegrationEventHandler<Contracts.UserDisabled, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "UserDisabled");
         services.AddIntegrationEventHandler<TenantSuspended, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "TenantSuspended");
         services.AddIntegrationEventHandler<TenantActivated, PermissionCacheInvalidation, IdentityDbContext>(IdentityDbContext.SchemaName, "TenantActivated");
+        services.AddIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated, FunctionCacheInvalidation, IdentityDbContext>(
+            IdentityDbContext.SchemaName, "FunctionsActivated");
 
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, PrivilegedRoleApprovalPolicy, IdentityDbContext>(IdentityDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, PrivilegedRoleApprovalPolicy, IdentityDbContext>(IdentityDbContext.SchemaName, "ApprovalRejected");

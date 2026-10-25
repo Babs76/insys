@@ -39,21 +39,27 @@ namespace Insys.Identity.Infrastructure.StaticData;
 /// <summary>Segregation-of-duties conflict rules: iam.cfg_segregation_of_duties_conflict_rules. Scope T, Tier 1, configuration lifecycle.</summary>
 public sealed class SegregationOfDutiesConflictRules : StaticRecord<SegregationOfDutiesConflictRulesInput>
 {
-    public string PermissionA { get; set; } = "";
+    public string? PermissionA { get; set; }
 
-    public string PermissionB { get; set; } = "";
+    public string? PermissionB { get; set; }
 
     [Insys.BuildingBlocks.Domain.OneOf("BLOCK", "WARN")]
     public string Conflict { get; set; } = "";
 
     public string? OverrideRole { get; set; }
 
+    public string? FunctionA { get; set; }
+
+    public string? FunctionB { get; set; }
+
     public override void ApplyFields(SegregationOfDutiesConflictRulesInput input, IFieldProtector protector)
     {
-        PermissionA = input.PermissionA!;
-        PermissionB = input.PermissionB!;
+        PermissionA = input.PermissionA;
+        PermissionB = input.PermissionB;
         Conflict = input.Conflict!;
         OverrideRole = input.OverrideRole;
+        FunctionA = input.FunctionA;
+        FunctionB = input.FunctionB;
     }
 }
 
@@ -69,15 +75,19 @@ public sealed record SegregationOfDutiesConflictRulesInput : StaticRecordInput
 
     public string? OverrideRole { get; init; }
 
+    public string? FunctionA { get; init; }
+
+    public string? FunctionB { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
-        errors.Required("permissionA", PermissionA);
         errors.MaxLength("permissionA", PermissionA, 80);
-        errors.Required("permissionB", PermissionB);
         errors.MaxLength("permissionB", PermissionB, 80);
         errors.Required("conflict", Conflict);
         errors.MaxLength("conflict", Conflict, 40);
         errors.OneOf("conflict", Conflict, ["BLOCK", "WARN"]);
         errors.MaxLength("overrideRole", OverrideRole, 80);
+        errors.MaxLength("functionA", FunctionA, 80);
+        errors.MaxLength("functionB", FunctionB, 80);
     }
 }

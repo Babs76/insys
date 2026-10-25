@@ -43,7 +43,7 @@ public sealed class ChannelTransactionPermissions : StaticRecord<ChannelTransact
 
     public string RoleCode { get; set; } = "";
 
-    public string TransactionType { get; set; } = "";
+    public string? TransactionType { get; set; }
 
     public string? ProductCode { get; set; }
 
@@ -57,7 +57,7 @@ public sealed class ChannelTransactionPermissions : StaticRecord<ChannelTransact
     {
         ChannelCode = input.ChannelCode!;
         RoleCode = input.RoleCode!;
-        TransactionType = input.TransactionType!;
+        TransactionType = input.TransactionType;
         ProductCode = input.ProductCode;
         Allowed = input.Allowed.GetValueOrDefault();
         RequiresApproval = input.RequiresApproval;
@@ -88,7 +88,6 @@ public sealed record ChannelTransactionPermissionsInput : StaticRecordInput
         errors.MaxLength("channelCode", ChannelCode, 80);
         errors.Required("roleCode", RoleCode);
         errors.MaxLength("roleCode", RoleCode, 80);
-        errors.Required("transactionType", TransactionType);
         errors.MaxLength("transactionType", TransactionType, 30);
         errors.MaxLength("productCode", ProductCode, 80);
         errors.Required("allowed", Allowed);

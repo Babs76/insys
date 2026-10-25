@@ -55,6 +55,7 @@ internal static class PaymentsFunctions
         .Screen("PAYMENT_DASHBOARD", "PAYMENTS", "Collections (debit order)", "payments/summary", "PaymentsSummary")
         .Action("PAYMENTS_IMPORT_STATEMENT", "PAYMENT_RECONCILIATION", "PaymentsImportStatement")
         .Permission("COMMISSION_PAYOUT_VIEW", "PAYMENTS", "commission_payout.read")
+        .Job("PAYMENTS_DAILY_JOBS", "PAYMENTS", "Background processing")
             .Functions,
     ];
 }

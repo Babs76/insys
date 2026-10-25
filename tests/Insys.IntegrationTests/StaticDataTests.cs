@@ -98,7 +98,7 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
 
         var inForce = await maker.GetAsync($"{Roles}/CLAIMS_CLERK");
         inForce.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await inForce.Json()).GetProperty("permissions")[0].GetString().ShouldBe("claim.read");
+        (await inForce.Json()).GetProperty("scopeProducts")[0].GetString().ShouldBe("LIFE-TERM");
 
         await _factory.DrainOutbox();
         (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM sdm.change_request WHERE record_key = 'CLAIMS_CLERK@1' AND tenant_id = @t",
@@ -267,10 +267,10 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
     [Fact]
     public async Task AllStaticDataTables_AreReachableThroughTheGeneratedEndpoints()
     {
-        // V0002's 252 tables, V0019's two Health tables (ADR-012) and V0051's four Communications tables.
+        // V0002's 252 tables, V0019's two Health tables (ADR-012), V0051's four Communications tables and V0052's five function catalogue tables.
         var descriptors = _factory.Services.GetServices<ModuleStaticDataTables>().SelectMany(m => m.Descriptors).ToList();
-        descriptors.Count.ShouldBe(252 + 2 + 4);
-        descriptors.Select(d => $"{d.Schema}.{d.Table}").Distinct().Count().ShouldBe(252 + 2 + 4);
+        descriptors.Count.ShouldBe(252 + 2 + 4 + 5);
+        descriptors.Select(d => $"{d.Schema}.{d.Table}").Distinct().Count().ShouldBe(252 + 2 + 4 + 5);
 
         var reader = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
         var failures = new List<string>();
@@ -343,7 +343,8 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
     private static object Schedule(string code) =>
         new { code, scope = "PRIVILEGED", frequency = "P3M", reviewerRole = "AUDITOR", changeReason = "Test schedule" };
 
-    private static object Role(string code) => new { code, roleCode = code, permissions = new[] { "claim.read" }, changeReason = "Test role" };
+    // ADR-026: a role holds functions, so its definition carries no permissions; its default product scope stands in as a field to check.
+    private static object Role(string code) => new { code, roleCode = code, scopeProducts = new[] { "LIFE-TERM" }, changeReason = "Test role" };
 
     private static object Policy(string code, int lockoutAttempts = 5) =>
         new { code, policyCode = code, mfaRequiredRoles = Array.Empty<string>(), sessionTimeout = "PT30M", lockoutAttempts, changeReason = "Test policy" };

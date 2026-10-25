@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "INSYS Core API",
-    "description": "Multi-tenant insurance administration platform. The tenant comes from the bearer token\u0027s tenant_id claim. Every response carries X-Correlation-Id: the caller\u0027s when it sent a valid one, else a new one; errors repeat it as correlationId.",
+    "description": "Multi-tenant insurance administration platform. The tenant comes from the bearer token\u0027s tenant_id claim. Every response carries X-Correlation-Id: the caller\u0027s when it sent a valid one, else a new one; errors repeat it as correlationId. x-function lists the functions an operation belongs to (ADR-026): the caller needs any one of them, one per portal for an operation the portals share. Operations about the signed-in user and signed provider callbacks have none.",
     "version": "v1"
   },
   "paths": {
@@ -1828,7 +1828,7 @@
         },
         "x-permission": "bank_account.read",
         "x-function": [
-          "PARTIES"
+          "PARTY_BANK_ACCOUNTS"
         ]
       }
     },
@@ -2464,7 +2464,7 @@
         },
         "x-permission": "consent.read",
         "x-function": [
-          "PARTIES"
+          "PARTY_CONSENTS"
         ]
       }
     },
@@ -6540,7 +6540,7 @@
         },
         "x-permission": "invoice.read",
         "x-function": [
-          "BILLING_ACCOUNTS"
+          "BILLING_INVOICES"
         ]
       }
     },
@@ -8280,8 +8280,20 @@
           "Payments"
         ],
         "summary": "Issue a provider\u0027s callback endpoint; an active one is rotated (ADR-023)",
-        "description": "Returns the callback path with its endpoint key, and the signing secret, once: they are never shown again. The provider\u0027s current endpoint is still accepted until Payments:Callbacks:Overlap (7 days) has passed. Audited.",
+        "description": "Returns the callback path with its endpoint key, and the signing secret, once: they are never shown again. The provider\u0027s current endpoint is still accepted until Payments:Callbacks:Overlap (7 days) has passed. Audited. The response is not kept: a repeat with the same Idempotency-Key is refused with 409 IDEMPOTENCY_RESPONSE_NOT_KEPT.",
         "operationId": "PaymentsIssueCallbackEndpoint",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. The response shows a secret once and is not kept: a repeat with the same key is refused (409 IDEMPOTENCY_RESPONSE_NOT_KEPT).",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -8306,6 +8318,9 @@
           "422": {
             "$ref": "#/components/responses/Problem422"
           },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
           "401": {
             "$ref": "#/components/responses/Problem401"
           },
@@ -8323,9 +8338,6 @@
           },
           "400": {
             "$ref": "#/components/responses/Problem400"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
           }
         },
         "x-permission": "payment_callback_endpoint.update",
@@ -8512,6 +8524,136 @@
         ]
       }
     },
+    "/api/v1/claims/claims/{claimNumber}/communications": {
+      "get": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "List a claim\u0027s communications, newest first: each inbound or outbound entry of its correspondence log",
+        "description": "Notices sent by Communications are logged here as outbound on their channel. The claim\u0027s view keeps the count.",
+        "operationId": "ClaimsListCommunications",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClaimsFrameworkClaimCommunicationView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "claim_register.read",
+        "x-function": [
+          "CLAIM_REGISTER"
+        ]
+      },
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Record a communication on a claim",
+        "operationId": "ClaimsRecordCommunication",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimsFrameworkRecordCommunication"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimsFrameworkClaimView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "claim_register.update",
+        "x-function": [
+          "CLAIMS_RECORD_COMMUNICATION"
+        ]
+      }
+    },
     "/api/v1/claims/claims/{claimNumber}/evidence-requests": {
       "post": {
         "tags": [
@@ -8656,78 +8798,6 @@
         ]
       }
     },
-    "/api/v1/claims/claims/{claimNumber}/communications": {
-      "post": {
-        "tags": [
-          "ClaimsFramework"
-        ],
-        "summary": "Record a communication on a claim",
-        "operationId": "ClaimsRecordCommunication",
-        "parameters": [
-          {
-            "name": "claimNumber",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ClaimsFrameworkRecordCommunication"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClaimsFrameworkClaimView"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem400"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem404"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
-          }
-        },
-        "x-permission": "claim_register.update",
-        "x-function": [
-          "CLAIMS_RECORD_COMMUNICATION"
-        ]
-      }
-    },
     "/api/v1/claims/claims/{claimNumber}/fraud-evaluations": {
       "post": {
         "tags": [
@@ -8852,7 +8922,7 @@
         },
         "x-permission": "claim_financials.read",
         "x-function": [
-          "CLAIM_REGISTER"
+          "CLAIM_FINANCIALS"
         ]
       }
     },
@@ -9053,7 +9123,7 @@
         },
         "x-permission": "claim_payment.read",
         "x-function": [
-          "CLAIM_REGISTER"
+          "CLAIM_PAYMENT_INSTRUCTIONS"
         ]
       }
     },
@@ -10250,7 +10320,7 @@
         },
         "x-permission": "life_underwriting.read",
         "x-function": [
-          "LIFE_PROPOSALS"
+          "LIFE_UNDERWRITING_CASES"
         ]
       }
     },
@@ -17822,7 +17892,7 @@
         },
         "x-permission": "benefit_accumulator.read",
         "x-function": [
-          "HEALTH_MEMBERSHIPS"
+          "HEALTH_BENEFIT_ACCUMULATORS"
         ]
       }
     },
@@ -21231,7 +21301,7 @@
         },
         "x-permission": "journal.read",
         "x-function": [
-          "FINANCE_PERIODS"
+          "FINANCE_JOURNALS"
         ]
       }
     },
@@ -23820,6 +23890,44 @@
         "x-permission": "signed-in user"
       }
     },
+    "/api/v1/identity/me/menu": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "The signed-in user\u0027s menu: the domains, sub-domains, screens and actions they may use now (ADR-026 \u00A73)",
+        "description": "Filtered by the platform\u0027s catalogue, the tenant\u0027s enablement and feature entitlements, the user\u0027s roles in effect and their audience (CUSTOMER, BROKER or PROVIDER for an external user, PLATFORM in the operator tenant, else STAFF). While the tenant is Onboarding only the functions open then appear. Ordered by the catalogue; labelKey is the translation key, label the text in the request\u0027s language.",
+        "operationId": "GetMyMenu",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityMenuView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "signed-in user"
+      }
+    },
     "/api/v1/identity/me/preferred-language": {
       "put": {
         "tags": [
@@ -25806,6 +25914,7 @@
                 "cfg_retention_schedules",
                 "cfg_retry_and_dead_letter_poli",
                 "cfg_risk_object_types_and_attr",
+                "cfg_role_function_assignments",
                 "cfg_roles_and_permission_sets",
                 "cfg_rounding_and_currency_prec",
                 "cfg_scheme_member_categories",
@@ -25822,6 +25931,7 @@
                 "cfg_tariff_schedules",
                 "cfg_task_types_and_work_queues",
                 "cfg_tax_codes_on_financial_tra",
+                "cfg_tenant_function_availabili",
                 "cfg_tenant_product_availabilit",
                 "cfg_treaty_definitions",
                 "cfg_utilisation_rules",
@@ -25854,6 +25964,8 @@
                 "ref_benefit_category_taxonomy",
                 "ref_billing_frequencies",
                 "ref_business_calendars",
+                "ref_business_domains",
+                "ref_business_sub_domains",
                 "ref_cargo_commodity_classes",
                 "ref_cause_of_event_codes",
                 "ref_channels",
@@ -25879,6 +25991,7 @@
                 "ref_exception_codes",
                 "ref_exchange_rates_and_rate_ty",
                 "ref_external_code_mapping_tabl",
+                "ref_function_catalogue",
                 "ref_group_scheme_types",
                 "ref_identity_document_types",
                 "ref_industry_classification_co",
@@ -26221,6 +26334,7 @@
                 "cfg_retention_schedules",
                 "cfg_retry_and_dead_letter_poli",
                 "cfg_risk_object_types_and_attr",
+                "cfg_role_function_assignments",
                 "cfg_roles_and_permission_sets",
                 "cfg_rounding_and_currency_prec",
                 "cfg_scheme_member_categories",
@@ -26237,6 +26351,7 @@
                 "cfg_tariff_schedules",
                 "cfg_task_types_and_work_queues",
                 "cfg_tax_codes_on_financial_tra",
+                "cfg_tenant_function_availabili",
                 "cfg_tenant_product_availabilit",
                 "cfg_treaty_definitions",
                 "cfg_utilisation_rules",
@@ -26269,6 +26384,8 @@
                 "ref_benefit_category_taxonomy",
                 "ref_billing_frequencies",
                 "ref_business_calendars",
+                "ref_business_domains",
+                "ref_business_sub_domains",
                 "ref_cargo_commodity_classes",
                 "ref_cause_of_event_codes",
                 "ref_channels",
@@ -26294,6 +26411,7 @@
                 "ref_exception_codes",
                 "ref_exchange_rates_and_rate_ty",
                 "ref_external_code_mapping_tabl",
+                "ref_function_catalogue",
                 "ref_group_scheme_types",
                 "ref_identity_document_types",
                 "ref_industry_classification_co",
@@ -26893,13 +27011,13 @@
           "Communications"
         ],
         "summary": "Issue a messaging provider\u0027s delivery callback endpoint; an active one is rotated (ADR-023)",
-        "description": "The key and signing secret are shown once, in this response (Cache-Control: no-store). The key is part of the callback URL, so keep it out of logs. The rotated endpoint is still accepted until Communications:Callbacks:Overlap (7 days) has passed. Audited.",
+        "description": "The key and signing secret are shown once, in this response (Cache-Control: no-store). The key is part of the callback URL, so keep it out of logs. The rotated endpoint is still accepted until Communications:Callbacks:Overlap (7 days) has passed. Audited. The response is not kept: a repeat with the same Idempotency-Key is refused with 409 IDEMPOTENCY_RESPONSE_NOT_KEPT.",
         "operationId": "CommunicationsIssueCallbackEndpoint",
         "parameters": [
           {
             "name": "Idempotency-Key",
             "in": "header",
-            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "description": "A unique key for this operation. The response shows a secret once and is not kept: a repeat with the same key is refused (409 IDEMPOTENCY_RESPONSE_NOT_KEPT).",
             "required": true,
             "schema": {
               "maxLength": 80,
@@ -26928,6 +27046,9 @@
               }
             }
           },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
           "401": {
             "$ref": "#/components/responses/Problem401"
           },
@@ -26945,9 +27066,6 @@
           },
           "400": {
             "$ref": "#/components/responses/Problem400"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
           },
           "422": {
             "$ref": "#/components/responses/Problem422"
@@ -28333,6 +28451,43 @@
           }
         }
       },
+      "ClaimsFrameworkClaimCommunicationView": {
+        "required": [
+          "id",
+          "direction",
+          "channel",
+          "documentId",
+          "sentAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "direction": {
+            "enum": [
+              "IN",
+              "OUT"
+            ],
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "documentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "ClaimsFrameworkClaimView": {
         "required": [
           "id",
@@ -29249,6 +29404,7 @@
           "typeCode",
           "category",
           "consentPurpose",
+          "consentRecordId",
           "recipientPartyId",
           "sourceType",
           "sourceId",
@@ -29290,6 +29446,13 @@
               "null",
               "string"
             ]
+          },
+          "consentRecordId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "recipientPartyId": {
             "type": "string",
@@ -36994,6 +37157,149 @@
           }
         }
       },
+      "IdentityMenuAction": {
+        "required": [
+          "functionCode",
+          "labelKey",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "functionCode": {
+            "type": "string"
+          },
+          "labelKey": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "IdentityMenuDomain": {
+        "required": [
+          "code",
+          "labelKey",
+          "label",
+          "icon",
+          "subDomains"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "labelKey": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "icon": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "subDomains": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityMenuSubDomain"
+            }
+          }
+        }
+      },
+      "IdentityMenuScreen": {
+        "required": [
+          "functionCode",
+          "labelKey",
+          "label",
+          "routeKey",
+          "actions"
+        ],
+        "type": "object",
+        "properties": {
+          "functionCode": {
+            "type": "string"
+          },
+          "labelKey": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "routeKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityMenuAction"
+            }
+          }
+        }
+      },
+      "IdentityMenuSubDomain": {
+        "required": [
+          "code",
+          "labelKey",
+          "label",
+          "icon",
+          "screens"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "labelKey": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "icon": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "screens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityMenuScreen"
+            }
+          }
+        }
+      },
+      "IdentityMenuView": {
+        "required": [
+          "audience",
+          "domains"
+        ],
+        "type": "object",
+        "properties": {
+          "audience": {
+            "enum": [
+              "PLATFORM",
+              "STAFF",
+              "BROKER",
+              "PROVIDER",
+              "CUSTOMER"
+            ],
+            "type": "string"
+          },
+          "domains": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityMenuDomain"
+            }
+          }
+        }
+      },
       "IdentityPermissionScope": {
         "required": [
           "roleCode",
@@ -43946,7 +44252,7 @@
     },
     "responses": {
       "Problem422": {
-        "description": "Unprocessable Entity",
+        "description": "Unprocessable Entity. Codes any operation may return: VALIDATION_FAILED, IDEMPOTENCY_KEY_REQUIRED, IDEMPOTENCY_KEY_REUSED.",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"
@@ -43982,7 +44288,7 @@
         }
       },
       "Problem403": {
-        "description": "Forbidden",
+        "description": "Forbidden. Codes any operation may return: FORBIDDEN, TENANT_CONTEXT_MISSING, FUNCTION_NOT_GRANTED, FUNCTION_DISABLED, FEATURE_NOT_ENTITLED, OUT_OF_SCOPE, CHANNEL_NOT_ENABLED, CHANNEL_NOT_ALLOWED, CHANNEL_APPROVAL_REQUIRED.",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"
@@ -44132,7 +44438,7 @@
         }
       },
       "Problem409": {
-        "description": "Conflict",
+        "description": "Conflict. Codes any operation may return: TENANT_NOT_ACTIVE, IDEMPOTENCY_IN_PROGRESS, IDEMPOTENCY_RESPONSE_NOT_KEPT, INVALID_STATE_TRANSITION.",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"

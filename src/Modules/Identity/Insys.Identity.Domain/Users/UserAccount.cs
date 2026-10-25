@@ -172,10 +172,13 @@ public sealed record RoleFacts(string RoleCode, bool Exists, IReadOnlySet<string
     public string[]? ScopeProducts { get; init; }
 
     public string[]? ScopeBranches { get; init; }
+
+    /// <summary>The functions the role grants (ADR-026); its permissions are theirs.</summary>
+    public IReadOnlySet<string> Functions { get; init; } = new HashSet<string>();
 }
 
-/// <summary>A segregation-of-duties rule (iam.cfg_segregation_of_duties_conflict_rules): Block or Warn.</summary>
-public sealed record DutyConflictRule(string PermissionA, string PermissionB, string Conflict);
+/// <summary>A segregation-of-duties rule on a pair of functions (iam.cfg_segregation_of_duties_conflict_rules, ADR-026 §4): Block or Warn.</summary>
+public sealed record DutyConflictRule(string FunctionA, string FunctionB, string Conflict);
 
 public sealed record RoleAssigned(Guid UserId, string RoleCode, DateOnly ValidFrom, DateOnly? ValidTo, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -409,7 +412,7 @@ public sealed class UserAccount : AggregateRoot<Guid>
 
     /// <summary>
     /// Command AssignRole. <paramref name="currentRoles"/> are the facts for the roles the user already holds today;
-    /// the assignment is refused if it would combine permissions that a Block rule forbids together (SRS-002).
+    /// the assignment is refused if it would combine functions that a Block rule forbids together (SRS-002, ADR-026 §4).
     /// </summary>
     public Result AssignRole(RoleFacts role, IReadOnlyCollection<RoleFacts> currentRoles, IReadOnlyCollection<DutyConflictRule> rules, DateOnly validFrom,
         DateOnly? validTo, string[]? scopeProducts, string[]? scopeBranches, Guid assignedBy, DateOnly today, DateTimeOffset now)
@@ -444,14 +447,15 @@ public sealed class UserAccount : AggregateRoot<Guid>
             return Error.Conflict(IdentityErrorCodes.MfaRequired, $"{role.RoleCode} is a privileged role and requires MFA enrolment (IAM-003).");
         }
 
-        var held = currentRoles.SelectMany(r => r.Permissions).ToHashSet(StringComparer.Ordinal);
+        // ADR-026 §4: the functions of the new role against those the user holds through their roles in effect.
+        var held = currentRoles.SelectMany(r => r.Functions).ToHashSet(StringComparer.Ordinal);
         var conflict = rules.FirstOrDefault(rule => rule.Conflict == "BLOCK"
-            && ((role.Permissions.Contains(rule.PermissionA) && (held.Contains(rule.PermissionB) || role.Permissions.Contains(rule.PermissionB)))
-                || (role.Permissions.Contains(rule.PermissionB) && held.Contains(rule.PermissionA))));
+            && ((role.Functions.Contains(rule.FunctionA) && (held.Contains(rule.FunctionB) || role.Functions.Contains(rule.FunctionB)))
+                || (role.Functions.Contains(rule.FunctionB) && held.Contains(rule.FunctionA))));
         if (conflict is not null)
         {
             return Error.Conflict(IdentityErrorCodes.SegregationOfDuties,
-                $"The user cannot hold both {conflict.PermissionA} and {conflict.PermissionB} (segregation of duties, SRS-002).");
+                $"The user cannot hold both {conflict.FunctionA} and {conflict.FunctionB} (segregation of duties, SRS-002).");
         }
 
         var assignment = RoleAssignment.Create(Id, role.RoleCode, validFrom, validTo, scopeProducts, scopeBranches, assignedBy, pending: role.Privileged);

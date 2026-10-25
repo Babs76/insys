@@ -54,7 +54,7 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
 
     private static readonly string[] Permissions =
     [
-        StaticDataPermissions.Read, StaticDataPermissions.Create, PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.PartyUpdate,
+        StaticDataPermissions.Read, StaticDataPermissions.Create, StaticDataPermissions.Update, PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.PartyUpdate,
         PartyPermissions.ConsentRead, PartyPermissions.ConsentUpdate, CommunicationPermissions.NotificationRead, CommunicationPermissions.PreferenceRead,
         CommunicationPermissions.PreferenceUpdate, CommunicationPermissions.CallbackEndpointRead, CommunicationPermissions.CallbackEndpointUpdate,
     ];

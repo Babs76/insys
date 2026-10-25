@@ -34,13 +34,16 @@ namespace Insys.Identity.Infrastructure.Persistence;
 
 internal sealed class StaffRoles([FromKeyedServices(IdentityDbContext.SchemaName)] NpgsqlDataSource dataSource) : IStaffRoles
 {
-    public async Task<IReadOnlyList<(string RoleCode, IReadOnlyList<string> Permissions)>> InForce(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<(string RoleCode, IReadOnlyList<string> Functions)>> InForce(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT r.role_code, r.permissions FROM iam.cfg_roles_and_permission_sets r
+            SELECT r.role_code, ARRAY(SELECT g.function_code FROM iam.cfg_role_function_assignments g
+                                      WHERE g.tenant_id = r.tenant_id AND g.role_code = r.role_code AND g.record_status = ANY(@inForce)
+                                        AND g.effective_from <= @day AND (g.effective_to IS NULL OR g.effective_to > @day) ORDER BY g.function_code)
+            FROM iam.cfg_roles_and_permission_sets r
             WHERE r.tenant_id = @t AND r.record_status = ANY(@inForce) AND r.effective_from <= @day AND (r.effective_to IS NULL OR r.effective_to > @day)
               AND NOT (EXISTS (SELECT 1 FROM iam.user_role_assignment a WHERE a.tenant_id = r.tenant_id AND a.role_code = r.role_code AND a.status = 'ACTIVE')
                    AND NOT EXISTS (SELECT 1 FROM iam.user_role_assignment a WHERE a.tenant_id = r.tenant_id AND a.role_code = r.role_code AND a.status = 'ACTIVE'

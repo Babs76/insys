@@ -45,6 +45,8 @@ public static class HealthInfrastructure
 {
     public static IServiceCollection AddHealthInfrastructure(this IServiceCollection services)
     {
+        // ADR-026 §2: this module's event consumers run under its JOB function.
+        BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.HealthDbContext.SchemaName, "HEALTH_EVENT_PROCESSING");
         const string schema = HealthDbContext.SchemaName;
         services.AddModuleDbContext<HealthDbContext>(schema, "Health");
         services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator, Persistence.HealthFraudIndicatorValidator>();
@@ -110,14 +112,17 @@ public sealed class HealthJobOptions
 /// The daily transitions, one record per transaction, as a service identity: approved authorisations past their
 /// validity expire and release their reservation (HLT-005); memberships and schemes start.
 /// </summary>
-public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, ILogger<HealthJobs> logger)
+public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, IFunctionAvailability availability, ILogger<HealthJobs> logger)
 {
+    /// <summary>The JOB function this job runs under (ADR-026 §2).</summary>
+    public const string Function = "HEALTH_DAILY_JOBS";
+
     public const string ServiceName = "health-jobs";
 
     public async Task<int> Run(CancellationToken cancellationToken)
     {
         var done = 0;
-        foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+        foreach (var tenantId in await tenants.Running(availability, Function, logger, cancellationToken))
         {
             // The tenant's business date (GAP-044, ADR-025).
             var day = businessDates.TodayFor(tenantId);

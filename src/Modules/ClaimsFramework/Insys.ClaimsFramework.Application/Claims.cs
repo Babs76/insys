@@ -170,6 +170,12 @@ public sealed record RedirectInstruction(Guid InstructionId, Guid PayeePartyId, 
 
 public sealed record GetClaim(string ClaimNumber) : IQuery<ClaimView>;
 
+/// <summary>One entry of a claim's correspondence log (claims.claim_communication): inbound or outbound, its channel and document, and when.</summary>
+public sealed record ClaimCommunicationView(Guid Id, [property: OneOf("IN", "OUT")] string Direction, string Channel, Guid? DocumentId, DateTimeOffset SentAt);
+
+/// <summary>Query: a claim's communications, newest first (Wave 1 batch 3: listed, not only counted).</summary>
+public sealed record ListClaimCommunications(string ClaimNumber) : IQuery<IReadOnlyList<ClaimCommunicationView>>;
+
 public sealed record GetFinancials(string ClaimNumber) : IQuery<FinancialsView>;
 
 public sealed record GetInstruction(Guid InstructionId) : IQuery<InstructionView>;
@@ -547,6 +553,18 @@ internal sealed class GetClaimHandler(IClaimsRepository claims) : IQueryHandler<
     {
         var claim = await Loaded.Claim(claims, query.ClaimNumber, cancellationToken);
         return claim.IsFailure ? claim.Error : ClaimView.From(claim.Value);
+    }
+}
+
+internal sealed class ListClaimCommunicationsHandler(IClaimsRepository claims) : IQueryHandler<ListClaimCommunications, IReadOnlyList<ClaimCommunicationView>>
+{
+    public async Task<Result<IReadOnlyList<ClaimCommunicationView>>> Handle(ListClaimCommunications query, CancellationToken cancellationToken)
+    {
+        var claim = await Loaded.Claim(claims, query.ClaimNumber, cancellationToken);
+        return claim.IsFailure
+            ? claim.Error
+            : claim.Value.Communications.OrderByDescending(c => c.SentAt).ThenByDescending(c => c.Id)
+                .Select(c => new ClaimCommunicationView(c.Id, c.Direction, c.Channel, c.DocumentId, c.SentAt)).ToList();
     }
 }
 

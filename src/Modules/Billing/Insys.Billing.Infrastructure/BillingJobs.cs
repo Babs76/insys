@@ -42,14 +42,17 @@ public sealed class BillingJobOptions
 }
 
 /// <summary>Issues invoices for instalments due and ages accounts for arrears, one account per transaction, as a service identity.</summary>
-public sealed class BillingJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, ILogger<BillingJobs> logger)
+public sealed class BillingJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, IFunctionAvailability availability, ILogger<BillingJobs> logger)
 {
+    /// <summary>The JOB function this job runs under (ADR-026 §2).</summary>
+    public const string Function = "BILLING_DAILY_JOBS";
+
     public const string ServiceName = "billing-jobs";
 
     public async Task<(int Invoiced, int Aged)> Run(CancellationToken cancellationToken)
     {
         var (invoiced, aged) = (0, 0);
-        foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+        foreach (var tenantId in await tenants.Running(availability, Function, logger, cancellationToken))
         {
             // The tenant's business date (GAP-044, ADR-025).
             var today = businessDates.TodayFor(tenantId);

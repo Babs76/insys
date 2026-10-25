@@ -48,6 +48,8 @@ public static class GeneralInfrastructure
 {
     public static IServiceCollection AddGeneralInfrastructure(this IServiceCollection services)
     {
+        // ADR-026 §2: this module's event consumers run under its JOB function.
+        BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.GeneralDbContext.SchemaName, "GENERAL_EVENT_PROCESSING");
         const string schema = GeneralDbContext.SchemaName;
         services.AddModuleDbContext<GeneralDbContext>(schema, "General");
         services.AddStaticData<GeneralDbContext>(schema, GeneralStaticData.Descriptors);
@@ -116,14 +118,17 @@ public sealed class GeneralJobOptions
 /// renews them by themselves are renewed when it ends (GEN-004); policies in force that were not renewed expire after
 /// it; issued quotes expire after their validity; and the day's exposure snapshot is refreshed (OQ-066).
 /// </summary>
-public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, ILogger<GeneralJobs> logger)
+public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, TenantBusinessDates businessDates, IFunctionAvailability availability, ILogger<GeneralJobs> logger)
 {
+    /// <summary>The JOB function this job runs under (ADR-026 §2).</summary>
+    public const string Function = "GENERAL_DAILY_JOBS";
+
     public const string ServiceName = "general-jobs";
 
     public async Task<int> Run(CancellationToken cancellationToken)
     {
         var done = 0;
-        foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+        foreach (var tenantId in await tenants.Running(availability, Function, logger, cancellationToken))
         {
             // The tenant's business date (GAP-044, ADR-025).
             var day = businessDates.TodayFor(tenantId);
@@ -192,7 +197,7 @@ public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory te
     public async Task<int> RefreshExposure(CancellationToken cancellationToken)
     {
         var rows = 0;
-        foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+        foreach (var tenantId in await tenants.Running(availability, Function, logger, cancellationToken))
         {
             await using var scope = Scope(tenantId);
             var refreshed = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RefreshExposureSnapshot(businessDates.TodayFor(tenantId)), cancellationToken);

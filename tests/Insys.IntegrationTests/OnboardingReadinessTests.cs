@@ -68,7 +68,8 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         // Everything configured except the first administrator and one staff role's channel row.
         await fixture.Database.SeedReadyTenant(tenantId, From);
         await fixture.Database.SeedStaticFilled(tenantId, "iam.cfg_roles_and_permission_sets", "EFFECTIVE", "UNDERWRITER", From, ("role_code", "UNDERWRITER"),
-            ("permissions", new[] { "general_quote.create", "general_quote.read" }));
+            ("permissions", DBNull.Value));
+        await fixture.Database.GrantFunctionsWithin(tenantId, "UNDERWRITER", From, "general_quote.create", "general_quote.read");
         var etag = await Complete(url, (await _operator.GetAsync(url)).ETag(), "PLATFORM_REFERENCE_DATA");
         etag = await Complete(url, etag, "TENANT_REGISTRATION");
         var refused = await _operator.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", OnboardingSeed.StepBody("ORGANISATION_AND_ACCESS"), ifMatch: etag);
@@ -77,7 +78,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         problem.GetProperty("code").GetString().ShouldBe("ONBOARDING_STEP_NOT_READY");
         var errors = problem.GetProperty("errors");
         errors.EnumerateObject().Select(e => e.Name).Order().ShouldBe(["CHANNELS", "FIRST_ADMINISTRATOR"]);
-        errors.GetProperty("CHANNELS").EnumerateArray().Select(m => m.GetString()).ShouldBe(["UNDERWRITER: general_quote.create"], "reads are not channel-scoped");
+        errors.GetProperty("CHANNELS").EnumerateArray().Select(m => m.GetString()).ShouldBe(["UNDERWRITER: GENERAL_CREATE_QUOTE"], "reads are not channel-scoped");
         (await (await _operator.GetAsync(url)).Json()).GetProperty("onboardingStep").GetString().ShouldBe("ORGANISATION_AND_ACCESS", "nothing changed");
 
         var admin = await fixture.Database.UserWithPermissions(tenantId, "ready-admin", "user.read");
@@ -85,6 +86,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         await fixture.Database.SeedStaticFilled(tenantId, "channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CP-UW", From, ("channel_code", "STF"),
             ("role_code", "UNDERWRITER"), ("transaction_type", "general_quote.create"), ("product_code", DBNull.Value), ("allowed", true),
             ("requires_approval", false));
+        await fixture.Database.AdoptFunctionCatalogue();
         etag = await Complete(url, etag, "ORGANISATION_AND_ACCESS");
         foreach (var step in new[] { "FINANCIAL_FOUNDATIONS", "SHARED_OPERATIONAL_SETUP", "PAYMENTS_AND_DISTRIBUTION", "DOMAIN_REFERENCE_DATA", "PRODUCT_FACTORY" })
         {
@@ -130,7 +132,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
     {
         var (tenantId, url) = await Register("CONFIG");
         await fixture.Database.SeedReadyTenant(tenantId, From);
-        await fixture.Database.UserWithPermissions(tenantId, "config-clerk", "static_data.create", "static_data.read", "billing_account.create", "billing_account.read");
+        await fixture.Database.UserWithPermissions(tenantId, "config-clerk", "static_data.create", "static_data.update", "static_data.read", "billing_account.create", "billing_account.read");
         var clerk = _factory.ClientFor(tenantId, "config-clerk");
 
         // Configuration: a static data draft, and its readiness completes the step.

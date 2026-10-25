@@ -43,6 +43,7 @@ internal static class DistributionFunctions
         .Screen("INTERMEDIARIES", "INTERMEDIARIES", "Brokers", "distribution/intermediaries", "DistributionCheckIntermediary")
         .Screen("COMMISSION_STATEMENTS", "COMMISSION", "Statements (second person)", "distribution/statements", "DistributionGetStatement")
         .Action("DISTRIBUTION_PREPARE_STATEMENT", "COMMISSION_STATEMENTS", "DistributionPrepareStatement")
+        .Job("DISTRIBUTION_EVENT_PROCESSING", "COMMISSION", "Background processing")
             .Functions,
         .. new FunctionMap([Audiences.Broker], Features.BrokerPortal)
         .Screen("BROKER_PORTAL_DISTRIBUTION_STATEMENTS", "BROKER_PORTAL", "Commission statements", "portal/distribution/statements", "PortalDistributionListStatements", "PortalDistributionGetStatement")
