@@ -1114,3 +1114,21 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **The gap:** the SRS has no notification requirements, and F101 is "Not specified". Communications sends email, SMS, push and WhatsApp to customers; nothing notifies staff inside the console.
 - **Built:** the Workflow Inbox (tasks and approvals assigned to a user or their queues) is how staff learn of work, and the requester follow-up task (D-4) tells a maker their approval ended.
 - **Open:** whether staff get in-app notifications, for which events, and whether they are read, dismissed or expire. Planned in a wave once specified.
+
+### OQ-115 Case notices to a broker (Wave 2 cases, `addenda/cases.md` §7)
+- **The gap:** a case a broker raised on a client's behalf should send the broker its notices too, but an intermediary has no party to send to: `commission.mst_intermediary_register` has no party, and Distribution has no public query for one.
+- **Built:** the complainant gets every case notice; a provider gets its own disputes' notices. The broker gets none (`TODO(spec)` in Communications).
+- **Proposed:** a Distribution public query `IIntermediaries.PartyOf(tenant, intermediaryCode, day)`, so no schema change, if intermediaries are parties; otherwise a `party_id` on the intermediary register. **Open.**
+
+### OQ-116 Reasons in a Health claim's decision rights notice (OQ-102, HLT-008)
+- **The gap:** PPR 17.6.3 says a repudiation notice gives reasons; HLT-008 keeps medical information to minimum necessary access. The Health `CLAIM_DECISION_RIGHTS` notice carries no reason and no amount but the total paid.
+- **Open:** whether a Health partial approval's notice may carry its reason, for compliance to confirm.
+
+### OQ-117 The representations period and time-bar (PPR 17.6.3)
+- **The gap:** `CLAIM_DECISION_RIGHTS` should state the right to make representations within a period (at least 90 days) and any time-bar; nothing configures them, so the tenant's template wording carries them and `{representations_deadline}` is not offered on it.
+- **Open:** whether these become tenant configuration (a period per claim domain), so the notice states a computed date.
+
+### OQ-118 What remains of the case links (Wave 2 cases)
+- **Built:** a link to an invoice, billing account or remittance is checked with its module and places the case in that record's product and branch (F103); portal users may link their own policies, invoices and remittances.
+- **Not built:** checking a policy, claim or membership link (their modules have no record-scope query yet), so such a case is tenant-wide; a member disputing their own claim or membership from the portal; a case raised from an event (for example a claim decline), which the parking for missing timelines already allows for.
+- **Proposed:** Wave 2 batch 3, after BR-013: record-scope and portal-relation queries in General, Life and Health, and a dispute raised from a claim decline if wanted. **Open: confirm.**
