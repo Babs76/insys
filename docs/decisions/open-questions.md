@@ -971,3 +971,26 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - `claims.claim_communication.channel`: free text.
 - **Proposed:** a shared `communication.ref_channels`, aligned module by module when each is next changed.
 - **Decided (25 October 2026, Ade):** agreed. **Closed.**
+
+### OQ-091 Feature codes for function entitlements (function catalogue, ADR-026)
+- **Source:** `docs/specs/addenda/function-catalogue.md` §2. `tenant.cfg_feature_entitlements.feature` has no seeded codes, so no function can name one yet.
+- **Proposed:** every function starts with no required feature until the features are agreed.
+- **Open:** the list of features, and which functions each one gates.
+
+### OQ-092 The menu's domains and sub-domains (function catalogue, ADR-026)
+- **Source:** function-catalogue §6.
+- **Proposed:** the areas and capabilities of the platform function list (`docs/traceability/functional-coverage.md`), plus a Configuration domain for static data and a Platform domain for the operator. The source list of 103 functions is not in the repository.
+- **Open:** confirm the taxonomy and its labels.
+
+### OQ-093 Static data functions per table or per sub-module (function catalogue, ADR-026)
+- **Source:** function-catalogue §8.
+- **Proposed:** per table (view, maintain, approve): about 880 functions, with per-table grants.
+- **Alternative:** per catalogue sub-module: about 60, but with coarser grants.
+
+### OQ-094 How marketing is requested, and replies that stop it (Phase 8 Wave 1, communications)
+- **Source:** the Wave 1 API review.
+- **Built:** marketing can be requested only through `communication.NotificationRequested` from a module; there is no campaign operation. A STOP reply or an unsubscribe link has no inbound path; opting out is through preferences or Party's consent ledger.
+- **Open:**
+  - whether tenants run marketing campaigns in INSYS, and how they target them;
+  - how replies such as SMS STOP are received, which depends on the providers (OQ-088);
+  - what `{opt_out_contact}` is per tenant.

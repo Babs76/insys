@@ -114,6 +114,9 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
 
         await Send();
         var sent = await Single(party);
+        Documented(sent, "CommunicationsGetNotification");
+        Documented(await (await _staff.GetAsync($"/api/v1/communications/notifications?partyId={party}")).Json(), "CommunicationsListNotifications");
+        Documented(await (await _staff.GetAsync($"/api/v1/communications/parties/{party}/preferences")).Json(), "CommunicationsGetPreferences");
         sent.GetProperty("status").GetString().ShouldBe("Sent");
         sent.GetProperty("channel").GetString().ShouldBe("EMAIL");
         sent.GetProperty("language").GetString().ShouldBe("af");
@@ -314,7 +317,9 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
         await Send();
 
         var member = await Member("comms-member-2", mine);
-        var listed = (await (await member.GetAsync("/api/v1/portal/communications/notifications")).Json()).GetProperty("items").EnumerateArray().ToList();
+        var page = await (await member.GetAsync("/api/v1/portal/communications/notifications")).Json();
+        Documented(page, "PortalCommunicationsListNotifications");
+        var listed = page.GetProperty("items").EnumerateArray().ToList();
         listed.Select(n => n.GetProperty("typeCode").GetString()).ShouldBe([NotificationTypes.ClaimStatus], "the payment reminder is not shown in the portal");
         listed[0].TryGetProperty("maskedAddress", out _).ShouldBeFalse();
         (await member.GetAsync($"/api/v1/portal/communications/notifications/{listed[0].GetProperty("id").GetGuid()}")).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -411,6 +416,9 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
         (await member.DeleteAsync($"/api/v1/portal/communications/devices/{device}")).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await (await member.GetAsync("/api/v1/portal/communications/devices")).Json())[0].GetProperty("revokedAt").ValueKind.ShouldNotBe(JsonValueKind.Null);
     }
+
+    private static void Documented(JsonElement response, string operationId) =>
+        DocumentedSchema.ResponseProblems(response, "core", operationId).ShouldBeEmpty(operationId);
 
     private async Task<JsonElement> Promo(Guid party) =>
         (await (await _staff.GetAsync($"/api/v1/communications/parties/{party}/preferences")).Json()).EnumerateArray()
