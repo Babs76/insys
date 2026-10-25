@@ -58,16 +58,19 @@ public sealed class CaseConsumersTests(DatabaseFixture fixture) : IClassFixture<
     private static readonly SemaphoreSlim Seeded = new(1, 1);
     private static bool _seeded;
 
+    private InsysApiFactory _base = null!;
     private WebApplicationFactory<Program> _host = null!;
 
     public async ValueTask InitializeAsync()
     {
-        var factory = await fixture.Host();
-        _host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(services =>
+        // A host of its own, with Workflow's notice data replaced by the double; only one host runs against the database at a time.
+        _base = new InsysApiFactory(fixture.Database);
+        _host = _base.WithWebHostBuilder(b => b.ConfigureTestServices(services =>
         {
             services.RemoveAll<ICaseNotices>();
             services.AddSingleton<ICaseNotices>(Notices);
         }));
+        _ = _host.Server;
 
         await Seeded.WaitAsync();
         try
@@ -88,7 +91,11 @@ public sealed class CaseConsumersTests(DatabaseFixture fixture) : IClassFixture<
         }
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync()
+    {
+        await _host.DisposeAsync();
+        await _base.DisposeAsync();
+    }
 
     [Fact]
     public async Task CaseNotices_AreQueuedOnTheirEvents_WithMergeValuesFromTheCase_NotTheEvent_Cases7()
@@ -108,7 +115,7 @@ public sealed class CaseConsumersTests(DatabaseFixture fixture) : IClassFixture<
             complainant, [])));
 
         var rows = await Notifications(caseId);
-        rows.Select(r => r.Type).Order().ShouldBe([NotificationTypes.CaseAcknowledged, NotificationTypes.CaseDecision, NotificationTypes.CaseUpdate],
+        rows.Select(r => r.Type).Order().ToList().ShouldBe([NotificationTypes.CaseAcknowledged, NotificationTypes.CaseDecision, NotificationTypes.CaseUpdate],
             "one per event and recipient: a redelivered event queues nothing");
         rows.ShouldAllBe(r => r.Recipient == complainant && r.SourceType == "CASE" && r.Reference == "CS-0001");
         var ack = rows.Single(r => r.Type == NotificationTypes.CaseAcknowledged).Merge;
@@ -260,8 +267,9 @@ public sealed class CaseConsumersTests(DatabaseFixture fixture) : IClassFixture<
             INSERT INTO general.policy (tenant_id, id, {Audit}, policy_number, product_code, product_version, rating_version, policyholder_party_id, status,
                                         period_start, period_end, currency, annual_premium, billing_account_ref, cover_starts_on)
             VALUES (@t, @p, {Stamp}, @pn, 'MOTOR', 1, 1, gen_random_uuid(), 'IN_FORCE', current_date - 10, current_date + 355, 'ZAR', 1200, gen_random_uuid(), 'ISSUE');
-            INSERT INTO general.claim (tenant_id, id, {Audit}, claim_number, policy_id, loss_date, notified_at, cause_code, peril_code, status, coverage_code)
-            VALUES (@t, @c, {Stamp}, @cn, @p, current_date, now(), 'COLLISION', 'ACC', @s, 'OWN_DAMAGE');
+            INSERT INTO general.claim (tenant_id, id, {Audit}, claim_number, policy_id, loss_date, notified_at, cause_code, peril_code, status, coverage_code,
+                                       decision_code, decision_rationale)
+            VALUES (@t, @c, {Stamp}, @cn, @p, current_date, now(), 'COLLISION', 'ACC', @s, 'OWN_DAMAGE', 'EXCLUDED', 'Excluded peril');
             """, ("t", Tenant), ("p", policy), ("c", claim), ("pn", "GP-" + policy.ToString("N")[..12]), ("cn", "GC-" + claim.ToString("N")[..20]), ("s", status));
         return claim;
     }
@@ -270,11 +278,14 @@ public sealed class CaseConsumersTests(DatabaseFixture fixture) : IClassFixture<
     {
         var (policy, claim) = (Guid.CreateVersion7(), Guid.CreateVersion7());
         await fixture.Database.ExecuteAsOwner($"""
+            INSERT INTO life.proposal (tenant_id, id, {Audit}, proposal_number, product_code, product_version, applicant_party_id, channel_code, status, currency, frequency)
+            VALUES (@t, @p, {Stamp}, @pn, 'TERM', 1, gen_random_uuid(), 'BRK_PORTAL', 'DRAFT', 'ZAR', 'MONTHLY');
             INSERT INTO life.policy (tenant_id, id, {Audit}, policy_number, proposal_id, product_code, product_version, rating_version, policyholder_party_id, status,
                                      inception_date, currency, premium_frequency, billing_account_ref)
-            VALUES (@t, @p, {Stamp}, @pn, gen_random_uuid(), 'TERM', 1, 1, gen_random_uuid(), 'IN_FORCE', current_date - 100, 'ZAR', 'MONTHLY', gen_random_uuid());
-            INSERT INTO life.claim (tenant_id, id, {Audit}, claim_number, policy_id, claim_type, event_date, claimant_party_id, status, insured_life_id, currency, notified_at)
-            VALUES (@t, @c, {Stamp}, @cn, @p, 'DEATH', current_date - 5, gen_random_uuid(), @s, gen_random_uuid(), 'ZAR', now());
+            VALUES (@t, @p, {Stamp}, @pn, @p, 'TERM', 1, 1, gen_random_uuid(), 'IN_FORCE', current_date - 100, 'ZAR', 'MONTHLY', gen_random_uuid());
+            INSERT INTO life.claim (tenant_id, id, {Audit}, claim_number, policy_id, claim_type, event_date, claimant_party_id, status, insured_life_id, currency, notified_at,
+                                    decision_reason, decision_rationale)
+            VALUES (@t, @c, {Stamp}, @cn, @p, 'DEATH', current_date - 5, gen_random_uuid(), @s, gen_random_uuid(), 'ZAR', now(), 'NON_DISCLOSURE', 'Not disclosed');
             """, ("t", Tenant), ("p", policy), ("c", claim), ("pn", "LP-" + policy.ToString("N")[..12]), ("cn", "LC-" + claim.ToString("N")[..20]), ("s", status));
         return claim;
     }
