@@ -63,6 +63,7 @@ public sealed class AnalyticsModule : IModule
             .Produces<IReadOnlyList<WrittenPremiumRow>>(StatusCodes.Status200OK)
             .WithName("AnalyticsWrittenPremium")
             .WithSummary("Written premium and policy count by day, product, channel and branch, within your scope (F103)")
+            .WithDescription("Days are the tenant's business dates (ADR-025): a policy counts on the tenant's date when it was issued, endorsed or cancelled.")
             .RequirePermission(AnalyticsPermissions.ProjectionRead);
 
         analytics.MapGet("/claims-incurred", async (string fromMonth, string toMonth, IDispatcher d, CancellationToken ct) =>
@@ -70,6 +71,8 @@ public sealed class AnalyticsModule : IModule
             .Produces<IReadOnlyList<ClaimsIncurredRow>>(StatusCodes.Status200OK)
             .WithName("AnalyticsClaimsIncurred")
             .WithSummary("Claims incurred and claim count by month (yyyy-MM), product, cause and branch, within your scope (F103)")
+            .WithDescription("Months are of the tenant's business dates (ADR-025): a claim counts in the month of the tenant's date when it was registered; "
+                + "reserve movements in the month of their movement date.")
             .RequirePermission(AnalyticsPermissions.ProjectionRead);
 
         analytics.MapGet("/summary", async (DateOnly from, DateOnly to, IDispatcher d, CancellationToken ct) =>
@@ -79,7 +82,7 @@ public sealed class AnalyticsModule : IModule
             .WithSummary("Dashboard figures (GAP-046): written premium, policies written, claims incurred and claims reported, within your scope")
             .WithDescription("WRITTEN_PREMIUM (per currency) and POLICIES_WRITTEN over the days from and to, both included; CLAIMS_INCURRED (per currency, the net "
                 + "change in claim reserves) and CLAIMS_REPORTED over the months those days fall in. General and Life only: notIncluded lists HEALTH. "
-                + "Definitions: docs/specs/addenda/dashboard-figures.md.")
+                + "Dates are the tenant's business dates (ADR-025). Definitions: docs/specs/addenda/dashboard-figures.md.")
             .RequirePermission(AnalyticsPermissions.ProjectionRead);
 
         analytics.MapPost("/projections/rebuild", async (IDispatcher d, CancellationToken ct) =>
@@ -87,6 +90,8 @@ public sealed class AnalyticsModule : IModule
             .Produces<ProjectionsRebuilt>(StatusCodes.Status200OK)
             .WithName("AnalyticsRebuildProjections")
             .WithSummary("Clear the tenant's projections and rebuild them from the events Analytics consumed")
+            .WithDescription("Days are dated again by the tenant's business date (ADR-025). Run once per tenant after the Wave 1 batch 4 release, which "
+                + "corrects figures dated by the UTC day.")
             .RequirePermission(AnalyticsPermissions.ProjectionUpdate);
     }
 }

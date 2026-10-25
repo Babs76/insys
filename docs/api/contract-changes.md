@@ -7,10 +7,12 @@ What changed in the API contract, newest first, so the front end can sync. The O
 ### Breaking
 - **`POST /api/v1/identity/tenant-administrators` names functions** (OQ-099): `functions` replaces `permissions`, and the request view returns `functions`. Each must be a staff function in force in the catalogue, else 422 `VALIDATION_FAILED` on `functions` ("Not a staff function in force: …"). The tenant's TENANT_ADMIN role is granted exactly those functions.
 
+- **Switching off a tenant's Billing or Payments daily job needs a privileged function:** submitting such a version is refused with 403 `FUNCTION_NOT_GRANTED` unless the maker holds `TENANT_SWITCH_OFF_MONEY_JOBS` (below).
+
 ### Changed behaviour
 - **Switching off a tenant's Billing or Payments daily job is privileged** (OQ-098): submitting a `tenancy/static/tenant-function-availability` version with `enabled: false` for `BILLING_DAILY_JOBS` or `PAYMENTS_DAILY_JOBS` needs the privileged function `TENANT_SWITCH_OFF_MONEY_JOBS` (403 `FUNCTION_NOT_GRANTED` otherwise). Holding it makes a role privileged (approval and MFA to assign).
 - **Analytics dates by the tenant's business date** (ADR-025): `GET /analytics/written-premium` and `/analytics/summary` count a policy on the tenant's date when it was issued, endorsed or cancelled, and `/analytics/claims-incurred` counts a registered claim in that month; before, an event between 00:00 and 02:00 Johannesburg time counted on the day before. Each tenant's projections are rebuilt once after the release (`POST /analytics/projections/rebuild`).
-- **Switched-off JOB functions are shown** (OQ-098): `GET /integration/deliveries/summary` gains the figure `JOB_FUNCTIONS_OFF` (count, by function code); `/health` gains the check `job-functions`, naming each tenant's switched-off JOB functions (Healthy: it is the tenant's choice).
+- **Switched-off JOB functions are shown** (OQ-098): `GET /integration/deliveries/summary` gains the figure `JOB_FUNCTIONS_OFF` (count, by function code); `/health` (operations, outside the documented API) gains the check `job-functions`, naming each tenant's switched-off JOB functions (Healthy: it is the tenant's choice). The rule is checked when the version is submitted; it is stated in the table's create and edit operations.
 
 ## Wave 1 batch 3 (merged at `5583285`): the function catalogue (ADR-026) and Communications follow-ups
 

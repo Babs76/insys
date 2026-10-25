@@ -116,6 +116,9 @@ public sealed class IntegrationModule : IModule
             .Produces<BuildingBlocks.Application.DashboardSummary>(StatusCodes.Status200OK)
             .WithName("IntegrationDeliveriesSummary")
             .WithSummary("Dashboard figures (GAP-046): parked deliveries by prerequisite, failing deliveries, open dead letters, failing webhooks, oldest parked")
+            .WithDescription("Figures: DELIVERIES_PARKED (by prerequisite code), DELIVERIES_FAILING, DEAD_LETTERS_OPEN, WEBHOOK_DELIVERIES_FAILING, OLDEST_PARKED_AT, "
+                + "and JOB_FUNCTIONS_OFF (count, by the JOB function codes the tenant switched off, whose work waits: OQ-098). Definitions: "
+                + "docs/specs/addenda/dashboard-figures.md.")
             .RequirePermission(IntegrationPermissions.DeadLetterRead);
 
         MapParkedDeliveries(api.MapGroup("/integration/parked-deliveries").WithTags(Name));

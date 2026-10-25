@@ -117758,7 +117758,7 @@
           "Tenancy static data"
         ],
         "summary": "Create a tenant Tenant function availability draft",
-        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker. Rules (422 with field errors otherwise): A function with no row is enabled. Submitting a version that switches off BILLING_DAILY_JOBS or PAYMENTS_DAILY_JOBS (enabled false) needs the privileged function TENANT_SWITCH_OFF_MONEY_JOBS (403 FUNCTION_NOT_GRANTED otherwise; OQ-098). A JOB function switched off holds its work: consumers park (FUNCTION_DISABLED) and daily jobs skip the tenant.",
         "operationId": "CreateTenancyTenantFunctionAvailabilityDraft",
         "parameters": [
           {
@@ -117953,7 +117953,7 @@
           "Tenancy static data"
         ],
         "summary": "Edit a tenant Tenant function availability draft",
-        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002). Rules (422 with field errors otherwise): A function with no row is enabled. Submitting a version that switches off BILLING_DAILY_JOBS or PAYMENTS_DAILY_JOBS (enabled false) needs the privileged function TENANT_SWITCH_OFF_MONEY_JOBS (403 FUNCTION_NOT_GRANTED otherwise; OQ-098). A JOB function switched off holds its work: consumers park (FUNCTION_DISABLED) and daily jobs skip the tenant.",
         "operationId": "EditTenancyTenantFunctionAvailabilityDraft",
         "parameters": [
           {

@@ -51,3 +51,17 @@ internal sealed class MoneyJobSwitchGuard(ExecutionScope scope) : IStaticChangeG
             ? Error.Forbidden(ErrorCodes.FunctionNotGranted, $"Switching off {row.FunctionCode} needs the privileged function {Function} (OQ-098).")
             : Result.Success();
 }
+
+/// <summary>States the OQ-098 rule in the table's create and edit operations; the guard enforces it when the version is submitted.</summary>
+internal sealed class MoneyJobSwitchRule : IStaticRecordValidator
+{
+    public string Schema => TenancyDbContext.SchemaName;
+
+    public string Table => "cfg_tenant_function_availability";
+
+    public string Rules => "A function with no row is enabled. Submitting a version that switches off BILLING_DAILY_JOBS or PAYMENTS_DAILY_JOBS (enabled false) "
+        + "needs the privileged function TENANT_SWITCH_OFF_MONEY_JOBS (403 FUNCTION_NOT_GRANTED otherwise; OQ-098). A JOB function switched off holds its "
+        + "work: consumers park (FUNCTION_DISABLED) and daily jobs skip the tenant.";
+
+    public IReadOnlyDictionary<string, string[]> Validate(StaticRecord record) => new Dictionary<string, string[]>();
+}

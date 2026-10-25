@@ -410,7 +410,7 @@ public sealed class IdentityModule : IModule
             .WithName("ProvisionTenantAdministrator")
             .WithSummary("Request a new tenant's first administrator")
             .WithDescription("Platform operator only, while the tenant is Onboarding and has no users. A second platform administrator approves it in "
-                + "Workflow (approval type TENANT_ADMINISTRATOR); then the tenant's TENANT_ADMIN role (granted these functions: staff functions in force in the catalogue), the user and an active "
+                + "Workflow (approval type TENANT_ADMINISTRATOR); then the tenant's TENANT_ADMIN role (granted these functions: at least one, each a staff function in force in the catalogue, else 422 VALIDATION_FAILED on functions), the user and an active "
                 + "assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with "
                 + "externalSubject, whose token must carry the new tenant's tenant_id.")
             .WithEventualEffects("the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy "

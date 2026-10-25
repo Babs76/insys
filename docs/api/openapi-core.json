@@ -293,6 +293,7 @@
           "Integration"
         ],
         "summary": "Dashboard figures (GAP-046): parked deliveries by prerequisite, failing deliveries, open dead letters, failing webhooks, oldest parked",
+        "description": "Figures: DELIVERIES_PARKED (by prerequisite code), DELIVERIES_FAILING, DEAD_LETTERS_OPEN, WEBHOOK_DELIVERIES_FAILING, OLDEST_PARKED_AT, and JOB_FUNCTIONS_OFF (count, by the JOB function codes the tenant switched off, whose work waits: OQ-098). Definitions: docs/specs/addenda/dashboard-figures.md.",
         "operationId": "IntegrationDeliveriesSummary",
         "responses": {
           "200": {
@@ -23625,6 +23626,7 @@
           "Analytics"
         ],
         "summary": "Written premium and policy count by day, product, channel and branch, within your scope (F103)",
+        "description": "Days are the tenant\u0027s business dates (ADR-025): a policy counts on the tenant\u0027s date when it was issued, endorsed or cancelled.",
         "operationId": "AnalyticsWrittenPremium",
         "parameters": [
           {
@@ -23688,6 +23690,7 @@
           "Analytics"
         ],
         "summary": "Claims incurred and claim count by month (yyyy-MM), product, cause and branch, within your scope (F103)",
+        "description": "Months are of the tenant\u0027s business dates (ADR-025): a claim counts in the month of the tenant\u0027s date when it was registered; reserve movements in the month of their movement date.",
         "operationId": "AnalyticsClaimsIncurred",
         "parameters": [
           {
@@ -23749,7 +23752,7 @@
           "Analytics"
         ],
         "summary": "Dashboard figures (GAP-046): written premium, policies written, claims incurred and claims reported, within your scope",
-        "description": "WRITTEN_PREMIUM (per currency) and POLICIES_WRITTEN over the days from and to, both included; CLAIMS_INCURRED (per currency, the net change in claim reserves) and CLAIMS_REPORTED over the months those days fall in. General and Life only: notIncluded lists HEALTH. Definitions: docs/specs/addenda/dashboard-figures.md.",
+        "description": "WRITTEN_PREMIUM (per currency) and POLICIES_WRITTEN over the days from and to, both included; CLAIMS_INCURRED (per currency, the net change in claim reserves) and CLAIMS_REPORTED over the months those days fall in. General and Life only: notIncluded lists HEALTH. Dates are the tenant\u0027s business dates (ADR-025). Definitions: docs/specs/addenda/dashboard-figures.md.",
         "operationId": "AnalyticsSummary",
         "parameters": [
           {
@@ -23810,6 +23813,7 @@
           "Analytics"
         ],
         "summary": "Clear the tenant\u0027s projections and rebuild them from the events Analytics consumed",
+        "description": "Days are dated again by the tenant\u0027s business date (ADR-025). Run once per tenant after the Wave 1 batch 4 release, which corrects figures dated by the UTC day.",
         "operationId": "AnalyticsRebuildProjections",
         "responses": {
           "200": {
