@@ -41,6 +41,8 @@ public static class PaymentsInfrastructure
 {
     public static IServiceCollection AddPaymentsInfrastructure(this IServiceCollection services)
     {
+        // Its approval kinds and the screens that open their records (BR-005).
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Payments.Contracts.PaymentApprovals.PayoutBusinessRefType, "PAYMENT_PAYOUT_BATCHES", Insys.Payments.Contracts.PaymentApprovals.PayoutApprovalType);
         // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
         BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Payments.Application.PaymentFigures.PaymentsUnknown);
         const string schema = PaymentsDbContext.SchemaName;

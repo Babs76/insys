@@ -48,6 +48,9 @@ public static class LifeInfrastructure
 {
     public static IServiceCollection AddLifeInfrastructure(this IServiceCollection services)
     {
+        // Its approval kinds and the screens that open their records (BR-005).
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Life.Contracts.LifeApprovals.UnderwritingBusinessRefType, "LIFE_UNDERWRITING_CASES", Insys.Life.Contracts.LifeApprovals.UnderwritingApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Life.Contracts.LifeApprovals.ClaimBusinessRefType, "LIFE_CLAIMS", Insys.Life.Contracts.LifeApprovals.ClaimApprovalType);
         // ADR-026 §2: this module's event consumers run under its JOB function.
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.LifeDbContext.SchemaName, "LIFE_EVENT_PROCESSING");
         const string schema = LifeDbContext.SchemaName;

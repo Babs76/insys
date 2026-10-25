@@ -42,6 +42,8 @@ public static class BillingInfrastructure
 {
     public static IServiceCollection AddBillingInfrastructure(this IServiceCollection services)
     {
+        // Its approval kinds and the screens that open their records (BR-005).
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Billing.Contracts.BillingApprovals.RefundBusinessRefType, "BILLING_REFUNDS", Insys.Billing.Contracts.BillingApprovals.RefundApprovalType);
         // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
         BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Billing.Application.BillingFigures.OpenArrears);
         const string schema = BillingDbContext.SchemaName;

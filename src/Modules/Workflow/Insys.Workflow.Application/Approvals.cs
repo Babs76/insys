@@ -66,10 +66,14 @@ public interface IAuthorityReader
     Task<bool> IsConfigured(string approvalType, DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record ApprovalView(Guid Id, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid? CheckerId, ApprovalStatus Status,
+/// <param name="Screen">The SCREEN function that opens the record the approval is about (BR-005); the console maps it to its route.</param>
+public sealed record ApprovalView(Guid Id, [property: BusinessRefTypeField] string BusinessRefType, Guid BusinessRefId, [property: ApprovalTypeField] string ApprovalType,
+    Guid MakerId, Guid? CheckerId, ApprovalStatus Status,
     decimal? Amount, string? Currency, string? Reason, string? DecisionReason, DateTimeOffset RequestedAt, DateTimeOffset? DecidedAt, DateTimeOffset? ExpiresAt,
     string? SubjectHash, string? RequiredPermission, long RowVersion, string? NotAppliedBy = null, DateTimeOffset? NotAppliedAt = null)
 {
+    public string? Screen => ApprovalKinds.ScreenFor(BusinessRefType);
+
     public static ApprovalView Of(Approval a) =>
         new(a.Id, a.BusinessRefType, a.BusinessRefId, a.ApprovalType, a.MakerId, a.CheckerId, a.Status, a.Amount, a.Currency, a.Reason, a.DecisionReason,
             a.RequestedAt, a.DecidedAt, a.ExpiresAt, a.SubjectHash, a.RequiredPermission, a.RowVersion, a.NotAppliedBy, a.NotAppliedAt);
@@ -98,7 +102,7 @@ public sealed class ApproveValidator : AbstractValidator<Approve>
 public sealed record MyAuthority : IQuery<IReadOnlyList<AuthorityView>>;
 
 /// <param name="Currency">The limit's currency: the row's own, or the tenant's base currency when the row has none (OQ-112).</param>
-public sealed record AuthorityView(string ApprovalType, string RoleCode, decimal Limit, string? Currency);
+public sealed record AuthorityView([property: ApprovalTypeField] string ApprovalType, string RoleCode, decimal Limit, string? Currency);
 
 public sealed record Reject(Guid ApprovalId, string Reason, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
@@ -459,6 +463,13 @@ public sealed class RequestApprovalPolicy(IApprovalRepository approvals, IClock 
 {
     public async Task Handle(ApprovalRequested requested, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        // BR-005: every approval and reference type is one a module declared, so the contract's enums and screens hold. An
+        // undeclared one is a defect in the requesting module: the delivery fails and is retried, then dead-lettered.
+        if (!ApprovalKinds.ApprovalTypes.Contains(requested.ApprovalType) || ApprovalKinds.ScreenFor(requested.BusinessRefType) is null)
+        {
+            throw new InvalidOperationException($"Approval type {requested.ApprovalType} for {requested.BusinessRefType} is not declared (ApprovalKinds, BR-005).");
+        }
+
         if (await approvals.FindRequested(requested.BusinessRefType, requested.BusinessRefId, cancellationToken) is not null)
         {
             return;

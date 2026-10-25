@@ -40,6 +40,8 @@ public static class ProductFactoryInfrastructure
 {
     public static IServiceCollection AddProductFactoryInfrastructure(this IServiceCollection services)
     {
+        // Its approval kinds and the screens that open their records (BR-005).
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.ProductFactory.Contracts.ProductApprovals.BusinessRefType, "PRODUCTS", Insys.ProductFactory.Contracts.ProductApprovals.ApprovalType);
         const string schema = ProductFactoryDbContext.SchemaName;
         services.AddModuleDbContext<ProductFactoryDbContext>(schema, "ProductFactory");
         services.AddStaticData<ProductFactoryDbContext>(schema, ProductFactoryStaticData.Descriptors);

@@ -38,6 +38,9 @@ public static class PartyInfrastructure
 {
     public static IServiceCollection AddPartyInfrastructure(this IServiceCollection services)
     {
+        // Its approval kinds and the screens that open their records (BR-005).
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.BankAccountBusinessRefType, "PARTY_BANK_ACCOUNTS", Insys.Party.Contracts.PartyApprovals.BankAccountVerificationType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.MatchBusinessRefType, "PARTIES", Insys.Party.Contracts.PartyApprovals.MatchResolutionType);
         services.AddModuleDbContext<PartyDbContext>(PartyDbContext.SchemaName, "Party");
         services.AddStaticData<PartyDbContext>(PartyDbContext.SchemaName, PartyStaticData.Descriptors);
         services.AddModuleHandlers<PartyDbContext>(typeof(RegisterParty).Assembly);

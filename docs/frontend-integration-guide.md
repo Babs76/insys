@@ -87,3 +87,19 @@ Answers to questions the front end raises that the OpenAPI documents cannot answ
 - **When it is approved:** the case becomes `Decided`, with the checker as decider and their authority role; the proposal continues.
 - **When it is rejected:** the proposed decision is cleared (`decisionPending: false`) and the case stays `InAssessment`. The underwriter can gather more evidence, refer the case, or propose a decision again. The case shows the rejection as `latestRejection` (who, when, the reason).
 - **If the approval expires or is withdrawn**, the same as a rejection applies, and the underwriter gets a follow-up task (§1).
+
+## 5. MFA per client, and what a member without a one-time code sees (BR-008)
+
+**How INSYS decides a token has a second factor.** The token's `amr` claim names one (`otp`, `mfa`, `hwk` or `swk`; each realm flow step sets its `amr` value), or its `acr` is 2 or more. Nothing else counts.
+
+**Per client, the realm's flow decides; the console does not ask for it.**
+
+| Client | Keycloak flow | Second factor |
+|---|---|---|
+| `insys-web` (staff) | The realm's browser flow | A one-time code for every user provisioned with `mfaEnrolled` (Keycloak asks them to set it up at first sign-in). A privileged role can only be assigned to an enrolled user (409 `MFA_REQUIRED`, IAM-003). |
+| `broker-portal`, `provider-portal` | `portal-mfa-browser` | Always: password, then a one-time code. |
+| `member-portal` | `member-browser` | A one-time code only when the member has set one up. Whether the tenant requires it is INSYS's setting (`identity/static/authentication-and-session-policies`: `mfaRequired` on a row whose `clientIds` include `member-portal`). |
+
+**Step-up with `acr_values` is not configured.** The realm has no levels of assurance (no `acr.loa.map`, no step-up conditions), so asking for `acr_values` changes nothing today. If a screen ever needs a higher level than the client's flow gives, that is a realm change (a level-of-assurance mapping and a conditional flow) plus an INSYS rule naming the operations; raise it as a request.
+
+**A member without a one-time code, where the tenant requires MFA.** Keycloak signs them in with their password (the member flow asks for a code only once one is set up), and every INSYS call then returns **403 `PORTAL_MFA_REQUIRED`**. The console should treat that code as "set up a one-time code": send the member back to Keycloak's authorisation endpoint with `kc_action=CONFIGURE_TOTP` (Keycloak's application-initiated action), where they scan the code and enter it; the token that comes back carries `amr` `otp`, and INSYS accepts it. Signing out and in again is not needed. Brokers and providers never see this code: their flow always asks for the one-time code.

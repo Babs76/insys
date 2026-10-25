@@ -45,6 +45,8 @@ public static class HealthInfrastructure
 {
     public static IServiceCollection AddHealthInfrastructure(this IServiceCollection services)
     {
+        // Its approval kinds and the screens that open their records (BR-005).
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthApprovals.RunBusinessRefType, "HEALTH_PAYMENT_RUNS", Insys.Health.Contracts.HealthApprovals.RunApprovalType);
         // ADR-026 §2: this module's event consumers run under its JOB function.
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.HealthDbContext.SchemaName, "HEALTH_EVENT_PROCESSING");
         const string schema = HealthDbContext.SchemaName;

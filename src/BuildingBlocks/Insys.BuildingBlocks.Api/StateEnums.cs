@@ -77,6 +77,20 @@ public static class StateEnums
             SetEnum(target, oneOf.Values);
         }
 
+        // Approval types and reference types the modules declared (BR-005).
+        if (context.JsonPropertyInfo?.AttributeProvider is MemberInfo kindMember)
+        {
+            if (kindMember.GetCustomAttribute<Contracts.Approvals.ApprovalTypeFieldAttribute>() is not null && Contracts.Approvals.ApprovalKinds.ApprovalTypes is { Count: > 0 } types)
+            {
+                SetEnum(schema, types);
+            }
+            else if (kindMember.GetCustomAttribute<Contracts.Approvals.BusinessRefTypeFieldAttribute>() is not null
+                     && Contracts.Approvals.ApprovalKinds.BusinessRefTypes is { Count: > 0 } refTypes)
+            {
+                SetEnum(schema, refTypes);
+            }
+        }
+
         // AllowedValues: for contracts that reference no INSYS building block but BuildingBlocks.Contracts.
         if (context.JsonPropertyInfo?.AttributeProvider is MemberInfo allowedMember && allowedMember.GetCustomAttribute<AllowedValuesAttribute>() is { } allowed)
         {

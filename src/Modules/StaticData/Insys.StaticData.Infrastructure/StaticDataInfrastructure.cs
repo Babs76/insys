@@ -38,6 +38,9 @@ public static class StaticDataInfrastructure
 {
     public static IServiceCollection AddStaticDataInfrastructure(this IServiceCollection services)
     {
+        // Its approval kinds and the screens that open their records (BR-005).
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.StaticDataApprovals.BusinessRefType, "STATIC_DATA_CHANGE_REQUESTS", Insys.StaticData.Contracts.StaticDataApprovals.ApprovalType(1), Insys.StaticData.Contracts.StaticDataApprovals.ApprovalType(2));
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.StaticDataApprovals.GovernanceBusinessRefType, "STATIC_DATA_GOVERNANCE", Insys.StaticData.Contracts.StaticDataApprovals.ApprovalType(1));
         services.AddModuleDbContext<StaticDataDbContext>(StaticDataDbContext.SchemaName, "StaticData");
         services.AddStaticData<StaticDataDbContext>(StaticDataDbContext.SchemaName, StaticDataStaticData.Descriptors);
         services.AddModuleHandlers<StaticDataDbContext>(typeof(ListChangeRequests).Assembly);

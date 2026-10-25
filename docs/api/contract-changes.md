@@ -7,6 +7,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 ### Breaking
 - **`payments/static/payment-release-limits` is removed** (OQ-112, V0059): nothing read the table. Release limits are the approval authority in `workflow/static/delegation-and-approval-authority` (by approval type and currency).
 
+### Added: front-end requests BR-001, BR-002, BR-004, BR-005, BR-008
+- **Approve with a reason (BR-001):** `POST /workflow/approvals/{id}/approve` takes an optional body `{reason}` (at most 2000 characters), kept as the approval's `decisionReason` as a rejection's is. No body is still valid.
+- **My authority (BR-002):** `GET /workflow/approvals/my-authority` (`approval.read`): `[{approvalType, roleCode, limit, currency}]` for the signed-in user's roles today; `currency` is the row's, or the tenant's base currency. Life claims' authority is per claim, so use the decidable filter for them.
+- **Decidable approvals (BR-004):** `GET /workflow/approvals?decidable=true`: only approvals the signed-in user can decide now (waiting, someone else's, in scope, with any permission the requester named, within their authority for the type and amount), with the same cursor paging; `status` is ignored with it.
+- **Approval kinds (BR-005):** `approvalType` (on `ApprovalView`, `latestRejection` and `my-authority`) and `businessRefType` (on `ApprovalView`) are enums of the 18 declared values. `ApprovalView.screen` names the SCREEN function (its code) that opens the record, for example `PAYMENT_PAYOUT_BATCHES`; the console maps it to its route. An approval of an undeclared kind is refused by Workflow.
+- **Approval status `NotApplied`** (D-5): a granted approval its record would not take; `notAppliedBy` (the module) and `notAppliedAt` are set while it is. It returns to `Approved` if a retry applies it. The requester gets an `APPROVAL_FOLLOW_UP` task; the delivery parks as `APPROVAL_NOT_APPLIED`.
+- **MFA (BR-008):** integration guide §5; no contract change.
+
 ### Contract metadata (Wave 2 batch 1's API review)
 - **`latestRejection.ending` is an enum:** `REJECTED`, `EXPIRED`, `WITHDRAWN`.
 - **`latestRejection` is required** on every view that has it: always present, null when the record's approvals never ended without being granted.
