@@ -1073,6 +1073,8 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 ### OQ-111 Default roles for static data maintenance (front-end request 54)
 - **Built:** static data is maintained through `SD_{MODULE}_VIEW`, `_MAINTAIN` and `_APPROVE` functions granted to roles; scope decides who (tenant, platform, or both), tier decides approval. INSYS seeds no role beyond the first tenant administrator.
 - **Proposed:** role templates per business area (product, underwriting, claims, finance, distribution, platform administration) with the static data modules each maintains, loaded by the OFT-ZA seed (Workstream F) and offered to new tenants. **Open:** confirm the templates.
+- **Decided (25 October 2026, Ade):** draft default role templates (tenant administrator, underwriter, claims handler, finance officer and the others the catalogue supports) as optional starting points tenants copy and adjust; send them for sign-off; do not seed yet.
+- **Drafted (Wave 2 batch 1):** `docs/specs/addenda/role-templates.md`, 20 templates generated from the catalogue, with suggested segregation-of-duties rules. **Open: for sign-off.**
 
 ### OQ-112 Authority bands (front-end request 55)
 - **Built:** `workflow.cfg_delegation_and_approval_authority` per role and approval type; `rules.cfg_authority_matrices` (underwriting alone) and `life.cfg_claims_authority_limits` (Life claims alone). The sample OFT-ZA values in `frontend-integration-guide.md` §3 are samples.
@@ -1081,7 +1083,12 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - limits have no currency: needed per currency for a multi-currency tenant?
   - `delegation_allowed` is not used: is delegation of authority wanted, and how (to whom, for how long)?
   - `payment.cfg_payment_release_limits` (with `second_approver_above`) is not read: keep payment release on the Workflow table, or use it for a second approver above an amount?
+- **Decided (25 October 2026, Ade):** authority limits carry a currency (the tenant's base currency by default); wire in or retire `payment.cfg_payment_release_limits` (propose which); delegation stays for later; OFT-ZA values stay samples for the business to confirm.
+- **Built (Wave 2 batch 1):** `currency` on `workflow.cfg_delegation_and_approval_authority` (V0056); a limit counts only for approvals in its currency, and one without a currency is in the tenant's base currency.
+- **Proposed: retire `payment.cfg_payment_release_limits`.** Payout release is a Workflow approval (`PAYOUT_RELEASE`), whose limits are the authority rows, now with a currency. The table's `second_approver_above` (a second checker above an amount) has no counterpart in the approval model, which has one checker; if two checkers above an amount are wanted, they belong in the Workflow authority model for every approval type, not in one Payments table. Retiring it removes its generated endpoints (a migration and a contract change after sign-off). **Open: confirm.**
 
 ### OQ-113 The rejection reason on the record
 - **Built:** the checker's reason is kept on the Workflow approval only; the owning modules do not keep it (Static Data passes it on in its event but does not store it).
 - **Open:** whether records show the latest rejection's reason themselves (a settlement request, a statement, a version), or the front end reads it from the approval.
+- **Decided (25 October 2026, Ade):** yes; each record shows its latest rejection (who, when, the reason) itself.
+- **Built (Wave 2 batch 1):** every record an approval is about shows `latestRejection {ending, approvalType, by, at, reason}` in its view, from Workflow's approval history; expiry and withdrawal count. **Closed.**

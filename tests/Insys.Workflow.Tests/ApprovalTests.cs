@@ -103,4 +103,40 @@ public sealed class ApprovalTests
         approval.Expire(Now.AddHours(2)).IsSuccess.ShouldBeTrue();
         approval.Status.ShouldBe(ApprovalStatus.Expired);
     }
+
+    /// <summary>D-4: expiry reaches the owning module as an ending, with no checker and the reason, like a rejection.</summary>
+    [Fact]
+    public void Expiry_TellsTheOwningModule_AsAnEnding()
+    {
+        var approval = Requested(expiresAt: Now.AddHours(1));
+        approval.Expire(Now.AddHours(2)).IsSuccess.ShouldBeTrue();
+        var ended = approval.DomainEvents.OfType<ApprovalRejected>().Single();
+        ended.Ending.ShouldBe("EXPIRED");
+        ended.CheckerId.ShouldBe(Guid.Empty);
+        ended.Reason.ShouldStartWith("No decision by");
+    }
+
+    /// <summary>D-4: only the requester withdraws their request; the owning module is told, as for a rejection.</summary>
+    [Fact]
+    public void Withdrawal_ByTheRequesterOnly_TellsTheOwningModule()
+    {
+        var approval = Requested();
+        approval.WithdrawByRequester(Checker, "Not mine", Now).Error!.Code.ShouldBe(WorkflowErrorCodes.NotRequester);
+        approval.WithdrawByRequester(Maker, "Entered twice", Now).IsSuccess.ShouldBeTrue();
+        approval.Status.ShouldBe(ApprovalStatus.Withdrawn);
+        var ended = approval.DomainEvents.OfType<ApprovalRejected>().Single();
+        (ended.Ending, ended.Reason).ShouldBe(("WITHDRAWN", "Entered twice"));
+        approval.Approve(Checker, Authority(0), Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+    }
+
+    /// <summary>OQ-112: a limit counts only in its currency; a limit without one is in the tenant's base currency.</summary>
+    [Fact]
+    public void AuthorityLimits_CountOnlyInTheirCurrency_OQ112()
+    {
+        Requested(amount: 5000).Approve(Checker, [new AuthorityGrant("CLAIMS_MANAGER", "CLAIM_PAYMENT", 10_000, "USD")], Now, "ZAR").Error!.Code
+            .ShouldBe(WorkflowErrorCodes.AuthorityExceeded);
+        Requested(amount: 5000).Approve(Checker, [new AuthorityGrant("CLAIMS_MANAGER", "CLAIM_PAYMENT", 10_000)], Now, "ZAR").IsSuccess.ShouldBeTrue();
+        Requested(amount: 5000).Approve(Checker, [new AuthorityGrant("CLAIMS_MANAGER", "CLAIM_PAYMENT", 10_000)], Now, "USD").Error!.Code
+            .ShouldBe(WorkflowErrorCodes.AuthorityExceeded);
+    }
 }

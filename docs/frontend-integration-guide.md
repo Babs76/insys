@@ -2,37 +2,37 @@
 
 Answers to questions the front end raises that the OpenAPI documents cannot answer by themselves (requests 53 to 56, from the UI prototype). The contract is `docs/api/`; changes are in `docs/api/contract-changes.md`. Where the specifications do not say, this guide says what INSYS does today and names the open question.
 
-## 1. Rejecting an approval
-- **How to reject:** `POST /api/v1/workflow/approvals/{id}/reject` with `{ "reason": "…" }` (required, up to 2,000 characters). Workflow keeps the reason on the approval (`decisionReason`) and tells the owning module, which moves its record (eventual, within one relay pass). Only Static Data passes the reason on; elsewhere, show it from the approval (OQ-113).
-- **What rejection does, by approval type** (as built; "final" means the record cannot be resubmitted, so the requester starts a new one):
+## 1. How an approval ends, and what happens to its record
+**The rule** (signed off 25 October 2026): every way an approval can end (approved, rejected, expired, withdrawn) leaves its record in a defined state; nothing waits for good.
 
-  | Approval type | Record: waiting → after rejection | What the requester can do next |
-  |---|---|---|
-  | `CLAIM_SETTLEMENT` (General settlement request) | Claim stays `UnderAssessment`; the pending settlement is cleared | Request settlement again (`POST /general/claims/{id}/settlement`) or decline the claim |
-  | `LIFE_CLAIM` | Claim stays `InAssessment`; approved amount and payees cleared | Propose approval again, reassess, or decline |
-  | `LIFE_UNDERWRITING` | Case stays `InAssessment`; the proposed decision cleared (§4) | Propose again, or refer |
-  | `ENDORSEMENT` | `PendingApproval` → `Rejected` (final) | Draft a new endorsement |
-  | `CLAIM_PAYMENT` (new instruction) | `PendingApproval` → `Rejected` (final) | Draft a new instruction, with a **new** `instructionRef` |
-  | `CLAIM_PAYMENT` (new payee or bank details on retry or redirect) | Instruction keeps its status; the pending payee details are cleared | Retry or redirect again |
-  | `REFUND` | `Requested` → `Rejected` (final) | Raise a new refund |
-  | `COMMISSION_STATEMENT` | Statement back to `Draft` | Prepare the statement again (`POST /distribution/statements`); its lines stay on the draft until then |
-  | `PERIOD_REOPEN` | Period stays `SoftClose`; the reopen request is cleared | Request reopening again, or close |
-  | `PRODUCT_PUBLICATION` | Version back to `Draft`; its simulations are marked stale | Edit, validate, simulate and submit again |
-  | `STATIC_DATA_T1`, `STATIC_DATA_T2` | Version back to `DRAFT` | Edit and submit again |
-  | `PRIVILEGED_ROLE`, `EXTERNAL_SUBJECT_LINK`, `TENANT_ADMINISTRATOR` | `PendingApproval` → `Rejected` (final) | Request again |
-  | `PARTY_MATCH_RESOLUTION` (portal registration) | Party back to `PENDING_REVIEW` | Resolve the match again |
-  | `BANK_ACCOUNT_VERIFICATION` | Account `PendingVerification` → `Rejected` (final) | Add another account. **Defect:** the party's previous account in that currency was already superseded and is not restored (D-3) |
-  | `PROVIDER_PAYMENT_RUN` | Run stays `Calculated` | **Defect:** nothing; the run and its claims are stuck (D-2) |
-  | `PAYOUT_RELEASE` (payout batch) | Batch stays `Built` | **Defect:** nothing; the batch and its payments are stuck (D-1) |
+- **Four endings:**
+  - **Approved** by a checker within authority (`POST /api/v1/workflow/approvals/{id}/approve`).
+  - **Rejected** by a checker, with a reason (`…/reject` `{ "reason" }`).
+  - **Expired:** no decision within the type's time limit (`workflow/static/approval-expiry`, an ISO 8601 duration per approval type; 14 days when none is in force). The requester gets a follow-up task in their work list (`GET /workflow/tasks?assigneeId=`, process `APPROVAL_FOLLOW_UP`).
+  - **Withdrawn** by the requester, with a reason (`…/withdraw` `{ "reason" }`, If-Match; only the person who asked: 403 `APPROVAL_NOT_REQUESTER`), or by the owning module when what it was for changed (the requester then gets the follow-up task).
+- **Rejected, expired and withdrawn are handled alike** by the record's module (eventual, within one relay pass). The record shows the latest of them itself as **`latestRejection`** `{ending, approvalType, by, at, reason}` (`by` is the checker; null when it expired or was withdrawn).
+- **If a module cannot apply an ending** (the record changed in a way that refuses it), the delivery parks under ADR-022 with the code `APPROVAL_ENDING_NOT_APPLIED` and the approval type and ID as its item. It shows in the operations view and in `/health`, is escalated on the tenant's schedule and retried; it is never only logged.
 
-- **The pattern:** where the domain model has a reject transition the record takes it; where it has none, the record **returns to where it was before it was submitted** (a claim to assessment, a statement or version to draft) and the request can be made again. The three defects below are the exceptions.
-- **Defects found while answering this** (the front end should not offer the action until they are fixed; see the batch report):
-  - **D-1** `PAYOUT_RELEASE`: Payments ignores the rejection; the batch stays `Built` and its payments cannot go into another batch.
-  - **D-2** `PROVIDER_PAYMENT_RUN`: the run stays `Calculated` and its claims stay assigned to it.
-  - **D-3** `BANK_ACCOUNT_VERIFICATION`: the superseded account is not restored.
-  - **D-4** An approval that **expires** (14 days by default) or is withdrawn tells no module: the record stays waiting for good.
-  - **D-5** A rejection whose subject or maker check fails in the module is only logged: the approval shows `REJECTED` while the record still waits.
-- **Not approvals:** a Compliance regulatory return's approval and Health preauthorisation and claim decisions are the records' own transitions, not Workflow approvals.
+| Approval type | Record while waiting | After approval | After rejection, expiry or withdrawal | What the requester can do next |
+|---|---|---|---|---|
+| `CLAIM_SETTLEMENT` (General) | Claim `UnderAssessment`, settlement pending | Settlement approved; payment follows | Claim stays `UnderAssessment`, settlement cleared | Request settlement again, or decline |
+| `LIFE_CLAIM` | Claim `InAssessment`, `approvalPending` | Claim approved | Claim stays `InAssessment`, approval and payees cleared | Propose approval again, reassess, or decline |
+| `LIFE_UNDERWRITING` | Case `InAssessment`, `decisionPending` | Case `Decided` | Case stays `InAssessment`, proposed decision cleared (§4) | Propose again, or refer |
+| `ENDORSEMENT` | `PendingApproval` | `Approved`, then applied | `Rejected` (final) | Draft a new endorsement |
+| `CLAIM_PAYMENT` (new instruction) | `PendingApproval` | `Approved`; the payment is created | `Rejected` (final) | Draft a new instruction with a new `instructionRef` |
+| `CLAIM_PAYMENT` (payee change on retry or redirect) | Instruction keeps its status, new payee pending | New payee applied | New payee cleared | Retry or redirect again |
+| `REFUND` | `Requested` | `Approved`; paid | `Rejected` (final) | Raise a new refund |
+| `COMMISSION_STATEMENT` | `Draft`, submitted | `Approved`; paid out | `Draft` again; its entitlements and recoveries are released for the next statement | Prepare a statement again |
+| `PERIOD_REOPEN` | `SoftClose`, reopen requested | Reopened | `SoftClose`, request cleared | Request again, or close |
+| `PRODUCT_PUBLICATION` | Version `Submitted` | Published | Version `Draft`, simulations stale | Edit, validate, simulate, submit again |
+| `STATIC_DATA_T1`, `STATIC_DATA_T2` | Version `PENDING_APPROVAL` | `APPROVED` | Version `DRAFT`, change `Rejected` | Edit and submit again |
+| `PRIVILEGED_ROLE`, `EXTERNAL_SUBJECT_LINK`, `TENANT_ADMINISTRATOR` | `PendingApproval` | Active or provisioned | `Rejected` (final) | Request again |
+| `PARTY_MATCH_RESOLUTION` | Match proposed | Applied | Party back to `PENDING_REVIEW` | Resolve the match again |
+| `BANK_ACCOUNT_VERIFICATION` | New account `PendingVerification`; **the previous account stays active** | New account `Active`, previous `Superseded` | New account `Rejected`; previous stays `Active` | Add another account |
+| `PROVIDER_PAYMENT_RUN` | Run `Calculated` | `Approved`, then released | Run `Rejected`; its claims are released for a new run | Cut off and calculate a new run |
+| `PAYOUT_RELEASE` (payout batch) | Batch `Built` | `Approved`, then released | Batch `Rejected`; its payments return to the pool for a new batch (never in two live batches, never paid twice) | Build a new batch |
+
+- **Not approvals:** a Compliance regulatory return's approval and Health preauthorisation and claim decisions are the records' own transitions.
 
 ## 2. Who maintains static data in a tenant
 - **Scope decides who maintains a table; tier decides who approves a change** (ADR-003, `runbooks/static-data.md`).
@@ -85,5 +85,5 @@ Answers to questions the front end raises that the OpenAPI documents cannot answ
   - While a decision is pending, the case refuses another decision, a referral and a newly recorded rule outcome (409 `UNDERWRITING_DECISION_PENDING`).
   - The approval names the case (`businessRefType` `LIFE_UNDERWRITING_CASE`, `businessRefId` the case ID), so the Inbox can link to it.
 - **When it is approved:** the case becomes `Decided`, with the checker as decider and their authority role; the proposal continues.
-- **When it is rejected:** the proposed decision is cleared (`decisionPending: false`) and the case stays `InAssessment`. The underwriter can gather more evidence, refer the case, or propose a decision again. The rejection's reason is on the approval (`decisionReason`).
-- **If the approval expires**, the case stays pending today (D-4 in §1).
+- **When it is rejected:** the proposed decision is cleared (`decisionPending: false`) and the case stays `InAssessment`. The underwriter can gather more evidence, refer the case, or propose a decision again. The case shows the rejection as `latestRejection` (who, when, the reason).
+- **If the approval expires or is withdrawn**, the same as a rejection applies, and the underwriter gets a follow-up task (§1).
