@@ -231,14 +231,77 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         (await response.Code()).ShouldBe(code);
     }
 
-    private async Task<Guid> SeedApproval(decimal? amount)
+    /// <summary>BR-001: an approval can carry the checker's reason, kept as its decision reason like a rejection's.</summary>
+    [Fact]
+    public async Task Approving_WithAReason_KeepsItOnTheApproval_BR001()
+    {
+        var id = await SeedApproval(amount: 100m);
+        var senior = _factory.ClientFor(DatabaseFixture.TenantA, "wf-senior");
+        (await senior.Send(HttpMethod.Post, $"{Approvals}/{id}/approve", new { reason = "Within the claim's documented loss" }, ifMatch: "\"1\""))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await (await senior.GetAsync($"{Approvals}/{id}")).Json()).GetProperty("decisionReason").GetString().ShouldBe("Within the claim's documented loss");
+
+        // The body stays optional.
+        var plain = await SeedApproval(amount: 100m);
+        (await senior.Send(HttpMethod.Post, $"{Approvals}/{plain}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>BR-002: the signed-in user's own authority, per approval type, with its limit and currency.</summary>
+    [Fact]
+    public async Task MyAuthority_IsTheSignedInUsersOwn_BR002()
+    {
+        var response = await _factory.ClientFor(DatabaseFixture.TenantA, "wf-junior").GetAsync($"{Approvals}/my-authority");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var rows = (await response.Json()).EnumerateArray().ToList();
+        // Each test's set-up gives the junior another role with the same authority, so there is a row per role.
+        var limits = rows.Where(r => r.GetProperty("approvalType").GetString() == "CLAIM_PAYMENT").Select(r => r.GetProperty("limit").GetDecimal()).ToList();
+        limits.ShouldNotBeEmpty();
+        limits.ShouldAllBe(l => l == 1_000m);
+        (await (await _factory.ClientFor(DatabaseFixture.TenantA, "wf-none").GetAsync($"{Approvals}/my-authority")).Json()).EnumerateArray().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// BR-004: decidable=true lists only what the caller can decide now (not their own, within their authority and limit),
+    /// with the API's own cursor paging.
+    /// </summary>
+    [Fact]
+    public async Task DecidableApprovals_AreOnlyThoseTheCallerCanDecideNow_WithPaging_BR004()
+    {
+        const string refType = "BR004_CLAIM";
+        var small = await SeedApproval(500m, refType);
+        var large = await SeedApproval(5_000m, refType);
+        var juniorsOwn = await SeedApproval(500m, refType, await fixture.Database.ScalarAsOwner<Guid>(
+            "SELECT id FROM iam.user_account WHERE tenant_id = @t AND username = 'wf-junior'", ("t", DatabaseFixture.TenantA)));
+
+        async Task<List<Guid>> Decidable(string user, int limit)
+        {
+            var client = _factory.ClientFor(DatabaseFixture.TenantA, user);
+            var ids = new List<Guid>();
+            string? cursor = null;
+            do
+            {
+                var page = await (await client.GetAsync($"{Approvals}?decidable=true&businessRefType={refType}&limit={limit}{(cursor is null ? "" : $"&cursor={cursor}")}")).Json();
+                ids.AddRange(page.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
+                cursor = page.GetProperty("nextCursor").GetString();
+            }
+            while (cursor is not null);
+            return ids;
+        }
+
+        (await Decidable("wf-junior", 10)).ShouldBe([small]);
+        (await Decidable("wf-senior", 1)).ShouldBe([small, large, juniorsOwn]);
+        (await Decidable("wf-none", 10)).ShouldBeEmpty();
+        (await Decidable("wf-maker", 10)).ShouldBeEmpty();
+    }
+
+    private async Task<Guid> SeedApproval(decimal? amount, string businessRefType = "CLAIM", Guid? maker = null)
     {
         var id = Guid.CreateVersion7();
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO workflow.approval (tenant_id, id, created_at, created_by, business_ref_type, business_ref_id, approval_type, maker_id,
                                            authority_limit, currency, reason, status, requested_at, expires_at, row_version, updated_at, updated_by)
-            VALUES (@t, @id, now(), 'seed', 'CLAIM', gen_random_uuid(), 'CLAIM_PAYMENT', @maker, @amount, 'ZAR', 'Pay', 'REQUESTED', now(), now() + interval '1 day', 1, now(), 'seed')
-            """, ("t", DatabaseFixture.TenantA), ("id", id), ("maker", _maker), ("amount", (object?)amount ?? DBNull.Value));
+            VALUES (@t, @id, now(), 'seed', @ref, gen_random_uuid(), 'CLAIM_PAYMENT', @maker, @amount, 'ZAR', 'Pay', 'REQUESTED', now(), now() + interval '1 day', 1, now(), 'seed')
+            """, ("t", DatabaseFixture.TenantA), ("id", id), ("ref", businessRefType), ("maker", maker ?? _maker), ("amount", (object?)amount ?? DBNull.Value));
         return id;
     }
 

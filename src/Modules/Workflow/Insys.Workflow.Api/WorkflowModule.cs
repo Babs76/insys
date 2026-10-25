@@ -46,6 +46,9 @@ namespace Insys.Workflow.Api;
 
 public sealed record RejectApprovalRequest(string Reason);
 
+/// <param name="Reason">Optional: why the checker approved (BR-001), kept on the approval as its decisionReason, at most 2000 characters.</param>
+public sealed record ApproveApprovalRequest(string? Reason);
+
 public sealed record StartProcessRequest(string ProcessCode, string BusinessRefType, Guid BusinessRefId);
 
 public sealed record AssignTaskRequest(Guid? AssigneeId);
@@ -103,7 +106,7 @@ public sealed class WorkflowModule : IModule
         var workflow = api.MapGroup("/workflow").WithTags(Name);
 
         var approvals = workflow.MapGroup("/approvals");
-        approvals.MapGet("/", async (string? status, string? businessRefType, Guid? businessRefId, string? cursor, int? limit, IDispatcher dispatcher,
+        approvals.MapGet("/", async (string? status, string? businessRefType, Guid? businessRefId, bool? decidable, string? cursor, int? limit, IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
                 if (!Cursor.TryDecode(cursor, out var afterId))
@@ -112,12 +115,27 @@ public sealed class WorkflowModule : IModule
                 }
 
                 var pageSize = Cursor.ClampLimit(limit);
-                return (await dispatcher.Query(new ListApprovals(status, businessRefType, businessRefId, afterId, pageSize), ct))
+                return (await dispatcher.Query(new ListApprovals(status, businessRefType, businessRefId, afterId, pageSize, decidable == true), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<ApprovalView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
             .Produces<CursorPage<ApprovalView>>(StatusCodes.Status200OK)
             .WithName("WorkflowListApprovals")
             .WithSummary("List approvals")
+            .WithDescription("status is one of Requested, Approved, NotApplied, Rejected, Expired, Withdrawn (any case). With decidable=true, only the "
+                + "approvals the signed-in user can decide now (BR-004): waiting, asked for by someone else, in their scope, with any permission the "
+                + "requester named, and within their authority for the type and amount (as approving checks it); status is then ignored. Paging is "
+                + "the same cursor paging, so a page can be shorter than limit only at the end.")
+            .RequirePermission(WorkflowPermissions.ApprovalRead);
+
+        approvals.MapGet("/my-authority", async (IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new MyAuthority(), ct)).ToHttp(rows => Results.Ok(rows)))
+            .Produces<IReadOnlyList<AuthorityView>>(StatusCodes.Status200OK)
+            .WithName("WorkflowMyAuthority")
+            .WithSummary("The signed-in user's approval authority")
+            .WithDescription("BR-002: one row per role and approval type in force for the signed-in user's roles today "
+                + "(workflow/static/delegation-and-approval-authority), with the limit and its currency (the tenant's base currency when the row has "
+                + "none). Life claims are the exception: their authority is per claim type in Life's static data, checked per claim, so use "
+                + "decidable=true on the approvals list to know which Life claim approvals the user can decide.")
             .RequirePermission(WorkflowPermissions.ApprovalRead);
 
         approvals.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
@@ -131,15 +149,16 @@ public sealed class WorkflowModule : IModule
             .WithSummary("Get an approval")
             .RequirePermission(WorkflowPermissions.ApprovalRead);
 
-        approvals.MapPost("/{id:guid}/approve", (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
-                Versioned(http, version => dispatcher.Send(new Approve(id, version), ct)))
+        approvals.MapPost("/{id:guid}/approve", (Guid id, ApproveApprovalRequest? request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new Approve(id, version, request?.Reason), ct)))
             .Produces(StatusCodes.Status204NoContent)
             .RequireIfMatch()
             .WithName("WorkflowApprove")
             .AlsoChecks(PartyPermissions.BankAccountVerify, "the approval is a bank account verification (businessRefType BANK_ACCOUNT; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.PartyUpdate, "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)")
             .WithSummary("Approve (not by the maker, within the checker's authority)")
-            .WithDescription("The checker needs a role with authority for the approval type and, where there is an amount, a limit at least that amount (WFL-004).")
+            .WithDescription("The checker needs a role with authority for the approval type and, where there is an amount, a limit at least that amount (WFL-004). "
+                + "The body is optional: a reason (BR-001) is kept as the approval's decisionReason, as a rejection's is.")
             .WithEventualEffects("the decision reaches the record that asked for it (a static data version, product version, role assignment, bank "
                 + "account, payment or claim instruction, first tenant administrator ...) and its own follow-ups, such as a product's publication; read that "
                 + "record again to see it.")

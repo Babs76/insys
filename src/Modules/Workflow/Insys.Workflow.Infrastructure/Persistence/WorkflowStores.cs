@@ -104,9 +104,23 @@ internal sealed class ApprovalQueries(WorkflowDbContext db, IExecutionContext ex
             ? View(approval)
             : null;
 
-    private static ApprovalView View(Approval a) =>
-        new(a.Id, a.BusinessRefType, a.BusinessRefId, a.ApprovalType, a.MakerId, a.CheckerId, a.Status, a.Amount, a.Currency, a.Reason, a.DecisionReason,
-            a.RequestedAt, a.DecidedAt, a.ExpiresAt, a.SubjectHash, a.RequiredPermission, a.RowVersion, a.NotAppliedBy, a.NotAppliedAt);
+    public async Task<IReadOnlyList<Approval>> WaitingFromOthers(Guid userId, string? businessRefType, Guid? businessRefId, Guid? afterId, int limit,
+        CancellationToken cancellationToken)
+    {
+        var query = db.Approvals.AsNoTracking().Where(a => a.Status == ApprovalStatus.Requested && a.MakerId != userId);
+        if (!execution.CurrentScope.IsUnrestricted)
+        {
+            var inScope = db.Approvals.AsNoTracking().InScope(execution.CurrentScope, a => a.ProductCode, a => a.OrgNodeCode).Select(a => a.Id);
+            query = query.Where(a => !a.IsScoped || inScope.Contains(a.Id));
+        }
+
+        query = businessRefType is null ? query : query.Where(a => a.BusinessRefType == businessRefType);
+        query = businessRefId is null ? query : query.Where(a => a.BusinessRefId == businessRefId);
+        query = afterId is null ? query : query.Where(a => a.Id.CompareTo(afterId.Value) > 0);
+        return await query.OrderBy(a => a.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    private static ApprovalView View(Approval a) => ApprovalView.Of(a);
 }
 
 internal sealed class ProcessRepository(WorkflowDbContext db) : IProcessRepository

@@ -68,16 +68,37 @@ public interface IAuthorityReader
 
 public sealed record ApprovalView(Guid Id, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid? CheckerId, ApprovalStatus Status,
     decimal? Amount, string? Currency, string? Reason, string? DecisionReason, DateTimeOffset RequestedAt, DateTimeOffset? DecidedAt, DateTimeOffset? ExpiresAt,
-    string? SubjectHash, string? RequiredPermission, long RowVersion, string? NotAppliedBy = null, DateTimeOffset? NotAppliedAt = null);
+    string? SubjectHash, string? RequiredPermission, long RowVersion, string? NotAppliedBy = null, DateTimeOffset? NotAppliedAt = null)
+{
+    public static ApprovalView Of(Approval a) =>
+        new(a.Id, a.BusinessRefType, a.BusinessRefId, a.ApprovalType, a.MakerId, a.CheckerId, a.Status, a.Amount, a.Currency, a.Reason, a.DecisionReason,
+            a.RequestedAt, a.DecidedAt, a.ExpiresAt, a.SubjectHash, a.RequiredPermission, a.RowVersion, a.NotAppliedBy, a.NotAppliedAt);
+}
 
 public interface IApprovalQueries
 {
     Task<IReadOnlyList<ApprovalView>> List(string? status, string? businessRefType, Guid? businessRefId, Guid? afterId, int limit, CancellationToken cancellationToken);
 
     Task<ApprovalView?> Get(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>Waiting approvals in the caller's scope that another user asked for, oldest first by ID (BR-004 candidates).</summary>
+    Task<IReadOnlyList<Approval>> WaitingFromOthers(Guid userId, string? businessRefType, Guid? businessRefId, Guid? afterId, int limit,
+        CancellationToken cancellationToken);
 }
 
-public sealed record Approve(Guid ApprovalId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+/// <param name="Reason">Optional (BR-001): why the checker approved; kept on the approval like a rejection's reason.</param>
+public sealed record Approve(Guid ApprovalId, long ExpectedVersion, string? Reason = null) : ICommand<long>, IVersionedCommand;
+
+public sealed class ApproveValidator : AbstractValidator<Approve>
+{
+    public ApproveValidator() => RuleFor(c => c.Reason).MaximumLength(2000);
+}
+
+/// <summary>The signed-in user's approval authority (BR-002): one row per role and approval type in force, with the limit's currency.</summary>
+public sealed record MyAuthority : IQuery<IReadOnlyList<AuthorityView>>;
+
+/// <param name="Currency">The limit's currency: the row's own, or the tenant's base currency when the row has none (OQ-112).</param>
+public sealed record AuthorityView(string ApprovalType, string RoleCode, decimal Limit, string? Currency);
 
 public sealed record Reject(Guid ApprovalId, string Reason, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
@@ -95,7 +116,9 @@ public interface IApprovalExpiry
     Task<TimeSpan?> For(string approvalType, DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record ListApprovals(string? Status, string? BusinessRefType, Guid? BusinessRefId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ApprovalView>>;
+/// <param name="Decidable">Only approvals the caller can decide now (BR-004): waiting, not their own, in scope, and within their authority.</param>
+public sealed record ListApprovals(string? Status, string? BusinessRefType, Guid? BusinessRefId, Guid? AfterId, int Limit, bool Decidable = false)
+    : IQuery<IReadOnlyList<ApprovalView>>;
 
 public sealed record GetApproval(Guid ApprovalId) : IQuery<ApprovalView>;
 
@@ -172,20 +195,72 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
             return approval.Reject(checkerId, reason ?? "", clock.UtcNow);
         }
 
-        var checkerRoles = await roles.EffectiveRoles(tenant.RequireTenantId(), checkerId, cancellationToken);
+        return approval.Approve(checkerId, await GrantsFor(approval, checkerId, cancellationToken), clock.UtcNow, await BaseCurrency(cancellationToken), reason);
+    }
+
+    /// <summary>
+    /// Whether the checker could approve the approval now (BR-004), by the same rules as approving: scope, the permission
+    /// the requester named, not their own, not expired, and authority for the type and amount.
+    /// </summary>
+    public async Task<bool> CanApprove(Approval approval, Guid checkerId, CancellationToken cancellationToken) =>
+        (!approval.IsScoped || execution.CurrentScope.Allows(approval.ProductCode, approval.OrgNodeCode))
+        && (approval.RequiredPermission is not { } permission || execution.HasPermission(permission))
+        && approval.CanApprove(checkerId, await GrantsFor(approval, checkerId, cancellationToken), clock.UtcNow, await BaseCurrency(cancellationToken)).IsSuccess;
+
+    /// <summary>The user's authority from the delegation table, for their roles today (BR-002).</summary>
+    public async Task<IReadOnlyList<AuthorityGrant>> Authority(Guid userId, CancellationToken cancellationToken) =>
+        await authority.For(await Roles(userId, cancellationToken), businessDate.Today, cancellationToken);
+
+    /// <summary>The tenant's base currency today, or null when it has none.</summary>
+    public async Task<string?> BaseCurrency(CancellationToken cancellationToken)
+    {
+        if (!_baseCurrencyRead)
+        {
+            _baseCurrency = await baseCurrency.BaseCurrency(tenant.RequireTenantId(), businessDate.Today, cancellationToken);
+            _baseCurrencyRead = true;
+        }
+
+        return _baseCurrency;
+    }
+
+    // Read once per request: a list of decidable approvals checks many approvals for the same checker.
+    private string? _baseCurrency;
+    private bool _baseCurrencyRead;
+    private (Guid User, IReadOnlyList<string> Roles)? _roles;
+    private readonly Dictionary<string, bool> _configured = new(StringComparer.Ordinal);
+
+    private async Task<IReadOnlyList<string>> Roles(Guid userId, CancellationToken cancellationToken)
+    {
+        if (_roles is not { } cached || cached.User != userId)
+        {
+            _roles = cached = (userId, await roles.EffectiveRoles(tenant.RequireTenantId(), userId, cancellationToken));
+        }
+
+        return cached.Roles;
+    }
+
+    private async Task<IReadOnlyList<AuthorityGrant>> GrantsFor(Approval approval, Guid checkerId, CancellationToken cancellationToken)
+    {
+        var checkerRoles = await Roles(checkerId, cancellationToken);
         // A module that keeps the authority for this approval type in its own static data decides it (Life claims).
         var grants = sources.FirstOrDefault(s => s.Decides(approval.ApprovalType)) is { } source
             ? (await source.For(tenant.RequireTenantId(), approval.BusinessRefType, approval.BusinessRefId, checkerRoles, businessDate.Today, cancellationToken))
                 .Select(a => new AuthorityGrant(a.RoleCode, approval.ApprovalType, a.Limit)).ToList()
             : await authority.For(checkerRoles, businessDate.Today, cancellationToken);
-        if (approval.ApprovalType.StartsWith(StaticDataApprovals.ApprovalTypePrefix, StringComparison.Ordinal)
-            && !await authority.IsConfigured(approval.ApprovalType, businessDate.Today, cancellationToken))
+        if (approval.ApprovalType.StartsWith(StaticDataApprovals.ApprovalTypePrefix, StringComparison.Ordinal))
         {
-            grants = [.. grants, new AuthorityGrant(PermissionAuthority, approval.ApprovalType, 0m)];
+            if (!_configured.TryGetValue(approval.ApprovalType, out var configured))
+            {
+                _configured[approval.ApprovalType] = configured = await authority.IsConfigured(approval.ApprovalType, businessDate.Today, cancellationToken);
+            }
+
+            if (!configured)
+            {
+                grants = [.. grants, new AuthorityGrant(PermissionAuthority, approval.ApprovalType, 0m)];
+            }
         }
 
-        return approval.Approve(checkerId, grants, clock.UtcNow,
-            await baseCurrency.BaseCurrency(tenant.RequireTenantId(), businessDate.Today, cancellationToken));
+        return grants;
     }
 }
 
@@ -205,7 +280,7 @@ internal sealed class ApproveHandler(IApprovalRepository approvals, ApprovalDeci
             return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The approval has changed since it was read.");
         }
 
-        var result = await decision.Decide(approval, checker.Value, approve: true, null, cancellationToken);
+        var result = await decision.Decide(approval, checker.Value, approve: true, command.Reason, cancellationToken);
         return result.IsFailure ? result.Error : approval.RowVersion + 1;
     }
 }
@@ -298,10 +373,69 @@ internal sealed class ExpireApprovalHandler(IApprovalRepository approvals, Reque
     }
 }
 
-internal sealed class ListApprovalsHandler(IApprovalQueries queries) : IQueryHandler<ListApprovals, IReadOnlyList<ApprovalView>>
+internal sealed class ListApprovalsHandler(IApprovalQueries queries, ApprovalDecision decision, IExecutionContext execution)
+    : IQueryHandler<ListApprovals, IReadOnlyList<ApprovalView>>
 {
-    public async Task<Result<IReadOnlyList<ApprovalView>>> Handle(ListApprovals query, CancellationToken cancellationToken) =>
-        Result.Success(await queries.List(query.Status, query.BusinessRefType, query.BusinessRefId, query.AfterId, query.Limit, cancellationToken));
+    public async Task<Result<IReadOnlyList<ApprovalView>>> Handle(ListApprovals query, CancellationToken cancellationToken)
+    {
+        if (!query.Decidable)
+        {
+            return Result.Success(await queries.List(query.Status, query.BusinessRefType, query.BusinessRefId, query.AfterId, query.Limit, cancellationToken));
+        }
+
+        var checker = Checker.Require(execution);
+        if (checker.IsFailure)
+        {
+            return checker.Error;
+        }
+
+        // BR-004: the waiting approvals of others, checked one by one by the rules of approving, until the page is full.
+        // The cursor is the last approval returned, so one checked and left out is checked again on the next page.
+        var page = new List<ApprovalView>(query.Limit);
+        var after = query.AfterId;
+        var batchSize = Math.Max(query.Limit * 2, 50);
+        while (page.Count < query.Limit)
+        {
+            var batch = await queries.WaitingFromOthers(checker.Value, query.BusinessRefType, query.BusinessRefId, after, batchSize, cancellationToken);
+            foreach (var approval in batch)
+            {
+                if (await decision.CanApprove(approval, checker.Value, cancellationToken))
+                {
+                    page.Add(ApprovalView.Of(approval));
+                    if (page.Count == query.Limit)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if (batch.Count < batchSize)
+            {
+                break;
+            }
+
+            after = batch[^1].Id;
+        }
+
+        return page;
+    }
+}
+
+internal sealed class MyAuthorityHandler(ApprovalDecision decision, IExecutionContext execution) : IQueryHandler<MyAuthority, IReadOnlyList<AuthorityView>>
+{
+    public async Task<Result<IReadOnlyList<AuthorityView>>> Handle(MyAuthority query, CancellationToken cancellationToken)
+    {
+        var user = Checker.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        var baseCurrency = await decision.BaseCurrency(cancellationToken);
+        return (await decision.Authority(user.Value, cancellationToken))
+            .Select(g => new AuthorityView(g.ApprovalType, g.RoleCode, g.Limit, g.Currency ?? baseCurrency))
+            .OrderBy(a => a.ApprovalType, StringComparer.Ordinal).ThenBy(a => a.RoleCode, StringComparer.Ordinal).ToList();
+    }
 }
 
 internal sealed class GetApprovalHandler(IApprovalQueries queries) : IQueryHandler<GetApproval, ApprovalView>

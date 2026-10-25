@@ -4250,6 +4250,7 @@
           "Workflow"
         ],
         "summary": "List approvals",
+        "description": "status is one of Requested, Approved, NotApplied, Rejected, Expired, Withdrawn (any case). With decidable=true, only the approvals the signed-in user can decide now (BR-004): waiting, asked for by someone else, in their scope, with any permission the requester named, and within their authority for the type and amount (as approving checks it); status is then ignored. Paging is the same cursor paging, so a page can be shorter than limit only at the end.",
         "operationId": "WorkflowListApprovals",
         "parameters": [
           {
@@ -4272,6 +4273,13 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "decidable",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -4301,6 +4309,50 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CursorPageOfWorkflowApprovalView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "approval.read",
+        "x-function": [
+          "WORKFLOW_APPROVALS"
+        ]
+      }
+    },
+    "/api/v1/workflow/approvals/my-authority": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "The signed-in user\u0027s approval authority",
+        "description": "BR-002: one row per role and approval type in force for the signed-in user\u0027s roles today (workflow/static/delegation-and-approval-authority), with the limit and its currency (the tenant\u0027s base currency when the row has none). Life claims are the exception: their authority is per claim type in Life\u0027s static data, checked per claim, so use decidable=true on the approvals list to know which Life claim approvals the user can decide.",
+        "operationId": "WorkflowMyAuthority",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowAuthorityView"
+                  }
                 }
               }
             }
@@ -4390,7 +4442,7 @@
           "Workflow"
         ],
         "summary": "Approve (not by the maker, within the checker\u0027s authority)",
-        "description": "The checker needs a role with authority for the approval type and, where there is an amount, a limit at least that amount (WFL-004). Completes asynchronously (GAP-027): the decision reaches the record that asked for it (a static data version, product version, role assignment, bank account, payment or claim instruction, first tenant administrator ...) and its own follow-ups, such as a product\u0027s publication; read that record again to see it.",
+        "description": "The checker needs a role with authority for the approval type and, where there is an amount, a limit at least that amount (WFL-004). The body is optional: a reason (BR-001) is kept as the approval\u0027s decisionReason, as a rejection\u0027s is. Completes asynchronously (GAP-027): the decision reaches the record that asked for it (a static data version, product version, role assignment, bank account, payment or claim instruction, first tenant administrator ...) and its own follow-ups, such as a product\u0027s publication; read that record again to see it.",
         "operationId": "WorkflowApprove",
         "parameters": [
           {
@@ -4412,6 +4464,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WorkflowApproveApprovalRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "No Content"
@@ -44255,6 +44323,20 @@
           }
         }
       },
+      "WorkflowApproveApprovalRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "WorkflowAssignTaskRequest": {
         "required": [
           "assigneeId"
@@ -44267,6 +44349,37 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "WorkflowAuthorityView": {
+        "required": [
+          "approvalType",
+          "roleCode",
+          "limit",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "approvalType": {
+            "type": "string"
+          },
+          "roleCode": {
+            "type": "string"
+          },
+          "limit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

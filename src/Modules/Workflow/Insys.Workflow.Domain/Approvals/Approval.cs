@@ -176,7 +176,8 @@ public sealed class Approval : AggregateRoot<Guid>
     /// Command Approve. <paramref name="checkerAuthority"/> is what the checker's roles allow for this approval type,
     /// from the delegation and approval authority in force.
     /// </summary>
-    public Result Approve(Guid checkerId, IReadOnlyCollection<AuthorityGrant> checkerAuthority, DateTimeOffset now, string? baseCurrency = null)
+    /// <param name="reason">Optional (BR-001): why the checker approved, kept as the decision reason like a rejection's.</param>
+    public Result Approve(Guid checkerId, IReadOnlyCollection<AuthorityGrant> checkerAuthority, DateTimeOffset now, string? baseCurrency = null, string? reason = null)
     {
         var allowed = CheckChecker(checkerId, now);
         if (allowed.IsFailure)
@@ -184,6 +185,42 @@ public sealed class Approval : AggregateRoot<Guid>
             return allowed;
         }
 
+        var covered = CheckAuthority(checkerAuthority, baseCurrency);
+        if (covered.IsFailure)
+        {
+            return covered;
+        }
+
+        var result = Fire(ApprovalTrigger.Approve);
+        if (result.IsSuccess)
+        {
+            CheckerId = checkerId;
+            Decision = "APPROVED";
+            DecisionReason = string.IsNullOrWhiteSpace(reason) ? null : Guard.MaxLength(reason.Trim(), 2000);
+            DecidedAt = now;
+            Raise(new ApprovalGranted(Id, BusinessRefType, BusinessRefId, ApprovalType, MakerId, checkerId, SubjectHash, now));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Whether the checker could approve it now, without approving (BR-004): it is waiting, the checker is not the maker,
+    /// it has not expired, and the checker's authority covers its type and amount.
+    /// </summary>
+    public Result CanApprove(Guid checkerId, IReadOnlyCollection<AuthorityGrant> checkerAuthority, DateTimeOffset now, string? baseCurrency = null)
+    {
+        if (Status != ApprovalStatus.Requested)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "The approval is not waiting for a decision.");
+        }
+
+        var allowed = CheckChecker(checkerId, now);
+        return allowed.IsFailure ? allowed : CheckAuthority(checkerAuthority, baseCurrency);
+    }
+
+    private Result CheckAuthority(IReadOnlyCollection<AuthorityGrant> checkerAuthority, string? baseCurrency)
+    {
         var authority = checkerAuthority.Where(a => a.ApprovalType == ApprovalType).ToList();
         if (authority.Count == 0)
         {
@@ -198,16 +235,7 @@ public sealed class Approval : AggregateRoot<Guid>
                 $"The checker's authority for {ApprovalType} does not cover {amount} {Currency} (WFL-004).");
         }
 
-        var result = Fire(ApprovalTrigger.Approve);
-        if (result.IsSuccess)
-        {
-            CheckerId = checkerId;
-            Decision = "APPROVED";
-            DecidedAt = now;
-            Raise(new ApprovalGranted(Id, BusinessRefType, BusinessRefId, ApprovalType, MakerId, checkerId, SubjectHash, now));
-        }
-
-        return result;
+        return Result.Success();
     }
 
     /// <summary>Command Reject, with a reason. The checker is not the maker.</summary>
