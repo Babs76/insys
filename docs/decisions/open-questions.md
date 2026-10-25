@@ -1038,3 +1038,34 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Built:** English labels: domains and sub-domains from `INSYS_NAVIGATION.md`, functions made from their codes ("Life policies"). The menu returns a translation key and the label in the request's language.
 - **Open:** the wording of function labels, and their translations.
 - **Decided (25 October 2026, Ade):** generated English labels stay for now. The business reviews the wording before go-live, and translations need professional review (Workstream B). **Open: a pre-go-live item.**
+
+### OQ-101 Which regime Health cases follow (Wave 2 cases, `addenda/cases.md` §6)
+- **The gap:** a medical scheme settles disputes through its own rules and the Council for Medical Schemes (Medical Schemes Act s29(1)(j), s47, s48, s50); a health insurance product under the Insurance Acts follows the PPR and the NFO.
+- **Open:** whether INSYS Health serves medical schemes, health insurance products, or both, which decides the Health claim appeal path (F032).
+
+### OQ-102 Partial approval of a claim (F010)
+- **Built:** a settlement below the claimed amount, with a rationale. **Open:** whether a partial approval is its own outcome.
+
+### OQ-103 Reopening Life and Health claims (F013)
+- **Built:** General only. **Proposed:** Life and Health gain a reopen for reassessment after an upheld dispute or appeal (`addenda/cases.md` §2). **Open:** confirm, and their states.
+
+### OQ-104 Redress payments (PPR 18.8.3)
+- **Open:** whether compensation and goodwill payments decided on a complaint are paid through INSYS (Payments, maker-checker) or only recorded.
+
+### OQ-105 Complaint reporting to the Authority (PPR 18.11)
+- **Open:** the prescribed format and frequency; not verified. The report of `addenda/cases.md` §8 gives the 18.8.3 data per category.
+
+### OQ-106 How long case records are kept
+- **Open:** Rule 18 states no period; FAIS requires complaint records for at least 5 years. For compliance to set, with POPIA s14.
+
+### OQ-107 Complaints taken by staff for a caller
+- **Open:** whether a complaint staff record from a call or visit needs the complainant's confirmation before it counts.
+
+### OQ-108 What a broker sees of its clients' cases
+- **Proposed:** cases it raised, and those on records it brokers that staff mark shareable. **Open:** confirm.
+
+### OQ-109 Privileged case functions
+- **Proposed:** deciding an appeal and recording redress. **Open:** confirm.
+
+### OQ-110 Onboarding readiness for cases
+- **Open:** whether the case configuration (`addenda/cases.md` §10) is part of ORGANISATION_AND_ACCESS or a new step.
