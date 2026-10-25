@@ -33,6 +33,9 @@ public enum ApprovalStatus
 {
     Requested,
     Approved,
+
+    /// <summary>Granted, but its record would not take it (it changed after it was submitted): parked for someone to resolve (D-5).</summary>
+    NotApplied,
     Rejected,
     Expired,
     Withdrawn,
@@ -44,6 +47,8 @@ public enum ApprovalTrigger
     Reject,
     Expire,
     WithdrawnByRequester,
+    RecordRefused,
+    RecordApplied,
 }
 
 /// <summary>
@@ -72,7 +77,9 @@ public sealed class Approval : AggregateRoot<Guid>
         .Allow(ApprovalStatus.Requested, ApprovalTrigger.Approve, ApprovalStatus.Approved)
         .Allow(ApprovalStatus.Requested, ApprovalTrigger.Reject, ApprovalStatus.Rejected)
         .Allow(ApprovalStatus.Requested, ApprovalTrigger.Expire, ApprovalStatus.Expired)
-        .Allow(ApprovalStatus.Requested, ApprovalTrigger.WithdrawnByRequester, ApprovalStatus.Withdrawn);
+        .Allow(ApprovalStatus.Requested, ApprovalTrigger.WithdrawnByRequester, ApprovalStatus.Withdrawn)
+        .Allow(ApprovalStatus.Approved, ApprovalTrigger.RecordRefused, ApprovalStatus.NotApplied)
+        .Allow(ApprovalStatus.NotApplied, ApprovalTrigger.RecordApplied, ApprovalStatus.Approved);
 
     private Approval()
     {
@@ -108,6 +115,11 @@ public sealed class Approval : AggregateRoot<Guid>
     public string? Reason { get; private set; }
 
     public string? DecisionReason { get; private set; }
+
+    /// <summary>The consumer (module) that refused the granted approval, while it is NotApplied (D-5).</summary>
+    public string? NotAppliedBy { get; private set; }
+
+    public DateTimeOffset? NotAppliedAt { get; private set; }
 
     /// <summary>
     /// A hash of exactly what is being approved (the payee and their bank details, say), set by the requester. The
@@ -248,6 +260,35 @@ public sealed class Approval : AggregateRoot<Guid>
         by != MakerId
             ? Error.Forbidden(WorkflowErrorCodes.NotRequester, "Only the person who asked for the approval can withdraw it.")
             : Withdraw(reason, now);
+
+    /// <summary>
+    /// The granted approval's record would not take it: its delivery to the owning module parked (APPROVAL_NOT_APPLIED,
+    /// D-5). The checker's decision stands; the approval waits for someone to correct the record and retry, or discard it.
+    /// </summary>
+    public Result MarkNotApplied(string consumer, DateTimeOffset now)
+    {
+        var result = Fire(ApprovalTrigger.RecordRefused);
+        if (result.IsSuccess)
+        {
+            NotAppliedBy = Guard.MaxLength(Guard.NotNullOrWhiteSpace(consumer), 100);
+            NotAppliedAt = now;
+        }
+
+        return result;
+    }
+
+    /// <summary>A retry of the parked delivery succeeded: the record took the granted approval after all.</summary>
+    public Result MarkApplied()
+    {
+        var result = Fire(ApprovalTrigger.RecordApplied);
+        if (result.IsSuccess)
+        {
+            NotAppliedBy = null;
+            NotAppliedAt = null;
+        }
+
+        return result;
+    }
 
     /// <summary>Command Expire: transition "Time limit reached". The owning module is told, as for a rejection.</summary>
     public Result Expire(DateTimeOffset now)

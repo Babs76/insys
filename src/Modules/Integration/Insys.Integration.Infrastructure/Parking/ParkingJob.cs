@@ -333,18 +333,8 @@ public sealed class ParkingJob(
                     await update.ExecuteNonQueryAsync(cancellationToken);
                 }
 
-                var type = IntegrationEventTypes.Describe(typeof(ParkedDeliveryEscalated));
-                await using var insert = ParkedRows.Command("""
-                    INSERT INTO integration.outbox_event
-                      (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, aggregate_type, aggregate_id, event_type, event_version,
-                       payload, occurred_at, correlation_id, causation_id, published_at, publish_attempts)
-                    VALUES (@tenant_id, @id, 1, @now, @actor, @now, @actor, 'ParkedDelivery', @aggregate_id, @event_type, @event_version,
-                       @payload::jsonb, @now, @correlation_id, NULL, NULL, 0)
-                    """, connection, transaction,
-                    ("tenant_id", tenantId), ("id", Guid.CreateVersion7()), ("now", now), ("actor", ServiceName), ("aggregate_id", group.Oldest),
-                    ("event_type", type.Type), ("event_version", type.Version), ("payload", JsonSerializer.Serialize(escalated, ModuleDbContext.EventJson)),
-                    ("correlation_id", Guid.CreateVersion7()));
-                return await insert.ExecuteNonQueryAsync(cancellationToken);
+                await ParkedRows.Publish(connection, transaction, tenantId, group.Oldest, escalated, now, ServiceName, Guid.CreateVersion7(), cancellationToken);
+                return 1;
             }, cancellationToken);
 
             var tenantName = await TenantName.Of(services, tenantId, cancellationToken);

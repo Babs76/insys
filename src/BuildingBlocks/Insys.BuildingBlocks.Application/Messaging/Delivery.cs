@@ -101,6 +101,12 @@ public static class PrerequisiteCodes
     /// </summary>
     public const string ApprovalEndingNotApplied = "APPROVAL_ENDING_NOT_APPLIED";
 
+    /// <summary>
+    /// Item: the approval type and ID. The record would not take a granted approval (it changed after it was submitted).
+    /// Parked and escalated, never only logged; Workflow marks the approval not applied and tells the requester (D-5).
+    /// </summary>
+    public const string ApprovalNotApplied = "APPROVAL_NOT_APPLIED";
+
     /// <summary>Item: the JOB function (ADR-026 §2): the tenant disabled it, or is not entitled to its feature. Enabling it retries the delivery.</summary>
     public const string FunctionDisabled = "FUNCTION_DISABLED";
 }

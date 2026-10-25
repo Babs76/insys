@@ -157,6 +157,56 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         problems.ShouldBeEmpty($"{approvalType} {ending}:{Environment.NewLine}{string.Join(Environment.NewLine, problems)}");
     }
 
+    public static TheoryData<string> Types => new(Cases.Keys);
+
+    /// <summary>
+    /// D-5, extended (25 October 2026): a granted approval its record will not take, because the record changed after it was
+    /// submitted, is never only logged. The module's delivery parks (APPROVAL_NOT_APPLIED, with an alert), the approval is
+    /// NOT_APPLIED naming the module, the requester gets a follow-up task, and the record is left as the change left it.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Types))]
+    public async Task AGrantTheRecordWillNotTake_Parks_IsMarkedNotApplied_AndTellsTheRequester_D5(string approvalType)
+    {
+        var @case = Cases[approvalType];
+        @case.Refuse.ShouldNotBeNull($"{approvalType} has no change that makes its record refuse the approval");
+        var world = await World.Create(fixture, _factory, @case);
+        var waiting = await @case.Setup(world);
+        await _factory.DrainOutbox();
+        var approval = (await fixture.Database.ScalarAsOwner<Guid?>("""
+            SELECT id FROM workflow.approval WHERE tenant_id = @t AND business_ref_type = @r AND business_ref_id = @i AND status = 'REQUESTED'
+            """, ("t", world.Tenant), ("r", waiting.BusinessRefType), ("i", waiting.BusinessRefId))).ShouldNotBeNull();
+
+        await @case.Refuse(world, waiting);
+        var problems = new List<string>();
+        if (await End(world, approval, Approved) is { } failed)
+        {
+            problems.Add(failed);
+        }
+        else
+        {
+            await _factory.DrainOutbox();
+            Expect(problems, "approval status", await fixture.Database.ScalarAsOwner<string>("SELECT status FROM workflow.approval WHERE id = @a", ("a", approval)),
+                "NOT_APPLIED");
+            Expect(problems, "approval not applied by",
+                await fixture.Database.ScalarAsOwner<string>("SELECT not_applied_by FROM workflow.approval WHERE id = @a", ("a", approval)) is { Length: > 0 } ? "a module" : null,
+                "a module");
+            Expect(problems, $"record after the refused approval", await waiting.State(), @case.WhenRefused);
+            var parked = await fixture.Database.ScalarAsOwner<long>("""
+                SELECT count(*) FROM integration.parked_delivery
+                WHERE tenant_id = @t AND status = 'PARKED' AND prerequisite_code = 'APPROVAL_NOT_APPLIED' AND prerequisite_item LIKE '%' || @a
+                """, ("t", world.Tenant), ("a", approval.ToString()));
+            Expect(problems, "parked APPROVAL_NOT_APPLIED deliveries", parked.ToString(), "1");
+            var followUps = await fixture.Database.ScalarAsOwner<long>("""
+                SELECT count(*) FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
+                WHERE p.tenant_id = @t AND p.process_code = 'APPROVAL_FOLLOW_UP' AND p.business_ref_id = @r AND t.assignee_id = @m
+                """, ("t", world.Tenant), ("r", waiting.BusinessRefId), ("m", world.MakerId));
+            Expect(problems, "the requester's APPROVAL_FOLLOW_UP tasks", followUps.ToString(), "1");
+        }
+
+        problems.ShouldBeEmpty($"{approvalType} refused:{Environment.NewLine}{string.Join(Environment.NewLine, problems)}");
+    }
+
     private async Task<string?> End(World world, Guid approval, string ending)
     {
         if (ending == Expired)
@@ -227,8 +277,10 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
     /// <param name="WhenApproved">Its state once approved (and any follow-on state the module reaches by itself).</param>
     /// <param name="WhenNotApproved">Its state once rejected, expired or withdrawn.</param>
     /// <param name="Operator">The record is the platform operator's (a first tenant administrator).</param>
+    /// <param name="Refuse">Changes the waiting record, as a user or the module could after it was submitted, so that it will not take the approval (D-5).</param>
+    /// <param name="WhenRefused">Its state once the approval is granted after that change: as the change left it.</param>
     private sealed record Case(string[] Permissions, string[] AuthorityTypes, Func<World, Task<Waiting>> Setup, string WhileWaiting, string[] WhenApproved,
-        string WhenNotApproved, bool Operator = false);
+        string WhenNotApproved, bool Operator = false, Func<World, Waiting, Task>? Refuse = null, string? WhenRefused = null);
 
     /// <param name="State">The record's state, as a short text compared with the case's expected states.</param>
     /// <param name="View">The record's own view, for latestRejection.</param>

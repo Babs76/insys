@@ -44,6 +44,19 @@ public sealed record ParkedDeliveryEscalated(Guid ParkedDeliveryId, int Level, s
 }
 
 /// <summary>
+/// A delivery was parked for the first time (ADR-022): the consumer could not apply the event for the reason the code and
+/// item name. The module that owns the event acts on it where it needs to, for example Workflow marking a granted
+/// approval not applied (APPROVAL_NOT_APPLIED, D-5). Names configuration and IDs only, never a party or payload.
+/// </summary>
+/// <param name="EventType">The parked event's type, for example workflow.ApprovalGranted.</param>
+[IntegrationEvent("integration.DeliveryParked")]
+public sealed record DeliveryParked(Guid ParkedDeliveryId, string Consumer, string Code, string? Item, string EventType, Guid EventId) : IIntegrationEvent;
+
+/// <summary>A parked delivery was retried and the consumer applied it after all (ADR-022); the code and item are why it had parked.</summary>
+[IntegrationEvent("integration.ParkedDeliveryResolved")]
+public sealed record ParkedDeliveryResolved(Guid ParkedDeliveryId, string Consumer, string Code, string? Item, string EventType, Guid EventId) : IIntegrationEvent;
+
+/// <summary>
 /// Public query interface: the tenant's configuration owner role, from its parking setting (ADR-022 decision 6), or the
 /// default. Other alerts about missing or unusable configuration go to the same role (F009).
 /// </summary>

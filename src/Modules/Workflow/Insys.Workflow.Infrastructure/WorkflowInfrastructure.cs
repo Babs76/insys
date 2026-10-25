@@ -65,6 +65,8 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<ApprovalWithdrawn, WithdrawApprovalPolicy, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Contracts.SlaBreached, EscalateOnSlaBreach, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Integration.Contracts.ParkedDeliveryEscalated, OpenParkedDeliveryTask, WorkflowDbContext>(schema);
+        services.AddIntegrationEventHandler<Integration.Contracts.DeliveryParked, ApprovalNotAppliedPolicy, WorkflowDbContext>(schema);
+        services.AddIntegrationEventHandler<Integration.Contracts.ParkedDeliveryResolved, ApprovalAppliedPolicy, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<ClaimsFramework.Contracts.FraudIndicatorsNotEvaluated, OpenConfigurationReviewTask, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<ClaimsFramework.Contracts.ClaimPaymentReleaseHeld, OpenHeldClaimPaymentTask, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Party.Contracts.PartyMatchReviewRequested, OpenPartyMatchReviewTask, WorkflowDbContext>(schema);

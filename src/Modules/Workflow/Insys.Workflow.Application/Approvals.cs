@@ -68,7 +68,7 @@ public interface IAuthorityReader
 
 public sealed record ApprovalView(Guid Id, string BusinessRefType, Guid BusinessRefId, string ApprovalType, Guid MakerId, Guid? CheckerId, ApprovalStatus Status,
     decimal? Amount, string? Currency, string? Reason, string? DecisionReason, DateTimeOffset RequestedAt, DateTimeOffset? DecidedAt, DateTimeOffset? ExpiresAt,
-    string? SubjectHash, string? RequiredPermission, long RowVersion);
+    string? SubjectHash, string? RequiredPermission, long RowVersion, string? NotAppliedBy = null, DateTimeOffset? NotAppliedAt = null);
 
 public interface IApprovalQueries
 {
@@ -359,6 +359,56 @@ public sealed class WithdrawApprovalPolicy(IApprovalRepository approvals, Reques
             && approval.Withdraw(withdrawn.Reason, clock.UtcNow).IsSuccess)
         {
             await followUp.Open(approval, Contracts.ApprovalEndings.Withdrawn, cancellationToken);
+        }
+    }
+}
+
+/// <summary>
+/// Workflow's policy for integration.DeliveryParked (D-5, extended): a granted approval whose record would not take it
+/// (its delivery parked as APPROVAL_NOT_APPLIED) is marked not applied, with the module that refused it, and the requester
+/// gets a follow-up task. The parked delivery itself is alerted, escalated and retried under ADR-022.
+/// </summary>
+public sealed class ApprovalNotAppliedPolicy(IApprovalRepository approvals, RequesterFollowUp followUp, IClock clock, IAuditTrail audit)
+    : IIntegrationEventHandler<Integration.Contracts.DeliveryParked>
+{
+    public const string FollowUpReason = "NOT_APPLIED";
+
+    public async Task Handle(Integration.Contracts.DeliveryParked parked, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (ApprovalOf(parked.Code, parked.EventType, parked.Item) is not { } approvalId || await approvals.Get(approvalId, cancellationToken) is not { } approval)
+        {
+            return;
+        }
+
+        if (approval.MarkNotApplied(parked.Consumer, clock.UtcNow).IsSuccess)
+        {
+            audit.Record(new AuditEntry("APPROVAL", "MarkNotApplied", nameof(Approval), approval.Id.ToString(),
+                new Dictionary<string, string?> { ["consumer"] = parked.Consumer, ["parkedDelivery"] = parked.ParkedDeliveryId.ToString() }));
+            await followUp.Open(approval, FollowUpReason, cancellationToken);
+        }
+    }
+
+    /// <summary>The approval a parked or resolved delivery is about: a granted approval parked as APPROVAL_NOT_APPLIED, item "TYPE:id".</summary>
+    internal static Guid? ApprovalOf(string code, string eventType, string? item) =>
+        code == PrerequisiteCodes.ApprovalNotApplied && eventType == IntegrationEventTypes.Describe(typeof(Contracts.ApprovalGranted)).Type
+        && item?.LastIndexOf(':') is int colon and >= 0 && Guid.TryParse(item[(colon + 1)..], out var id)
+            ? id
+            : null;
+}
+
+/// <summary>
+/// Workflow's policy for integration.ParkedDeliveryResolved: a retry of a not-applied approval's delivery succeeded, so the
+/// record took it after all and the approval is approved again (D-5).
+/// </summary>
+public sealed class ApprovalAppliedPolicy(IApprovalRepository approvals, IAuditTrail audit) : IIntegrationEventHandler<Integration.Contracts.ParkedDeliveryResolved>
+{
+    public async Task Handle(Integration.Contracts.ParkedDeliveryResolved resolved, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (ApprovalNotAppliedPolicy.ApprovalOf(resolved.Code, resolved.EventType, resolved.Item) is { } approvalId
+            && await approvals.Get(approvalId, cancellationToken) is { } approval && approval.MarkApplied().IsSuccess)
+        {
+            audit.Record(new AuditEntry("APPROVAL", "MarkApplied", nameof(Approval), approval.Id.ToString(),
+                new Dictionary<string, string?> { ["consumer"] = resolved.Consumer, ["parkedDelivery"] = resolved.ParkedDeliveryId.ToString() }));
         }
     }
 }

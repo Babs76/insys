@@ -77,6 +77,7 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
             approval.Property(a => a.ApprovalType).HasMaxLength(30);
             approval.Property(a => a.Status).HasConversion(new UpperCaseEnumConverter<ApprovalStatus>()).HasMaxLength(12);
             approval.Property(a => a.Decision).HasMaxLength(10);
+            approval.Property(a => a.NotAppliedBy).HasMaxLength(100);
             approval.Property(a => a.Amount).HasColumnName("authority_limit").HasPrecision(18, 2);
             approval.Property(a => a.Currency).HasColumnType("char(3)");
             approval.Property(a => a.SubjectHash).HasMaxLength(64);

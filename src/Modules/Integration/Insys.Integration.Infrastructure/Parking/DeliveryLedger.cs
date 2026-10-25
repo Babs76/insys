@@ -30,6 +30,7 @@ using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Infrastructure.Messaging;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
+using Insys.Integration.Contracts;
 using Insys.Integration.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -115,6 +116,25 @@ internal static class ParkedRows
         return result;
     }
 
+    /// <summary>Writes an Integration event to the module's outbox in the caller's transaction (DBA-006).</summary>
+    public static async Task Publish<TEvent>(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid tenantId, Guid aggregateId, TEvent integrationEvent,
+        DateTimeOffset now, string actor, Guid correlationId, CancellationToken cancellationToken)
+        where TEvent : IIntegrationEvent
+    {
+        var type = IntegrationEventTypes.Describe(typeof(TEvent));
+        await using var insert = Command("""
+            INSERT INTO integration.outbox_event
+              (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, aggregate_type, aggregate_id, event_type, event_version,
+               payload, occurred_at, correlation_id, causation_id, published_at, publish_attempts)
+            VALUES (@tenant_id, @id, 1, @now, @actor, @now, @actor, 'ParkedDelivery', @aggregate_id, @event_type, @event_version,
+               @payload::jsonb, @now, @correlation_id, NULL, NULL, 0)
+            """, connection, transaction,
+            ("tenant_id", tenantId), ("id", Guid.CreateVersion7()), ("now", now), ("actor", actor), ("aggregate_id", aggregateId),
+            ("event_type", type.Type), ("event_version", type.Version), ("payload", JsonSerializer.Serialize(integrationEvent, ModuleDbContext.EventJson)),
+            ("correlation_id", correlationId));
+        await insert.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public static NpgsqlCommand Command(string sql, NpgsqlConnection connection, NpgsqlTransaction transaction, params (string Name, object? Value)[] parameters)
     {
         var command = new NpgsqlCommand(sql, connection, transaction);
@@ -181,6 +201,8 @@ public sealed class PostgresDeliveryLedger(
         var now = clock.UtcNow;
         var firstOfKind = await ParkedRows.InTenant(dataSource, envelope.TenantId, async (connection, transaction) =>
         {
+            Guid id;
+            bool first, newlyParked;
             await using var command = Upsert(envelope, consumer, connection, transaction, now, "PARKED", ledgerOwned: true, code, item, parkedAt: now, failures: 0, nextAttemptAt: null,
                 $"""
                 status = 'PARKED', ledger_owned = true, prerequisite_code = EXCLUDED.prerequisite_code, prerequisite_item = EXCLUDED.prerequisite_item,
@@ -188,12 +210,29 @@ public sealed class PostgresDeliveryLedger(
                 last_attempt_at = @now, next_attempt_at = NULL, retry_requested_at = NULL, {Touch}
                 """,
                 """
-                RETURNING xmax = 0 AND NOT EXISTS (
+                RETURNING id, xmax = 0 AND NOT EXISTS (
                   SELECT 1 FROM integration.parked_delivery o
                   WHERE o.tenant_id = @tenant_id AND o.status = 'PARKED' AND o.consumer = @consumer AND o.prerequisite_code = @code
-                    AND o.prerequisite_item IS NOT DISTINCT FROM @item AND o.event_id <> @event_id)
+                    AND o.prerequisite_item IS NOT DISTINCT FROM @item AND o.event_id <> @event_id),
+                  -- Parked for the first time: no earlier row, or one that had never parked (it was failing).
+                  NOT EXISTS (SELECT 1 FROM prior WHERE prior.parked_at IS NOT NULL)
+                """,
+                """
+                WITH prior AS (SELECT parked_at FROM integration.parked_delivery WHERE tenant_id = @tenant_id AND consumer = @consumer AND event_id = @event_id)
                 """);
-            return await command.ExecuteScalarAsync(cancellationToken) is true;
+            await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                await reader.ReadAsync(cancellationToken);
+                (id, first, newlyParked) = (reader.GetGuid(0), reader.GetBoolean(1), reader.GetBoolean(2));
+            }
+
+            if (newlyParked)
+            {
+                await ParkedRows.Publish(connection, transaction, envelope.TenantId, id, new DeliveryParked(id, consumer, code, item, envelope.EventType, envelope.EventId),
+                    now, Actor, envelope.CorrelationId, cancellationToken);
+            }
+
+            return first;
         }, cancellationToken);
 
         if (firstOfKind)
@@ -229,11 +268,34 @@ public sealed class PostgresDeliveryLedger(
         }, cancellationToken);
     }
 
+    /// <summary>Resolves the delivery; one that had parked publishes ParkedDeliveryResolved in the same transaction.</summary>
     public Task Resolve(EventEnvelope envelope, string consumer, CancellationToken cancellationToken) =>
-        Update(envelope.TenantId, $"""
-            UPDATE integration.parked_delivery SET status = 'RESOLVED', resolved_at = @now, {Touch}
-            WHERE tenant_id = @tenant_id AND consumer = @consumer AND event_id = @event_id AND status NOT IN ('RESOLVED', 'DISCARDED')
-            """, cancellationToken, ("consumer", consumer), ("event_id", envelope.EventId));
+        ParkedRows.InTenant(dataSource, envelope.TenantId, async (connection, transaction) =>
+        {
+            var now = clock.UtcNow;
+            (Guid Id, string Code, string? Item)? parked = null;
+            await using (var command = ParkedRows.Command($"""
+                UPDATE integration.parked_delivery SET status = 'RESOLVED', resolved_at = @now, {Touch}
+                WHERE tenant_id = @tenant_id AND consumer = @consumer AND event_id = @event_id AND status NOT IN ('RESOLVED', 'DISCARDED')
+                RETURNING id, prerequisite_code, prerequisite_item, parked_at IS NOT NULL
+                """, connection, transaction,
+                ("tenant_id", envelope.TenantId), ("consumer", consumer), ("event_id", envelope.EventId), ("now", now), ("actor", Actor)))
+            await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                if (await reader.ReadAsync(cancellationToken) && reader.GetBoolean(3) && !reader.IsDBNull(1))
+                {
+                    parked = (reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2));
+                }
+            }
+
+            if (parked is { } p)
+            {
+                await ParkedRows.Publish(connection, transaction, envelope.TenantId, p.Id,
+                    new ParkedDeliveryResolved(p.Id, consumer, p.Code, p.Item, envelope.EventType, envelope.EventId), now, Actor, envelope.CorrelationId, cancellationToken);
+            }
+
+            return 0;
+        }, cancellationToken);
 
     public Task DeadLettered(EventEnvelope envelope, IEnumerable<string> consumers, CancellationToken cancellationToken) =>
         Update(envelope.TenantId, $"""
@@ -276,8 +338,9 @@ public sealed class PostgresDeliveryLedger(
 
     private static NpgsqlCommand Upsert(EventEnvelope envelope, string consumer, NpgsqlConnection connection, NpgsqlTransaction transaction, DateTimeOffset now,
         string status, bool ledgerOwned, string? code, string? item, DateTimeOffset? parkedAt, int failures, DateTimeOffset? nextAttemptAt, string? onConflict,
-        string? returning) =>
+        string? returning, string? with = null) =>
         ParkedRows.Command($"""
+            {with}
             INSERT INTO integration.parked_delivery {InsertColumns}
             VALUES {InsertValues}
             ON CONFLICT (tenant_id, consumer, event_id) {(onConflict is null ? "DO NOTHING" : "DO UPDATE SET " + onConflict)}

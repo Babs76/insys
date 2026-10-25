@@ -46,6 +46,8 @@ public sealed class ApprovalTests
     public void Approval_Lifecycle_MatchesDomainModel()
     {
         var specified = DomainModelSpec.Transitions("workflow", "Approval").Select(t => t.Replace("Time limit reached", "Expire", StringComparison.Ordinal).Replace("Withdrawn by requester", "WithdrawnByRequester", StringComparison.Ordinal))
+            // D-5, extended (25 October 2026): a granted approval its record will not take; domain-model.json has no such state.
+            .Concat(["Approved-RecordRefused->NotApplied", "NotApplied-RecordApplied->Approved"])
             .OrderBy(t => t, StringComparer.Ordinal).ToList();
         Approval.Lifecycle.Transitions.Select(t => $"{t.From}-{t.Trigger}->{t.To}").OrderBy(t => t, StringComparer.Ordinal).ToList().ShouldBe(specified);
     }
