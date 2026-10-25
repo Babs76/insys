@@ -107,7 +107,13 @@ public sealed record ListScopedAssignments : IQuery<IReadOnlyList<ScopedAssignme
 
 public sealed record UserView(
     Guid Id, string Username, string DisplayName, string IdpCode, string? ExternalSubject, UserStatus Status, bool MfaEnrolled, DateTimeOffset? LastLoginAt,
-    IReadOnlyList<RoleAssignmentView> RoleAssignments, long RowVersion, string? Email = null);
+    IReadOnlyList<RoleAssignmentView> RoleAssignments, long RowVersion, string? Email = null, ExternalSubjectLinkView? ExternalSubjectLink = null);
+
+/// <summary>
+/// The user's external-subject link on their view (BR-010): the pending or active one, else the latest. Key is the party
+/// ID, intermediary code or provider ID, by kind; approvalId is the Workflow approval while the link waits for it.
+/// </summary>
+public sealed record ExternalSubjectLinkView(Guid Id, SubjectKind Kind, string Key, SubjectLinkStatus Status, Guid? ApprovalId);
 
 public interface IUserQueries
 {

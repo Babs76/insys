@@ -82,10 +82,17 @@ public sealed class ExternalUserLinkTests(DatabaseFixture fixture) : IClassFixtu
         await _factory.DrainOutbox();
         var approval = (await (await admin.GetAsync($"/api/v1/workflow/approvals?status=Requested&businessRefType={IdentityApprovals.SubjectLinkBusinessRefType}"
             + $"&businessRefId={link.GetProperty("id").GetGuid()}")).Json()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        // BR-010: the user's own view shows the link, with the approval it waits for.
+        var shown = (await (await admin.GetAsync($"/api/v1/identity/users/{user}")).Json()).GetProperty("externalSubjectLink");
+        (shown.GetProperty("kind").GetString(), shown.GetProperty("key").GetString(), shown.GetProperty("status").GetString(), shown.GetProperty("approvalId").GetGuid())
+            .ShouldBe(("Party", party.ToString(), "Pending", approval));
         (await (await admin.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
         (await _factory.ClientFor(Tenant, "link-checker").Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode
             .ShouldBe(HttpStatusCode.NoContent);
         await _factory.DrainOutbox();
+
+        var active = (await (await admin.GetAsync($"/api/v1/identity/users/{user}")).Json()).GetProperty("externalSubjectLink");
+        (active.GetProperty("status").GetString(), active.GetProperty("approvalId").ValueKind).ShouldBe(("Active", System.Text.Json.JsonValueKind.Null));
 
         // Linked, the user is external: only through the member portal's channel.
         (await (await person.GetAsync("/api/v1/identity/me")).Code()).ShouldBe("CHANNEL_NOT_ENABLED");

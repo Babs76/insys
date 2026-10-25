@@ -13,6 +13,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **Decidable approvals (BR-004):** `GET /workflow/approvals?decidable=true`: only approvals the signed-in user can decide now (waiting, someone else's, in scope, with any permission the requester named, within their authority for the type and amount), with the same cursor paging; `status` is ignored with it.
 - **Approval kinds (BR-005):** `approvalType` (on `ApprovalView`, `latestRejection` and `my-authority`) and `businessRefType` (on `ApprovalView`) are enums of the 18 declared values. `ApprovalView.screen` names the SCREEN function (its code) that opens the record, for example `PAYMENT_PAYOUT_BATCHES`; the console maps it to its route. An approval of an undeclared kind is refused by Workflow.
 - **Approval status `NotApplied`** (D-5): a granted approval its record would not take; `notAppliedBy` (the module) and `notAppliedAt` are set while it is. It returns to `Approved` if a retry applies it. The requester gets an `APPROVAL_FOLLOW_UP` task; the delivery parks as `APPROVAL_NOT_APPLIED`.
+- **External-subject link on the user view (BR-010):** `UserView.externalSubjectLink` `{id, kind, key, status, approvalId}`: the pending or active link, else the latest, or null. `key` is the party ID, intermediary code or provider ID by `kind`; `approvalId` is the Workflow approval while the link is `Pending`.
 - **MFA (BR-008):** integration guide §5; no contract change.
 
 ### Contract metadata (Wave 2 batch 1's API review)

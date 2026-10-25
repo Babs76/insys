@@ -121,4 +121,7 @@ public interface IApprovalHistory
 {
     /// <summary>For the current tenant: the most recent of the record's approvals that ended without being granted, or null if none did.</summary>
     Task<LatestRejection?> Latest(string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
+
+    /// <summary>For the current tenant: the ID of the record's approval waiting for a decision, or null if none waits (BR-010).</summary>
+    Task<Guid?> Waiting(string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
 }

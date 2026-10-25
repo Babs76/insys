@@ -53,11 +53,11 @@ internal sealed class UserRepository(IdentityDbContext db) : IUserRepository
     public void Add(UserAccount user) => db.Users.Add(user);
 }
 
-internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles, IClock clock) : IUserQueries
+internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles, IClock clock, Workflow.Contracts.IApprovalHistory approvals) : IUserQueries
 {
     public async Task<IReadOnlyList<UserView>> List(Guid? afterId, int limit, CancellationToken cancellationToken)
     {
-        var query = db.Users.AsNoTracking().Include(u => u.RoleAssignments).AsQueryable();
+        var query = db.Users.AsNoTracking().Include(u => u.RoleAssignments).Include(u => u.SubjectLinks).AsQueryable();
         if (afterId is not null)
         {
             query = query.Where(u => u.Id.CompareTo(afterId.Value) > 0);
@@ -67,7 +67,7 @@ internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles,
     }
 
     public async Task<UserView?> Get(Guid userId, CancellationToken cancellationToken) =>
-        await db.Users.AsNoTracking().Include(u => u.RoleAssignments).SingleOrDefaultAsync(u => u.Id == userId, cancellationToken) is { } user
+        await db.Users.AsNoTracking().Include(u => u.RoleAssignments).Include(u => u.SubjectLinks).SingleOrDefaultAsync(u => u.Id == userId, cancellationToken) is { } user
             ? (await Views([user], cancellationToken))[0]
             : null;
 
@@ -83,12 +83,24 @@ internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles,
     {
         var facts = (await roles.Roles(users.SelectMany(u => u.RoleAssignments).Select(a => a.RoleCode), clock.UtcToday, cancellationToken))
             .ToDictionary(r => r.RoleCode, StringComparer.Ordinal);
+        var links = new Dictionary<Guid, ExternalSubjectLinkView>();
+        foreach (var user in users)
+        {
+            if (user.SubjectLinks.OrderByDescending(l => l.Status is SubjectLinkStatus.Pending or SubjectLinkStatus.Active).ThenByDescending(l => l.Id).FirstOrDefault() is { } link)
+            {
+                links[user.Id] = new ExternalSubjectLinkView(link.Id, link.Kind, link.PartyId?.ToString() ?? link.IntermediaryCode ?? link.ProviderId ?? "", link.Status,
+                    link.Status == SubjectLinkStatus.Pending
+                        ? await approvals.Waiting(Contracts.IdentityApprovals.SubjectLinkBusinessRefType, link.Id, cancellationToken)
+                        : null);
+            }
+        }
+
         return users.Select(u => new UserView(u.Id, u.Username, u.DisplayName, u.IdpCode, u.ExternalSubject, u.Status, u.MfaEnrolled, u.LastLoginAt,
             u.RoleAssignments.OrderBy(a => a.ValidFrom)
                 .Select(a => new RoleAssignmentView(a.Id, a.RoleCode, a.Status, a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, a.AssignedBy,
                     a.ApprovedBy, facts[a.RoleCode].Privileged, facts[a.RoleCode].RequiresMfa, facts[a.RoleCode].Privileged, a.RevokedAt, a.RevokedBy))
                 .ToList(),
-            u.RowVersion, u.Email)).ToList();
+            u.RowVersion, u.Email, links.GetValueOrDefault(u.Id))).ToList();
     }
 }
 

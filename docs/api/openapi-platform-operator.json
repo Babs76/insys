@@ -56805,6 +56805,26 @@
             "type": "string"
           },
           "approvalType": {
+            "enum": [
+              "BANK_ACCOUNT_VERIFICATION",
+              "CLAIM_PAYMENT",
+              "CLAIM_SETTLEMENT",
+              "COMMISSION_STATEMENT",
+              "ENDORSEMENT",
+              "EXTERNAL_SUBJECT_LINK",
+              "LIFE_CLAIM",
+              "LIFE_UNDERWRITING",
+              "PARTY_MATCH_RESOLUTION",
+              "PAYOUT_RELEASE",
+              "PERIOD_REOPEN",
+              "PRIVILEGED_ROLE",
+              "PRODUCT_PUBLICATION",
+              "PROVIDER_PAYMENT_RUN",
+              "REFUND",
+              "STATIC_DATA_T1",
+              "STATIC_DATA_T2",
+              "TENANT_ADMINISTRATOR"
+            ],
             "type": "string"
           },
           "by": {

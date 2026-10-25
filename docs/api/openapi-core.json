@@ -37058,6 +37058,38 @@
           "Revoked"
         ]
       },
+      "IdentityExternalSubjectLinkView": {
+        "required": [
+          "id",
+          "kind",
+          "key",
+          "status",
+          "approvalId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/IdentitySubjectKind"
+          },
+          "key": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IdentitySubjectLinkStatus"
+          },
+          "approvalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "IdentityGrantStatus": {
         "enum": [
           "Requested",
@@ -38231,6 +38263,16 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "externalSubjectLink": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IdentityExternalSubjectLinkView"
+              }
             ]
           }
         }
@@ -44220,6 +44262,26 @@
             "format": "uuid"
           },
           "businessRefType": {
+            "enum": [
+              "ACCOUNTING_PERIOD",
+              "BANK_ACCOUNT",
+              "CLAIM_PAYMENT",
+              "COMMISSION_STATEMENT",
+              "GENERAL_CLAIM",
+              "GENERAL_ENDORSEMENT",
+              "GOVERNANCE_SETTING",
+              "HEALTH_PAYMENT_RUN",
+              "LIFE_CLAIM",
+              "LIFE_UNDERWRITING_CASE",
+              "PARTY_MATCH",
+              "PAYOUT_BATCH",
+              "PRODUCT_VERSION",
+              "REFUND_REQUEST",
+              "ROLE_ASSIGNMENT",
+              "STATIC_DATA_CHANGE",
+              "SUBJECT_LINK",
+              "TENANT_ADMIN_REQUEST"
+            ],
             "type": "string"
           },
           "businessRefId": {
@@ -44227,6 +44289,26 @@
             "format": "uuid"
           },
           "approvalType": {
+            "enum": [
+              "BANK_ACCOUNT_VERIFICATION",
+              "CLAIM_PAYMENT",
+              "CLAIM_SETTLEMENT",
+              "COMMISSION_STATEMENT",
+              "ENDORSEMENT",
+              "EXTERNAL_SUBJECT_LINK",
+              "LIFE_CLAIM",
+              "LIFE_UNDERWRITING",
+              "PARTY_MATCH_RESOLUTION",
+              "PAYOUT_RELEASE",
+              "PERIOD_REOPEN",
+              "PRIVILEGED_ROLE",
+              "PRODUCT_PUBLICATION",
+              "PROVIDER_PAYMENT_RUN",
+              "REFUND",
+              "STATIC_DATA_T1",
+              "STATIC_DATA_T2",
+              "TENANT_ADMINISTRATOR"
+            ],
             "type": "string"
           },
           "makerId": {
@@ -44320,6 +44402,12 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "screen": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -44362,6 +44450,26 @@
         "type": "object",
         "properties": {
           "approvalType": {
+            "enum": [
+              "BANK_ACCOUNT_VERIFICATION",
+              "CLAIM_PAYMENT",
+              "CLAIM_SETTLEMENT",
+              "COMMISSION_STATEMENT",
+              "ENDORSEMENT",
+              "EXTERNAL_SUBJECT_LINK",
+              "LIFE_CLAIM",
+              "LIFE_UNDERWRITING",
+              "PARTY_MATCH_RESOLUTION",
+              "PAYOUT_RELEASE",
+              "PERIOD_REOPEN",
+              "PRIVILEGED_ROLE",
+              "PRODUCT_PUBLICATION",
+              "PROVIDER_PAYMENT_RUN",
+              "REFUND",
+              "STATIC_DATA_T1",
+              "STATIC_DATA_T2",
+              "TENANT_ADMINISTRATOR"
+            ],
             "type": "string"
           },
           "roleCode": {
@@ -44456,6 +44564,26 @@
             "type": "string"
           },
           "approvalType": {
+            "enum": [
+              "BANK_ACCOUNT_VERIFICATION",
+              "CLAIM_PAYMENT",
+              "CLAIM_SETTLEMENT",
+              "COMMISSION_STATEMENT",
+              "ENDORSEMENT",
+              "EXTERNAL_SUBJECT_LINK",
+              "LIFE_CLAIM",
+              "LIFE_UNDERWRITING",
+              "PARTY_MATCH_RESOLUTION",
+              "PAYOUT_RELEASE",
+              "PERIOD_REOPEN",
+              "PRIVILEGED_ROLE",
+              "PRODUCT_PUBLICATION",
+              "PROVIDER_PAYMENT_RUN",
+              "REFUND",
+              "STATIC_DATA_T1",
+              "STATIC_DATA_T2",
+              "TENANT_ADMINISTRATOR"
+            ],
             "type": "string"
           },
           "by": {
