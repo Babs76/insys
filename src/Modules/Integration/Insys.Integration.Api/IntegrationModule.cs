@@ -98,7 +98,9 @@ public sealed class IntegrationModule : IModule
             .Produces<DeadLetterDetail>(StatusCodes.Status200OK)
             .WithName("GetDeadLetter")
             .WithSummary("Get a dead-lettered message")
-            .WithDescription("Returns the dead letter with its original event envelope. The ETag is required to replay or discard it.")
+            .WithDescription("Returns the dead letter with its original event envelope. The ETag is required to replay or discard it. error never holds "
+                + "the message body or personal data: it is the failing exception's type, \"HTTP <status>\" from a webhook endpoint, or a fixed sentence "
+                + "(BR-017). The payload is the event as published: it carries identifiers only (INT-007), but the console may still hide it.")
             .Produces<DeadLetterDetail>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .RequirePermission(IntegrationPermissions.DeadLetterRead);

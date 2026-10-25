@@ -137,6 +137,9 @@ public static class StaticDataEndpoints
                 .Produces<IReadOnlyList<TEntity>>(StatusCodes.Status200OK)
                 .WithName($"List{Pascal(d)}Versions{suffix}")
                 .WithSummary($"List every {owner} version of a {entityName} code")
+                .WithDescription("Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, "
+                    + "retire), send If-Match with its rowVersion in double quotes, for example If-Match: \"3\" for rowVersion 3: the same entity tag every "
+                    + "INSYS ETag header uses (BR-014).")
                 .Secure(global, StaticDataPermissions.Read);
 
             if (readOnly || (global ? !d.AllowsGlobalRows : !d.AllowsTenantRows))

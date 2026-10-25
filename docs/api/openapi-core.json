@@ -91,7 +91,7 @@
           "Integration"
         ],
         "summary": "Get a dead-lettered message",
-        "description": "Returns the dead letter with its original event envelope. The ETag is required to replay or discard it.",
+        "description": "Returns the dead letter with its original event envelope. The ETag is required to replay or discard it. error never holds the message body or personal data: it is the failing exception\u0027s type, \u0022HTTP \u003Cstatus\u003E\u0022 from a webhook endpoint, or a fixed sentence (BR-017). The payload is the event as published: it carries identifiers only (INT-007), but the console may still hide it.",
         "operationId": "GetDeadLetter",
         "parameters": [
           {

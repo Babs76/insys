@@ -216,6 +216,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a Channel definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationChannelDefinitionsVersions",
         "parameters": [
           {
@@ -747,6 +748,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a Channel transaction permissions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationChannelTransactionPermissionsVersions",
         "parameters": [
           {
@@ -1278,6 +1280,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a Disclosure and notice texts code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationDisclosureAndNoticeTextsVersions",
         "parameters": [
           {
@@ -1809,6 +1812,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a Portal branding themes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationPortalBrandingThemesVersions",
         "parameters": [
           {
@@ -2340,6 +2344,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a UI label and translation bundles code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationUILabelAndTranslationBundlesVersions",
         "parameters": [
           {
@@ -2801,6 +2806,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a API catalogue entries code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationAPICatalogueEntriesVersions",
         "parameters": [
           {
@@ -3064,6 +3070,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a Credential references code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationCredentialReferencesVersions",
         "parameters": [
           {
@@ -3525,6 +3532,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a Event schema versions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationEventSchemaVersionsVersions",
         "parameters": [
           {
@@ -3788,6 +3796,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a Rate limit policies code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationRateLimitPoliciesVersions",
         "parameters": [
           {
@@ -4319,6 +4328,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a Retry and dead-letter policies code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationRetryAndDeadLetterPoliciesVersions",
         "parameters": [
           {
@@ -4850,6 +4860,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a Webhook subscriptions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationWebhookSubscriptionsVersions",
         "parameters": [
           {
@@ -5381,6 +5392,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a Partner register code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationPartnerRegisterVersions",
         "parameters": [
           {
@@ -5842,6 +5854,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a Error code catalogue code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationErrorCodeCatalogueVersions",
         "parameters": [
           {
@@ -6105,6 +6118,7 @@
           "Integration static data"
         ],
         "summary": "List every tenant version of a External code mapping tables code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIntegrationExternalCodeMappingTablesVersions",
         "parameters": [
           {
@@ -6566,6 +6580,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Alert rules and thresholds code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataAlertRulesAndThresholdsVersions",
         "parameters": [
           {
@@ -6759,6 +6774,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Backup and recovery policies code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataBackupAndRecoveryPoliciesVersions",
         "parameters": [
           {
@@ -6952,6 +6968,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Dashboard definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataDashboardDefinitionsVersions",
         "parameters": [
           {
@@ -7145,6 +7162,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Environment configuration baselines code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataEnvironmentConfigurationBaselinesVersions",
         "parameters": [
           {
@@ -7338,6 +7356,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Countries code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataCountriesVersions",
         "parameters": [
           {
@@ -7531,6 +7550,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Country subdivisions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataCountrySubdivisionsVersions",
         "parameters": [
           {
@@ -7724,6 +7744,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Currencies code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataCurrenciesVersions",
         "parameters": [
           {
@@ -7917,6 +7938,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Languages code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataLanguagesVersions",
         "parameters": [
           {
@@ -8180,6 +8202,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Public holiday calendars code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataPublicHolidayCalendarsVersions",
         "parameters": [
           {
@@ -8641,6 +8664,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Time zones code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataTimeZonesVersions",
         "parameters": [
           {
@@ -8834,6 +8858,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Units of measure code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataUnitsOfMeasureVersions",
         "parameters": [
           {
@@ -9027,6 +9052,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Static data entity register code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataStaticDataEntityRegisterVersions",
         "parameters": [
           {
@@ -9290,6 +9316,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a Validation rule sets code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataValidationRuleSetsVersions",
         "parameters": [
           {
@@ -9751,6 +9778,7 @@
           "StaticData static data"
         ],
         "summary": "List every tenant version of a External source register code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListStaticDataExternalSourceRegisterVersions",
         "parameters": [
           {
@@ -10301,6 +10329,7 @@
           "Party static data"
         ],
         "summary": "List every tenant version of a Consent purposes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPartyConsentPurposesVersions",
         "parameters": [
           {
@@ -10832,6 +10861,7 @@
           "Party static data"
         ],
         "summary": "List every tenant version of a Matching rules and thresholds code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPartyMatchingRulesAndThresholdsVersions",
         "parameters": [
           {
@@ -11293,6 +11323,7 @@
           "Party static data"
         ],
         "summary": "List every tenant version of a Address formats and administrative regions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPartyAddressFormatsAndAdministrativeRegionsVersions",
         "parameters": [
           {
@@ -11486,6 +11517,7 @@
           "Party static data"
         ],
         "summary": "List every tenant version of a Contact channel types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPartyContactChannelTypesVersions",
         "parameters": [
           {
@@ -11749,6 +11781,7 @@
           "Party static data"
         ],
         "summary": "List every tenant version of a Customer status codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPartyCustomerStatusCodesVersions",
         "parameters": [
           {
@@ -12280,6 +12313,7 @@
           "Party static data"
         ],
         "summary": "List every tenant version of a Identity document types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPartyIdentityDocumentTypesVersions",
         "parameters": [
           {
@@ -12741,6 +12775,7 @@
           "Party static data"
         ],
         "summary": "List every tenant version of a Party role types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPartyPartyRoleTypesVersions",
         "parameters": [
           {
@@ -13004,6 +13039,7 @@
           "Party static data"
         ],
         "summary": "List every tenant version of a Party types and legal forms code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPartyPartyTypesAndLegalFormsVersions",
         "parameters": [
           {
@@ -13535,6 +13571,7 @@
           "Party static data"
         ],
         "summary": "List every tenant version of a Personal attribute code lists code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPartyPersonalAttributeCodeListsVersions",
         "parameters": [
           {
@@ -14066,6 +14103,7 @@
           "Party static data"
         ],
         "summary": "List every tenant version of a Relationship types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPartyRelationshipTypesVersions",
         "parameters": [
           {
@@ -14597,6 +14635,7 @@
           "ProductFactory static data"
         ],
         "summary": "List every tenant version of a Benefit dependency rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListProductFactoryBenefitDependencyRulesVersions",
         "parameters": [
           {
@@ -15128,6 +15167,7 @@
           "ProductFactory static data"
         ],
         "summary": "List every tenant version of a Coverage and benefit library code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListProductFactoryCoverageAndBenefitLibraryVersions",
         "parameters": [
           {
@@ -15659,6 +15699,7 @@
           "ProductFactory static data"
         ],
         "summary": "List every tenant version of a Exclusion library code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListProductFactoryExclusionLibraryVersions",
         "parameters": [
           {
@@ -16190,6 +16231,7 @@
           "ProductFactory static data"
         ],
         "summary": "List every tenant version of a Limit and deductible schedules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListProductFactoryLimitAndDeductibleSchedulesVersions",
         "parameters": [
           {
@@ -16721,6 +16763,7 @@
           "ProductFactory static data"
         ],
         "summary": "List every tenant version of a Product approval workflow settings code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListProductFactoryProductApprovalWorkflowSettingsVersions",
         "parameters": [
           {
@@ -17252,6 +17295,7 @@
           "ProductFactory static data"
         ],
         "summary": "List every tenant version of a Product availability rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListProductFactoryProductAvailabilityRulesVersions",
         "parameters": [
           {
@@ -17713,6 +17757,7 @@
           "ProductFactory static data"
         ],
         "summary": "List every tenant version of a Product definitions and versions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListProductFactoryProductDefinitionsAndVersionsVersions",
         "parameters": [
           {
@@ -17976,6 +18021,7 @@
           "ProductFactory static data"
         ],
         "summary": "List every tenant version of a Product eligibility criteria code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListProductFactoryProductEligibilityCriteriaVersions",
         "parameters": [
           {
@@ -18507,6 +18553,7 @@
           "ProductFactory static data"
         ],
         "summary": "List every tenant version of a Product template assignments code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListProductFactoryProductTemplateAssignmentsVersions",
         "parameters": [
           {
@@ -19038,6 +19085,7 @@
           "ProductFactory static data"
         ],
         "summary": "List every tenant version of a Waiting period rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListProductFactoryWaitingPeriodRulesVersions",
         "parameters": [
           {
@@ -19569,6 +19617,7 @@
           "ProductFactory static data"
         ],
         "summary": "List every tenant version of a Product taxonomy code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListProductFactoryProductTaxonomyVersions",
         "parameters": [
           {
@@ -20100,6 +20149,7 @@
           "Rating static data"
         ],
         "summary": "List every tenant version of a Discount and loading schedules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRatingDiscountAndLoadingSchedulesVersions",
         "parameters": [
           {
@@ -20631,6 +20681,7 @@
           "Rating static data"
         ],
         "summary": "List every tenant version of a Premium bounds code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRatingPremiumBoundsVersions",
         "parameters": [
           {
@@ -21162,6 +21213,7 @@
           "Rating static data"
         ],
         "summary": "List every tenant version of a Premium parameters code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRatingPremiumParametersVersions",
         "parameters": [
           {
@@ -21693,6 +21745,7 @@
           "Rating static data"
         ],
         "summary": "List every tenant version of a Premium tax and levy rates code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRatingPremiumTaxAndLevyRatesVersions",
         "parameters": [
           {
@@ -22224,6 +22277,7 @@
           "Rating static data"
         ],
         "summary": "List every tenant version of a Rating factor definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRatingRatingFactorDefinitionsVersions",
         "parameters": [
           {
@@ -22755,6 +22809,7 @@
           "Rating static data"
         ],
         "summary": "List every tenant version of a Rating tables code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRatingRatingTablesVersions",
         "parameters": [
           {
@@ -23286,6 +23341,7 @@
           "Rating static data"
         ],
         "summary": "List every tenant version of a Rating test case library code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRatingRatingTestCaseLibraryVersions",
         "parameters": [
           {
@@ -23817,6 +23873,7 @@
           "Rating static data"
         ],
         "summary": "List every tenant version of a Rounding and currency precision rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRatingRoundingAndCurrencyPrecisionRulesVersions",
         "parameters": [
           {
@@ -24348,6 +24405,7 @@
           "Rating static data"
         ],
         "summary": "List every tenant version of a Risk classes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRatingRiskClassesVersions",
         "parameters": [
           {
@@ -24879,6 +24937,7 @@
           "Rules static data"
         ],
         "summary": "List every tenant version of a Acceptance and referral rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRulesAcceptanceAndReferralRulesVersions",
         "parameters": [
           {
@@ -25410,6 +25469,7 @@
           "Rules static data"
         ],
         "summary": "List every tenant version of a Authority matrices code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRulesAuthorityMatricesVersions",
         "parameters": [
           {
@@ -25941,6 +26001,7 @@
           "Rules static data"
         ],
         "summary": "List every tenant version of a Decline conditions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRulesDeclineConditionsVersions",
         "parameters": [
           {
@@ -26472,6 +26533,7 @@
           "Rules static data"
         ],
         "summary": "List every tenant version of a Eligibility rule sets code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRulesEligibilityRuleSetsVersions",
         "parameters": [
           {
@@ -27003,6 +27065,7 @@
           "Rules static data"
         ],
         "summary": "List every tenant version of a Evidence requirement grids code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRulesEvidenceRequirementGridsVersions",
         "parameters": [
           {
@@ -27534,6 +27597,7 @@
           "Rules static data"
         ],
         "summary": "List every tenant version of a Question bank and questionnaires code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRulesQuestionBankAndQuestionnairesVersions",
         "parameters": [
           {
@@ -28065,6 +28129,7 @@
           "Rules static data"
         ],
         "summary": "List every tenant version of a Decision reason codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListRulesDecisionReasonCodesVersions",
         "parameters": [
           {
@@ -28596,6 +28661,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Approval expiry code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowApprovalExpiryVersions",
         "parameters": [
           {
@@ -29127,6 +29193,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Case reportability code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowCaseReportabilityVersions",
         "parameters": [
           {
@@ -29658,6 +29725,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Case retention code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowCaseRetentionVersions",
         "parameters": [
           {
@@ -30189,6 +30257,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Case timelines code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowCaseTimelinesVersions",
         "parameters": [
           {
@@ -30720,6 +30789,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Case types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowCaseTypesVersions",
         "parameters": [
           {
@@ -31251,6 +31321,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Delegation and approval authority code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowDelegationAndApprovalAuthorityVersions",
         "parameters": [
           {
@@ -31782,6 +31853,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Escalation rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowEscalationRulesVersions",
         "parameters": [
           {
@@ -32313,6 +32385,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a SLA definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowSLADefinitionsVersions",
         "parameters": [
           {
@@ -32844,6 +32917,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Task types and work queues code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowTaskTypesAndWorkQueuesVersions",
         "parameters": [
           {
@@ -33375,6 +33449,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Workflow definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowWorkflowDefinitionsVersions",
         "parameters": [
           {
@@ -33906,6 +33981,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Business calendars code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowBusinessCalendarsVersions",
         "parameters": [
           {
@@ -34437,6 +34513,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Case categories code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowCaseCategoriesVersions",
         "parameters": [
           {
@@ -34968,6 +35045,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Exception codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowExceptionCodesVersions",
         "parameters": [
           {
@@ -35499,6 +35577,7 @@
           "Workflow static data"
         ],
         "summary": "List every tenant version of a Ombud schemes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListWorkflowOmbudSchemesVersions",
         "parameters": [
           {
@@ -36218,6 +36297,7 @@
           "Documents static data"
         ],
         "summary": "List every tenant version of a Delivery channel settings code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDocumentsDeliveryChannelSettingsVersions",
         "parameters": [
           {
@@ -36749,6 +36829,7 @@
           "Documents static data"
         ],
         "summary": "List every tenant version of a Document templates code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDocumentsDocumentTemplatesVersions",
         "parameters": [
           {
@@ -37280,6 +37361,7 @@
           "Documents static data"
         ],
         "summary": "List every tenant version of a Retention schedules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDocumentsRetentionSchedulesVersions",
         "parameters": [
           {
@@ -37811,6 +37893,7 @@
           "Documents static data"
         ],
         "summary": "List every tenant version of a Document categories code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDocumentsDocumentCategoriesVersions",
         "parameters": [
           {
@@ -38342,6 +38425,7 @@
           "Documents static data"
         ],
         "summary": "List every tenant version of a Legal hold reason codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDocumentsLegalHoldReasonCodesVersions",
         "parameters": [
           {
@@ -38803,6 +38887,7 @@
           "Documents static data"
         ],
         "summary": "List every tenant version of a Merge field dictionary code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDocumentsMergeFieldDictionaryVersions",
         "parameters": [
           {
@@ -39066,6 +39151,7 @@
           "Billing static data"
         ],
         "summary": "List every tenant version of a Allocation rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListBillingAllocationRulesVersions",
         "parameters": [
           {
@@ -39597,6 +39683,7 @@
           "Billing static data"
         ],
         "summary": "List every tenant version of a Arrears ageing buckets code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListBillingArrearsAgeingBucketsVersions",
         "parameters": [
           {
@@ -40128,6 +40215,7 @@
           "Billing static data"
         ],
         "summary": "List every tenant version of a Document numbering schemes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListBillingDocumentNumberingSchemesVersions",
         "parameters": [
           {
@@ -40659,6 +40747,7 @@
           "Billing static data"
         ],
         "summary": "List every tenant version of a Adjustment and reversal reason codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListBillingAdjustmentAndReversalReasonCodesVersions",
         "parameters": [
           {
@@ -41190,6 +41279,7 @@
           "Billing static data"
         ],
         "summary": "List every tenant version of a Billing frequencies code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListBillingBillingFrequenciesVersions",
         "parameters": [
           {
@@ -41721,6 +41811,7 @@
           "Billing static data"
         ],
         "summary": "List every tenant version of a Collection methods code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListBillingCollectionMethodsVersions",
         "parameters": [
           {
@@ -42252,6 +42343,7 @@
           "Payments static data"
         ],
         "summary": "List every tenant version of a Reconciliation matching rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPaymentsReconciliationMatchingRulesVersions",
         "parameters": [
           {
@@ -42783,6 +42875,7 @@
           "Payments static data"
         ],
         "summary": "List every tenant version of a Payment provider and bank register code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPaymentsPaymentProviderAndBankRegisterVersions",
         "parameters": [
           {
@@ -43314,6 +43407,7 @@
           "Payments static data"
         ],
         "summary": "List every tenant version of a Tenant bank accounts code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPaymentsTenantBankAccountsVersions",
         "parameters": [
           {
@@ -43775,6 +43869,7 @@
           "Payments static data"
         ],
         "summary": "List every tenant version of a Bank and branch directory code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPaymentsBankAndBranchDirectoryVersions",
         "parameters": [
           {
@@ -44038,6 +44133,7 @@
           "Payments static data"
         ],
         "summary": "List every tenant version of a Payment methods code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPaymentsPaymentMethodsVersions",
         "parameters": [
           {
@@ -44569,6 +44665,7 @@
           "Payments static data"
         ],
         "summary": "List every tenant version of a Payment status mappings code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPaymentsPaymentStatusMappingsVersions",
         "parameters": [
           {
@@ -45100,6 +45197,7 @@
           "Payments static data"
         ],
         "summary": "List every tenant version of a Refund and reversal reason codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListPaymentsRefundAndReversalReasonCodesVersions",
         "parameters": [
           {
@@ -45631,6 +45729,7 @@
           "ClaimsFramework static data"
         ],
         "summary": "List every tenant version of a Claim numbering schemes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListClaimsFrameworkClaimNumberingSchemesVersions",
         "parameters": [
           {
@@ -46162,6 +46261,7 @@
           "ClaimsFramework static data"
         ],
         "summary": "List every tenant version of a Fraud indicator definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListClaimsFrameworkFraudIndicatorDefinitionsVersions",
         "parameters": [
           {
@@ -46693,6 +46793,7 @@
           "ClaimsFramework static data"
         ],
         "summary": "List every tenant version of a Claim decision reason codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListClaimsFrameworkClaimDecisionReasonCodesVersions",
         "parameters": [
           {
@@ -47224,6 +47325,7 @@
           "ClaimsFramework static data"
         ],
         "summary": "List every tenant version of a Claim status model code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListClaimsFrameworkClaimStatusModelVersions",
         "parameters": [
           {
@@ -47755,6 +47857,7 @@
           "ClaimsFramework static data"
         ],
         "summary": "List every tenant version of a Evidence types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListClaimsFrameworkEvidenceTypesVersions",
         "parameters": [
           {
@@ -48286,6 +48389,7 @@
           "ClaimsFramework static data"
         ],
         "summary": "List every tenant version of a Reserve types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListClaimsFrameworkReserveTypesVersions",
         "parameters": [
           {
@@ -48817,6 +48921,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Allocation rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeAllocationRulesVersions",
         "parameters": [
           {
@@ -49348,6 +49453,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Alteration types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeAlterationTypesVersions",
         "parameters": [
           {
@@ -49879,6 +49985,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Assumption set references code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeAssumptionSetReferencesVersions",
         "parameters": [
           {
@@ -50410,6 +50517,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Claim requirement checklists code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeClaimRequirementChecklistsVersions",
         "parameters": [
           {
@@ -50941,6 +51049,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Claims authority limits code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeClaimsAuthorityLimitsVersions",
         "parameters": [
           {
@@ -51472,6 +51581,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Critical illness condition definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeCriticalIllnessConditionDefinitionsVersions",
         "parameters": [
           {
@@ -52003,6 +52113,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Disability definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeDisabilityDefinitionsVersions",
         "parameters": [
           {
@@ -52534,6 +52645,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Disclosure questionnaire sets code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeDisclosureQuestionnaireSetsVersions",
         "parameters": [
           {
@@ -53065,6 +53177,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Escalation and indexation options code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeEscalationAndIndexationOptionsVersions",
         "parameters": [
           {
@@ -53596,6 +53709,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Financial underwriting limits code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeFinancialUnderwritingLimitsVersions",
         "parameters": [
           {
@@ -54127,6 +54241,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Free cover limits code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeFreeCoverLimitsVersions",
         "parameters": [
           {
@@ -54658,6 +54773,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Grace period rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeGracePeriodRulesVersions",
         "parameters": [
           {
@@ -55189,6 +55305,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Lapse and reinstatement rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeLapseAndReinstatementRulesVersions",
         "parameters": [
           {
@@ -55720,6 +55837,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Loan eligibility limits code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeLoanEligibilityLimitsVersions",
         "parameters": [
           {
@@ -56251,6 +56369,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Member category definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeMemberCategoryDefinitionsVersions",
         "parameters": [
           {
@@ -56782,6 +56901,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Modal factors code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeModalFactorsVersions",
         "parameters": [
           {
@@ -57313,6 +57433,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Nomination rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeNominationRulesVersions",
         "parameters": [
           {
@@ -57844,6 +57965,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Notification lead times code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeNotificationLeadTimesVersions",
         "parameters": [
           {
@@ -58375,6 +58497,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Policy loan rates code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifePolicyLoanRatesVersions",
         "parameters": [
           {
@@ -58906,6 +59029,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Policy numbering schemes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifePolicyNumberingSchemesVersions",
         "parameters": [
           {
@@ -59437,6 +59561,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Surrender value scales code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeSurrenderValueScalesVersions",
         "parameters": [
           {
@@ -59968,6 +60093,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Valuation extract layouts code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeValuationExtractLayoutsVersions",
         "parameters": [
           {
@@ -60499,6 +60625,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Withdrawal limits and charges code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeWithdrawalLimitsAndChargesVersions",
         "parameters": [
           {
@@ -61030,6 +61157,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Beneficiary relationship types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeBeneficiaryRelationshipTypesVersions",
         "parameters": [
           {
@@ -61491,6 +61619,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Cause of event codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeCauseOfEventCodesVersions",
         "parameters": [
           {
@@ -61754,6 +61883,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Group scheme types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeGroupSchemeTypesVersions",
         "parameters": [
           {
@@ -62215,6 +62345,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Life benefit types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeLifeBenefitTypesVersions",
         "parameters": [
           {
@@ -62478,6 +62609,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Life claim types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeLifeClaimTypesVersions",
         "parameters": [
           {
@@ -63009,6 +63141,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Lifestyle risk codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeLifestyleRiskCodesVersions",
         "parameters": [
           {
@@ -63540,6 +63673,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Maturity settlement options code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeMaturitySettlementOptionsVersions",
         "parameters": [
           {
@@ -64071,6 +64205,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Medical impairment guide references code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeMedicalImpairmentGuideReferencesVersions",
         "parameters": [
           {
@@ -64602,6 +64737,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Occupation classes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeOccupationClassesVersions",
         "parameters": [
           {
@@ -65133,6 +65269,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Policy status model code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifePolicyStatusModelVersions",
         "parameters": [
           {
@@ -65664,6 +65801,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Proposal status codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeProposalStatusCodesVersions",
         "parameters": [
           {
@@ -66195,6 +66333,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Termination reason codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeTerminationReasonCodesVersions",
         "parameters": [
           {
@@ -66726,6 +66865,7 @@
           "Life static data"
         ],
         "summary": "List every tenant version of a Underwriting decision codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListLifeUnderwritingDecisionCodesVersions",
         "parameters": [
           {
@@ -67257,6 +67397,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Aggregate limit definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralAggregateLimitDefinitionsVersions",
         "parameters": [
           {
@@ -67788,6 +67929,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Aggregation zones and limits code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralAggregationZonesAndLimitsVersions",
         "parameters": [
           {
@@ -68319,6 +68461,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Cancellation reasons and refund rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralCancellationReasonsAndRefundRulesVersions",
         "parameters": [
           {
@@ -68850,6 +68993,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Endorsement types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralEndorsementTypesVersions",
         "parameters": [
           {
@@ -69381,6 +69525,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Exposure extract layouts code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralExposureExtractLayoutsVersions",
         "parameters": [
           {
@@ -69912,6 +70057,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Extension and condition library code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralExtensionAndConditionLibraryVersions",
         "parameters": [
           {
@@ -70443,6 +70589,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Indemnity period options code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralIndemnityPeriodOptionsVersions",
         "parameters": [
           {
@@ -70974,6 +71121,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Package section definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralPackageSectionDefinitionsVersions",
         "parameters": [
           {
@@ -71505,6 +71653,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Policy numbering schemes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralPolicyNumberingSchemesVersions",
         "parameters": [
           {
@@ -72036,6 +72185,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Quote validity periods code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralQuoteValidityPeriodsVersions",
         "parameters": [
           {
@@ -72567,6 +72717,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Renewal rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralRenewalRulesVersions",
         "parameters": [
           {
@@ -73098,6 +73249,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Risk object types and attribute schemas code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralRiskObjectTypesAndAttributeSchemasVersions",
         "parameters": [
           {
@@ -73629,6 +73781,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Settlement authority limits code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralSettlementAuthorityLimitsVersions",
         "parameters": [
           {
@@ -74160,6 +74313,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Special conditions and clause library code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralSpecialConditionsAndClauseLibraryVersions",
         "parameters": [
           {
@@ -74691,6 +74845,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Adjuster and surveyor panels code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralAdjusterAndSurveyorPanelsVersions",
         "parameters": [
           {
@@ -75222,6 +75377,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Catastrophe event register code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralCatastropheEventRegisterVersions",
         "parameters": [
           {
@@ -75753,6 +75909,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Repairer and assessor panels code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralRepairerAndAssessorPanelsVersions",
         "parameters": [
           {
@@ -76284,6 +76441,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Cargo commodity classes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralCargoCommodityClassesVersions",
         "parameters": [
           {
@@ -76815,6 +76973,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Construction types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralConstructionTypesVersions",
         "parameters": [
           {
@@ -77346,6 +77505,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Conveyance types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralConveyanceTypesVersions",
         "parameters": [
           {
@@ -77807,6 +77967,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Driver licence categories code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralDriverLicenceCategoriesVersions",
         "parameters": [
           {
@@ -78000,6 +78161,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Industry classification codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralIndustryClassificationCodesVersions",
         "parameters": [
           {
@@ -78263,6 +78425,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Liability class codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralLiabilityClassCodesVersions",
         "parameters": [
           {
@@ -78794,6 +78957,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Loss cause codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralLossCauseCodesVersions",
         "parameters": [
           {
@@ -79325,6 +79489,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Natural catastrophe zones code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralNaturalCatastropheZonesVersions",
         "parameters": [
           {
@@ -79856,6 +80021,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Occupancy classes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralOccupancyClassesVersions",
         "parameters": [
           {
@@ -80387,6 +80553,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Peril codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralPerilCodesVersions",
         "parameters": [
           {
@@ -80848,6 +81015,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Ports and places code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralPortsAndPlacesVersions",
         "parameters": [
           {
@@ -81111,6 +81279,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Quote status codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralQuoteStatusCodesVersions",
         "parameters": [
           {
@@ -81642,6 +81811,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Recovery types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralRecoveryTypesVersions",
         "parameters": [
           {
@@ -82173,6 +82343,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Referral reason codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralReferralReasonCodesVersions",
         "parameters": [
           {
@@ -82704,6 +82875,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Risk zones code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralRiskZonesVersions",
         "parameters": [
           {
@@ -83235,6 +83407,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Salvage disposal methods code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralSalvageDisposalMethodsVersions",
         "parameters": [
           {
@@ -83766,6 +83939,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Underwriting decision codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralUnderwritingDecisionCodesVersions",
         "parameters": [
           {
@@ -84297,6 +84471,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Valuation bases code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralValuationBasesVersions",
         "parameters": [
           {
@@ -84758,6 +84933,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Vehicle make, model and variant directory code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralVehicleMakeModelAndVariantDirectoryVersions",
         "parameters": [
           {
@@ -85021,6 +85197,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Vehicle use classes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralVehicleUseClassesVersions",
         "parameters": [
           {
@@ -85482,6 +85659,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Vehicle valuation guide reference code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralVehicleValuationGuideReferenceVersions",
         "parameters": [
           {
@@ -85675,6 +85853,7 @@
           "General static data"
         ],
         "summary": "List every tenant version of a Vessel types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListGeneralVesselTypesVersions",
         "parameters": [
           {
@@ -85938,6 +86117,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Adjudication edit rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthAdjudicationEditRulesVersions",
         "parameters": [
           {
@@ -86469,6 +86649,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Authorisation validity periods code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthAuthorisationValidityPeriodsVersions",
         "parameters": [
           {
@@ -87000,6 +87181,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Benefit category mappings code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthBenefitCategoryMappingsVersions",
         "parameters": [
           {
@@ -87531,6 +87713,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Benefit schedules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthBenefitSchedulesVersions",
         "parameters": [
           {
@@ -88062,6 +88245,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Chronic condition list code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthChronicConditionListVersions",
         "parameters": [
           {
@@ -88593,6 +88777,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Claim format definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthClaimFormatDefinitionsVersions",
         "parameters": [
           {
@@ -89124,6 +89309,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Clinical review criteria references code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthClinicalReviewCriteriaReferencesVersions",
         "parameters": [
           {
@@ -89655,6 +89841,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Co-payment and deductible rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthCoPaymentAndDeductibleRulesVersions",
         "parameters": [
           {
@@ -90186,6 +90373,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Contribution rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthContributionRulesVersions",
         "parameters": [
           {
@@ -90717,6 +90905,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Dependant types and age limits code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthDependantTypesAndAgeLimitsVersions",
         "parameters": [
           {
@@ -91248,6 +91437,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Health fraud indicator definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthHealthFraudIndicatorDefinitionsVersions",
         "parameters": [
           {
@@ -91779,6 +91969,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Health waiting period rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthHealthWaitingPeriodRulesVersions",
         "parameters": [
           {
@@ -92310,6 +92501,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a High-cost thresholds code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthHighCostThresholdsVersions",
         "parameters": [
           {
@@ -92841,6 +93033,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Limit definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthLimitDefinitionsVersions",
         "parameters": [
           {
@@ -93372,6 +93565,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Member numbering schemes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthMemberNumberingSchemesVersions",
         "parameters": [
           {
@@ -93903,6 +94097,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Membership card templates code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthMembershipCardTemplatesVersions",
         "parameters": [
           {
@@ -94434,6 +94629,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Network definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthNetworkDefinitionsVersions",
         "parameters": [
           {
@@ -94965,6 +95161,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Network restriction rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthNetworkRestrictionRulesVersions",
         "parameters": [
           {
@@ -95496,6 +95693,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Payment run calendars code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthPaymentRunCalendarsVersions",
         "parameters": [
           {
@@ -96027,6 +96225,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Plans and options code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthPlansAndOptionsVersions",
         "parameters": [
           {
@@ -96558,6 +96757,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Preauthorisation-required lists code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthPreauthorisationRequiredListsVersions",
         "parameters": [
           {
@@ -97089,6 +97289,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Provider contracts code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthProviderContractsVersions",
         "parameters": [
           {
@@ -97620,6 +97821,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Remittance advice formats code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthRemittanceAdviceFormatsVersions",
         "parameters": [
           {
@@ -98151,6 +98353,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Repeat-service intervals code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthRepeatServiceIntervalsVersions",
         "parameters": [
           {
@@ -98682,6 +98885,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Scheme member categories code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthSchemeMemberCategoriesVersions",
         "parameters": [
           {
@@ -99213,6 +99417,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Scheme renewal rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthSchemeRenewalRulesVersions",
         "parameters": [
           {
@@ -99744,6 +99949,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Tariff modifiers code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthTariffModifiersVersions",
         "parameters": [
           {
@@ -100275,6 +100481,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Tariff schedules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthTariffSchedulesVersions",
         "parameters": [
           {
@@ -100806,6 +101013,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Utilisation rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthUtilisationRulesVersions",
         "parameters": [
           {
@@ -101337,6 +101545,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Provider payment details code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthProviderPaymentDetailsVersions",
         "parameters": [
           {
@@ -101868,6 +102077,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Provider register code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthProviderRegisterVersions",
         "parameters": [
           {
@@ -102399,6 +102609,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Sponsor register code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthSponsorRegisterVersions",
         "parameters": [
           {
@@ -102930,6 +103141,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Benefit category taxonomy code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthBenefitCategoryTaxonomyVersions",
         "parameters": [
           {
@@ -103461,6 +103673,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Claim adjustment reason codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthClaimAdjustmentReasonCodesVersions",
         "parameters": [
           {
@@ -103922,6 +104135,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Diagnosis codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthDiagnosisCodesVersions",
         "parameters": [
           {
@@ -104185,6 +104399,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Eligibility response codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthEligibilityResponseCodesVersions",
         "parameters": [
           {
@@ -104716,6 +104931,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Investigation outcome codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthInvestigationOutcomeCodesVersions",
         "parameters": [
           {
@@ -105247,6 +105463,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Medicine formulary code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthMedicineFormularyVersions",
         "parameters": [
           {
@@ -105778,6 +105995,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Membership status codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthMembershipStatusCodesVersions",
         "parameters": [
           {
@@ -106239,6 +106457,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Procedure and service codes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthProcedureAndServiceCodesVersions",
         "parameters": [
           {
@@ -106502,6 +106721,7 @@
           "Health static data"
         ],
         "summary": "List every tenant version of a Provider types and specialties code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListHealthProviderTypesAndSpecialtiesVersions",
         "parameters": [
           {
@@ -107033,6 +107253,7 @@
           "Finance static data"
         ],
         "summary": "List every tenant version of a Accounting calendar and periods code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListFinanceAccountingCalendarAndPeriodsVersions",
         "parameters": [
           {
@@ -107564,6 +107785,7 @@
           "Finance static data"
         ],
         "summary": "List every tenant version of a GL export layouts code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListFinanceGLExportLayoutsVersions",
         "parameters": [
           {
@@ -108095,6 +108317,7 @@
           "Finance static data"
         ],
         "summary": "List every tenant version of a Posting rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListFinancePostingRulesVersions",
         "parameters": [
           {
@@ -108626,6 +108849,7 @@
           "Finance static data"
         ],
         "summary": "List every tenant version of a Reconciliation rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListFinanceReconciliationRulesVersions",
         "parameters": [
           {
@@ -109157,6 +109381,7 @@
           "Finance static data"
         ],
         "summary": "List every tenant version of a Tax codes on financial transactions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListFinanceTaxCodesOnFinancialTransactionsVersions",
         "parameters": [
           {
@@ -109688,6 +109913,7 @@
           "Finance static data"
         ],
         "summary": "List every tenant version of a Chart of accounts (subledger) code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListFinanceChartOfAccountsSubledgerVersions",
         "parameters": [
           {
@@ -110219,6 +110445,7 @@
           "Finance static data"
         ],
         "summary": "List every tenant version of a Exchange rates and rate types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListFinanceExchangeRatesAndRateTypesVersions",
         "parameters": [
           {
@@ -110750,6 +110977,7 @@
           "Finance static data"
         ],
         "summary": "List every tenant version of a Transaction types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListFinanceTransactionTypesVersions",
         "parameters": [
           {
@@ -111281,6 +111509,7 @@
           "Distribution static data"
         ],
         "summary": "List every tenant version of a Commission plans code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDistributionCommissionPlansVersions",
         "parameters": [
           {
@@ -111812,6 +112041,7 @@
           "Distribution static data"
         ],
         "summary": "List every tenant version of a Distribution hierarchy code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDistributionDistributionHierarchyVersions",
         "parameters": [
           {
@@ -112343,6 +112573,7 @@
           "Distribution static data"
         ],
         "summary": "List every tenant version of a Intermediary product permissions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDistributionIntermediaryProductPermissionsVersions",
         "parameters": [
           {
@@ -112874,6 +113105,7 @@
           "Distribution static data"
         ],
         "summary": "List every tenant version of a Statement templates code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDistributionStatementTemplatesVersions",
         "parameters": [
           {
@@ -113405,6 +113637,7 @@
           "Distribution static data"
         ],
         "summary": "List every tenant version of a Intermediary register code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDistributionIntermediaryRegisterVersions",
         "parameters": [
           {
@@ -113936,6 +114169,7 @@
           "Distribution static data"
         ],
         "summary": "List every tenant version of a Licence and appointment types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListDistributionLicenceAndAppointmentTypesVersions",
         "parameters": [
           {
@@ -114467,6 +114701,7 @@
           "Reinsurance static data"
         ],
         "summary": "List every tenant version of a Bordereaux layouts code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListReinsuranceBordereauxLayoutsVersions",
         "parameters": [
           {
@@ -114998,6 +115233,7 @@
           "Reinsurance static data"
         ],
         "summary": "List every tenant version of a Cession rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListReinsuranceCessionRulesVersions",
         "parameters": [
           {
@@ -115529,6 +115765,7 @@
           "Reinsurance static data"
         ],
         "summary": "List every tenant version of a Treaty definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListReinsuranceTreatyDefinitionsVersions",
         "parameters": [
           {
@@ -116060,6 +116297,7 @@
           "Reinsurance static data"
         ],
         "summary": "List every tenant version of a Facultative arrangements code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListReinsuranceFacultativeArrangementsVersions",
         "parameters": [
           {
@@ -116591,6 +116829,7 @@
           "Reinsurance static data"
         ],
         "summary": "List every tenant version of a Reinsurer register code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListReinsuranceReinsurerRegisterVersions",
         "parameters": [
           {
@@ -117122,6 +117361,7 @@
           "Compliance static data"
         ],
         "summary": "List every tenant version of a Compliance register entries code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListComplianceComplianceRegisterEntriesVersions",
         "parameters": [
           {
@@ -117653,6 +117893,7 @@
           "Compliance static data"
         ],
         "summary": "List every tenant version of a Regulatory return definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListComplianceRegulatoryReturnDefinitionsVersions",
         "parameters": [
           {
@@ -118184,6 +118425,7 @@
           "Compliance static data"
         ],
         "summary": "List every tenant version of a Report catalogue and access rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListComplianceReportCatalogueAndAccessRulesVersions",
         "parameters": [
           {
@@ -118645,6 +118887,7 @@
           "Compliance static data"
         ],
         "summary": "List every tenant version of a Data classification scheme code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListComplianceDataClassificationSchemeVersions",
         "parameters": [
           {
@@ -118908,6 +119151,7 @@
           "Analytics static data"
         ],
         "summary": "List every tenant version of a Metric definitions code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListAnalyticsMetricDefinitionsVersions",
         "parameters": [
           {
@@ -119439,6 +119683,7 @@
           "Analytics static data"
         ],
         "summary": "List every tenant version of a Reporting dimension hierarchies code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListAnalyticsReportingDimensionHierarchiesVersions",
         "parameters": [
           {
@@ -119900,6 +120145,7 @@
           "Tenancy static data"
         ],
         "summary": "List every tenant version of a Feature entitlements code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListTenancyFeatureEntitlementsVersions",
         "parameters": [
           {
@@ -120093,6 +120339,7 @@
           "Tenancy static data"
         ],
         "summary": "List every tenant version of a Isolation profile assignment code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListTenancyIsolationProfileAssignmentVersions",
         "parameters": [
           {
@@ -120356,6 +120603,7 @@
           "Tenancy static data"
         ],
         "summary": "List every tenant version of a Locale defaults code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListTenancyLocaleDefaultsVersions",
         "parameters": [
           {
@@ -120817,6 +121065,7 @@
           "Tenancy static data"
         ],
         "summary": "List every tenant version of a Operational limits code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListTenancyOperationalLimitsVersions",
         "parameters": [
           {
@@ -121080,6 +121329,7 @@
           "Tenancy static data"
         ],
         "summary": "List every tenant version of a Tenant function availability code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListTenancyTenantFunctionAvailabilityVersions",
         "parameters": [
           {
@@ -121611,6 +121861,7 @@
           "Tenancy static data"
         ],
         "summary": "List every tenant version of a Tenant product availability code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListTenancyTenantProductAvailabilityVersions",
         "parameters": [
           {
@@ -122142,6 +122393,7 @@
           "Tenancy static data"
         ],
         "summary": "List every tenant version of a Organisation structure code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListTenancyOrganisationStructureVersions",
         "parameters": [
           {
@@ -122673,6 +122925,7 @@
           "Identity static data"
         ],
         "summary": "List every tenant version of a Access review schedules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIdentityAccessReviewSchedulesVersions",
         "parameters": [
           {
@@ -123204,6 +123457,7 @@
           "Identity static data"
         ],
         "summary": "List every tenant version of a Authentication and session policies code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIdentityAuthenticationAndSessionPoliciesVersions",
         "parameters": [
           {
@@ -123735,6 +123989,7 @@
           "Identity static data"
         ],
         "summary": "List every tenant version of a Identity provider configurations code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIdentityIdentityProviderConfigurationsVersions",
         "parameters": [
           {
@@ -124266,6 +124521,7 @@
           "Identity static data"
         ],
         "summary": "List every tenant version of a Role function assignments code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIdentityRoleFunctionAssignmentsVersions",
         "parameters": [
           {
@@ -124797,6 +125053,7 @@
           "Identity static data"
         ],
         "summary": "List every tenant version of a Roles and permission sets code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIdentityRolesAndPermissionSetsVersions",
         "parameters": [
           {
@@ -125328,6 +125585,7 @@
           "Identity static data"
         ],
         "summary": "List every tenant version of a Segregation-of-duties conflict rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIdentitySegregationOfDutiesConflictRulesVersions",
         "parameters": [
           {
@@ -125859,6 +126117,7 @@
           "Identity static data"
         ],
         "summary": "List every tenant version of a Service account scopes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIdentityServiceAccountScopesVersions",
         "parameters": [
           {
@@ -126320,6 +126579,7 @@
           "Identity static data"
         ],
         "summary": "List every tenant version of a Business domains code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIdentityBusinessDomainsVersions",
         "parameters": [
           {
@@ -126513,6 +126773,7 @@
           "Identity static data"
         ],
         "summary": "List every tenant version of a Business sub-domains code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIdentityBusinessSubDomainsVersions",
         "parameters": [
           {
@@ -126706,6 +126967,7 @@
           "Identity static data"
         ],
         "summary": "List every tenant version of a Function catalogue code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIdentityFunctionCatalogueVersions",
         "parameters": [
           {
@@ -126899,6 +127161,7 @@
           "Identity static data"
         ],
         "summary": "List every tenant version of a Permission catalogue code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListIdentityPermissionCatalogueVersions",
         "parameters": [
           {
@@ -127162,6 +127425,7 @@
           "Audit static data"
         ],
         "summary": "List every tenant version of a Audit retention policies code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListAuditAuditRetentionPoliciesVersions",
         "parameters": [
           {
@@ -127623,6 +127887,7 @@
           "Audit static data"
         ],
         "summary": "List every tenant version of a Audit event type catalogue code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListAuditAuditEventTypeCatalogueVersions",
         "parameters": [
           {
@@ -127886,6 +128151,7 @@
           "Communications static data"
         ],
         "summary": "List every tenant version of a Channel providers code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListCommunicationsChannelProvidersVersions",
         "parameters": [
           {
@@ -128417,6 +128683,7 @@
           "Communications static data"
         ],
         "summary": "List every tenant version of a Notification templates code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListCommunicationsNotificationTemplatesVersions",
         "parameters": [
           {
@@ -128948,6 +129215,7 @@
           "Communications static data"
         ],
         "summary": "List every tenant version of a Notification types code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListCommunicationsNotificationTypesVersions",
         "parameters": [
           {
@@ -129409,6 +129677,7 @@
           "Communications static data"
         ],
         "summary": "List every tenant version of a Channels code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
         "operationId": "ListCommunicationsChannelsVersions",
         "parameters": [
           {
