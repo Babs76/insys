@@ -157,10 +157,20 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
         }
     }
 
+    /// <summary>
+    /// ApprovalGranted → the underwriting decision or the claim is approved. A redelivery of a grant already applied
+    /// changes nothing; a record that will not take it (it changed after it was submitted: no decision waiting any more, or
+    /// not the one approved) parks the delivery (APPROVAL_NOT_APPLIED; D-5, ADR-022), and Workflow marks the approval not
+    /// applied and tells the requester.
+    /// </summary>
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, granted.CheckerId, granted.ApprovalType, granted.SubjectHash,
             cancellationToken);
 
+    /// <summary>
+    /// ApprovalRejected (rejected, expired or withdrawn) → the proposed decision is cleared and assessment continues. A
+    /// redelivered ending changes nothing; one the record will not take parks the delivery (APPROVAL_ENDING_NOT_APPLIED).
+    /// </summary>
     public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.ApprovalId, rejected.CheckerId, rejected.ApprovalType, rejected.SubjectHash,
             cancellationToken);
@@ -232,7 +242,7 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
         Result? decided = null;
         if (businessRefType == LifeApprovals.UnderwritingBusinessRefType && await life.Case(id, cancellationToken) is { } underwritingCase)
         {
-            if (!approved && underwritingCase.EndingApplied(approvalId))
+            if (approved ? underwritingCase.ApprovalApplied(approvalId) : underwritingCase.EndingApplied(approvalId))
             {
                 return;
             }
@@ -241,7 +251,7 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
         }
         else if (businessRefType == LifeApprovals.ClaimBusinessRefType && await life.Claim(id, cancellationToken) is { } claim)
         {
-            if (!approved && claim.EndingApplied(approvalId))
+            if (approved ? claim.ApprovalApplied(approvalId) : claim.EndingApplied(approvalId))
             {
                 return;
             }
@@ -249,15 +259,12 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
             decided = claim.DecideApproval(approved, approvalId, checkerId, subjectHash, clock.UtcNow);
         }
 
-        // D-5: an ending (rejected, expired, withdrawn) the record would not take parks the delivery (ADR-022) for a retry and escalation.
-        if (decided is { IsFailure: true } && !approved)
-        {
-            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{approvalType}:{approvalId}");
-        }
-
+        // D-5: a decision the record would not take parks the delivery (ADR-022) for a retry and escalation, never only logged:
+        // an ending (rejected, expired, withdrawn) as APPROVAL_ENDING_NOT_APPLIED, a grant as APPROVAL_NOT_APPLIED.
         if (decided is { IsFailure: true })
         {
-            logger.LogWarning("Approval {ApprovalId} not applied to {BusinessRefType} {Id}: {Code}", approvalId, businessRefType, id, decided.Error.Code);
+            throw new PrerequisiteMissingException(approved ? PrerequisiteCodes.ApprovalNotApplied : PrerequisiteCodes.ApprovalEndingNotApplied,
+                $"{approvalType}:{approvalId}");
         }
     }
 

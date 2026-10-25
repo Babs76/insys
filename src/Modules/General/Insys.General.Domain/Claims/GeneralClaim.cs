@@ -409,6 +409,9 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
         return result;
     }
 
+    /// <summary>Whether this approval's grant is already applied (the claim was approved by it, and may be settled since): a redelivery changes nothing.</summary>
+    public bool SettlementApprovalApplied(Guid approvalId) => SettlementApprovalId == approvalId;
+
     /// <summary>
     /// Whether a settlement approval's ending (not granted) is already applied, so a redelivery changes nothing: no
     /// settlement is waiting (it was cleared), and the claim was not approved by that same approval.

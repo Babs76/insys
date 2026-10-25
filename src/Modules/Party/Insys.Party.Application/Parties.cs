@@ -36,7 +36,6 @@ using Insys.BuildingBlocks.Domain;
 using Insys.Party.Contracts;
 using Insys.Party.Domain.Parties;
 using Insys.StaticData.Contracts;
-using Microsoft.Extensions.Logging;
 
 namespace Insys.Party.Application;
 
@@ -195,9 +194,12 @@ internal sealed class AddBankAccountHandler(IPartyRepository parties, IFieldProt
 /// <summary>
 /// Workflow's decision on a bank account's verification (BANK_ACCOUNT_VERIFICATION): approved, the account becomes
 /// active; rejected, it is never activated (ADR-013). Workflow has checked maker ≠ checker, authority and the
-/// bank_account.verify permission; the subject hash binds the decision to the account as it was.
+/// bank_account.verify permission; the subject hash binds the decision to the account as it was. A redelivered decision
+/// already applied changes nothing; one the account will not take (no longer pending, or changed since it was submitted)
+/// parks the delivery (D-5, ADR-022): an ending as APPROVAL_ENDING_NOT_APPLIED, a grant as APPROVAL_NOT_APPLIED, which
+/// Workflow marks not applied and tells the requester.
 /// </summary>
-public sealed class BankAccountVerificationPolicy(IPartyRepository parties, IClock clock, IAuditTrail audit, ILogger<BankAccountVerificationPolicy> logger) :
+public sealed class BankAccountVerificationPolicy(IPartyRepository parties, IClock clock, IAuditTrail audit) :
     IIntegrationEventHandler<Workflow.Contracts.ApprovalGranted>,
     IIntegrationEventHandler<Workflow.Contracts.ApprovalRejected>
 {
@@ -215,7 +217,7 @@ public sealed class BankAccountVerificationPolicy(IPartyRepository parties, IClo
             return;
         }
 
-        if (!approved && party.BankAccountEndingApplied(accountId, approvalId))
+        if (approved ? party.BankAccountVerificationApplied(accountId, approvalId) : party.BankAccountEndingApplied(accountId, approvalId))
         {
             return;
         }
@@ -223,13 +225,8 @@ public sealed class BankAccountVerificationPolicy(IPartyRepository parties, IClo
         var decided = party.DecideBankAccountVerification(accountId, approved, approvalId, checkerId, subjectHash, clock.UtcNow);
         if (decided.IsFailure)
         {
-            if (!approved)
-            {
-                throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{PartyApprovals.BankAccountVerificationType}:{approvalId}");
-            }
-
-            logger.LogWarning("Approval {ApprovalId} not applied to bank account {AccountId}: {Code}", approvalId, accountId, decided.Error.Code);
-            return;
+            throw new PrerequisiteMissingException(approved ? PrerequisiteCodes.ApprovalNotApplied : PrerequisiteCodes.ApprovalEndingNotApplied,
+                $"{PartyApprovals.BankAccountVerificationType}:{approvalId}");
         }
 
         audit.Record(new AuditEntry("PARTY", approved ? "VerifyBankAccount" : "RejectBankAccount", nameof(BankAccount), accountId.ToString(),

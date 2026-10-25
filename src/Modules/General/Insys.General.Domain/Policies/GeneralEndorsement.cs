@@ -232,6 +232,9 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
         return result;
     }
 
+    /// <summary>Whether this approval's grant is already applied (approved, and applied to the policy since): a redelivery changes nothing.</summary>
+    public bool ApprovalApplied(Guid approvalId) => Status is (EndorsementStatus.Approved or EndorsementStatus.Applied) && ApprovalId == approvalId;
+
     /// <summary>Whether this approval's ending (not granted) is already applied: a redelivery changes nothing.</summary>
     public bool EndingApplied(Guid approvalId) => Status == EndorsementStatus.Rejected && ApprovalId == approvalId;
 

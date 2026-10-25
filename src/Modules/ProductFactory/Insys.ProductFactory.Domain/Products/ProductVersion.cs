@@ -313,6 +313,13 @@ public sealed class ProductVersion : AggregateRoot<Guid>
     /// </summary>
     public bool RejectionApplied => Status is ProductVersionStatus.Draft or ProductVersionStatus.Validated;
 
+    /// <summary>
+    /// Whether a grant is already applied, so a redelivery changes nothing: the version was approved (and has moved on
+    /// from there) by that checker.
+    /// </summary>
+    public bool ApprovalApplied(Guid checkerId) =>
+        Status is not (ProductVersionStatus.Draft or ProductVersionStatus.Validated or ProductVersionStatus.Submitted) && ApprovedBy == checkerId.ToString();
+
     /// <summary>Command ApproveVersion, from Workflow's ApprovalGranted (maker and checker already differ; SRS-002, PRD-006).</summary>
     public Result ApproveVersion(Guid checkerId, DateTimeOffset now)
     {

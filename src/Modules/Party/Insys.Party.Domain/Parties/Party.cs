@@ -673,6 +673,13 @@ public sealed class Party : AggregateRoot<Guid>
     }
 
     /// <summary>
+    /// Whether that approval already verified the account (it became active, and may have been superseded since): a
+    /// redelivery changes nothing.
+    /// </summary>
+    public bool BankAccountVerificationApplied(Guid bankAccountId, Guid approvalId) =>
+        _bankAccounts.Any(a => a.Id == bankAccountId && a.ApprovalId == approvalId && a.VerifiedAt is not null);
+
+    /// <summary>
     /// Whether an approval's ending (not granted) is already applied to the account, so a redelivery changes nothing: it
     /// was rejected by that approval, or this module withdrew its verification when another account replaced it before
     /// it was verified (superseded without ever being active), which is already its defined state.

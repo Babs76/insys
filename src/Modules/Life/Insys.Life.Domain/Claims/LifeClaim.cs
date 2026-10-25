@@ -379,6 +379,9 @@ public sealed class LifeClaim : AggregateRoot<Guid>
         return result;
     }
 
+    /// <summary>Whether this approval's grant is already applied (the claim was approved by it, and may be paid since): a redelivery changes nothing.</summary>
+    public bool ApprovalApplied(Guid approvalId) => ApprovalId == approvalId;
+
     /// <summary>
     /// Whether an approval's ending (not granted) is already applied, so a redelivery changes nothing: no decision is
     /// waiting (it was cleared), and the claim was not approved by that same approval.
