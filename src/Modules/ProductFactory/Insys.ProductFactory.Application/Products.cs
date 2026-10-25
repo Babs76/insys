@@ -435,9 +435,15 @@ public sealed class ProductPolicies(IProductVersionRepository versions, ISimulat
 {
     private static readonly string[] ValidationTables = ["cfg_coverage_and_benefit_library", "cfg_benefit_dependency_rules"];
 
+    /// <summary>
+    /// Granted: ApproveVersion, then PublishVersion. A redelivery of a grant already applied (the version approved by this
+    /// checker) changes nothing; a version that will not take it (it changed after it was submitted) parks the delivery
+    /// (APPROVAL_NOT_APPLIED; D-5, ADR-022), and Workflow marks the approval not applied and tells the requester.
+    /// </summary>
     public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (granted.BusinessRefType != ProductApprovals.BusinessRefType || await versions.Get(granted.BusinessRefId, cancellationToken) is not { } version)
+        if (granted.BusinessRefType != ProductApprovals.BusinessRefType || await versions.Get(granted.BusinessRefId, cancellationToken) is not { } version
+            || version.ApprovalApplied(granted.CheckerId))
         {
             return;
         }
@@ -445,7 +451,7 @@ public sealed class ProductPolicies(IProductVersionRepository versions, ISimulat
         var now = clock.UtcNow;
         if (version.ApproveVersion(granted.CheckerId, now).IsFailure)
         {
-            return;
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
         }
 
         if (version.SupersedesId is { } supersedes && await versions.Get(supersedes, cancellationToken) is { } previous)

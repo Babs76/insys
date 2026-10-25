@@ -354,6 +354,20 @@ public sealed class UserAccount : AggregateRoot<Guid>
     public bool AssignmentEndingApplied(Guid assignmentId) => _roleAssignments.Any(a => a.Id == assignmentId && a.Status == AssignmentStatus.Rejected);
 
     /// <summary>
+    /// Whether that checker's approval is already applied to the link (it took effect, and may have ended since): a
+    /// redelivery changes nothing.
+    /// </summary>
+    public bool SubjectLinkApprovalApplied(Guid linkId, Guid checkerId) =>
+        _subjectLinks.Any(l => l.Id == linkId && l.Status is (SubjectLinkStatus.Active or SubjectLinkStatus.Ended) && l.DecidedBy == checkerId);
+
+    /// <summary>
+    /// Whether that checker's approval is already applied to the assignment (it became active, and may have been revoked
+    /// since): a redelivery changes nothing.
+    /// </summary>
+    public bool AssignmentApprovalApplied(Guid assignmentId, Guid checkerId) =>
+        _roleAssignments.Any(a => a.Id == assignmentId && a.Status is (AssignmentStatus.Active or AssignmentStatus.Revoked) && a.ApprovedBy == checkerId);
+
+    /// <summary>
     /// Workflow's decision on a pending link; the checker is never the one who requested it (SRS-002). Every ending other
     /// than approval (rejected, expired, withdrawn) rejects it; with no checker (expired, withdrawn) nobody is recorded.
     /// </summary>

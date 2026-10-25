@@ -376,7 +376,10 @@ internal sealed class GetUserHandler(IUserQueries queries, IApprovalHistory hist
 
 /// <summary>
 /// Identity's policy for Workflow's decision on a privileged role assignment (OQ-038): granted, the assignment becomes
-/// active and RoleAssigned evicts the permission cache; rejected, it never applies.
+/// active and RoleAssigned evicts the permission cache; rejected, it never applies. The same for an external user's
+/// subject link. A redelivered decision already applied changes nothing; one the record will not take (it changed after
+/// it was submitted) parks the delivery (D-5, ADR-022): an ending as APPROVAL_ENDING_NOT_APPLIED, a grant as
+/// APPROVAL_NOT_APPLIED, which Workflow marks not applied and tells the requester.
 /// </summary>
 public sealed class PrivilegedRoleApprovalPolicy(IUserRepository users, IClock clock) :
     IIntegrationEventHandler<ApprovalGranted>,
@@ -391,27 +394,29 @@ public sealed class PrivilegedRoleApprovalPolicy(IUserRepository users, IClock c
     private async Task Decide(string businessRefType, Guid assignmentId, bool approved, Guid approvalId, string approvalType, Guid checkerId,
         CancellationToken cancellationToken)
     {
-        // Every ending other than approval (rejected, expired, withdrawn) rejects it; one already rejected is a redelivery.
+        // Every ending other than approval (rejected, expired, withdrawn) rejects it; one already rejected, or a grant
+        // already applied by this checker, is a redelivery.
         if (businessRefType == IdentityApprovals.BusinessRefType && await users.ByAssignment(assignmentId, cancellationToken) is { } user
-            && (approved || !user.AssignmentEndingApplied(assignmentId)))
+            && !(approved ? user.AssignmentApprovalApplied(assignmentId, checkerId) : user.AssignmentEndingApplied(assignmentId)))
         {
             Applied(user.DecideAssignment(assignmentId, approved, checkerId, clock.UtcNow), approved, approvalType, approvalId);
         }
 
         // An external user's link (external-user-access.md §1): approved, it takes effect; any other ending, it never does.
         if (businessRefType == IdentityApprovals.SubjectLinkBusinessRefType && await users.ByLink(assignmentId, cancellationToken) is { } linked
-            && (approved || !linked.SubjectLinkEndingApplied(assignmentId)))
+            && !(approved ? linked.SubjectLinkApprovalApplied(assignmentId, checkerId) : linked.SubjectLinkEndingApplied(assignmentId)))
         {
             Applied(linked.DecideSubjectLink(assignmentId, approved, checkerId, clock.UtcNow), approved, approvalType, approvalId);
         }
     }
 
-    /// <summary>D-5: an ending the record would not take parks the delivery (ADR-022); an approval that does not apply changes nothing, as before.</summary>
+    /// <summary>D-5: a decision the record would not take parks the delivery (ADR-022); a granted one is never only logged.</summary>
     private static void Applied(Result decided, bool approved, string approvalType, Guid approvalId)
     {
-        if (decided.IsFailure && !approved)
+        if (decided.IsFailure)
         {
-            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{approvalType}:{approvalId}");
+            throw new PrerequisiteMissingException(approved ? PrerequisiteCodes.ApprovalNotApplied : PrerequisiteCodes.ApprovalEndingNotApplied,
+                $"{approvalType}:{approvalId}");
         }
     }
 }

@@ -481,6 +481,9 @@ public sealed class LifeUnderwritingCase : AggregateRoot<Guid>
         return result;
     }
 
+    /// <summary>Whether this approval's grant is already applied (the case was decided by it): a redelivery changes nothing.</summary>
+    public bool ApprovalApplied(Guid approvalId) => ApprovalId == approvalId;
+
     /// <summary>
     /// Whether an approval's ending (not granted) is already applied, so a redelivery changes nothing: no decision is
     /// waiting (it was cleared), and the case was not decided by that same approval.

@@ -506,6 +506,9 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     public GeneralCoverage? Coverage(Guid? riskObjectId, string coverageCode) =>
         _risks.Where(r => riskObjectId is null || r.RiskObjectId == riskObjectId).SelectMany(r => r.Coverages).FirstOrDefault(c => c.CoverageCode == coverageCode);
 
+    /// <summary>Whether an endorsement can still be applied: the policy is issued or in force (not cancelled, expired or renewed).</summary>
+    public bool TakesEndorsements => Status is PolicyStatus.Issued or PolicyStatus.InForce;
+
     /// <summary>
     /// Command ApplyEndorsement: an approved endorsement's changes, effective from its date, and the new annual premium
     /// (transition "Policy updated" of the endorsement). Coverages stay within the product's limits.
@@ -517,7 +520,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only an approved endorsement of this policy is applied.");
         }
 
-        if (Status is not (PolicyStatus.Issued or PolicyStatus.InForce))
+        if (!TakesEndorsements)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is {Status}.");
         }

@@ -103,7 +103,12 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
         }
     }
 
-    /// <summary>ApprovalGranted → ApproveEndorsement or ApproveSettlement.</summary>
+    /// <summary>
+    /// ApprovalGranted → ApproveEndorsement or ApproveSettlement. A redelivery of a grant already applied changes nothing; a
+    /// record that will not take it (it changed after it was submitted: the settlement is no longer the one approved, or the
+    /// endorsement's policy was cancelled, expired or renewed) parks the delivery (APPROVAL_NOT_APPLIED; D-5, ADR-022), and
+    /// Workflow marks the approval not applied and tells the requester.
+    /// </summary>
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash, cancellationToken);
 
@@ -187,43 +192,41 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
     {
         if (businessRefType == GeneralApprovals.EndorsementBusinessRefType && await general.Endorsement(id, cancellationToken) is { } endorsement)
         {
-            if (!approved && endorsement.EndingApplied(approvalId))
+            if (approved ? endorsement.ApprovalApplied(approvalId) : endorsement.EndingApplied(approvalId))
             {
                 return;
             }
 
-            var decided = endorsement.Decide(approved, approvalId, checkerId, clock.UtcNow);
-            NotApplied(decided, approved, GeneralApprovals.EndorsementApprovalType, approvalId, id);
+            // A grant for a policy that no longer takes endorsements would be approved and never applied.
+            var decided = approved && await general.Policy(endorsement.PolicyId, cancellationToken) is not { TakesEndorsements: true }
+                ? BuildingBlocks.Domain.Error.Conflict(BuildingBlocks.Domain.ErrorCodes.InvalidStateTransition, "The endorsement's policy no longer takes endorsements.")
+                : endorsement.Decide(approved, approvalId, checkerId, clock.UtcNow);
+            NotApplied(decided, approved, GeneralApprovals.EndorsementApprovalType, approvalId);
         }
         else if (businessRefType == GeneralApprovals.SettlementBusinessRefType && await general.Claim(id, cancellationToken) is { } claim)
         {
-            if (!approved && claim.SettlementEndingApplied(approvalId))
+            if (approved ? claim.SettlementApprovalApplied(approvalId) : claim.SettlementEndingApplied(approvalId))
             {
                 return;
             }
 
             var decided = claim.DecideSettlement(approved, approvalId, checkerId, subjectHash, clock.UtcNow);
-            NotApplied(decided, approved, GeneralApprovals.SettlementApprovalType, approvalId, id);
+            NotApplied(decided, approved, GeneralApprovals.SettlementApprovalType, approvalId);
         }
     }
 
     /// <summary>
-    /// An ending (rejected, expired, withdrawn) the record would not take parks the delivery (D-5, ADR-022), so it is
-    /// retried and escalated rather than left waiting; an approval that does not apply is logged, as before.
+    /// A decision the record would not take parks the delivery (D-5, ADR-022), so it is retried and escalated rather than
+    /// left waiting or only logged: an ending (rejected, expired, withdrawn) as APPROVAL_ENDING_NOT_APPLIED, a grant as
+    /// APPROVAL_NOT_APPLIED.
     /// </summary>
-    private void NotApplied(BuildingBlocks.Domain.Result decided, bool approved, string approvalType, Guid approvalId, Guid id)
+    private static void NotApplied(BuildingBlocks.Domain.Result decided, bool approved, string approvalType, Guid approvalId)
     {
-        if (decided.IsSuccess)
+        if (decided.IsFailure)
         {
-            return;
+            throw new PrerequisiteMissingException(approved ? PrerequisiteCodes.ApprovalNotApplied : PrerequisiteCodes.ApprovalEndingNotApplied,
+                $"{approvalType}:{approvalId}");
         }
-
-        if (!approved)
-        {
-            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{approvalType}:{approvalId}");
-        }
-
-        logger.LogWarning("Approval {ApprovalId} not applied to {ApprovalType} {Id}: {Code}", approvalId, approvalType, id, decided.Error.Code);
     }
 }
 

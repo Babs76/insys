@@ -119,7 +119,10 @@ internal sealed class ResolvePartyMatchHandler(IPartyRepository parties, IExecut
 /// <summary>
 /// Workflow's decision on a party-match resolution. Approved: a link merges the registration into the existing party
 /// (PTY-004, with its merge history), and a new party is confirmed. Rejected: the registration goes back to review.
-/// Workflow has checked that the checker is not the maker.
+/// Workflow has checked that the checker is not the maker. A redelivered decision already applied changes nothing; one
+/// the registration will not take parks the delivery (D-5, ADR-022): an ending as APPROVAL_ENDING_NOT_APPLIED, and a
+/// grant (no resolution waiting any more, or the matched party merged, anonymised or gone since) as APPROVAL_NOT_APPLIED,
+/// which Workflow marks not applied and tells the requester.
 /// </summary>
 public sealed class PartyMatchResolutionPolicy(IPartyRepository parties, IClock clock, IAuditTrail audit) :
     IIntegrationEventHandler<Workflow.Contracts.ApprovalGranted>,
@@ -138,36 +141,34 @@ public sealed class PartyMatchResolutionPolicy(IPartyRepository parties, IClock 
             return;
         }
 
-        // Every ending other than approval (rejected, expired, withdrawn) sends it back to review; one already back there is a redelivery.
-        if (!approved && registration.ReviewStatus == Domain.Parties.Party.PendingReview)
+        // Every ending other than approval (rejected, expired, withdrawn) sends it back to review; one already back there,
+        // or a grant already applied (linked or confirmed new), is a redelivery.
+        if (approved ? registration.ReviewStatus is "LINKED" or "CONFIRMED_NEW" : registration.ReviewStatus == Domain.Parties.Party.PendingReview)
         {
             return;
         }
 
         var decided = registration.DecideMatchResolution(approved, clock.UtcNow);
-        if (decided.IsFailure && !approved)
-        {
-            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{Contracts.PartyApprovals.MatchResolutionType}:{approvalId}");
-        }
-
         if (decided.IsFailure)
         {
-            throw new InvalidOperationException($"Approval {approvalId} cannot be applied to party {partyId}: {decided.Error.Code}");
+            throw NotApplied(approved, approvalId);
         }
 
         if (approved && registration.MatchResolution == "LINK")
         {
-            var existing = await parties.Get(registration.MatchedPartyId!.Value, cancellationToken)
-                ?? throw new InvalidOperationException($"The party {registration.MatchedPartyId} that registration {partyId} matched no longer exists.");
+            // The party it matched was merged, anonymised or removed since the resolution was proposed: it will not take the link.
             var snapshot = System.Text.Json.JsonSerializer.Serialize(new { source = "PORTAL", registeredBy = registration.RegisteredBy, approval = approvalId });
-            var merged = registration.MergeInto(existing, checkerId, "Portal registration linked to the party it matched, after review", snapshot, clock.UtcNow);
-            if (merged.IsFailure)
+            if (await parties.Get(registration.MatchedPartyId!.Value, cancellationToken) is not { } existing
+                || registration.MergeInto(existing, checkerId, "Portal registration linked to the party it matched, after review", snapshot, clock.UtcNow).IsFailure)
             {
-                throw new InvalidOperationException($"Registration {partyId} cannot be merged into {existing.Id}: {merged.Error.Code}");
+                throw NotApplied(approved, approvalId);
             }
         }
 
         audit.Record(new AuditEntry("PARTY", approved ? "ApprovePartyMatchResolution" : "RejectPartyMatchResolution", nameof(Domain.Parties.Party), partyId.ToString(),
             new Dictionary<string, string?> { ["approval"] = approvalId.ToString(), ["resolution"] = registration.MatchResolution }));
     }
+
+    private static PrerequisiteMissingException NotApplied(bool approved, Guid approvalId) =>
+        new(approved ? PrerequisiteCodes.ApprovalNotApplied : PrerequisiteCodes.ApprovalEndingNotApplied, $"{Contracts.PartyApprovals.MatchResolutionType}:{approvalId}");
 }

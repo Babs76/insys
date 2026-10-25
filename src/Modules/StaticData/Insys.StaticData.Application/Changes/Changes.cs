@@ -203,15 +203,26 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
             MakerCheckerPolicy.RequiresChecker(submitted.Tier, tier2MakerChecker), StaticDataApprovals.ApprovalType(submitted.Tier), clock.UtcNow));
     }
 
-    /// <summary>Workflow approved the change (checker other than the maker, within authority): ApproveChange.</summary>
+    /// <summary>
+    /// Workflow approved the change (checker other than the maker, within authority): ApproveChange, and the owning module
+    /// approves the version; or the pending Tier 2 switch-off takes effect. A redelivery of a grant already applied (the
+    /// change approved by this checker, or Tier 2 maker-checker already off with nothing pending) changes nothing; a change
+    /// request, or a governance setting, that will not take it (it changed after it was submitted) parks the delivery
+    /// (APPROVAL_NOT_APPLIED; D-5, ADR-022), and Workflow marks the approval not applied and tells the requester.
+    /// </summary>
     public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (granted.BusinessRefType == StaticDataApprovals.BusinessRefType && await changes.Get(granted.BusinessRefId, cancellationToken) is { } change)
+        if (granted.BusinessRefType == StaticDataApprovals.BusinessRefType && await changes.Get(granted.BusinessRefId, cancellationToken) is { } change
+            && !change.ApprovalApplied(granted.CheckerId)
+            && change.ApproveChange(granted.CheckerId, requiresDifferentChecker: true, clock.UtcNow).IsFailure)
         {
-            change.ApproveChange(granted.CheckerId, requiresDifferentChecker: true, clock.UtcNow);
+            throw NotApplied(granted);
         }
 
-        await DecideGovernance(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, cancellationToken);
+        if (await DecideGovernance(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, cancellationToken) is { IsFailure: true })
+        {
+            throw NotApplied(granted);
+        }
     }
 
     /// <summary>Workflow rejected the change: RejectChange, and the owning module returns the version to draft.</summary>
@@ -234,9 +245,13 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
     private static PrerequisiteMissingException NotApplied(ApprovalRejected rejected) =>
         new(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
 
+    private static PrerequisiteMissingException NotApplied(ApprovalGranted granted) =>
+        new(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
+
     /// <summary>
     /// Workflow's decision on a pending switch-off of Tier 2 maker-checker (OQ-046). An ending other than approval with
-    /// nothing pending any more is a redelivery: the setting is already as it was.
+    /// nothing pending any more is a redelivery: the setting is already as it was; so is an approval with nothing pending
+    /// and Tier 2 maker-checker already off. An approval with nothing pending and it on (switched back on since) fails.
     /// </summary>
     private async Task<Result?> DecideGovernance(string businessRefType, Guid settingsId, bool approved, Guid checkerId, CancellationToken cancellationToken)
     {
@@ -245,7 +260,7 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
             return null;
         }
 
-        return !approved && settings.PendingTier2MakerChecker is null ? Result.Success() : settings.DecidePending(approved, checkerId);
+        return settings.PendingTier2MakerChecker is null && (!approved || !settings.Tier2MakerChecker) ? Result.Success() : settings.DecidePending(approved, checkerId);
     }
 
     public async Task Handle(StaticDataVersionActivated activated, EventEnvelope envelope, CancellationToken cancellationToken)

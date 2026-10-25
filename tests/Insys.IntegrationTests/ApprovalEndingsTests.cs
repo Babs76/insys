@@ -304,13 +304,15 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
     private static Dictionary<string, Case> BuildCases() => new()
     {
         [GeneralApprovals.SettlementApprovalType] = new(GeneralPermissionSet, [GeneralApprovals.SettlementApprovalType, "BANK_ACCOUNT_VERIFICATION"], GeneralSettlement,
-            "UnderAssessment|settlement pending", ["Approved"], "UnderAssessment|no settlement"),
+            "UnderAssessment|settlement pending", ["Approved"], "UnderAssessment|no settlement", Refuse: RefuseGeneralSettlement,
+            WhenRefused: "UnderAssessment|settlement pending"),
         [LifeApprovals.ClaimApprovalType] = new(LifePermissionSet, [PaymentApprovals.PayoutApprovalType, "BANK_ACCOUNT_VERIFICATION"], LifeClaim,
-            "InAssessment|approval pending|payees 1", ["Approved|payees 1"], "InAssessment|payees 0"),
+            "InAssessment|approval pending|payees 1", ["Approved|payees 1"], "InAssessment|payees 0", Refuse: RefuseLifeClaim,
+            WhenRefused: "InAssessment|approval pending|payees 1"),
         [LifeApprovals.UnderwritingApprovalType] = new(LifePermissionSet, [LifeApprovals.UnderwritingApprovalType], LifeUnderwriting,
-            "InAssessment|decision pending", ["Decided"], "InAssessment"),
+            "InAssessment|decision pending", ["Decided"], "InAssessment", Refuse: RefuseLifeUnderwriting, WhenRefused: "InAssessment|decision pending"),
         [GeneralApprovals.EndorsementApprovalType] = new(GeneralPermissionSet, [GeneralApprovals.EndorsementApprovalType], GeneralEndorsement,
-            "PendingApproval", ["Approved", "Applied"], "Rejected"),
+            "PendingApproval", ["Approved", "Applied"], "Rejected", Refuse: RefuseGeneralEndorsement, WhenRefused: "PendingApproval"),
         [ClaimsApprovals.InstructionApprovalType] = new(MoneyPermissionSet, [ClaimsApprovals.InstructionApprovalType, "BANK_ACCOUNT_VERIFICATION"], ClaimPayment,
             "PendingApproval", ["Approved"], "Rejected"),
         [BillingApprovals.RefundApprovalType] = new(MoneyPermissionSet, [BillingApprovals.RefundApprovalType, "BANK_ACCOUNT_VERIFICATION"], Refund,
@@ -319,24 +321,29 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
             CommissionStatement, "Draft|approval pending", ["Approved"], "Draft"),
         [FinanceApprovals.ReopenApprovalType] = new([FinancePermissions.PeriodRead, FinancePermissions.PeriodUpdate, .. Approving], [FinanceApprovals.ReopenApprovalType],
             PeriodReopen, "SoftClose|reopen requested", ["Open"], "SoftClose"),
-        [ProductApprovals.ApprovalType] = new(ProductPermissionSet, [ProductApprovals.ApprovalType], ProductPublication, "Submitted", ["Approved", "Published"], "Draft"),
+        [ProductApprovals.ApprovalType] = new(ProductPermissionSet, [ProductApprovals.ApprovalType], ProductPublication, "Submitted", ["Approved", "Published"], "Draft",
+            Refuse: RefuseProductPublication, WhenRefused: "Draft"),
         ["STATIC_DATA_T1"] = new(StaticPermissionSet, ["STATIC_DATA_T1"], w => StaticDataChange(w, tier1: true),
-            "version SUBMITTED|change PENDING_APPROVAL", ["version APPROVED|change APPROVED"], "version DRAFT|change REJECTED"),
+            "version SUBMITTED|change PENDING_APPROVAL", ["version APPROVED|change APPROVED"], "version DRAFT|change REJECTED", Refuse: RefuseStaticDataChange,
+            WhenRefused: "version SUBMITTED|change REJECTED"),
         ["STATIC_DATA_T2"] = new(StaticPermissionSet, ["STATIC_DATA_T2"], w => StaticDataChange(w, tier1: false),
-            "version SUBMITTED|change PENDING_APPROVAL", ["version APPROVED|change APPROVED"], "version DRAFT|change REJECTED"),
+            "version SUBMITTED|change PENDING_APPROVAL", ["version APPROVED|change APPROVED"], "version DRAFT|change REJECTED", Refuse: RefuseStaticDataChange,
+            WhenRefused: "version SUBMITTED|change REJECTED"),
         [IdentityApprovals.ApprovalType] = new([IdentityPermissions.UserRead, IdentityPermissions.UserCreate, IdentityPermissions.UserUpdate, .. Approving],
-            [IdentityApprovals.ApprovalType], PrivilegedRole, "PendingApproval", ["Active"], "Rejected"),
+            [IdentityApprovals.ApprovalType], PrivilegedRole, "PendingApproval", ["Active"], "Rejected", Refuse: RefusePrivilegedRole, WhenRefused: "Revoked"),
         [IdentityApprovals.SubjectLinkApprovalType] = new([IdentityPermissions.UserRead, IdentityPermissions.UserUpdate, PartyPermissions.PartyCreate, .. Approving],
-            [IdentityApprovals.SubjectLinkApprovalType], SubjectLink, "PENDING", ["ACTIVE"], "REJECTED"),
+            [IdentityApprovals.SubjectLinkApprovalType], SubjectLink, "PENDING", ["ACTIVE"], "REJECTED", Refuse: RefuseSubjectLink, WhenRefused: "ENDED"),
         [IdentityApprovals.TenantAdministratorApprovalType] = new(
             [TenancyPermissions.Read, TenancyPermissions.Create, TenancyPermissions.Update, IdentityPermissions.UserRead, IdentityPermissions.UserCreate, .. Approving],
-            [IdentityApprovals.TenantAdministratorApprovalType], TenantAdministrator, "PendingApproval", ["Provisioned"], "Rejected", Operator: true),
+            [IdentityApprovals.TenantAdministratorApprovalType], TenantAdministrator, "PendingApproval", ["Provisioned"], "Rejected", Operator: true,
+            Refuse: RefuseTenantAdministrator, WhenRefused: "PendingApproval"),
         [PartyApprovals.MatchResolutionType] = new([PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.PartyUpdate, .. Approving],
-            [PartyApprovals.MatchResolutionType], PartyMatch, "PROPOSED", ["LINKED"], "PENDING_REVIEW"),
+            [PartyApprovals.MatchResolutionType], PartyMatch, "PROPOSED", ["LINKED"], "PENDING_REVIEW", Refuse: RefusePartyMatch, WhenRefused: "PROPOSED"),
         ["BANK_ACCOUNT_VERIFICATION"] = new(
             [PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.BankAccountCreate, PartyPermissions.BankAccountRead, PartyPermissions.BankAccountVerify,
              .. Approving],
-            ["BANK_ACCOUNT_VERIFICATION"], BankAccount, "new PENDING_VERIFICATION|previous ACTIVE", ["new ACTIVE|previous SUPERSEDED"], "new REJECTED|previous ACTIVE"),
+            ["BANK_ACCOUNT_VERIFICATION"], BankAccount, "new PENDING_VERIFICATION|previous ACTIVE", ["new ACTIVE|previous SUPERSEDED"], "new REJECTED|previous ACTIVE",
+            Refuse: RefuseBankAccount, WhenRefused: "new PENDING_VERIFICATION|previous ACTIVE"),
         [HealthApprovals.RunApprovalType] = new(HealthPermissionSet, [HealthApprovals.RunApprovalType, "BANK_ACCOUNT_VERIFICATION"], ProviderPaymentRun,
             "Calculated", ["Approved"], "Rejected"),
         [PaymentApprovals.PayoutApprovalType] = new(MoneyPermissionSet, [PaymentApprovals.PayoutApprovalType, BillingApprovals.RefundApprovalType, "BANK_ACCOUNT_VERIFICATION"],
@@ -514,6 +521,14 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         return new(PartyApprovals.BankAccountBusinessRefType, account, State);
     }
 
+    /// <summary>
+    /// No API changes an account once it waits for verification (another account withdraws its approval instead), so an
+    /// owner update stands for one changed since it was submitted: its number's hash, which the approval's subject binds.
+    /// </summary>
+    private static Task RefuseBankAccount(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE party.bank_account SET account_number_hash = repeat('f', 64) WHERE tenant_id = @t AND id = @a",
+            ("t", w.Tenant), ("a", waiting.BusinessRefId));
+
     private static async Task<Waiting> PartyMatch(World w)
     {
         var known = await w.Maker.RegisterPerson("Known");
@@ -545,6 +560,16 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
             async () => (await w.Get($"/api/v1/party/parties/{registration}")).GetProperty("review").GetProperty("status").GetString()!);
     }
 
+    /// <summary>Through the API: the party the registration matched is merged into another, so it will not take the link.</summary>
+    private static async Task RefusePartyMatch(World w, Waiting waiting)
+    {
+        var known = (await w.Get($"/api/v1/party/parties/{waiting.BusinessRefId}")).GetProperty("review").GetProperty("matchedPartyId").GetGuid();
+        var survivor = await w.Maker.RegisterPerson("Survivor");
+        await w.Db.UserWithPermissions(w.Tenant, $"merger-{w.Suffix}", PartyPermissions.PartyMerge);
+        await w.Ok(await w.Factory.ClientFor(w.Tenant, $"merger-{w.Suffix}").Send(HttpMethod.Post, "/api/v1/party/merges",
+            new { survivorId = survivor, mergedId = known, reason = "Same person" }, idempotent: true));
+    }
+
     private static async Task<Waiting> PrivilegedRole(World w)
     {
         var role = "NIGHT_OP";
@@ -569,6 +594,14 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         return new(IdentityApprovals.BusinessRefType, (await Assignment()).GetProperty("id").GetGuid(), async () => (await Assignment()).GetProperty("status").GetString()!);
     }
 
+    /// <summary>
+    /// Revoking a role applies only to assignments in effect, so no API changes one waiting for approval: an owner update
+    /// stands for an assignment revoked since it was submitted.
+    /// </summary>
+    private static Task RefusePrivilegedRole(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET status = 'REVOKED', revoked_at = now(), revoked_by = assigned_by WHERE tenant_id = @t AND id = @a",
+            ("t", w.Tenant), ("a", waiting.BusinessRefId));
+
     private static async Task<Waiting> SubjectLink(World w)
     {
         var party = await w.Maker.RegisterPerson("Linked");
@@ -578,6 +611,14 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         var link = (await w.Get($"/api/v1/identity/users/{user}/subject-link")).GetProperty("id").GetGuid();
         return new(IdentityApprovals.SubjectLinkBusinessRefType, link,
             async () => (await w.Db.ScalarAsOwner<string>("SELECT status FROM iam.user_subject_link WHERE id = @l", ("l", link)))!);
+    }
+
+    /// <summary>Through the API: the administrator ends the link while it waits for approval.</summary>
+    private static async Task RefuseSubjectLink(World w, Waiting waiting)
+    {
+        var user = await w.Db.ScalarAsOwner<Guid>("SELECT user_id FROM iam.user_subject_link WHERE id = @l", ("l", waiting.BusinessRefId));
+        await w.Ok(await w.Maker.Send(HttpMethod.Post, $"/api/v1/identity/users/{user}/subject-link/end",
+            ifMatch: (await w.Maker.GetAsync($"/api/v1/identity/users/{user}")).ETag()), HttpStatusCode.NoContent);
     }
 
     private static async Task<Waiting> TenantAdministrator(World w)
@@ -606,6 +647,16 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
             async () => (await w.Get($"/api/v1/identity/tenant-administrators/{request}")).GetProperty("status").GetString()!);
     }
 
+    /// <summary>
+    /// No API adds a user to a tenant that has no administrator yet, so an owner insert stands for the new tenant having had
+    /// a user since the request was made: its first administrator is then no longer provisioned.
+    /// </summary>
+    private static async Task RefuseTenantAdministrator(World w, Waiting waiting)
+    {
+        var tenant = await w.Db.ScalarAsOwner<Guid>("SELECT target_tenant_id FROM iam.tenant_administrator_request WHERE id = @r", ("r", waiting.BusinessRefId));
+        await w.Db.UserWithPermissions(tenant, $"early-{w.Suffix}");
+    }
+
     private static async Task<Waiting> StaticDataChange(World w, bool tier1)
     {
         var (url, code, body) = tier1
@@ -628,6 +679,13 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
 
         return new(StaticDataApprovals.BusinessRefType, change, State);
     }
+
+    /// <summary>
+    /// No API withdraws a submitted static data change, so an owner update stands for a change request rejected since it
+    /// was submitted; the version stays submitted.
+    /// </summary>
+    private static Task RefuseStaticDataChange(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE sdm.change_request SET status = 'REJECTED' WHERE tenant_id = @t AND id = @c", ("t", w.Tenant), ("c", waiting.BusinessRefId));
 
     // ---- Money: Billing, Claims Framework, Payments, Finance, Distribution ---------------------------------------------
 
@@ -873,6 +931,11 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         return new(ProductApprovals.BusinessRefType, version, async () => (await w.Get(versionUrl)).GetProperty("status").GetString()!, After: After);
     }
 
+    /// <summary>No API changes a submitted version, so an owner update stands for one returned to draft since it was submitted.</summary>
+    private static Task RefuseProductPublication(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE product.cfg_product_definitions_and_versions SET record_status = 'DRAFT' WHERE tenant_id = @t AND id = @v",
+            ("t", w.Tenant), ("v", waiting.BusinessRefId));
+
     // ---- General ---------------------------------------------------------------------------------------------------------
 
     private const string GeneralProduct = "AE-GMOT";
@@ -1007,6 +1070,13 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
             async () => (await w.Get($"/api/v1/general/endorsements/{endorsement}")).GetProperty("status").GetString()!);
     }
 
+    /// <summary>Through the API: the policy is cancelled while the endorsement waits, so it no longer takes endorsements.</summary>
+    private static async Task RefuseGeneralEndorsement(World w, Waiting waiting)
+    {
+        var policy = await w.Db.ScalarAsOwner<Guid>("SELECT policy_id FROM general.endorsement WHERE id = @e", ("e", waiting.BusinessRefId));
+        await w.Ok(await w.Maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{policy}/cancel", new { reasonCode = "INS_REQUEST", effectiveDate = Today }));
+    }
+
     private static async Task<Waiting> GeneralSettlement(World w)
     {
         var (policy, vehicle) = await GeneralPolicy(w);
@@ -1040,6 +1110,13 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
 
         return new(GeneralApprovals.SettlementBusinessRefType, claim, State);
     }
+
+    /// <summary>
+    /// No API changes a settlement waiting for approval (nor declines the claim meanwhile), so an owner update stands for
+    /// one changed since it was submitted: its amount, which the approval's subject binds.
+    /// </summary>
+    private static Task RefuseGeneralSettlement(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE general.claim SET settlement_amount = settlement_amount - 1 WHERE tenant_id = @t AND id = @c", ("t", w.Tenant), ("c", waiting.BusinessRefId));
 
     // ---- Life --------------------------------------------------------------------------------------------------------------
 
@@ -1173,6 +1250,13 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         return new(LifeApprovals.UnderwritingBusinessRefType, caseId, State, () => w.Get(url));
     }
 
+    /// <summary>
+    /// No API changes a decision waiting for approval, so an owner update stands for one changed since it was submitted:
+    /// its reason, which the approval's subject binds.
+    /// </summary>
+    private static Task RefuseLifeUnderwriting(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE life.underwriting_case SET decision_reason = 'CHANGED' WHERE tenant_id = @t AND id = @c", ("t", w.Tenant), ("c", waiting.BusinessRefId));
+
     /// <summary>A death claim on a policy in force, assessed at its 1 000 000 sum assured; its approval is above the maker's claims authority.</summary>
     private static async Task<Waiting> LifeClaim(World w)
     {
@@ -1213,6 +1297,13 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
 
         return new(LifeApprovals.ClaimBusinessRefType, claim, State, () => w.Get(url));
     }
+
+    /// <summary>
+    /// No API changes a claim's approval request while it waits, so an owner update stands for one changed since it was
+    /// submitted: its reason, which the approval's subject binds.
+    /// </summary>
+    private static Task RefuseLifeClaim(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE life.claim SET decision_reason = 'CHANGED' WHERE tenant_id = @t AND id = @c", ("t", w.Tenant), ("c", waiting.BusinessRefId));
 
     // ---- Health ------------------------------------------------------------------------------------------------------------
 

@@ -140,6 +140,13 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
         return change;
     }
 
+    /// <summary>
+    /// Whether that checker's grant is already applied (the change was approved by them, and may be in force or deprecated
+    /// since): a redelivery changes nothing.
+    /// </summary>
+    public bool ApprovalApplied(Guid checkerId) =>
+        Status is not (ChangeStatus.PendingApproval or ChangeStatus.Rejected) && CheckerId == checkerId;
+
     /// <summary>Command ApproveChange (SDM-003), from Workflow's ApprovalGranted.</summary>
     public Result ApproveChange(Guid checkerId, bool requiresDifferentChecker, DateTimeOffset now)
     {

@@ -178,7 +178,10 @@ internal sealed class ListTenantAdministratorRequestsHandler(ITenantAdministrato
 
 /// <summary>
 /// Identity's policy for Workflow's decision on a first-administrator request (OQ-067): granted, the user, the role
-/// and the assignment are created in the new tenant in this same transaction; rejected, nothing is created.
+/// and the assignment are created in the new tenant in this same transaction; rejected, nothing is created. A decision
+/// the request will not take parks the delivery (D-5, ADR-022): an ending (APPROVAL_ENDING_NOT_APPLIED), or a grant
+/// (APPROVAL_NOT_APPLIED) on a request already decided otherwise or for a tenant that has had users since it was asked for;
+/// Workflow then marks the approval not applied and tells the requester.
 /// </summary>
 public sealed class TenantAdministratorApprovalPolicy(ITenantAdministrators administrators, IClock clock) :
     IIntegrationEventHandler<ApprovalGranted>,
@@ -197,31 +200,33 @@ public sealed class TenantAdministratorApprovalPolicy(ITenantAdministrators admi
             return;
         }
 
-        // Every ending other than approval (rejected, expired, withdrawn) rejects the request; one already rejected is a redelivery.
-        if (!approved && request.Status == TenantAdministratorRequestStatus.Rejected)
+        // A redelivery changes nothing: every ending other than approval (rejected, expired, withdrawn) already rejected it,
+        // or this checker's approval already provisioned it.
+        if (approved ? request.Status == TenantAdministratorRequestStatus.Provisioned && request.DecidedBy == checkerId
+                : request.Status == TenantAdministratorRequestStatus.Rejected)
         {
             return;
         }
 
         if (request.Status != TenantAdministratorRequestStatus.PendingApproval)
         {
-            // D-5: an ending the request would not take (it was provisioned) parks the delivery (ADR-022); a repeated approval changes nothing.
-            if (!approved)
-            {
-                throw NotApplied(approvalId);
-            }
+            throw NotApplied(approved, approvalId);
+        }
 
-            return;
+        // The tenant has had users since the request was made: its administrators add the others.
+        if (approved && await administrators.TenantHasUsers(request.TargetTenantId, cancellationToken))
+        {
+            throw NotApplied(approved, approvalId);
         }
 
         var userId = approved ? await administrators.Provision(request, checkerId, cancellationToken) : (Guid?)null;
-        var decided = request.Decide(approved, checkerId, userId, clock.UtcNow);
-        if (decided.IsFailure && !approved)
+        if (request.Decide(approved, checkerId, userId, clock.UtcNow).IsFailure)
         {
-            throw NotApplied(approvalId);
+            throw NotApplied(approved, approvalId);
         }
     }
 
-    private static PrerequisiteMissingException NotApplied(Guid approvalId) =>
-        new(PrerequisiteCodes.ApprovalEndingNotApplied, $"{IdentityApprovals.TenantAdministratorApprovalType}:{approvalId}");
+    private static PrerequisiteMissingException NotApplied(bool approved, Guid approvalId) =>
+        new(approved ? PrerequisiteCodes.ApprovalNotApplied : PrerequisiteCodes.ApprovalEndingNotApplied,
+            $"{IdentityApprovals.TenantAdministratorApprovalType}:{approvalId}");
 }
