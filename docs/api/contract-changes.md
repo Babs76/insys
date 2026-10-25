@@ -2,7 +2,16 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 1 batch 4 (branch `wave1-4`, not merged): function catalogue decisions; business dates
+## Wave 2 batch 1 (branch `wave2-1`, not merged)
+
+### Contract metadata
+- **`DashboardFigure.code` is an enum** of every figure code the summaries return: `WRITTEN_PREMIUM`, `POLICIES_WRITTEN`, `CLAIMS_INCURRED`, `CLAIMS_REPORTED`, `OPEN_ARREARS`, `PAYMENTS_UNKNOWN`, `RETURNS_BY_STATUS`, `RETURNS_AWAITING_ACTION`, `RETURNS_OVERDUE`, `DELIVERIES_PARKED`, `DELIVERIES_FAILING`, `DEAD_LETTERS_OPEN`, `WEBHOOK_DELIVERIES_FAILING`, `OLDEST_PARKED_AT`, `JOB_FUNCTIONS_OFF`.
+- **Months are `yyyy-MM`:** `fromMonth` and `toMonth` of `GET /analytics/claims-incurred`, and `monthKey` in its rows, have the pattern `^[0-9]{4}-(0[1-9]|1[0-2])$`.
+
+### Changed behaviour
+- **Analytics' rebuild by business date runs by itself** once per tenant after the release (recorded in `analytics.release_task`); no manual step.
+
+## Wave 1 batch 4 (merged at `9cc94c3`): function catalogue decisions; business dates
 
 ### Breaking
 - **`POST /api/v1/identity/tenant-administrators` names functions** (OQ-099): `functions` replaces `permissions`, and the request view returns `functions`. Each must be a staff function in force in the catalogue, else 422 `VALIDATION_FAILED` on `functions` ("Not a staff function in force: …"). The tenant's TENANT_ADMIN role is granted exactly those functions.

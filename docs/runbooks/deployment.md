@@ -66,6 +66,25 @@ Both need PostgreSQL 18.
   - It must be a UUID.
 - **Access tokens** last 5 minutes. Revoking access in IAM takes effect on the next request (IAM-005); disabling the user in Keycloak stops new tokens.
 
+### Front-end addresses per environment
+
+Each front-end app signs in through its own public client, and each environment registers that app's own address on it. The front end reads its addresses from its `config.json` (`appBaseUrl`, `postLogoutRedirectUri`, `keycloak.clientId`), so one build is promoted unchanged; the Keycloak client must match.
+
+| App | Client | Valid redirect URIs | Valid post-logout redirect URIs | Web origins |
+|---|---|---|---|---|
+| Back office | `insys-web` | `<appBaseUrl>/*` | `<appBaseUrl>/*` | `<appBaseUrl>` |
+| Broker portal | `broker-portal` | `<appBaseUrl>/*` | `<appBaseUrl>/*` | `<appBaseUrl>` |
+| Member portal | `member-portal` | `<appBaseUrl>/*` | `<appBaseUrl>/*` | `<appBaseUrl>` |
+| Provider portal | `provider-portal` | `<appBaseUrl>/*` | `<appBaseUrl>/*` | `<appBaseUrl>` |
+
+- **Locally** the realm file registers `http://localhost:5173` for every client (redirect, post-logout and web origin), the front end's development server.
+- **Test, demo and production:** each environment's `appBaseUrl` per app is set where it is hosted; this repository does not choose them. Use HTTPS, exact origins, and no wildcard host. The post-logout redirect must be listed, or Keycloak refuses to send the user back after sign-out.
+- **Changing an address** (a new host name, or an app moved):
+  1. In the realm `insys`, open the app's client and replace the old address in **Valid redirect URIs**, **Valid post logout redirect URIs** and **Web origins**. With the admin REST API: `PUT /admin/realms/insys/clients/{id}` with `redirectUris`, `webOrigins` and the attribute `post.logout.redirect.uris` (several addresses separated by `##`).
+  2. Change the app's `config.json` in that environment to the same address.
+  3. Sign in and out once on the new address. Remove the old address only when nothing uses it.
+- The API needs no change: hosted apps are served from the API's own origin behind the gateway (ADR-016). Outside Development the API allows no cross-origin calls (`Cors:AllowedOrigins` is honoured only there), so an app on another origin cannot call it.
+
 ### How a tenant's users get their `tenant_id`
 
 1. The tenant exists in INSYS: the platform operator registers and onboards it (see [tenants-and-access.md](tenants-and-access.md)).
@@ -97,7 +116,7 @@ Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and t
 - an HTTPS issuer, so `RequireHttpsMetadata` stays true;
 - MFA required for privileged roles (IAM-003);
 - the bootstrap administrator's password from the secret store;
-- `insys-web` redirect URIs limited to the production origins.
+- every front-end client's redirect, post-logout and web-origin addresses limited to the production addresses (see Front-end addresses per environment).
 
 ## Field encryption keys: DEW KMS (ADR-018)
 
@@ -232,10 +251,10 @@ Each module's daily transitions run on a timer in every API instance. The work i
    - An advisory lock stops two runners from applying migrations at once.
    - Repeatable scripts (`R__*.sql`, such as the error code catalogue) run again only when their content changes.
 4. Deploy the new host and check `/health/ready`.
-5. Follow the release's own steps, if it has any (below).
+5. Release tasks run by themselves after the host starts (below); check the log for failures.
 
 ### Release steps
-- **Wave 1 batch 4 (Analytics by business date, ADR-025):** rebuild each tenant's Analytics projections once, with `POST /api/v1/analytics/projections/rebuild` as a user holding `ANALYTICS_REBUILD_PROJECTIONS`. Before this release, written premium and registered claims were dated by the UTC day of the event, so an event between 00:00 and 02:00 Johannesburg time (22:00 to 24:00 UTC) counted on the day before. The rebuild dates them again from the logged event time in the tenant's time zone. Claims incurred are dated by their movement date and do not change.
+- **Wave 1 batch 4 (Analytics by business date, ADR-025):** each tenant's Analytics projections are rebuilt once by business date. The host does it by itself after it starts (Wave 2 batch 1): for each active tenant it runs the release task `ANALYTICS_REBUILD_BY_BUSINESS_DATE` and records it in `analytics.release_task` with the rebuilt facts, in one transaction, so it never runs twice; a tenant that fails is logged and tried again at the next start. Before, an event between 00:00 and 02:00 Johannesburg time (22:00 to 24:00 UTC) counted on the day before. Claims incurred are dated by their movement date and do not change. Nothing to do by hand; `POST /api/v1/analytics/projections/rebuild` stays for a rebuild on demand.
 
 There is no down migration. To undo a release, restore the backup taken in step 2, or deploy a fix forward with a new migration.
 

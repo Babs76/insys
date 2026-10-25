@@ -41,6 +41,8 @@ public static class PaymentsInfrastructure
 {
     public static IServiceCollection AddPaymentsInfrastructure(this IServiceCollection services)
     {
+        // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
+        BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Payments.Application.PaymentFigures.PaymentsUnknown);
         const string schema = PaymentsDbContext.SchemaName;
         services.AddModuleDbContext<PaymentsDbContext>(schema, "Payments");
         services.AddStaticData<PaymentsDbContext>(schema, PaymentsStaticData.Descriptors);

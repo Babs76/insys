@@ -36,7 +36,8 @@
 | 8 Wave 1 batch 1 | Requests 48–50 (GAP-050 Health productCode, GAP-052 x-permission declarations, GAP-051 aggregation alerts), completing Wave 0b; Communications addendum for sign-off | **Merged** (`8c007e7`, 25 Oct 2026) |
 | 8 Wave 1 batch 2 | Communications (F021, F031, F078, F095–F102): notifications, channels as stubs, preferences and consent, triggers, delivery callbacks, portal; function catalogue proposal (ADR-026) for sign-off | **Merged** (`2562160`, 25 Oct 2026) |
 | 8 Wave 1 batch 3 | Function catalogue (ADR-026): dynamic menus and function-based access; Communications follow-ups (proof of consent, claim communications list); Payments callback idempotency; CI split plan | **Merged** (`5583285`, 25 Oct 2026) |
-| 8 Wave 1 batch 4 | CI integration split into two shards; OQ-098 conditions and OQ-099; business dates (Analytics by the tenant's business date, a fixed test clock, the 23:30 UTC boundary test) | **Built on `wave1-4`; awaiting CI and merge approval** (25 Oct 2026) |
+| 8 Wave 1 batch 4 | CI integration split into two shards; OQ-098 conditions and OQ-099; business dates (Analytics by the tenant's business date, a fixed test clock, the 23:30 UTC boundary test) | **Merged** (`9cc94c3`, 25 Oct 2026) |
+| 9 Wave 2 batch 1 | Release tasks (Analytics rebuild once per tenant), month pattern and figure code enum, Keycloak addresses per environment; Wave 2 cases addendum for sign-off | **In progress on `wave2-1`** (25 Oct 2026) |
 
 ## Phase 1 review items
 

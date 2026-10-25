@@ -41,6 +41,8 @@ public static class AnalyticsInfrastructure
 {
     public static IServiceCollection AddAnalyticsInfrastructure(this IServiceCollection services)
     {
+        // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
+        BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Analytics.Application.AnalyticsFigures.WrittenPremium, Insys.Analytics.Application.AnalyticsFigures.PoliciesWritten, Insys.Analytics.Application.AnalyticsFigures.ClaimsIncurred, Insys.Analytics.Application.AnalyticsFigures.ClaimsReported);
         // ADR-026 §2: this module's event consumers run under its JOB function.
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.AnalyticsDbContext.SchemaName, "ANALYTICS_EVENT_PROCESSING");
         const string schema = AnalyticsDbContext.SchemaName;
@@ -49,6 +51,11 @@ public static class AnalyticsInfrastructure
         services.AddModuleHandlers<AnalyticsDbContext>(typeof(RebuildProjections).Assembly);
         services.AddScoped<IProjectionStore, ProjectionStore>();
         services.AddSingleton<IProjectionTotals, ProjectionTotals>();
+        services.AddSingleton<AnalyticsReleaseTasks>();
+        if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
+        {
+            services.AddHostedService<AnalyticsReleaseTasksService>();
+        }
         services.AddIntegrationEventHandler<GeneralPolicyIssued, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralPolicyIssued");
         services.AddIntegrationEventHandler<GeneralPolicyEndorsed, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralPolicyEndorsed");
         services.AddIntegrationEventHandler<GeneralPolicyCancelled, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralPolicyCancelled");

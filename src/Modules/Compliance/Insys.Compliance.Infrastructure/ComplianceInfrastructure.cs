@@ -38,6 +38,8 @@ public static class ComplianceInfrastructure
 {
     public static IServiceCollection AddComplianceInfrastructure(this IServiceCollection services)
     {
+        // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
+        BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Compliance.Application.ReturnFigures.ByStatus, Insys.Compliance.Application.ReturnFigures.AwaitingAction, Insys.Compliance.Application.ReturnFigures.Overdue);
         // ADR-026 §2: this module's event consumers run under its JOB function.
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.ComplianceDbContext.SchemaName, "COMPLIANCE_EVENT_PROCESSING");
         const string schema = ComplianceDbContext.SchemaName;

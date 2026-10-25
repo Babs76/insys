@@ -124,9 +124,15 @@ public sealed record AccountView(Guid Id, string AccountNumber, Guid PayerPartyI
 /// </summary>
 public sealed record BillingSummaryQuery : IQuery<DashboardSummary>;
 
-internal sealed class BillingSummaryHandler(IBillingRepository billing, IExecutionContext execution, IClock clock) : IQueryHandler<BillingSummaryQuery, DashboardSummary>
+/// <summary>The Billing dashboard figure codes (docs/specs/addenda/dashboard-figures.md).</summary>
+public static class BillingFigures
 {
     public const string OpenArrears = "OPEN_ARREARS";
+}
+
+internal sealed class BillingSummaryHandler(IBillingRepository billing, IExecutionContext execution, IClock clock) : IQueryHandler<BillingSummaryQuery, DashboardSummary>
+{
+    public const string OpenArrears = BillingFigures.OpenArrears;
 
     public async Task<Result<DashboardSummary>> Handle(BillingSummaryQuery query, CancellationToken cancellationToken)
     {

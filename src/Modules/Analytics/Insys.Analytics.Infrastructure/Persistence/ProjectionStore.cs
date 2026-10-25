@@ -130,6 +130,16 @@ internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tena
         return entries.Count;
     }
 
+    public async Task<bool> BeginReleaseTask(string taskCode, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await using var command = await Command("""
+            INSERT INTO analytics.release_task (tenant_id, task_code, completed_at) VALUES (@t, @task, @now) ON CONFLICT DO NOTHING
+            """, cancellationToken);
+        command.Parameters.AddWithValue("task", taskCode);
+        command.Parameters.AddWithValue("now", now);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
     public async Task<IReadOnlyList<WrittenPremiumRow>> WrittenPremium(DateOnly from, DateOnly to, CancellationToken cancellationToken)
     {
         await using var command = await Command("", cancellationToken);

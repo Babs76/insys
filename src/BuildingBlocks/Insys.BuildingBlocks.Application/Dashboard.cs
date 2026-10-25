@@ -36,6 +36,25 @@ public sealed record MoneyAmount(string Currency, decimal Amount);
 /// <summary>A count for one key of a breakdown, for example one status.</summary>
 public sealed record FigurePart(string Key, long Count);
 
+/// <summary>
+/// The figure codes the modules serve (docs/specs/addenda/dashboard-figures.md), declared by each module as it registers,
+/// so the OpenAPI documents give DashboardFigure.code as an enum.
+/// </summary>
+public static class DashboardFigureCodes
+{
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> Codes = new(StringComparer.Ordinal);
+
+    public static void Declare(params string[] codes)
+    {
+        foreach (var code in codes)
+        {
+            Codes[code] = 0;
+        }
+    }
+
+    public static IReadOnlyList<string> All => Codes.Keys.Order(StringComparer.Ordinal).ToList();
+}
+
 /// <summary>One figure: a count, amounts per currency, a breakdown or a moment, as its definition says.</summary>
 public sealed record DashboardFigure(string Code, long? Count = null, IReadOnlyList<MoneyAmount>? Amounts = null, IReadOnlyList<FigurePart>? By = null,
     DateTimeOffset? At = null);

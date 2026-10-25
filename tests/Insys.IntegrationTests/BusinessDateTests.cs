@@ -171,6 +171,28 @@ public sealed class BusinessDateTests(DatabaseFixture fixture) : IClassFixture<D
         (await DateKey(DatabaseFixture.TenantA, "BD-JHB")).ShouldBe(new DateOnly(2026, 11, 1));
     }
 
+    /// <summary>
+    /// Wave 2 batch 1: the release runs the rebuild by business date itself, once per tenant, recorded in
+    /// analytics.release_task so it never runs twice.
+    /// </summary>
+    [Fact]
+    public async Task TheReleaseRebuildsEachTenantsProjectionsOnce_AndRecordsIt()
+    {
+        var old = new Insys.Analytics.Application.ProjectionEntry(Insys.Analytics.Application.ProjectionEntry.WrittenPremium, new DateOnly(2026, 10, 31), "BD-REL",
+            "DIRECT", "ALL", 700m, 1, "ZAR");
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO analytics.event_log (tenant_id, event_id, event_type, occurred_at, received_at, payload)
+            VALUES (@t, gen_random_uuid(), 'general.GeneralPolicyIssued', @at, now(), @payload::jsonb)
+            """, ("t", DatabaseFixture.TenantB), ("at", Instant.AddHours(2)), ("payload", System.Text.Json.JsonSerializer.Serialize(old, System.Text.Json.JsonSerializerOptions.Web)));
+        var tasks = _factory.Services.GetRequiredService<Insys.Analytics.Infrastructure.AnalyticsReleaseTasks>();
+
+        (await tasks.RunFor(DatabaseFixture.TenantB, CancellationToken.None)).ShouldNotBeNull();
+        (await DateKey(DatabaseFixture.TenantB, "BD-REL")).ShouldBe(new DateOnly(2026, 11, 1), "01:30 UTC on 1 November is 1 November on UTC too");
+        (await tasks.RunFor(DatabaseFixture.TenantB, CancellationToken.None)).ShouldBeNull("it is recorded, so it never runs twice");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM analytics.release_task WHERE tenant_id = @t AND task_code = 'ANALYTICS_REBUILD_BY_BUSINESS_DATE'",
+            ("t", DatabaseFixture.TenantB))).ShouldBe(1L);
+    }
+
     private Task<DateOnly> DateKey(Guid tenant, string product) =>
         fixture.Database.ScalarAsOwner<DateOnly>("SELECT date_key FROM analytics.fact_written_premium WHERE tenant_id = @t AND product_code = @p", ("t", tenant), ("p", product));
 

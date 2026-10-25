@@ -227,6 +227,17 @@ public static class ApiRegistration
         });
         options.AddOperationTransformer((operation, context, _) =>
         {
+            // A month parameter ([YearMonth]) is a string with the yyyy-MM pattern.
+            foreach (var described in context.Description.ParameterDescriptions)
+            {
+                if (described.ParameterDescriptor is Microsoft.AspNetCore.Mvc.Infrastructure.IParameterInfoParameterDescriptor { ParameterInfo: var info }
+                    && System.Reflection.CustomAttributeExtensions.GetCustomAttribute<Domain.YearMonthAttribute>(info) is not null
+                    && operation.Parameters?.FirstOrDefault(p => p.Name == described.Name) is OpenApiParameter { Schema: OpenApiSchema schema })
+                {
+                    schema.Pattern = Domain.YearMonthAttribute.Pattern;
+                }
+            }
+
             var metadata = context.Description.ActionDescriptor.EndpointMetadata;
             var permission = metadata.OfType<RequiredPermissionMetadata>().FirstOrDefault();
             if (permission is not null)

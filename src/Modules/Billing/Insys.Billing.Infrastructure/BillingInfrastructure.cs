@@ -42,6 +42,8 @@ public static class BillingInfrastructure
 {
     public static IServiceCollection AddBillingInfrastructure(this IServiceCollection services)
     {
+        // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
+        BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Billing.Application.BillingFigures.OpenArrears);
         const string schema = BillingDbContext.SchemaName;
         services.AddModuleDbContext<BillingDbContext>(schema, "Billing");
         services.AddStaticData<BillingDbContext>(schema, BillingStaticData.Descriptors);

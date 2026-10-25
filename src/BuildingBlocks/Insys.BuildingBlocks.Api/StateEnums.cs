@@ -68,6 +68,18 @@ public static class StateEnums
             SetEnum(target, oneOf.Values);
         }
 
+        if (context.JsonPropertyInfo?.AttributeProvider is MemberInfo monthMember && monthMember.GetCustomAttribute<YearMonthAttribute>() is not null)
+        {
+            schema.Pattern = YearMonthAttribute.Pattern;
+        }
+
+        // The figure codes every module declared (DashboardFigureCodes).
+        if (context.JsonTypeInfo.Type == typeof(Application.DashboardFigure) && schema.Properties?.TryGetValue("code", out var code) == true
+            && code is OpenApiSchema codeSchema && Application.DashboardFigureCodes.All is { Count: > 0 } figures)
+        {
+            SetEnum(codeSchema, figures);
+        }
+
         if (Lifecycles.TryGetValue(context.JsonTypeInfo.Type, out var lifecycle)
             && schema.Properties?.TryGetValue("recordStatus", out var property) == true && property is OpenApiSchema status)
         {

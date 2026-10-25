@@ -386,12 +386,20 @@ internal sealed class RunReportHandler(IComplianceRepository repository, ICompli
     }
 }
 
-internal sealed class ReturnsSummaryHandler(IComplianceRepository repository, IComplianceCodes codes, IBusinessDate businessDate, IClock clock)
-    : IQueryHandler<ReturnsSummaryQuery, DashboardSummary>
+/// <summary>The Compliance dashboard figure codes (docs/specs/addenda/dashboard-figures.md).</summary>
+public static class ReturnFigures
 {
     public const string ByStatus = "RETURNS_BY_STATUS";
     public const string AwaitingAction = "RETURNS_AWAITING_ACTION";
     public const string Overdue = "RETURNS_OVERDUE";
+}
+
+internal sealed class ReturnsSummaryHandler(IComplianceRepository repository, IComplianceCodes codes, IBusinessDate businessDate, IClock clock)
+    : IQueryHandler<ReturnsSummaryQuery, DashboardSummary>
+{
+    public const string ByStatus = ReturnFigures.ByStatus;
+    public const string AwaitingAction = ReturnFigures.AwaitingAction;
+    public const string Overdue = ReturnFigures.Overdue;
 
     public async Task<Result<DashboardSummary>> Handle(ReturnsSummaryQuery query, CancellationToken cancellationToken)
     {

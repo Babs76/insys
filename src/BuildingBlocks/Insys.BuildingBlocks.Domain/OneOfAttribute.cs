@@ -36,3 +36,10 @@ public sealed class OneOfAttribute(params string[] values) : Attribute
 {
     public IReadOnlyList<string> Values { get; } = values;
 }
+
+/// <summary>A month as yyyy-MM (a string field or parameter): the OpenAPI documents give it that pattern.</summary>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter)]
+public sealed class YearMonthAttribute : Attribute
+{
+    public const string Pattern = "^[0-9]{4}-(0[1-9]|1[0-2])$";
+}

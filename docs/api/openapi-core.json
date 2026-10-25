@@ -23698,6 +23698,7 @@
             "in": "query",
             "required": true,
             "schema": {
+              "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
               "type": "string"
             }
           },
@@ -23706,6 +23707,7 @@
             "in": "query",
             "required": true,
             "schema": {
+              "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
               "type": "string"
             }
           }
@@ -27586,6 +27588,7 @@
         "type": "object",
         "properties": {
           "monthKey": {
+            "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
             "type": "string"
           },
           "productCode": {
@@ -30697,6 +30700,23 @@
         "type": "object",
         "properties": {
           "code": {
+            "enum": [
+              "CLAIMS_INCURRED",
+              "CLAIMS_REPORTED",
+              "DEAD_LETTERS_OPEN",
+              "DELIVERIES_FAILING",
+              "DELIVERIES_PARKED",
+              "JOB_FUNCTIONS_OFF",
+              "OLDEST_PARKED_AT",
+              "OPEN_ARREARS",
+              "PAYMENTS_UNKNOWN",
+              "POLICIES_WRITTEN",
+              "RETURNS_AWAITING_ACTION",
+              "RETURNS_BY_STATUS",
+              "RETURNS_OVERDUE",
+              "WEBHOOK_DELIVERIES_FAILING",
+              "WRITTEN_PREMIUM"
+            ],
             "type": "string"
           },
           "count": {

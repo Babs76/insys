@@ -66,7 +66,7 @@ public sealed class AnalyticsModule : IModule
             .WithDescription("Days are the tenant's business dates (ADR-025): a policy counts on the tenant's date when it was issued, endorsed or cancelled.")
             .RequirePermission(AnalyticsPermissions.ProjectionRead);
 
-        analytics.MapGet("/claims-incurred", async (string fromMonth, string toMonth, IDispatcher d, CancellationToken ct) =>
+        analytics.MapGet("/claims-incurred", async ([BuildingBlocks.Domain.YearMonth] string fromMonth, [BuildingBlocks.Domain.YearMonth] string toMonth, IDispatcher d, CancellationToken ct) =>
                 (await d.Query(new ClaimsIncurredQuery(fromMonth, toMonth), ct)).ToHttp(Results.Ok))
             .Produces<IReadOnlyList<ClaimsIncurredRow>>(StatusCodes.Status200OK)
             .WithName("AnalyticsClaimsIncurred")

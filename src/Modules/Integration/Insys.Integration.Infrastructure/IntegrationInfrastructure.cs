@@ -43,6 +43,9 @@ public static class IntegrationInfrastructure
 {
     public static IServiceCollection AddIntegrationInfrastructure(this IServiceCollection services)
     {
+        // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
+        BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Integration.Application.Parking.DeliveryFigures.Parked, Insys.Integration.Application.Parking.DeliveryFigures.Failing, Insys.Integration.Application.Parking.DeliveryFigures.DeadLettersOpen,
+            Insys.Integration.Application.Parking.DeliveryFigures.WebhooksFailing, Insys.Integration.Application.Parking.DeliveryFigures.OldestParkedAt, Insys.Integration.Application.Parking.DeliveryFigures.JobFunctionsOff);
         services.AddModuleDbContext<IntegrationDbContext>(IntegrationDbContext.SchemaName, "Integration");
         services.AddStaticData<IntegrationDbContext>(IntegrationDbContext.SchemaName, IntegrationStaticData.Descriptors);
         services.AddSingleton<IStaticRecordValidator, Channels.ChannelRowValidator>();

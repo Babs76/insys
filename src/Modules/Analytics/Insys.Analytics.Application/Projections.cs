@@ -61,7 +61,7 @@ public sealed record ProjectionEntry(string Kind, DateOnly Day, string ProductCo
 
 public sealed record WrittenPremiumRow(DateOnly DateKey, string ProductCode, string ChannelCode, string BranchCode, int PolicyCount, decimal WrittenPremium, string Currency);
 
-public sealed record ClaimsIncurredRow(string MonthKey, string ProductCode, string CauseCode, int ClaimCount, decimal Incurred, string Currency, string BranchCode = "ALL");
+public sealed record ClaimsIncurredRow([property: YearMonth] string MonthKey, string ProductCode, string CauseCode, int ClaimCount, decimal Incurred, string Currency, string BranchCode = "ALL");
 
 public interface IProjectionStore
 {
@@ -78,6 +78,12 @@ public interface IProjectionStore
     /// occurred_at in the tenant's time zone (<paramref name="businessDateOf"/>), so facts logged by the UTC day are corrected (ADR-025).
     /// </summary>
     Task<int> Rebuild(DateTimeOffset now, Func<DateTimeOffset, DateOnly> businessDateOf, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records a release task for the tenant (analytics.release_task) in the current transaction; false when it is already
+    /// recorded, so the caller does not run it again.
+    /// </summary>
+    Task<bool> BeginReleaseTask(string taskCode, DateTimeOffset now, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<WrittenPremiumRow>> WrittenPremium(DateOnly from, DateOnly to, CancellationToken cancellationToken);
 
@@ -111,6 +117,15 @@ public static class AnalyticsFigures
 /// <summary>Rebuilds the tenant's projections from the events Analytics consumed (domain-model.json: projections are rebuilt from events).</summary>
 public sealed record RebuildProjections : ICommand<int>;
 
+/// <summary>
+/// Release task (Wave 2 batch 1): the tenant's projections rebuilt by business date once, recorded so it never runs again.
+/// Returns the entries replayed, or null when it had already run.
+/// </summary>
+public sealed record RunReleaseRebuild : ICommand<int?>
+{
+    public const string TaskCode = "ANALYTICS_REBUILD_BY_BUSINESS_DATE";
+}
+
 internal sealed class ProjectionQueries(IProjectionStore store) :
     IQueryHandler<WrittenPremiumQuery, IReadOnlyList<WrittenPremiumRow>>,
     IQueryHandler<ClaimsIncurredQuery, IReadOnlyList<ClaimsIncurredRow>>,
@@ -126,6 +141,14 @@ internal sealed class ProjectionQueries(IProjectionStore store) :
 
     public async Task<Result<IReadOnlyList<ClaimsIncurredRow>>> Handle(ClaimsIncurredQuery query, CancellationToken cancellationToken) =>
         Result.Success(await store.ClaimsIncurred(query.FromMonth, query.ToMonth, cancellationToken));
+}
+
+internal sealed class RunReleaseRebuildHandler(IProjectionStore store, IBusinessDate businessDate, IClock clock) : ICommandHandler<RunReleaseRebuild, int?>
+{
+    public async Task<Result<int?>> Handle(RunReleaseRebuild command, CancellationToken cancellationToken) =>
+        await store.BeginReleaseTask(RunReleaseRebuild.TaskCode, clock.UtcNow, cancellationToken)
+            ? await store.Rebuild(clock.UtcNow, businessDate.DateOf, cancellationToken)
+            : (int?)null;
 }
 
 internal sealed class RebuildProjectionsHandler(IProjectionStore store, IBusinessDate businessDate, IClock clock) : ICommandHandler<RebuildProjections, int>

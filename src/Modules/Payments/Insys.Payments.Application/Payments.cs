@@ -634,9 +634,15 @@ public sealed class PaymentScopes(IEnumerable<IBusinessRecordScopes> sources, IT
 /// </summary>
 public sealed record PaymentsSummaryQuery : IQuery<DashboardSummary>;
 
-internal sealed class PaymentsSummaryHandler(IPaymentRepository payments, PaymentScopes scopes, IClock clock) : IQueryHandler<PaymentsSummaryQuery, DashboardSummary>
+/// <summary>The Payments dashboard figure codes (docs/specs/addenda/dashboard-figures.md).</summary>
+public static class PaymentFigures
 {
     public const string PaymentsUnknown = "PAYMENTS_UNKNOWN";
+}
+
+internal sealed class PaymentsSummaryHandler(IPaymentRepository payments, PaymentScopes scopes, IClock clock) : IQueryHandler<PaymentsSummaryQuery, DashboardSummary>
+{
+    public const string PaymentsUnknown = PaymentFigures.PaymentsUnknown;
 
     public async Task<Result<DashboardSummary>> Handle(PaymentsSummaryQuery query, CancellationToken cancellationToken)
     {
