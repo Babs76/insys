@@ -59,6 +59,8 @@ public sealed class TenancyModule : IModule
 {
     public string Name => "Tenancy";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => TenancyFunctions.All;
+
     /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
     public bool HoldsBusinessData => false;
 

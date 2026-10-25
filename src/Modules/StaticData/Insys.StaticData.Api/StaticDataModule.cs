@@ -51,6 +51,8 @@ public sealed class StaticDataModule : IModule
 {
     public string Name => "StaticData";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => StaticDataModuleFunctions.All;
+
     /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
     public bool HoldsBusinessData => false;
 

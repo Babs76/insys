@@ -39,13 +39,13 @@ public static class WorkflowStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("workflow", "cfg_delegation_and_approval_authority", "cfg_delegation_and_approval_authority", "Delegation and approval authority", "workflow", "delegation-and-approval-authority", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DelegationAndApprovalAuthority), typeof(DelegationAndApprovalAuthorityInput)),
-        new("workflow", "cfg_escalation_rules", "cfg_escalation_rules", "Escalation rules", "workflow", "escalation-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(EscalationRules), typeof(EscalationRulesInput)),
-        new("workflow", "cfg_sla_definitions", "cfg_sla_definitions", "SLA definitions", "workflow", "sla-definitions", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(SLADefinitions), typeof(SLADefinitionsInput)),
-        new("workflow", "cfg_task_types_and_work_queues", "cfg_task_types_and_work_queues", "Task types and work queues", "workflow", "task-types-and-work-queues", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(TaskTypesAndWorkQueues), typeof(TaskTypesAndWorkQueuesInput)),
-        new("workflow", "cfg_workflow_definitions", "cfg_workflow_definitions", "Workflow definitions", "workflow", "workflow-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(WorkflowDefinitions), typeof(WorkflowDefinitionsInput)),
-        new("workflow", "ref_business_calendars", "ref_business_calendars", "Business calendars", "workflow", "business-calendars", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(BusinessCalendars), typeof(BusinessCalendarsInput)),
-        new("workflow", "ref_exception_codes", "ref_exception_codes", "Exception codes", "workflow", "exception-codes", StaticScope.T, 3, StaticLifecycle.Reference, typeof(ExceptionCodes), typeof(ExceptionCodesInput)),
+        new("workflow", "cfg_delegation_and_approval_authority", "cfg_delegation_and_approval_authority", "Delegation and approval authority", "workflow", "delegation-and-approval-authority", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DelegationAndApprovalAuthority), typeof(DelegationAndApprovalAuthorityInput), "Workflow and Case Management"),
+        new("workflow", "cfg_escalation_rules", "cfg_escalation_rules", "Escalation rules", "workflow", "escalation-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(EscalationRules), typeof(EscalationRulesInput), "Workflow and Case Management"),
+        new("workflow", "cfg_sla_definitions", "cfg_sla_definitions", "SLA definitions", "workflow", "sla-definitions", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(SLADefinitions), typeof(SLADefinitionsInput), "Workflow and Case Management"),
+        new("workflow", "cfg_task_types_and_work_queues", "cfg_task_types_and_work_queues", "Task types and work queues", "workflow", "task-types-and-work-queues", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(TaskTypesAndWorkQueues), typeof(TaskTypesAndWorkQueuesInput), "Workflow and Case Management"),
+        new("workflow", "cfg_workflow_definitions", "cfg_workflow_definitions", "Workflow definitions", "workflow", "workflow-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(WorkflowDefinitions), typeof(WorkflowDefinitionsInput), "Workflow and Case Management"),
+        new("workflow", "ref_business_calendars", "ref_business_calendars", "Business calendars", "workflow", "business-calendars", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(BusinessCalendars), typeof(BusinessCalendarsInput), "Workflow and Case Management"),
+        new("workflow", "ref_exception_codes", "ref_exception_codes", "Exception codes", "workflow", "exception-codes", StaticScope.T, 3, StaticLifecycle.Reference, typeof(ExceptionCodes), typeof(ExceptionCodesInput), "Workflow and Case Management"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)

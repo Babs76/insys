@@ -50,6 +50,8 @@ public sealed class DistributionModule : IModule
 {
     public string Name => "Distribution";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => DistributionFunctions.All;
+
     /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
     public bool TransactsBusiness => true;
 

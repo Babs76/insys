@@ -82,6 +82,8 @@ public sealed class GeneralModule : IModule
 {
     public string Name => "General";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => GeneralFunctions.All;
+
     /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
     public bool TransactsBusiness => true;
 

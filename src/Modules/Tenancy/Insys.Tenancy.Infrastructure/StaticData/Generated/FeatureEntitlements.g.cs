@@ -41,6 +41,7 @@ public sealed class FeatureEntitlements : StaticRecord<FeatureEntitlementsInput>
 {
     public string Tenant { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL")]
     public string Feature { get; set; } = "";
 
     public bool Enabled { get; set; }
@@ -61,6 +62,7 @@ public sealed record FeatureEntitlementsInput : StaticRecordInput
 {
     public string? Tenant { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL")]
     public string? Feature { get; init; }
 
     public bool? Enabled { get; init; }
@@ -73,6 +75,7 @@ public sealed record FeatureEntitlementsInput : StaticRecordInput
         errors.MaxLength("tenant", Tenant, 80);
         errors.Required("feature", Feature);
         errors.MaxLength("feature", Feature, 30);
+        errors.OneOf("feature", Feature, ["LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL"]);
         errors.Required("enabled", Enabled);
     }
 }

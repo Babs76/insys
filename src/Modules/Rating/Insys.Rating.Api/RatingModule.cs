@@ -51,6 +51,8 @@ public sealed class RatingModule : IModule
 {
     public string Name => "Rating";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => RatingFunctions.All;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddRatingInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

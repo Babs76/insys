@@ -76,6 +76,8 @@ public sealed class PartyModule : IModule
 {
     public string Name => "Party";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => PartyFunctions.All;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddPartyInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

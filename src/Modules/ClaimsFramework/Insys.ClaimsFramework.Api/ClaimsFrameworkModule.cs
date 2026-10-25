@@ -58,6 +58,8 @@ public sealed class ClaimsFrameworkModule : IModule
 {
     public string Name => "ClaimsFramework";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => ClaimsFrameworkFunctions.All;
+
     /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
     public bool TransactsBusiness => true;
 

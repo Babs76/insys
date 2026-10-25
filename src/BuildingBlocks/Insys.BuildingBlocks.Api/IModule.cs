@@ -48,6 +48,12 @@ public interface IModule
     void MapEndpoints(IEndpointRouteBuilder api);
 
     /// <summary>
+    /// The module's functions (ADR-026): its screens and actions with the operations (endpoint names) each covers, and its
+    /// jobs. Every operation is in exactly one function; the catalogue is generated from these.
+    /// </summary>
+    IReadOnlyList<Functions.FunctionDeclaration> Functions => [];
+
+    /// <summary>
     /// Whether the module holds business data (ADR-024). A business module refuses the operator tenant: its endpoints answer
     /// 403 OPERATOR_TENANT_NOT_BUSINESS there, except its static data and platform endpoints. Tenancy, Identity, Static
     /// data, Audit, Integration and Workflow administer the platform and say false.

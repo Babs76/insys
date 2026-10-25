@@ -233,6 +233,20 @@ public static class ApiRegistration
                 operation.Extensions["x-permission"] = new Microsoft.OpenApi.JsonNodeExtension(System.Text.Json.Nodes.JsonValue.Create(permission.Permission));
             }
 
+            // ADR-026: the function(s) the caller must hold, any one of them (a portal operation has one per portal).
+            if (metadata.OfType<Functions.RequiredFunctionMetadata>().LastOrDefault() is { } function)
+            {
+                operation.Extensions ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiExtension>();
+                operation.Extensions["x-function"] = new Microsoft.OpenApi.JsonNodeExtension(
+                    new System.Text.Json.Nodes.JsonArray([.. function.Codes.Select(c => (System.Text.Json.Nodes.JsonNode)System.Text.Json.Nodes.JsonValue.Create(c))]));
+            }
+            else if (metadata.OfType<Functions.StaticDataDecisionFunctionMetadata>().Any())
+            {
+                operation.Extensions ??= new Dictionary<string, Microsoft.OpenApi.IOpenApiExtension>();
+                operation.Extensions["x-function"] = new Microsoft.OpenApi.JsonNodeExtension(new System.Text.Json.Nodes.JsonArray(
+                    System.Text.Json.Nodes.JsonValue.Create("SD_{catalogue module}_APPROVE")));
+            }
+
             if (metadata.OfType<AdditionalPermissionMetadata>().ToList() is { Count: > 0 } additional)
             {
                 // GAP-052: permissions the handler checks besides x-permission, each with when it applies.

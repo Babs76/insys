@@ -69,6 +69,8 @@ public sealed class PaymentsModule : IModule
 {
     public string Name => "Payments";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => PaymentsFunctions.All;
+
     /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
     public bool TransactsBusiness => true;
 

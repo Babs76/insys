@@ -57,6 +57,8 @@ public sealed class DocumentsModule : IModule
 {
     public string Name => "Documents";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => DocumentsFunctions.All;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddDocumentsInfrastructure(configuration);
 
     public void MapEndpoints(IEndpointRouteBuilder api)

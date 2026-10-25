@@ -54,6 +54,8 @@ public sealed class IntegrationModule : IModule
 {
     public string Name => "Integration";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => IntegrationFunctions.All;
+
     /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
     public bool HoldsBusinessData => false;
 

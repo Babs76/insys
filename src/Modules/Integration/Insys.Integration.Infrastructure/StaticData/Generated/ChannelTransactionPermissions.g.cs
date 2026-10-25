@@ -51,6 +51,8 @@ public sealed class ChannelTransactionPermissions : StaticRecord<ChannelTransact
 
     public bool? RequiresApproval { get; set; }
 
+    public string? FunctionCode { get; set; }
+
     public override void ApplyFields(ChannelTransactionPermissionsInput input, IFieldProtector protector)
     {
         ChannelCode = input.ChannelCode!;
@@ -59,6 +61,7 @@ public sealed class ChannelTransactionPermissions : StaticRecord<ChannelTransact
         ProductCode = input.ProductCode;
         Allowed = input.Allowed.GetValueOrDefault();
         RequiresApproval = input.RequiresApproval;
+        FunctionCode = input.FunctionCode;
     }
 }
 
@@ -77,6 +80,8 @@ public sealed record ChannelTransactionPermissionsInput : StaticRecordInput
 
     public bool? RequiresApproval { get; init; }
 
+    public string? FunctionCode { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("channelCode", ChannelCode);
@@ -87,5 +92,6 @@ public sealed record ChannelTransactionPermissionsInput : StaticRecordInput
         errors.MaxLength("transactionType", TransactionType, 30);
         errors.MaxLength("productCode", ProductCode, 80);
         errors.Required("allowed", Allowed);
+        errors.MaxLength("functionCode", FunctionCode, 80);
     }
 }

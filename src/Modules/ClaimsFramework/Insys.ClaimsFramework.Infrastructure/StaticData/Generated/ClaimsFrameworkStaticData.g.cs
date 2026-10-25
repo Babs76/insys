@@ -39,12 +39,12 @@ public static class ClaimsFrameworkStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("claims", "cfg_claim_numbering_schemes", "cfg_claim_numbering_schemes", "Claim numbering schemes", "claims-framework", "claim-numbering-schemes", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ClaimNumberingSchemes), typeof(ClaimNumberingSchemesInput)),
-        new("claims", "cfg_fraud_indicator_definitions", "cfg_fraud_indicator_definitions", "Fraud indicator definitions", "claims-framework", "fraud-indicator-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(FraudIndicatorDefinitions), typeof(FraudIndicatorDefinitionsInput)),
-        new("claims", "ref_claim_decision_reason_codes", "ref_claim_decision_reason_codes", "Claim decision reason codes", "claims-framework", "claim-decision-reason-codes", StaticScope.T, 2, StaticLifecycle.Reference, typeof(ClaimDecisionReasonCodes), typeof(ClaimDecisionReasonCodesInput)),
-        new("claims", "ref_claim_status_model", "ref_claim_status_model", "Claim status model", "claims-framework", "claim-status-model", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(ClaimStatusModel), typeof(ClaimStatusModelInput)),
-        new("claims", "ref_evidence_types", "ref_evidence_types", "Evidence types", "claims-framework", "evidence-types", StaticScope.T, 2, StaticLifecycle.Reference, typeof(EvidenceTypes), typeof(EvidenceTypesInput)),
-        new("claims", "ref_reserve_types", "ref_reserve_types", "Reserve types", "claims-framework", "reserve-types", StaticScope.T, 1, StaticLifecycle.Reference, typeof(ReserveTypes), typeof(ReserveTypesInput)),
+        new("claims", "cfg_claim_numbering_schemes", "cfg_claim_numbering_schemes", "Claim numbering schemes", "claims-framework", "claim-numbering-schemes", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ClaimNumberingSchemes), typeof(ClaimNumberingSchemesInput), "Shared Claims Framework"),
+        new("claims", "cfg_fraud_indicator_definitions", "cfg_fraud_indicator_definitions", "Fraud indicator definitions", "claims-framework", "fraud-indicator-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(FraudIndicatorDefinitions), typeof(FraudIndicatorDefinitionsInput), "Shared Claims Framework"),
+        new("claims", "ref_claim_decision_reason_codes", "ref_claim_decision_reason_codes", "Claim decision reason codes", "claims-framework", "claim-decision-reason-codes", StaticScope.T, 2, StaticLifecycle.Reference, typeof(ClaimDecisionReasonCodes), typeof(ClaimDecisionReasonCodesInput), "Shared Claims Framework"),
+        new("claims", "ref_claim_status_model", "ref_claim_status_model", "Claim status model", "claims-framework", "claim-status-model", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(ClaimStatusModel), typeof(ClaimStatusModelInput), "Shared Claims Framework"),
+        new("claims", "ref_evidence_types", "ref_evidence_types", "Evidence types", "claims-framework", "evidence-types", StaticScope.T, 2, StaticLifecycle.Reference, typeof(EvidenceTypes), typeof(EvidenceTypesInput), "Shared Claims Framework"),
+        new("claims", "ref_reserve_types", "ref_reserve_types", "Reserve types", "claims-framework", "reserve-types", StaticScope.T, 1, StaticLifecycle.Reference, typeof(ReserveTypes), typeof(ReserveTypesInput), "Shared Claims Framework"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)

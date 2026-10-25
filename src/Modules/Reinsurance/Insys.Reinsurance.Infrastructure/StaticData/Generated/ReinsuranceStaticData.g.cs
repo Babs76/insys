@@ -39,11 +39,11 @@ public static class ReinsuranceStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("reinsurance", "cfg_bordereaux_layouts", "cfg_bordereaux_layouts", "Bordereaux layouts", "reinsurance", "bordereaux-layouts", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(BordereauxLayouts), typeof(BordereauxLayoutsInput)),
-        new("reinsurance", "cfg_cession_rules", "cfg_cession_rules", "Cession rules", "reinsurance", "cession-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CessionRules), typeof(CessionRulesInput)),
-        new("reinsurance", "cfg_treaty_definitions", "cfg_treaty_definitions", "Treaty definitions", "reinsurance", "treaty-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(TreatyDefinitions), typeof(TreatyDefinitionsInput)),
-        new("reinsurance", "mst_facultative_arrangements", "mst_facultative_arrangements", "Facultative arrangements", "reinsurance", "facultative-arrangements", StaticScope.T, 1, StaticLifecycle.Reference, typeof(FacultativeArrangements), typeof(FacultativeArrangementsInput)),
-        new("reinsurance", "mst_reinsurer_register", "mst_reinsurer_register", "Reinsurer register", "reinsurance", "reinsurer-register", StaticScope.T, 1, StaticLifecycle.Reference, typeof(ReinsurerRegister), typeof(ReinsurerRegisterInput)),
+        new("reinsurance", "cfg_bordereaux_layouts", "cfg_bordereaux_layouts", "Bordereaux layouts", "reinsurance", "bordereaux-layouts", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(BordereauxLayouts), typeof(BordereauxLayoutsInput), "Reinsurance"),
+        new("reinsurance", "cfg_cession_rules", "cfg_cession_rules", "Cession rules", "reinsurance", "cession-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CessionRules), typeof(CessionRulesInput), "Reinsurance"),
+        new("reinsurance", "cfg_treaty_definitions", "cfg_treaty_definitions", "Treaty definitions", "reinsurance", "treaty-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(TreatyDefinitions), typeof(TreatyDefinitionsInput), "Reinsurance"),
+        new("reinsurance", "mst_facultative_arrangements", "mst_facultative_arrangements", "Facultative arrangements", "reinsurance", "facultative-arrangements", StaticScope.T, 1, StaticLifecycle.Reference, typeof(FacultativeArrangements), typeof(FacultativeArrangementsInput), "Reinsurance"),
+        new("reinsurance", "mst_reinsurer_register", "mst_reinsurer_register", "Reinsurer register", "reinsurance", "reinsurer-register", StaticScope.T, 1, StaticLifecycle.Reference, typeof(ReinsurerRegister), typeof(ReinsurerRegisterInput), "Reinsurance"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)

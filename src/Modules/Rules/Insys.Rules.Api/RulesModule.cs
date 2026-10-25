@@ -48,6 +48,8 @@ public sealed class RulesModule : IModule
 {
     public string Name => "Rules";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => RulesFunctions.All;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddRulesInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

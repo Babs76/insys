@@ -69,6 +69,8 @@ public sealed class HealthModule : IModule
 {
     public string Name => "Health";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => HealthFunctions.All;
+
     /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
     public bool TransactsBusiness => true;
 

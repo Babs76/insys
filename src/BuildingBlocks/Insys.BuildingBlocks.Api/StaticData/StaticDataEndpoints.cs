@@ -68,8 +68,17 @@ public static class StaticDataEndpoints
         where TInput : StaticRecordInput
     {
         StateEnums.Register(descriptor);
+        StaticDataFunctions.Declare(descriptor);
         var group = api.MapGroup($"/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}").WithTags(tag)
             .WithMetadata(new StaticDataEndpointMetadata());
+
+        // ADR-026: reads are the catalogue module's view function, every other operation its maintain function.
+        ((IEndpointConventionBuilder)group).Finally(endpoint =>
+        {
+            var read = endpoint.Metadata.OfType<HttpMethodMetadata>().LastOrDefault()?.HttpMethods.All(m => m is "GET" or "HEAD") == true;
+            endpoint.Metadata.Add(new Functions.RequiredFunctionMetadata(read ? StaticDataFunctions.View(descriptor) : StaticDataFunctions.Maintain(descriptor)));
+        });
+        Functions.FunctionConventions.Attach(group);
         var name = descriptor.EntityName;
 
         group.MapGet("/", async (DateOnly? asAt, string? cursor, int? limit, StaticDataService<TDbContext> service, IBusinessDate businessDate, HttpContext http,

@@ -59,7 +59,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PORTALS_AND_PARTNER_CHANNELS_VIEW"
+        ]
       }
     },
     "/api/v1/integration/static/ui-label-and-translation-bundles/global": {
@@ -128,7 +131,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PORTALS_AND_PARTNER_CHANNELS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/ui-label-and-translation-bundles/global/{code}/versions/{versionNumber}": {
@@ -223,7 +229,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PORTALS_AND_PARTNER_CHANNELS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/ui-label-and-translation-bundles/global/{code}/versions/{versionNumber}/{action}": {
@@ -318,6 +327,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PORTALS_AND_PARTNER_CHANNELS_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -387,7 +399,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PORTALS_AND_PARTNER_CHANNELS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/api-catalogue-entries/global/{code}/versions": {
@@ -443,7 +458,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/integration/static/api-catalogue-entries/global": {
@@ -512,7 +530,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/api-catalogue-entries/global/{code}/versions/{versionNumber}": {
@@ -607,7 +628,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/api-catalogue-entries/global/{code}/versions/{versionNumber}/{action}": {
@@ -702,6 +726,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -771,7 +798,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/event-schema-versions/global/{code}/versions": {
@@ -827,7 +857,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/integration/static/event-schema-versions/global": {
@@ -896,7 +929,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/event-schema-versions/global/{code}/versions/{versionNumber}": {
@@ -991,7 +1027,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/event-schema-versions/global/{code}/versions/{versionNumber}/{action}": {
@@ -1086,6 +1125,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -1155,7 +1197,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/rate-limit-policies/global/{code}/versions": {
@@ -1211,7 +1256,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/integration/static/rate-limit-policies/global": {
@@ -1280,7 +1328,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/rate-limit-policies/global/{code}/versions/{versionNumber}": {
@@ -1375,7 +1426,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/rate-limit-policies/global/{code}/versions/{versionNumber}/{action}": {
@@ -1470,6 +1524,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -1539,7 +1596,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/retry-and-dead-letter-policies/global/{code}/versions": {
@@ -1595,7 +1655,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/integration/static/retry-and-dead-letter-policies/global": {
@@ -1664,7 +1727,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/retry-and-dead-letter-policies/global/{code}/versions/{versionNumber}": {
@@ -1759,7 +1825,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/retry-and-dead-letter-policies/global/{code}/versions/{versionNumber}/{action}": {
@@ -1854,6 +1923,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -1923,7 +1995,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/error-code-catalogue/global/{code}/versions": {
@@ -1979,7 +2054,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/integration/static/error-code-catalogue/global": {
@@ -2048,7 +2126,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/error-code-catalogue/global/{code}/versions/{versionNumber}": {
@@ -2143,7 +2224,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/static/error-code-catalogue/global/{code}/versions/{versionNumber}/{action}": {
@@ -2238,6 +2322,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -2307,7 +2394,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_INTEGRATION_AND_API_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/integration/parked-deliveries/by-tenant": {
@@ -2348,7 +2438,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "dead_letter.read"
+        "x-permission": "dead_letter.read",
+        "x-function": [
+          "INTEGRATION_PARKED_DELIVERIES"
+        ]
       }
     },
     "/api/v1/static-data/static/alert-rules-and-thresholds/global/{code}/versions": {
@@ -2404,7 +2497,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_OBSERVABILITY_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/alert-rules-and-thresholds/global": {
@@ -2473,7 +2569,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_OBSERVABILITY_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/alert-rules-and-thresholds/global/{code}/versions/{versionNumber}": {
@@ -2568,7 +2667,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_OBSERVABILITY_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/alert-rules-and-thresholds/global/{code}/versions/{versionNumber}/{action}": {
@@ -2663,6 +2765,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_OBSERVABILITY_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -2732,7 +2837,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_OBSERVABILITY_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/backup-and-recovery-policies/global/{code}/versions": {
@@ -2788,7 +2896,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_CLOUD_DEPLOYMENT_AND_OPERATIONS_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/backup-and-recovery-policies/global": {
@@ -2857,7 +2968,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_CLOUD_DEPLOYMENT_AND_OPERATIONS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/backup-and-recovery-policies/global/{code}/versions/{versionNumber}": {
@@ -2952,7 +3066,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_CLOUD_DEPLOYMENT_AND_OPERATIONS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/backup-and-recovery-policies/global/{code}/versions/{versionNumber}/{action}": {
@@ -3047,6 +3164,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_CLOUD_DEPLOYMENT_AND_OPERATIONS_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -3116,7 +3236,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_CLOUD_DEPLOYMENT_AND_OPERATIONS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/dashboard-definitions/global/{code}/versions": {
@@ -3172,7 +3295,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_OBSERVABILITY_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/dashboard-definitions/global": {
@@ -3241,7 +3367,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_OBSERVABILITY_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/dashboard-definitions/global/{code}/versions/{versionNumber}": {
@@ -3336,7 +3465,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_OBSERVABILITY_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/dashboard-definitions/global/{code}/versions/{versionNumber}/{action}": {
@@ -3431,6 +3563,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_OBSERVABILITY_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -3500,7 +3635,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_OBSERVABILITY_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/environment-configuration-baselines/global/{code}/versions": {
@@ -3556,7 +3694,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_CLOUD_DEPLOYMENT_AND_OPERATIONS_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/environment-configuration-baselines/global": {
@@ -3625,7 +3766,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_CLOUD_DEPLOYMENT_AND_OPERATIONS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/environment-configuration-baselines/global/{code}/versions/{versionNumber}": {
@@ -3720,7 +3864,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_CLOUD_DEPLOYMENT_AND_OPERATIONS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/environment-configuration-baselines/global/{code}/versions/{versionNumber}/{action}": {
@@ -3815,6 +3962,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_CLOUD_DEPLOYMENT_AND_OPERATIONS_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -3884,7 +4034,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_CLOUD_DEPLOYMENT_AND_OPERATIONS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/countries/global/{code}/versions": {
@@ -3940,7 +4093,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/countries/global": {
@@ -4009,7 +4165,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/countries/global/{code}/versions/{versionNumber}": {
@@ -4104,7 +4263,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/countries/global/{code}/versions/{versionNumber}/{action}": {
@@ -4199,6 +4361,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -4268,7 +4433,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/country-subdivisions/global/{code}/versions": {
@@ -4324,7 +4492,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/country-subdivisions/global": {
@@ -4393,7 +4564,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/country-subdivisions/global/{code}/versions/{versionNumber}": {
@@ -4488,7 +4662,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/country-subdivisions/global/{code}/versions/{versionNumber}/{action}": {
@@ -4583,6 +4760,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -4652,7 +4832,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/currencies/global/{code}/versions": {
@@ -4708,7 +4891,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/currencies/global": {
@@ -4777,7 +4963,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/currencies/global/{code}/versions/{versionNumber}": {
@@ -4872,7 +5061,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/currencies/global/{code}/versions/{versionNumber}/{action}": {
@@ -4967,6 +5159,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -5036,7 +5231,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/languages/global/{code}/versions": {
@@ -5092,7 +5290,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/languages/global": {
@@ -5161,7 +5362,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/languages/global/{code}/versions/{versionNumber}": {
@@ -5256,7 +5460,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/languages/global/{code}/versions/{versionNumber}/{action}": {
@@ -5351,6 +5558,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -5420,7 +5630,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/public-holiday-calendars/global/{code}/versions": {
@@ -5476,7 +5689,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/public-holiday-calendars/global": {
@@ -5545,7 +5761,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/public-holiday-calendars/global/{code}/versions/{versionNumber}": {
@@ -5640,7 +5859,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/public-holiday-calendars/global/{code}/versions/{versionNumber}/{action}": {
@@ -5735,6 +5957,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -5804,7 +6029,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/time-zones/global/{code}/versions": {
@@ -5860,7 +6088,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/time-zones/global": {
@@ -5929,7 +6160,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/time-zones/global/{code}/versions/{versionNumber}": {
@@ -6024,7 +6258,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/time-zones/global/{code}/versions/{versionNumber}/{action}": {
@@ -6119,6 +6356,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -6188,7 +6428,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/units-of-measure/global/{code}/versions": {
@@ -6244,7 +6487,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/units-of-measure/global": {
@@ -6313,7 +6559,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/units-of-measure/global/{code}/versions/{versionNumber}": {
@@ -6408,7 +6657,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/units-of-measure/global/{code}/versions/{versionNumber}/{action}": {
@@ -6503,6 +6755,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -6572,7 +6827,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PLATFORM_REFERENCE_DATA_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/static-data-entity-register/global/{code}/versions": {
@@ -6628,7 +6886,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/static-data-entity-register/global": {
@@ -6697,7 +6958,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/static-data-entity-register/global/{code}/versions/{versionNumber}": {
@@ -6792,7 +7056,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/static-data-entity-register/global/{code}/versions/{versionNumber}/{action}": {
@@ -6887,6 +7154,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -6956,7 +7226,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/validation-rule-sets/global/{code}/versions": {
@@ -7012,7 +7285,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/validation-rule-sets/global": {
@@ -7081,7 +7357,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/validation-rule-sets/global/{code}/versions/{versionNumber}": {
@@ -7176,7 +7455,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/validation-rule-sets/global/{code}/versions/{versionNumber}/{action}": {
@@ -7271,6 +7553,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -7340,7 +7625,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/external-source-register/global/{code}/versions": {
@@ -7396,7 +7684,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/static-data/static/external-source-register/global": {
@@ -7465,7 +7756,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/external-source-register/global/{code}/versions/{versionNumber}": {
@@ -7560,7 +7854,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/static-data/static/external-source-register/global/{code}/versions/{versionNumber}/{action}": {
@@ -7655,6 +7952,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -7724,7 +8024,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_STATIC_DATA_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/address-formats-and-administrative-regions/global/{code}/versions": {
@@ -7780,7 +8083,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/party/static/address-formats-and-administrative-regions/global": {
@@ -7849,7 +8155,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/address-formats-and-administrative-regions/global/{code}/versions/{versionNumber}": {
@@ -7944,7 +8253,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/address-formats-and-administrative-regions/global/{code}/versions/{versionNumber}/{action}": {
@@ -8039,6 +8351,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -8108,7 +8423,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/contact-channel-types/global/{code}/versions": {
@@ -8164,7 +8482,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/party/static/contact-channel-types/global": {
@@ -8233,7 +8554,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/contact-channel-types/global/{code}/versions/{versionNumber}": {
@@ -8328,7 +8652,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/contact-channel-types/global/{code}/versions/{versionNumber}/{action}": {
@@ -8423,6 +8750,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -8492,7 +8822,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/customer-status-codes/global/{code}/versions": {
@@ -8548,7 +8881,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/party/static/customer-status-codes/global": {
@@ -8617,7 +8953,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/customer-status-codes/global/{code}/versions/{versionNumber}": {
@@ -8712,7 +9051,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/customer-status-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -8807,6 +9149,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -8876,7 +9221,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/identity-document-types/global/{code}/versions": {
@@ -8932,7 +9280,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/party/static/identity-document-types/global": {
@@ -9001,7 +9352,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/identity-document-types/global/{code}/versions/{versionNumber}": {
@@ -9096,7 +9450,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/identity-document-types/global/{code}/versions/{versionNumber}/{action}": {
@@ -9191,6 +9548,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -9260,7 +9620,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/party-role-types/global/{code}/versions": {
@@ -9316,7 +9679,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/party/static/party-role-types/global": {
@@ -9385,7 +9751,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/party-role-types/global/{code}/versions/{versionNumber}": {
@@ -9480,7 +9849,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/party-role-types/global/{code}/versions/{versionNumber}/{action}": {
@@ -9575,6 +9947,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -9644,7 +10019,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/party-types-and-legal-forms/global/{code}/versions": {
@@ -9700,7 +10078,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/party/static/party-types-and-legal-forms/global": {
@@ -9769,7 +10150,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/party-types-and-legal-forms/global/{code}/versions/{versionNumber}": {
@@ -9864,7 +10248,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/party-types-and-legal-forms/global/{code}/versions/{versionNumber}/{action}": {
@@ -9959,6 +10346,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -10028,7 +10418,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/personal-attribute-code-lists/global/{code}/versions": {
@@ -10084,7 +10477,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/party/static/personal-attribute-code-lists/global": {
@@ -10153,7 +10549,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/personal-attribute-code-lists/global/{code}/versions/{versionNumber}": {
@@ -10248,7 +10647,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/personal-attribute-code-lists/global/{code}/versions/{versionNumber}/{action}": {
@@ -10343,6 +10745,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -10412,7 +10817,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/relationship-types/global/{code}/versions": {
@@ -10468,7 +10876,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/party/static/relationship-types/global": {
@@ -10537,7 +10948,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/relationship-types/global/{code}/versions/{versionNumber}": {
@@ -10632,7 +11046,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/party/static/relationship-types/global/{code}/versions/{versionNumber}/{action}": {
@@ -10727,6 +11144,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -10796,7 +11216,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/product-factory/static/product-approval-workflow-settings/global/{code}/versions": {
@@ -10852,7 +11275,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PRODUCT_FACTORY_VIEW"
+        ]
       }
     },
     "/api/v1/product-factory/static/product-approval-workflow-settings/global": {
@@ -10921,7 +11347,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PRODUCT_FACTORY_MAINTAIN"
+        ]
       }
     },
     "/api/v1/product-factory/static/product-approval-workflow-settings/global/{code}/versions/{versionNumber}": {
@@ -11016,7 +11445,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PRODUCT_FACTORY_MAINTAIN"
+        ]
       }
     },
     "/api/v1/product-factory/static/product-approval-workflow-settings/global/{code}/versions/{versionNumber}/{action}": {
@@ -11111,6 +11543,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PRODUCT_FACTORY_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -11180,7 +11615,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PRODUCT_FACTORY_MAINTAIN"
+        ]
       }
     },
     "/api/v1/rating/static/rounding-and-currency-precision-rules/global/{code}/versions": {
@@ -11236,7 +11674,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_RATING_FRAMEWORK_VIEW"
+        ]
       }
     },
     "/api/v1/rating/static/rounding-and-currency-precision-rules/global": {
@@ -11305,7 +11746,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_RATING_FRAMEWORK_MAINTAIN"
+        ]
       }
     },
     "/api/v1/rating/static/rounding-and-currency-precision-rules/global/{code}/versions/{versionNumber}": {
@@ -11400,7 +11844,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_RATING_FRAMEWORK_MAINTAIN"
+        ]
       }
     },
     "/api/v1/rating/static/rounding-and-currency-precision-rules/global/{code}/versions/{versionNumber}/{action}": {
@@ -11495,6 +11942,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_RATING_FRAMEWORK_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -11564,7 +12014,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_RATING_FRAMEWORK_MAINTAIN"
+        ]
       }
     },
     "/api/v1/workflow/static/business-calendars/global/{code}/versions": {
@@ -11620,7 +12073,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/workflow/static/business-calendars/global": {
@@ -11689,7 +12145,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/workflow/static/business-calendars/global/{code}/versions/{versionNumber}": {
@@ -11784,7 +12243,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/workflow/static/business-calendars/global/{code}/versions/{versionNumber}/{action}": {
@@ -11879,6 +12341,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -11948,7 +12413,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/{module}/static/{entity}/global/{code}/versions/{versionNumber}/approve": {
@@ -12034,7 +12502,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.approve"
+        "x-permission": "static_data.approve",
+        "x-function": [
+          "SD_{catalogue module}_APPROVE"
+        ]
       }
     },
     "/api/v1/{module}/static/{entity}/global/{code}/versions/{versionNumber}/reject": {
@@ -12129,7 +12600,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.approve"
+        "x-permission": "static_data.approve",
+        "x-function": [
+          "SD_{catalogue module}_APPROVE"
+        ]
       }
     },
     "/api/v1/documents/static/document-categories/global/{code}/versions": {
@@ -12185,7 +12659,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_DOCUMENT_AND_CONTENT_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/documents/static/document-categories/global": {
@@ -12254,7 +12731,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_DOCUMENT_AND_CONTENT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/documents/static/document-categories/global/{code}/versions/{versionNumber}": {
@@ -12349,7 +12829,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_DOCUMENT_AND_CONTENT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/documents/static/document-categories/global/{code}/versions/{versionNumber}/{action}": {
@@ -12444,6 +12927,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_DOCUMENT_AND_CONTENT_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -12513,7 +12999,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_DOCUMENT_AND_CONTENT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/documents/static/merge-field-dictionary/global/{code}/versions": {
@@ -12569,7 +13058,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_DOCUMENT_AND_CONTENT_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/documents/static/merge-field-dictionary/global": {
@@ -12638,7 +13130,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_DOCUMENT_AND_CONTENT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/documents/static/merge-field-dictionary/global/{code}/versions/{versionNumber}": {
@@ -12733,7 +13228,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_DOCUMENT_AND_CONTENT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/documents/static/merge-field-dictionary/global/{code}/versions/{versionNumber}/{action}": {
@@ -12828,6 +13326,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_DOCUMENT_AND_CONTENT_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -12897,7 +13398,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_DOCUMENT_AND_CONTENT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/billing/static/billing-frequencies/global/{code}/versions": {
@@ -12953,7 +13457,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_BILLING_AND_PREMIUM_RECEIVABLES_VIEW"
+        ]
       }
     },
     "/api/v1/billing/static/billing-frequencies/global": {
@@ -13022,7 +13529,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_BILLING_AND_PREMIUM_RECEIVABLES_MAINTAIN"
+        ]
       }
     },
     "/api/v1/billing/static/billing-frequencies/global/{code}/versions/{versionNumber}": {
@@ -13117,7 +13627,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_BILLING_AND_PREMIUM_RECEIVABLES_MAINTAIN"
+        ]
       }
     },
     "/api/v1/billing/static/billing-frequencies/global/{code}/versions/{versionNumber}/{action}": {
@@ -13212,6 +13725,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_BILLING_AND_PREMIUM_RECEIVABLES_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -13281,7 +13797,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_BILLING_AND_PREMIUM_RECEIVABLES_MAINTAIN"
+        ]
       }
     },
     "/api/v1/billing/static/collection-methods/global/{code}/versions": {
@@ -13337,7 +13856,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_BILLING_AND_PREMIUM_RECEIVABLES_VIEW"
+        ]
       }
     },
     "/api/v1/billing/static/collection-methods/global": {
@@ -13406,7 +13928,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_BILLING_AND_PREMIUM_RECEIVABLES_MAINTAIN"
+        ]
       }
     },
     "/api/v1/billing/static/collection-methods/global/{code}/versions/{versionNumber}": {
@@ -13501,7 +14026,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_BILLING_AND_PREMIUM_RECEIVABLES_MAINTAIN"
+        ]
       }
     },
     "/api/v1/billing/static/collection-methods/global/{code}/versions/{versionNumber}/{action}": {
@@ -13596,6 +14124,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_BILLING_AND_PREMIUM_RECEIVABLES_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -13665,7 +14196,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_BILLING_AND_PREMIUM_RECEIVABLES_MAINTAIN"
+        ]
       }
     },
     "/api/v1/payments/static/bank-and-branch-directory/global/{code}/versions": {
@@ -13721,7 +14255,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PAYMENTS_AND_SETTLEMENTS_VIEW"
+        ]
       }
     },
     "/api/v1/payments/static/bank-and-branch-directory/global": {
@@ -13790,7 +14327,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PAYMENTS_AND_SETTLEMENTS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/payments/static/bank-and-branch-directory/global/{code}/versions/{versionNumber}": {
@@ -13885,7 +14425,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PAYMENTS_AND_SETTLEMENTS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/payments/static/bank-and-branch-directory/global/{code}/versions/{versionNumber}/{action}": {
@@ -13980,6 +14523,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PAYMENTS_AND_SETTLEMENTS_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -14049,7 +14595,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PAYMENTS_AND_SETTLEMENTS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/payments/static/payment-methods/global/{code}/versions": {
@@ -14105,7 +14654,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PAYMENTS_AND_SETTLEMENTS_VIEW"
+        ]
       }
     },
     "/api/v1/payments/static/payment-methods/global": {
@@ -14174,7 +14726,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PAYMENTS_AND_SETTLEMENTS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/payments/static/payment-methods/global/{code}/versions/{versionNumber}": {
@@ -14269,7 +14824,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PAYMENTS_AND_SETTLEMENTS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/payments/static/payment-methods/global/{code}/versions/{versionNumber}/{action}": {
@@ -14364,6 +14922,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PAYMENTS_AND_SETTLEMENTS_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -14433,7 +14994,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PAYMENTS_AND_SETTLEMENTS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/claims-framework/static/claim-status-model/global/{code}/versions": {
@@ -14489,7 +15053,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_SHARED_CLAIMS_FRAMEWORK_VIEW"
+        ]
       }
     },
     "/api/v1/claims-framework/static/claim-status-model/global": {
@@ -14558,7 +15125,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_SHARED_CLAIMS_FRAMEWORK_MAINTAIN"
+        ]
       }
     },
     "/api/v1/claims-framework/static/claim-status-model/global/{code}/versions/{versionNumber}": {
@@ -14653,7 +15223,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_SHARED_CLAIMS_FRAMEWORK_MAINTAIN"
+        ]
       }
     },
     "/api/v1/claims-framework/static/claim-status-model/global/{code}/versions/{versionNumber}/{action}": {
@@ -14748,6 +15321,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_SHARED_CLAIMS_FRAMEWORK_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -14817,7 +15393,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_SHARED_CLAIMS_FRAMEWORK_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/beneficiary-relationship-types/global/{code}/versions": {
@@ -14873,7 +15452,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_BENEFICIARY_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/life/static/beneficiary-relationship-types/global": {
@@ -14942,7 +15524,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_BENEFICIARY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/beneficiary-relationship-types/global/{code}/versions/{versionNumber}": {
@@ -15037,7 +15622,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_BENEFICIARY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/beneficiary-relationship-types/global/{code}/versions/{versionNumber}/{action}": {
@@ -15132,6 +15720,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_BENEFICIARY_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -15201,7 +15792,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_BENEFICIARY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/cause-of-event-codes/global/{code}/versions": {
@@ -15257,7 +15851,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_LIFE_CLAIMS_VIEW"
+        ]
       }
     },
     "/api/v1/life/static/cause-of-event-codes/global": {
@@ -15326,7 +15923,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_LIFE_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/cause-of-event-codes/global/{code}/versions/{versionNumber}": {
@@ -15421,7 +16021,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_LIFE_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/cause-of-event-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -15516,6 +16119,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_LIFE_CLAIMS_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -15585,7 +16191,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_LIFE_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/life-benefit-types/global/{code}/versions": {
@@ -15641,7 +16250,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_BENEFITS_ADMINISTRATION_VIEW"
+        ]
       }
     },
     "/api/v1/life/static/life-benefit-types/global": {
@@ -15710,7 +16322,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_BENEFITS_ADMINISTRATION_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/life-benefit-types/global/{code}/versions/{versionNumber}": {
@@ -15805,7 +16420,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_BENEFITS_ADMINISTRATION_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/life-benefit-types/global/{code}/versions/{versionNumber}/{action}": {
@@ -15900,6 +16518,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_BENEFITS_ADMINISTRATION_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -15969,7 +16590,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_BENEFITS_ADMINISTRATION_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/life-claim-types/global/{code}/versions": {
@@ -16025,7 +16649,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_LIFE_CLAIMS_VIEW"
+        ]
       }
     },
     "/api/v1/life/static/life-claim-types/global": {
@@ -16094,7 +16721,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_LIFE_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/life-claim-types/global/{code}/versions/{versionNumber}": {
@@ -16189,7 +16819,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_LIFE_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/life-claim-types/global/{code}/versions/{versionNumber}/{action}": {
@@ -16284,6 +16917,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_LIFE_CLAIMS_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -16353,7 +16989,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_LIFE_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/policy-status-model/global/{code}/versions": {
@@ -16409,7 +17048,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_LIFE_POLICY_ADMINISTRATION_VIEW"
+        ]
       }
     },
     "/api/v1/life/static/policy-status-model/global": {
@@ -16478,7 +17120,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_LIFE_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/policy-status-model/global/{code}/versions/{versionNumber}": {
@@ -16573,7 +17218,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_LIFE_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/policy-status-model/global/{code}/versions/{versionNumber}/{action}": {
@@ -16668,6 +17316,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_LIFE_POLICY_ADMINISTRATION_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -16737,7 +17388,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_LIFE_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/proposal-status-codes/global/{code}/versions": {
@@ -16793,7 +17447,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_LIFE_PROPOSAL_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/life/static/proposal-status-codes/global": {
@@ -16862,7 +17519,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_LIFE_PROPOSAL_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/proposal-status-codes/global/{code}/versions/{versionNumber}": {
@@ -16957,7 +17617,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_LIFE_PROPOSAL_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/proposal-status-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -17052,6 +17715,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_LIFE_PROPOSAL_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -17121,7 +17787,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_LIFE_PROPOSAL_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/underwriting-decision-codes/global/{code}/versions": {
@@ -17177,7 +17846,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_LIFE_UNDERWRITING_VIEW"
+        ]
       }
     },
     "/api/v1/life/static/underwriting-decision-codes/global": {
@@ -17246,7 +17918,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_LIFE_UNDERWRITING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/underwriting-decision-codes/global/{code}/versions/{versionNumber}": {
@@ -17341,7 +18016,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_LIFE_UNDERWRITING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/life/static/underwriting-decision-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -17436,6 +18114,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_LIFE_UNDERWRITING_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -17505,7 +18186,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_LIFE_UNDERWRITING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/construction-types/global/{code}/versions": {
@@ -17561,7 +18245,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PROPERTY_INSURANCE_VIEW"
+        ]
       }
     },
     "/api/v1/general/static/construction-types/global": {
@@ -17630,7 +18317,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PROPERTY_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/construction-types/global/{code}/versions/{versionNumber}": {
@@ -17725,7 +18415,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PROPERTY_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/construction-types/global/{code}/versions/{versionNumber}/{action}": {
@@ -17820,6 +18513,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PROPERTY_INSURANCE_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -17889,7 +18585,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PROPERTY_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/driver-licence-categories/global/{code}/versions": {
@@ -17945,7 +18644,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_VIEW"
+        ]
       }
     },
     "/api/v1/general/static/driver-licence-categories/global": {
@@ -18014,7 +18716,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/driver-licence-categories/global/{code}/versions/{versionNumber}": {
@@ -18109,7 +18814,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/driver-licence-categories/global/{code}/versions/{versionNumber}/{action}": {
@@ -18204,6 +18912,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -18273,7 +18984,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/industry-classification-codes/global/{code}/versions": {
@@ -18329,7 +19043,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_COMMERCIAL_INSURANCE_VIEW"
+        ]
       }
     },
     "/api/v1/general/static/industry-classification-codes/global": {
@@ -18398,7 +19115,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_COMMERCIAL_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/industry-classification-codes/global/{code}/versions/{versionNumber}": {
@@ -18493,7 +19213,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_COMMERCIAL_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/industry-classification-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -18588,6 +19311,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_COMMERCIAL_INSURANCE_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -18657,7 +19383,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_COMMERCIAL_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/ports-and-places/global/{code}/versions": {
@@ -18713,7 +19442,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_MARINE_INSURANCE_VIEW"
+        ]
       }
     },
     "/api/v1/general/static/ports-and-places/global": {
@@ -18782,7 +19514,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MARINE_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/ports-and-places/global/{code}/versions/{versionNumber}": {
@@ -18877,7 +19612,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MARINE_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/ports-and-places/global/{code}/versions/{versionNumber}/{action}": {
@@ -18972,6 +19710,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MARINE_INSURANCE_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -19041,7 +19782,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MARINE_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/quote-status-codes/global/{code}/versions": {
@@ -19097,7 +19841,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_QUOTATION_AND_PROPOSAL_VIEW"
+        ]
       }
     },
     "/api/v1/general/static/quote-status-codes/global": {
@@ -19166,7 +19913,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_QUOTATION_AND_PROPOSAL_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/quote-status-codes/global/{code}/versions/{versionNumber}": {
@@ -19261,7 +20011,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_QUOTATION_AND_PROPOSAL_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/quote-status-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -19356,6 +20109,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_QUOTATION_AND_PROPOSAL_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -19425,7 +20181,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_QUOTATION_AND_PROPOSAL_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/underwriting-decision-codes/global/{code}/versions": {
@@ -19481,7 +20240,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_GENERAL_UNDERWRITING_VIEW"
+        ]
       }
     },
     "/api/v1/general/static/underwriting-decision-codes/global": {
@@ -19550,7 +20312,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_GENERAL_UNDERWRITING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/underwriting-decision-codes/global/{code}/versions/{versionNumber}": {
@@ -19645,7 +20410,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_GENERAL_UNDERWRITING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/underwriting-decision-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -19740,6 +20508,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_GENERAL_UNDERWRITING_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -19809,7 +20580,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_GENERAL_UNDERWRITING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/vehicle-make-model-and-variant-directory/global/{code}/versions": {
@@ -19865,7 +20639,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_VIEW"
+        ]
       }
     },
     "/api/v1/general/static/vehicle-make-model-and-variant-directory/global": {
@@ -19934,7 +20711,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/vehicle-make-model-and-variant-directory/global/{code}/versions/{versionNumber}": {
@@ -20029,7 +20809,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/vehicle-make-model-and-variant-directory/global/{code}/versions/{versionNumber}/{action}": {
@@ -20124,6 +20907,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -20193,7 +20979,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/vehicle-valuation-guide-reference/global/{code}/versions": {
@@ -20249,7 +21038,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_VIEW"
+        ]
       }
     },
     "/api/v1/general/static/vehicle-valuation-guide-reference/global": {
@@ -20318,7 +21110,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/vehicle-valuation-guide-reference/global/{code}/versions/{versionNumber}": {
@@ -20413,7 +21208,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/vehicle-valuation-guide-reference/global/{code}/versions/{versionNumber}/{action}": {
@@ -20508,6 +21306,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -20577,7 +21378,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MOTOR_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/vessel-types/global/{code}/versions": {
@@ -20633,7 +21437,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_MARINE_INSURANCE_VIEW"
+        ]
       }
     },
     "/api/v1/general/static/vessel-types/global": {
@@ -20702,7 +21509,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MARINE_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/vessel-types/global/{code}/versions/{versionNumber}": {
@@ -20797,7 +21607,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MARINE_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/general/static/vessel-types/global/{code}/versions/{versionNumber}/{action}": {
@@ -20892,6 +21705,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MARINE_INSURANCE_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -20961,7 +21777,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MARINE_INSURANCE_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/claim-format-definitions/global/{code}/versions": {
@@ -21017,7 +21836,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_VIEW"
+        ]
       }
     },
     "/api/v1/health/static/claim-format-definitions/global": {
@@ -21086,7 +21908,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/claim-format-definitions/global/{code}/versions/{versionNumber}": {
@@ -21181,7 +22006,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/claim-format-definitions/global/{code}/versions/{versionNumber}/{action}": {
@@ -21276,6 +22104,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -21345,7 +22176,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/claim-adjustment-reason-codes/global/{code}/versions": {
@@ -21401,7 +22235,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_VIEW"
+        ]
       }
     },
     "/api/v1/health/static/claim-adjustment-reason-codes/global": {
@@ -21470,7 +22307,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/claim-adjustment-reason-codes/global/{code}/versions/{versionNumber}": {
@@ -21565,7 +22405,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/claim-adjustment-reason-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -21660,6 +22503,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -21729,7 +22575,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/diagnosis-codes/global/{code}/versions": {
@@ -21785,7 +22634,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_VIEW"
+        ]
       }
     },
     "/api/v1/health/static/diagnosis-codes/global": {
@@ -21854,7 +22706,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/diagnosis-codes/global/{code}/versions/{versionNumber}": {
@@ -21949,7 +22804,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/diagnosis-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -22044,6 +22902,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -22113,7 +22974,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MEDICAL_CLAIMS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/eligibility-response-codes/global/{code}/versions": {
@@ -22169,7 +23033,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_ELIGIBILITY_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/health/static/eligibility-response-codes/global": {
@@ -22238,7 +23105,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_ELIGIBILITY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/eligibility-response-codes/global/{code}/versions/{versionNumber}": {
@@ -22333,7 +23203,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_ELIGIBILITY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/eligibility-response-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -22428,6 +23301,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_ELIGIBILITY_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -22497,7 +23373,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_ELIGIBILITY_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/membership-status-codes/global/{code}/versions": {
@@ -22553,7 +23432,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_MEMBER_ADMINISTRATION_VIEW"
+        ]
       }
     },
     "/api/v1/health/static/membership-status-codes/global": {
@@ -22622,7 +23504,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MEMBER_ADMINISTRATION_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/membership-status-codes/global/{code}/versions/{versionNumber}": {
@@ -22717,7 +23602,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MEMBER_ADMINISTRATION_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/membership-status-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -22812,6 +23700,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_MEMBER_ADMINISTRATION_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -22881,7 +23772,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_MEMBER_ADMINISTRATION_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/procedure-and-service-codes/global/{code}/versions": {
@@ -22937,7 +23831,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PREAUTHORISATION_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/health/static/procedure-and-service-codes/global": {
@@ -23006,7 +23903,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PREAUTHORISATION_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/procedure-and-service-codes/global/{code}/versions/{versionNumber}": {
@@ -23101,7 +24001,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PREAUTHORISATION_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/procedure-and-service-codes/global/{code}/versions/{versionNumber}/{action}": {
@@ -23196,6 +24099,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PREAUTHORISATION_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -23265,7 +24171,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PREAUTHORISATION_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/provider-types-and-specialties/global/{code}/versions": {
@@ -23321,7 +24230,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PROVIDER_NETWORK_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/health/static/provider-types-and-specialties/global": {
@@ -23390,7 +24302,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PROVIDER_NETWORK_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/provider-types-and-specialties/global/{code}/versions/{versionNumber}": {
@@ -23485,7 +24400,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PROVIDER_NETWORK_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/health/static/provider-types-and-specialties/global/{code}/versions/{versionNumber}/{action}": {
@@ -23580,6 +24498,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PROVIDER_NETWORK_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -23649,7 +24570,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PROVIDER_NETWORK_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/finance/static/exchange-rates-and-rate-types/global/{code}/versions": {
@@ -23705,7 +24629,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_FINANCIAL_SUBLEDGER_VIEW"
+        ]
       }
     },
     "/api/v1/finance/static/exchange-rates-and-rate-types/global": {
@@ -23774,7 +24701,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_FINANCIAL_SUBLEDGER_MAINTAIN"
+        ]
       }
     },
     "/api/v1/finance/static/exchange-rates-and-rate-types/global/{code}/versions/{versionNumber}": {
@@ -23869,7 +24799,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_FINANCIAL_SUBLEDGER_MAINTAIN"
+        ]
       }
     },
     "/api/v1/finance/static/exchange-rates-and-rate-types/global/{code}/versions/{versionNumber}/{action}": {
@@ -23964,6 +24897,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_FINANCIAL_SUBLEDGER_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -24033,7 +24969,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_FINANCIAL_SUBLEDGER_MAINTAIN"
+        ]
       }
     },
     "/api/v1/finance/static/transaction-types/global/{code}/versions": {
@@ -24089,7 +25028,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_FINANCIAL_SUBLEDGER_VIEW"
+        ]
       }
     },
     "/api/v1/finance/static/transaction-types/global": {
@@ -24158,7 +25100,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_FINANCIAL_SUBLEDGER_MAINTAIN"
+        ]
       }
     },
     "/api/v1/finance/static/transaction-types/global/{code}/versions/{versionNumber}": {
@@ -24253,7 +25198,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_FINANCIAL_SUBLEDGER_MAINTAIN"
+        ]
       }
     },
     "/api/v1/finance/static/transaction-types/global/{code}/versions/{versionNumber}/{action}": {
@@ -24348,6 +25296,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_FINANCIAL_SUBLEDGER_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -24417,7 +25368,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_FINANCIAL_SUBLEDGER_MAINTAIN"
+        ]
       }
     },
     "/api/v1/compliance/static/compliance-register-entries/global/{code}/versions": {
@@ -24473,7 +25427,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_COMPLIANCE_AND_REPORTING_VIEW"
+        ]
       }
     },
     "/api/v1/compliance/static/compliance-register-entries/global": {
@@ -24542,7 +25499,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_COMPLIANCE_AND_REPORTING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/compliance/static/compliance-register-entries/global/{code}/versions/{versionNumber}": {
@@ -24637,7 +25597,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_COMPLIANCE_AND_REPORTING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/compliance/static/compliance-register-entries/global/{code}/versions/{versionNumber}/{action}": {
@@ -24732,6 +25695,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_COMPLIANCE_AND_REPORTING_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -24801,7 +25767,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_COMPLIANCE_AND_REPORTING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/compliance/static/data-classification-scheme/global/{code}/versions": {
@@ -24857,7 +25826,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_COMPLIANCE_AND_REPORTING_VIEW"
+        ]
       }
     },
     "/api/v1/compliance/static/data-classification-scheme/global": {
@@ -24926,7 +25898,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_COMPLIANCE_AND_REPORTING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/compliance/static/data-classification-scheme/global/{code}/versions/{versionNumber}": {
@@ -25021,7 +25996,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_COMPLIANCE_AND_REPORTING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/compliance/static/data-classification-scheme/global/{code}/versions/{versionNumber}/{action}": {
@@ -25116,6 +26094,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_COMPLIANCE_AND_REPORTING_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -25185,7 +26166,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_COMPLIANCE_AND_REPORTING_MAINTAIN"
+        ]
       }
     },
     "/api/v1/tenancy/static/feature-entitlements/global/{code}/versions": {
@@ -25241,7 +26225,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/tenancy/static/feature-entitlements/global": {
@@ -25310,7 +26297,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/tenancy/static/feature-entitlements/global/{code}/versions/{versionNumber}": {
@@ -25405,7 +26395,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/tenancy/static/feature-entitlements/global/{code}/versions/{versionNumber}/{action}": {
@@ -25500,6 +26493,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -25569,7 +26565,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/tenancy/static/isolation-profile-assignment/global/{code}/versions": {
@@ -25625,7 +26624,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/tenancy/static/isolation-profile-assignment/global": {
@@ -25694,7 +26696,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/tenancy/static/isolation-profile-assignment/global/{code}/versions/{versionNumber}": {
@@ -25789,7 +26794,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/tenancy/static/isolation-profile-assignment/global/{code}/versions/{versionNumber}/{action}": {
@@ -25884,6 +26892,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -25953,7 +26964,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/tenancy/static/operational-limits/global/{code}/versions": {
@@ -26009,7 +27023,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/tenancy/static/operational-limits/global": {
@@ -26078,7 +27095,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/tenancy/static/operational-limits/global/{code}/versions/{versionNumber}": {
@@ -26173,7 +27193,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/tenancy/static/operational-limits/global/{code}/versions/{versionNumber}/{action}": {
@@ -26268,6 +27291,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -26337,7 +27363,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_TENANT_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/tenancy/tenants": {
@@ -26406,7 +27435,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "tenant.create"
+        "x-permission": "tenant.create",
+        "x-function": [
+          "REGISTER_TENANT"
+        ]
       },
       "get": {
         "tags": [
@@ -26469,7 +27501,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "tenant.read"
+        "x-permission": "tenant.read",
+        "x-function": [
+          "TENANTS"
+        ]
       }
     },
     "/api/v1/tenancy/tenants/{id}": {
@@ -26523,7 +27558,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "tenant.read"
+        "x-permission": "tenant.read",
+        "x-function": [
+          "TENANTS"
+        ]
       }
     },
     "/api/v1/tenancy/tenants/{id}/complete-onboarding-step": {
@@ -26602,7 +27640,10 @@
             "$ref": "#/components/responses/Problem409"
           }
         },
-        "x-permission": "tenant.update"
+        "x-permission": "tenant.update",
+        "x-function": [
+          "COMPLETE_ONBOARDING_STEP"
+        ]
       }
     },
     "/api/v1/tenancy/tenants/{id}/smoke-run": {
@@ -26681,7 +27722,10 @@
             "$ref": "#/components/responses/Problem409"
           }
         },
-        "x-permission": "tenant.update"
+        "x-permission": "tenant.update",
+        "x-function": [
+          "RECORD_SMOKE_RUN"
+        ]
       }
     },
     "/api/v1/tenancy/tenants/{id}/smoke-run/approve": {
@@ -26749,7 +27793,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "tenant.update"
+        "x-permission": "tenant.update",
+        "x-function": [
+          "APPROVE_SMOKE_RUN"
+        ]
       }
     },
     "/api/v1/tenancy/tenants/{id}/readiness": {
@@ -26803,7 +27850,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "tenant.read"
+        "x-permission": "tenant.read",
+        "x-function": [
+          "TENANTS"
+        ]
       }
     },
     "/api/v1/tenancy/tenants/{id}/activate": {
@@ -26882,7 +27932,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "tenant.update"
+        "x-permission": "tenant.update",
+        "x-function": [
+          "ACTIVATE_TENANT"
+        ]
       }
     },
     "/api/v1/tenancy/tenants/{id}/suspend": {
@@ -26961,7 +28014,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "tenant.update"
+        "x-permission": "tenant.update",
+        "x-function": [
+          "SUSPEND_TENANT"
+        ]
       }
     },
     "/api/v1/tenancy/tenants/{id}/reactivate": {
@@ -27040,7 +28096,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "tenant.update"
+        "x-permission": "tenant.update",
+        "x-function": [
+          "REACTIVATE_TENANT"
+        ]
       }
     },
     "/api/v1/tenancy/tenants/{id}/terminate": {
@@ -27119,7 +28178,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "tenant.update"
+        "x-permission": "tenant.update",
+        "x-function": [
+          "TERMINATE_TENANT"
+        ]
       }
     },
     "/api/v1/tenancy/tenants/{id}/change-isolation-profile": {
@@ -27198,7 +28260,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "tenant.update"
+        "x-permission": "tenant.update",
+        "x-function": [
+          "CHANGE_ISOLATION_PROFILE"
+        ]
       }
     },
     "/api/v1/identity/static/authentication-and-session-policies/global/{code}/versions": {
@@ -27254,7 +28319,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_IDENTITY_AND_ACCESS_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/identity/static/authentication-and-session-policies/global": {
@@ -27323,7 +28391,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/identity/static/authentication-and-session-policies/global/{code}/versions/{versionNumber}": {
@@ -27418,7 +28489,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/identity/static/authentication-and-session-policies/global/{code}/versions/{versionNumber}/{action}": {
@@ -27513,6 +28587,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -27582,7 +28659,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/identity/static/permission-catalogue/global/{code}/versions": {
@@ -27638,7 +28718,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_IDENTITY_AND_ACCESS_MANAGEMENT_VIEW"
+        ]
       }
     },
     "/api/v1/identity/static/permission-catalogue/global": {
@@ -27707,7 +28790,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/identity/static/permission-catalogue/global/{code}/versions/{versionNumber}": {
@@ -27802,7 +28888,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/identity/static/permission-catalogue/global/{code}/versions/{versionNumber}/{action}": {
@@ -27897,6 +28986,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -27966,7 +29058,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/identity/tenant-administrators": {
@@ -28036,6 +29131,9 @@
           }
         },
         "x-permission": "user.create",
+        "x-function": [
+          "PROVISION_TENANT_ADMINISTRATOR"
+        ],
         "x-eventual-effects": "the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy completes the onboarding step."
       },
       "get": {
@@ -28084,7 +29182,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "user.read"
+        "x-permission": "user.read",
+        "x-function": [
+          "IDENTITY_TENANT_ADMINISTRATORS"
+        ]
       }
     },
     "/api/v1/identity/tenant-administrators/{id}": {
@@ -28138,7 +29239,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "user.read"
+        "x-permission": "user.read",
+        "x-function": [
+          "IDENTITY_TENANT_ADMINISTRATORS"
+        ]
       }
     },
     "/api/v1/audit/static/audit-retention-policies/global/{code}/versions": {
@@ -28194,7 +29298,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_AUDIT_VIEW"
+        ]
       }
     },
     "/api/v1/audit/static/audit-retention-policies/global": {
@@ -28263,7 +29370,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_AUDIT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/audit/static/audit-retention-policies/global/{code}/versions/{versionNumber}": {
@@ -28358,7 +29468,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_AUDIT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/audit/static/audit-retention-policies/global/{code}/versions/{versionNumber}/{action}": {
@@ -28453,6 +29566,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_AUDIT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -28522,7 +29638,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_AUDIT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/audit/static/audit-event-type-catalogue/global/{code}/versions": {
@@ -28578,7 +29697,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_AUDIT_VIEW"
+        ]
       }
     },
     "/api/v1/audit/static/audit-event-type-catalogue/global": {
@@ -28647,7 +29769,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_AUDIT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/audit/static/audit-event-type-catalogue/global/{code}/versions/{versionNumber}": {
@@ -28742,7 +29867,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_AUDIT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/audit/static/audit-event-type-catalogue/global/{code}/versions/{versionNumber}/{action}": {
@@ -28837,6 +29965,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_AUDIT_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -28906,7 +30037,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_AUDIT_MAINTAIN"
+        ]
       }
     },
     "/api/v1/communications/static/channels/global/{code}/versions": {
@@ -28962,7 +30096,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "static_data.read"
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_COMMUNICATIONS_VIEW"
+        ]
       }
     },
     "/api/v1/communications/static/channels/global": {
@@ -29031,7 +30168,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_COMMUNICATIONS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/communications/static/channels/global/{code}/versions/{versionNumber}": {
@@ -29126,7 +30266,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.update"
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_COMMUNICATIONS_MAINTAIN"
+        ]
       }
     },
     "/api/v1/communications/static/channels/global/{code}/versions/{versionNumber}/{action}": {
@@ -29221,6 +30364,9 @@
           }
         },
         "x-permission": "static_data.update",
+        "x-function": [
+          "SD_COMMUNICATIONS_MAINTAIN"
+        ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
       }
     },
@@ -29290,7 +30436,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "static_data.create"
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_COMMUNICATIONS_MAINTAIN"
+        ]
       }
     }
   },

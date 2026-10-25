@@ -49,7 +49,8 @@ public sealed record StaticLifecycle(
     /// <summary>
     /// Configuration items (§7.7): Draft → Validated → Submitted → Approved → Published → Effective → Withdrawn or Retired.
     /// Submit records Validated then Submitted; activate publishes. TODO(spec): who moves Published to Effective.
-    /// </summary>
+    /// <param name="CatalogueModule">The catalogue module the table belongs to (static-data-catalogue.json "module"); its static data functions are per module (ADR-026).</param>
+/// </summary>
     public static readonly StaticLifecycle Configuration = new("configuration", "DRAFT", ["VALIDATED", "SUBMITTED"], "APPROVED", "PUBLISHED", "WITHDRAWN", "RETIRED",
         ["PUBLISHED", "EFFECTIVE"]);
 
@@ -73,7 +74,8 @@ public sealed record StaticDataDescriptor(
     int Tier,
     StaticLifecycle Lifecycle,
     Type EntityType,
-    Type InputType)
+    Type InputType,
+    string CatalogueModule = "")
 {
     public bool AllowsTenantRows => Scope != StaticScope.G;
 

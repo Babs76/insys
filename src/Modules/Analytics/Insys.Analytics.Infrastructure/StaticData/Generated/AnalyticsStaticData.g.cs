@@ -39,8 +39,8 @@ public static class AnalyticsStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("analytics", "cfg_metric_definitions", "cfg_metric_definitions", "Metric definitions", "analytics", "metric-definitions", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(MetricDefinitions), typeof(MetricDefinitionsInput)),
-        new("analytics", "ref_reporting_dimension_hierarchies", "ref_reporting_dimension_hierarchies", "Reporting dimension hierarchies", "analytics", "reporting-dimension-hierarchies", StaticScope.T, 2, StaticLifecycle.Reference, typeof(ReportingDimensionHierarchies), typeof(ReportingDimensionHierarchiesInput)),
+        new("analytics", "cfg_metric_definitions", "cfg_metric_definitions", "Metric definitions", "analytics", "metric-definitions", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(MetricDefinitions), typeof(MetricDefinitionsInput), "Analytics"),
+        new("analytics", "ref_reporting_dimension_hierarchies", "ref_reporting_dimension_hierarchies", "Reporting dimension hierarchies", "analytics", "reporting-dimension-hierarchies", StaticScope.T, 2, StaticLifecycle.Reference, typeof(ReportingDimensionHierarchies), typeof(ReportingDimensionHierarchiesInput), "Analytics"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)

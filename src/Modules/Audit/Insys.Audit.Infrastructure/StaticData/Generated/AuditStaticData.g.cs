@@ -39,8 +39,8 @@ public static class AuditStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("audit", "cfg_audit_retention_policies", "cfg_audit_retention_policies", "Audit retention policies", "audit", "audit-retention-policies", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(AuditRetentionPolicies), typeof(AuditRetentionPoliciesInput)),
-        new("audit", "ref_audit_event_type_catalogue", "ref_audit_event_type_catalogue", "Audit event type catalogue", "audit", "audit-event-type-catalogue", StaticScope.G, 2, StaticLifecycle.Reference, typeof(AuditEventTypeCatalogue), typeof(AuditEventTypeCatalogueInput)),
+        new("audit", "cfg_audit_retention_policies", "cfg_audit_retention_policies", "Audit retention policies", "audit", "audit-retention-policies", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(AuditRetentionPolicies), typeof(AuditRetentionPoliciesInput), "Audit"),
+        new("audit", "ref_audit_event_type_catalogue", "ref_audit_event_type_catalogue", "Audit event type catalogue", "audit", "audit-event-type-catalogue", StaticScope.G, 2, StaticLifecycle.Reference, typeof(AuditEventTypeCatalogue), typeof(AuditEventTypeCatalogueInput), "Audit"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)

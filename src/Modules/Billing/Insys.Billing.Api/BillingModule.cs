@@ -57,6 +57,8 @@ public sealed class BillingModule : IModule
 {
     public string Name => "Billing";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => BillingFunctions.All;
+
     /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
     public bool TransactsBusiness => true;
 

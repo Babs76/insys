@@ -39,12 +39,12 @@ public static class DocumentsStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("document", "cfg_delivery_channel_settings", "cfg_delivery_channel_settings", "Delivery channel settings", "documents", "delivery-channel-settings", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(DeliveryChannelSettings), typeof(DeliveryChannelSettingsInput)),
-        new("document", "cfg_document_templates", "cfg_document_templates", "Document templates", "documents", "document-templates", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DocumentTemplates), typeof(DocumentTemplatesInput)),
-        new("document", "cfg_retention_schedules", "cfg_retention_schedules", "Retention schedules", "documents", "retention-schedules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RetentionSchedules), typeof(RetentionSchedulesInput)),
-        new("document", "ref_document_categories", "ref_document_categories", "Document categories", "documents", "document-categories", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(DocumentCategories), typeof(DocumentCategoriesInput)),
-        new("document", "ref_legal_hold_reason_codes", "ref_legal_hold_reason_codes", "Legal hold reason codes", "documents", "legal-hold-reason-codes", StaticScope.T, 2, StaticLifecycle.Reference, typeof(LegalHoldReasonCodes), typeof(LegalHoldReasonCodesInput)),
-        new("document", "ref_merge_field_dictionary", "ref_merge_field_dictionary", "Merge field dictionary", "documents", "merge-field-dictionary", StaticScope.G, 2, StaticLifecycle.Reference, typeof(MergeFieldDictionary), typeof(MergeFieldDictionaryInput)),
+        new("document", "cfg_delivery_channel_settings", "cfg_delivery_channel_settings", "Delivery channel settings", "documents", "delivery-channel-settings", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(DeliveryChannelSettings), typeof(DeliveryChannelSettingsInput), "Document and Content Management"),
+        new("document", "cfg_document_templates", "cfg_document_templates", "Document templates", "documents", "document-templates", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DocumentTemplates), typeof(DocumentTemplatesInput), "Document and Content Management"),
+        new("document", "cfg_retention_schedules", "cfg_retention_schedules", "Retention schedules", "documents", "retention-schedules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RetentionSchedules), typeof(RetentionSchedulesInput), "Document and Content Management"),
+        new("document", "ref_document_categories", "ref_document_categories", "Document categories", "documents", "document-categories", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(DocumentCategories), typeof(DocumentCategoriesInput), "Document and Content Management"),
+        new("document", "ref_legal_hold_reason_codes", "ref_legal_hold_reason_codes", "Legal hold reason codes", "documents", "legal-hold-reason-codes", StaticScope.T, 2, StaticLifecycle.Reference, typeof(LegalHoldReasonCodes), typeof(LegalHoldReasonCodesInput), "Document and Content Management"),
+        new("document", "ref_merge_field_dictionary", "ref_merge_field_dictionary", "Merge field dictionary", "documents", "merge-field-dictionary", StaticScope.G, 2, StaticLifecycle.Reference, typeof(MergeFieldDictionary), typeof(MergeFieldDictionaryInput), "Document and Content Management"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)

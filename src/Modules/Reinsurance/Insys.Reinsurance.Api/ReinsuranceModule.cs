@@ -50,6 +50,8 @@ public sealed class ReinsuranceModule : IModule
 {
     public string Name => "Reinsurance";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => ReinsuranceFunctions.All;
+
     /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
     public bool TransactsBusiness => true;
 

@@ -39,12 +39,12 @@ public static class BillingStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("billing", "cfg_allocation_rules", "cfg_allocation_rules", "Allocation rules", "billing", "allocation-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(AllocationRules), typeof(AllocationRulesInput)),
-        new("billing", "cfg_arrears_ageing_buckets", "cfg_arrears_ageing_buckets", "Arrears ageing buckets", "billing", "arrears-ageing-buckets", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ArrearsAgeingBuckets), typeof(ArrearsAgeingBucketsInput)),
-        new("billing", "cfg_document_numbering_schemes", "cfg_document_numbering_schemes", "Document numbering schemes", "billing", "document-numbering-schemes", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(DocumentNumberingSchemes), typeof(DocumentNumberingSchemesInput)),
-        new("billing", "ref_adjustment_and_reversal_reason_codes", "ref_adjustment_and_reversal_reason_codes", "Adjustment and reversal reason codes", "billing", "adjustment-and-reversal-reason-codes", StaticScope.T, 2, StaticLifecycle.Reference, typeof(AdjustmentAndReversalReasonCodes), typeof(AdjustmentAndReversalReasonCodesInput)),
-        new("billing", "ref_billing_frequencies", "ref_billing_frequencies", "Billing frequencies", "billing", "billing-frequencies", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(BillingFrequencies), typeof(BillingFrequenciesInput)),
-        new("billing", "ref_collection_methods", "ref_collection_methods", "Collection methods", "billing", "collection-methods", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(CollectionMethods), typeof(CollectionMethodsInput)),
+        new("billing", "cfg_allocation_rules", "cfg_allocation_rules", "Allocation rules", "billing", "allocation-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(AllocationRules), typeof(AllocationRulesInput), "Billing and Premium Receivables"),
+        new("billing", "cfg_arrears_ageing_buckets", "cfg_arrears_ageing_buckets", "Arrears ageing buckets", "billing", "arrears-ageing-buckets", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ArrearsAgeingBuckets), typeof(ArrearsAgeingBucketsInput), "Billing and Premium Receivables"),
+        new("billing", "cfg_document_numbering_schemes", "cfg_document_numbering_schemes", "Document numbering schemes", "billing", "document-numbering-schemes", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(DocumentNumberingSchemes), typeof(DocumentNumberingSchemesInput), "Billing and Premium Receivables"),
+        new("billing", "ref_adjustment_and_reversal_reason_codes", "ref_adjustment_and_reversal_reason_codes", "Adjustment and reversal reason codes", "billing", "adjustment-and-reversal-reason-codes", StaticScope.T, 2, StaticLifecycle.Reference, typeof(AdjustmentAndReversalReasonCodes), typeof(AdjustmentAndReversalReasonCodesInput), "Billing and Premium Receivables"),
+        new("billing", "ref_billing_frequencies", "ref_billing_frequencies", "Billing frequencies", "billing", "billing-frequencies", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(BillingFrequencies), typeof(BillingFrequenciesInput), "Billing and Premium Receivables"),
+        new("billing", "ref_collection_methods", "ref_collection_methods", "Collection methods", "billing", "collection-methods", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(CollectionMethods), typeof(CollectionMethodsInput), "Billing and Premium Receivables"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)

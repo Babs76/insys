@@ -49,6 +49,8 @@ public sealed class AnalyticsModule : IModule
 {
     public string Name => "Analytics";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => AnalyticsFunctions.All;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddAnalyticsInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

@@ -68,6 +68,8 @@ public sealed class IdentityModule : IModule
 {
     public string Name => "Identity";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => IdentityFunctions.All;
+
     /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
     public bool HoldsBusinessData => false;
 

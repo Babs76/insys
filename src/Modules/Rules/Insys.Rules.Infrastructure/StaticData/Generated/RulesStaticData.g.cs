@@ -39,13 +39,13 @@ public static class RulesStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("rules", "cfg_acceptance_and_referral_rules", "cfg_acceptance_and_referral_rules", "Acceptance and referral rules", "rules", "acceptance-and-referral-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(AcceptanceAndReferralRules), typeof(AcceptanceAndReferralRulesInput)),
-        new("rules", "cfg_authority_matrices", "cfg_authority_matrices", "Authority matrices", "rules", "authority-matrices", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(AuthorityMatrices), typeof(AuthorityMatricesInput)),
-        new("rules", "cfg_decline_conditions", "cfg_decline_conditions", "Decline conditions", "rules", "decline-conditions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DeclineConditions), typeof(DeclineConditionsInput)),
-        new("rules", "cfg_eligibility_rule_sets", "cfg_eligibility_rule_sets", "Eligibility rule sets", "rules", "eligibility-rule-sets", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(EligibilityRuleSets), typeof(EligibilityRuleSetsInput)),
-        new("rules", "cfg_evidence_requirement_grids", "cfg_evidence_requirement_grids", "Evidence requirement grids", "rules", "evidence-requirement-grids", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(EvidenceRequirementGrids), typeof(EvidenceRequirementGridsInput)),
-        new("rules", "cfg_question_bank_and_questionnaires", "cfg_question_bank_and_questionnaires", "Question bank and questionnaires", "rules", "question-bank-and-questionnaires", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(QuestionBankAndQuestionnaires), typeof(QuestionBankAndQuestionnairesInput)),
-        new("rules", "ref_decision_reason_codes", "ref_decision_reason_codes", "Decision reason codes", "rules", "decision-reason-codes", StaticScope.T, 2, StaticLifecycle.Reference, typeof(DecisionReasonCodes), typeof(DecisionReasonCodesInput)),
+        new("rules", "cfg_acceptance_and_referral_rules", "cfg_acceptance_and_referral_rules", "Acceptance and referral rules", "rules", "acceptance-and-referral-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(AcceptanceAndReferralRules), typeof(AcceptanceAndReferralRulesInput), "Rules Engine"),
+        new("rules", "cfg_authority_matrices", "cfg_authority_matrices", "Authority matrices", "rules", "authority-matrices", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(AuthorityMatrices), typeof(AuthorityMatricesInput), "Rules Engine"),
+        new("rules", "cfg_decline_conditions", "cfg_decline_conditions", "Decline conditions", "rules", "decline-conditions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DeclineConditions), typeof(DeclineConditionsInput), "Rules Engine"),
+        new("rules", "cfg_eligibility_rule_sets", "cfg_eligibility_rule_sets", "Eligibility rule sets", "rules", "eligibility-rule-sets", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(EligibilityRuleSets), typeof(EligibilityRuleSetsInput), "Rules Engine"),
+        new("rules", "cfg_evidence_requirement_grids", "cfg_evidence_requirement_grids", "Evidence requirement grids", "rules", "evidence-requirement-grids", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(EvidenceRequirementGrids), typeof(EvidenceRequirementGridsInput), "Rules Engine"),
+        new("rules", "cfg_question_bank_and_questionnaires", "cfg_question_bank_and_questionnaires", "Question bank and questionnaires", "rules", "question-bank-and-questionnaires", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(QuestionBankAndQuestionnaires), typeof(QuestionBankAndQuestionnairesInput), "Rules Engine"),
+        new("rules", "ref_decision_reason_codes", "ref_decision_reason_codes", "Decision reason codes", "rules", "decision-reason-codes", StaticScope.T, 2, StaticLifecycle.Reference, typeof(DecisionReasonCodes), typeof(DecisionReasonCodesInput), "Rules Engine"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)

@@ -39,10 +39,10 @@ public static class CommunicationsStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("communication", "cfg_channel_providers", "cfg_channel_providers", "Channel providers", "communications", "channel-providers", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ChannelProviders), typeof(ChannelProvidersInput)),
-        new("communication", "cfg_notification_templates", "cfg_notification_templates", "Notification templates", "communications", "notification-templates", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(NotificationTemplates), typeof(NotificationTemplatesInput)),
-        new("communication", "cfg_notification_types", "cfg_notification_types", "Notification types", "communications", "notification-types", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(NotificationTypes), typeof(NotificationTypesInput)),
-        new("communication", "ref_channels", "ref_channels", "Channels", "communications", "channels", StaticScope.G, 2, StaticLifecycle.Reference, typeof(Channels), typeof(ChannelsInput)),
+        new("communication", "cfg_channel_providers", "cfg_channel_providers", "Channel providers", "communications", "channel-providers", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ChannelProviders), typeof(ChannelProvidersInput), "Communications"),
+        new("communication", "cfg_notification_templates", "cfg_notification_templates", "Notification templates", "communications", "notification-templates", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(NotificationTemplates), typeof(NotificationTemplatesInput), "Communications"),
+        new("communication", "cfg_notification_types", "cfg_notification_types", "Notification types", "communications", "notification-types", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(NotificationTypes), typeof(NotificationTypesInput), "Communications"),
+        new("communication", "ref_channels", "ref_channels", "Channels", "communications", "channels", StaticScope.G, 2, StaticLifecycle.Reference, typeof(Channels), typeof(ChannelsInput), "Communications"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)

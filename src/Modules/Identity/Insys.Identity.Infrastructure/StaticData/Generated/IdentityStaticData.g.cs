@@ -34,18 +34,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Identity.Infrastructure.StaticData;
 
-/// <summary>The 7 static data tables owned by the Identity module.</summary>
+/// <summary>The 11 static data tables owned by the Identity module.</summary>
 public static class IdentityStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("iam", "cfg_access_review_schedules", "cfg_access_review_schedules", "Access review schedules", "identity", "access-review-schedules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(AccessReviewSchedules), typeof(AccessReviewSchedulesInput)),
-        new("iam", "cfg_authentication_and_session_policies", "cfg_authentication_and_session_policies", "Authentication and session policies", "identity", "authentication-and-session-policies", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(AuthenticationAndSessionPolicies), typeof(AuthenticationAndSessionPoliciesInput)),
-        new("iam", "cfg_identity_provider_configurations", "cfg_identity_provider_configurations", "Identity provider configurations", "identity", "identity-provider-configurations", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(IdentityProviderConfigurations), typeof(IdentityProviderConfigurationsInput)),
-        new("iam", "cfg_roles_and_permission_sets", "cfg_roles_and_permission_sets", "Roles and permission sets", "identity", "roles-and-permission-sets", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RolesAndPermissionSets), typeof(RolesAndPermissionSetsInput)),
-        new("iam", "cfg_segregation_of_duties_conflict_rules", "cfg_segregation_of_duties_conflict_rules", "Segregation-of-duties conflict rules", "identity", "segregation-of-duties-conflict-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(SegregationOfDutiesConflictRules), typeof(SegregationOfDutiesConflictRulesInput)),
-        new("iam", "cfg_service_account_scopes", "cfg_service_account_scopes", "Service account scopes", "identity", "service-account-scopes", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ServiceAccountScopes), typeof(ServiceAccountScopesInput)),
-        new("iam", "ref_permission_catalogue", "ref_permission_catalogue", "Permission catalogue", "identity", "permission-catalogue", StaticScope.G, 1, StaticLifecycle.Reference, typeof(PermissionCatalogue), typeof(PermissionCatalogueInput)),
+        new("iam", "cfg_access_review_schedules", "cfg_access_review_schedules", "Access review schedules", "identity", "access-review-schedules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(AccessReviewSchedules), typeof(AccessReviewSchedulesInput), "Identity and Access Management"),
+        new("iam", "cfg_authentication_and_session_policies", "cfg_authentication_and_session_policies", "Authentication and session policies", "identity", "authentication-and-session-policies", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(AuthenticationAndSessionPolicies), typeof(AuthenticationAndSessionPoliciesInput), "Identity and Access Management"),
+        new("iam", "cfg_identity_provider_configurations", "cfg_identity_provider_configurations", "Identity provider configurations", "identity", "identity-provider-configurations", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(IdentityProviderConfigurations), typeof(IdentityProviderConfigurationsInput), "Identity and Access Management"),
+        new("iam", "cfg_role_function_assignments", "cfg_role_function_assignments", "Role function assignments", "identity", "role-function-assignments", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RoleFunctionAssignments), typeof(RoleFunctionAssignmentsInput), "Identity and Access Management"),
+        new("iam", "cfg_roles_and_permission_sets", "cfg_roles_and_permission_sets", "Roles and permission sets", "identity", "roles-and-permission-sets", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RolesAndPermissionSets), typeof(RolesAndPermissionSetsInput), "Identity and Access Management"),
+        new("iam", "cfg_segregation_of_duties_conflict_rules", "cfg_segregation_of_duties_conflict_rules", "Segregation-of-duties conflict rules", "identity", "segregation-of-duties-conflict-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(SegregationOfDutiesConflictRules), typeof(SegregationOfDutiesConflictRulesInput), "Identity and Access Management"),
+        new("iam", "cfg_service_account_scopes", "cfg_service_account_scopes", "Service account scopes", "identity", "service-account-scopes", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ServiceAccountScopes), typeof(ServiceAccountScopesInput), "Identity and Access Management"),
+        new("iam", "ref_business_domains", "ref_business_domains", "Business domains", "identity", "business-domains", StaticScope.G, 2, StaticLifecycle.Reference, typeof(BusinessDomains), typeof(BusinessDomainsInput), "Identity and Access Management"),
+        new("iam", "ref_business_sub_domains", "ref_business_sub_domains", "Business sub-domains", "identity", "business-sub-domains", StaticScope.G, 2, StaticLifecycle.Reference, typeof(BusinessSubDomains), typeof(BusinessSubDomainsInput), "Identity and Access Management"),
+        new("iam", "ref_function_catalogue", "ref_function_catalogue", "Function catalogue", "identity", "function-catalogue", StaticScope.G, 1, StaticLifecycle.Reference, typeof(FunctionCatalogue), typeof(FunctionCatalogueInput), "Identity and Access Management"),
+        new("iam", "ref_permission_catalogue", "ref_permission_catalogue", "Permission catalogue", "identity", "permission-catalogue", StaticScope.G, 1, StaticLifecycle.Reference, typeof(PermissionCatalogue), typeof(PermissionCatalogueInput), "Identity and Access Management"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)
@@ -78,6 +82,13 @@ public static class IdentityStaticData
             entity.Property(x => x.MetadataUrl).HasColumnName("metadata_url").HasMaxLength(500);
             entity.Property(x => x.ClaimMappings).HasColumnName("claim_mappings").HasColumnType("jsonb");
         });
+        modelBuilder.Entity<RoleFunctionAssignments>(entity =>
+        {
+            entity.ToTable("cfg_role_function_assignments", "iam");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.RoleCode).HasColumnName("role_code").HasMaxLength(30);
+            entity.Property(x => x.FunctionCode).HasColumnName("function_code").HasMaxLength(80);
+        });
         modelBuilder.Entity<RolesAndPermissionSets>(entity =>
         {
             entity.ToTable("cfg_roles_and_permission_sets", "iam");
@@ -104,6 +115,38 @@ public static class IdentityStaticData
             entity.Property(x => x.Scopes).HasColumnName("scopes");
             entity.Property(x => x.CredentialRef).HasColumnName("credential_ref").HasMaxLength(300);
             entity.Property(x => x.Expiry).HasColumnName("expiry");
+        });
+        modelBuilder.Entity<BusinessDomains>(entity =>
+        {
+            entity.ToTable("ref_business_domains", "iam");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.DomainCode).HasColumnName("domain_code").HasMaxLength(30);
+            entity.Property(x => x.Icon).HasColumnName("icon").HasMaxLength(40);
+        });
+        modelBuilder.Entity<BusinessSubDomains>(entity =>
+        {
+            entity.ToTable("ref_business_sub_domains", "iam");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.SubDomainCode).HasColumnName("sub_domain_code").HasMaxLength(40);
+            entity.Property(x => x.DomainCode).HasColumnName("domain_code").HasMaxLength(30);
+            entity.Property(x => x.Icon).HasColumnName("icon").HasMaxLength(40);
+        });
+        modelBuilder.Entity<FunctionCatalogue>(entity =>
+        {
+            entity.ToTable("ref_function_catalogue", "iam");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.FunctionCode).HasColumnName("function_code").HasMaxLength(80);
+            entity.Property(x => x.SubDomainCode).HasColumnName("sub_domain_code").HasMaxLength(40);
+            entity.Property(x => x.ProcessArea).HasColumnName("process_area").HasMaxLength(80);
+            entity.Property(x => x.InteractionType).HasColumnName("interaction_type").HasMaxLength(10);
+            entity.Property(x => x.FunctionKind).HasColumnName("function_kind").HasMaxLength(10);
+            entity.Property(x => x.ParentFunctionCode).HasColumnName("parent_function_code").HasMaxLength(80);
+            entity.Property(x => x.Audiences).HasColumnName("audiences");
+            entity.Property(x => x.RouteKey).HasColumnName("route_key").HasMaxLength(120);
+            entity.Property(x => x.RequiredPermissions).HasColumnName("required_permissions");
+            entity.Property(x => x.RequiredFeature).HasColumnName("required_feature").HasMaxLength(30);
+            entity.Property(x => x.Privileged).HasColumnName("privileged");
+            entity.Property(x => x.AllowedWhileOnboarding).HasColumnName("allowed_while_onboarding");
         });
         modelBuilder.Entity<PermissionCatalogue>(entity =>
         {

@@ -66,6 +66,8 @@ public sealed class WorkflowModule : IModule
 {
     public string Name => "Workflow";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => WorkflowFunctions.All;
+
     /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
     public bool HoldsBusinessData => false;
 
@@ -235,6 +237,8 @@ public sealed class WorkflowModule : IModule
     /// </summary>
     private static void MapStaticDataDecisions(RouteGroupBuilder group, bool global)
     {
+        // ADR-026: the table's catalogue module's approve function, found from the route when the request comes.
+        group.WithMetadata(new BuildingBlocks.Api.Functions.StaticDataDecisionFunctionMetadata());
         var suffix = global ? "Global" : "";
         var approve = group.MapPost("/{code}/versions/{versionNumber:int}/approve", (string module, string entity, string code, int versionNumber,
                 IEnumerable<ModuleStaticDataTables> modules, IStaticDataChangeLookup lookup, ITenantContext tenant, IDispatcher dispatcher, CancellationToken ct) =>

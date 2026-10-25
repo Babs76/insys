@@ -79,7 +79,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "dead_letter.read"
+        "x-permission": "dead_letter.read",
+        "x-function": [
+          "INTEGRATION_DEAD_LETTERS"
+        ]
       }
     },
     "/api/v1/integration/dead-letters/{id}": {
@@ -134,7 +137,10 @@
             "$ref": "#/components/responses/Problem400"
           }
         },
-        "x-permission": "dead_letter.read"
+        "x-permission": "dead_letter.read",
+        "x-function": [
+          "INTEGRATION_DEAD_LETTERS"
+        ]
       }
     },
     "/api/v1/integration/dead-letters/{id}/replay": {
@@ -203,7 +209,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "dead_letter.update"
+        "x-permission": "dead_letter.update",
+        "x-function": [
+          "REPLAY_MESSAGE"
+        ]
       }
     },
     "/api/v1/integration/dead-letters/{id}/discard": {
@@ -272,7 +281,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "dead_letter.update"
+        "x-permission": "dead_letter.update",
+        "x-function": [
+          "DISCARD_MESSAGE"
+        ]
       }
     },
     "/api/v1/integration/deliveries/summary": {
@@ -309,7 +321,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "dead_letter.read"
+        "x-permission": "dead_letter.read",
+        "x-function": [
+          "INTEGRATION_DELIVERIES"
+        ]
       }
     },
     "/api/v1/integration/parked-deliveries": {
@@ -407,7 +422,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "dead_letter.read"
+        "x-permission": "dead_letter.read",
+        "x-function": [
+          "INTEGRATION_PARKED_DELIVERIES"
+        ]
       }
     },
     "/api/v1/integration/parked-deliveries/{id}": {
@@ -462,7 +480,10 @@
             "$ref": "#/components/responses/Problem400"
           }
         },
-        "x-permission": "dead_letter.read"
+        "x-permission": "dead_letter.read",
+        "x-function": [
+          "INTEGRATION_PARKED_DELIVERIES"
+        ]
       }
     },
     "/api/v1/integration/parked-deliveries/{id}/retry": {
@@ -523,7 +544,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "dead_letter.update"
+        "x-permission": "dead_letter.update",
+        "x-function": [
+          "RETRY_PARKED_DELIVERY"
+        ]
       }
     },
     "/api/v1/integration/parked-deliveries/retry": {
@@ -579,7 +603,10 @@
             "$ref": "#/components/responses/Problem409"
           }
         },
-        "x-permission": "dead_letter.update"
+        "x-permission": "dead_letter.update",
+        "x-function": [
+          "RETRY_PARKED_DELIVERIES_FOR_CODE"
+        ]
       }
     },
     "/api/v1/integration/parked-deliveries/{id}/discard": {
@@ -658,7 +685,10 @@
             "$ref": "#/components/responses/Problem400"
           }
         },
-        "x-permission": "dead_letter.update"
+        "x-permission": "dead_letter.update",
+        "x-function": [
+          "DISCARD_PARKED_DELIVERY"
+        ]
       }
     },
     "/api/v1/integration/parking-setting": {
@@ -696,7 +726,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "dead_letter.read"
+        "x-permission": "dead_letter.read",
+        "x-function": [
+          "INTEGRATION_PARKING_SETTING"
+        ]
       },
       "put": {
         "tags": [
@@ -747,7 +780,10 @@
             "$ref": "#/components/responses/Problem409"
           }
         },
-        "x-permission": "parking_setting.update"
+        "x-permission": "parking_setting.update",
+        "x-function": [
+          "CHANGE_PARKING_SETTING"
+        ]
       }
     },
     "/api/v1/integration/webhook-deliveries": {
@@ -823,7 +859,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "webhook_delivery.read"
+        "x-permission": "webhook_delivery.read",
+        "x-function": [
+          "INTEGRATION_WEBHOOK_DELIVERIES"
+        ]
       }
     },
     "/api/v1/integration/webhook-deliveries/{id}/retry": {
@@ -883,7 +922,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "webhook_delivery.update"
+        "x-permission": "webhook_delivery.update",
+        "x-function": [
+          "RETRY_WEBHOOK_DELIVERY"
+        ]
       }
     },
     "/api/v1/party/search-log/holds": {
@@ -951,7 +993,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party_search_log.hold"
+        "x-permission": "party_search_log.hold",
+        "x-function": [
+          "PARTY_PLACE_SEARCH_LOG_HOLD"
+        ]
       },
       "get": {
         "tags": [
@@ -989,7 +1034,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "audit_event.read"
+        "x-permission": "audit_event.read",
+        "x-function": [
+          "PARTY_SEARCH_LOG"
+        ]
       }
     },
     "/api/v1/party/search-log/holds/{id}/release": {
@@ -1042,7 +1090,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party_search_log.hold"
+        "x-permission": "party_search_log.hold",
+        "x-function": [
+          "PARTY_RELEASE_SEARCH_LOG_HOLD"
+        ]
       }
     },
     "/api/v1/party/parties/search": {
@@ -1099,7 +1150,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.read"
+        "x-permission": "party.read",
+        "x-function": [
+          "PARTY_SEARCH_PARTIES"
+        ]
       }
     },
     "/api/v1/party/parties": {
@@ -1168,7 +1222,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.create"
+        "x-permission": "party.create",
+        "x-function": [
+          "PARTY_REGISTER_PARTY"
+        ]
       }
     },
     "/api/v1/party/parties/{id}": {
@@ -1222,7 +1279,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "party.read"
+        "x-permission": "party.read",
+        "x-function": [
+          "PARTIES"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/individual": {
@@ -1300,7 +1360,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.update"
+        "x-permission": "party.update",
+        "x-function": [
+          "PARTY_UPDATE_INDIVIDUAL"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/preferred-language": {
@@ -1378,7 +1441,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.update"
+        "x-permission": "party.update",
+        "x-function": [
+          "PARTY_CHANGE_PREFERRED_LANGUAGE"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/organisation": {
@@ -1456,7 +1522,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.update"
+        "x-permission": "party.update",
+        "x-function": [
+          "PARTY_UPDATE_ORGANISATION"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/addresses": {
@@ -1534,7 +1603,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.update"
+        "x-permission": "party.update",
+        "x-function": [
+          "PARTY_ADD_ADDRESS"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/contact-points": {
@@ -1612,7 +1684,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.update"
+        "x-permission": "party.update",
+        "x-function": [
+          "PARTY_ADD_CONTACT_POINT"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/bank-accounts": {
@@ -1693,7 +1768,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "bank_account.create"
+        "x-permission": "bank_account.create",
+        "x-function": [
+          "PARTY_ADD_BANK_ACCOUNT"
+        ]
       },
       "get": {
         "tags": [
@@ -1748,7 +1826,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "bank_account.read"
+        "x-permission": "bank_account.read",
+        "x-function": [
+          "PARTIES"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/identifiers": {
@@ -1834,7 +1915,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.update"
+        "x-permission": "party.update",
+        "x-function": [
+          "PARTY_ADD_IDENTIFIER"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/identifiers/{identifierId}/verify": {
@@ -1921,7 +2005,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.update"
+        "x-permission": "party.update",
+        "x-function": [
+          "PARTY_VERIFY_IDENTIFIER"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/relationships": {
@@ -1999,7 +2086,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.update"
+        "x-permission": "party.update",
+        "x-function": [
+          "PARTY_RECORD_RELATIONSHIP"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/roles": {
@@ -2077,7 +2167,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.update"
+        "x-permission": "party.update",
+        "x-function": [
+          "PARTY_ASSIGN_ROLE"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/death": {
@@ -2155,7 +2248,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.update"
+        "x-permission": "party.update",
+        "x-function": [
+          "PARTY_RECORD_DEATH"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/match-resolution": {
@@ -2235,6 +2331,9 @@
           }
         },
         "x-permission": "party.update",
+        "x-function": [
+          "PARTY_RESOLVE_MATCH"
+        ],
         "x-eventual-effects": "the PARTY_MATCH_RESOLUTION approval appears in Workflow. Approved, a LINK merges the registration into the existing party (party.PartiesMerged) and NEW confirms it, and the review task is closed; rejected, the registration is back to PENDING_REVIEW."
       }
     },
@@ -2303,7 +2402,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.anonymise"
+        "x-permission": "party.anonymise",
+        "x-function": [
+          "PARTY_ANONYMISE"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/consents": {
@@ -2360,7 +2462,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "consent.read"
+        "x-permission": "consent.read",
+        "x-function": [
+          "PARTIES"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/consents/grant": {
@@ -2433,7 +2538,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "consent.update"
+        "x-permission": "consent.update",
+        "x-function": [
+          "PARTY_GRANT_CONSENT"
+        ]
       }
     },
     "/api/v1/party/parties/{id}/consents/withdraw": {
@@ -2506,7 +2614,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "consent.update"
+        "x-permission": "consent.update",
+        "x-function": [
+          "PARTY_WITHDRAW_CONSENT"
+        ]
       }
     },
     "/api/v1/party/search-log": {
@@ -2588,7 +2699,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "audit_event.read"
+        "x-permission": "audit_event.read",
+        "x-function": [
+          "PARTY_SEARCH_LOG"
+        ]
       }
     },
     "/api/v1/party/merges": {
@@ -2657,7 +2771,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.merge"
+        "x-permission": "party.merge",
+        "x-function": [
+          "PARTY_MERGE_PARTIES"
+        ]
       }
     },
     "/api/v1/portal/party/parties": {
@@ -2726,7 +2843,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "party.create"
+        "x-permission": "party.create",
+        "x-function": [
+          "BROKER_PORTAL_PARTY_REGISTER"
+        ]
       }
     },
     "/api/v1/product-factory/products": {
@@ -2795,7 +2915,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "product.create"
+        "x-permission": "product.create",
+        "x-function": [
+          "PRODUCT_REGISTER_PRODUCT"
+        ]
       },
       "get": {
         "tags": [
@@ -2866,7 +2989,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "product.read"
+        "x-permission": "product.read",
+        "x-function": [
+          "PRODUCTS"
+        ]
       }
     },
     "/api/v1/product-factory/products/{productCode}/versions": {
@@ -2946,7 +3072,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "product.create"
+        "x-permission": "product.create",
+        "x-function": [
+          "PRODUCT_CREATE_DRAFT_VERSION"
+        ]
       },
       "get": {
         "tags": [
@@ -3000,7 +3129,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "product.read"
+        "x-permission": "product.read",
+        "x-function": [
+          "PRODUCTS"
+        ]
       }
     },
     "/api/v1/product-factory/products/{productCode}/versions/{versionNumber}": {
@@ -3063,7 +3195,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "product.read"
+        "x-permission": "product.read",
+        "x-function": [
+          "PRODUCTS"
+        ]
       },
       "put": {
         "tags": [
@@ -3149,7 +3284,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "product.update"
+        "x-permission": "product.update",
+        "x-function": [
+          "PRODUCT_EDIT_CONFIGURATION"
+        ]
       }
     },
     "/api/v1/product-factory/products/{productCode}/versions/{versionNumber}/validate": {
@@ -3226,7 +3364,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "product.update"
+        "x-permission": "product.update",
+        "x-function": [
+          "PRODUCT_VALIDATE_VERSION"
+        ]
       }
     },
     "/api/v1/product-factory/products/{productCode}/versions/{versionNumber}/simulations": {
@@ -3306,7 +3447,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "product.update"
+        "x-permission": "product.update",
+        "x-function": [
+          "PRODUCT_RUN_SIMULATION"
+        ]
       },
       "get": {
         "tags": [
@@ -3370,7 +3514,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "product.read"
+        "x-permission": "product.read",
+        "x-function": [
+          "PRODUCTS"
+        ]
       }
     },
     "/api/v1/product-factory/products/{productCode}/versions/{versionNumber}/submit": {
@@ -3459,6 +3606,9 @@
           }
         },
         "x-permission": "product.publish",
+        "x-function": [
+          "PRODUCT_SUBMIT_FOR_APPROVAL"
+        ],
         "x-eventual-effects": "the Workflow approval appears (GET /api/v1/workflow/approvals); after approval the version becomes Published and Rating loads it."
       }
     },
@@ -3546,7 +3696,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "product.publish"
+        "x-permission": "product.publish",
+        "x-function": [
+          "PRODUCT_WITHDRAW_VERSION"
+        ]
       }
     },
     "/api/v1/product-factory/products/{productCode}/versions/{versionNumber}/retire": {
@@ -3623,7 +3776,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "product.publish"
+        "x-permission": "product.publish",
+        "x-function": [
+          "PRODUCT_RETIRE_VERSION"
+        ]
       }
     },
     "/api/v1/rating/calculations": {
@@ -3692,7 +3848,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "premium_calculation.create"
+        "x-permission": "premium_calculation.create",
+        "x-function": [
+          "RATING_CALCULATE_PREMIUM"
+        ]
       },
       "get": {
         "tags": [
@@ -3761,7 +3920,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "premium_calculation.read"
+        "x-permission": "premium_calculation.read",
+        "x-function": [
+          "RATING_CALCULATIONS"
+        ]
       }
     },
     "/api/v1/rating/calculations/simulate": {
@@ -3817,7 +3979,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "premium_calculation.simulate"
+        "x-permission": "premium_calculation.simulate",
+        "x-function": [
+          "RATING_SIMULATE_PREMIUM"
+        ]
       }
     },
     "/api/v1/rating/calculations/{id}": {
@@ -3871,7 +4036,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "premium_calculation.read"
+        "x-permission": "premium_calculation.read",
+        "x-function": [
+          "RATING_CALCULATIONS"
+        ]
       }
     },
     "/api/v1/rules/decisions": {
@@ -3940,7 +4108,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "rule_decision.create"
+        "x-permission": "rule_decision.create",
+        "x-function": [
+          "RULES_EVALUATE_RULE_SET"
+        ]
       },
       "get": {
         "tags": [
@@ -4009,7 +4180,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "rule_decision.read"
+        "x-permission": "rule_decision.read",
+        "x-function": [
+          "RULE_DECISIONS"
+        ]
       }
     },
     "/api/v1/rules/decisions/{id}": {
@@ -4063,7 +4237,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "rule_decision.read"
+        "x-permission": "rule_decision.read",
+        "x-function": [
+          "RULE_DECISIONS"
+        ]
       }
     },
     "/api/v1/workflow/approvals": {
@@ -4143,7 +4320,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "approval.read"
+        "x-permission": "approval.read",
+        "x-function": [
+          "WORKFLOW_APPROVALS"
+        ]
       }
     },
     "/api/v1/workflow/approvals/{id}": {
@@ -4197,7 +4377,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "approval.read"
+        "x-permission": "approval.read",
+        "x-function": [
+          "WORKFLOW_APPROVALS"
+        ]
       }
     },
     "/api/v1/workflow/approvals/{id}/approve": {
@@ -4267,6 +4450,9 @@
           }
         },
         "x-permission": "approval.approve",
+        "x-function": [
+          "WORKFLOW_APPROVE"
+        ],
         "x-additional-permissions": [
           {
             "permission": "bank_account.verify",
@@ -4357,6 +4543,9 @@
           }
         },
         "x-permission": "approval.approve",
+        "x-function": [
+          "WORKFLOW_REJECT"
+        ],
         "x-additional-permissions": [
           {
             "permission": "bank_account.verify",
@@ -4435,7 +4624,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "process.create"
+        "x-permission": "process.create",
+        "x-function": [
+          "WORKFLOW_START_PROCESS"
+        ]
       },
       "get": {
         "tags": [
@@ -4506,7 +4698,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "process.read"
+        "x-permission": "process.read",
+        "x-function": [
+          "WORKFLOW_PROCESSES"
+        ]
       }
     },
     "/api/v1/workflow/processes/{id}": {
@@ -4560,7 +4755,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "process.read"
+        "x-permission": "process.read",
+        "x-function": [
+          "WORKFLOW_PROCESSES"
+        ]
       }
     },
     "/api/v1/workflow/processes/{id}/suspend": {
@@ -4628,7 +4826,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "process.update"
+        "x-permission": "process.update",
+        "x-function": [
+          "WORKFLOW_SUSPEND_PROCESS"
+        ]
       }
     },
     "/api/v1/workflow/processes/{id}/resume": {
@@ -4696,7 +4897,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "process.update"
+        "x-permission": "process.update",
+        "x-function": [
+          "WORKFLOW_RESUME_PROCESS"
+        ]
       }
     },
     "/api/v1/workflow/processes/{id}/cancel": {
@@ -4764,7 +4968,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "process.update"
+        "x-permission": "process.update",
+        "x-function": [
+          "WORKFLOW_CANCEL_PROCESS"
+        ]
       }
     },
     "/api/v1/workflow/processes/{id}/notes": {
@@ -4842,7 +5049,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "process.update"
+        "x-permission": "process.update",
+        "x-function": [
+          "WORKFLOW_ADD_CASE_NOTE"
+        ]
       }
     },
     "/api/v1/workflow/processes/{id}/tasks/{taskId}/assign": {
@@ -4929,7 +5139,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "process.update"
+        "x-permission": "process.update",
+        "x-function": [
+          "WORKFLOW_ASSIGN_TASK"
+        ]
       }
     },
     "/api/v1/workflow/processes/{id}/tasks/{taskId}/complete": {
@@ -5017,7 +5230,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "process.update"
+        "x-permission": "process.update",
+        "x-function": [
+          "WORKFLOW_COMPLETE_TASK"
+        ]
       }
     },
     "/api/v1/workflow/processes/{id}/tasks/{taskId}/escalate": {
@@ -5079,7 +5295,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "process.update"
+        "x-permission": "process.update",
+        "x-function": [
+          "WORKFLOW_ESCALATE_TASK"
+        ]
       }
     },
     "/api/v1/workflow/tasks": {
@@ -5148,7 +5367,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "process.read"
+        "x-permission": "process.read",
+        "x-function": [
+          "WORKFLOW_TASKS"
+        ]
       }
     },
     "/api/v1/documents/documents/generate": {
@@ -5217,7 +5439,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "document.create"
+        "x-permission": "document.create",
+        "x-function": [
+          "DOCUMENTS_GENERATE"
+        ]
       }
     },
     "/api/v1/documents/documents": {
@@ -5285,7 +5510,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "document.create"
+        "x-permission": "document.create",
+        "x-function": [
+          "DOCUMENTS_STORE"
+        ]
       },
       "get": {
         "tags": [
@@ -5349,7 +5577,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "document.read"
+        "x-permission": "document.read",
+        "x-function": [
+          "DOCUMENTS"
+        ]
       }
     },
     "/api/v1/documents/documents/{id}": {
@@ -5403,7 +5634,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "document.read"
+        "x-permission": "document.read",
+        "x-function": [
+          "DOCUMENTS"
+        ]
       }
     },
     "/api/v1/documents/documents/{id}/content": {
@@ -5465,7 +5699,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "document.read"
+        "x-permission": "document.read",
+        "x-function": [
+          "DOCUMENTS"
+        ]
       }
     },
     "/api/v1/documents/documents/{id}/deliveries": {
@@ -5545,7 +5782,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "document.deliver"
+        "x-permission": "document.deliver",
+        "x-function": [
+          "DOCUMENTS_DELIVER"
+        ]
       }
     },
     "/api/v1/documents/documents/{id}/legal-holds": {
@@ -5615,7 +5855,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "legal_hold.manage"
+        "x-permission": "legal_hold.manage",
+        "x-function": [
+          "DOCUMENTS_PLACE_LEGAL_HOLD"
+        ]
       }
     },
     "/api/v1/documents/documents/{id}/legal-holds/{holdId}/release": {
@@ -5677,7 +5920,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "legal_hold.manage"
+        "x-permission": "legal_hold.manage",
+        "x-function": [
+          "DOCUMENTS_RELEASE_LEGAL_HOLD"
+        ]
       }
     },
     "/api/v1/documents/documents/{id}/dispose": {
@@ -5730,7 +5976,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "document.dispose"
+        "x-permission": "document.dispose",
+        "x-function": [
+          "DOCUMENTS_DISPOSE"
+        ]
       }
     },
     "/api/v1/portal/documents": {
@@ -5790,7 +6039,12 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "document.read"
+        "x-permission": "document.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_DOCUMENTS_LIST",
+          "BROKER_PORTAL_DOCUMENTS_LIST",
+          "PROVIDER_PORTAL_DOCUMENTS_LIST"
+        ]
       }
     },
     "/api/v1/portal/documents/{id}/content": {
@@ -5844,7 +6098,12 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "document.read"
+        "x-permission": "document.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_DOCUMENTS_CONTENT",
+          "BROKER_PORTAL_DOCUMENTS_CONTENT",
+          "PROVIDER_PORTAL_DOCUMENTS_CONTENT"
+        ]
       }
     },
     "/api/v1/billing/accounts": {
@@ -5912,7 +6171,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "billing_account.create"
+        "x-permission": "billing_account.create",
+        "x-function": [
+          "BILLING_OPEN_ACCOUNT"
+        ]
       }
     },
     "/api/v1/billing/accounts/{id}": {
@@ -5966,7 +6228,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "billing_account.read"
+        "x-permission": "billing_account.read",
+        "x-function": [
+          "BILLING_ACCOUNTS"
+        ]
       }
     },
     "/api/v1/billing/accounts/{id}/schedules": {
@@ -6047,7 +6312,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "billing_account.update"
+        "x-permission": "billing_account.update",
+        "x-function": [
+          "BILLING_CREATE_SCHEDULE"
+        ]
       }
     },
     "/api/v1/billing/accounts/{id}/schedules/{scheduleId}": {
@@ -6126,7 +6394,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "billing_account.update"
+        "x-permission": "billing_account.update",
+        "x-function": [
+          "BILLING_AMEND_SCHEDULE"
+        ]
       }
     },
     "/api/v1/billing/accounts/{id}/invoices": {
@@ -6209,7 +6480,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "invoice.create"
+        "x-permission": "invoice.create",
+        "x-function": [
+          "BILLING_ISSUE_INVOICES"
+        ]
       },
       "get": {
         "tags": [
@@ -6264,7 +6538,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "invoice.read"
+        "x-permission": "invoice.read",
+        "x-function": [
+          "BILLING_ACCOUNTS"
+        ]
       }
     },
     "/api/v1/billing/accounts/{id}/age": {
@@ -6324,7 +6601,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "billing_account.update"
+        "x-permission": "billing_account.update",
+        "x-function": [
+          "BILLING_AGE_ACCOUNT"
+        ]
       }
     },
     "/api/v1/billing/accounts/{id}/close": {
@@ -6384,7 +6664,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "billing_account.update"
+        "x-permission": "billing_account.update",
+        "x-function": [
+          "BILLING_CLOSE_ACCOUNT"
+        ]
       }
     },
     "/api/v1/billing/accounts/{id}/refunds": {
@@ -6464,7 +6747,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "refund.create"
+        "x-permission": "refund.create",
+        "x-function": [
+          "BILLING_REQUEST_REFUND"
+        ]
       }
     },
     "/api/v1/billing/invoices/{id}": {
@@ -6518,7 +6804,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "invoice.read"
+        "x-permission": "invoice.read",
+        "x-function": [
+          "BILLING_INVOICES"
+        ]
       }
     },
     "/api/v1/billing/invoices/{id}/credit-notes": {
@@ -6598,7 +6887,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "invoice.create"
+        "x-permission": "invoice.create",
+        "x-function": [
+          "BILLING_RAISE_CREDIT_NOTE"
+        ]
       }
     },
     "/api/v1/billing/refunds/{id}": {
@@ -6652,7 +6944,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "refund.read"
+        "x-permission": "refund.read",
+        "x-function": [
+          "BILLING_REFUNDS"
+        ]
       }
     },
     "/api/v1/billing/summary": {
@@ -6690,7 +6985,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "billing_account.read"
+        "x-permission": "billing_account.read",
+        "x-function": [
+          "BILLING_DASHBOARD"
+        ]
       }
     },
     "/api/v1/portal/billing/invoices": {
@@ -6752,7 +7050,11 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "invoice.read"
+        "x-permission": "invoice.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_BILLING_INVOICES",
+          "BROKER_PORTAL_BILLING_INVOICES"
+        ]
       }
     },
     "/api/v1/portal/billing/invoices/{id}": {
@@ -6806,7 +7108,11 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "invoice.read"
+        "x-permission": "invoice.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_BILLING_INVOICES",
+          "BROKER_PORTAL_BILLING_INVOICES"
+        ]
       }
     },
     "/api/v1/payments/payments": {
@@ -6875,7 +7181,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "payment.create"
+        "x-permission": "payment.create",
+        "x-function": [
+          "PAYMENTS_INITIATE"
+        ]
       },
       "get": {
         "tags": [
@@ -6961,6 +7270,9 @@
           }
         },
         "x-permission": "payment.read",
+        "x-function": [
+          "PAYMENTS"
+        ],
         "x-additional-permissions": [
           {
             "permission": "commission_payout.read",
@@ -7021,6 +7333,9 @@
           }
         },
         "x-permission": "payment.read",
+        "x-function": [
+          "PAYMENTS"
+        ],
         "x-additional-permissions": [
           {
             "permission": "commission_payout.read",
@@ -7064,6 +7379,9 @@
           }
         },
         "x-permission": "payment.read",
+        "x-function": [
+          "PAYMENT_DASHBOARD"
+        ],
         "x-additional-permissions": [
           {
             "permission": "commission_payout.read",
@@ -7139,7 +7457,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "payment.resolve"
+        "x-permission": "payment.resolve",
+        "x-function": [
+          "PAYMENTS_RESOLVE_UNKNOWN"
+        ]
       }
     },
     "/api/v1/payments/payments/{id}/reverse": {
@@ -7209,7 +7530,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "payment.resolve"
+        "x-permission": "payment.resolve",
+        "x-function": [
+          "PAYMENTS_REVERSE"
+        ]
       }
     },
     "/api/v1/payments/payments/{id}/allocate": {
@@ -7269,7 +7593,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "payment.update"
+        "x-permission": "payment.update",
+        "x-function": [
+          "PAYMENTS_ALLOCATE"
+        ]
       }
     },
     "/api/v1/payments/callbacks/{endpointKey}": {
@@ -7436,6 +7763,9 @@
           }
         },
         "x-permission": "payout_batch.create",
+        "x-function": [
+          "PAYMENTS_BUILD_BATCH"
+        ],
         "x-additional-permissions": [
           {
             "permission": "commission_payout.read",
@@ -7496,6 +7826,9 @@
           }
         },
         "x-permission": "payout_batch.read",
+        "x-function": [
+          "PAYMENT_PAYOUT_BATCHES"
+        ],
         "x-additional-permissions": [
           {
             "permission": "commission_payout.read",
@@ -7559,6 +7892,9 @@
           }
         },
         "x-permission": "payout_batch.read",
+        "x-function": [
+          "PAYMENT_PAYOUT_BATCHES"
+        ],
         "x-additional-permissions": [
           {
             "permission": "commission_payout.read",
@@ -7625,6 +7961,9 @@
           }
         },
         "x-permission": "payout_batch.release",
+        "x-function": [
+          "PAYMENTS_RELEASE_BATCH"
+        ],
         "x-additional-permissions": [
           {
             "permission": "commission_payout.read",
@@ -7698,7 +8037,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "reconciliation.update"
+        "x-permission": "reconciliation.update",
+        "x-function": [
+          "PAYMENTS_IMPORT_STATEMENT"
+        ]
       }
     },
     "/api/v1/payments/reconciliation-exceptions": {
@@ -7759,7 +8101,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "reconciliation.read"
+        "x-permission": "reconciliation.read",
+        "x-function": [
+          "PAYMENT_RECONCILIATION"
+        ]
       }
     },
     "/api/v1/payments/reconciliation-exceptions/{id}/assign": {
@@ -7819,7 +8164,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "reconciliation.update"
+        "x-permission": "reconciliation.update",
+        "x-function": [
+          "PAYMENTS_ASSIGN_EXCEPTION"
+        ]
       }
     },
     "/api/v1/payments/reconciliation-exceptions/{id}/resolve": {
@@ -7879,7 +8227,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "reconciliation.update"
+        "x-permission": "reconciliation.update",
+        "x-function": [
+          "PAYMENTS_RESOLVE_EXCEPTION"
+        ]
       }
     },
     "/api/v1/payments/callback-endpoints": {
@@ -7919,7 +8270,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "payment_callback_endpoint.read"
+        "x-permission": "payment_callback_endpoint.read",
+        "x-function": [
+          "PAYMENT_CALLBACK_ENDPOINTS"
+        ]
       },
       "post": {
         "tags": [
@@ -7974,7 +8328,10 @@
             "$ref": "#/components/responses/Problem409"
           }
         },
-        "x-permission": "payment_callback_endpoint.update"
+        "x-permission": "payment_callback_endpoint.update",
+        "x-function": [
+          "PAYMENTS_ISSUE_CALLBACK_ENDPOINT"
+        ]
       }
     },
     "/api/v1/payments/callback-endpoints/{id}/revoke": {
@@ -8034,7 +8391,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "payment_callback_endpoint.update"
+        "x-permission": "payment_callback_endpoint.update",
+        "x-function": [
+          "PAYMENTS_REVOKE_CALLBACK_ENDPOINT"
+        ]
       }
     },
     "/api/v1/claims/claims": {
@@ -8090,7 +8450,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "claim_register.create"
+        "x-permission": "claim_register.create",
+        "x-function": [
+          "CLAIMS_ALLOCATE_NUMBER"
+        ]
       }
     },
     "/api/v1/claims/claims/{claimNumber}": {
@@ -8143,7 +8506,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "claim_register.read"
+        "x-permission": "claim_register.read",
+        "x-function": [
+          "CLAIM_REGISTER"
+        ]
       }
     },
     "/api/v1/claims/claims/{claimNumber}/evidence-requests": {
@@ -8212,7 +8578,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "claim_register.update"
+        "x-permission": "claim_register.update",
+        "x-function": [
+          "CLAIMS_REQUEST_EVIDENCE"
+        ]
       }
     },
     "/api/v1/claims/claims/{claimNumber}/evidence": {
@@ -8281,7 +8650,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "claim_register.update"
+        "x-permission": "claim_register.update",
+        "x-function": [
+          "CLAIMS_RECORD_EVIDENCE"
+        ]
       }
     },
     "/api/v1/claims/claims/{claimNumber}/communications": {
@@ -8350,7 +8722,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "claim_register.update"
+        "x-permission": "claim_register.update",
+        "x-function": [
+          "CLAIMS_RECORD_COMMUNICATION"
+        ]
       }
     },
     "/api/v1/claims/claims/{claimNumber}/fraud-evaluations": {
@@ -8419,7 +8794,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "claim_register.update"
+        "x-permission": "claim_register.update",
+        "x-function": [
+          "CLAIMS_EVALUATE_FRAUD"
+        ]
       }
     },
     "/api/v1/claims/claims/{claimNumber}/financials": {
@@ -8472,7 +8850,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "claim_financials.read"
+        "x-permission": "claim_financials.read",
+        "x-function": [
+          "CLAIM_REGISTER"
+        ]
       }
     },
     "/api/v1/claims/claims/{claimNumber}/reserves": {
@@ -8541,7 +8922,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "claim_financials.update"
+        "x-permission": "claim_financials.update",
+        "x-function": [
+          "CLAIMS_MOVE_RESERVE"
+        ]
       }
     },
     "/api/v1/claims/claims/{claimNumber}/payment-instructions": {
@@ -8610,7 +8994,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "claim_payment.create"
+        "x-permission": "claim_payment.create",
+        "x-function": [
+          "CLAIMS_DRAFT_INSTRUCTION"
+        ]
       },
       "get": {
         "tags": [
@@ -8664,7 +9051,10 @@
             "$ref": "#/components/responses/Problem400"
           }
         },
-        "x-permission": "claim_payment.read"
+        "x-permission": "claim_payment.read",
+        "x-function": [
+          "CLAIM_REGISTER"
+        ]
       }
     },
     "/api/v1/claims/payment-instructions/{id}": {
@@ -8718,7 +9108,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "claim_payment.read"
+        "x-permission": "claim_payment.read",
+        "x-function": [
+          "CLAIM_PAYMENT_INSTRUCTIONS"
+        ]
       }
     },
     "/api/v1/claims/payment-instructions/{id}/submit": {
@@ -8778,7 +9171,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "claim_payment.create"
+        "x-permission": "claim_payment.create",
+        "x-function": [
+          "CLAIMS_SUBMIT_INSTRUCTION"
+        ]
       }
     },
     "/api/v1/claims/payment-instructions/{id}/release": {
@@ -8838,7 +9234,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "claim_payment.release"
+        "x-permission": "claim_payment.release",
+        "x-function": [
+          "CLAIMS_RELEASE_INSTRUCTION"
+        ]
       }
     },
     "/api/v1/claims/payment-instructions/{id}/retry": {
@@ -8908,7 +9307,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "claim_payment.release"
+        "x-permission": "claim_payment.release",
+        "x-function": [
+          "CLAIMS_RETRY_INSTRUCTION"
+        ]
       }
     },
     "/api/v1/claims/payment-instructions/{id}/redirect": {
@@ -8978,7 +9380,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "claim_payment.release"
+        "x-permission": "claim_payment.release",
+        "x-function": [
+          "CLAIMS_REDIRECT_INSTRUCTION"
+        ]
       }
     },
     "/api/v1/life/proposals": {
@@ -9061,7 +9466,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "life_proposal.read"
+        "x-permission": "life_proposal.read",
+        "x-function": [
+          "LIFE_PROPOSALS"
+        ]
       },
       "post": {
         "tags": [
@@ -9127,7 +9535,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_proposal.create"
+        "x-permission": "life_proposal.create",
+        "x-function": [
+          "LIFE_CAPTURE_PROPOSAL"
+        ]
       }
     },
     "/api/v1/life/policies": {
@@ -9210,7 +9621,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "life_policy.read"
+        "x-permission": "life_policy.read",
+        "x-function": [
+          "LIFE_POLICIES"
+        ]
       },
       "post": {
         "tags": [
@@ -9276,7 +9690,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_policy.create"
+        "x-permission": "life_policy.create",
+        "x-function": [
+          "LIFE_ISSUE_POLICY"
+        ]
       }
     },
     "/api/v1/life/claims": {
@@ -9367,7 +9784,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "life_claim.read"
+        "x-permission": "life_claim.read",
+        "x-function": [
+          "LIFE_CLAIMS"
+        ]
       },
       "post": {
         "tags": [
@@ -9433,7 +9853,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_claim.create"
+        "x-permission": "life_claim.create",
+        "x-function": [
+          "LIFE_NOTIFY_CLAIM"
+        ]
       }
     },
     "/api/v1/life/group-schemes": {
@@ -9516,7 +9939,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "life_group_scheme.read"
+        "x-permission": "life_group_scheme.read",
+        "x-function": [
+          "LIFE_GROUP_SCHEMES"
+        ]
       },
       "post": {
         "tags": [
@@ -9582,7 +10008,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_group_scheme.create"
+        "x-permission": "life_group_scheme.create",
+        "x-function": [
+          "LIFE_SET_UP_SCHEME"
+        ]
       }
     },
     "/api/v1/life/proposals/{id}": {
@@ -9636,7 +10065,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "life_proposal.read"
+        "x-permission": "life_proposal.read",
+        "x-function": [
+          "LIFE_PROPOSALS"
+        ]
       }
     },
     "/api/v1/life/proposals/{id}/submit": {
@@ -9696,7 +10128,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_proposal.update"
+        "x-permission": "life_proposal.update",
+        "x-function": [
+          "LIFE_SUBMIT_PROPOSAL"
+        ]
       }
     },
     "/api/v1/life/proposals/{id}/withdraw": {
@@ -9756,7 +10191,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_proposal.update"
+        "x-permission": "life_proposal.update",
+        "x-function": [
+          "LIFE_WITHDRAW_PROPOSAL"
+        ]
       }
     },
     "/api/v1/life/proposals/{id}/underwriting-case": {
@@ -9810,7 +10248,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "life_underwriting.read"
+        "x-permission": "life_underwriting.read",
+        "x-function": [
+          "LIFE_PROPOSALS"
+        ]
       }
     },
     "/api/v1/life/underwriting-cases/{id}": {
@@ -9864,7 +10305,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "life_underwriting.read"
+        "x-permission": "life_underwriting.read",
+        "x-function": [
+          "LIFE_UNDERWRITING_CASES"
+        ]
       }
     },
     "/api/v1/life/underwriting-cases/{id}/evidence": {
@@ -9934,7 +10378,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_underwriting.update"
+        "x-permission": "life_underwriting.update",
+        "x-function": [
+          "LIFE_REQUEST_EVIDENCE"
+        ]
       }
     },
     "/api/v1/life/underwriting-cases/{id}/evidence/{requirementId}/received": {
@@ -10013,7 +10460,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_underwriting.update"
+        "x-permission": "life_underwriting.update",
+        "x-function": [
+          "LIFE_RECORD_EVIDENCE"
+        ]
       }
     },
     "/api/v1/life/underwriting-cases/{id}/evidence/{requirementId}/waive": {
@@ -10092,7 +10542,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_underwriting.waive"
+        "x-permission": "life_underwriting.waive",
+        "x-function": [
+          "LIFE_WAIVE_EVIDENCE"
+        ]
       }
     },
     "/api/v1/life/underwriting-cases/{id}/start-assessment": {
@@ -10152,7 +10605,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_underwriting.update"
+        "x-permission": "life_underwriting.update",
+        "x-function": [
+          "LIFE_CASE_START_ASSESSMENT"
+        ]
       }
     },
     "/api/v1/life/underwriting-cases/{id}/answer-referral": {
@@ -10212,7 +10668,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_underwriting.update"
+        "x-permission": "life_underwriting.update",
+        "x-function": [
+          "LIFE_CASE_ANSWER_REFERRAL"
+        ]
       }
     },
     "/api/v1/life/underwriting-cases/{id}/refer": {
@@ -10282,7 +10741,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_underwriting.update"
+        "x-permission": "life_underwriting.update",
+        "x-function": [
+          "LIFE_REFER_CASE"
+        ]
       }
     },
     "/api/v1/life/underwriting-cases/{id}/decision": {
@@ -10352,7 +10814,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_underwriting.decide"
+        "x-permission": "life_underwriting.decide",
+        "x-function": [
+          "LIFE_DECIDE_CASE"
+        ]
       }
     },
     "/api/v1/life/policies/{id}": {
@@ -10406,7 +10871,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "life_policy.read"
+        "x-permission": "life_policy.read",
+        "x-function": [
+          "LIFE_POLICIES"
+        ]
       }
     },
     "/api/v1/life/policies/{id}/beneficiaries": {
@@ -10476,7 +10944,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_policy.update"
+        "x-permission": "life_policy.update",
+        "x-function": [
+          "LIFE_CHANGE_BENEFICIARIES"
+        ]
       }
     },
     "/api/v1/life/policies/{id}/alterations": {
@@ -10546,7 +11017,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_policy.update"
+        "x-permission": "life_policy.update",
+        "x-function": [
+          "LIFE_ALTER_POLICY"
+        ]
       }
     },
     "/api/v1/life/policies/{id}/reinstate": {
@@ -10616,7 +11090,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_policy.update"
+        "x-permission": "life_policy.update",
+        "x-function": [
+          "LIFE_REINSTATE_POLICY"
+        ]
       }
     },
     "/api/v1/life/policies/{id}/surrender": {
@@ -10676,7 +11153,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_policy.update"
+        "x-permission": "life_policy.update",
+        "x-function": [
+          "LIFE_POLICY_SURRENDER"
+        ]
       }
     },
     "/api/v1/life/policies/{id}/paid-up": {
@@ -10736,7 +11216,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_policy.update"
+        "x-permission": "life_policy.update",
+        "x-function": [
+          "LIFE_POLICY_MAKE_PAID_UP"
+        ]
       }
     },
     "/api/v1/life/policies/{id}/mature": {
@@ -10796,7 +11279,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_policy.update"
+        "x-permission": "life_policy.update",
+        "x-function": [
+          "LIFE_POLICY_MATURE"
+        ]
       }
     },
     "/api/v1/life/policies/{id}/loans": {
@@ -10876,7 +11362,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_loan.create"
+        "x-permission": "life_loan.create",
+        "x-function": [
+          "LIFE_ISSUE_LOAN"
+        ]
       }
     },
     "/api/v1/life/loans/{id}": {
@@ -10930,7 +11419,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "life_loan.read"
+        "x-permission": "life_loan.read",
+        "x-function": [
+          "LIFE_LOANS"
+        ]
       }
     },
     "/api/v1/life/loans/{id}/repayments": {
@@ -11010,7 +11502,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_loan.update"
+        "x-permission": "life_loan.update",
+        "x-function": [
+          "LIFE_REPAY_LOAN"
+        ]
       }
     },
     "/api/v1/life/claims/{id}": {
@@ -11064,7 +11559,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "life_claim.read"
+        "x-permission": "life_claim.read",
+        "x-function": [
+          "LIFE_CLAIMS"
+        ]
       }
     },
     "/api/v1/life/claims/{id}/register": {
@@ -11124,7 +11622,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_claim.update"
+        "x-permission": "life_claim.update",
+        "x-function": [
+          "LIFE_REGISTER_CLAIM"
+        ]
       }
     },
     "/api/v1/life/claims/{id}/assessment": {
@@ -11194,7 +11695,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_claim.update"
+        "x-permission": "life_claim.update",
+        "x-function": [
+          "LIFE_ASSESS_CLAIM"
+        ]
       }
     },
     "/api/v1/life/claims/{id}/approval": {
@@ -11264,7 +11768,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_claim.decide"
+        "x-permission": "life_claim.decide",
+        "x-function": [
+          "LIFE_APPROVE_CLAIM"
+        ]
       }
     },
     "/api/v1/life/claims/{id}/decline": {
@@ -11334,7 +11841,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_claim.decide"
+        "x-permission": "life_claim.decide",
+        "x-function": [
+          "LIFE_DECLINE_CLAIM"
+        ]
       }
     },
     "/api/v1/life/claims/{id}/close": {
@@ -11394,7 +11904,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_claim.update"
+        "x-permission": "life_claim.update",
+        "x-function": [
+          "LIFE_CLOSE_CLAIM"
+        ]
       }
     },
     "/api/v1/life/group-schemes/{id}": {
@@ -11448,7 +11961,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "life_group_scheme.read"
+        "x-permission": "life_group_scheme.read",
+        "x-function": [
+          "LIFE_GROUP_SCHEMES"
+        ]
       }
     },
     "/api/v1/life/group-schemes/{id}/members": {
@@ -11528,7 +12044,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_group_scheme.update"
+        "x-permission": "life_group_scheme.update",
+        "x-function": [
+          "LIFE_ENROL_MEMBER"
+        ]
       }
     },
     "/api/v1/life/group-schemes/{id}/members/{memberId}": {
@@ -11607,7 +12126,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_group_scheme.update"
+        "x-permission": "life_group_scheme.update",
+        "x-function": [
+          "LIFE_CHANGE_MEMBER"
+        ]
       }
     },
     "/api/v1/life/group-schemes/{id}/members/{memberId}/evidence-accepted": {
@@ -11676,7 +12198,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_underwriting.decide"
+        "x-permission": "life_underwriting.decide",
+        "x-function": [
+          "LIFE_ACCEPT_MEMBER_EVIDENCE"
+        ]
       }
     },
     "/api/v1/life/group-schemes/{id}/members/{memberId}/leave": {
@@ -11755,7 +12280,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_group_scheme.update"
+        "x-permission": "life_group_scheme.update",
+        "x-function": [
+          "LIFE_REMOVE_MEMBER"
+        ]
       }
     },
     "/api/v1/life/group-schemes/{id}/renew": {
@@ -11815,7 +12343,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_group_scheme.update"
+        "x-permission": "life_group_scheme.update",
+        "x-function": [
+          "LIFE_RENEW_SCHEME"
+        ]
       }
     },
     "/api/v1/life/group-schemes/{id}/terminate": {
@@ -11885,7 +12416,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "life_group_scheme.update"
+        "x-permission": "life_group_scheme.update",
+        "x-function": [
+          "LIFE_TERMINATE_SCHEME"
+        ]
       }
     },
     "/api/v1/portal/life/policies/{id}": {
@@ -11939,7 +12473,11 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "life_policy.read"
+        "x-permission": "life_policy.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_LIFE_POLICIES",
+          "BROKER_PORTAL_LIFE_POLICIES"
+        ]
       }
     },
     "/api/v1/portal/life/claims": {
@@ -12001,7 +12539,11 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "life_claim.read"
+        "x-permission": "life_claim.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_LIFE_CLAIMS",
+          "BROKER_PORTAL_LIFE_CLAIMS"
+        ]
       }
     },
     "/api/v1/portal/life/claims/{id}": {
@@ -12055,7 +12597,11 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "life_claim.read"
+        "x-permission": "life_claim.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_LIFE_CLAIMS",
+          "BROKER_PORTAL_LIFE_CLAIMS"
+        ]
       }
     },
     "/api/v1/general/risk-objects": {
@@ -12123,7 +12669,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_risk_object.create"
+        "x-permission": "general_risk_object.create",
+        "x-function": [
+          "GENERAL_REGISTER_RISK_OBJECT"
+        ]
       }
     },
     "/api/v1/general/risk-objects/{id}": {
@@ -12177,7 +12726,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_risk_object.read"
+        "x-permission": "general_risk_object.read",
+        "x-function": [
+          "GENERAL_RISK_OBJECTS"
+        ]
       }
     },
     "/api/v1/general/risk-objects/{id}/attributes": {
@@ -12247,7 +12799,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_risk_object.update"
+        "x-permission": "general_risk_object.update",
+        "x-function": [
+          "GENERAL_UPDATE_RISK_ATTRIBUTES"
+        ]
       }
     },
     "/api/v1/general/risk-objects/{id}/revalue": {
@@ -12317,7 +12872,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_risk_object.update"
+        "x-permission": "general_risk_object.update",
+        "x-function": [
+          "GENERAL_REVALUE_RISK_OBJECT"
+        ]
       }
     },
     "/api/v1/general/risk-objects/{id}/deactivate": {
@@ -12377,7 +12935,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_risk_object.update"
+        "x-permission": "general_risk_object.update",
+        "x-function": [
+          "GENERAL_DEACTIVATE_RISK_OBJECT"
+        ]
       }
     },
     "/api/v1/general/quotes": {
@@ -12446,7 +13007,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_quote.create"
+        "x-permission": "general_quote.create",
+        "x-function": [
+          "GENERAL_CREATE_QUOTE"
+        ]
       },
       "get": {
         "tags": [
@@ -12517,7 +13081,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "general_quote.read"
+        "x-permission": "general_quote.read",
+        "x-function": [
+          "GENERAL_QUOTES"
+        ]
       }
     },
     "/api/v1/general/quotes/{id}": {
@@ -12571,7 +13138,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_quote.read"
+        "x-permission": "general_quote.read",
+        "x-function": [
+          "GENERAL_QUOTES"
+        ]
       }
     },
     "/api/v1/general/quotes/{id}/issue": {
@@ -12631,7 +13201,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_quote.update"
+        "x-permission": "general_quote.update",
+        "x-function": [
+          "GENERAL_QUOTE_ISSUE"
+        ]
       }
     },
     "/api/v1/general/quotes/{id}/accept": {
@@ -12691,7 +13264,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_quote.update"
+        "x-permission": "general_quote.update",
+        "x-function": [
+          "GENERAL_QUOTE_ACCEPT"
+        ]
       }
     },
     "/api/v1/general/quotes/{id}/reject": {
@@ -12751,7 +13327,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_quote.update"
+        "x-permission": "general_quote.update",
+        "x-function": [
+          "GENERAL_QUOTE_REJECT"
+        ]
       }
     },
     "/api/v1/general/quotes/{id}/refer": {
@@ -12821,7 +13400,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_quote.update"
+        "x-permission": "general_quote.update",
+        "x-function": [
+          "GENERAL_REFER_QUOTE"
+        ]
       }
     },
     "/api/v1/general/quotes/{id}/referral-decision": {
@@ -12891,7 +13473,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_quote.underwrite"
+        "x-permission": "general_quote.underwrite",
+        "x-function": [
+          "GENERAL_DECIDE_REFERRAL"
+        ]
       }
     },
     "/api/v1/general/proposals": {
@@ -12959,7 +13544,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_quote.update"
+        "x-permission": "general_quote.update",
+        "x-function": [
+          "GENERAL_SUBMIT_PROPOSAL"
+        ]
       }
     },
     "/api/v1/general/proposals/{id}": {
@@ -13013,7 +13601,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_quote.read"
+        "x-permission": "general_quote.read",
+        "x-function": [
+          "GENERAL_PROPOSALS"
+        ]
       }
     },
     "/api/v1/general/proposals/{id}/accept": {
@@ -13073,7 +13664,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_quote.underwrite"
+        "x-permission": "general_quote.underwrite",
+        "x-function": [
+          "GENERAL_ACCEPT_PROPOSAL"
+        ]
       }
     },
     "/api/v1/general/policies": {
@@ -13143,6 +13737,9 @@
           }
         },
         "x-permission": "general_policy.create",
+        "x-function": [
+          "GENERAL_ISSUE_POLICY"
+        ],
         "x-eventual-effects": "Billing (account, premium schedule, first invoice), Documents (policy schedule, certificate), Reinsurance (cession) and Analytics follow; each needs its tenant configuration (docs/runbooks/dead-letters-and-webhooks.md)."
       },
       "get": {
@@ -13214,7 +13811,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "general_policy.read"
+        "x-permission": "general_policy.read",
+        "x-function": [
+          "GENERAL_POLICIES"
+        ]
       }
     },
     "/api/v1/general/policies/{id}": {
@@ -13268,7 +13868,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_policy.read"
+        "x-permission": "general_policy.read",
+        "x-function": [
+          "GENERAL_POLICIES"
+        ]
       }
     },
     "/api/v1/general/policies/{id}/renew": {
@@ -13338,7 +13941,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_policy.create"
+        "x-permission": "general_policy.create",
+        "x-function": [
+          "GENERAL_RENEW_POLICY"
+        ]
       }
     },
     "/api/v1/general/policies/{id}/cancel": {
@@ -13408,7 +14014,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_policy.cancel"
+        "x-permission": "general_policy.cancel",
+        "x-function": [
+          "GENERAL_CANCEL_POLICY"
+        ]
       }
     },
     "/api/v1/general/policies/{id}/reinstate": {
@@ -13468,7 +14077,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_policy.cancel"
+        "x-permission": "general_policy.cancel",
+        "x-function": [
+          "GENERAL_REINSTATE_POLICY"
+        ]
       }
     },
     "/api/v1/general/policies/{id}/endorsements": {
@@ -13549,7 +14161,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_endorsement.create"
+        "x-permission": "general_endorsement.create",
+        "x-function": [
+          "GENERAL_DRAFT_ENDORSEMENT"
+        ]
       }
     },
     "/api/v1/general/endorsements/{id}": {
@@ -13603,7 +14218,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_endorsement.read"
+        "x-permission": "general_endorsement.read",
+        "x-function": [
+          "GENERAL_ENDORSEMENTS"
+        ]
       }
     },
     "/api/v1/general/endorsements/{id}/submit": {
@@ -13663,7 +14281,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_endorsement.create"
+        "x-permission": "general_endorsement.create",
+        "x-function": [
+          "GENERAL_SUBMIT_ENDORSEMENT"
+        ]
       }
     },
     "/api/v1/general/claims": {
@@ -13731,7 +14352,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_claim.create"
+        "x-permission": "general_claim.create",
+        "x-function": [
+          "GENERAL_NOTIFY_LOSS"
+        ]
       },
       "get": {
         "tags": [
@@ -13802,7 +14426,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "general_claim.read"
+        "x-permission": "general_claim.read",
+        "x-function": [
+          "GENERAL_CLAIMS"
+        ]
       }
     },
     "/api/v1/general/claims/{id}": {
@@ -13856,7 +14483,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_claim.read"
+        "x-permission": "general_claim.read",
+        "x-function": [
+          "GENERAL_CLAIMS"
+        ]
       }
     },
     "/api/v1/general/claims/{id}/register": {
@@ -13916,7 +14546,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_claim.create"
+        "x-permission": "general_claim.create",
+        "x-function": [
+          "GENERAL_REGISTER_CLAIM"
+        ]
       }
     },
     "/api/v1/general/claims/{id}/parties": {
@@ -13986,7 +14619,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_claim.update"
+        "x-permission": "general_claim.update",
+        "x-function": [
+          "GENERAL_ADD_CLAIM_PARTY"
+        ]
       }
     },
     "/api/v1/general/claims/{id}/assessor": {
@@ -14056,7 +14692,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_claim.update"
+        "x-permission": "general_claim.update",
+        "x-function": [
+          "GENERAL_APPOINT_ASSESSOR"
+        ]
       }
     },
     "/api/v1/general/claims/{id}/settlement": {
@@ -14126,7 +14765,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_claim.decide"
+        "x-permission": "general_claim.decide",
+        "x-function": [
+          "GENERAL_REQUEST_SETTLEMENT"
+        ]
       }
     },
     "/api/v1/general/claims/{id}/decline": {
@@ -14196,7 +14838,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_claim.decide"
+        "x-permission": "general_claim.decide",
+        "x-function": [
+          "GENERAL_DECLINE_CLAIM"
+        ]
       }
     },
     "/api/v1/general/claims/{id}/close": {
@@ -14256,7 +14901,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_claim.update"
+        "x-permission": "general_claim.update",
+        "x-function": [
+          "GENERAL_CLAIM_CLOSE"
+        ]
       }
     },
     "/api/v1/general/claims/{id}/reopen": {
@@ -14316,7 +14964,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_claim.update"
+        "x-permission": "general_claim.update",
+        "x-function": [
+          "GENERAL_CLAIM_REOPEN"
+        ]
       }
     },
     "/api/v1/general/claims/{id}/assessments": {
@@ -14373,7 +15024,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_claim.read"
+        "x-permission": "general_claim.read",
+        "x-function": [
+          "GENERAL_CLAIMS"
+        ]
       }
     },
     "/api/v1/general/assessments/{id}": {
@@ -14427,7 +15081,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_claim.read"
+        "x-permission": "general_claim.read",
+        "x-function": [
+          "GENERAL_ASSESSMENTS"
+        ]
       }
     },
     "/api/v1/general/assessments/{id}/start": {
@@ -14487,7 +15144,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_assessment.update"
+        "x-permission": "general_assessment.update",
+        "x-function": [
+          "GENERAL_ASSESSMENT_START"
+        ]
       }
     },
     "/api/v1/general/assessments/{id}/accept": {
@@ -14547,7 +15207,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_assessment.update"
+        "x-permission": "general_assessment.update",
+        "x-function": [
+          "GENERAL_ASSESSMENT_ACCEPT"
+        ]
       }
     },
     "/api/v1/general/assessments/{id}/further-work": {
@@ -14607,7 +15270,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_assessment.update"
+        "x-permission": "general_assessment.update",
+        "x-function": [
+          "GENERAL_ASSESSMENT_REQUEST_FURTHER_WORK"
+        ]
       }
     },
     "/api/v1/general/assessments/{id}/estimates": {
@@ -14677,7 +15343,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_assessment.update"
+        "x-permission": "general_assessment.update",
+        "x-function": [
+          "GENERAL_RECORD_ESTIMATE"
+        ]
       }
     },
     "/api/v1/general/assessments/{id}/report": {
@@ -14747,7 +15416,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_assessment.update"
+        "x-permission": "general_assessment.update",
+        "x-function": [
+          "GENERAL_SUBMIT_REPORT"
+        ]
       }
     },
     "/api/v1/general/claims/{id}/recoveries": {
@@ -14827,7 +15499,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_recovery.update"
+        "x-permission": "general_recovery.update",
+        "x-function": [
+          "GENERAL_OPEN_RECOVERY"
+        ]
       }
     },
     "/api/v1/general/aggregation-alerts": {
@@ -14927,7 +15602,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "general_aggregation_alert.read"
+        "x-permission": "general_aggregation_alert.read",
+        "x-function": [
+          "GENERAL_AGGREGATION_ALERTS"
+        ]
       }
     },
     "/api/v1/general/aggregation-alerts/{id}": {
@@ -14981,7 +15659,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_aggregation_alert.read"
+        "x-permission": "general_aggregation_alert.read",
+        "x-function": [
+          "GENERAL_AGGREGATION_ALERTS"
+        ]
       }
     },
     "/api/v1/general/recoveries/{id}": {
@@ -15035,7 +15716,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_claim.read"
+        "x-permission": "general_claim.read",
+        "x-function": [
+          "GENERAL_RECOVERIES"
+        ]
       }
     },
     "/api/v1/general/recoveries/{id}/demand": {
@@ -15095,7 +15779,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_recovery.update"
+        "x-permission": "general_recovery.update",
+        "x-function": [
+          "GENERAL_RECOVERY_SEND_DEMAND"
+        ]
       }
     },
     "/api/v1/general/recoveries/{id}/write-off": {
@@ -15155,7 +15842,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_recovery.update"
+        "x-permission": "general_recovery.update",
+        "x-function": [
+          "GENERAL_RECOVERY_WRITE_OFF"
+        ]
       }
     },
     "/api/v1/general/recoveries/{id}/close": {
@@ -15215,7 +15905,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_recovery.update"
+        "x-permission": "general_recovery.update",
+        "x-function": [
+          "GENERAL_RECOVERY_CLOSE"
+        ]
       }
     },
     "/api/v1/general/recoveries/{id}/salvage": {
@@ -15285,7 +15978,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_recovery.update"
+        "x-permission": "general_recovery.update",
+        "x-function": [
+          "GENERAL_ADD_SALVAGE"
+        ]
       }
     },
     "/api/v1/general/recoveries/{id}/salvage/{itemId}/dispose": {
@@ -15364,7 +16060,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_recovery.update"
+        "x-permission": "general_recovery.update",
+        "x-function": [
+          "GENERAL_DISPOSE_SALVAGE"
+        ]
       }
     },
     "/api/v1/general/recoveries/{id}/recovered": {
@@ -15444,7 +16143,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_recovery.update"
+        "x-permission": "general_recovery.update",
+        "x-function": [
+          "GENERAL_RECORD_RECOVERY"
+        ]
       }
     },
     "/api/v1/portal/general/policies": {
@@ -15502,7 +16204,11 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "general_policy.read"
+        "x-permission": "general_policy.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_GENERAL_POLICIES",
+          "BROKER_PORTAL_GENERAL_POLICIES"
+        ]
       }
     },
     "/api/v1/portal/general/policies/{id}": {
@@ -15556,7 +16262,11 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_policy.read"
+        "x-permission": "general_policy.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_GENERAL_POLICIES",
+          "BROKER_PORTAL_GENERAL_POLICIES"
+        ]
       }
     },
     "/api/v1/portal/general/quotes": {
@@ -15614,7 +16324,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "general_quote.read"
+        "x-permission": "general_quote.read",
+        "x-function": [
+          "BROKER_PORTAL_GENERAL_QUOTES"
+        ]
       },
       "post": {
         "tags": [
@@ -15680,7 +16393,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_quote.create"
+        "x-permission": "general_quote.create",
+        "x-function": [
+          "BROKER_PORTAL_GENERAL_CREATE_QUOTE"
+        ]
       }
     },
     "/api/v1/portal/general/quotes/{id}": {
@@ -15734,7 +16450,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_quote.read"
+        "x-permission": "general_quote.read",
+        "x-function": [
+          "BROKER_PORTAL_GENERAL_QUOTES"
+        ]
       }
     },
     "/api/v1/portal/general/claims/{id}": {
@@ -15788,7 +16507,11 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "general_claim.read"
+        "x-permission": "general_claim.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_GENERAL_CLAIMS",
+          "BROKER_PORTAL_GENERAL_CLAIMS"
+        ]
       }
     },
     "/api/v1/portal/general/claims": {
@@ -15856,7 +16579,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_claim.create"
+        "x-permission": "general_claim.create",
+        "x-function": [
+          "CUSTOMER_PORTAL_GENERAL_NOTIFY_LOSS"
+        ]
       }
     },
     "/api/v1/health/memberships": {
@@ -15947,7 +16673,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "health_membership.read"
+        "x-permission": "health_membership.read",
+        "x-function": [
+          "HEALTH_MEMBERSHIPS"
+        ]
       },
       "post": {
         "tags": [
@@ -16013,7 +16742,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_membership.create"
+        "x-permission": "health_membership.create",
+        "x-function": [
+          "HEALTH_ENROL_MEMBER"
+        ]
       }
     },
     "/api/v1/health/preauthorisations": {
@@ -16104,7 +16836,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "health_preauthorisation.read"
+        "x-permission": "health_preauthorisation.read",
+        "x-function": [
+          "HEALTH_PREAUTHORISATIONS"
+        ]
       },
       "post": {
         "tags": [
@@ -16170,7 +16905,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_preauthorisation.create"
+        "x-permission": "health_preauthorisation.create",
+        "x-function": [
+          "HEALTH_REQUEST_AUTHORISATION"
+        ]
       }
     },
     "/api/v1/health/claims": {
@@ -16261,7 +16999,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "medical_claim.read"
+        "x-permission": "medical_claim.read",
+        "x-function": [
+          "HEALTH_CLAIMS"
+        ]
       },
       "post": {
         "tags": [
@@ -16327,7 +17068,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "medical_claim.create"
+        "x-permission": "medical_claim.create",
+        "x-function": [
+          "HEALTH_SUBMIT_CLAIM"
+        ]
       }
     },
     "/api/v1/health/utilisation-cases": {
@@ -16411,7 +17155,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "health_case.read"
+        "x-permission": "health_case.read",
+        "x-function": [
+          "HEALTH_UTILISATION_CASES"
+        ]
       },
       "post": {
         "tags": [
@@ -16477,7 +17224,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_case.update"
+        "x-permission": "health_case.update",
+        "x-function": [
+          "HEALTH_OPEN_UTILISATION_CASE"
+        ]
       }
     },
     "/api/v1/health/fraud-cases": {
@@ -16552,7 +17302,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "health_case.read"
+        "x-permission": "health_case.read",
+        "x-function": [
+          "HEALTH_FRAUD_CASES"
+        ]
       }
     },
     "/api/v1/health/payment-runs": {
@@ -16627,7 +17380,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "provider_payment_run.read"
+        "x-permission": "provider_payment_run.read",
+        "x-function": [
+          "HEALTH_PAYMENT_RUNS"
+        ]
       },
       "post": {
         "tags": [
@@ -16693,7 +17449,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "provider_payment_run.update"
+        "x-permission": "provider_payment_run.update",
+        "x-function": [
+          "HEALTH_OPEN_RUN"
+        ]
       }
     },
     "/api/v1/health/schemes": {
@@ -16761,7 +17520,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_scheme.create"
+        "x-permission": "health_scheme.create",
+        "x-function": [
+          "HEALTH_REGISTER_SCHEME"
+        ]
       }
     },
     "/api/v1/health/schemes/{id}": {
@@ -16815,7 +17577,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "health_scheme.read"
+        "x-permission": "health_scheme.read",
+        "x-function": [
+          "HEALTH_SCHEMES"
+        ]
       }
     },
     "/api/v1/health/schemes/{id}/renew": {
@@ -16875,7 +17640,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_scheme.update"
+        "x-permission": "health_scheme.update",
+        "x-function": [
+          "HEALTH_SCHEME_RENEW"
+        ]
       }
     },
     "/api/v1/health/schemes/{id}/terminate": {
@@ -16935,7 +17703,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_scheme.update"
+        "x-permission": "health_scheme.update",
+        "x-function": [
+          "HEALTH_SCHEME_TERMINATE"
+        ]
       }
     },
     "/api/v1/health/memberships/{id}": {
@@ -16989,7 +17760,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "health_membership.read"
+        "x-permission": "health_membership.read",
+        "x-function": [
+          "HEALTH_MEMBERSHIPS"
+        ]
       }
     },
     "/api/v1/health/memberships/{id}/accumulators": {
@@ -17046,7 +17820,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "benefit_accumulator.read"
+        "x-permission": "benefit_accumulator.read",
+        "x-function": [
+          "HEALTH_MEMBERSHIPS"
+        ]
       }
     },
     "/api/v1/health/memberships/{id}/dependants": {
@@ -17126,7 +17903,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_membership.update"
+        "x-permission": "health_membership.update",
+        "x-function": [
+          "HEALTH_ADD_DEPENDANT"
+        ]
       }
     },
     "/api/v1/health/memberships/{id}/dependants/{dependantId}/remove": {
@@ -17205,7 +17985,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_membership.update"
+        "x-permission": "health_membership.update",
+        "x-function": [
+          "HEALTH_REMOVE_DEPENDANT"
+        ]
       }
     },
     "/api/v1/health/memberships/{id}/plan": {
@@ -17275,7 +18058,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_membership.update"
+        "x-permission": "health_membership.update",
+        "x-function": [
+          "HEALTH_CHANGE_PLAN"
+        ]
       }
     },
     "/api/v1/health/memberships/{id}/suspend": {
@@ -17345,7 +18131,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_membership.update"
+        "x-permission": "health_membership.update",
+        "x-function": [
+          "HEALTH_MEMBERSHIP_SUSPEND"
+        ]
       }
     },
     "/api/v1/health/memberships/{id}/reinstate": {
@@ -17415,7 +18204,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_membership.update"
+        "x-permission": "health_membership.update",
+        "x-function": [
+          "HEALTH_MEMBERSHIP_REINSTATE"
+        ]
       }
     },
     "/api/v1/health/memberships/{id}/terminate": {
@@ -17485,7 +18277,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_membership.update"
+        "x-permission": "health_membership.update",
+        "x-function": [
+          "HEALTH_MEMBERSHIP_TERMINATE"
+        ]
       }
     },
     "/api/v1/health/eligibility": {
@@ -17541,7 +18336,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_eligibility.create"
+        "x-permission": "health_eligibility.create",
+        "x-function": [
+          "HEALTH_CHECK_ELIGIBILITY"
+        ]
       }
     },
     "/api/v1/health/preauthorisations/{id}": {
@@ -17595,7 +18393,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "health_preauthorisation.read"
+        "x-permission": "health_preauthorisation.read",
+        "x-function": [
+          "HEALTH_PREAUTHORISATIONS"
+        ]
       }
     },
     "/api/v1/health/preauthorisations/{id}/review": {
@@ -17655,7 +18456,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_preauthorisation.review"
+        "x-permission": "health_preauthorisation.review",
+        "x-function": [
+          "HEALTH_REVIEW_AUTHORISATION"
+        ]
       }
     },
     "/api/v1/health/preauthorisations/{id}/approve": {
@@ -17725,7 +18529,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_preauthorisation.review"
+        "x-permission": "health_preauthorisation.review",
+        "x-function": [
+          "HEALTH_APPROVE_AUTHORISATION"
+        ]
       }
     },
     "/api/v1/health/preauthorisations/{id}/reject": {
@@ -17795,7 +18602,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_preauthorisation.review"
+        "x-permission": "health_preauthorisation.review",
+        "x-function": [
+          "HEALTH_REJECT_AUTHORISATION"
+        ]
       }
     },
     "/api/v1/health/preauthorisations/{id}/modify": {
@@ -17865,7 +18675,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_preauthorisation.review"
+        "x-permission": "health_preauthorisation.review",
+        "x-function": [
+          "HEALTH_MODIFY_AUTHORISATION"
+        ]
       }
     },
     "/api/v1/health/preauthorisations/{id}/conditions-met": {
@@ -17925,7 +18738,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_preauthorisation.review"
+        "x-permission": "health_preauthorisation.review",
+        "x-function": [
+          "HEALTH_CONFIRM_CONDITIONS_MET"
+        ]
       }
     },
     "/api/v1/health/preauthorisations/{id}/cancel": {
@@ -17985,7 +18801,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_preauthorisation.review"
+        "x-permission": "health_preauthorisation.review",
+        "x-function": [
+          "HEALTH_CANCEL_AUTHORISATION"
+        ]
       }
     },
     "/api/v1/health/claims/{id}": {
@@ -18039,7 +18858,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "medical_claim.read"
+        "x-permission": "medical_claim.read",
+        "x-function": [
+          "HEALTH_CLAIMS"
+        ]
       }
     },
     "/api/v1/health/claims/{id}/validate": {
@@ -18099,7 +18921,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "medical_claim.update"
+        "x-permission": "medical_claim.update",
+        "x-function": [
+          "HEALTH_VALIDATE_CLAIM"
+        ]
       }
     },
     "/api/v1/health/claims/{id}/adjudicate": {
@@ -18159,7 +18984,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "medical_claim.update"
+        "x-permission": "medical_claim.update",
+        "x-function": [
+          "HEALTH_ADJUDICATE_CLAIM"
+        ]
       }
     },
     "/api/v1/health/claims/{id}/review": {
@@ -18229,7 +19057,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "medical_claim.approve"
+        "x-permission": "medical_claim.approve",
+        "x-function": [
+          "HEALTH_REVIEW_PENDED_CLAIM"
+        ]
       }
     },
     "/api/v1/health/claims/{id}/approve": {
@@ -18289,7 +19120,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "medical_claim.approve"
+        "x-permission": "medical_claim.approve",
+        "x-function": [
+          "HEALTH_APPROVE_CLAIM"
+        ]
       }
     },
     "/api/v1/health/claims/{id}/reject": {
@@ -18359,7 +19193,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "medical_claim.approve"
+        "x-permission": "medical_claim.approve",
+        "x-function": [
+          "HEALTH_REJECT_CLAIM"
+        ]
       }
     },
     "/api/v1/health/claims/{id}/reverse": {
@@ -18429,7 +19266,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "medical_claim.approve"
+        "x-permission": "medical_claim.approve",
+        "x-function": [
+          "HEALTH_REVERSE_CLAIM"
+        ]
       }
     },
     "/api/v1/health/utilisation-cases/{id}": {
@@ -18483,7 +19323,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "health_case.read"
+        "x-permission": "health_case.read",
+        "x-function": [
+          "HEALTH_UTILISATION_CASES"
+        ]
       }
     },
     "/api/v1/health/utilisation-cases/{id}/review": {
@@ -18543,7 +19386,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_case.update"
+        "x-permission": "health_case.update",
+        "x-function": [
+          "HEALTH_REVIEW_UTILISATION_CASE"
+        ]
       }
     },
     "/api/v1/health/utilisation-cases/{id}/conclude": {
@@ -18613,7 +19459,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_case.update"
+        "x-permission": "health_case.update",
+        "x-function": [
+          "HEALTH_CONCLUDE_UTILISATION_CASE"
+        ]
       }
     },
     "/api/v1/health/fraud-cases/{id}": {
@@ -18667,7 +19516,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "health_case.read"
+        "x-permission": "health_case.read",
+        "x-function": [
+          "HEALTH_FRAUD_CASES"
+        ]
       }
     },
     "/api/v1/health/fraud-cases/{id}/investigate": {
@@ -18727,7 +19579,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_case.update"
+        "x-permission": "health_case.update",
+        "x-function": [
+          "HEALTH_INVESTIGATE_FRAUD_CASE"
+        ]
       }
     },
     "/api/v1/health/fraud-cases/{id}/conclude": {
@@ -18797,7 +19652,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_case.update"
+        "x-permission": "health_case.update",
+        "x-function": [
+          "HEALTH_CONCLUDE_FRAUD_CASE"
+        ]
       }
     },
     "/api/v1/health/payment-runs/{id}": {
@@ -18851,7 +19709,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "provider_payment_run.read"
+        "x-permission": "provider_payment_run.read",
+        "x-function": [
+          "HEALTH_PAYMENT_RUNS"
+        ]
       }
     },
     "/api/v1/health/payment-runs/{id}/cut-off": {
@@ -18911,7 +19772,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "provider_payment_run.update"
+        "x-permission": "provider_payment_run.update",
+        "x-function": [
+          "HEALTH_CUT_OFF_RUN"
+        ]
       }
     },
     "/api/v1/health/payment-runs/{id}/calculate": {
@@ -18971,7 +19835,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "provider_payment_run.update"
+        "x-permission": "provider_payment_run.update",
+        "x-function": [
+          "HEALTH_CALCULATE_RUN"
+        ]
       }
     },
     "/api/v1/health/payment-runs/{id}/release": {
@@ -19031,7 +19898,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "provider_payment_run.update"
+        "x-permission": "provider_payment_run.update",
+        "x-function": [
+          "HEALTH_RELEASE_RUN"
+        ]
       }
     },
     "/api/v1/portal/health/memberships/{id}": {
@@ -19085,7 +19955,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "health_membership.read"
+        "x-permission": "health_membership.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_HEALTH_MEMBERSHIPS"
+        ]
       }
     },
     "/api/v1/portal/health/claims": {
@@ -19143,7 +20016,11 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "medical_claim.read"
+        "x-permission": "medical_claim.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_HEALTH_CLAIMS",
+          "PROVIDER_PORTAL_HEALTH_CLAIMS"
+        ]
       },
       "post": {
         "tags": [
@@ -19209,7 +20086,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "medical_claim.create"
+        "x-permission": "medical_claim.create",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_SUBMIT_CLAIM"
+        ]
       }
     },
     "/api/v1/portal/health/claims/{id}": {
@@ -19263,7 +20143,11 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "medical_claim.read"
+        "x-permission": "medical_claim.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_HEALTH_CLAIMS",
+          "PROVIDER_PORTAL_HEALTH_CLAIMS"
+        ]
       }
     },
     "/api/v1/portal/health/preauthorisations/{id}": {
@@ -19317,7 +20201,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "health_preauthorisation.read"
+        "x-permission": "health_preauthorisation.read",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_PREAUTHORISATIONS"
+        ]
       }
     },
     "/api/v1/portal/health/preauthorisations": {
@@ -19385,7 +20272,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "health_preauthorisation.create"
+        "x-permission": "health_preauthorisation.create",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_REQUEST_AUTHORISATION"
+        ]
       }
     },
     "/api/v1/portal/health/remittances": {
@@ -19443,7 +20333,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "provider_payment_run.read"
+        "x-permission": "provider_payment_run.read",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_REMITTANCES"
+        ]
       }
     },
     "/api/v1/finance/gl-exports": {
@@ -19512,7 +20405,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "gl_export.create"
+        "x-permission": "gl_export.create",
+        "x-function": [
+          "FINANCE_EXPORT_TO_GENERAL_LEDGER"
+        ]
       },
       "get": {
         "tags": [
@@ -19575,7 +20471,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "gl_export.read"
+        "x-permission": "gl_export.read",
+        "x-function": [
+          "FINANCE_GL_EXPORTS"
+        ]
       }
     },
     "/api/v1/finance/gl-exports/{id}": {
@@ -19629,7 +20528,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "gl_export.read"
+        "x-permission": "gl_export.read",
+        "x-function": [
+          "FINANCE_GL_EXPORTS"
+        ]
       }
     },
     "/api/v1/finance/gl-exports/{id}/content": {
@@ -19683,7 +20585,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "gl_export.read"
+        "x-permission": "gl_export.read",
+        "x-function": [
+          "FINANCE_GL_EXPORTS"
+        ]
       }
     },
     "/api/v1/finance/gl-exports/{id}/acknowledgement": {
@@ -19761,7 +20666,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "gl_export.update"
+        "x-permission": "gl_export.update",
+        "x-function": [
+          "FINANCE_ACKNOWLEDGE_GL_EXPORT"
+        ]
       }
     },
     "/api/v1/finance/journals/{id}": {
@@ -19815,7 +20723,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "journal.read"
+        "x-permission": "journal.read",
+        "x-function": [
+          "FINANCE_JOURNALS"
+        ]
       }
     },
     "/api/v1/finance/journals": {
@@ -19884,7 +20795,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "journal.read"
+        "x-permission": "journal.read",
+        "x-function": [
+          "FINANCE_JOURNALS"
+        ]
       }
     },
     "/api/v1/finance/journals/{id}/reverse": {
@@ -19965,7 +20879,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "journal.reverse"
+        "x-permission": "journal.reverse",
+        "x-function": [
+          "FINANCE_REVERSE_JOURNAL"
+        ]
       }
     },
     "/api/v1/finance/periods": {
@@ -20005,7 +20922,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "accounting_period.read"
+        "x-permission": "accounting_period.read",
+        "x-function": [
+          "FINANCE_PERIODS"
+        ]
       }
     },
     "/api/v1/finance/periods/{periodCode}/open": {
@@ -20064,7 +20984,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "accounting_period.update"
+        "x-permission": "accounting_period.update",
+        "x-function": [
+          "FINANCE_PERIOD_OPEN"
+        ]
       }
     },
     "/api/v1/finance/periods/{periodCode}/soft-close": {
@@ -20123,7 +21046,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "accounting_period.update"
+        "x-permission": "accounting_period.update",
+        "x-function": [
+          "FINANCE_PERIOD_SOFT_CLOSE"
+        ]
       }
     },
     "/api/v1/finance/periods/{periodCode}/close": {
@@ -20182,7 +21108,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "accounting_period.update"
+        "x-permission": "accounting_period.update",
+        "x-function": [
+          "FINANCE_PERIOD_CLOSE"
+        ]
       }
     },
     "/api/v1/finance/periods/{periodCode}/reopen": {
@@ -20241,7 +21170,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "accounting_period.update"
+        "x-permission": "accounting_period.update",
+        "x-function": [
+          "FINANCE_PERIOD_REQUEST_REOPEN"
+        ]
       }
     },
     "/api/v1/finance/periods/{periodCode}/trial-balance": {
@@ -20297,7 +21229,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "journal.read"
+        "x-permission": "journal.read",
+        "x-function": [
+          "FINANCE_PERIODS"
+        ]
       }
     },
     "/api/v1/finance/posting-exceptions": {
@@ -20358,7 +21293,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "posting_exception.read"
+        "x-permission": "posting_exception.read",
+        "x-function": [
+          "FINANCE_POSTING_EXCEPTIONS"
+        ]
       }
     },
     "/api/v1/finance/posting-exceptions/{id}/retry": {
@@ -20438,7 +21376,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "journal.reverse"
+        "x-permission": "journal.reverse",
+        "x-function": [
+          "FINANCE_RETRY_POSTING"
+        ]
       }
     },
     "/api/v1/distribution/intermediaries/{code}/permissions/{productCode}": {
@@ -20499,7 +21440,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "intermediary.read"
+        "x-permission": "intermediary.read",
+        "x-function": [
+          "INTERMEDIARIES"
+        ]
       }
     },
     "/api/v1/distribution/entitlements": {
@@ -20583,7 +21527,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "commission.read"
+        "x-permission": "commission.read",
+        "x-function": [
+          "COMMISSION_ENTITLEMENTS"
+        ]
       }
     },
     "/api/v1/distribution/entitlements/{id}": {
@@ -20637,7 +21584,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "commission.read"
+        "x-permission": "commission.read",
+        "x-function": [
+          "COMMISSION_ENTITLEMENTS"
+        ]
       }
     },
     "/api/v1/distribution/entitlements/{id}/claw-back": {
@@ -20707,7 +21657,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "commission.update"
+        "x-permission": "commission.update",
+        "x-function": [
+          "DISTRIBUTION_CLAW_BACK"
+        ]
       }
     },
     "/api/v1/distribution/statements": {
@@ -20763,7 +21716,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "commission_statement.create"
+        "x-permission": "commission_statement.create",
+        "x-function": [
+          "DISTRIBUTION_PREPARE_STATEMENT"
+        ]
       }
     },
     "/api/v1/distribution/statements/{id}": {
@@ -20817,7 +21773,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "commission_statement.read"
+        "x-permission": "commission_statement.read",
+        "x-function": [
+          "COMMISSION_STATEMENTS"
+        ]
       }
     },
     "/api/v1/portal/distribution/statements": {
@@ -20879,7 +21838,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "commission_statement.read"
+        "x-permission": "commission_statement.read",
+        "x-function": [
+          "BROKER_PORTAL_DISTRIBUTION_STATEMENTS"
+        ]
       }
     },
     "/api/v1/portal/distribution/statements/{id}": {
@@ -20933,7 +21895,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "commission_statement.read"
+        "x-permission": "commission_statement.read",
+        "x-function": [
+          "BROKER_PORTAL_DISTRIBUTION_STATEMENTS"
+        ]
       }
     },
     "/api/v1/reinsurance/cessions": {
@@ -20992,7 +21957,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "cession.read"
+        "x-permission": "cession.read",
+        "x-function": [
+          "REINSURANCE_CESSIONS"
+        ]
       }
     },
     "/api/v1/reinsurance/recoveries": {
@@ -21068,7 +22036,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "ri_recovery.read"
+        "x-permission": "ri_recovery.read",
+        "x-function": [
+          "REINSURANCE_RECOVERIES"
+        ]
       }
     },
     "/api/v1/reinsurance/recoveries/{id}": {
@@ -21122,7 +22093,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "ri_recovery.read"
+        "x-permission": "ri_recovery.read",
+        "x-function": [
+          "REINSURANCE_RECOVERIES"
+        ]
       }
     },
     "/api/v1/reinsurance/recoveries/{id}/bill": {
@@ -21182,7 +22156,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "ri_recovery.update"
+        "x-permission": "ri_recovery.update",
+        "x-function": [
+          "REINSURANCE_BILL_RECOVERY"
+        ]
       }
     },
     "/api/v1/reinsurance/recoveries/{id}/settle": {
@@ -21252,7 +22229,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "ri_recovery.update"
+        "x-permission": "ri_recovery.update",
+        "x-function": [
+          "REINSURANCE_SETTLE_RECOVERY"
+        ]
       }
     },
     "/api/v1/reinsurance/bordereaux": {
@@ -21308,7 +22288,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "bordereau.create"
+        "x-permission": "bordereau.create",
+        "x-function": [
+          "REINSURANCE_PREPARE_BORDEREAU"
+        ]
       }
     },
     "/api/v1/reinsurance/bordereaux/{id}": {
@@ -21362,7 +22345,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "bordereau.read"
+        "x-permission": "bordereau.read",
+        "x-function": [
+          "REINSURANCE_BORDEREAUX"
+        ]
       }
     },
     "/api/v1/reinsurance/bordereaux/{id}/send": {
@@ -21422,7 +22408,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "bordereau.update"
+        "x-permission": "bordereau.update",
+        "x-function": [
+          "REINSURANCE_SEND_BORDEREAU"
+        ]
       }
     },
     "/api/v1/reinsurance/bordereaux/{id}/agree": {
@@ -21482,7 +22471,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "bordereau.update"
+        "x-permission": "bordereau.update",
+        "x-function": [
+          "REINSURANCE_AGREE_BORDEREAU"
+        ]
       }
     },
     "/api/v1/compliance/returns": {
@@ -21550,7 +22542,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "regulatory_return.create"
+        "x-permission": "regulatory_return.create",
+        "x-function": [
+          "COMPLIANCE_PREPARE_RETURN"
+        ]
       },
       "get": {
         "tags": [
@@ -21604,7 +22599,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "regulatory_return.read"
+        "x-permission": "regulatory_return.read",
+        "x-function": [
+          "COMPLIANCE_RETURNS"
+        ]
       }
     },
     "/api/v1/compliance/returns/summary": {
@@ -21660,7 +22658,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "regulatory_return.read"
+        "x-permission": "regulatory_return.read",
+        "x-function": [
+          "COMPLIANCE_RETURNS"
+        ]
       }
     },
     "/api/v1/compliance/returns/{id}": {
@@ -21714,7 +22715,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "regulatory_return.read"
+        "x-permission": "regulatory_return.read",
+        "x-function": [
+          "COMPLIANCE_RETURNS"
+        ]
       }
     },
     "/api/v1/compliance/returns/{id}/review": {
@@ -21805,7 +22809,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "regulatory_return.update"
+        "x-permission": "regulatory_return.update",
+        "x-function": [
+          "COMPLIANCE_REVIEW_RETURN"
+        ]
       }
     },
     "/api/v1/compliance/returns/{id}/approve": {
@@ -21896,7 +22903,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "regulatory_return.approve"
+        "x-permission": "regulatory_return.approve",
+        "x-function": [
+          "COMPLIANCE_APPROVE_RETURN"
+        ]
       }
     },
     "/api/v1/compliance/returns/{id}/submit": {
@@ -21987,7 +22997,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "regulatory_return.update"
+        "x-permission": "regulatory_return.update",
+        "x-function": [
+          "COMPLIANCE_SUBMIT_RETURN"
+        ]
       }
     },
     "/api/v1/compliance/returns/{id}/accept": {
@@ -22078,7 +23091,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "regulatory_return.update"
+        "x-permission": "regulatory_return.update",
+        "x-function": [
+          "COMPLIANCE_ACCEPT_RETURN"
+        ]
       }
     },
     "/api/v1/compliance/returns/{id}/reject": {
@@ -22169,7 +23185,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "regulatory_return.update"
+        "x-permission": "regulatory_return.update",
+        "x-function": [
+          "COMPLIANCE_REJECT_RETURN"
+        ]
       }
     },
     "/api/v1/compliance/returns/{id}/correct": {
@@ -22260,7 +23279,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "regulatory_return.update"
+        "x-permission": "regulatory_return.update",
+        "x-function": [
+          "COMPLIANCE_CORRECT_RETURN"
+        ]
       }
     },
     "/api/v1/compliance/report-runs": {
@@ -22328,7 +23350,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "report.create"
+        "x-permission": "report.create",
+        "x-function": [
+          "COMPLIANCE_RUN_REPORT"
+        ]
       },
       "get": {
         "tags": [
@@ -22403,7 +23428,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "report.read"
+        "x-permission": "report.read",
+        "x-function": [
+          "COMPLIANCE_REPORT_RUNS"
+        ]
       }
     },
     "/api/v1/compliance/report-runs/{id}/export": {
@@ -22458,7 +23486,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "report.read"
+        "x-permission": "report.read",
+        "x-function": [
+          "COMPLIANCE_REPORT_RUNS"
+        ]
       }
     },
     "/api/v1/compliance/report-runs/{id}": {
@@ -22512,7 +23543,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "report.read"
+        "x-permission": "report.read",
+        "x-function": [
+          "COMPLIANCE_REPORT_RUNS"
+        ]
       }
     },
     "/api/v1/analytics/written-premium": {
@@ -22572,7 +23606,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "analytics.read"
+        "x-permission": "analytics.read",
+        "x-function": [
+          "ANALYTICS_WRITTEN_PREMIUM"
+        ]
       }
     },
     "/api/v1/analytics/claims-incurred": {
@@ -22630,7 +23667,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "analytics.read"
+        "x-permission": "analytics.read",
+        "x-function": [
+          "ANALYTICS_CLAIMS_INCURRED"
+        ]
       }
     },
     "/api/v1/analytics/summary": {
@@ -22688,7 +23728,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "analytics.read"
+        "x-permission": "analytics.read",
+        "x-function": [
+          "ANALYTICS_DASHBOARD"
+        ]
       }
     },
     "/api/v1/analytics/projections/rebuild": {
@@ -22734,7 +23777,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "analytics.update"
+        "x-permission": "analytics.update",
+        "x-function": [
+          "ANALYTICS_REBUILD_PROJECTIONS"
+        ]
       }
     },
     "/api/v1/identity/me": {
@@ -22878,7 +23924,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "user.read"
+        "x-permission": "user.read",
+        "x-function": [
+          "IDENTITY_ROLES"
+        ]
       }
     },
     "/api/v1/identity/role-assignments/scoped": {
@@ -22919,7 +23968,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "user.read"
+        "x-permission": "user.read",
+        "x-function": [
+          "IDENTITY_ROLE_ASSIGNMENTS"
+        ]
       }
     },
     "/api/v1/identity/users": {
@@ -22989,6 +24041,9 @@
           }
         },
         "x-permission": "user.create",
+        "x-function": [
+          "PROVISION_USER"
+        ],
         "x-eventual-effects": "for INSYS\u0027s own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the creation is parked (KEYCLOAK_UNAVAILABLE) and retried."
       },
       "get": {
@@ -23045,7 +24100,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "user.read"
+        "x-permission": "user.read",
+        "x-function": [
+          "IDENTITY_USERS"
+        ]
       }
     },
     "/api/v1/identity/users/{id}/resend-invitation": {
@@ -23115,6 +24173,9 @@
           }
         },
         "x-permission": "user.update",
+        "x-function": [
+          "RESEND_INVITATION"
+        ],
         "x-eventual-effects": "Keycloak sends the email; if it cannot be reached, sending is parked (KEYCLOAK_UNAVAILABLE) and retried."
       }
     },
@@ -23169,7 +24230,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "user.read"
+        "x-permission": "user.read",
+        "x-function": [
+          "IDENTITY_USERS"
+        ]
       }
     },
     "/api/v1/identity/users/{id}/subject-link": {
@@ -23249,6 +24313,9 @@
           }
         },
         "x-permission": "user.update",
+        "x-function": [
+          "IDENTITY_LINK_SUBJECT"
+        ],
         "x-eventual-effects": "the EXTERNAL_SUBJECT_LINK approval appears in Workflow; the link stays Pending until it is decided."
       },
       "get": {
@@ -23301,7 +24368,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "user.read"
+        "x-permission": "user.read",
+        "x-function": [
+          "IDENTITY_USERS"
+        ]
       }
     },
     "/api/v1/identity/users/{id}/subject-link/end": {
@@ -23369,7 +24439,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "user.update"
+        "x-permission": "user.update",
+        "x-function": [
+          "IDENTITY_END_SUBJECT_LINK"
+        ]
       }
     },
     "/api/v1/identity/users/{id}/assign-role": {
@@ -23449,6 +24522,9 @@
           }
         },
         "x-permission": "user.update",
+        "x-function": [
+          "ASSIGN_ROLE"
+        ],
         "x-eventual-effects": "for a privileged role (requiresApproval), the PRIVILEGED_ROLE approval appears in Workflow; the assignment stays PendingApproval until it is decided."
       }
     },
@@ -23528,7 +24604,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "user.update"
+        "x-permission": "user.update",
+        "x-function": [
+          "REVOKE_ROLE"
+        ]
       }
     },
     "/api/v1/identity/users/{id}/lock": {
@@ -23596,7 +24675,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "user.update"
+        "x-permission": "user.update",
+        "x-function": [
+          "LOCK_USER"
+        ]
       }
     },
     "/api/v1/identity/users/{id}/unlock": {
@@ -23664,7 +24746,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "user.update"
+        "x-permission": "user.update",
+        "x-function": [
+          "UNLOCK_USER"
+        ]
       }
     },
     "/api/v1/identity/users/{id}/disable": {
@@ -23732,7 +24817,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "user.update"
+        "x-permission": "user.update",
+        "x-function": [
+          "DISABLE_USER"
+        ]
       }
     },
     "/api/v1/identity/privileged-access": {
@@ -23801,7 +24889,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "privileged_access.create"
+        "x-permission": "privileged_access.create",
+        "x-function": [
+          "REQUEST_ACCESS"
+        ]
       },
       "get": {
         "tags": [
@@ -23864,7 +24955,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "privileged_access.read"
+        "x-permission": "privileged_access.read",
+        "x-function": [
+          "IDENTITY_PRIVILEGED_ACCESS"
+        ]
       }
     },
     "/api/v1/identity/privileged-access/{id}": {
@@ -23918,7 +25012,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "privileged_access.read"
+        "x-permission": "privileged_access.read",
+        "x-function": [
+          "IDENTITY_PRIVILEGED_ACCESS"
+        ]
       }
     },
     "/api/v1/identity/privileged-access/{id}/approve": {
@@ -23986,7 +25083,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "privileged_access.approve"
+        "x-permission": "privileged_access.approve",
+        "x-function": [
+          "APPROVE_ACCESS"
+        ]
       }
     },
     "/api/v1/identity/privileged-access/{id}/reject": {
@@ -24064,7 +25164,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "privileged_access.approve"
+        "x-permission": "privileged_access.approve",
+        "x-function": [
+          "REJECT_ACCESS"
+        ]
       }
     },
     "/api/v1/identity/access-reviews": {
@@ -24133,7 +25236,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "access_review.create"
+        "x-permission": "access_review.create",
+        "x-function": [
+          "START_REVIEW"
+        ]
       },
       "get": {
         "tags": [
@@ -24189,7 +25295,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "access_review.read"
+        "x-permission": "access_review.read",
+        "x-function": [
+          "IDENTITY_ACCESS_REVIEWS"
+        ]
       }
     },
     "/api/v1/identity/access-reviews/{id}": {
@@ -24243,7 +25352,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "access_review.read"
+        "x-permission": "access_review.read",
+        "x-function": [
+          "IDENTITY_ACCESS_REVIEWS"
+        ]
       }
     },
     "/api/v1/identity/access-reviews/{id}/items/{itemId}/confirm": {
@@ -24320,7 +25432,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "access_review.update"
+        "x-permission": "access_review.update",
+        "x-function": [
+          "CONFIRM_ACCESS"
+        ]
       }
     },
     "/api/v1/identity/access-reviews/{id}/items/{itemId}/revoke": {
@@ -24398,7 +25513,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "access_review.update"
+        "x-permission": "access_review.update",
+        "x-function": [
+          "REVOKE_ACCESS"
+        ]
       }
     },
     "/api/v1/identity/access-reviews/{id}/complete": {
@@ -24467,7 +25585,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "access_review.update"
+        "x-permission": "access_review.update",
+        "x-function": [
+          "COMPLETE_REVIEW"
+        ]
       }
     },
     "/api/v1/audit/events": {
@@ -24878,7 +25999,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "audit_event.read"
+        "x-permission": "audit_event.read",
+        "x-function": [
+          "AUDIT_TRAIL"
+        ]
       }
     },
     "/api/v1/audit/records/{targetType}/{targetId}": {
@@ -25290,7 +26414,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "audit_event.read"
+        "x-permission": "audit_event.read",
+        "x-function": [
+          "AUDIT_RECORD_HISTORY"
+        ]
       }
     },
     "/api/v1/communications/notifications": {
@@ -25405,7 +26532,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "notification.read"
+        "x-permission": "notification.read",
+        "x-function": [
+          "COMMUNICATION_NOTIFICATIONS"
+        ]
       }
     },
     "/api/v1/communications/notifications/{id}": {
@@ -25460,6 +26590,9 @@
           }
         },
         "x-permission": "notification.read",
+        "x-function": [
+          "COMMUNICATION_NOTIFICATIONS"
+        ],
         "x-additional-permissions": [
           {
             "permission": "medical_claim.read",
@@ -25522,7 +26655,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "notification_preference.read"
+        "x-permission": "notification_preference.read",
+        "x-function": [
+          "COMMUNICATION_PREFERENCES"
+        ]
       }
     },
     "/api/v1/communications/parties/{partyId}/preferences/{typeCode}": {
@@ -25613,6 +26749,9 @@
           }
         },
         "x-permission": "notification_preference.update",
+        "x-function": [
+          "COMMUNICATIONS_SET_PREFERENCE"
+        ],
         "x-eventual-effects": "an opt-out reaches the party\u0027s consent ledger as a withdrawal (party consents); read the consents again to see it."
       }
     },
@@ -25744,7 +26883,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "communication_callback_endpoint.read"
+        "x-permission": "communication_callback_endpoint.read",
+        "x-function": [
+          "COMMUNICATION_CALLBACK_ENDPOINTS"
+        ]
       },
       "post": {
         "tags": [
@@ -25811,7 +26953,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "communication_callback_endpoint.update"
+        "x-permission": "communication_callback_endpoint.update",
+        "x-function": [
+          "COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT"
+        ]
       }
     },
     "/api/v1/communications/callback-endpoints/{id}/revoke": {
@@ -25872,7 +27017,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "communication_callback_endpoint.update"
+        "x-permission": "communication_callback_endpoint.update",
+        "x-function": [
+          "COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT"
+        ]
       }
     },
     "/api/v1/portal/communications/notifications": {
@@ -25934,7 +27082,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "notification.read"
+        "x-permission": "notification.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_COMMUNICATIONS_NOTIFICATIONS"
+        ]
       }
     },
     "/api/v1/portal/communications/notifications/{id}": {
@@ -25988,7 +27139,10 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "notification.read"
+        "x-permission": "notification.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_COMMUNICATIONS_NOTIFICATIONS"
+        ]
       }
     },
     "/api/v1/portal/communications/preferences": {
@@ -26028,7 +27182,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "notification_preference.read"
+        "x-permission": "notification_preference.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_COMMUNICATIONS_PREFERENCES"
+        ]
       }
     },
     "/api/v1/portal/communications/preferences/{typeCode}": {
@@ -26110,6 +27267,9 @@
           }
         },
         "x-permission": "notification_preference.update",
+        "x-function": [
+          "CUSTOMER_PORTAL_COMMUNICATIONS_SET_PREFERENCE"
+        ],
         "x-eventual-effects": "an opt-out reaches the member\u0027s consent ledger as a withdrawal."
       }
     },
@@ -26150,7 +27310,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "notification_device.update"
+        "x-permission": "notification_device.update",
+        "x-function": [
+          "CUSTOMER_PORTAL_COMMUNICATIONS_DEVICES"
+        ]
       },
       "post": {
         "tags": [
@@ -26217,7 +27380,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "notification_device.update"
+        "x-permission": "notification_device.update",
+        "x-function": [
+          "CUSTOMER_PORTAL_COMMUNICATIONS_REGISTER_DEVICE"
+        ]
       }
     },
     "/api/v1/portal/communications/devices/{id}": {
@@ -26277,7 +27443,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "notification_device.update"
+        "x-permission": "notification_device.update",
+        "x-function": [
+          "CUSTOMER_PORTAL_COMMUNICATIONS_REVOKE_DEVICE"
+        ]
       }
     }
   },

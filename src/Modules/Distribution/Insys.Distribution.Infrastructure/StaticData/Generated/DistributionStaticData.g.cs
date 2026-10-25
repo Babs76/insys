@@ -39,12 +39,12 @@ public static class DistributionStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("commission", "cfg_commission_plans", "cfg_commission_plans", "Commission plans", "distribution", "commission-plans", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CommissionPlans), typeof(CommissionPlansInput)),
-        new("commission", "cfg_distribution_hierarchy", "cfg_distribution_hierarchy", "Distribution hierarchy", "distribution", "distribution-hierarchy", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DistributionHierarchy), typeof(DistributionHierarchyInput)),
-        new("commission", "cfg_intermediary_product_permissions", "cfg_intermediary_product_permissions", "Intermediary product permissions", "distribution", "intermediary-product-permissions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(IntermediaryProductPermissions), typeof(IntermediaryProductPermissionsInput)),
-        new("commission", "cfg_statement_templates", "cfg_statement_templates", "Statement templates", "distribution", "statement-templates", StaticScope.T, 3, StaticLifecycle.Configuration, typeof(StatementTemplates), typeof(StatementTemplatesInput)),
-        new("commission", "mst_intermediary_register", "mst_intermediary_register", "Intermediary register", "distribution", "intermediary-register", StaticScope.T, 1, StaticLifecycle.Reference, typeof(IntermediaryRegister), typeof(IntermediaryRegisterInput)),
-        new("commission", "ref_licence_and_appointment_types", "ref_licence_and_appointment_types", "Licence and appointment types", "distribution", "licence-and-appointment-types", StaticScope.T, 2, StaticLifecycle.Reference, typeof(LicenceAndAppointmentTypes), typeof(LicenceAndAppointmentTypesInput)),
+        new("commission", "cfg_commission_plans", "cfg_commission_plans", "Commission plans", "distribution", "commission-plans", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CommissionPlans), typeof(CommissionPlansInput), "Commission and Distribution"),
+        new("commission", "cfg_distribution_hierarchy", "cfg_distribution_hierarchy", "Distribution hierarchy", "distribution", "distribution-hierarchy", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DistributionHierarchy), typeof(DistributionHierarchyInput), "Commission and Distribution"),
+        new("commission", "cfg_intermediary_product_permissions", "cfg_intermediary_product_permissions", "Intermediary product permissions", "distribution", "intermediary-product-permissions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(IntermediaryProductPermissions), typeof(IntermediaryProductPermissionsInput), "Commission and Distribution"),
+        new("commission", "cfg_statement_templates", "cfg_statement_templates", "Statement templates", "distribution", "statement-templates", StaticScope.T, 3, StaticLifecycle.Configuration, typeof(StatementTemplates), typeof(StatementTemplatesInput), "Commission and Distribution"),
+        new("commission", "mst_intermediary_register", "mst_intermediary_register", "Intermediary register", "distribution", "intermediary-register", StaticScope.T, 1, StaticLifecycle.Reference, typeof(IntermediaryRegister), typeof(IntermediaryRegisterInput), "Commission and Distribution"),
+        new("commission", "ref_licence_and_appointment_types", "ref_licence_and_appointment_types", "Licence and appointment types", "distribution", "licence-and-appointment-types", StaticScope.T, 2, StaticLifecycle.Reference, typeof(LicenceAndAppointmentTypes), typeof(LicenceAndAppointmentTypesInput), "Commission and Distribution"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)

@@ -59,6 +59,8 @@ public sealed class ProductFactoryModule : IModule
 {
     public string Name => "ProductFactory";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => ProductFactoryFunctions.All;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddProductFactoryInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

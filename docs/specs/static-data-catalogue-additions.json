@@ -114,6 +114,102 @@
     { "name": "sender_identity", "logicalType": "String(120)", "mandatory": true, "sample": "INSYS" },
     { "name": "enabled", "logicalType": "Boolean", "mandatory": true, "sample": "true" }
    ]
+  },
+  {
+   "layer": "Platform",
+   "module": "Identity and Access Management",
+   "subModule": "Function catalogue",
+   "entity": "Business domains",
+   "table": "iam.ref_business_domains",
+   "class": "REF",
+   "scope": "G",
+   "tier": 2,
+   "proposedOwner": "Platform Administrator",
+   "provenance": "ADR-026 (signed off 25 October 2026)",
+   "basis": "addenda/function-catalogue.md",
+   "fields": [
+    { "name": "domain_code", "logicalType": "Code(30)", "mandatory": true, "sample": "GENERAL" },
+    { "name": "icon", "logicalType": "String(40)", "mandatory": false, "sample": "shield" }
+   ]
+  },
+  {
+   "layer": "Platform",
+   "module": "Identity and Access Management",
+   "subModule": "Function catalogue",
+   "entity": "Business sub-domains",
+   "table": "iam.ref_business_sub_domains",
+   "class": "REF",
+   "scope": "G",
+   "tier": 2,
+   "proposedOwner": "Platform Administrator",
+   "provenance": "ADR-026 (signed off 25 October 2026)",
+   "basis": "addenda/function-catalogue.md",
+   "fields": [
+    { "name": "sub_domain_code", "logicalType": "Code(40)", "mandatory": true, "sample": "GENERAL_CLAIMS" },
+    { "name": "domain_code", "logicalType": "Ref BusinessDomain", "mandatory": true, "sample": "GENERAL" },
+    { "name": "icon", "logicalType": "String(40)", "mandatory": false, "sample": "clipboard-list" }
+   ]
+  },
+  {
+   "layer": "Platform",
+   "module": "Identity and Access Management",
+   "subModule": "Function catalogue",
+   "entity": "Function catalogue",
+   "table": "iam.ref_function_catalogue",
+   "class": "REF",
+   "scope": "G",
+   "tier": 1,
+   "proposedOwner": "Platform Administrator",
+   "provenance": "ADR-026 (signed off 25 October 2026)",
+   "basis": "addenda/function-catalogue.md",
+   "fields": [
+    { "name": "function_code", "logicalType": "Code(80)", "mandatory": true, "sample": "GENERAL_DECLINE_CLAIM" },
+    { "name": "sub_domain_code", "logicalType": "Ref BusinessSubDomain", "mandatory": true, "sample": "GENERAL_CLAIMS" },
+    { "name": "process_area", "logicalType": "String(80)", "mandatory": true, "sample": "Registration" },
+    { "name": "interaction_type", "logicalType": "Enum{HUMAN,SYSTEM}", "mandatory": true, "sample": "HUMAN" },
+    { "name": "function_kind", "logicalType": "Enum{SCREEN,ACTION,JOB}", "mandatory": true, "sample": "ACTION" },
+    { "name": "parent_function_code", "logicalType": "Ref Function", "mandatory": false, "sample": "GENERAL_CLAIMS" },
+    { "name": "audiences", "logicalType": "List<Enum{PLATFORM,STAFF,BROKER,PROVIDER,CUSTOMER}>", "mandatory": true, "sample": "STAFF" },
+    { "name": "route_key", "logicalType": "String(120)", "mandatory": false, "sample": "general/claims" },
+    { "name": "required_permissions", "logicalType": "List<Ref Permission>", "mandatory": true, "sample": "general_claim.decide" },
+    { "name": "required_feature", "logicalType": "Enum{LIFE,GENERAL,HEALTH,REINSURANCE,BROKER_PORTAL,PROVIDER_PORTAL,CUSTOMER_PORTAL}", "mandatory": false, "sample": "GENERAL" },
+    { "name": "privileged", "logicalType": "Boolean", "mandatory": true, "sample": "false" },
+    { "name": "allowed_while_onboarding", "logicalType": "Boolean", "mandatory": true, "sample": "false" }
+   ]
+  },
+  {
+   "layer": "Platform",
+   "module": "Tenant Management",
+   "subModule": "Function availability",
+   "entity": "Tenant function availability",
+   "table": "tenant.cfg_tenant_function_availability",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 1,
+   "proposedOwner": "Tenant Administrator",
+   "provenance": "ADR-026 (signed off 25 October 2026)",
+   "basis": "addenda/function-catalogue.md",
+   "fields": [
+    { "name": "function_code", "logicalType": "Ref Function", "mandatory": true, "sample": "GENERAL_DECLINE_CLAIM" },
+    { "name": "enabled", "logicalType": "Boolean", "mandatory": true, "sample": "false" }
+   ]
+  },
+  {
+   "layer": "Platform",
+   "module": "Identity and Access Management",
+   "subModule": "Role-based access control",
+   "entity": "Role function assignments",
+   "table": "iam.cfg_role_function_assignments",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 1,
+   "proposedOwner": "Tenant Administrator",
+   "provenance": "ADR-026 (signed off 25 October 2026)",
+   "basis": "addenda/function-catalogue.md",
+   "fields": [
+    { "name": "role_code", "logicalType": "Ref Role", "mandatory": true, "sample": "CLAIMS_ASSESSOR" },
+    { "name": "function_code", "logicalType": "Ref Function", "mandatory": true, "sample": "GENERAL_DECLINE_CLAIM" }
+   ]
   }
  ]
 }

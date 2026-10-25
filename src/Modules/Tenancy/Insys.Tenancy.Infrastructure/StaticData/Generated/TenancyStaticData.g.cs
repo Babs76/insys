@@ -34,17 +34,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Tenancy.Infrastructure.StaticData;
 
-/// <summary>The 6 static data tables owned by the Tenancy module.</summary>
+/// <summary>The 7 static data tables owned by the Tenancy module.</summary>
 public static class TenancyStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("tenant", "cfg_feature_entitlements", "cfg_feature_entitlements", "Feature entitlements", "tenancy", "feature-entitlements", StaticScope.G, 1, StaticLifecycle.Configuration, typeof(FeatureEntitlements), typeof(FeatureEntitlementsInput)),
-        new("tenant", "cfg_isolation_profile_assignment", "cfg_isolation_profile_assignment", "Isolation profile assignment", "tenancy", "isolation-profile-assignment", StaticScope.G, 1, StaticLifecycle.Configuration, typeof(IsolationProfileAssignment), typeof(IsolationProfileAssignmentInput)),
-        new("tenant", "cfg_locale_defaults", "cfg_locale_defaults", "Locale defaults", "tenancy", "locale-defaults", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(LocaleDefaults), typeof(LocaleDefaultsInput)),
-        new("tenant", "cfg_operational_limits", "cfg_operational_limits", "Operational limits", "tenancy", "operational-limits", StaticScope.G, 1, StaticLifecycle.Configuration, typeof(OperationalLimits), typeof(OperationalLimitsInput)),
-        new("tenant", "cfg_tenant_product_availability", "cfg_tenant_product_availability", "Tenant product availability", "tenancy", "tenant-product-availability", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(TenantProductAvailability), typeof(TenantProductAvailabilityInput)),
-        new("tenant", "mst_organisation_structure", "mst_organisation_structure", "Organisation structure", "tenancy", "organisation-structure", StaticScope.T, 1, StaticLifecycle.Reference, typeof(OrganisationStructure), typeof(OrganisationStructureInput)),
+        new("tenant", "cfg_feature_entitlements", "cfg_feature_entitlements", "Feature entitlements", "tenancy", "feature-entitlements", StaticScope.G, 1, StaticLifecycle.Configuration, typeof(FeatureEntitlements), typeof(FeatureEntitlementsInput), "Tenant Management"),
+        new("tenant", "cfg_isolation_profile_assignment", "cfg_isolation_profile_assignment", "Isolation profile assignment", "tenancy", "isolation-profile-assignment", StaticScope.G, 1, StaticLifecycle.Configuration, typeof(IsolationProfileAssignment), typeof(IsolationProfileAssignmentInput), "Tenant Management"),
+        new("tenant", "cfg_locale_defaults", "cfg_locale_defaults", "Locale defaults", "tenancy", "locale-defaults", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(LocaleDefaults), typeof(LocaleDefaultsInput), "Tenant Management"),
+        new("tenant", "cfg_operational_limits", "cfg_operational_limits", "Operational limits", "tenancy", "operational-limits", StaticScope.G, 1, StaticLifecycle.Configuration, typeof(OperationalLimits), typeof(OperationalLimitsInput), "Tenant Management"),
+        new("tenant", "cfg_tenant_function_availability", "cfg_tenant_function_availability", "Tenant function availability", "tenancy", "tenant-function-availability", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(TenantFunctionAvailability), typeof(TenantFunctionAvailabilityInput), "Tenant Management"),
+        new("tenant", "cfg_tenant_product_availability", "cfg_tenant_product_availability", "Tenant product availability", "tenancy", "tenant-product-availability", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(TenantProductAvailability), typeof(TenantProductAvailabilityInput), "Tenant Management"),
+        new("tenant", "mst_organisation_structure", "mst_organisation_structure", "Organisation structure", "tenancy", "organisation-structure", StaticScope.T, 1, StaticLifecycle.Reference, typeof(OrganisationStructure), typeof(OrganisationStructureInput), "Tenant Management"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)
@@ -84,6 +85,13 @@ public static class TenancyStaticData
             entity.Property(x => x.Tenant).HasColumnName("tenant").HasMaxLength(80);
             entity.Property(x => x.LimitType).HasColumnName("limit_type").HasMaxLength(30);
             entity.Property(x => x.Value).HasColumnName("value");
+        });
+        modelBuilder.Entity<TenantFunctionAvailability>(entity =>
+        {
+            entity.ToTable("cfg_tenant_function_availability", "tenant");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.FunctionCode).HasColumnName("function_code").HasMaxLength(80);
+            entity.Property(x => x.Enabled).HasColumnName("enabled");
         });
         modelBuilder.Entity<TenantProductAvailability>(entity =>
         {

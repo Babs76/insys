@@ -60,6 +60,8 @@ public sealed class CommunicationsModule : IModule
 {
     public string Name => "Communications";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => CommunicationsFunctions.All;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddCommunicationsInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)

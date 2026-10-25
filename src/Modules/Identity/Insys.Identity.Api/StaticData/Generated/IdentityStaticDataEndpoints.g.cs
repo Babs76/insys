@@ -45,9 +45,13 @@ public static class IdentityStaticDataEndpoints
         api.MapStaticEntity<IdentityDbContext, AccessReviewSchedules, AccessReviewSchedulesInput>(IdentityStaticData.Descriptors[0], Tag);
         api.MapStaticEntity<IdentityDbContext, AuthenticationAndSessionPolicies, AuthenticationAndSessionPoliciesInput>(IdentityStaticData.Descriptors[1], Tag);
         api.MapStaticEntity<IdentityDbContext, IdentityProviderConfigurations, IdentityProviderConfigurationsInput>(IdentityStaticData.Descriptors[2], Tag);
-        api.MapStaticEntity<IdentityDbContext, RolesAndPermissionSets, RolesAndPermissionSetsInput>(IdentityStaticData.Descriptors[3], Tag);
-        api.MapStaticEntity<IdentityDbContext, SegregationOfDutiesConflictRules, SegregationOfDutiesConflictRulesInput>(IdentityStaticData.Descriptors[4], Tag);
-        api.MapStaticEntity<IdentityDbContext, ServiceAccountScopes, ServiceAccountScopesInput>(IdentityStaticData.Descriptors[5], Tag);
-        api.MapStaticEntity<IdentityDbContext, PermissionCatalogue, PermissionCatalogueInput>(IdentityStaticData.Descriptors[6], Tag);
+        api.MapStaticEntity<IdentityDbContext, RoleFunctionAssignments, RoleFunctionAssignmentsInput>(IdentityStaticData.Descriptors[3], Tag);
+        api.MapStaticEntity<IdentityDbContext, RolesAndPermissionSets, RolesAndPermissionSetsInput>(IdentityStaticData.Descriptors[4], Tag);
+        api.MapStaticEntity<IdentityDbContext, SegregationOfDutiesConflictRules, SegregationOfDutiesConflictRulesInput>(IdentityStaticData.Descriptors[5], Tag);
+        api.MapStaticEntity<IdentityDbContext, ServiceAccountScopes, ServiceAccountScopesInput>(IdentityStaticData.Descriptors[6], Tag);
+        api.MapStaticEntity<IdentityDbContext, BusinessDomains, BusinessDomainsInput>(IdentityStaticData.Descriptors[7], Tag);
+        api.MapStaticEntity<IdentityDbContext, BusinessSubDomains, BusinessSubDomainsInput>(IdentityStaticData.Descriptors[8], Tag);
+        api.MapStaticEntity<IdentityDbContext, FunctionCatalogue, FunctionCatalogueInput>(IdentityStaticData.Descriptors[9], Tag);
+        api.MapStaticEntity<IdentityDbContext, PermissionCatalogue, PermissionCatalogueInput>(IdentityStaticData.Descriptors[10], Tag);
     }
 }

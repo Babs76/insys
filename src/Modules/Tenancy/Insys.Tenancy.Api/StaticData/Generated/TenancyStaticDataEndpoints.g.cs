@@ -46,7 +46,8 @@ public static class TenancyStaticDataEndpoints
         api.MapStaticEntity<TenancyDbContext, IsolationProfileAssignment, IsolationProfileAssignmentInput>(TenancyStaticData.Descriptors[1], Tag);
         api.MapStaticEntity<TenancyDbContext, LocaleDefaults, LocaleDefaultsInput>(TenancyStaticData.Descriptors[2], Tag);
         api.MapStaticEntity<TenancyDbContext, OperationalLimits, OperationalLimitsInput>(TenancyStaticData.Descriptors[3], Tag);
-        api.MapStaticEntity<TenancyDbContext, TenantProductAvailability, TenantProductAvailabilityInput>(TenancyStaticData.Descriptors[4], Tag);
-        api.MapStaticEntity<TenancyDbContext, OrganisationStructure, OrganisationStructureInput>(TenancyStaticData.Descriptors[5], Tag);
+        api.MapStaticEntity<TenancyDbContext, TenantFunctionAvailability, TenantFunctionAvailabilityInput>(TenancyStaticData.Descriptors[4], Tag);
+        api.MapStaticEntity<TenancyDbContext, TenantProductAvailability, TenantProductAvailabilityInput>(TenancyStaticData.Descriptors[5], Tag);
+        api.MapStaticEntity<TenancyDbContext, OrganisationStructure, OrganisationStructureInput>(TenancyStaticData.Descriptors[6], Tag);
     }
 }

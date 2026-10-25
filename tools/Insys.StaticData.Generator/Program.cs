@@ -56,7 +56,8 @@ foreach (var item in catalogue.RootElement.GetProperty("entities").EnumerateArra
     var module = Modules.BySchema[table.Schema];
     var name = item.GetProperty("entity").GetString()!;
     entities.Add(new Entity(table, module, name, Names.Pascal(name), Names.Kebab(name), EntityCode(table.Name),
-        item.GetProperty("scope").GetString()!, item.GetProperty("tier").GetInt32(), table.Statuses.Contains("PUBLISHED") ? "Configuration" : "Reference"));
+        item.GetProperty("scope").GetString()!, item.GetProperty("tier").GetInt32(), table.Statuses.Contains("PUBLISHED") ? "Configuration" : "Reference",
+        item.GetProperty("module").GetString()!));
 }
 
 var unmatched = tables.Keys.Except(entities.Select(e => e.Table.FullName)).ToList();
@@ -123,7 +124,8 @@ static string FindRoot()
     throw new InvalidOperationException("Run from inside the repository, or pass its root.");
 }
 
-internal sealed record Entity(Table Table, ModuleInfo Module, string Name, string ClassName, string Route, string EntityCode, string Scope, int Tier, string Lifecycle);
+internal sealed record Entity(Table Table, ModuleInfo Module, string Name, string ClassName, string Route, string EntityCode, string Scope, int Tier, string Lifecycle,
+    string CatalogueModule);
 
 internal static class Names
 {
@@ -287,7 +289,7 @@ internal static class Emit
         {
             s.AppendLine($"        new({Names.Literal(e.Table.Schema)}, {Names.Literal(e.Table.Name)}, {Names.Literal(e.EntityCode)}, {Names.Literal(e.Name)}, "
                 + $"{Names.Literal(e.Module.Route)}, {Names.Literal(e.Route)}, StaticScope.{e.Scope}, {e.Tier}, StaticLifecycle.{e.Lifecycle}, "
-                + $"typeof({e.ClassName}), typeof({e.ClassName}Input)),");
+                + $"typeof({e.ClassName}), typeof({e.ClassName}Input), {Names.Literal(e.CatalogueModule)}),");
         }
 
         s.AppendLine("    ];");

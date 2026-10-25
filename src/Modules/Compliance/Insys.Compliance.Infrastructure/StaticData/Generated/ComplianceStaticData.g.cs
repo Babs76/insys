@@ -39,10 +39,10 @@ public static class ComplianceStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("reporting", "cfg_compliance_register_entries", "cfg_compliance_register_entries", "Compliance register entries", "compliance", "compliance-register-entries", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(ComplianceRegisterEntries), typeof(ComplianceRegisterEntriesInput)),
-        new("reporting", "cfg_regulatory_return_definitions", "cfg_regulatory_return_definitions", "Regulatory return definitions", "compliance", "regulatory-return-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RegulatoryReturnDefinitions), typeof(RegulatoryReturnDefinitionsInput)),
-        new("reporting", "cfg_report_catalogue_and_access_rules", "cfg_report_catalogue_and_access_rules", "Report catalogue and access rules", "compliance", "report-catalogue-and-access-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ReportCatalogueAndAccessRules), typeof(ReportCatalogueAndAccessRulesInput)),
-        new("reporting", "ref_data_classification_scheme", "ref_data_classification_scheme", "Data classification scheme", "compliance", "data-classification-scheme", StaticScope.G, 1, StaticLifecycle.Reference, typeof(DataClassificationScheme), typeof(DataClassificationSchemeInput)),
+        new("reporting", "cfg_compliance_register_entries", "cfg_compliance_register_entries", "Compliance register entries", "compliance", "compliance-register-entries", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(ComplianceRegisterEntries), typeof(ComplianceRegisterEntriesInput), "Compliance and Reporting"),
+        new("reporting", "cfg_regulatory_return_definitions", "cfg_regulatory_return_definitions", "Regulatory return definitions", "compliance", "regulatory-return-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RegulatoryReturnDefinitions), typeof(RegulatoryReturnDefinitionsInput), "Compliance and Reporting"),
+        new("reporting", "cfg_report_catalogue_and_access_rules", "cfg_report_catalogue_and_access_rules", "Report catalogue and access rules", "compliance", "report-catalogue-and-access-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ReportCatalogueAndAccessRules), typeof(ReportCatalogueAndAccessRulesInput), "Compliance and Reporting"),
+        new("reporting", "ref_data_classification_scheme", "ref_data_classification_scheme", "Data classification scheme", "compliance", "data-classification-scheme", StaticScope.G, 1, StaticLifecycle.Reference, typeof(DataClassificationScheme), typeof(DataClassificationSchemeInput), "Compliance and Reporting"),
     ];
 
     public static void Configure(ModelBuilder modelBuilder)

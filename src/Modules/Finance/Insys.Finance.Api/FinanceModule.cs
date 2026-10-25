@@ -50,6 +50,8 @@ public sealed class FinanceModule : IModule
 {
     public string Name => "Finance";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => FinanceFunctions.All;
+
     /// <summary>Business commands wait for the tenant to be activated (onboarding readiness).</summary>
     public bool TransactsBusiness => true;
 

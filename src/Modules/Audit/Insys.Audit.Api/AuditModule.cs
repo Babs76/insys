@@ -43,6 +43,8 @@ public sealed class AuditModule : IModule
 {
     public string Name => "Audit";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => AuditFunctions.All;
+
     /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
     public bool HoldsBusinessData => false;
 

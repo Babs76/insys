@@ -90,6 +90,9 @@ foreach (var module in modules)
         moduleGroup.WithMetadata(new BusinessTransactionMetadata());
     }
 
+    // ADR-026: each operation gets the function its module maps it to, as the router builds it.
+    Insys.BuildingBlocks.Api.Functions.FunctionRegistry.Declare(module.Functions);
+    Insys.BuildingBlocks.Api.Functions.FunctionConventions.Attach(moduleGroup);
     module.MapEndpoints(module.HoldsBusinessData ? moduleGroup.RefuseOperatorTenant() : moduleGroup);
 }
 

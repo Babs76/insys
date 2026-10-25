@@ -50,6 +50,8 @@ public sealed class ComplianceModule : IModule
 {
     public string Name => "Compliance";
 
+    public IReadOnlyList<BuildingBlocks.Api.Functions.FunctionDeclaration> Functions => ComplianceFunctions.All;
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddComplianceInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)
