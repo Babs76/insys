@@ -195,6 +195,11 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
             c.Property(x => x.OmbudOutcome).HasMaxLength(14);
             c.HasMany(x => x.Links).WithOne().HasForeignKey(l => new { l.TenantId, l.CaseId });
             c.Navigation(x => x.Links).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            // The history, messages and redress rows belong to the case (FKs in V0060): EF writes the case first.
+            c.HasMany<CaseHistoryEntry>().WithOne().HasForeignKey(h => new { h.TenantId, h.CaseId });
+            c.HasMany<CaseMessage>().WithOne().HasForeignKey(m => new { m.TenantId, m.CaseId });
+            c.HasMany<CaseRedress>().WithOne().HasForeignKey(r => new { r.TenantId, r.CaseId });
         });
 
         modelBuilder.Entity<CaseLink>(l =>
