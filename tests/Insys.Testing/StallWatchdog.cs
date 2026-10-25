@@ -56,8 +56,13 @@ public sealed class StallWatchdog : IAsyncDisposable
                                           E'\n')
                         FROM pg_stat_activity WHERE datname = current_database() AND state <> 'idle' AND pid <> pg_backend_pid()
                         """);
+                    var connections = await database.ScalarAsOwner<string>("""
+                        SELECT string_agg(format('%s %s: %s', usename, state, n), ', ' ORDER BY usename, state)
+                        FROM (SELECT usename, coalesce(state, '-') AS state, count(*) AS n FROM pg_stat_activity
+                              WHERE datname = current_database() AND pid <> pg_backend_pid() GROUP BY usename, state) c
+                        """);
                     Console.WriteLine($"STALL {label} at {started.Elapsed.TotalSeconds:F0}s: threads {ThreadPool.ThreadCount} (busy {maxWorkers - workers}), "
-                                      + $"pending work items {ThreadPool.PendingWorkItemCount}\n{sessions ?? "(no active sessions)"}");
+                                      + $"pending work items {ThreadPool.PendingWorkItemCount}\nconnections: {connections}\n{sessions ?? "(no active sessions)"}");
                     await Task.Delay(TimeSpan.FromSeconds(20), _stop.Token);
                 }
             }

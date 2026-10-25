@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
@@ -122,20 +123,27 @@ public sealed record GetTenantReadiness(Guid TenantId) : IQuery<TenantReadinessV
 /// <summary>A waiver (TREATIES, WEBHOOKS_OR_NONE) with its reason, or evidence (SMOKE_RUN) with its reference.</summary>
 public sealed record OnboardingAttestationRequest(string Check, string Note);
 
-public sealed class OnboardingReadiness(IEnumerable<IReadinessCheck> checks, ITenantLocale locale, TenantBusinessDates dates)
+public sealed class OnboardingReadiness(IEnumerable<IReadinessCheck> checks, ITenantLocale locale, TenantBusinessDates dates,
+    ILogger<OnboardingReadiness> logger)
 {
+    /// <summary>A check slower than this is logged, with its name: readiness runs inside the step's transaction.</summary>
+    private static readonly TimeSpan Slow = TimeSpan.FromSeconds(2);
     public const string SmokeRun = "SMOKE_RUN";
 
     /// <param name="step">Only this step's checks are run (completing a step); null runs every step's (the readiness view).</param>
     public async Task<TenantReadinessView> For(Tenant tenant, CancellationToken cancellationToken, string? step = null)
     {
+        var timer = System.Diagnostics.Stopwatch.StartNew();
         var day = dates.TodayFor(tenant.Id);
         var (currency, language) = await locale.For(tenant.Id, day, cancellationToken);
+        Warn("the business date and locale", timer);
         var context = new ReadinessContext(tenant.Id, day, currency, language, step);
         var results = new List<ReadinessResult>();
         foreach (var check in checks.Where(c => step is null || c.Steps.Contains(step)))
         {
+            timer.Restart();
             results.AddRange(await check.Check(context, cancellationToken));
+            Warn(check.GetType().Name, timer);
         }
 
         // Decided 24 October 2026: the run is made in a non-production environment with the same configuration, and recorded
@@ -145,6 +153,14 @@ public sealed class OnboardingReadiness(IEnumerable<IReadinessCheck> checks, ITe
             results.Add(ReadinessResult.Of("END_TO_END_TESTS", SmokeRun,
                 "A passed end-to-end run (quote, policy, invoice, collection, journal, claim registration) in a non-production environment with the same configuration, recorded and approved by a second person",
                 ["the run's reference, date, outcome and who ran it (POST …/smoke-run), approved by a second person"]));
+        }
+
+        void Warn(string what, System.Diagnostics.Stopwatch elapsed)
+        {
+            if (elapsed.Elapsed > Slow)
+            {
+                logger.LogWarning("Onboarding readiness for {TenantId}: {What} took {Seconds:F1} s", tenant.Id, what, elapsed.Elapsed.TotalSeconds);
+            }
         }
 
         var attestations = tenant.Onboarding?.Attestations ?? [];
