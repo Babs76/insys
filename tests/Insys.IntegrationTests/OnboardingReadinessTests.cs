@@ -58,6 +58,8 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
     [Fact]
     public async Task AStep_CompletesOnlyWhenItsConfigurationIsInForce_ListingEveryFailingCheck_TEN008()
     {
+        // It has stalled under CI load only (wave1-1 report): write what the database and thread pool are doing if it does again.
+        await using var watchdog = StallWatchdog.Start(fixture.Database, TimeSpan.FromSeconds(45), "OnboardingReadiness");
         var (tenantId, url) = await Register("READY");
         var readiness = await Readiness(url);
         Check(readiness, "TENANT_REGISTRATION", "LOCALE_DEFAULTS").GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["tenant.cfg_locale_defaults"]);
