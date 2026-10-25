@@ -40,7 +40,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent / "tests" / "Insys.Integra
 EXCLUDED = {"EndpointSecuritySweepTests"}
 STARTUP = 4
 # Classes whose tests drive whole processes or their own hosts (minutes on CI, not seconds).
-SLOW = {"OnboardingReadinessTests": 30, "MoneyFlowTests": 25, "ProviderCallbackTests": 15, "CommunicationsTests": 15, "FunctionAccessTests": 15,
+SLOW = {"ApprovalEndingsTests": 120, "OnboardingReadinessTests": 30, "MoneyFlowTests": 25, "ProviderCallbackTests": 15, "CommunicationsTests": 15, "FunctionAccessTests": 15,
         "TenantAdministratorTests": 15, "ConsumerParkingTests": 12, "BusinessDateTests": 12, "ArrearsAgeingTests": 10, "OpenApiContractTests": 10}
 
 
