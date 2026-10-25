@@ -43,6 +43,7 @@ public static class WorkflowInfrastructure
         services.AddStaticData<WorkflowDbContext>(schema, WorkflowStaticData.Descriptors);
         services.AddModuleHandlers<WorkflowDbContext>(typeof(StartProcess).Assembly);
         services.AddDomainEventMapper<WorkflowEventMapper>(schema);
+        services.AddDomainEventMapper<CaseEventMapper>(schema);
 
         services.AddOptions<ApprovalOptions>().BindConfiguration("Workflow:Approvals");
         services.AddOptions<WorkflowOptions>().BindConfiguration("Workflow");
@@ -60,6 +61,7 @@ public static class WorkflowInfrastructure
         services.AddScoped<ApprovalDecision>();
         services.AddScoped<TaskEscalation>();
         services.AddScoped<Contracts.IBusinessTime, BusinessTime>();
+        AddCases(services);
 
         services.AddIntegrationEventHandler<ApprovalRequested, RequestApprovalPolicy, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<ApprovalWithdrawn, WithdrawApprovalPolicy, WorkflowDbContext>(schema);
@@ -74,9 +76,11 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<Party.Contracts.PartyMatchResolved, ClosePartyMatchReviewTask, WorkflowDbContext>(schema);
 
         services.AddSingleton<WorkflowJobs>();
+        services.AddSingleton<CaseTimelineJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {
             services.AddHostedService<WorkflowJobsService>();
+            services.AddHostedService<CaseTimelineJobsService>();
         }
 
         // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
@@ -95,5 +99,31 @@ public static class WorkflowInfrastructure
                 "Approval authority for every maker-checker approval type in use", used.Except(authorised).ToList())];
         });
         return services;
+    }
+
+    /// <summary>Cases (docs/specs/addenda/cases.md): stores, configuration, redress approvals and payments, notices, figures and readiness.</summary>
+    private static void AddCases(IServiceCollection services)
+    {
+        const string schema = WorkflowDbContext.SchemaName;
+        services.AddScoped<ICaseRepository, CaseRepository>();
+        services.AddScoped<CaseConfiguration>();
+        services.AddScoped<ICaseConfiguration>(sp => sp.GetRequiredService<CaseConfiguration>());
+        services.AddScoped<ICaseQueries, CaseQueries>();
+        services.AddScoped<ICasePortalQueries, CasePortalQueries>();
+        services.AddScoped<CaseTimes>();
+        services.AddScoped<CaseAccess>();
+        services.AddScoped<CaseOpening>();
+        services.AddScoped<CaseNoticeTexts>();
+        services.AddScoped<Contracts.ICaseNotices, CaseNotices>();
+        services.AddIntegrationEventHandler<Contracts.ApprovalGranted, CaseRedressPolicies, WorkflowDbContext>(schema);
+        services.AddIntegrationEventHandler<Contracts.ApprovalRejected, CaseRedressPolicies, WorkflowDbContext>(schema);
+        services.AddIntegrationEventHandler<Payments.Contracts.PaymentSucceeded, CaseRedressPolicies, WorkflowDbContext>(schema);
+
+        // OQ-104: redress is approved by a second person, from the case's screen.
+        ApprovalKinds.Declare(Contracts.CaseApprovals.RedressBusinessRefType, "SERVICE_COMPLAINTS", Contracts.CaseApprovals.RedressApprovalType);
+        BuildingBlocks.Application.DashboardFigureCodes.Declare(CaseFigures.All);
+
+        // OQ-110: the case checks join SHARED_OPERATIONAL_SETUP (§10). The notification types are Communications' check.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, schema, ["SHARED_OPERATIONAL_SETUP"], CaseReadiness.Check);
     }
 }

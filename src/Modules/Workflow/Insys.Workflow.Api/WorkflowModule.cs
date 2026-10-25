@@ -104,6 +104,7 @@ public sealed class WorkflowModule : IModule
         MapStaticDataDecisions(governance.MapGroup("/{module}/static/{entity}").WithTags("StaticData governance"), global: false);
         MapStaticDataDecisions(governance.MapGroup("/{module}/static/{entity}/global").WithTags("StaticData governance"), global: true);
         var workflow = api.MapGroup("/workflow").WithTags(Name);
+        CaseEndpoints.Map(api, Name);
 
         var approvals = workflow.MapGroup("/approvals");
         approvals.MapGet("/", async (string? status, string? businessRefType, Guid? businessRefId, bool? decidable, string? cursor, int? limit, IDispatcher dispatcher,
