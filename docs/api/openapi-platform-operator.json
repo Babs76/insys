@@ -41746,6 +41746,16 @@
               "string"
             ],
             "format": "int64"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -56771,6 +56781,38 @@
             ]
           },
           "changeReason": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowLatestRejection": {
+        "required": [
+          "ending",
+          "approvalType",
+          "by",
+          "at",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "ending": {
+            "type": "string"
+          },
+          "approvalType": {
+            "type": "string"
+          },
+          "by": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
             "type": "string"
           }
         }

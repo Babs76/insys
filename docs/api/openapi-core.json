@@ -4473,7 +4473,7 @@
           "Workflow"
         ],
         "summary": "Reject, with a reason",
-        "description": "Completes asynchronously (GAP-027): the rejection reaches the record that asked for it, which returns to its previous state; read that record again.",
+        "description": "Completes asynchronously (GAP-027): the rejection reaches the record that asked for it, which is put back in a defined state (an expiry or withdrawal does the same); read that record again.",
         "operationId": "WorkflowReject",
         "parameters": [
           {
@@ -4557,7 +4557,87 @@
             "when": "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)"
           }
         ],
-        "x-eventual-effects": "the rejection reaches the record that asked for it, which returns to its previous state; read that record again."
+        "x-eventual-effects": "the rejection reaches the record that asked for it, which is put back in a defined state (an expiry or withdrawal does the same); read that record again."
+      }
+    },
+    "/api/v1/workflow/approvals/{id}/withdraw": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Withdraw your own request for approval, with a reason",
+        "description": "Only the person who asked for it (403 APPROVAL_NOT_REQUESTER otherwise), while it is waiting. The record it was for is put back as for a rejection. Completes asynchronously (GAP-027): the withdrawal reaches the record that asked for it, which is put back as for a rejection; read that record again.",
+        "operationId": "WorkflowWithdraw",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowRejectApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "signed-in user",
+        "x-eventual-effects": "the withdrawal reaches the record that asked for it, which is put back as for a rejection; read that record again."
       }
     },
     "/api/v1/workflow/processes": {
@@ -25803,6 +25883,7 @@
                 "cfg_allocation_rules",
                 "cfg_alteration_types",
                 "cfg_api_catalogue_entries",
+                "cfg_approval_expiry",
                 "cfg_arrears_ageing_buckets",
                 "cfg_assumption_set_references",
                 "cfg_audit_retention_policies",
@@ -26223,6 +26304,7 @@
                 "cfg_allocation_rules",
                 "cfg_alteration_types",
                 "cfg_api_catalogue_entries",
+                "cfg_approval_expiry",
                 "cfg_arrears_ageing_buckets",
                 "cfg_assumption_set_references",
                 "cfg_audit_retention_policies",
@@ -28353,6 +28435,16 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -28917,6 +29009,16 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -31188,6 +31290,16 @@
               "string"
             ],
             "format": "int64"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -31897,6 +32009,16 @@
               "string"
             ],
             "format": "int64"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -32473,6 +32595,16 @@
               "string"
             ],
             "format": "int64"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -32798,6 +32930,16 @@
               "string"
             ],
             "format": "int64"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -35618,6 +35760,16 @@
           },
           "partlyInScope": {
             "type": "boolean"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -36518,7 +36670,8 @@
           "Calculated",
           "Approved",
           "Released",
-          "Reconciled"
+          "Reconciled",
+          "Rejected"
         ]
       },
       "HealthSchemeStatus": {
@@ -37662,6 +37815,16 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -37906,6 +38069,16 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -38917,6 +39090,16 @@
               "string"
             ],
             "format": "int64"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -39209,6 +39392,16 @@
               "string"
             ],
             "format": "int64"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -41031,6 +41224,16 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -42068,7 +42271,8 @@
           "Built",
           "Approved",
           "Released",
-          "Settled"
+          "Settled",
+          "Rejected"
         ]
       },
       "PaymentsBatchView": {
@@ -42149,6 +42353,16 @@
           },
           "partlyInScope": {
             "type": "boolean"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -43003,6 +43217,16 @@
           },
           "reinstatementArrears": {
             "type": "string"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -44071,6 +44295,38 @@
                 "$ref": "#/components/schemas/JsonElement"
               }
             ]
+          }
+        }
+      },
+      "WorkflowLatestRejection": {
+        "required": [
+          "ending",
+          "approvalType",
+          "by",
+          "at",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "ending": {
+            "type": "string"
+          },
+          "approvalType": {
+            "type": "string"
+          },
+          "by": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },
