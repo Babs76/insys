@@ -138,7 +138,18 @@ public sealed class PartyMatchResolutionPolicy(IPartyRepository parties, IClock 
             return;
         }
 
+        // Every ending other than approval (rejected, expired, withdrawn) sends it back to review; one already back there is a redelivery.
+        if (!approved && registration.ReviewStatus == Domain.Parties.Party.PendingReview)
+        {
+            return;
+        }
+
         var decided = registration.DecideMatchResolution(approved, clock.UtcNow);
+        if (decided.IsFailure && !approved)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{Contracts.PartyApprovals.MatchResolutionType}:{approvalId}");
+        }
+
         if (decided.IsFailure)
         {
             throw new InvalidOperationException($"Approval {approvalId} cannot be applied to party {partyId}: {decided.Error.Code}");

@@ -125,7 +125,7 @@ public sealed record AddContactPoint(Guid PartyId, string ChannelType, string Va
 /// <summary>Command AddIdentifier: the number is checked against the document type's format, encrypted, and hashed for lookup.</summary>
 public sealed record AddIdentifier(Guid PartyId, string DocType, string Country, string Number, long ExpectedVersion) : ICommand<Guid>, IVersionedCommand;
 
-/// <summary>Command AddBankAccount: the number is encrypted at once and never returned; the party's current account in the currency is superseded.</summary>
+/// <summary>Command AddBankAccount: the number is encrypted at once and never returned; the party's active account in the currency is superseded once the new one is verified (D-3).</summary>
 public sealed record AddBankAccount(Guid PartyId, string AccountNumber, string BankCode, string? BranchCode, string AccountHolderName, string AccountType, string Currency)
     : ICommand<BankAccountView>;
 
@@ -133,10 +133,11 @@ public sealed record ListBankAccounts(Guid PartyId) : IQuery<IReadOnlyList<BankA
 
 /// <summary>A bank account without its number: the last four digits only.</summary>
 public sealed record BankAccountView(Guid Id, Guid PartyId, string Last4, string BankCode, string? BranchCode, string AccountType, string Currency, [property: OneOf("PENDING_VERIFICATION", "ACTIVE", "SUPERSEDED", "REJECTED")] string Status,
-    DateTimeOffset? VerifiedAt, Guid? SupersededById)
+    DateTimeOffset? VerifiedAt, Guid? SupersededById, Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
-    public static BankAccountView From(BankAccount a) => new(a.Id, a.PartyId, a.AccountNumberLast4, a.BankCode, a.BranchCode, a.AccountType, a.Currency,
-        UpperCase(a.Status), a.VerifiedAt, a.SupersededById);
+    /// <param name="latestRejection">The account's latest verification that ended without being granted (OQ-113).</param>
+    public static BankAccountView From(BankAccount a, Workflow.Contracts.LatestRejection? latestRejection = null) => new(a.Id, a.PartyId, a.AccountNumberLast4,
+        a.BankCode, a.BranchCode, a.AccountType, a.Currency, UpperCase(a.Status), a.VerifiedAt, a.SupersededById, latestRejection);
 
     private static string UpperCase(BankAccountStatus status) => status switch
     {
@@ -214,9 +215,19 @@ public sealed class BankAccountVerificationPolicy(IPartyRepository parties, IClo
             return;
         }
 
+        if (!approved && party.BankAccountEndingApplied(accountId, approvalId))
+        {
+            return;
+        }
+
         var decided = party.DecideBankAccountVerification(accountId, approved, approvalId, checkerId, subjectHash, clock.UtcNow);
         if (decided.IsFailure)
         {
+            if (!approved)
+            {
+                throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{PartyApprovals.BankAccountVerificationType}:{approvalId}");
+            }
+
             logger.LogWarning("Approval {ApprovalId} not applied to bank account {AccountId}: {Code}", approvalId, accountId, decided.Error.Code);
             return;
         }
@@ -226,12 +237,24 @@ public sealed class BankAccountVerificationPolicy(IPartyRepository parties, IClo
     }
 }
 
-internal sealed class ListBankAccountsHandler(IPartyRepository parties) : IQueryHandler<ListBankAccounts, IReadOnlyList<BankAccountView>>
+internal sealed class ListBankAccountsHandler(IPartyRepository parties, Workflow.Contracts.IApprovalHistory history)
+    : IQueryHandler<ListBankAccounts, IReadOnlyList<BankAccountView>>
 {
-    public async Task<Result<IReadOnlyList<BankAccountView>>> Handle(ListBankAccounts query, CancellationToken cancellationToken) =>
-        await parties.Get(query.PartyId, cancellationToken) is { } party
-            ? party.BankAccounts.OrderBy(a => a.Id).Select(BankAccountView.From).ToList()
-            : Error.NotFound(ErrorCodes.NotFound, "The party was not found.");
+    public async Task<Result<IReadOnlyList<BankAccountView>>> Handle(ListBankAccounts query, CancellationToken cancellationToken)
+    {
+        if (await parties.Get(query.PartyId, cancellationToken) is not { } party)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The party was not found.");
+        }
+
+        var views = new List<BankAccountView>();
+        foreach (var account in party.BankAccounts.OrderBy(a => a.Id))
+        {
+            views.Add(BankAccountView.From(account, await history.Latest(PartyApprovals.BankAccountBusinessRefType, account.Id, cancellationToken)));
+        }
+
+        return views;
+    }
 }
 
 public sealed record VerifyIdentifier(Guid PartyId, Guid IdentifierId, string VerificationRef, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
