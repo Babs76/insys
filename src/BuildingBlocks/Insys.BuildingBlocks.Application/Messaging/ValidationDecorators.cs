@@ -78,8 +78,8 @@ public static class RequestValidation
 
     /// <summary>
     /// The request's own field name, as the JSON body spells it: each segment of a validator's property path in camel case
-    /// ("Lines[0].Amount" is "lines[0].amount"), so a client can put the message next to its field (BR-006).
+    /// with the serializer's own camel case ("Lines[0].Amount" is "lines[0].amount", "VATNumber" is "vatNumber"), so a client can put the message next to its field (BR-006).
     /// </summary>
-    public static string FieldName(string propertyName) => string.Join('.', propertyName.Split('.')
-        .Select(segment => segment.Length == 0 || char.IsLower(segment[0]) ? segment : char.ToLowerInvariant(segment[0]) + segment[1..]));
+    public static string FieldName(string propertyName) =>
+        string.Join('.', propertyName.Split('.').Select(System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName));
 }

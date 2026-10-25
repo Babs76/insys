@@ -113,7 +113,7 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
         var result = await _services.Send(DatabaseFixture.TenantA, new CreateWidget(""));
 
         result.Error!.Code.ShouldBe(ErrorCodes.ValidationFailed);
-        result.Error.Details!.Keys.ShouldContain("Name");
+        result.Error.Details!.Keys.ShouldContain("name");
     }
 
     [Fact]

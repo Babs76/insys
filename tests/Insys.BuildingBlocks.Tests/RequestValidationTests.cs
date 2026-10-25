@@ -34,6 +34,7 @@ public sealed class RequestValidationTests
     [InlineData("DisplayName", "displayName")]
     [InlineData("Lines[0].Amount", "lines[0].amount")]
     [InlineData("idpCode", "idpCode")]
+    [InlineData("VATNumber", "vatNumber")]
     [InlineData("", "")]
     public void AValidationFailure_IsKeyedByTheFieldAsTheJsonBodySpellsIt_BR006(string propertyName, string field) =>
         RequestValidation.FieldName(propertyName).ShouldBe(field);
