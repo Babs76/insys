@@ -99,6 +99,23 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
         Holders("TERMINATE_TENANT").ShouldBe(["PLATFORM_ADMIN"]);
     }
 
+    /// <summary>Only the audit roles hold a function that needs audit read; the party search log is for audit roles only (decided 25 October 2026).</summary>
+    [Fact]
+    public async Task OnlyAuditRoles_HoldAFunctionThatReadsAuditEvents_OQ111()
+    {
+        var catalogue = await Catalogue();
+        var auditRead = catalogue.Where(f => f.Permissions.Contains(RoleTemplates.AuditRead)).Select(f => f.Function.Code).ToHashSet(StringComparer.Ordinal);
+        auditRead.ShouldContain("PARTY_SEARCH_LOG");
+        (from template in RoleTemplates.All
+         where !RoleTemplates.AuditRoles.Contains(template.Code)
+         from function in RoleTemplates.Expand(template, catalogue)
+         where auditRead.Contains(function.Code)
+         select $"{template.Code}: {function.Code}").ShouldBeEmpty();
+
+        string[] Holders(string code) => [.. RoleTemplates.All.Where(t => RoleTemplates.Expand(t, catalogue).Any(f => f.Code == code)).Select(t => t.Code)];
+        Holders("PARTY_SEARCH_LOG").ShouldBe(["COMPLIANCE_OFFICER", "DATA_PROTECTION_OFFICER", "HEALTH_AUDITOR"], ignoreOrder: true);
+    }
+
     [Fact]
     public async Task Addendum_IsGeneratedFromTheTemplates_OQ111()
     {
