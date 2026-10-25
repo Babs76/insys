@@ -60,7 +60,7 @@ public sealed class TenancyTests(DatabaseFixture fixture) : IClassFixture<Databa
             if (zone is not null)
             {
                 var errors = (await refused.Json()).GetProperty("errors");
-                errors.TryGetProperty("TimeZone", out _).ShouldBeTrue($"{zone}: {errors}");
+                errors.TryGetProperty("timeZone", out _).ShouldBeTrue($"{zone}: {errors}");
             }
         }
 
