@@ -29,6 +29,7 @@
 -- - workflow.cfg_approval_expiry: how long each approval type waits before it expires (D-4).
 -- - A rejected payout batch or provider payment run ends as REJECTED, and its payments or claims are released (D-1, D-2).
 -- - Authority limits carry a currency, the tenant's base currency when empty (OQ-112).
+-- - A new bank account no longer replaces the active one until verified: one active and one waiting may coexist (D-3).
 -- =====================================================================
 -- Workflow and Case Management · Approvals · Approval expiry
 CREATE TABLE workflow.cfg_approval_expiry (
@@ -85,3 +86,11 @@ ALTER TABLE health.provider_payment_run ADD CONSTRAINT ck_provider_payment_run_s
 
 ALTER TABLE workflow.cfg_delegation_and_approval_authority ADD COLUMN currency char(3);
 COMMENT ON COLUMN workflow.cfg_delegation_and_approval_authority.currency IS 'The currency of limit_value; the tenant''s base currency when empty (OQ-112). An approval in another currency needs a row in its currency.';
+
+-- D-3: a new bank account waits for verification while the party's account in that currency stays active, so the two
+-- may exist together; still at most one active and one waiting per party and currency.
+ALTER TABLE party.bank_account DROP CONSTRAINT ex_bank_account_current;
+ALTER TABLE party.bank_account ADD CONSTRAINT ex_bank_account_active
+  EXCLUDE USING btree (tenant_id WITH =, party_id WITH =, currency WITH =) WHERE (status = 'ACTIVE') DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE party.bank_account ADD CONSTRAINT ex_bank_account_pending
+  EXCLUDE USING btree (tenant_id WITH =, party_id WITH =, currency WITH =) WHERE (status = 'PENDING_VERIFICATION') DEFERRABLE INITIALLY DEFERRED;
