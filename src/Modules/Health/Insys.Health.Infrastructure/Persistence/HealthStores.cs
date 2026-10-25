@@ -355,6 +355,14 @@ internal sealed class HealthEventMapper : IDomainEventMapper
             e.HighCost.Select(h => new Contracts.HighCostLine(h.LineNo, h.RuleCode)).ToList()),
         Domain.Care.MedicalClaimSettled e => new Contracts.MedicalClaimSettled(e.ClaimId, e.ClaimNumber, e.ProviderId, e.PaymentRunId, e.Amount, e.Currency, e.PaidOn),
         Domain.Care.MedicalClaimRejected e => new Contracts.MedicalClaimRejected(e.ClaimId, e.ClaimNumber, e.MembershipId, e.ReasonCode),
+        Domain.Care.MedicalClaimDecisionRightsDue e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.ClaimDecisionRights,
+            e.RecipientPartyId, "HEALTH_CLAIM", e.ClaimId, new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["claim_number"] = e.ClaimNumber,
+                ["decision_date"] = e.DecidedOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                ["amount"] = e.TotalPaid.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+                ["currency"] = e.Currency,
+            }, e.ProductCode, e.OrgNodeCode),
         Domain.Care.MedicalClaimReversed e => new Contracts.MedicalClaimReversed(e.ClaimId, e.ClaimNumber, e.ProviderId, e.Amount, e.Currency, e.Reason),
         Domain.Care.UtilisationCaseConcluded e => new Contracts.UtilisationCaseConcluded(e.CaseId, e.MembershipId, e.RuleCode, e.Outcome),
         Domain.Care.FraudCaseConcluded e => new Contracts.FraudCaseConcluded(e.CaseId, e.SubjectType, e.SubjectRef, e.OutcomeCode),

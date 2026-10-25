@@ -81,7 +81,9 @@ public sealed class GeneralTests
         Model(GeneralPolicy.Lifecycle).ShouldBe(Spec("GeneralPolicy", ("Period starts", "PeriodStarts"), ("ReinstatePolicy (where permitted)", "ReinstatePolicy"),
             ("Period ends without renewal", "PeriodEndsWithoutRenewal")));
         Model(GeneralEndorsement.Lifecycle).ShouldBe(Spec("GeneralEndorsement", ("Policy updated", "PolicyUpdated")));
-        Model(GeneralClaim.Lifecycle).ShouldBe(Spec("GeneralClaim", ("Payment completed", "PaymentCompleted"), ("Assessment resumes", "AssessmentResumes")));
+        // OQ-103 (Wave 2 cases) adds "Declined-ReopenClaim->Reopened" for an upheld dispute, not yet in domain-model.json.
+        Model(GeneralClaim.Lifecycle).ShouldBe(string.Join("|", Spec("GeneralClaim", ("Payment completed", "PaymentCompleted"), ("Assessment resumes", "AssessmentResumes"))
+            .Split('|').Append("Declined-ReopenClaim->Reopened").OrderBy(t => t, StringComparer.Ordinal)));
         Model(LossAssessment.Lifecycle).ShouldBe(Spec("LossAssessment", ("Assessor starts", "AssessorStarts"), ("Further work requested", "FurtherWorkRequested")));
         Model(RecoveryCase.Lifecycle).ShouldBe(Spec("RecoveryCase", ("Demand sent", "DemandSent")));
     }
@@ -318,6 +320,85 @@ public sealed class GeneralTests
         ExcessCalculator.Excess(greaterOf, 3_000m).ShouldBe(3_000m);
         ExcessCalculator.Settlement(250_000m, 12_500m, 200_000m, [new("L", "OD", "SUBLIMIT", 150_000m, null, "FIXED", "ZAR")]).ShouldBe(150_000m);
         ExcessCalculator.Settlement(40_000m, 5_000m, 200_000m, []).ShouldBe(35_000m);
+    }
+
+    /// <summary>
+    /// OQ-102 (F010): a settlement below the claimed amount (the assessment less the excess) is a partial approval: it gives
+    /// a PARTIAL decision reason, is recorded as PARTLY_APPROVED, and asks for the claimant's rights notice (CLAIM_DECISION_RIGHTS).
+    /// </summary>
+    [Fact]
+    public void SettlementBelowTheClaimedAmount_IsAPartialApproval_WithAPartialReason_AndARightsNotice_OQ102()
+    {
+        var policy = Policy();
+        var claim = GeneralClaim.NotifyLoss(Guid.CreateVersion7(), policy.Id, Vehicle, "OWN_DAMAGE", Today, "COLLISION", "ACC", null, null, Today, Now).Value;
+        claim.RegisterClaim(policy, "GEN-P1", Now);
+        claim.AppointAssessor(Guid.CreateVersion7(), Now);
+        var coverage = policy.Coverage(Vehicle, "OWN_DAMAGE")!;
+        CoverageLimit[] sublimit = [new("L", "OWN_DAMAGE", "SUBLIMIT", 20_000m, null, "FIXED", "ZAR")];
+        var request = new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SUBLIMIT", "Sublimit applies");
+
+        claim.RequestSettlement(request, coverage, sublimit, "ZAR", Guid.CreateVersion7(), Now).Error!.Code.ShouldBe(GeneralErrorCodes.RationaleRequired);
+        claim.RequestSettlement(request with { DecisionType = "APPROVE" }, coverage, sublimit, "ZAR", Guid.CreateVersion7(), Now).IsFailure.ShouldBeTrue();
+        claim.RequestSettlement(request with { DecisionType = ClaimDecisionOutcomes.PartialReasonType }, coverage, sublimit, "ZAR", Guid.CreateVersion7(), Now)
+            .IsSuccess.ShouldBeTrue();
+        (claim.SettlementAmount, claim.ClaimedAmount).ShouldBe((20_000m, 35_000m));
+        claim.NoticeDecisionRights(Guid.CreateVersion7(), "Sublimit", Today, Now).IsFailure.ShouldBeTrue("not decided yet");
+
+        claim.DecideSettlement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), claim.SettlementSubjectHash, Now).IsSuccess.ShouldBeTrue();
+        claim.DecisionOutcome.ShouldBe(ClaimDecisionOutcomes.PartlyApproved);
+        var holder = Guid.CreateVersion7();
+        claim.NoticeDecisionRights(holder, "The vehicle sublimit applies", Today, Now).IsSuccess.ShouldBeTrue();
+        claim.DomainEvents.OfType<GeneralClaimDecisionRightsDue>().Single().ShouldSatisfyAllConditions(
+            e => e.RecipientPartyId.ShouldBe(holder), e => e.Amount.ShouldBe(20_000m), e => e.ClaimedAmount.ShouldBe(35_000m),
+            e => e.DecisionReasons.ShouldBe("The vehicle sublimit applies"));
+    }
+
+    /// <summary>A settlement of the full claimed amount is APPROVED and sends no rights notice; a decline is DECLINED (OQ-102).</summary>
+    [Fact]
+    public void FullSettlement_IsApproved_AndADeclineIsDeclined_OQ102()
+    {
+        var policy = Policy();
+        var claim = GeneralClaim.NotifyLoss(Guid.CreateVersion7(), policy.Id, Vehicle, "OWN_DAMAGE", Today, "COLLISION", "ACC", null, null, Today, Now).Value;
+        claim.RegisterClaim(policy, "GEN-P2", Now);
+        claim.AppointAssessor(Guid.CreateVersion7(), Now);
+        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Repair quote accepted"),
+            policy.Coverage(Vehicle, "OWN_DAMAGE")!, [], "ZAR", Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        claim.DecideSettlement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), claim.SettlementSubjectHash, Now).IsSuccess.ShouldBeTrue();
+        claim.DecisionOutcome.ShouldBe(ClaimDecisionOutcomes.Approved);
+        claim.NoticeDecisionRights(Guid.CreateVersion7(), null, Today, Now).IsFailure.ShouldBeTrue();
+
+        var declined = GeneralClaim.NotifyLoss(Guid.CreateVersion7(), policy.Id, Vehicle, "OWN_DAMAGE", Today, "COLLISION", "ACC", null, null, Today, Now).Value;
+        declined.RegisterClaim(policy, "GEN-P3", Now);
+        declined.AppointAssessor(Guid.CreateVersion7(), Now);
+        declined.DeclineClaim("EXCLUDED", "Excluded peril", Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        declined.DecisionOutcome.ShouldBe(ClaimDecisionOutcomes.Declined);
+    }
+
+    /// <summary>
+    /// F011, F013, OQ-103: an upheld dispute reopens a declined claim (without closing it first) or a closed one; a claim
+    /// already open is left as it is, so a redelivery changes nothing.
+    /// </summary>
+    [Fact]
+    public void UpheldDispute_ReopensADeclinedOrClosedClaim_AndLeavesAnOpenOneAlone_OQ103()
+    {
+        var policy = Policy();
+        var claim = GeneralClaim.NotifyLoss(Guid.CreateVersion7(), policy.Id, Vehicle, "OWN_DAMAGE", Today, "COLLISION", "ACC", null, null, Today, Now).Value;
+        claim.RegisterClaim(policy, "GEN-R1", Now);
+        claim.AppointAssessor(Guid.CreateVersion7(), Now);
+        claim.ReopenForCase("CASE-1").ShouldBeFalse("a claim under assessment is open");
+        claim.DeclineClaim("EXCLUDED", "Excluded peril", Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+
+        claim.ReopenForCase("").ShouldBeFalse("the case is the reason");
+        claim.ReopenForCase("CASE-1").ShouldBeTrue();
+        claim.Status.ShouldBe(ClaimStatus.Reopened);
+        claim.ReopenForCase("CASE-1").ShouldBeFalse("a redelivery changes nothing");
+        claim.AppointAssessor(Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        claim.Status.ShouldBe(ClaimStatus.UnderAssessment);
+
+        claim.DeclineClaim("EXCLUDED", "Excluded peril", Guid.CreateVersion7(), Now);
+        claim.CloseClaim(Now).IsSuccess.ShouldBeTrue();
+        claim.ReopenForCase("CASE-2").ShouldBeTrue();
+        claim.Status.ShouldBe(ClaimStatus.Reopened);
     }
 
     /// <summary>F062 §2 (GEN-008): a settlement over what remains of the coverage's aggregate claims limit is refused.</summary>

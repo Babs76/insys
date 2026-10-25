@@ -118,6 +118,10 @@ public static partial class MergeFields
         [NotificationTypes.ClaimStatus] = ["claim_number", "status", "status_date", "amount", "currency"],
         [NotificationTypes.HealthClaimDecision] = ["claim_number", "status", "status_date", "total_paid", "currency"],
         [NotificationTypes.PreauthDecision] = ["auth_number", "status", "valid_from", "valid_to"],
+        [NotificationTypes.CaseAcknowledged] = Triggers.CaseMergeFields.All,
+        [NotificationTypes.CaseUpdate] = Triggers.CaseMergeFields.All,
+        [NotificationTypes.CaseDecision] = Triggers.CaseMergeFields.All,
+        [NotificationTypes.ClaimDecisionRights] = ClaimDecisionRightsFields.All,
     };
 
     /// <summary>Whether the type is one the platform triggers (a service notice); any other is a tenant's marketing type.</summary>
@@ -134,6 +138,23 @@ public static partial class MergeFields
 
     [GeneratedRegex(@"\{([a-z][a-z0-9_]*)\}")]
     private static partial Regex Placeholder();
+}
+
+/// <summary>
+/// The merge fields of CLAIM_DECISION_RIGHTS (OQ-102, PPR 17.6.3), which the claim modules fill: the claim, the decision
+/// date, the reasons (the decision reason's customer wording), and the amounts approved and claimed. A Health claim's
+/// notice gives no reason and no amount but the total paid (HLT-008).
+/// </summary>
+public static class ClaimDecisionRightsFields
+{
+    public const string ClaimNumber = "claim_number";
+    public const string DecisionDate = "decision_date";
+    public const string DecisionReasons = "decision_reasons";
+    public const string Amount = "amount";
+    public const string ClaimedAmount = "claimed_amount";
+    public const string Currency = "currency";
+
+    public static readonly string[] All = [ClaimNumber, DecisionDate, DecisionReasons, Amount, ClaimedAmount, Currency];
 }
 
 /// <summary>Masks an address for the record: the first character and the domain of an email, the last three digits of a number.</summary>

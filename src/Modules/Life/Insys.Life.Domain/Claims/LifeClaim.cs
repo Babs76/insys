@@ -49,6 +49,20 @@ public enum LifeClaimTrigger
     DeclineClaim,
     PaymentCompleted,
     CloseClaim,
+
+    /// <summary>A dispute or appeal of a declined claim was upheld: the claim is assessed again (F013, OQ-103).</summary>
+    ReopenClaim,
+}
+
+/// <summary>The claim's decision as an outcome (OQ-102): an approval below the amount claimed is a partial approval.</summary>
+public static class LifeClaimOutcomes
+{
+    public const string Approved = "APPROVED";
+    public const string PartlyApproved = "PARTLY_APPROVED";
+    public const string Declined = "DECLINED";
+
+    /// <summary>The decision type a partial approval's reason has (claims.ref_claim_decision_reason_codes).</summary>
+    public const string PartialReasonType = "PARTIAL";
 }
 
 /// <summary>A benefit claimed and the amount assessed for it.</summary>
@@ -69,6 +83,13 @@ public sealed record LifeClaimApproved(Guid ClaimId, string ClaimNumber, Guid Po
     IReadOnlyList<LifeClaimPayeeAmount> Payees, Guid ApprovalId, Guid CheckerId, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record LifeClaimDeclined(Guid ClaimId, string ClaimNumber, string DecisionReason, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>
+/// A claim was partly approved (OQ-102): the claimant is sent their rights on the declined part (CLAIM_DECISION_RIGHTS,
+/// PPR 17.6.3) with the reason's customer wording.
+/// </summary>
+public sealed record LifeClaimDecisionRightsDue(Guid ClaimId, string ClaimNumber, Guid RecipientPartyId, string? ProductCode, string? OrgNodeCode, string? DecisionReasons,
+    decimal Amount, decimal ClaimedAmount, string Currency, DateOnly DecidedOn, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record LifeClaimSettled(Guid ClaimId, string ClaimNumber, Guid PolicyId, IReadOnlyList<Guid> PolicyBenefitIds, decimal Amount, string Currency, DateOnly PaidOn,
     DateTimeOffset OccurredAt) : IDomainEvent;
@@ -139,7 +160,9 @@ public sealed class LifeClaim : AggregateRoot<Guid>
         .Allow(LifeClaimStatus.InAssessment, LifeClaimTrigger.DeclineClaim, LifeClaimStatus.Declined)
         .Allow(LifeClaimStatus.Approved, LifeClaimTrigger.PaymentCompleted, LifeClaimStatus.Settled)
         .Allow(LifeClaimStatus.Settled, LifeClaimTrigger.CloseClaim, LifeClaimStatus.Closed)
-        .Allow(LifeClaimStatus.Declined, LifeClaimTrigger.CloseClaim, LifeClaimStatus.Closed);
+        .Allow(LifeClaimStatus.Declined, LifeClaimTrigger.CloseClaim, LifeClaimStatus.Closed)
+        .Allow(LifeClaimStatus.Declined, LifeClaimTrigger.ReopenClaim, LifeClaimStatus.InAssessment)
+        .Allow(LifeClaimStatus.Closed, LifeClaimTrigger.ReopenClaim, LifeClaimStatus.InAssessment);
 
     private readonly List<ClaimBenefitLine> _lines = [];
     private readonly List<LifeClaimPayee> _payees = [];
@@ -204,6 +227,17 @@ public sealed class LifeClaim : AggregateRoot<Guid>
     public Guid? ApprovalId { get; private set; }
 
     public decimal PaidAmount { get; private set; }
+
+    /// <summary>
+    /// What was claimed (OQ-102): the sums assured of the benefits claimed, set when the claim is assessed. An assessed
+    /// amount below it is a partial approval. TODO(spec): Life records no amount claimed by the claimant.
+    /// </summary>
+    public decimal? ClaimedAmount { get; private set; }
+
+    /// <summary>The decision's outcome (OQ-102): APPROVED, PARTLY_APPROVED or DECLINED; null until decided.</summary>
+    public string? DecisionOutcome { get; private set; }
+
+    public bool PartlyApproved => DecisionOutcome == LifeClaimOutcomes.PartlyApproved;
 
     public IReadOnlyList<ClaimBenefitLine> Lines => _lines;
 
@@ -284,6 +318,7 @@ public sealed class LifeClaim : AggregateRoot<Guid>
         _lines.Clear();
         _lines.AddRange(lines.Select(l => ClaimBenefitLine.Create(Id, l)));
         AssessedAmount = lines.Sum(l => l.Amount);
+        ClaimedAmount = lines.Sum(l => sumsAssured[l.PolicyBenefitId]);
         MarkChanged();
         return Result.Success();
     }
@@ -292,8 +327,9 @@ public sealed class LifeClaim : AggregateRoot<Guid>
     /// Command ApproveClaim, as the maker: the decision, its rationale, the payees and their shares (totalling 100%).
     /// A policy loan is settled from the claim first. Workflow approves within authority.
     /// </summary>
+    /// <param name="decisionType">The decision type of <paramref name="decisionReason"/> as a claim decision reason in force, or null when it is none (OQ-102).</param>
     public Result RequestApproval(IReadOnlyList<PayeeRequest> payees, decimal loanOffset, string reserveType, string decisionReason, string rationale, Guid by,
-        DateTimeOffset now)
+        DateTimeOffset now, string? decisionType = null)
     {
         if (Status != LifeClaimStatus.InAssessment || ApprovalPending)
         {
@@ -309,6 +345,13 @@ public sealed class LifeClaim : AggregateRoot<Guid>
         if (payees.Count == 0 || payees.Any(p => p.SharePct <= 0) || payees.Sum(p => p.SharePct) != 100m || payees.Select(p => p.PartyId).Distinct().Count() != payees.Count)
         {
             return Error.Validation(LifeErrorCodes.PayeeInvalid, "Each payee has one share above zero, and the shares total 100%.");
+        }
+
+        // OQ-102: assessed below what was claimed, the approval is partial and gives its reason.
+        if (AssessedAmount < ClaimedAmount && decisionType != LifeClaimOutcomes.PartialReasonType)
+        {
+            return Error.Validation(LifeErrorCodes.RationaleRequired,
+                $"The assessed {AssessedAmount:0.00} {Currency} is below the {ClaimedAmount:0.00} {Currency} claimed: a partial approval gives a decision reason of type PARTIAL (OQ-102).");
         }
 
         var net = AssessedAmount!.Value - loanOffset;
@@ -372,6 +415,7 @@ public sealed class LifeClaim : AggregateRoot<Guid>
             ApprovalId = approvalId;
             DecidedBy = checkerId;
             DecidedAt = now;
+            DecisionOutcome = AssessedAmount < ClaimedAmount ? LifeClaimOutcomes.PartlyApproved : LifeClaimOutcomes.Approved;
             Raise(new LifeClaimApproved(Id, ClaimNumber!, PolicyId, ApprovedAmount!.Value, AssessedAmount!.Value - ApprovedAmount.Value, Currency, ReserveType!,
                 _payees.Select(p => new LifeClaimPayeeAmount(p.PartyId, p.BankAccountId, p.BankAccountHash, p.Amount)).ToList(), approvalId, checkerId, now));
         }
@@ -408,6 +452,7 @@ public sealed class LifeClaim : AggregateRoot<Guid>
             DecisionRationale = rationale;
             DecidedBy = by;
             DecidedAt = now;
+            DecisionOutcome = LifeClaimOutcomes.Declined;
             Raise(new LifeClaimDeclined(Id, ClaimNumber!, DecisionReason, now));
         }
 
@@ -439,6 +484,37 @@ public sealed class LifeClaim : AggregateRoot<Guid>
     }
 
     public Result CloseClaim() => Fire(LifeClaimTrigger.CloseClaim);
+
+    /// <summary>
+    /// A dispute or appeal of the claim was upheld or partly upheld (F013, OQ-103): a declined claim, or one closed
+    /// without payment, is assessed again (back to InAssessment), its earlier decision kept on record until the new one.
+    /// Returns false, changing nothing, for a claim that is open (a redelivery, or one still being assessed) or was paid.
+    /// TODO(spec): reassessing an approved or settled claim (a top-up after a partial approval) is not specified.
+    /// </summary>
+    public bool ReopenForCase(string caseNumber)
+    {
+        if (string.IsNullOrWhiteSpace(caseNumber) || !(Status == LifeClaimStatus.Declined || (Status == LifeClaimStatus.Closed && PaidAmount == 0 && ApprovalId is null)))
+        {
+            return false;
+        }
+
+        return Fire(LifeClaimTrigger.ReopenClaim).IsSuccess;
+    }
+
+    /// <summary>
+    /// The claimant's rights on a partial approval (OQ-102, PPR 17.6.3): asks Communications for CLAIM_DECISION_RIGHTS to the
+    /// claimant with the reason's customer wording. Only a partly approved claim sends it.
+    /// </summary>
+    public Result NoticeDecisionRights(string? decisionReasons, DateOnly decidedOn, DateTimeOffset now)
+    {
+        if (!PartlyApproved || ApprovedAmount is not { } amount || ClaimedAmount is not { } claimed)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a partly approved claim sends the rights on its declined part.");
+        }
+
+        Raise(new LifeClaimDecisionRightsDue(Id, ClaimNumber!, ClaimantPartyId, ProductCode, OrgNodeCode, decisionReasons, amount, claimed, Currency, decidedOn, now));
+        return Result.Success();
+    }
 
     private Result Fire(LifeClaimTrigger trigger)
     {

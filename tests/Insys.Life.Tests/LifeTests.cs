@@ -109,7 +109,9 @@ public sealed class LifeTests
             ("Reinstatement window passed", "ReinstatementWindowPassed")));
         Model(LifePolicyLoan.Lifecycle).ShouldBe(Spec("LifePolicyLoan", ("Balance reaches zero", "BalanceReachesZero"),
             ("Claim or surrender settles it", "ClaimOrSurrenderSettles")));
-        Model(LifeClaim.Lifecycle).ShouldBe(Spec("LifeClaim", ("Payment completed", "PaymentCompleted")));
+        // OQ-103 (Wave 2 cases) adds the reopen for an upheld dispute, not yet in domain-model.json.
+        Model(LifeClaim.Lifecycle).ShouldBe(string.Join("|", Spec("LifeClaim", ("Payment completed", "PaymentCompleted")).Split('|')
+            .Concat(["Declined-ReopenClaim->InAssessment", "Closed-ReopenClaim->InAssessment"]).OrderBy(t => t, StringComparer.Ordinal)));
         Model(GroupScheme.Lifecycle).ShouldBe(Spec("GroupScheme", ("Start date reached", "StartDateReached")));
     }
 
@@ -329,6 +331,58 @@ public sealed class LifeTests
 
         policy.RecordArrears(1, Today.AddDays(-10), Grace);
         policy.CoversEvent(life, "DEATH", Today, new GraceRule(30, CoverDuringGrace: false)).Error!.Code.ShouldBe(LifeErrorCodes.NotCovered);
+    }
+
+    /// <summary>
+    /// OQ-102 (F010): assessed below the sums assured claimed, an approval is partial: it gives a PARTIAL decision reason, is
+    /// recorded as PARTLY_APPROVED once approved, and asks for the claimant's rights notice (CLAIM_DECISION_RIGHTS).
+    /// </summary>
+    [Fact]
+    public void ApprovalBelowTheAmountClaimed_IsAPartialApproval_WithAPartialReason_AndARightsNotice_OQ102()
+    {
+        var policy = Policy(Today.AddMonths(-3));
+        var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Now).Value;
+        claim.RegisterClaim("CLM-LIFE-P", Now);
+        var death = policy.Benefits.Single(b => b.BenefitCode == "DEATH");
+        claim.AssessClaim([new BenefitLineRequest(death.Id, death.SumAssured - 250_000m)], new Dictionary<Guid, decimal> { [death.Id] = death.SumAssured }).IsSuccess.ShouldBeTrue();
+        claim.ClaimedAmount.ShouldBe(death.SumAssured);
+        PayeeRequest[] payees = [new PayeeRequest(Spouse, Guid.CreateVersion7(), "h1", 100m)];
+
+        claim.RequestApproval(payees, 0, "INDEMNITY", "PART_EXCL", "Part excluded", Maker, Now).Error!.Code.ShouldBe(LifeErrorCodes.RationaleRequired);
+        claim.RequestApproval(payees, 0, "INDEMNITY", "PART_EXCL", "Part excluded", Maker, Now, LifeClaimOutcomes.PartialReasonType).IsSuccess.ShouldBeTrue();
+        claim.DecideApproval(true, Guid.CreateVersion7(), Checker, claim.SubjectHash, Now).IsSuccess.ShouldBeTrue();
+        claim.DecisionOutcome.ShouldBe(LifeClaimOutcomes.PartlyApproved);
+
+        claim.NoticeDecisionRights("Part of the benefit is excluded", Today, Now).IsSuccess.ShouldBeTrue();
+        claim.DomainEvents.OfType<LifeClaimDecisionRightsDue>().Single().ShouldSatisfyAllConditions(
+            e => e.RecipientPartyId.ShouldBe(Spouse), e => e.Amount.ShouldBe(death.SumAssured - 250_000m), e => e.ClaimedAmount.ShouldBe(death.SumAssured));
+    }
+
+    /// <summary>
+    /// F013, OQ-103: an upheld dispute reopens a declined Life claim (back to InAssessment), and one closed unpaid; an open
+    /// claim, a redelivery, or a claim that was paid is left as it is.
+    /// </summary>
+    [Fact]
+    public void UpheldDispute_ReopensADeclinedClaimForAssessment_OQ103()
+    {
+        var policy = Policy(Today.AddMonths(-3));
+        var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Now).Value;
+        claim.RegisterClaim("CLM-LIFE-R", Now);
+        claim.ReopenForCase("CASE-1").ShouldBeFalse("a registered claim is open");
+        var death = policy.Benefits.Single(b => b.BenefitCode == "DEATH");
+        claim.AssessClaim([new BenefitLineRequest(death.Id, death.SumAssured)], new Dictionary<Guid, decimal> { [death.Id] = death.SumAssured }).IsSuccess.ShouldBeTrue();
+        claim.DeclineClaim("NON_DISCLOSURE", "Material non-disclosure", Maker, Now).IsSuccess.ShouldBeTrue();
+        claim.DecisionOutcome.ShouldBe(LifeClaimOutcomes.Declined);
+
+        claim.ReopenForCase("CASE-1").ShouldBeTrue();
+        claim.Status.ShouldBe(LifeClaimStatus.InAssessment);
+        claim.IsOpen.ShouldBeTrue();
+        claim.ReopenForCase("CASE-1").ShouldBeFalse("a redelivery changes nothing");
+
+        claim.DeclineClaim("NON_DISCLOSURE", "Material non-disclosure", Maker, Now).IsSuccess.ShouldBeTrue();
+        claim.CloseClaim().IsSuccess.ShouldBeTrue();
+        claim.ReopenForCase("CASE-2").ShouldBeTrue("closed without payment");
+        claim.Status.ShouldBe(LifeClaimStatus.InAssessment);
     }
 
     [Fact]

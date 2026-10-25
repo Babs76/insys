@@ -74,7 +74,8 @@ public sealed record LineReview(int LineNo, ReviewDecision Decision);
 /// <summary>"Information received": a reviewer accepts or rejects the pended lines, and the claim is adjudicated again.</summary>
 public sealed record ReviewPendedClaim(Guid ClaimId, IReadOnlyList<LineReview> Reviews) : ICommand<MedicalClaimView>, IRetryOnConflict;
 
-public sealed record ApproveMedicalClaim(Guid ClaimId) : ICommand<MedicalClaimView>;
+/// <param name="ReasonCode">A partial approval's reason (OQ-102): a claim decision reason of type PARTIAL, required when less than was claimed is paid.</param>
+public sealed record ApproveMedicalClaim(Guid ClaimId, string? ReasonCode = null) : ICommand<MedicalClaimView>;
 
 public sealed record RejectMedicalClaim(Guid ClaimId, string Reason) : ICommand<MedicalClaimView>;
 
@@ -485,13 +486,31 @@ internal sealed class AdjudicateMedicalClaimHandler(IHealthRepository health, Be
     }
 }
 
-internal sealed class MedicalClaimDecisions(IHealthRepository health, IExecutionContext execution, IClock clock, IAuditTrail audit) :
+internal sealed class MedicalClaimDecisions(IHealthRepository health, ClaimsFramework.Contracts.IClaimDecisionReasons reasons, Contracts.IHealthNoticeRecipients recipients,
+    ITenantContext tenant, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
     ICommandHandler<ApproveMedicalClaim, MedicalClaimView>,
     ICommandHandler<RejectMedicalClaim, MedicalClaimView>,
     ICommandHandler<ReverseMedicalClaim, MedicalClaimView>
 {
+    /// <summary>
+    /// Command ApproveForPayment. A partial approval (OQ-102) records its PARTIAL reason and sends the member their rights on
+    /// the declined part (CLAIM_DECISION_RIGHTS), to the claim's notice recipient.
+    /// </summary>
     public Task<Result<MedicalClaimView>> Handle(ApproveMedicalClaim command, CancellationToken cancellationToken) =>
-        Apply(command.ClaimId, "ApproveForPayment", (c, user) => Task.FromResult(c.ApproveForPayment(user, clock.UtcNow)), cancellationToken);
+        Apply(command.ClaimId, "ApproveForPayment", async (claim, user) =>
+        {
+            var tenantId = tenant.RequireTenantId();
+            var reason = command.ReasonCode is { } code ? await reasons.InForce(tenantId, code, businessDate.Today, cancellationToken) : null;
+            var approved = claim.ApproveForPayment(user, clock.UtcNow, command.ReasonCode, reason?.DecisionType);
+            if (approved.IsFailure || !claim.PartlyApproved)
+            {
+                return approved;
+            }
+
+            return await recipients.ForClaim(tenantId, claim.Id, cancellationToken) is { } to
+                ? claim.NoticeDecisionRights(to.PartyId, to.ProductCode, to.OrgNodeCode, businessDate.Today, clock.UtcNow)
+                : approved;
+        }, cancellationToken);
 
     public Task<Result<MedicalClaimView>> Handle(RejectMedicalClaim command, CancellationToken cancellationToken) =>
         Apply(command.ClaimId, "RejectClaim", (c, _) => Task.FromResult(c.RejectClaim(command.Reason, clock.UtcNow)), cancellationToken);

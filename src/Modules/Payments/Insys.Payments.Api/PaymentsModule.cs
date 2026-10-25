@@ -50,7 +50,7 @@ public sealed record ResolveUnknownRequest(bool Succeeded, string Evidence);
 public sealed record ReversePaymentRequest(string Reason);
 
 public sealed record BuildBatchRequest(
-    [property: BuildingBlocks.Domain.OneOf(PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Commission)] string Purpose, string Currency);
+    [property: BuildingBlocks.Domain.OneOf(PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Commission, PaymentPurposes.CaseRedress)] string Purpose, string Currency);
 
 public sealed record ImportStatementRequest(string AccountRef, StatementLine[] Lines);
 
@@ -116,7 +116,7 @@ public sealed class PaymentsModule : IModule
             .WithName("PaymentsList")
             .WithSummary("The payments for a business record, oldest first (GAP-036)")
             .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "commission payouts are listed only to a caller who also holds it")
-            .WithDescription("A refund (REFUND_REQUEST), claim payment instruction (CLAIM_PAYMENT), invoice (INVOICE), remittance or commission statement. "
+            .WithDescription("A refund (REFUND_REQUEST), claim payment instruction (CLAIM_PAYMENT), invoice (INVOICE), remittance, commission statement or case redress (CASE_REDRESS). "
                 + "A payment is listed from when it is created, before it completes.")
             .WithKnownValues("businessRefType", PaymentReferenceTypes.Known, "The business record types INSYS itself pays or collects for (GAP-037).")
             .RequirePermission(PaymentPermissions.PaymentRead);

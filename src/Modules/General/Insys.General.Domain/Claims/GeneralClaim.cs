@@ -75,11 +75,30 @@ public sealed record GeneralClaimClosed(Guid ClaimId, string ClaimNumber, DateTi
 public sealed record GeneralClaimDeclined(Guid ClaimId, string ClaimNumber, string DecisionCode, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>
+/// A claim was partly approved (OQ-102): the claimant is sent their rights on the declined part (CLAIM_DECISION_RIGHTS,
+/// PPR 17.6.3) with the decision's reasons. Identifiers, amounts and the reason's customer wording only.
+/// </summary>
+public sealed record GeneralClaimDecisionRightsDue(Guid ClaimId, string ClaimNumber, Guid RecipientPartyId, string? ProductCode, string? OrgNodeCode, string? DecisionReasons,
+    decimal Amount, decimal ClaimedAmount, string Currency, DateOnly DecidedOn, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>The claim's decision as an outcome (OQ-102): a settlement below the claimed amount is a partial approval.</summary>
+public static class ClaimDecisionOutcomes
+{
+    public const string Approved = "APPROVED";
+    public const string PartlyApproved = "PARTLY_APPROVED";
+    public const string Declined = "DECLINED";
+
+    /// <summary>The decision type a partial approval's reason has (claims.ref_claim_decision_reason_codes).</summary>
+    public const string PartialReasonType = "PARTIAL";
+}
+
+/// <summary>
 /// What the settlement is: the accepted assessment, the coverage, the payee and their verified bank account (with the
 /// keyed hash of its number), the reserve, and the maker's decision and rationale (CLM-003).
 /// </summary>
+/// <param name="DecisionType">The decision type of <paramref name="DecisionCode"/> as a claim decision reason in force, or null when it is none (OQ-102).</param>
 public sealed record SettlementRequest(decimal AssessedAmount, decimal ExcessApplied, Guid PayeePartyId, Guid BankAccountId, string PayeeBankHash, string ReserveType,
-    string DecisionCode, string Rationale);
+    string DecisionCode, string Rationale, string? DecisionType = null);
 
 /// <summary>
 /// The excess or deductible of a coverage's schedule (product.cfg_limit_and_deductible_schedules, GEN-008): a fixed
@@ -157,6 +176,8 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
         .Allow(ClaimStatus.Settled, ClaimTrigger.CloseClaim, ClaimStatus.Closed)
         .Allow(ClaimStatus.Declined, ClaimTrigger.CloseClaim, ClaimStatus.Closed)
         .Allow(ClaimStatus.Closed, ClaimTrigger.ReopenClaim, ClaimStatus.Reopened)
+        // A declined claim whose dispute or appeal is upheld is reassessed without being closed first (F011, F013, OQ-103).
+        .Allow(ClaimStatus.Declined, ClaimTrigger.ReopenClaim, ClaimStatus.Reopened)
         .Allow(ClaimStatus.Reopened, ClaimTrigger.AssessmentResumes, ClaimStatus.UnderAssessment);
 
     private readonly List<ClaimParty> _parties = [];
@@ -240,6 +261,17 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
     public Guid? DecidedBy { get; private set; }
 
     public DateTimeOffset? DecidedAt { get; private set; }
+
+    /// <summary>
+    /// What the claim was assessed at under the policy before its limits: the accepted assessment less the excess (OQ-102).
+    /// A settlement below it is a partial approval. TODO(spec): General records no amount claimed by the claimant.
+    /// </summary>
+    public decimal? ClaimedAmount { get; private set; }
+
+    /// <summary>The decision's outcome (OQ-102): APPROVED, PARTLY_APPROVED or DECLINED; null until decided.</summary>
+    public string? DecisionOutcome { get; private set; }
+
+    public bool PartlyApproved => DecisionOutcome == ClaimDecisionOutcomes.PartlyApproved;
 
     public IReadOnlyList<ClaimParty> Parties => _parties;
 
@@ -340,6 +372,16 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
                 $"The settlement of {amount:0.00} {currency} is more than the {remaining:0.00} {currency} remaining of the coverage's aggregate limit.");
         }
 
+        // OQ-102: below what the claim was assessed at (less the excess), the settlement is a partial approval and gives its reason.
+        var claimed = Math.Max(0, request.AssessedAmount - request.ExcessApplied);
+        if (amount < claimed && request.DecisionType != ClaimDecisionOutcomes.PartialReasonType)
+        {
+            return Error.Validation(GeneralErrorCodes.RationaleRequired,
+                $"The settlement of {amount:0.00} {currency} is below the {claimed:0.00} {currency} claimed: a partial approval gives a decision reason of type PARTIAL (OQ-102).");
+        }
+
+        ClaimedAmount = claimed;
+
         SettlementAmount = amount;
         SettlementCurrency = currency;
         SettlementPayeePartyId = Guard.NotEmpty(request.PayeePartyId);
@@ -392,6 +434,7 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             SettlementRequestedBy = null;
             DecisionCode = null;
             DecisionRationale = null;
+            ClaimedAmount = null;
             MarkChanged();
             return Result.Success();
         }
@@ -402,6 +445,7 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             SettlementApprovalId = approvalId;
             DecidedBy = checkerId;
             DecidedAt = now;
+            DecisionOutcome = SettlementAmount < ClaimedAmount ? ClaimDecisionOutcomes.PartlyApproved : ClaimDecisionOutcomes.Approved;
             Raise(new GeneralClaimApproved(Id, ClaimNumber!, SettlementPayeePartyId!.Value, SettlementBankAccountId!.Value, SettlementPayeeBankHash!, SettlementAmount!.Value,
                 SettlementCurrency!, SettlementReserveType!, approvalId, checkerId, now));
         }
@@ -438,6 +482,7 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             DecisionRationale = rationale;
             DecidedBy = decidedBy;
             DecidedAt = now;
+            DecisionOutcome = ClaimDecisionOutcomes.Declined;
             Raise(new GeneralClaimDeclined(Id, ClaimNumber!, DecisionCode, now));
         }
 
@@ -482,6 +527,37 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// A dispute or appeal of the claim was upheld or partly upheld (F011, F012, F013, OQ-103): a declined or closed claim
+    /// is reopened for reassessment, with the case as its reason. Returns false, changing nothing, for a claim that is
+    /// open already (a redelivery, or a claim still being assessed) or that cannot be reopened (approved or settled and not closed).
+    /// </summary>
+    public bool ReopenForCase(string caseNumber)
+    {
+        if (string.IsNullOrWhiteSpace(caseNumber) || Status is not (ClaimStatus.Declined or ClaimStatus.Closed))
+        {
+            return false;
+        }
+
+        return ReopenClaim().IsSuccess;
+    }
+
+    /// <summary>
+    /// The claimant's rights on a partial approval (OQ-102, PPR 17.6.3): asks Communications for CLAIM_DECISION_RIGHTS to
+    /// <paramref name="recipientPartyId"/> with the reason's customer wording. Only a partly approved claim sends it.
+    /// </summary>
+    public Result NoticeDecisionRights(Guid recipientPartyId, string? decisionReasons, DateOnly decidedOn, DateTimeOffset now)
+    {
+        if (!PartlyApproved || SettlementAmount is not { } amount || ClaimedAmount is not { } claimed)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a partly approved claim sends the rights on its declined part.");
+        }
+
+        Raise(new GeneralClaimDecisionRightsDue(Id, ClaimNumber!, Guard.NotEmpty(recipientPartyId), ProductCode, OrgNodeCode, decisionReasons, amount, claimed,
+            SettlementCurrency!, decidedOn, now));
+        return Result.Success();
     }
 
     private Result Fire(ClaimTrigger trigger)

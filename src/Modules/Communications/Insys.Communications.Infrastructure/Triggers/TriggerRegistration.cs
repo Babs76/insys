@@ -68,6 +68,11 @@ public static class TriggerRegistration
 
         services.AddIntegrationEventHandler<PreauthorisationApproved, PreauthDecisionTrigger, CommunicationsDbContext>(schema, "Approved");
         services.AddIntegrationEventHandler<PreauthorisationRejected, PreauthDecisionTrigger, CommunicationsDbContext>(schema, "Rejected");
+
+        // The case notices (addenda/cases.md §7), with merge values from Workflow's ICaseNotices.
+        services.AddIntegrationEventHandler<Workflow.Contracts.CaseAcknowledged, CaseNoticeTrigger, CommunicationsDbContext>(schema, "CaseAcknowledged");
+        services.AddIntegrationEventHandler<Workflow.Contracts.CaseUpdated, CaseNoticeTrigger, CommunicationsDbContext>(schema, "CaseUpdated");
+        services.AddIntegrationEventHandler<Workflow.Contracts.CaseDecided, CaseNoticeTrigger, CommunicationsDbContext>(schema, "CaseDecided");
         return services;
     }
 }

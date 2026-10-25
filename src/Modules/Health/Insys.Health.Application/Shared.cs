@@ -246,12 +246,14 @@ public sealed record ClaimLineView(int LineNo, string TariffCode, int Quantity, 
 
 /// <summary>The claim without diagnosis codes: medical information is shown only to roles with a clinical purpose (HLT-008).</summary>
 public sealed record MedicalClaimView(Guid Id, string ClaimNumber, string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate,
-    MedicalClaimStatus Status, string Currency, decimal TotalClaimed, decimal? TotalPaid, string? PendReason, Guid? PaymentRunId, IReadOnlyList<ClaimLineView> Lines, long RowVersion)
+    MedicalClaimStatus Status, string Currency, decimal TotalClaimed, decimal? TotalPaid, string? PendReason, Guid? PaymentRunId, IReadOnlyList<ClaimLineView> Lines, long RowVersion,
+    [property: BuildingBlocks.Domain.OneOf(MedicalClaimOutcomes.Approved, MedicalClaimOutcomes.PartlyApproved)] string? Outcome = null, string? DecisionReasonCode = null)
 {
     public static MedicalClaimView From(MedicalClaim c) => new(c.Id, c.ClaimNumber, c.Source, c.ProviderId, c.MembershipId, c.PatientPartyId, c.ServiceDate,
         c.Status, c.Currency, c.TotalClaimed, c.TotalPaid, c.PendReason, c.PaymentRunId,
         c.Lines.OrderBy(l => l.LineNo).Select(l => new ClaimLineView(l.LineNo, l.TariffCode, l.Quantity, l.ClaimedAmount, l.Outcome, l.AdjustmentReason, l.BenefitCategory,
-            l.NetworkStatus, l.TariffAmount, l.AllowedAmount, l.DeductibleAmount, l.CopayAmount, l.PaidAmount, l.MemberLiability, l.PreauthLineId)).ToList(), c.RowVersion);
+            l.NetworkStatus, l.TariffAmount, l.AllowedAmount, l.DeductibleAmount, l.CopayAmount, l.PaidAmount, l.MemberLiability, l.PreauthLineId)).ToList(), c.RowVersion,
+        c.DecisionOutcome, c.DecisionReasonCode);
 }
 
 public sealed record UtilisationCaseView(Guid Id, Guid MembershipId, string RuleCode, UtilisationStatus Status, Guid? ReviewerId, string? Outcome, Guid? ClaimId, long RowVersion)

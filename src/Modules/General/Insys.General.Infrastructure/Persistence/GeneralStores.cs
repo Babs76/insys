@@ -316,6 +316,28 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
         db.Set<T>().AsNoTracking().InForce(GeneralStaticData.Descriptors.Single(d => d.EntityType == typeof(T)).Lifecycle, day);
 }
 
+/// <summary>The merge values of CLAIM_DECISION_RIGHTS (OQ-102): business references and amounts, invariant, and the reason's customer wording.</summary>
+internal static class DecisionRightsMerge
+{
+    public static IReadOnlyDictionary<string, string> Of(string claimNumber, DateOnly decidedOn, string? reasons, decimal amount, decimal claimed, string currency)
+    {
+        var merge = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["claim_number"] = claimNumber,
+            ["decision_date"] = decidedOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            ["amount"] = amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+            ["claimed_amount"] = claimed.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+            ["currency"] = currency,
+        };
+        if (!string.IsNullOrWhiteSpace(reasons))
+        {
+            merge["decision_reasons"] = reasons;
+        }
+
+        return merge;
+    }
+}
+
 internal sealed class GeneralEventMapper : IDomainEventMapper
 {
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
@@ -334,6 +356,9 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         GeneralRenewalReminderDue e => new Contracts.GeneralRenewalReminderDue(e.PolicyId, e.PolicyNumber, e.ProductCode, e.PeriodEnd, e.DaysBefore, e.PolicyholderPartyId,
             e.OrgNodeCode),
         Domain.Claims.GeneralClaimDeclined e => new Contracts.GeneralClaimDeclined(e.ClaimId, e.ClaimNumber, e.DecisionCode),
+        GeneralClaimDecisionRightsDue e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.ClaimDecisionRights,
+            e.RecipientPartyId, "GENERAL_CLAIM", e.ClaimId, DecisionRightsMerge.Of(e.ClaimNumber, e.DecidedOn, e.DecisionReasons, e.Amount, e.ClaimedAmount, e.Currency),
+            e.ProductCode, e.OrgNodeCode),
         GeneralRenewalInvited e => new Contracts.GeneralRenewalInvited(e.PolicyId, e.PolicyNumber, e.ProductCode, e.ProductVersion, e.PeriodEnd, e.TemplateCode,
             e.PolicyholderPartyId),
         GeneralPolicyCancelled e => new Contracts.GeneralPolicyCancelled(e.PolicyId, e.PolicyNumber, e.ReasonCode, e.EffectiveDate, e.RefundAmount, e.Currency, e.ProductCode,

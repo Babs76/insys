@@ -236,6 +236,9 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             claim.Property(c => c.SettlementCurrency).HasColumnType("char(3)");
             claim.Property(c => c.SettlementReserveType).HasMaxLength(15);
             claim.Property(c => c.DecisionCode).HasMaxLength(15);
+            claim.Ignore(c => c.PartlyApproved);
+            claim.Property(c => c.ClaimedAmount).HasPrecision(18, 2);
+            claim.Property(c => c.DecisionOutcome).HasMaxLength(20);
             claim.HasMany(c => c.Parties).WithOne().HasForeignKey(p => new { p.TenantId, p.ClaimId });
             claim.Navigation(c => c.Parties).UsePropertyAccessMode(PropertyAccessMode.Field);
         });

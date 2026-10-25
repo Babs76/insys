@@ -42,7 +42,7 @@ internal sealed class NotificationTypeValidator : IStaticRecordValidator
 
     public string Rules =>
         "The platform's types (PAYMENT_REMINDER, PAYMENT_FINAL_NOTICE, RENEWAL_INVITATION, RENEWAL_REMINDER, CLAIM_STATUS, HEALTH_CLAIM_DECISION, "
-        + "PREAUTH_DECISION) are SERVICE with no consent purpose. Any other type is MARKETING and names the consent purpose it needs (POPIA s69); "
+        + "PREAUTH_DECISION, CASE_ACKNOWLEDGED, CASE_UPDATE, CASE_DECISION, CLAIM_DECISION_RIGHTS) are SERVICE with no consent purpose. Any other type is MARKETING and names the consent purpose it needs (POPIA s69); "
         + "SERVICE is refused for it. Channels are named once each.";
 
     public IReadOnlyDictionary<string, string[]> Validate(StaticRecord record)

@@ -116,3 +116,36 @@ public interface IClaimRegistry
     Task<ClaimRegistrationResult> Register(string domain, Guid domainClaimId, Guid policyRef, ClaimOwner owner, System.Text.Json.JsonElement fraudFacts,
         InitialReserve? initialReserve, CancellationToken cancellationToken);
 }
+
+/// <summary>The decision types of claims.ref_claim_decision_reason_codes: a reason is given for one kind of decision.</summary>
+public static class ClaimDecisionTypes
+{
+    public const string Approve = "APPROVE";
+
+    /// <summary>A partial approval: settled below the claimed amount (OQ-102, F010).</summary>
+    public const string Partial = "PARTIAL";
+
+    public const string Decline = "DECLINE";
+    public const string Withdraw = "WITHDRAW";
+}
+
+/// <summary>The outcome a claim module records with its decision (OQ-102): a partial approval is its own outcome.</summary>
+public static class ClaimOutcomes
+{
+    public const string Approved = "APPROVED";
+    public const string PartlyApproved = "PARTLY_APPROVED";
+    public const string Declined = "DECLINED";
+}
+
+/// <summary>A claim decision reason in force: its decision type and the wording a claimant is given.</summary>
+public sealed record ClaimDecisionReason(string Code, string DecisionType, string CustomerWording);
+
+/// <summary>
+/// Public query interface: the tenant's claim decision reasons (claims.ref_claim_decision_reason_codes), for a claim
+/// module's decision and the reasons its notices give (OQ-102). Read on the Claims Framework's own connection.
+/// </summary>
+public interface IClaimDecisionReasons
+{
+    /// <summary>The reason in force on the day, or null.</summary>
+    Task<ClaimDecisionReason?> InForce(Guid tenantId, string code, DateOnly day, CancellationToken cancellationToken);
+}
