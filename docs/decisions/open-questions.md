@@ -1003,28 +1003,37 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **The gap:** decision 4 says per catalogue sub-module, expected to be about 60. The catalogue has 251 sub-modules for 263 tables, so per sub-module is almost per table (about 750 functions). The "about 60" was the number of catalogue modules.
 - **Built:** view, maintain and approve per catalogue module: the 58 modules that have tables, 174 functions, in one Configuration sub-domain per INSYS module (23).
 - **Open:** confirm per module, or switch to per sub-module.
+- **Decided (25 October 2026, Ade):** per catalogue module (174 functions). **Closed.**
 
 ### OQ-096 A role with only one of static_data.create and static_data.update (function catalogue §7)
 - **Source:** the before-and-after test.
 - **The gap:** a static data module's maintain function needs both permissions, so a role holding only one is given neither when converted. Every other permission is granted on its own by some function, so nothing else is lost.
 - **Built:** least privilege: such a role loses that permission. No role the platform seeds has only one.
 - **Open:** keep that, or give such roles the maintain function, which adds the other permission.
+- **Decided (25 October 2026, Ade):** least privilege: such a role loses the permission it held alone. **Closed.**
 
 ### OQ-097 The code for a privileged role and a user without MFA (function catalogue §4)
 - **Source:** function-catalogue §4 names `MFA_ENROLMENT_REQUIRED` (422).
 - **The gap:** assigning a privileged role to a user without MFA is already refused with `MFA_REQUIRED` (409, IAM-003). Two codes for one rule would split the front end's handling.
 - **Built:** a role holding a privileged function is privileged, and the existing `MFA_REQUIRED` (409) applies.
 - **Open:** keep `MFA_REQUIRED`, or rename it to `MFA_ENROLMENT_REQUIRED` (422) for both cases (breaking).
+- **Decided (25 October 2026, Ade):** `MFA_REQUIRED` (409) for both cases. **Closed.**
 
 ### OQ-098 Which background work a tenant can switch off (function catalogue §2)
 - **Built:** JOB functions for the Life, General, Health, Reinsurance, Communications, Analytics, Distribution and Compliance event consumers, and for the Life, General, Health, Billing and Payments daily jobs, notification sending and webhook delivery (15 in all).
 - **Not switchable:** what keeps the platform consistent or lawful: the outbox relay, parking, Finance postings, Billing and Payments consumers, Claims Framework, Party, Documents, Product Factory and Rating consumers, privileged access expiry, search log retention, key rotation and partition maintenance.
 - **Open:** confirm the list.
+- **Decided (25 October 2026, Ade):** the list is confirmed, with two conditions:
+  - switching off a tenant's Billing or Payments daily job is a privileged function;
+  - while any JOB function is off for a tenant, it shows in the operations view and in `/health` detail.
+- Closed when built (Wave 1 batch 4).
 
 ### OQ-099 The first tenant administrator's request names permissions (function catalogue §7)
 - **Built:** the request still names permissions, so the API is unchanged. They are converted to the functions that need only them, and a permission no such function grants is refused (422 `VALIDATION_FAILED` on `permissions`).
 - **Open:** whether the request should name functions instead (breaking).
+- **Decided (25 October 2026, Ade):** the request names functions instead of permissions (breaking, in `contract-changes.md`); nothing consumes the API yet. To build in Wave 1 batch 4.
 
 ### OQ-100 Function and menu labels (function catalogue §3)
 - **Built:** English labels: domains and sub-domains from `INSYS_NAVIGATION.md`, functions made from their codes ("Life policies"). The menu returns a translation key and the label in the request's language.
 - **Open:** the wording of function labels, and their translations.
+- **Decided (25 October 2026, Ade):** generated English labels stay for now. The business reviews the wording before go-live, and translations need professional review (Workstream B). **Open: a pre-go-live item.**

@@ -80,10 +80,19 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
-    # About 27 minutes for 275 tests on wave1-1; Communications adds a module and 12 tests (Wave 1 batch 2).
+    # 30 minutes in one job on Wave 1 batch 3 (limit 45), so the classes are split into two shards that run in parallel,
+    # each with its own PostgreSQL container (tools/integration-shards.py; every class is in exactly one shard).
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    name: integration (${{ matrix.shard }} of 2)
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
+
+      - name: Every integration class is in exactly one shard
+        run: python3 tools/integration-shards.py --check 2
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -97,7 +106,7 @@ jobs:
 
       # Testcontainers starts postgres:18 (Docker is available on ubuntu-latest). The endpoint sweeps run in their own job.
       - name: Integration tests
-        run: dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release -- --filter-not-class "*EndpointSecuritySweepTests"
+        run: eval dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release -- $(python3 tools/integration-shards.py ${{ matrix.shard }} 2)
 
   sweeps-and-end-to-end:
     runs-on: ubuntu-latest

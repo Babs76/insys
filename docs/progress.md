@@ -35,7 +35,8 @@
 | 8 Wave 0b batch 6 | External-user remainder (portal documents, invoices, statements; member Life and Health claims; party-match resolution; portal Keycloak clients); arrears past the last bucket park; dashboard figures (GAP-046); onboarding readiness (TEN-008); Keycloak user provisioning; tenant users limited to configuration while Onboarding; smoke-run attestation; ADR-017 amendment 1 | **Merged** (`f97ed95`, 25 Oct 2026) |
 | 8 Wave 1 batch 1 | Requests 48–50 (GAP-050 Health productCode, GAP-052 x-permission declarations, GAP-051 aggregation alerts), completing Wave 0b; Communications addendum for sign-off | **Merged** (`8c007e7`, 25 Oct 2026) |
 | 8 Wave 1 batch 2 | Communications (F021, F031, F078, F095–F102): notifications, channels as stubs, preferences and consent, triggers, delivery callbacks, portal; function catalogue proposal (ADR-026) for sign-off | **Merged** (`2562160`, 25 Oct 2026) |
-| 8 Wave 1 batch 3 | Function catalogue (ADR-026): dynamic menus and function-based access; Communications follow-ups (proof of consent, claim communications list); Payments callback idempotency; CI split plan | **Built on `wave1-3`; awaiting CI and merge approval** (25 Oct 2026) |
+| 8 Wave 1 batch 3 | Function catalogue (ADR-026): dynamic menus and function-based access; Communications follow-ups (proof of consent, claim communications list); Payments callback idempotency; CI split plan | **Merged** (`5583285`, 25 Oct 2026) |
+| 8 Wave 1 batch 4 | CI integration split into two shards; OQ-098 conditions and OQ-099; business dates (Analytics by the tenant's business date, a fixed test clock, the 23:30 UTC boundary test) | **In progress on `wave1-4`** (25 Oct 2026) |
 
 ## Phase 1 review items
 
