@@ -26,6 +26,7 @@
  */
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.Workflow.Domain.Approvals;
+using Insys.Workflow.Domain.Cases;
 using Insys.Workflow.Domain.Processes;
 using Insys.Workflow.Infrastructure.StaticData;
 using Microsoft.EntityFrameworkCore;
@@ -46,6 +47,14 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
 
     public DbSet<CaseNote> CaseNotes => Set<CaseNote>();
 
+    public DbSet<ServiceCase> Cases => Set<ServiceCase>();
+
+    public DbSet<CaseHistoryEntry> CaseHistory => Set<CaseHistoryEntry>();
+
+    public DbSet<CaseMessage> CaseMessages => Set<CaseMessage>();
+
+    public DbSet<CaseRedress> CaseRedress => Set<CaseRedress>();
+
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         // Case notes are kept by business reference rather than by process, so they are added here, not through a navigation.
@@ -54,6 +63,24 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
             if (Entry(note).State == EntityState.Detached)
             {
                 CaseNotes.Add(note);
+            }
+        }
+
+        // A case's history and messages are append-only rows, added here rather than loaded with the case.
+        foreach (var entry in ChangeTracker.Entries<ServiceCase>().SelectMany(e => e.Entity.NewHistory)
+                     .Concat(ChangeTracker.Entries<CaseRedress>().SelectMany(e => e.Entity.NewHistory)).ToList())
+        {
+            if (Entry(entry).State == EntityState.Detached)
+            {
+                CaseHistory.Add(entry);
+            }
+        }
+
+        foreach (var message in ChangeTracker.Entries<ServiceCase>().SelectMany(e => e.Entity.NewMessages).ToList())
+        {
+            if (Entry(message).State == EntityState.Detached)
+            {
+                CaseMessages.Add(message);
             }
         }
 
@@ -125,12 +152,94 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
             timer.Property(t => t.TimerType).HasMaxLength(20);
         });
 
+        ConfigureCases(modelBuilder);
+
         modelBuilder.Entity<CaseNote>(note =>
         {
             note.ToTable("case_note");
             note.HasKey(n => new { n.TenantId, n.Id });
             note.HasAuditColumns();
             note.Property(n => n.BusinessRefType).HasMaxLength(30);
+        });
+    }
+
+    private static void ConfigureCases(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ServiceCase>(c =>
+        {
+            c.ToTable("service_case");
+            c.HasKey(x => new { x.TenantId, x.Id });
+            c.HasAuditColumns();
+            c.Ignore(x => x.DomainEvents);
+            c.Ignore(x => x.HasChanges);
+            c.Ignore(x => x.NewHistory);
+            c.Ignore(x => x.NewMessages);
+            c.Ignore(x => x.IsOpen);
+            c.Ignore(x => x.CurrentStep);
+            c.Property(x => x.CaseNumber).HasMaxLength(25);
+            c.Property(x => x.CaseTypeCode).HasMaxLength(30);
+            c.Property(x => x.Family).HasMaxLength(12);
+            c.Property(x => x.Status).HasConversion(new UpperCaseEnumConverter<CaseStatus>()).HasMaxLength(22);
+            c.Property(x => x.Outcome).HasMaxLength(14);
+            c.Property(x => x.ReceivedChannel).HasMaxLength(20);
+            c.Property(x => x.ComplainantName).HasMaxLength(200);
+            c.Property(x => x.ComplainantContact).HasMaxLength(200);
+            c.Property(x => x.RaisedByAudience).HasMaxLength(10);
+            c.Property(x => x.RaisedByIntermediaryCode).HasMaxLength(30);
+            c.Property(x => x.RaisedByProviderId).HasMaxLength(40);
+            c.Property(x => x.CategoryCode).HasMaxLength(30);
+            c.Property(x => x.ProductCode).HasMaxLength(15);
+            c.Property(x => x.OrgNodeCode).HasMaxLength(15);
+            c.Property(x => x.OmbudSchemeCode).HasMaxLength(20);
+            c.Property(x => x.OmbudReference).HasMaxLength(60);
+            c.Property(x => x.OmbudOutcome).HasMaxLength(14);
+            c.HasMany(x => x.Links).WithOne().HasForeignKey(l => new { l.TenantId, l.CaseId });
+            c.Navigation(x => x.Links).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            // The history, messages and redress rows belong to the case (FKs in V0060): EF writes the case first.
+            c.HasMany<CaseHistoryEntry>().WithOne().HasForeignKey(h => new { h.TenantId, h.CaseId });
+            c.HasMany<CaseMessage>().WithOne().HasForeignKey(m => new { m.TenantId, m.CaseId });
+            c.HasMany<CaseRedress>().WithOne().HasForeignKey(r => new { r.TenantId, r.CaseId });
+        });
+
+        modelBuilder.Entity<CaseLink>(l =>
+        {
+            l.ToTable("case_link");
+            l.HasKey(x => new { x.TenantId, x.Id });
+            l.Property(x => x.LinkType).HasMaxLength(20);
+            l.Property(x => x.Reference).HasMaxLength(60);
+            l.Property(x => x.AddedBy).HasMaxLength(80);
+        });
+
+        modelBuilder.Entity<CaseHistoryEntry>(h =>
+        {
+            h.ToTable("case_event");
+            h.HasKey(x => new { x.TenantId, x.Id });
+            h.Property(x => x.EventType).HasMaxLength(30);
+            h.Property(x => x.Actor).HasMaxLength(80);
+            h.Property(x => x.Detail).HasMaxLength(2000);
+        });
+
+        modelBuilder.Entity<CaseMessage>(m =>
+        {
+            m.ToTable("case_message");
+            m.HasKey(x => new { x.TenantId, x.Id });
+            m.Property(x => x.Direction).HasMaxLength(3);
+            m.Property(x => x.AuthorAudience).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<CaseRedress>(r =>
+        {
+            r.ToTable("case_redress");
+            r.HasKey(x => new { x.TenantId, x.Id });
+            r.Ignore(x => x.DomainEvents);
+            r.Ignore(x => x.HasChanges);
+            r.Ignore(x => x.NewHistory);
+            r.Ignore(x => x.SubjectHash);
+            r.Property(x => x.RedressType).HasMaxLength(14);
+            r.Property(x => x.Amount).HasPrecision(18, 2);
+            r.Property(x => x.Currency).HasColumnType("char(3)");
+            r.Property(x => x.Status).HasConversion(new UpperCaseEnumConverter<RedressStatus>()).HasMaxLength(12);
         });
     }
 }

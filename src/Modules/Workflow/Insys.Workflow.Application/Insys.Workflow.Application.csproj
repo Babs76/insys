@@ -36,5 +36,7 @@
     <ProjectReference Include="..\..\Party\Insys.Party.Contracts\Insys.Party.Contracts.csproj" />
     <ProjectReference Include="..\..\Tenancy\Insys.Tenancy.Contracts\Insys.Tenancy.Contracts.csproj" />
     <ProjectReference Include="..\..\General\Insys.General.Contracts\Insys.General.Contracts.csproj" />
+    <ProjectReference Include="..\..\Payments\Insys.Payments.Contracts\Insys.Payments.Contracts.csproj" />
+    <ProjectReference Include="..\..\Health\Insys.Health.Contracts\Insys.Health.Contracts.csproj" />
   </ItemGroup>
 </Project>
