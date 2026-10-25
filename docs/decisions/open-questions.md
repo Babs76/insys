@@ -1069,3 +1069,19 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 
 ### OQ-110 Onboarding readiness for cases
 - **Open:** whether the case configuration (`addenda/cases.md` §10) is part of ORGANISATION_AND_ACCESS or a new step.
+
+### OQ-111 Default roles for static data maintenance (front-end request 54)
+- **Built:** static data is maintained through `SD_{MODULE}_VIEW`, `_MAINTAIN` and `_APPROVE` functions granted to roles; scope decides who (tenant, platform, or both), tier decides approval. INSYS seeds no role beyond the first tenant administrator.
+- **Proposed:** role templates per business area (product, underwriting, claims, finance, distribution, platform administration) with the static data modules each maintains, loaded by the OFT-ZA seed (Workstream F) and offered to new tenants. **Open:** confirm the templates.
+
+### OQ-112 Authority bands (front-end request 55)
+- **Built:** `workflow.cfg_delegation_and_approval_authority` per role and approval type; `rules.cfg_authority_matrices` (underwriting alone) and `life.cfg_claims_authority_limits` (Life claims alone). The sample OFT-ZA values in `frontend-integration-guide.md` §3 are samples.
+- **Open:**
+  - the real bands, for the business to set (the samples are for the seed and demonstrations);
+  - limits have no currency: needed per currency for a multi-currency tenant?
+  - `delegation_allowed` is not used: is delegation of authority wanted, and how (to whom, for how long)?
+  - `payment.cfg_payment_release_limits` (with `second_approver_above`) is not read: keep payment release on the Workflow table, or use it for a second approver above an amount?
+
+### OQ-113 The rejection reason on the record
+- **Built:** the checker's reason is kept on the Workflow approval only; the owning modules do not keep it (Static Data passes it on in its event but does not store it).
+- **Open:** whether records show the latest rejection's reason themselves (a settlement request, a statement, a version), or the front end reads it from the approval.
