@@ -65,7 +65,9 @@ public sealed class HealthTests
         Model(MedicalClaim.Lifecycle).ShouldBe(Spec("MedicalClaim", ("Information received", "InformationReceived"), ("Payment run released", "PaymentRunReleased")));
         Model(UtilisationCase.Lifecycle).ShouldBe(Spec("UtilisationCase"));
         Model(HealthFraudCase.Lifecycle).ShouldBe(Spec("HealthFraudCase"));
-        Model(ProviderPaymentRun.Lifecycle).ShouldBe(Spec("ProviderPaymentRun", ("Payments matched", "PaymentsMatched")));
+        // D-2 (Wave 2 batch 1, V0056) adds "Calculated-RejectRun->Rejected", not yet in domain-model.json.
+        Model(ProviderPaymentRun.Lifecycle).ShouldBe(string.Join("|", Spec("ProviderPaymentRun", ("Payments matched", "PaymentsMatched")).Split('|')
+            .Append("Calculated-RejectRun->Rejected").OrderBy(t => t, StringComparer.Ordinal)));
     }
 
     [Fact]
@@ -291,5 +293,61 @@ public sealed class HealthTests
         IsoDuration.Add(Today, "P1Y2M10D").ShouldBe(Today.AddYears(1).AddMonths(2).AddDays(10));
         IsoDuration.Add(Today, "P2W").ShouldBe(Today.AddDays(14));
         IsoDuration.Add(Today, "6 months").ShouldBeNull();
+    }
+
+    private static MedicalClaim ApprovedForPayment()
+    {
+        var claim = MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC3", ClaimSources.Provider, "PR-1", Guid.CreateVersion7(), Principal, Today, "API", "ZAR", null,
+            [new ClaimLineRequest("0300", null, 1, 900m, null)], Now).Value;
+        claim.ValidateClaim(null, Now);
+        claim.AdjudicateClaim(new AdjudicationResult([new LineResult(1, LineOutcome.Pay, null, "SPECIALIST", NetworkStatus.InNetwork, 900m, 900m, 0, 0, 900m, 0, null, null)],
+            [], []), Now).IsSuccess.ShouldBeTrue();
+        claim.ApproveForPayment(Principal, Now).IsSuccess.ShouldBeTrue();
+        return claim;
+    }
+
+    private static ProviderPaymentRun CalculatedRun()
+    {
+        var run = ProviderPaymentRun.OpenRun(Guid.CreateVersion7(), "PRV-WEEKLY", "ZAR", Now);
+        run.CutOffRun(Now);
+        run.CalculateRun([new RemittanceRequest("PR-1", Guid.CreateVersion7(), Guid.CreateVersion7(), 900m, 1)], Principal, Now).IsSuccess.ShouldBeTrue();
+        return run;
+    }
+
+    [Fact]
+    public void RejectedPaymentRun_EndsRejected_KeepsItsRemittances_AndReleasesItsClaimsForANewRun_D2()
+    {
+        var claim = ApprovedForPayment();
+        var run = CalculatedRun();
+        claim.AssignToRun(run.Id).IsSuccess.ShouldBeTrue();
+        var approvalId = Guid.CreateVersion7();
+
+        // Expired or withdrawn: no checker.
+        run.DecideApproval(false, approvalId, Guid.Empty, run.SubjectHash).IsSuccess.ShouldBeTrue();
+        (run.Status, run.ApprovalId, run.ApprovedBy, run.EndedBy(approvalId)).ShouldBe((RunStatus.Rejected, (Guid?)approvalId, (Guid?)null, true));
+        run.Remittances.ShouldHaveSingleItem().PaymentId.ShouldBeNull();
+        run.ReleaseRun(Today, "TPL-RA", Now).IsFailure.ShouldBeTrue();
+
+        claim.LeaveRun(run.Id).ShouldBeTrue();
+        claim.PaymentRunId.ShouldBeNull();
+        var next = CalculatedRun();
+        claim.AssignToRun(next.Id).IsSuccess.ShouldBeTrue();
+        claim.LeaveRun(run.Id).ShouldBeFalse();
+        claim.PaymentRunId.ShouldBe(next.Id);
+
+        // Applied again (a redelivery), it changes nothing.
+        run.DecideApproval(false, approvalId, Guid.Empty, run.SubjectHash).IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void PaymentRunEnding_ForAnotherSubjectOrAMovedOnRun_IsRefused_D5()
+    {
+        var run = CalculatedRun();
+        run.DecideApproval(false, Guid.CreateVersion7(), Guid.CreateVersion7(), "stale").Error!.Code.ShouldBe(HealthErrorCodes.ApprovalSubjectChanged);
+        run.Status.ShouldBe(RunStatus.Calculated);
+
+        run.DecideApproval(true, Guid.CreateVersion7(), Guid.CreateVersion7(), run.SubjectHash).IsSuccess.ShouldBeTrue();
+        run.DecideApproval(false, Guid.CreateVersion7(), Guid.CreateVersion7(), run.SubjectHash).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        run.Status.ShouldBe(RunStatus.Approved);
     }
 }

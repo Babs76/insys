@@ -37,6 +37,9 @@ public enum RunStatus
     Approved,
     Released,
     Reconciled,
+
+    /// <summary>Its approval ended without being granted (rejected, expired or withdrawn); its claims were released for a new run (D-2).</summary>
+    Rejected,
 }
 
 public enum RunTrigger
@@ -44,6 +47,7 @@ public enum RunTrigger
     CutOffRun,
     CalculateRun,
     ApproveRun,
+    RejectRun,
     ReleaseRun,
     PaymentsMatched,
 }
@@ -116,6 +120,7 @@ public sealed class ProviderPaymentRun : AggregateRoot<Guid>
         .Allow(RunStatus.Open, RunTrigger.CutOffRun, RunStatus.CutOff)
         .Allow(RunStatus.CutOff, RunTrigger.CalculateRun, RunStatus.Calculated)
         .Allow(RunStatus.Calculated, RunTrigger.ApproveRun, RunStatus.Approved)
+        .Allow(RunStatus.Calculated, RunTrigger.RejectRun, RunStatus.Rejected)
         .Allow(RunStatus.Approved, RunTrigger.ReleaseRun, RunStatus.Released)
         .Allow(RunStatus.Released, RunTrigger.PaymentsMatched, RunStatus.Reconciled);
 
@@ -192,9 +197,21 @@ public sealed class ProviderPaymentRun : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    /// <summary>Command ApproveRun, from Workflow's decision; it applies only to the run as calculated.</summary>
+    /// <summary>True when this approval's ending (rejected, expired or withdrawn) was already applied: a redelivery changes nothing.</summary>
+    public bool EndedBy(Guid approvalId) => Status == RunStatus.Rejected && ApprovalId == approvalId;
+
+    /// <summary>
+    /// Command ApproveRun, from Workflow's decision; it applies only to the run as calculated. An approval that ended
+    /// without being granted (rejected, expired or withdrawn) ends the run as Rejected (D-2): the caller releases its claims
+    /// for a new run, and its remittance advices stay as the record of the rejected run, never paid.
+    /// </summary>
     public Result DecideApproval(bool approved, Guid approvalId, Guid checkerId, string? subjectHash)
     {
+        if (!approved && EndedBy(approvalId))
+        {
+            return Result.Success();
+        }
+
         if (Status != RunStatus.Calculated)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Run {RunCode} is {Status}.");
@@ -207,7 +224,13 @@ public sealed class ProviderPaymentRun : AggregateRoot<Guid>
 
         if (!approved)
         {
-            return Result.Success();
+            var rejected = Fire(RunTrigger.RejectRun);
+            if (rejected.IsSuccess)
+            {
+                ApprovalId = approvalId;
+            }
+
+            return rejected;
         }
 
         var result = Fire(RunTrigger.ApproveRun);

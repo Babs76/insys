@@ -171,4 +171,61 @@ public sealed class LedgerTests
         period.RequestReopen(Guid.CreateVersion7(), Now).IsFailure.ShouldBeTrue();
         period.AcceptsPostingOn(Day).ShouldBeFalse();
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ReopenRequest_IsClearedByEveryEndingOtherThanApproval_SRS002(bool rejectedByAChecker)
+    {
+        var period = OpenOctober();
+        var maker = Guid.CreateVersion7();
+        period.SoftClosePeriod(maker, Now);
+        period.RequestReopen(maker, Now);
+
+        // Expired or withdrawn: no checker (Guid.Empty), so none is compared.
+        period.DecideReopen(approved: false, rejectedByAChecker ? Guid.CreateVersion7() : Guid.Empty).IsSuccess.ShouldBeTrue();
+        (period.Status, period.ReopenRequestedBy).ShouldBe((PeriodStatus.SoftClose, null));
+
+        // Applied again (a redelivery), it changes nothing.
+        period.DecideReopen(approved: false, Guid.Empty).IsSuccess.ShouldBeTrue();
+        period.DecideReopen(approved: true, Guid.CreateVersion7()).IsFailure.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task ReopenEnding_ThePeriodRefuses_ParksTheDelivery_D5()
+    {
+        var period = OpenOctober();
+        var maker = Guid.CreateVersion7();
+        period.SoftClosePeriod(maker, Now);
+        period.RequestReopen(maker, Now);
+        var policy = new Insys.Finance.Application.PeriodReopenPolicy(new OnePeriod(period));
+        var approvalId = Guid.CreateVersion7();
+        var envelope = new Insys.BuildingBlocks.Contracts.EventEnvelope(Guid.CreateVersion7(), Guid.CreateVersion7(), "workflow.ApprovalRejected", 1, Now, "Approval",
+            approvalId, Guid.CreateVersion7(), null, default);
+
+        var refused = new Insys.Workflow.Contracts.ApprovalRejected(approvalId, "ACCOUNTING_PERIOD", period.Id, "PERIOD_REOPEN", maker, maker, "Same person");
+        var parked = await Should.ThrowAsync<Insys.BuildingBlocks.Application.Messaging.PrerequisiteMissingException>(() =>
+            policy.Handle(refused, envelope, TestContext.Current.CancellationToken));
+        (parked.Code, parked.Item).ShouldBe(("APPROVAL_ENDING_NOT_APPLIED", $"PERIOD_REOPEN:{approvalId}"));
+        period.ReopenRequestedBy.ShouldBe(maker);
+
+        var expired = refused with { CheckerId = Guid.Empty, Ending = Insys.Workflow.Contracts.ApprovalEndings.Expired };
+        await policy.Handle(expired, envelope, TestContext.Current.CancellationToken);
+        period.ReopenRequestedBy.ShouldBeNull();
+    }
+
+    private sealed class OnePeriod(AccountingPeriod period) : Insys.Finance.Application.IAccountingPeriods
+    {
+        public Task<AccountingPeriod?> Covering(DateOnly date, CancellationToken cancellationToken) => Task.FromResult<AccountingPeriod?>(period);
+
+        public Task<AccountingPeriod?> ByCode(string periodCode, CancellationToken cancellationToken) => Task.FromResult<AccountingPeriod?>(period);
+
+        public Task<AccountingPeriod?> Get(Guid id, CancellationToken cancellationToken) => Task.FromResult(id == period.Id ? period : null);
+
+        public Task<IReadOnlyList<AccountingPeriod>> All(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AccountingPeriod>>([period]);
+
+        public void Add(AccountingPeriod added)
+        {
+        }
+    }
 }

@@ -109,7 +109,8 @@ public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementVi
 public sealed record InstructionView(Guid Id, string ClaimNumber, string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency,
     string ReserveType, InstructionStatus Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId, string? PayeeBankHash, Guid? PendingPayeePartyId,
     Guid? PendingBankAccountId,
-    [property: OneOf("RESERVE_BELOW_ZERO", "PAYEE_ACCOUNT_CHANGED")] string? HeldReason = null, string? HeldDetail = null, DateTimeOffset? HeldAt = null)
+    [property: OneOf("RESERVE_BELOW_ZERO", "PAYEE_ACCOUNT_CHANGED")] string? HeldReason = null, string? HeldDetail = null, DateTimeOffset? HeldAt = null,
+    LatestRejection? LatestRejection = null)
 {
     public static InstructionView From(ClaimPaymentInstruction i) => new(i.Id, i.ClaimNumber, i.InstructionRef, i.PayeePartyId, i.Amount, i.ApprovedAmount, i.Currency,
         i.ReserveType, i.Status, i.ApprovalId, i.PaymentId, i.Attempt, i.BankAccountId, i.PayeeBankHash, i.PendingPayeePartyId, i.PendingBankAccountId, i.HeldReason,
@@ -591,10 +592,13 @@ internal sealed class ListInstructionsHandler(IClaimsRepository claims) : IQuery
             : Result.Success<IReadOnlyList<InstructionView>>((await claims.Instructions(query.ClaimNumber, cancellationToken)).Select(InstructionView.From).ToList());
 }
 
-internal sealed class GetInstructionHandler(IClaimsRepository claims) : IQueryHandler<GetInstruction, InstructionView>
+internal sealed class GetInstructionHandler(IClaimsRepository claims, IApprovalHistory approvals) : IQueryHandler<GetInstruction, InstructionView>
 {
+    /// <summary>The instruction, with how its latest approval (of it or of new payee details) ended without being granted, if one did (OQ-113).</summary>
     public async Task<Result<InstructionView>> Handle(GetInstruction query, CancellationToken cancellationToken) =>
-        await claims.Instruction(query.InstructionId, cancellationToken) is { } i ? InstructionView.From(i) : Error.NotFound(ErrorCodes.NotFound, "The payment instruction was not found.");
+        await claims.Instruction(query.InstructionId, cancellationToken) is { } i
+            ? InstructionView.From(i) with { LatestRejection = await approvals.Latest(ClaimsApprovals.InstructionBusinessRefType, i.Id, cancellationToken) }
+            : Error.NotFound(ErrorCodes.NotFound, "The payment instruction was not found.");
 }
 
 /// <summary>
@@ -615,8 +619,25 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, granted.SubjectHash, cancellationToken);
 
-    public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.ApprovalId, rejected.SubjectHash, cancellationToken);
+    /// <summary>
+    /// The approval of a new instruction or of new payee details ended without being granted, whether rejected, expired or
+    /// withdrawn: the instruction is rejected for good, or the new payee details are dropped. An instruction that will not
+    /// take the ending (another subject, no longer awaiting it) parks the delivery (ADR-022, D-5); one already rejected by
+    /// this approval is a redelivery.
+    /// </summary>
+    public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (rejected.BusinessRefType != ClaimsApprovals.InstructionBusinessRefType || await claims.Instruction(rejected.BusinessRefId, cancellationToken) is not { } instruction
+            || await claims.ByNumber(instruction.ClaimNumber, cancellationToken) is not { } claim)
+        {
+            return;
+        }
+
+        if (instruction.Decide(false, rejected.ApprovalId, rejected.SubjectHash, claim.Domain, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
+        }
+    }
 
     /// <summary>GAP-036: the instruction shows its payment's ID from when the payment is created.</summary>
     public async Task Handle(PaymentInitiated initiated, EventEnvelope envelope, CancellationToken cancellationToken)

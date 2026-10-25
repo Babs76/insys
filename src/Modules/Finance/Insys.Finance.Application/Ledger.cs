@@ -101,7 +101,7 @@ public sealed record JournalView(Guid Id, string JournalNumber, DateOnly Account
 }
 
 public sealed record PeriodView(Guid Id, string PeriodCode, DateOnly StartDate, DateOnly EndDate, PeriodStatus Status, Guid? ClosedBy, DateTimeOffset? ClosedAt,
-    Guid? ReopenRequestedBy, long RowVersion)
+    Guid? ReopenRequestedBy, long RowVersion, Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static PeriodView From(AccountingPeriod p) =>
         new(p.Id, p.PeriodCode, p.StartDate, p.EndDate, p.Status, p.ClosedBy, p.ClosedAt, p.ReopenRequestedBy, p.RowVersion);
@@ -369,10 +369,22 @@ internal sealed class ListJournalsHandler(IJournalRepository journals) : IQueryH
         (await journals.ForBusinessRef(query.BusinessRefType, query.BusinessRefId, cancellationToken)).Select(JournalView.From).ToList();
 }
 
-internal sealed class ListPeriodsHandler(IAccountingPeriods periods) : IQueryHandler<ListPeriods, IReadOnlyList<PeriodView>>
+/// <summary>
+/// The periods, each with how its latest reopen request's approval ended without being granted, if one did (OQ-113). A
+/// period has no view of its own, so the list carries it; a tenant has few periods.
+/// </summary>
+internal sealed class ListPeriodsHandler(IAccountingPeriods periods, Workflow.Contracts.IApprovalHistory approvals) : IQueryHandler<ListPeriods, IReadOnlyList<PeriodView>>
 {
-    public async Task<Result<IReadOnlyList<PeriodView>>> Handle(ListPeriods query, CancellationToken cancellationToken) =>
-        (await periods.All(cancellationToken)).Select(PeriodView.From).ToList();
+    public async Task<Result<IReadOnlyList<PeriodView>>> Handle(ListPeriods query, CancellationToken cancellationToken)
+    {
+        var views = new List<PeriodView>();
+        foreach (var period in await periods.All(cancellationToken))
+        {
+            views.Add(PeriodView.From(period) with { LatestRejection = await approvals.Latest(FinanceApprovals.PeriodBusinessRefType, period.Id, cancellationToken) });
+        }
+
+        return views;
+    }
 }
 
 internal sealed class ListPostingExceptionsHandler(IPostingExceptions exceptions) : IQueryHandler<ListPostingExceptions, IReadOnlyList<PostingExceptionView>>

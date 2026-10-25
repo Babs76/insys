@@ -34,11 +34,15 @@ public enum BatchStatus
     Approved,
     Released,
     Settled,
+
+    /// <summary>Its approval ended without being granted (rejected, expired or withdrawn); its payments were released (D-1).</summary>
+    Rejected,
 }
 
 public enum BatchTrigger
 {
     ApproveBatch,
+    RejectBatch,
     ReleaseBatch,
     AllPaymentsFinal,
 }
@@ -54,6 +58,7 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
 {
     public static readonly StateMachine<BatchStatus, BatchTrigger> Lifecycle = new StateMachine<BatchStatus, BatchTrigger>()
         .Allow(BatchStatus.Built, BatchTrigger.ApproveBatch, BatchStatus.Approved)
+        .Allow(BatchStatus.Built, BatchTrigger.RejectBatch, BatchStatus.Rejected)
         .Allow(BatchStatus.Approved, BatchTrigger.ReleaseBatch, BatchStatus.Released)
         .Allow(BatchStatus.Released, BatchTrigger.AllPaymentsFinal, BatchStatus.Settled);
 
@@ -123,6 +128,22 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The batch's approval ended without being granted (rejected, expired or withdrawn; D-1). Only a batch not yet approved
+    /// can end this way: it becomes Rejected and returns the IDs of the payments to release for the next batch, those of
+    /// <paramref name="payments"/> still in this batch and not yet sent, so no payment is in two live batches or paid twice.
+    /// </summary>
+    public Result<IReadOnlyList<Guid>> RejectBatch(IReadOnlyList<Payment> payments)
+    {
+        var result = Fire(BatchTrigger.RejectBatch);
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        return Result.Success<IReadOnlyList<Guid>>(payments.Where(p => p.CanLeaveBatch(Id)).Select(p => p.Id).ToList());
     }
 
     /// <summary>Command ReleaseBatch: the caller sends each payment to its provider.</summary>

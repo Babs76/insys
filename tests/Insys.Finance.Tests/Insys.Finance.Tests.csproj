@@ -34,6 +34,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Finance\Insys.Finance.Domain\Insys.Finance.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Finance\Insys.Finance.Application\Insys.Finance.Application.csproj" />
     <ProjectReference Include="..\Insys.Testing\Insys.Testing.csproj" />
   </ItemGroup>
 </Project>

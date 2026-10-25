@@ -156,15 +156,21 @@ public sealed class AccountingPeriod : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    /// <summary>Workflow's decision on a reopen request (transition "Reopened with approval"). The checker is never the requester.</summary>
+    /// <summary>
+    /// Workflow's decision on a reopen request (transition "Reopened with approval"). The checker is never the requester.
+    /// Every ending other than approval (rejected, expired, withdrawn) clears the request and the period stays as it is;
+    /// an expired or withdrawn one has no checker (Guid.Empty). With no request waiting, such an ending was already applied.
+    /// </summary>
     public Result DecideReopen(bool approved, Guid checkerId)
     {
         if (ReopenRequestedBy is not { } requester)
         {
-            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"No reopening of {PeriodCode} is waiting for approval.");
+            return approved
+                ? Error.Conflict(ErrorCodes.InvalidStateTransition, $"No reopening of {PeriodCode} is waiting for approval.")
+                : Result.Success();
         }
 
-        if (checkerId == requester)
+        if ((approved || checkerId != Guid.Empty) && checkerId == requester)
         {
             return MakerChecker.EnsureDifferentPeople(requester.ToString(), checkerId.ToString());
         }

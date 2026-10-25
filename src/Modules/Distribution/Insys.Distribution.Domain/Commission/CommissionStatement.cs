@@ -131,17 +131,7 @@ public sealed class CommissionStatement : AggregateRoot<Guid>
 
         // A draft prepared again releases its lines first; they are taken again below if still due. One clawed back
         // meanwhile simply leaves the draft: it was never paid, so there is nothing to recover.
-        foreach (var entitlement in current)
-        {
-            if (entitlement.Clawback?.StatementId == Id)
-            {
-                entitlement.ReleaseRecovery();
-            }
-            else if (entitlement.StatementId == Id)
-            {
-                entitlement.TakeOff();
-            }
-        }
+        Release(current);
 
         if (payable.Any(e => e.Status != EntitlementStatus.Payable || e.StatementId is not null || e.IntermediaryCode != IntermediaryCode || e.Currency != Currency)
             || toRecover.Any(e => !e.NeedsRecovery || e.IntermediaryCode != IntermediaryCode || e.Currency != Currency))
@@ -175,14 +165,26 @@ public sealed class CommissionStatement : AggregateRoot<Guid>
         return Result.Success();
     }
 
+    /// <summary>True when this approval's ending (rejected, expired or withdrawn) was already applied: a redelivery changes nothing.</summary>
+    public bool EndedBy(Guid approvalId) => Status == StatementStatus.Draft && !ApprovalPending && ApprovalId == approvalId;
+
     /// <summary>
     /// Command ApproveStatement: Workflow's decision for this statement as prepared (the subject must match). Approval
-    /// pays the net amount when it is positive; a rejection returns the statement to draft, to be prepared again.
+    /// pays the net amount when it is positive. Every other ending (rejected, expired, withdrawn) returns the statement
+    /// to draft, to be prepared again, and releases its entitlements and clawback recoveries
+    /// (<paramref name="onStatement"/>) so the next prepared statement takes them; the ending approval is recorded so a
+    /// redelivery changes nothing.
     /// TODO(spec): a statement whose clawbacks exceed its commission (net not above zero) is approved without a payout;
     /// collecting the balance is not specified (OQ-062).
     /// </summary>
-    public Result ApproveStatement(bool approved, Guid approvalId, Guid checkerId, string? subjectHash, DateTimeOffset now)
+    public Result ApproveStatement(bool approved, Guid approvalId, Guid checkerId, string? subjectHash, DateTimeOffset now,
+        IReadOnlyList<CommissionEntitlement>? onStatement = null)
     {
+        if (!approved && EndedBy(approvalId))
+        {
+            return Result.Success();
+        }
+
         if (!ApprovalPending)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Statement {IntermediaryCode} {PeriodCode} is not awaiting approval.");
@@ -196,6 +198,8 @@ public sealed class CommissionStatement : AggregateRoot<Guid>
         if (!approved)
         {
             SubmittedAt = null;
+            ApprovalId = approvalId;
+            Release(onStatement ?? []);
             MarkChanged();
             return Result.Success();
         }
@@ -229,6 +233,22 @@ public sealed class CommissionStatement : AggregateRoot<Guid>
         }
 
         return result;
+    }
+
+    /// <summary>Takes this draft's lines off it: its entitlements and the clawbacks it was to recover are free for the next statement.</summary>
+    private void Release(IReadOnlyList<CommissionEntitlement> onStatement)
+    {
+        foreach (var entitlement in onStatement)
+        {
+            if (entitlement.Clawback?.StatementId == Id)
+            {
+                entitlement.ReleaseRecovery();
+            }
+            else if (entitlement.StatementId == Id)
+            {
+                entitlement.TakeOff();
+            }
+        }
     }
 
     private Result Fire(StatementTrigger trigger)

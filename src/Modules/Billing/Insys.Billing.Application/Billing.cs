@@ -166,7 +166,7 @@ public sealed record InvoiceView(Guid Id, string InvoiceNumber, string DocumentT
 }
 
 public sealed record RefundView(Guid Id, Guid BillingAccountId, decimal Amount, string Currency, string ReasonCode, RefundStatus Status, Guid? PaymentId, Guid? RequestedBy,
-    Guid? DecidedBy, Guid? BankAccountId);
+    Guid? DecidedBy, Guid? BankAccountId, LatestRejection? LatestRejection = null);
 
 public sealed record OpenAccount(Guid PayerPartyId, string Currency, string CollectionMethod, string? MandateRef) : ICommand<AccountView>;
 
@@ -554,10 +554,13 @@ internal sealed class ListInvoicesHandler(IBillingRepository billing, IExecution
     }
 }
 
-internal sealed class GetRefundHandler(IBillingRepository billing) : IQueryHandler<GetRefund, RefundView>
+internal sealed class GetRefundHandler(IBillingRepository billing, IApprovalHistory approvals) : IQueryHandler<GetRefund, RefundView>
 {
+    /// <summary>The refund, with how its latest approval ended without being granted, if one did (OQ-113).</summary>
     public async Task<Result<RefundView>> Handle(GetRefund query, CancellationToken cancellationToken) =>
-        await billing.Refund(query.RefundId, cancellationToken) is { } r ? Views.From(r) : Error.NotFound(ErrorCodes.NotFound, "The refund was not found.");
+        await billing.Refund(query.RefundId, cancellationToken) is { } r
+            ? Views.From(r) with { LatestRejection = await approvals.Latest(BillingApprovals.RefundBusinessRefType, r.Id, cancellationToken) }
+            : Error.NotFound(ErrorCodes.NotFound, "The refund was not found.");
 }
 
 internal sealed class AccountsDueHandler(IBillingRepository billing) : IQueryHandler<AccountsDue, IReadOnlyList<Guid>>
@@ -628,8 +631,19 @@ public sealed class BillingPolicies(IBillingRepository billing, IBusinessDate bu
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
         DecideRefund(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, granted.SubjectHash, cancellationToken);
 
-    public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        DecideRefund(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.CheckerId, rejected.SubjectHash, cancellationToken);
+    /// <summary>
+    /// The refund's approval ended without being granted, whether rejected, expired or withdrawn: the refund is rejected for
+    /// good. A refund that will not take the ending (another subject, the requester as checker, already decided otherwise)
+    /// parks the delivery (ADR-022, D-5); one already rejected is a redelivery.
+    /// </summary>
+    public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (rejected.BusinessRefType == BillingApprovals.RefundBusinessRefType && await billing.Refund(rejected.BusinessRefId, cancellationToken) is { } refund
+            && refund.Decide(false, rejected.CheckerId, rejected.SubjectHash, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
+        }
+    }
 
     private async Task DecideRefund(string businessRefType, Guid refundId, bool approved, Guid checkerId, string? subjectHash, CancellationToken cancellationToken)
     {
