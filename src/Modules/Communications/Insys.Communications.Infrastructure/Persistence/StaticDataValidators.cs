@@ -40,6 +40,11 @@ internal sealed class NotificationTypeValidator : IStaticRecordValidator
 
     public string Table => "cfg_notification_types";
 
+    public string Rules =>
+        "The platform's types (PAYMENT_REMINDER, PAYMENT_FINAL_NOTICE, RENEWAL_INVITATION, RENEWAL_REMINDER, CLAIM_STATUS, HEALTH_CLAIM_DECISION, "
+        + "PREAUTH_DECISION) are SERVICE with no consent purpose. Any other type is MARKETING and names the consent purpose it needs (POPIA s69); "
+        + "SERVICE is refused for it. Channels are named once each.";
+
     public IReadOnlyDictionary<string, string[]> Validate(StaticRecord record)
     {
         var errors = new Dictionary<string, string[]>();
@@ -79,6 +84,10 @@ internal sealed class NotificationTemplateValidator : IStaticRecordValidator
     public string Schema => "communication";
 
     public string Table => "cfg_notification_templates";
+
+    public string Rules =>
+        "Merge fields ({name}) are only those the type offers: business references, never contact details, ID numbers, bank details or clinical data. "
+        + "A marketing type's template contains {sender_identity} and {opt_out_contact} (POPIA s69(4)). Email and push templates have a subject.";
 
     public IReadOnlyDictionary<string, string[]> Validate(StaticRecord record)
     {

@@ -118518,7 +118518,7 @@
           "Communications static data"
         ],
         "summary": "Create a tenant Notification templates draft",
-        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker. Rules (422 with field errors otherwise): Merge fields ({name}) are only those the type offers: business references, never contact details, ID numbers, bank details or clinical data. A marketing type\u0027s template contains {sender_identity} and {opt_out_contact} (POPIA s69(4)). Email and push templates have a subject.",
         "operationId": "CreateCommunicationsNotificationTemplatesDraft",
         "parameters": [
           {
@@ -118704,7 +118704,7 @@
           "Communications static data"
         ],
         "summary": "Edit a tenant Notification templates draft",
-        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002). Rules (422 with field errors otherwise): Merge fields ({name}) are only those the type offers: business references, never contact details, ID numbers, bank details or clinical data. A marketing type\u0027s template contains {sender_identity} and {opt_out_contact} (POPIA s69(4)). Email and push templates have a subject.",
         "operationId": "EditCommunicationsNotificationTemplatesDraft",
         "parameters": [
           {
@@ -119028,7 +119028,7 @@
           "Communications static data"
         ],
         "summary": "Create a tenant Notification types draft",
-        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker. Rules (422 with field errors otherwise): The platform\u0027s types (PAYMENT_REMINDER, PAYMENT_FINAL_NOTICE, RENEWAL_INVITATION, RENEWAL_REMINDER, CLAIM_STATUS, HEALTH_CLAIM_DECISION, PREAUTH_DECISION) are SERVICE with no consent purpose. Any other type is MARKETING and names the consent purpose it needs (POPIA s69); SERVICE is refused for it. Channels are named once each.",
         "operationId": "CreateCommunicationsNotificationTypesDraft",
         "parameters": [
           {
@@ -119214,7 +119214,7 @@
           "Communications static data"
         ],
         "summary": "Edit a tenant Notification types draft",
-        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002). Rules (422 with field errors otherwise): The platform\u0027s types (PAYMENT_REMINDER, PAYMENT_FINAL_NOTICE, RENEWAL_INVITATION, RENEWAL_REMINDER, CLAIM_STATUS, HEALTH_CLAIM_DECISION, PREAUTH_DECISION) are SERVICE with no consent purpose. Any other type is MARKETING and names the consent purpose it needs (POPIA s69); SERVICE is refused for it. Channels are named once each.",
         "operationId": "EditCommunicationsNotificationTypesDraft",
         "parameters": [
           {

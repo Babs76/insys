@@ -279,6 +279,38 @@ public static class ApiRegistration
                 });
             }
 
+            if (metadata.OfType<IfMatchOptionalMetadata>().Any())
+            {
+                operation.Parameters ??= [];
+                operation.Parameters.Add(new OpenApiParameter
+                {
+                    Name = "If-Match",
+                    In = ParameterLocation.Header,
+                    Required = false,
+                    Description = "Optional: the ETag from the last GET. When given, a stale version gives 412; without it, the replacement applies.",
+                    Schema = new OpenApiSchema { Type = JsonSchemaType.String },
+                });
+            }
+
+            if (metadata.OfType<SignedProviderCallbackMetadata>().Any())
+            {
+                // ADR-023: no bearer token; the endpoint key in the path and the signature authenticate the provider.
+                operation.Security = [];
+                operation.Parameters ??= [];
+                foreach (var (name, description) in new[]
+                         {
+                             ("X-Callback-Timestamp", "Unix seconds when the provider signed; within the tolerance (5 minutes by default)."),
+                             ("X-Callback-Id", "The provider's unique ID for this callback, at most 100 characters; a repeat inside the replay window is refused."),
+                             ("X-Signature", "HMAC-SHA256 of \"timestamp.callbackId.body\" under the endpoint's signing secret, hex."),
+                         })
+                {
+                    operation.Parameters.Add(new OpenApiParameter
+                    {
+                        Name = name, In = ParameterLocation.Header, Required = true, Description = description, Schema = new OpenApiSchema { Type = JsonSchemaType.String },
+                    });
+                }
+            }
+
             if (metadata.OfType<IdempotentEndpointMetadata>().Any())
             {
                 operation.Parameters ??= [];

@@ -127,16 +127,16 @@ Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and t
 
 ## Database connections (GAP-039, OQ-069)
 
-Each API instance opens one connection pool per module database role, 23 in all. Their maxima must fit the database's `max_connections`, less a reserve, shared between the instances.
+Each API instance opens one connection pool per module database role, 24 in all (Communications added in Wave 1). Their maxima must fit the database's `max_connections`, less a reserve, shared between the instances.
 
 | Pools (`DatabasePools`, OQ-069 option A) | Roles | Maximum each | Total |
 |---|---|---|---|
 | Hot: `insys_api`, `insys_iam`, `insys_payment`, `insys_billing`, `insys_rating`, `insys_health`, `insys_general`, `insys_integration` | 8 | 8 | 64 |
 | Medium: `insys_party`, `insys_product`, `insys_claims`, `insys_life`, `insys_finance`, `insys_workflow`, `insys_document` | 7 | 4 | 28 |
-| Low: `insys_sdm`, `insys_rules`, `insys_commission`, `insys_reinsurance`, `insys_reporting`, `insys_analytics`, `insys_tenant`, `insys_audit` | 8 | 3 | 24 |
-| **Per instance** | 23 | | **116** |
+| Low: `insys_sdm`, `insys_rules`, `insys_commission`, `insys_reinsurance`, `insys_reporting`, `insys_analytics`, `insys_tenant`, `insys_audit`, `insys_communication` | 9 | 3 | 27 |
+| **Per instance** | 24 | | **119** |
 
-**The rule:** 116 ≤ (`max_connections` − reserve) ÷ instances.
+**The rule:** 119 ≤ (`max_connections` − reserve) ÷ instances.
 
 | Where | `max_connections` | Reserve | Instances | Share per instance | Fits |
 |---|---|---|---|---|---|

@@ -125,14 +125,44 @@ public sealed class QueueRequestedNotification(NotificationQueue queue) : IInteg
             requested.ProductCode, requested.OrgNodeCode), envelope.EventId, cancellationToken);
 }
 
-/// <summary>Consent withdrawn: the party's queued marketing for that purpose is suppressed at once (§4).</summary>
-public sealed class SuppressMarketingOnWithdrawal(INotificationRepository notifications, IClock clock) : IIntegrationEventHandler<ConsentWithdrawn>
+/// <summary>
+/// Consent withdrawn (§4): the party's queued marketing for that purpose is suppressed at once, and they are opted out of
+/// the marketing types that need it, so their preferences show what Party records.
+/// </summary>
+public sealed class SuppressMarketingOnWithdrawal(INotificationRepository notifications, ICommunicationCodes codes, IBusinessDate businessDate, IClock clock)
+    : IIntegrationEventHandler<ConsentWithdrawn>
 {
     public async Task Handle(ConsentWithdrawn withdrawn, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         foreach (var notification in await notifications.QueuedMarketing(withdrawn.PartyId, withdrawn.PurposeCode, cancellationToken))
         {
             notification.SuppressForConsent(clock.UtcNow);
+        }
+
+        await ConsentPreferences.Follow(notifications, codes, businessDate.Today, withdrawn.PartyId, withdrawn.PurposeCode, granted: false, cancellationToken);
+    }
+}
+
+/// <summary>Consent granted in Party (§4): an opt-out of the marketing types that need it is cleared. Only Party's consent opts a party in.</summary>
+public sealed class ClearOptOutOnConsent(INotificationRepository notifications, ICommunicationCodes codes, IBusinessDate businessDate)
+    : IIntegrationEventHandler<ConsentGranted>
+{
+    public Task Handle(ConsentGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        ConsentPreferences.Follow(notifications, codes, businessDate.Today, granted.PartyId, granted.PurposeCode, granted: true, cancellationToken);
+}
+
+internal static class ConsentPreferences
+{
+    public static async Task Follow(INotificationRepository notifications, ICommunicationCodes codes, DateOnly day, Guid partyId, string purpose, bool granted,
+        CancellationToken cancellationToken)
+    {
+        foreach (var type in (await codes.Types(day, cancellationToken)).Where(t => t.IsMarketing && t.ConsentPurpose == purpose))
+        {
+            var current = await notifications.Preference(partyId, type.TypeCode, cancellationToken);
+            if (NotificationPreference.FollowConsent(current, partyId, type.TypeCode, granted, type.Channels) is { } preference && current is null)
+            {
+                notifications.Add(preference);
+            }
         }
     }
 }

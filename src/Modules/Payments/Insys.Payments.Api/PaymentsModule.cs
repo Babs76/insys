@@ -76,6 +76,8 @@ public sealed class PaymentsModule : IModule
 
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
+        // ADR-023's endpoint is the building blocks' aggregate, audited by its type name.
+        AuditTargetTypes.Register(nameof(BuildingBlocks.Domain.ProviderCallbacks.CallbackEndpoint));
         PaymentsStaticDataEndpoints.MapStaticData(api);
         var payments = api.MapGroup("/payments").WithTags(Name);
 
@@ -278,9 +280,13 @@ public sealed class PaymentsModule : IModule
             .WithSummary("The tenant's provider callback endpoints, without their keys or secrets (ADR-023)")
             .RequirePermission(PaymentPermissions.CallbackEndpointRead);
 
-        endpoints.MapPost("/", async (IssueCallbackEndpointRequest r, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new IssueCallbackEndpoint(r.ProviderCode, r.RequireClientToken), ct))
-                    .ToHttp(issued => Results.Created($"/api/v1/payments/callback-endpoints/{issued.Endpoint.Id}", issued)))
+        endpoints.MapPost("/", async (IssueCallbackEndpointRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Send(new IssueCallbackEndpoint(r.ProviderCode, r.RequireClientToken), ct)).ToHttp(issued =>
+                {
+                    // The key and secret are shown once; nothing between here and the operator keeps them.
+                    http.Response.Headers.CacheControl = "no-store";
+                    return Results.Created($"/api/v1/payments/callback-endpoints/{issued.Endpoint.Id}", issued);
+                }))
             .Produces<IssuedCallbackEndpoint>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .OnboardingConfiguration()

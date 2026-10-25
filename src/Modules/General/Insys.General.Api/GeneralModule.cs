@@ -295,6 +295,7 @@ public sealed class GeneralModule : IModule
                 IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListAggregationAlerts(zone, peril, zoneReference, from, to, after, size), ct), a => a.Id))
             .Produces<CursorPage<AggregationAlertView>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("GeneralListAggregationAlerts")
             .WithSummary("Aggregation alerts: each zone and peril at or above its alert level, once a day (GAP-051, F062), oldest first")
             .WithDescription("Filter by zone, peril, zoneReference (the AGGREGATION_ZONE reference its Workflow review task names) and from/to days. "

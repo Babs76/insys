@@ -42,16 +42,25 @@ namespace Insys.Communications.Application;
 
 // --- Views --------------------------------------------------------------------------------------------------------
 
-public sealed record DeliveryAttemptView(short AttemptNo, string Channel, string? ProviderCode, string? ProviderRef, string? MaskedAddress,
-    [property: OneOf("SENT", "DELIVERED", "FAILED", "BOUNCED", "UNDELIVERABLE")] string Status, string? FailureCode, DateTimeOffset AttemptedAt, DateTimeOffset StatusAt);
+public sealed record DeliveryAttemptView(short AttemptNo, [property: OneOf("EMAIL", "SMS", "PUSH", "WHATSAPP")] string Channel, string? ProviderCode, string? ProviderRef,
+    string? MaskedAddress, [property: OneOf("SENT", "DELIVERED", "FAILED", "BOUNCED", "UNDELIVERABLE")] string Status, string? FailureCode, DateTimeOffset AttemptedAt,
+    DateTimeOffset StatusAt);
 
-/// <summary>A notification for staff (§5): what was sent, on which channel, and every attempt with the address masked.</summary>
-public sealed record NotificationView(Guid Id, string TypeCode, [property: OneOf("SERVICE", "MARKETING")] string Category, Guid RecipientPartyId, string SourceType,
-    Guid SourceId, string? ProductCode, string? OrgNodeCode, IReadOnlyList<string> Channels, string Language, NotificationStatus Status, string? Channel, string? Subject,
-    string? Body, DateTimeOffset? SentAt, DateTimeOffset? DeliveredAt, DateTimeOffset? EndedAt, IReadOnlyList<DeliveryAttemptView> Attempts, long RowVersion)
+/// <summary>
+/// A notification for staff (§5): what was sent, on which channel, and every attempt with the address masked. For a Health
+/// notice, the text is shown only to a reader who may read Health claims; otherwise it is left out and BodyRedacted is true.
+/// </summary>
+/// <param name="SourceType">GENERAL_CLAIM, LIFE_CLAIM, HEALTH_CLAIM, HEALTH_PREAUTH, GENERAL_POLICY or BILLING_ACCOUNT; with SourceId, the record it is about.</param>
+/// <param name="SourceReference">That record's own reference (claim, authorisation, policy or account number).</param>
+/// <param name="ConsentPurpose">For marketing, the consent purpose it was sent under (POPIA s69).</param>
+public sealed record NotificationView(Guid Id, string TypeCode, [property: OneOf("SERVICE", "MARKETING")] string Category, string? ConsentPurpose, Guid RecipientPartyId,
+    string SourceType, Guid SourceId, string? SourceReference, string? ProductCode, string? OrgNodeCode, IReadOnlyList<string> Channels, string Language,
+    NotificationStatus Status, [property: OneOf("EMAIL", "SMS", "PUSH", "WHATSAPP")] string? Channel, string? Subject, string? Body, bool BodyRedacted,
+    DateTimeOffset RequestedAt, DateTimeOffset? SentAt, DateTimeOffset? DeliveredAt, DateTimeOffset? EndedAt, IReadOnlyList<DeliveryAttemptView> Attempts, long RowVersion)
 {
-    public static NotificationView From(Notification n) => new(n.Id, n.TypeCode, n.Category, n.RecipientPartyId, n.SourceType, n.SourceId, n.ProductCode,
-        n.OrgNodeCode, n.Channels, n.Language, n.Status, n.Channel, n.Subject, n.Body, n.SentAt, n.DeliveredAt, n.EndedAt,
+    public static NotificationView From(Notification n, bool redact) => new(n.Id, n.TypeCode, n.Category, n.ConsentPurpose, n.RecipientPartyId, n.SourceType, n.SourceId,
+        n.SourceReference, n.ProductCode, n.OrgNodeCode, n.Channels, n.Language, n.Status, n.Channel, redact ? null : n.Subject, redact ? null : n.Body,
+        redact && n.Body is not null, n.RequestedAt, n.SentAt, n.DeliveredAt, n.EndedAt,
         n.DeliveryAttempts.OrderBy(a => a.AttemptNo).Select(a => new DeliveryAttemptView(a.AttemptNo, a.Channel, a.ProviderCode, a.ProviderRef, a.MaskedAddress,
             Upper(a.Status), a.FailureCode, a.AttemptedAt, a.StatusAt)).ToList(), n.RowVersion);
 
@@ -59,20 +68,32 @@ public sealed record NotificationView(Guid Id, string TypeCode, [property: OneOf
 }
 
 /// <summary>A notification in a list: without its text.</summary>
-public sealed record NotificationSummary(Guid Id, string TypeCode, Guid RecipientPartyId, string SourceType, Guid SourceId, NotificationStatus Status, string? Channel,
-    DateTimeOffset? SentAt, DateTimeOffset? EndedAt);
+public sealed record NotificationSummary(Guid Id, string TypeCode, Guid RecipientPartyId, string SourceType, Guid SourceId, string? SourceReference, NotificationStatus Status,
+    [property: OneOf("EMAIL", "SMS", "PUSH", "WHATSAPP")] string? Channel, DateTimeOffset RequestedAt, DateTimeOffset? SentAt, DateTimeOffset? EndedAt);
 
-/// <summary>A notification in the member portal (§8): what was sent, the channel and the status; never the address.</summary>
-public sealed record PortalNotificationView(Guid Id, string TypeCode, NotificationStatus Status, string? Channel, string? Subject, string? Body, DateTimeOffset? SentAt,
-    DateTimeOffset? DeliveredAt)
+/// <summary>
+/// A notification in the member portal (§8): one that was sent (Sent or Delivered), what it said, the channel, and the
+/// record it is about; never the address.
+/// </summary>
+public sealed record PortalNotificationView(Guid Id, string TypeCode, NotificationStatus Status, [property: OneOf("EMAIL", "SMS", "PUSH", "WHATSAPP")] string? Channel,
+    string? Subject, string? Body, string SourceType, Guid SourceId, string? SourceReference, DateTimeOffset? SentAt, DateTimeOffset? DeliveredAt)
 {
-    public static PortalNotificationView From(Notification n) => new(n.Id, n.TypeCode, n.Status, n.Channel, n.Subject, n.Body, n.SentAt, n.DeliveredAt);
+    public static PortalNotificationView From(Notification n) => new(n.Id, n.TypeCode, n.Status, n.Channel, n.Subject, n.Body, n.SourceType, n.SourceId,
+        n.SourceReference, n.SentAt, n.DeliveredAt);
 }
 
-public sealed record PreferenceView(string TypeCode, IReadOnlyList<string> Channels, bool OptedOut, long RowVersion)
-{
-    public static PreferenceView From(NotificationPreference p) => new(p.TypeCode, p.Channels, p.OptedOut, p.RowVersion);
-}
+/// <summary>
+/// A notification type the party can receive, and their preference (§4). Every type in force is listed, set or not, so a
+/// member sees what they can opt out of. Only consent given in Party allows marketing: opting back in here never grants it.
+/// </summary>
+/// <param name="Labels">The type's labels by language, for display.</param>
+/// <param name="AllowedChannels">The type's channels, in its default order.</param>
+/// <param name="Channels">The channels used for this party, in order: theirs, or the default. Empty when opted out.</param>
+/// <param name="CanOptOut">Marketing only; a service notice keeps at least one channel (OQ-087).</param>
+/// <param name="ConsentGranted">For marketing: whether the party's consent for its purpose is granted now.</param>
+/// <param name="RowVersion">The preference's version, for If-Match; null while the party has set none.</param>
+public sealed record PreferenceView(string TypeCode, [property: OneOf("SERVICE", "MARKETING")] string Category, System.Text.Json.JsonElement? Labels,
+    IReadOnlyList<string> AllowedChannels, IReadOnlyList<string> Channels, bool OptedOut, bool CanOptOut, string? ConsentPurpose, bool? ConsentGranted, long? RowVersion);
 
 public sealed record DeviceView(Guid Id, [property: OneOf("IOS", "ANDROID", "WEB")] string Platform, DateTimeOffset RegisteredAt, DateTimeOffset? RevokedAt);
 
@@ -89,8 +110,8 @@ public sealed record IssuedCommunicationCallbackEndpoint(CommunicationCallbackEn
 // --- Commands and queries -----------------------------------------------------------------------------------------
 
 /// <summary>Staff list notifications by party, type, status or source, within their F103 scope; by ID with cursor paging.</summary>
-public sealed record ListNotifications(Guid? PartyId, string? TypeCode, NotificationStatus? Status, string? SourceType, Guid? SourceId, Guid? AfterId, int Limit)
-    : IQuery<IReadOnlyList<NotificationSummary>>;
+public sealed record ListNotifications(Guid? PartyId, string? TypeCode, NotificationStatus? Status, string? SourceType, Guid? SourceId, Guid? AfterId, int Limit,
+    DateTimeOffset? From = null, DateTimeOffset? To = null) : IQuery<IReadOnlyList<NotificationSummary>>;
 
 public sealed record GetNotification(Guid NotificationId) : IQuery<NotificationView>;
 
@@ -103,10 +124,14 @@ public sealed record GetPreferences(Guid PartyId) : IQuery<IReadOnlyList<Prefere
 public sealed record GetMyPreferences : IQuery<IReadOnlyList<PreferenceView>>;
 
 /// <summary>Set a party's channels for a type, in order, or opt out of a marketing type (§4).</summary>
-public sealed record SetPreference(Guid PartyId, string TypeCode, IReadOnlyList<string> Channels, bool OptedOut) : ICommand<PreferenceView>;
+/// <param name="ExpectedVersion">From If-Match, when given: the preference must still be at that version (412 otherwise).</param>
+public sealed record SetPreference(Guid PartyId, string TypeCode, IReadOnlyList<string> Channels, bool OptedOut, long? ExpectedVersion = null) : ICommand<PreferenceView>;
 
 /// <summary>A member sets their own preference in the portal.</summary>
-public sealed record SetMyPreference(string TypeCode, IReadOnlyList<string> Channels, bool OptedOut) : ICommand<PreferenceView>;
+public sealed record SetMyPreference(string TypeCode, IReadOnlyList<string> Channels, bool OptedOut, long? ExpectedVersion = null) : ICommand<PreferenceView>;
+
+/// <summary>The signed-in member's devices, revoked ones included.</summary>
+public sealed record ListMyDevices : IQuery<IReadOnlyList<DeviceView>>;
 
 /// <summary>A portal app registers the signed-in member's device for push (§3, §8); the same token again is the same device.</summary>
 public sealed record RegisterDevice(string Platform, string Token) : ICommand<DeviceView>;
@@ -213,12 +238,16 @@ internal sealed class NotificationQueryHandlers(INotificationQueries queries, IE
 {
     public async Task<Result<IReadOnlyList<NotificationSummary>>> Handle(ListNotifications query, CancellationToken cancellationToken) =>
         Result.Success<IReadOnlyList<NotificationSummary>>((await queries.List(query, cancellationToken))
-            .Select(n => new NotificationSummary(n.Id, n.TypeCode, n.RecipientPartyId, n.SourceType, n.SourceId, n.Status, n.Channel, n.SentAt, n.EndedAt)).ToList());
+            .Select(n => new NotificationSummary(n.Id, n.TypeCode, n.RecipientPartyId, n.SourceType, n.SourceId, n.SourceReference, n.Status, n.Channel, n.RequestedAt,
+                n.SentAt, n.EndedAt)).ToList());
 
     public async Task<Result<NotificationView>> Handle(GetNotification query, CancellationToken cancellationToken) =>
         await queries.InScope(query.NotificationId, cancellationToken) is { } notification
-            ? NotificationView.From(notification)
+            ? NotificationView.From(notification, redact: IsHealth(notification) && !execution.HasPermission(Health.Contracts.HealthPermissions.ClaimRead))
             : Error.NotFound(ErrorCodes.NotFound, "The notification was not found.");
+
+    /// <summary>A Health notice's text is shown only to those who may read Health claims (HLT-008).</summary>
+    internal static bool IsHealth(Notification n) => n.SourceType.StartsWith("HEALTH_", StringComparison.Ordinal);
 
     public async Task<Result<IReadOnlyList<PortalNotificationView>>> Handle(ListPortalNotifications query, CancellationToken cancellationToken) =>
         Member() is { } party
@@ -244,31 +273,52 @@ internal sealed class NotificationQueryHandlers(INotificationQueries queries, IE
     private Guid? Member() => execution.External is { Kind: ExternalSubject.Party, PartyId: { } party } ? party : null;
 }
 
-internal sealed class PreferenceHandlers(INotificationRepository notifications, ICommunicationCodes codes, IExecutionContext execution, IBusinessDate businessDate,
-    IClock clock, IAuditTrail audit) :
+internal sealed class PreferenceHandlers(INotificationRepository notifications, ICommunicationCodes codes, Party.Contracts.IPartyConsent consent, ITenantContext tenant,
+    IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
     IQueryHandler<GetPreferences, IReadOnlyList<PreferenceView>>,
     IQueryHandler<GetMyPreferences, IReadOnlyList<PreferenceView>>,
     ICommandHandler<SetPreference, PreferenceView>,
     ICommandHandler<SetMyPreference, PreferenceView>
 {
     public async Task<Result<IReadOnlyList<PreferenceView>>> Handle(GetPreferences query, CancellationToken cancellationToken) =>
-        Result.Success<IReadOnlyList<PreferenceView>>((await notifications.Preferences(query.PartyId, cancellationToken)).Select(PreferenceView.From).ToList());
+        Result.Success(await All(query.PartyId, cancellationToken));
 
     public async Task<Result<IReadOnlyList<PreferenceView>>> Handle(GetMyPreferences query, CancellationToken cancellationToken) =>
         execution.External is { Kind: ExternalSubject.Party, PartyId: { } party }
-            ? Result.Success<IReadOnlyList<PreferenceView>>((await notifications.Preferences(party, cancellationToken)).Select(PreferenceView.From).ToList())
+            ? Result.Success(await All(party, cancellationToken))
             : Result.Success<IReadOnlyList<PreferenceView>>([]);
 
     public Task<Result<PreferenceView>> Handle(SetPreference command, CancellationToken cancellationToken) =>
-        Set(command.PartyId, command.TypeCode, command.Channels, command.OptedOut, "STAFF", cancellationToken);
+        Set(command.PartyId, command.TypeCode, command.Channels, command.OptedOut, command.ExpectedVersion, "STAFF", cancellationToken);
 
     public Task<Result<PreferenceView>> Handle(SetMyPreference command, CancellationToken cancellationToken) =>
         execution.External is { Kind: ExternalSubject.Party, PartyId: { } party }
-            ? Set(party, command.TypeCode, command.Channels, command.OptedOut, "PORTAL", cancellationToken)
+            ? Set(party, command.TypeCode, command.Channels, command.OptedOut, command.ExpectedVersion, "PORTAL", cancellationToken)
             : Task.FromResult<Result<PreferenceView>>(Error.Forbidden(ErrorCodes.Forbidden, "Preferences are a member's own."));
 
-    private async Task<Result<PreferenceView>> Set(Guid partyId, string typeCode, IReadOnlyList<string> channels, bool optedOut, string captureChannel,
-        CancellationToken cancellationToken)
+    /// <summary>Every type in force, with the party's preference where they set one, and their consent for marketing.</summary>
+    private async Task<IReadOnlyList<PreferenceView>> All(Guid partyId, CancellationToken cancellationToken)
+    {
+        var set = (await notifications.Preferences(partyId, cancellationToken)).ToDictionary(p => p.TypeCode, StringComparer.Ordinal);
+        var views = new List<PreferenceView>();
+        foreach (var type in await codes.Types(businessDate.Today, cancellationToken))
+        {
+            set.TryGetValue(type.TypeCode, out var preference);
+            views.Add(await View(type, preference, partyId, cancellationToken));
+        }
+
+        return views;
+    }
+
+    private async Task<PreferenceView> View(NotificationTypeDefinition type, NotificationPreference? preference, Guid partyId, CancellationToken cancellationToken)
+    {
+        bool? granted = type.IsMarketing ? await consent.IsGranted(tenant.RequireTenantId(), partyId, type.ConsentPurpose!, cancellationToken) : null;
+        return new PreferenceView(type.TypeCode, type.Category, type.Labels, type.Channels, NotificationPreference.Order(preference, type.Channels),
+            preference?.OptedOut ?? false, type.IsMarketing, type.ConsentPurpose, granted, preference?.RowVersion);
+    }
+
+    private async Task<Result<PreferenceView>> Set(Guid partyId, string typeCode, IReadOnlyList<string> channels, bool optedOut, long? expectedVersion,
+        string captureChannel, CancellationToken cancellationToken)
     {
         if (await codes.Type(typeCode, businessDate.Today, cancellationToken) is not { } type)
         {
@@ -276,6 +326,11 @@ internal sealed class PreferenceHandlers(INotificationRepository notifications, 
         }
 
         var current = await notifications.Preference(partyId, typeCode, cancellationToken);
+        if (expectedVersion is { } expected && current?.RowVersion != expected)
+        {
+            return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The preference has changed since it was read. Read it again and retry.");
+        }
+
         var set = NotificationPreference.Set(current, partyId, typeCode, type.IsMarketing ? type.ConsentPurpose : null, type.Channels, channels, optedOut, captureChannel,
             clock.UtcNow);
         if (set.IsFailure)
@@ -290,14 +345,21 @@ internal sealed class PreferenceHandlers(INotificationRepository notifications, 
 
         audit.Record(new AuditEntry("COMMUNICATION", "SetPreference", nameof(NotificationPreference), set.Value.Id.ToString(),
             new Dictionary<string, string?> { ["type"] = typeCode, ["optedOut"] = optedOut ? "true" : "false", ["by"] = captureChannel }));
-        return PreferenceView.From(set.Value);
+        // The version once this change is saved: 1 for a new preference, one more for a changed one.
+        return await View(type, set.Value, partyId, cancellationToken) with { RowVersion = current is null ? 1 : current.RowVersion + 1 };
     }
 }
 
 internal sealed class DeviceHandlers(INotificationRepository notifications, IFieldProtector protector, IExecutionContext execution, IClock clock) :
+    IQueryHandler<ListMyDevices, IReadOnlyList<DeviceView>>,
     ICommandHandler<RegisterDevice, DeviceView>,
     ICommandHandler<RevokeDevice, DeviceView>
 {
+    public async Task<Result<IReadOnlyList<DeviceView>>> Handle(ListMyDevices query, CancellationToken cancellationToken) =>
+        Guid.TryParse(execution.ActorId, out var user) && execution.External is { Kind: ExternalSubject.Party }
+            ? Result.Success<IReadOnlyList<DeviceView>>((await notifications.Devices(user, cancellationToken)).Select(View).ToList())
+            : Result.Success<IReadOnlyList<DeviceView>>([]);
+
     public async Task<Result<DeviceView>> Handle(RegisterDevice command, CancellationToken cancellationToken)
     {
         if (execution.External is not { Kind: ExternalSubject.Party, PartyId: { } party } || !Guid.TryParse(execution.ActorId, out var user))

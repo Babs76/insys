@@ -68,6 +68,7 @@ public sealed class CommunicationsDbContext(DbContextOptions<CommunicationsDbCon
             notification.Property(n => n.Category).HasMaxLength(10);
             notification.Property(n => n.ConsentPurpose).HasMaxLength(20);
             notification.Property(n => n.SourceType).HasMaxLength(30);
+            notification.Property(n => n.SourceReference).HasMaxLength(40);
             notification.Property(n => n.ProductCode).HasMaxLength(15);
             notification.Property(n => n.OrgNodeCode).HasMaxLength(30);
             notification.Property(n => n.MergeValues).HasColumnType("jsonb").HasConversion(

@@ -15,6 +15,19 @@
 - **§5.1:** the ADR-023 callback signature check and endpoint lifecycle move into the building blocks.
 - **Access:** permissions as today. The function catalogue (proposed next) maps Communications' operations with the rest.
 
+**Built in Wave 1 batch 2** (branch `wave1-2`), with these choices where the addendum left room:
+- **Who is marketing:** the platform's own types (§2 table) are service notices. Any other type a tenant adds is marketing and must name its consent purpose. Static data validation enforces both.
+- **Opt-out contact:** `{opt_out_contact}` comes from `Communications:OptOutContact`, one per deployment, until tenants have communications settings (TODO(spec)).
+- **Preferences:** `PUT` replaces the whole preference and is idempotent, so it takes no If-Match.
+- **Portal notices:** for member (party) links only. Wave 1's triggers address no broker or provider; their notices wait for a trigger that does.
+- **Recipients:**
+  - General claim notices go to the policyholder;
+  - Life claim notices go to the claimant;
+  - Health notices go to the patient, or the principal for a dependant under 18.
+  - Status dates are the business date of the event.
+- **Arrears:** an account has no single product, so payment reminders carry no product or branch. Only staff whose scope is not limited by product or branch see them (F103 shows a scoped reader only what it can place in scope).
+- **Callbacks:** an unknown provider reference is acknowledged with 204, so the provider does not keep retrying it.
+
 - **Basis:**
   - SRS §20.2: "Communications Email, SMS, approved messaging providers".
   - SRS §7.6 (versioned templates for renewal notices, claims correspondence and premium notices).

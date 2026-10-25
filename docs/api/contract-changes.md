@@ -2,6 +2,41 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 1 batch 2 (branch `wave1-2`, not merged): Communications (addenda/communications.md)
+
+### New endpoints
+
+| Endpoint | Permission | Notes |
+|---|---|---|
+| `GET /api/v1/communications/notifications?partyId&typeCode&status&sourceType&sourceId` (cursor) | `notification.read` | Summaries, oldest first, within the caller's F103 scope (the source record's product and node) |
+| `GET /api/v1/communications/notifications/{id}` | `notification.read` | The text as sent and every attempt `{attemptNo, channel, providerCode, providerRef, maskedAddress, status, failureCode, attemptedAt, statusAt}`; out of scope is 404 |
+| `GET /api/v1/communications/parties/{partyId}/preferences` | `notification_preference.read` | `[{typeCode, channels, optedOut, rowVersion}]`; a type with none uses its default order |
+| `PUT /api/v1/communications/parties/{partyId}/preferences/{typeCode}` `{channels, optedOut}` | `notification_preference.update` | A whole replacement, idempotent, so no If-Match. A service type cannot be opted out of; channels must be the type's (`PREFERENCE_NOT_ALLOWED`, 422). Opting out of marketing withdraws the type's consent purpose in Party (eventual) |
+| `GET /api/v1/communications/callback-endpoints` | `communication_callback_endpoint.read` | Without keys or secrets |
+| `POST /api/v1/communications/callback-endpoints` `{providerCode, requireClientToken}` (Idempotency-Key) | `communication_callback_endpoint.update` | Key and signing secret shown once; an active endpoint for the provider is rotated (ADR-023). Allowed while Onboarding |
+| `POST /api/v1/communications/callback-endpoints/{id}/revoke` | `communication_callback_endpoint.update` | At once |
+| `POST /api/v1/communications/callbacks/{endpointKey}` `{providerRef, status: DELIVERED \| BOUNCED \| FAILED}` | signed provider callback | Headers `X-Callback-Timestamp`, `X-Callback-Id`, `X-Signature` as for payments. 204 when applied and for an unknown reference; 401 `CALLBACK_SIGNATURE_INVALID`; 409 `CALLBACK_REPLAYED`; 422 for a malformed body |
+| `GET /api/v1/portal/communications/notifications` (cursor), `…/{id}` | `notification.read`, member portal | The member's own notices of types the tenant shows in the portal, newest first; another's is 404; never the address |
+| `GET /api/v1/portal/communications/preferences`, `PUT …/preferences/{typeCode}` | `notification_preference.read` / `.update`, member portal | The member's own |
+| `POST /api/v1/portal/communications/devices` `{platform: IOS \| ANDROID \| WEB, token}` (Idempotency-Key), `DELETE …/devices/{id}` | `notification_device.update`, member portal | Push devices; the token is stored encrypted and never returned |
+
+Static data (generated endpoints under `/api/v1/communications/static/…`): `channels` (global), `notification-types`, `notification-templates`, `channel-providers`. A template may use only its type's merge fields; a type the platform does not trigger is marketing, needs a consent purpose, and its templates must contain `{sender_identity}` and `{opt_out_contact}` (422 with field errors otherwise). Email and push templates need a subject.
+
+`general.cfg_renewal_rules` gains `reminderDays` (integer list, empty by default); `general.cfg_aggregation_zones_and_limits` gains `alertRole`.
+
+### Statuses
+- Notification: `Queued`, `Sent`, `Delivered`, `Failed`, `Undeliverable` (no address on any channel), `SuppressedNoConsent` (marketing without consent, or opted out).
+- Attempt: `SENT`, `DELIVERED`, `FAILED`, `BOUNCED`, `UNDELIVERABLE`.
+
+### Events
+- New: `communication.NotificationRequested`, `NotificationSent`, `NotificationDelivered`, `NotificationFailed`, `MarketingOptedOut`; `general.GeneralClaimDeclined`, `general.GeneralRenewalReminderDue`; `health.MedicalClaimRejected`.
+- Changed (additive): `billing.ArrearsDetected` gains `accountNumber`, `payerPartyId`, `nextAction`.
+
+### Changed behaviour
+- **Notices are sent from events** (§6): payment reminder and final notice from arrears buckets; renewal invitation and reminders; General and Life claim status; Health claim decisions and preauthorisations. A claim notice that is sent appears in the claim's communications.
+- **Missing configuration parks** (ADR-022) with `NOTIFICATION_TYPE_NOT_CONFIGURED`, `CHANNEL_PROVIDER_NOT_CONFIGURED` or `NOTIFICATION_TEMPLATE_NOT_IN_FORCE`; a tenant that has not configured a type sees the trigger parked and escalated, not lost.
+- **Error codes:** `PREFERENCE_NOT_ALLOWED` (422) is new. `CALLBACK_SIGNATURE_INVALID` and `CALLBACK_REPLAYED` are now shared with Communications; the codes are unchanged, their message keys become `error.callback.signature` and `error.callback.replayed`.
+
 ## Wave 1 batch 1 (branch `wave1-1`, not merged): requests 48–50, completing Wave 0b
 
 ### New endpoints

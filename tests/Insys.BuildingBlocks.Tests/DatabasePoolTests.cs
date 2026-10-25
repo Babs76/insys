@@ -35,17 +35,17 @@ namespace Insys.BuildingBlocks.Tests;
 public sealed class DatabasePoolTests
 {
     [Fact]
-    public void TheDefaultPools_AddUpTo116PerInstance_AsOq069OptionA()
+    public void TheDefaultPools_AddUpTo119PerInstance_AsOq069OptionA()
     {
-        DatabasePools.Defaults.Count.ShouldBe(23);
-        DatabasePools.Defaults.Values.Sum().ShouldBe(116);
+        DatabasePools.Defaults.Count.ShouldBe(24);
+        DatabasePools.Defaults.Values.Sum().ShouldBe(119);
     }
 
     [Theory]
-    [InlineData(768, 20, 3, 249)] // RDS 16 GB, three instances: 116 fits.
-    [InlineData(768, 20, 4, 187)] // A fourth during a rolling deployment: 116 still fits.
+    [InlineData(768, 20, 3, 249)] // RDS 16 GB, three instances: 119 fits.
+    [InlineData(768, 20, 4, 187)] // A fourth during a rolling deployment: 119 still fits.
     [InlineData(150, 20, 1, 130)] // Local compose: max_connections 150.
-    [InlineData(100, 20, 1, 80)]  // A default PostgreSQL: 116 does not fit, so the guard refuses to start.
+    [InlineData(100, 20, 1, 80)]  // A default PostgreSQL: 119 does not fit, so the guard refuses to start.
     public void TheBudget_IsMaxConnectionsLessTheReserve_DividedByTheInstances(int max, int reserve, int instances, int budget) =>
         DatabasePools.Budget(max, reserve, instances).ShouldBe(budget);
 

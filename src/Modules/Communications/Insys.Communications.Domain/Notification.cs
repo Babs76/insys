@@ -97,6 +97,11 @@ public sealed class Notification : AggregateRoot<Guid>
 
     public Guid SourceId { get; private set; }
 
+    /// <summary>The source record's own reference (a claim, policy, account or authorisation number), for display.</summary>
+    public string? SourceReference { get; private set; }
+
+    public DateTimeOffset RequestedAt { get; private set; }
+
     public string? ProductCode { get; private set; }
 
     public string? OrgNodeCode { get; private set; }
@@ -152,6 +157,8 @@ public sealed class Notification : AggregateRoot<Guid>
             RecipientPartyId = Guard.NotEmpty(recipientPartyId),
             SourceType = Guard.MaxLength(sourceType, 30),
             SourceId = sourceId,
+            SourceReference = SourceReferenceOf(mergeValues),
+            RequestedAt = now,
             ProductCode = productCode,
             OrgNodeCode = orgNodeCode,
             MergeValues = new Dictionary<string, string>(mergeValues, StringComparer.Ordinal),
@@ -163,6 +170,13 @@ public sealed class Notification : AggregateRoot<Guid>
         notification.MarkChanged();
         return notification;
     }
+
+    private static readonly string[] ReferenceFields = ["claim_number", "auth_number", "policy_number", "account_number"];
+
+    private static string? SourceReferenceOf(IReadOnlyDictionary<string, string> values) =>
+        ReferenceFields.Select(f => values.TryGetValue(f, out var v) ? v : null).FirstOrDefault(v => !string.IsNullOrEmpty(v)) is { } reference
+            ? Guard.MaxLength(reference, 40)
+            : null;
 
     /// <summary>The channel to try next: the first whose attempts are not used up, or null when every channel is.</summary>
     public string? NextChannel() => Channels.FirstOrDefault(c => !Exhausted(c));

@@ -85,6 +85,9 @@ internal sealed class NotificationRepository(CommunicationsDbContext db) : INoti
 
     public Task<DeviceRegistration?> Device(Guid id, CancellationToken cancellationToken) => db.Devices.SingleOrDefaultAsync(d => d.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<DeviceRegistration>> Devices(Guid userId, CancellationToken cancellationToken) =>
+        await db.Devices.AsNoTracking().Where(d => d.UserId == userId).OrderByDescending(d => d.Id).ToListAsync(cancellationToken);
+
     public Task<DeviceRegistration?> LatestDevice(Guid partyId, CancellationToken cancellationToken) =>
         db.Devices.AsNoTracking().Where(d => d.PartyId == partyId && d.RevokedAt == null).OrderByDescending(d => d.Id).FirstOrDefaultAsync(cancellationToken);
 
@@ -120,6 +123,16 @@ internal sealed class NotificationQueries(CommunicationsDbContext db, ICommunica
             rows = rows.Where(n => n.SourceType == sourceType && (query.SourceId == null || n.SourceId == query.SourceId));
         }
 
+        if (query.From is { } from)
+        {
+            rows = rows.Where(n => n.RequestedAt >= from);
+        }
+
+        if (query.To is { } to)
+        {
+            rows = rows.Where(n => n.RequestedAt < to);
+        }
+
         if (query.AfterId is { } after)
         {
             rows = rows.Where(n => n.Id.CompareTo(after) > 0);
@@ -133,7 +146,9 @@ internal sealed class NotificationQueries(CommunicationsDbContext db, ICommunica
 
     public async Task<IReadOnlyList<Notification>> ForPortal(Guid partyId, Guid? cursorId, int limit, CancellationToken cancellationToken, Guid? onlyId = null)
     {
-        var rows = db.Notifications.AsNoTracking().Where(n => n.RecipientPartyId == partyId && n.Status != NotificationStatus.SuppressedNoConsent);
+        // Only what was sent: queued, suppressed and undeliverable notices are not the member's to see (§8).
+        var rows = db.Notifications.AsNoTracking().Where(n => n.RecipientPartyId == partyId
+                                                              && (n.Status == NotificationStatus.Sent || n.Status == NotificationStatus.Delivered));
         if (onlyId is { } only)
         {
             rows = rows.Where(n => n.Id == only);
@@ -181,8 +196,13 @@ internal sealed class CommunicationCodes(CommunicationsDbContext db) : ICommunic
 {
     public async Task<NotificationTypeDefinition?> Type(string typeCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<NotificationTypes>(day).Where(t => t.TypeCode == typeCode).OrderByDescending(t => t.Version).FirstOrDefaultAsync(cancellationToken) is { } t
-            ? new NotificationTypeDefinition(t.TypeCode, t.Category, t.ConsentPurpose, t.Channels, t.PortalVisible)
+            ? new NotificationTypeDefinition(t.TypeCode, t.Category, t.ConsentPurpose, t.Channels, t.PortalVisible, t.Labels)
             : null;
+
+    public async Task<IReadOnlyList<NotificationTypeDefinition>> Types(DateOnly day, CancellationToken cancellationToken) =>
+        (await InForce<NotificationTypes>(day).OrderBy(t => t.TypeCode).ThenByDescending(t => t.Version).ToListAsync(cancellationToken))
+        .GroupBy(t => t.TypeCode).Select(g => g.First())
+        .Select(t => new NotificationTypeDefinition(t.TypeCode, t.Category, t.ConsentPurpose, t.Channels, t.PortalVisible, t.Labels)).ToList();
 
     public async Task<TemplateDefinition?> Template(string typeCode, string channel, string language, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<NotificationTemplates>(day).Where(t => t.TypeCode == typeCode && t.Channel == channel && t.Language == language).OrderByDescending(t => t.Version)

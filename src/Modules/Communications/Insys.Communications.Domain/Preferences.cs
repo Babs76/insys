@@ -85,6 +85,36 @@ public sealed class NotificationPreference : AggregateRoot<Guid>
     }
 
     /// <summary>
+    /// Party's consent ledger changed for the type's purpose (§4): withdrawn opts the party out, granted clears an opt-out,
+    /// so the ledger and the preference never disagree. Nothing is announced: the ledger already knows.
+    /// </summary>
+    public static NotificationPreference? FollowConsent(NotificationPreference? current, Guid partyId, string typeCode, bool granted,
+        IReadOnlyList<string> defaultChannels)
+    {
+        if (granted)
+        {
+            if (current is { OptedOut: true })
+            {
+                current.OptedOut = false;
+                current.Channels = [.. defaultChannels];
+                current.MarkChanged();
+            }
+
+            return current;
+        }
+
+        var preference = current ?? new NotificationPreference { Id = Guid.CreateVersion7(), PartyId = Guard.NotEmpty(partyId), TypeCode = Guard.MaxLength(typeCode, 30) };
+        if (!preference.OptedOut)
+        {
+            preference.OptedOut = true;
+            preference.Channels = [];
+            preference.MarkChanged();
+        }
+
+        return preference;
+    }
+
+    /// <summary>
     /// The channels to try for this party: their order within the type's, or the type's when they named none it still
     /// has. Empty when they opted out.
     /// </summary>

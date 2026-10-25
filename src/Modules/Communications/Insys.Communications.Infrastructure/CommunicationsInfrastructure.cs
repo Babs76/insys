@@ -62,6 +62,7 @@ public static class CommunicationsInfrastructure
         services.AddIntegrationEventHandler<NotificationRequested, QueueRequestedNotification, CommunicationsDbContext>(schema);
         services.AddNotificationTriggers();
         services.AddIntegrationEventHandler<Party.Contracts.ConsentWithdrawn, SuppressMarketingOnWithdrawal, CommunicationsDbContext>(schema);
+        services.AddIntegrationEventHandler<Party.Contracts.ConsentGranted, ClearOptOutOnConsent, CommunicationsDbContext>(schema);
         services.AddIntegrationEventHandler<Party.Contracts.PartyAnonymised, AnonymiseNotifications, CommunicationsDbContext>(schema);
 
         services.AddSingleton<NotificationSender>();

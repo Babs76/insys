@@ -57,6 +57,15 @@ public static class Concurrency
         return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "If-Match does not match the current version.");
     }
 
+    /// <summary>
+    /// If-Match when the operation takes it optionally (an idempotent replacement): null without one, the version with
+    /// one, 412 when it cannot be read.
+    /// </summary>
+    public static Result<long?> OptionalExpectedVersion(HttpRequest request) =>
+        string.IsNullOrWhiteSpace(request.Headers.IfMatch.ToString())
+            ? (long?)null
+            : ExpectedVersion(request) is { IsSuccess: true } read ? read.Value : Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "If-Match is not a version ETag.");
+
     /// <summary>The check a handler makes after loading the aggregate.</summary>
     public static Result EnsureVersion(long current, long expected) =>
         current == expected
@@ -66,6 +75,9 @@ public static class Concurrency
 
 /// <summary>Marks an endpoint that requires If-Match (the OpenAPI documents show the header and its 412 and 428 responses).</summary>
 public sealed record IfMatchRequiredMetadata;
+
+/// <summary>Marks an idempotent replacement that honours If-Match when given (412 when stale) and applies without it.</summary>
+public sealed record IfMatchOptionalMetadata;
 
 public static class ConcurrencyEndpointExtensions
 {
@@ -77,4 +89,10 @@ public static class ConcurrencyEndpointExtensions
         builder.WithMetadata(new IfMatchRequiredMetadata(),
             new ProducesResponseTypeMetadata(StatusCodes.Status412PreconditionFailed, typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), ProblemContentTypes),
             new ProducesResponseTypeMetadata(StatusCodes.Status428PreconditionRequired, typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), ProblemContentTypes));
+
+    /// <summary>Declares that the endpoint honours If-Match when given: 412 when it is stale; without it the replacement applies.</summary>
+    public static TBuilder AllowIfMatch<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.WithMetadata(new IfMatchOptionalMetadata(),
+            new ProducesResponseTypeMetadata(StatusCodes.Status412PreconditionFailed, typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), ProblemContentTypes));
 }

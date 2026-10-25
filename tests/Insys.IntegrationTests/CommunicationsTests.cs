@@ -154,7 +154,20 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
     {
         var party = await Party("Order", email: "o@example.com", mobile: "+27820000001", language: null);
         var url = $"/api/v1/communications/parties/{party}/preferences/{NotificationTypes.ClaimStatus}";
-        (await _staff.Send(HttpMethod.Put, url, new { channels = new[] { "SMS", "EMAIL" }, optedOut = false })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var listed = (await (await _staff.GetAsync($"/api/v1/communications/parties/{party}/preferences")).Json()).EnumerateArray().ToList();
+        var claimStatus = listed.Single(p => p.GetProperty("typeCode").GetString() == NotificationTypes.ClaimStatus);
+        claimStatus.GetProperty("canOptOut").GetBoolean().ShouldBeFalse();
+        claimStatus.GetProperty("channels").EnumerateArray().Select(c => c.GetString()).ShouldBe(["EMAIL", "SMS"], "the type's default order until the party sets one");
+        claimStatus.GetProperty("rowVersion").ValueKind.ShouldBe(JsonValueKind.Null);
+        var promo = listed.Single(p => p.GetProperty("typeCode").GetString() == "PROMO_SMS");
+        (promo.GetProperty("canOptOut").GetBoolean(), promo.GetProperty("consentGranted").GetBoolean()).ShouldBe((true, false), "every type is listed, set or not");
+
+        var set = await (await _staff.Send(HttpMethod.Put, url, new { channels = new[] { "SMS", "EMAIL" }, optedOut = false })).Json();
+        var version = set.GetProperty("rowVersion").GetInt64();
+        (await _staff.Send(HttpMethod.Put, url, new { channels = new[] { "SMS", "EMAIL" }, optedOut = false }, ifMatch: $"\"{version + 5}\"")).StatusCode
+            .ShouldBe(HttpStatusCode.PreconditionFailed, "a stale If-Match is refused");
+        (await _staff.Send(HttpMethod.Put, url, new { channels = new[] { "SMS", "EMAIL" }, optedOut = false }, ifMatch: $"\"{version}\"")).StatusCode
+            .ShouldBe(HttpStatusCode.OK);
         var optOut = await _staff.Send(HttpMethod.Put, url, new { channels = Array.Empty<string>(), optedOut = true });
         optOut.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
         (await optOut.Code()).ShouldBe("PREFERENCE_NOT_ALLOWED");
@@ -231,9 +244,13 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
         (await _staff.Send(HttpMethod.Post, $"{consents}/withdraw", new { purposeCode = "MKT_SMS", captureChannel = "CALL_CENTRE" })).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         (await Status(second.EventId)).ShouldBe("SUPPRESSED_NO_CONSENT");
+        (await Promo(party)).GetProperty("optedOut").GetBoolean().ShouldBeTrue("a withdrawal in Party opts the party out, so the two agree");
 
         // Consent again: sent, naming the sender and how to stop.
         (await _staff.Send(HttpMethod.Post, $"{consents}/grant", new { purposeCode = "MKT_SMS", captureChannel = "PORTAL" })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var regranted = await Promo(party);
+        (regranted.GetProperty("optedOut").GetBoolean(), regranted.GetProperty("consentGranted").GetBoolean()).ShouldBe((false, true), "consent in Party clears the opt-out");
         var third = Request("PROMO_SMS", party, new());
         await Publish(third);
         await Send();
@@ -355,6 +372,49 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
         blanked.GetProperty("body").ValueKind.ShouldBe(JsonValueKind.Null);
         blanked.GetProperty("attempts")[0].GetProperty("maskedAddress").ValueKind.ShouldBe(JsonValueKind.Null);
     }
+
+    [Fact]
+    public async Task AHealthNoticesText_IsShownOnlyToThoseWhoMayReadHealthClaims_HLT008()
+    {
+        var party = await Party("Patient", email: "h@example.com", mobile: null, language: null);
+        var source = Guid.CreateVersion7();
+        await Publish(Envelope("communication.NotificationRequested", source, new NotificationRequested(NotificationTypes.ClaimStatus, party, "HEALTH_CLAIM", source,
+            new Dictionary<string, string> { ["claim_number"] = "HC-0001", ["status"] = "PAID" })));
+        await Send();
+        var notice = await Single(party);
+        (notice.GetProperty("body").ValueKind, notice.GetProperty("bodyRedacted").GetBoolean()).ShouldBe((JsonValueKind.Null, true));
+        notice.GetProperty("sourceReference").GetString().ShouldBe("HC-0001");
+
+        await fixture.Database.UserWithPermissions(Tenant, "comms-health", CommunicationPermissions.NotificationRead, "medical_claim.read");
+        var reader = await (await _factory.ClientFor(Tenant, "comms-health").GetAsync($"/api/v1/communications/notifications/{notice.GetProperty("id").GetGuid()}")).Json();
+        (reader.GetProperty("body").GetString(), reader.GetProperty("bodyRedacted").GetBoolean()).ShouldBe(("Your claim HC-0001 is PAID.", false));
+    }
+
+    [Fact]
+    public async Task AMember_ListsAndRemovesTheirPushDevices_AndNeverSeesTheToken()
+    {
+        var party = await Party("Device", email: null, mobile: null, language: null);
+        var user = await fixture.Database.UserWithPermissions(Tenant, "comms-device", CommunicationPermissions.DeviceUpdate);
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO iam.user_subject_link (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, kind, party_id,
+                                               status, requested_by, decided_by, decided_at)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, 'PARTY', @p, 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
+            """, ("t", Tenant), ("u", user), ("p", party));
+        await Member("comms-device-setup", party);
+        var member = _factory.ClientFor(Tenant, "comms-device", "member-portal");
+        var registered = await member.Send(HttpMethod.Post, "/api/v1/portal/communications/devices", new { platform = "ANDROID", token = "push-token-123" }, idempotent: true);
+        registered.StatusCode.ShouldBe(HttpStatusCode.Created, await registered.Content.ReadAsStringAsync());
+        var device = (await registered.Json()).GetProperty("id").GetGuid();
+        var listed = await (await member.GetAsync("/api/v1/portal/communications/devices")).Content.ReadAsStringAsync();
+        listed.ShouldContain(device.ToString());
+        listed.ShouldNotContain("push-token-123");
+        (await member.DeleteAsync($"/api/v1/portal/communications/devices/{device}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await (await member.GetAsync("/api/v1/portal/communications/devices")).Json())[0].GetProperty("revokedAt").ValueKind.ShouldNotBe(JsonValueKind.Null);
+    }
+
+    private async Task<JsonElement> Promo(Guid party) =>
+        (await (await _staff.GetAsync($"/api/v1/communications/parties/{party}/preferences")).Json()).EnumerateArray()
+        .Single(p => p.GetProperty("typeCode").GetString() == "PROMO_SMS");
 
     private static string ChannelFailuresCode(string code) => code;
 

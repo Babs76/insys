@@ -135,6 +135,10 @@ public static class StaticDataEndpoints
                 return;
             }
 
+            var rules = string.Join(" ", ((IEndpointRouteBuilder)scope).ServiceProvider.GetServices<IStaticRecordValidator>().Where(v => v.Schema == d.Schema && v.Table == d.Table)
+                .Select(v => v.Rules).OfType<string>());
+            var withRules = rules.Length == 0 ? "" : " Rules (422 with field errors otherwise): " + rules;
+
             scope.MapPost("/", async (TInput input, StaticDataService<TDbContext> service, HttpContext http, CancellationToken ct) =>
                     (await service.CreateDraft<TEntity, TInput>(d, input, global, ct)).ToHttp(entity =>
                     {
@@ -144,7 +148,7 @@ public static class StaticDataEndpoints
                 .Produces<TEntity>(StatusCodes.Status201Created)
                 .WithName($"Create{Pascal(d)}Draft{suffix}")
                 .WithSummary($"Create a {owner} {entityName} draft")
-                .WithDescription("Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.")
+                .WithDescription("Creates version 1 of a new code, or the next version of an existing one. The caller is the maker." + withRules)
                 .Secure(global, StaticDataPermissions.Create)
                 .RequireIdempotencyKey();
 
@@ -160,7 +164,7 @@ public static class StaticDataEndpoints
                 .RequireIfMatch()
                 .WithName($"Edit{Pascal(d)}Draft{suffix}")
                 .WithSummary($"Edit a {owner} {entityName} draft")
-                .WithDescription("Only the maker edits a draft; approved versions are immutable (SDM-002).")
+                .WithDescription("Only the maker edits a draft; approved versions are immutable (SDM-002)." + withRules)
                 .Secure(global, StaticDataPermissions.Update);
 
             scope.MapPost($"/{{code}}/versions/{{versionNumber:int}}/{{action:{Actions}}}", async (string code, int versionNumber, string action,

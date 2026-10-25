@@ -68,8 +68,9 @@ public sealed class OpenApiReviewTests
 
     private static JsonObject Responses(JsonObject operation) => operation["responses"]?.AsObject() ?? [];
 
-    private static bool HasHeader(JsonObject operation, string name) =>
-        operation["parameters"]?.AsArray().Any(p => p?["in"]?.GetValue<string>() == "header" && p["name"]?.GetValue<string>() == name) == true;
+    private static bool HasHeader(JsonObject operation, string name, bool requiredOnly = false) =>
+        operation["parameters"]?.AsArray().Any(p => p?["in"]?.GetValue<string>() == "header" && p["name"]?.GetValue<string>() == name
+                                                    && (!requiredOnly || p["required"]?.GetValue<bool>() == true)) == true;
 
     [Fact]
     public void EveryOperation_IsNamedUniquely_Summarised_Tagged_AndPermissioned_INT001()
@@ -105,7 +106,8 @@ public sealed class OpenApiReviewTests
     public void RequiredHeaders_AreDeclared_WithTheirResponses()
     {
         // An operation that answers 428 reads If-Match; one that is idempotent declares Idempotency-Key.
-        Violations(o => Responses(o.Operation)["428"] is not null != HasHeader(o.Operation, "If-Match")).ShouldBeEmpty();
+        // A required If-Match answers 428 when missing; an optional one (an idempotent replacement) only 412 when stale.
+        Violations(o => Responses(o.Operation)["428"] is not null != HasHeader(o.Operation, "If-Match", requiredOnly: true)).ShouldBeEmpty();
         Violations(o => HasHeader(o.Operation, "If-Match") && Responses(o.Operation)["412"] is null).ShouldBeEmpty();
         Operations().Count(o => HasHeader(o.Operation, "Idempotency-Key")).ShouldBeGreaterThan(100);
     }

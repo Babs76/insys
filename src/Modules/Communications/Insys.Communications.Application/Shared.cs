@@ -31,7 +31,9 @@ using Insys.Communications.Domain;
 namespace Insys.Communications.Application;
 
 /// <summary>A notification type in force (communication.cfg_notification_types).</summary>
-public sealed record NotificationTypeDefinition(string TypeCode, string Category, string? ConsentPurpose, IReadOnlyList<string> Channels, bool PortalVisible)
+/// <param name="Labels">The type's labels by language (the static data's labels), for showing it to a member.</param>
+public sealed record NotificationTypeDefinition(string TypeCode, string Category, string? ConsentPurpose, IReadOnlyList<string> Channels, bool PortalVisible,
+    System.Text.Json.JsonElement? Labels = null)
 {
     public bool IsMarketing => Category == NotificationCategories.Marketing;
 }
@@ -46,6 +48,9 @@ public sealed record ChannelProvider(string Channel, string ProviderCode, string
 public interface ICommunicationCodes
 {
     Task<NotificationTypeDefinition?> Type(string typeCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>Every type in force, by code.</summary>
+    Task<IReadOnlyList<NotificationTypeDefinition>> Types(DateOnly day, CancellationToken cancellationToken);
 
     Task<TemplateDefinition?> Template(string typeCode, string channel, string language, DateOnly day, CancellationToken cancellationToken);
 
@@ -82,6 +87,8 @@ public interface INotificationRepository
     Task<DeviceRegistration?> Device(string tokenHash, CancellationToken cancellationToken);
 
     Task<DeviceRegistration?> Device(Guid id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<DeviceRegistration>> Devices(Guid userId, CancellationToken cancellationToken);
 
     /// <summary>The party's newest registered device, for push.</summary>
     Task<DeviceRegistration?> LatestDevice(Guid partyId, CancellationToken cancellationToken);

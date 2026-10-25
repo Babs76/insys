@@ -15,7 +15,7 @@ What must be in place before the first production go-live. Each item names the d
 | Item | Detail |
 |---|---|
 | PostgreSQL 18 on RDS in af-south-1 | Confirm in the console. If 18 is not offered there yet, decide between waiting and the fallback. |
-| Connection capacity (OQ-069) | Starting assumption: 3 instances, about 116 connections each, RDS 16 GB. Set `Maximum Pool Size` per module role. |
+| Connection capacity (OQ-069) | Starting assumption: 3 instances, about 119 connections each (116 before Communications), RDS 16 GB. Set `Maximum Pool Size` per module role. |
 | More than one API instance | Share permission cache evictions between instances (ADR-006), then lift the single-instance guard. |
 
 ## Identity (ADR-017)

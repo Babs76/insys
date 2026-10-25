@@ -69,6 +69,9 @@ public interface IStaticRecordValidator
 
     /// <summary>Errors by JSON field name; empty when the record is valid.</summary>
     IReadOnlyDictionary<string, string[]> Validate(StaticRecord record);
+
+    /// <summary>The rule in words, added to the create and edit operations' descriptions so the contract states it.</summary>
+    string? Rules => null;
 }
 
 /// <summary>

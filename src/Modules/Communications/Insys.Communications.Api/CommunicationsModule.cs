@@ -65,37 +65,49 @@ public sealed class CommunicationsModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         CommunicationsStaticDataEndpoints.MapStaticData(api);
+        AuditTargetTypes.Register(nameof(BuildingBlocks.Domain.ProviderCallbacks.CallbackEndpoint));
         var communications = api.MapGroup("/communications").WithTags(Name);
 
-        communications.MapGet("/notifications", async (Guid? partyId, string? typeCode, NotificationStatus? status, string? sourceType, Guid? sourceId, string? cursor,
-                int? limit, IDispatcher d, CancellationToken ct) =>
-                await Page(cursor, limit, (after, size) => d.Query(new ListNotifications(partyId, typeCode, status, sourceType, sourceId, after, size), ct), n => n.Id))
+        communications.MapGet("/notifications", async (Guid? partyId, string? typeCode, NotificationStatus? status, string? sourceType, Guid? sourceId,
+                DateTimeOffset? from, DateTimeOffset? to, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListNotifications(partyId, typeCode, status, sourceType, sourceId, after, size, from, to), ct),
+                    n => n.Id))
             .Produces<CursorPage<NotificationSummary>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("CommunicationsListNotifications")
             .WithSummary("Notifications, by recipient party, type, status or source record, oldest first (§5)")
-            .WithDescription("Within the caller's scope (F103): a notification is in scope when the product and organisation node of the record it is about are.")
+            .WithDescription("Within the caller's scope (F103): a notification is in scope when the product and organisation node of the record it is about are. "
+                + "from/to filter on requestedAt. sourceType is GENERAL_CLAIM, LIFE_CLAIM, HEALTH_CLAIM, HEALTH_PREAUTH, GENERAL_POLICY or BILLING_ACCOUNT; "
+                + "sourceReference is that record's own number.")
             .RequirePermission(CommunicationPermissions.NotificationRead);
 
         communications.MapGet("/notifications/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetNotification(id), ct)).ToHttp(Results.Ok))
             .Produces<NotificationView>(StatusCodes.Status200OK)
             .WithName("CommunicationsGetNotification")
             .WithSummary("A notification: the text as sent, and every delivery attempt with the address masked (§5)")
+            .AlsoChecks(Health.Contracts.HealthPermissions.ClaimRead,
+                "a Health notice (sourceType HEALTH_CLAIM or HEALTH_PREAUTH): without it, subject and body are null and bodyRedacted is true (HLT-008)")
             .RequirePermission(CommunicationPermissions.NotificationRead);
 
         communications.MapGet("/parties/{partyId:guid}/preferences", async (Guid partyId, IDispatcher d, CancellationToken ct) =>
                 (await d.Query(new GetPreferences(partyId), ct)).ToHttp(Results.Ok))
             .Produces<IReadOnlyList<PreferenceView>>(StatusCodes.Status200OK)
             .WithName("CommunicationsGetPreferences")
-            .WithSummary("A party's channel preferences per notification type (§4); a type with none uses its default order")
+            .WithSummary("Every notification type the party can receive, with their channels, whether they can opt out, and their consent for marketing (§4)")
             .RequirePermission(CommunicationPermissions.PreferenceRead);
 
-        communications.MapPut("/parties/{partyId:guid}/preferences/{typeCode}", async (Guid partyId, string typeCode, PreferenceRequest r, IDispatcher d, CancellationToken ct) =>
-                (await d.Send(new SetPreference(partyId, typeCode, r.Channels ?? [], r.OptedOut), ct)).ToHttp(Results.Ok))
+        communications.MapPut("/parties/{partyId:guid}/preferences/{typeCode}", async (Guid partyId, string typeCode, PreferenceRequest r, IDispatcher d, HttpContext http,
+                CancellationToken ct) =>
+                Concurrency.OptionalExpectedVersion(http.Request) is { IsSuccess: true } expected
+                    ? (await d.Send(new SetPreference(partyId, typeCode, r.Channels ?? [], r.OptedOut, expected.Value), ct)).ToHttp(Results.Ok)
+                    : Problems.For(BuildingBlocks.Domain.ErrorCodes.PreconditionFailed, "If-Match is not a version ETag.", StatusCodes.Status412PreconditionFailed))
             .Produces<PreferenceView>(StatusCodes.Status200OK)
+            .AllowIfMatch()
             .WithName("CommunicationsSetPreference")
             .WithSummary("Set a party's channels for a type, in order, or opt out of a marketing type (§4)")
-            .WithDescription("A whole replacement, so repeating it changes nothing. A service notice keeps at least one channel (PREFERENCE_NOT_ALLOWED to opt out). "
-                + "Opting out of marketing also records the withdrawal of its consent purpose in Party.")
+            .WithDescription("A whole replacement: channels in order (null or empty only when opting out). A service notice keeps at least one channel "
+                + "(PREFERENCE_NOT_ALLOWED to opt out). Opting out of marketing also records the withdrawal of its consent purpose in Party. optedOut false never "
+                + "grants consent: only Party's consents/grant does, and that also clears an opt-out; a withdrawal in Party sets optedOut. Audited.")
             .WithEventualEffects("an opt-out reaches the party's consent ledger as a withdrawal (party consents); read the consents again to see it.")
             .RequirePermission(CommunicationPermissions.PreferenceUpdate);
 
@@ -113,14 +125,17 @@ public sealed class CommunicationsModule : IModule
             .WithSummary("The tenant's delivery callback endpoints, without their keys or secrets (ADR-023)")
             .RequirePermission(CommunicationPermissions.CallbackEndpointRead);
 
-        endpoints.MapPost("/", async (CommunicationCallbackEndpointRequest r, IDispatcher d, CancellationToken ct) =>
-                (await d.Send(new IssueCommunicationCallbackEndpoint(r.ProviderCode, r.RequireClientToken), ct))
-                .ToHttp(issued => Results.Created($"/api/v1/communications/callback-endpoints/{issued.Endpoint.Id}", issued)))
+        endpoints.MapPost("/", async (CommunicationCallbackEndpointRequest r, IDispatcher d, HttpContext http, CancellationToken ct) =>
+                (await d.Send(new IssueCommunicationCallbackEndpoint(r.ProviderCode, r.RequireClientToken), ct)).ToHttp(issued =>
+                {
+                    http.Response.Headers.CacheControl = "no-store";
+                    return Results.Created($"/api/v1/communications/callback-endpoints/{issued.Endpoint.Id}", issued);
+                }))
             .Produces<IssuedCommunicationCallbackEndpoint>(StatusCodes.Status201Created)
             .WithName("CommunicationsIssueCallbackEndpoint")
             .WithSummary("Issue a messaging provider's delivery callback endpoint; an active one is rotated (ADR-023)")
-            .WithDescription("The key and signing secret are shown once, in this response. The rotated endpoint is still accepted until Communications:Callbacks:Overlap "
-                + "(7 days) has passed. Audited.")
+            .WithDescription("The key and signing secret are shown once, in this response (Cache-Control: no-store). The key is part of the callback URL, so keep it "
+                + "out of logs. The rotated endpoint is still accepted until Communications:Callbacks:Overlap (7 days) has passed. Audited.")
             .RequireIdempotencyKey()
             .OnboardingConfiguration()
             .RequirePermission(CommunicationPermissions.CallbackEndpointUpdate);
@@ -130,6 +145,7 @@ public sealed class CommunicationsModule : IModule
             .Produces<CommunicationCallbackEndpointView>(StatusCodes.Status200OK)
             .WithName("CommunicationsRevokeCallbackEndpoint")
             .WithSummary("Revoke a delivery callback endpoint at once, for a leaked key or secret (ADR-023)")
+            .WithDescription("Revoking an endpoint already revoked is refused with 409 INVALID_STATE_TRANSITION.")
             .OnboardingConfiguration()
             .RequirePermission(CommunicationPermissions.CallbackEndpointUpdate);
 
@@ -175,8 +191,11 @@ public sealed class CommunicationsModule : IModule
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("CommunicationsSignedDeliveryCallback")
             .WithSummary("A messaging provider reports a message's delivery at its callback address (ADR-023, §5.1)")
-            .WithDescription("Headers X-Callback-Timestamp (Unix seconds), X-Callback-Id and X-Signature: HMAC-SHA256 of \"timestamp.callbackId.body\" under the "
-                + "endpoint's signing secret, hex. 204 when applied, and also for an unknown provider reference, so the provider does not retry it forever.")
+            .WithDescription("No bearer token: the tenant and provider come only from endpointKey, and providerRef is matched only among that tenant's attempts "
+                + "with that provider. An unknown, retired or revoked key, a bad signature or a timestamp outside the tolerance (5 minutes) is 401 "
+                + "CALLBACK_SIGNATURE_INVALID, the same answer for all. A callback ID already received at the endpoint (kept for twice the tolerance) is 409 "
+                + "CALLBACK_REPLAYED. 204 when applied, and also for an unknown provider reference, so the provider does not retry it forever. A delivered "
+                + "message stays delivered: a later bounce or failure for it changes nothing.")
             .RequireSignedProviderCallback();
     }
 
@@ -189,8 +208,11 @@ public sealed class CommunicationsModule : IModule
         portal.MapGet("/notifications", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPortalNotifications(after, size), ct), n => n.Id))
             .Produces<CursorPage<PortalNotificationView>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("PortalCommunicationsListNotifications")
-            .WithSummary("The member's own notifications of types the tenant shows in the portal, newest first (§8)")
+            .WithSummary("The member's own notifications that were sent, of types the tenant shows in the portal, newest first (§8)")
+            .WithDescription("For member (party) links. Brokers and providers are refused (EXTERNAL_USER_NOT_ALLOWED): no Wave 1 notice is addressed to them. "
+                + "A notice about a dependant under 18 goes to the principal and says only its status.")
             .RequirePermission(CommunicationPermissions.NotificationRead).ForPortal(member);
 
         portal.MapGet("/notifications/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalNotification(id), ct)).ToHttp(Results.Ok))
@@ -202,22 +224,32 @@ public sealed class CommunicationsModule : IModule
         portal.MapGet("/preferences", async (IDispatcher d, CancellationToken ct) => (await d.Query(new GetMyPreferences(), ct)).ToHttp(Results.Ok))
             .Produces<IReadOnlyList<PreferenceView>>(StatusCodes.Status200OK)
             .WithName("PortalCommunicationsGetPreferences")
-            .WithSummary("The member's own channel preferences (§4)")
+            .WithSummary("Every notification type the member can receive, their channels, whether they can opt out, and their consent for marketing (§4)")
             .RequirePermission(CommunicationPermissions.PreferenceRead).ForPortal(member);
 
-        portal.MapPut("/preferences/{typeCode}", async (string typeCode, PreferenceRequest r, IDispatcher d, CancellationToken ct) =>
-                (await d.Send(new SetMyPreference(typeCode, r.Channels ?? [], r.OptedOut), ct)).ToHttp(Results.Ok))
+        portal.MapPut("/preferences/{typeCode}", async (string typeCode, PreferenceRequest r, IDispatcher d, HttpContext http, CancellationToken ct) =>
+                Concurrency.OptionalExpectedVersion(http.Request) is { IsSuccess: true } expected
+                    ? (await d.Send(new SetMyPreference(typeCode, r.Channels ?? [], r.OptedOut, expected.Value), ct)).ToHttp(Results.Ok)
+                    : Problems.For(BuildingBlocks.Domain.ErrorCodes.PreconditionFailed, "If-Match is not a version ETag.", StatusCodes.Status412PreconditionFailed))
             .Produces<PreferenceView>(StatusCodes.Status200OK)
+            .AllowIfMatch()
             .WithName("PortalCommunicationsSetPreference")
             .WithSummary("The member sets their channels for a type, or opts out of a marketing type (§4)")
             .WithEventualEffects("an opt-out reaches the member's consent ledger as a withdrawal.")
             .RequirePermission(CommunicationPermissions.PreferenceUpdate).ForPortal(member);
+
+        portal.MapGet("/devices", async (IDispatcher d, CancellationToken ct) => (await d.Query(new ListMyDevices(), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<DeviceView>>(StatusCodes.Status200OK)
+            .WithName("PortalCommunicationsListDevices")
+            .WithSummary("The member's devices registered for push, revoked ones included; never the token")
+            .RequirePermission(CommunicationPermissions.DeviceUpdate).ForPortal(member);
 
         portal.MapPost("/devices", async (DeviceRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RegisterDevice(r.Platform, r.Token), ct)).ToHttp(v => Results.Created($"/api/v1/portal/communications/devices/{v.Id}", v)))
             .Produces<DeviceView>(StatusCodes.Status201Created)
             .WithName("PortalCommunicationsRegisterDevice")
             .WithSummary("A portal app registers the member's device for push (§3); the token is kept encrypted")
+            .WithDescription("The same token registered again by the same member returns the device already registered.")
             .RequireIdempotencyKey()
             .RequirePermission(CommunicationPermissions.DeviceUpdate).ForPortal(member);
 

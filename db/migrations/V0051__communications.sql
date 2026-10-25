@@ -303,6 +303,8 @@ CREATE TABLE communication.notification (
   recipient_party_id         uuid NOT NULL,
   source_type                varchar(30) NOT NULL,
   source_id                  uuid NOT NULL,
+  source_reference           varchar(40),
+  requested_at               timestamptz NOT NULL,
   product_code               varchar(15),
   org_node_code              varchar(30),
   merge_values               jsonb NOT NULL,
@@ -331,6 +333,7 @@ ALTER TABLE communication.notification FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON communication.notification
   USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);
 COMMENT ON TABLE communication.notification IS 'One message to one party, from one trigger (addenda/communications.md §5).';
+COMMENT ON COLUMN communication.notification.source_reference IS 'The source record''s own reference (claim, policy, account or authorisation number), for display.';
 COMMENT ON COLUMN communication.notification.request_key IS 'Source event ID, type and recipient: a redelivered trigger creates nothing (INT-005).';
 COMMENT ON COLUMN communication.notification.body IS 'The rendered text as sent: evidence of what was sent. Blanked when the party is anonymised.';
 

@@ -7288,6 +7288,33 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-Callback-Timestamp",
+            "in": "header",
+            "description": "Unix seconds when the provider signed; within the tolerance (5 minutes by default).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Callback-Id",
+            "in": "header",
+            "description": "The provider\u0027s unique ID for this callback, at most 100 characters; a repeat inside the replay window is refused.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Signature",
+            "in": "header",
+            "description": "HMAC-SHA256 of \u0022timestamp.callbackId.body\u0022 under the endpoint\u0027s signing secret, hex.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -7339,6 +7366,7 @@
             "$ref": "#/components/responses/Problem400"
           }
         },
+        "security": [],
         "x-permission": "signed provider callback"
       }
     },
@@ -14879,6 +14907,9 @@
                 }
               }
             }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -24461,6 +24492,7 @@
                 "BenefitAccumulator",
                 "BillingAccount",
                 "Bordereau",
+                "CallbackEndpoint",
                 "Cession",
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
@@ -24872,6 +24904,7 @@
                 "BenefitAccumulator",
                 "BillingAccount",
                 "Bordereau",
+                "CallbackEndpoint",
                 "Cession",
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
@@ -25266,7 +25299,7 @@
           "Communications"
         ],
         "summary": "Notifications, by recipient party, type, status or source record, oldest first (\u00A75)",
-        "description": "Within the caller\u0027s scope (F103): a notification is in scope when the product and organisation node of the record it is about are.",
+        "description": "Within the caller\u0027s scope (F103): a notification is in scope when the product and organisation node of the record it is about are. from/to filter on requestedAt. sourceType is GENERAL_CLAIM, LIFE_CLAIM, HEALTH_CLAIM, HEALTH_PREAUTH, GENERAL_POLICY or BILLING_ACCOUNT; sourceReference is that record\u0027s own number.",
         "operationId": "CommunicationsListNotifications",
         "parameters": [
           {
@@ -25307,6 +25340,22 @@
             }
           },
           {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "schema": {
@@ -25336,6 +25385,9 @@
                 }
               }
             }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -25407,7 +25459,13 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "notification.read"
+        "x-permission": "notification.read",
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "a Health notice (sourceType HEALTH_CLAIM or HEALTH_PREAUTH): without it, subject and body are null and bodyRedacted is true (HLT-008)"
+          }
+        ]
       }
     },
     "/api/v1/communications/parties/{partyId}/preferences": {
@@ -25415,7 +25473,7 @@
         "tags": [
           "Communications"
         ],
-        "summary": "A party\u0027s channel preferences per notification type (\u00A74); a type with none uses its default order",
+        "summary": "Every notification type the party can receive, with their channels, whether they can opt out, and their consent for marketing (\u00A74)",
         "operationId": "CommunicationsGetPreferences",
         "parameters": [
           {
@@ -25473,7 +25531,7 @@
           "Communications"
         ],
         "summary": "Set a party\u0027s channels for a type, in order, or opt out of a marketing type (\u00A74)",
-        "description": "A whole replacement, so repeating it changes nothing. A service notice keeps at least one channel (PREFERENCE_NOT_ALLOWED to opt out). Opting out of marketing also records the withdrawal of its consent purpose in Party. Completes asynchronously (GAP-027): an opt-out reaches the party\u0027s consent ledger as a withdrawal (party consents); read the consents again to see it.",
+        "description": "A whole replacement: channels in order (null or empty only when opting out). A service notice keeps at least one channel (PREFERENCE_NOT_ALLOWED to opt out). Opting out of marketing also records the withdrawal of its consent purpose in Party. optedOut false never grants consent: only Party\u0027s consents/grant does, and that also clears an opt-out; a withdrawal in Party sets optedOut. Audited. Completes asynchronously (GAP-027): an opt-out reaches the party\u0027s consent ledger as a withdrawal (party consents); read the consents again to see it.",
         "operationId": "CommunicationsSetPreference",
         "parameters": [
           {
@@ -25489,6 +25547,14 @@
             "name": "typeCode",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional: the ETag from the last GET. When given, a stale version gives 412; without it, the replacement applies.",
             "schema": {
               "type": "string"
             }
@@ -25514,6 +25580,9 @@
                 }
               }
             }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -25553,12 +25622,39 @@
           "Communications"
         ],
         "summary": "A messaging provider reports a message\u0027s delivery at its callback address (ADR-023, \u00A75.1)",
-        "description": "Headers X-Callback-Timestamp (Unix seconds), X-Callback-Id and X-Signature: HMAC-SHA256 of \u0022timestamp.callbackId.body\u0022 under the endpoint\u0027s signing secret, hex. 204 when applied, and also for an unknown provider reference, so the provider does not retry it forever.",
+        "description": "No bearer token: the tenant and provider come only from endpointKey, and providerRef is matched only among that tenant\u0027s attempts with that provider. An unknown, retired or revoked key, a bad signature or a timestamp outside the tolerance (5 minutes) is 401 CALLBACK_SIGNATURE_INVALID, the same answer for all. A callback ID already received at the endpoint (kept for twice the tolerance) is 409 CALLBACK_REPLAYED. 204 when applied, and also for an unknown provider reference, so the provider does not retry it forever. A delivered message stays delivered: a later bounce or failure for it changes nothing.",
         "operationId": "CommunicationsSignedDeliveryCallback",
         "parameters": [
           {
             "name": "endpointKey",
             "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Callback-Timestamp",
+            "in": "header",
+            "description": "Unix seconds when the provider signed; within the tolerance (5 minutes by default).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Callback-Id",
+            "in": "header",
+            "description": "The provider\u0027s unique ID for this callback, at most 100 characters; a repeat inside the replay window is refused.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Signature",
+            "in": "header",
+            "description": "HMAC-SHA256 of \u0022timestamp.callbackId.body\u0022 under the endpoint\u0027s signing secret, hex.",
             "required": true,
             "schema": {
               "type": "string"
@@ -25607,6 +25703,7 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
+        "security": [],
         "x-permission": "signed provider callback"
       }
     },
@@ -25654,7 +25751,7 @@
           "Communications"
         ],
         "summary": "Issue a messaging provider\u0027s delivery callback endpoint; an active one is rotated (ADR-023)",
-        "description": "The key and signing secret are shown once, in this response. The rotated endpoint is still accepted until Communications:Callbacks:Overlap (7 days) has passed. Audited.",
+        "description": "The key and signing secret are shown once, in this response (Cache-Control: no-store). The key is part of the callback URL, so keep it out of logs. The rotated endpoint is still accepted until Communications:Callbacks:Overlap (7 days) has passed. Audited.",
         "operationId": "CommunicationsIssueCallbackEndpoint",
         "parameters": [
           {
@@ -25723,6 +25820,7 @@
           "Communications"
         ],
         "summary": "Revoke a delivery callback endpoint at once, for a leaked key or secret (ADR-023)",
+        "description": "Revoking an endpoint already revoked is refused with 409 INVALID_STATE_TRANSITION.",
         "operationId": "CommunicationsRevokeCallbackEndpoint",
         "parameters": [
           {
@@ -25782,7 +25880,8 @@
         "tags": [
           "Communications"
         ],
-        "summary": "The member\u0027s own notifications of types the tenant shows in the portal, newest first (\u00A78)",
+        "summary": "The member\u0027s own notifications that were sent, of types the tenant shows in the portal, newest first (\u00A78)",
+        "description": "For member (party) links. Brokers and providers are refused (EXTERNAL_USER_NOT_ALLOWED): no Wave 1 notice is addressed to them. A notice about a dependant under 18 goes to the principal and says only its status.",
         "operationId": "PortalCommunicationsListNotifications",
         "parameters": [
           {
@@ -25815,6 +25914,9 @@
                 }
               }
             }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -25894,7 +25996,7 @@
         "tags": [
           "Communications"
         ],
-        "summary": "The member\u0027s own channel preferences (\u00A74)",
+        "summary": "Every notification type the member can receive, their channels, whether they can opt out, and their consent for marketing (\u00A74)",
         "operationId": "PortalCommunicationsGetPreferences",
         "responses": {
           "200": {
@@ -25945,6 +26047,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional: the ETag from the last GET. When given, a stale version gives 412; without it, the replacement applies.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -25967,6 +26077,9 @@
                 }
               }
             }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -26001,11 +26114,50 @@
       }
     },
     "/api/v1/portal/communications/devices": {
+      "get": {
+        "tags": [
+          "Communications"
+        ],
+        "summary": "The member\u0027s devices registered for push, revoked ones included; never the token",
+        "operationId": "PortalCommunicationsListDevices",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommunicationsDeviceView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "notification_device.update"
+      },
       "post": {
         "tags": [
           "Communications"
         ],
         "summary": "A portal app registers the member\u0027s device for push (\u00A73); the token is kept encrypted",
+        "description": "The same token registered again by the same member returns the device already registered.",
         "operationId": "PortalCommunicationsRegisterDevice",
         "parameters": [
           {
@@ -27687,6 +27839,12 @@
             "format": "int16"
           },
           "channel": {
+            "enum": [
+              "EMAIL",
+              "SMS",
+              "PUSH",
+              "WHATSAPP"
+            ],
             "type": "string"
           },
           "providerCode": {
@@ -27847,8 +28005,10 @@
           "recipientPartyId",
           "sourceType",
           "sourceId",
+          "sourceReference",
           "status",
           "channel",
+          "requestedAt",
           "sentAt",
           "endedAt"
         ],
@@ -27872,14 +28032,31 @@
             "type": "string",
             "format": "uuid"
           },
-          "status": {
-            "$ref": "#/components/schemas/CommunicationsNotificationStatus"
-          },
-          "channel": {
+          "sourceReference": {
             "type": [
               "null",
               "string"
             ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommunicationsNotificationStatus"
+          },
+          "channel": {
+            "enum": [
+              "EMAIL",
+              "SMS",
+              "PUSH",
+              "WHATSAPP",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
           },
           "sentAt": {
             "type": [
@@ -27902,9 +28079,11 @@
           "id",
           "typeCode",
           "category",
+          "consentPurpose",
           "recipientPartyId",
           "sourceType",
           "sourceId",
+          "sourceReference",
           "productCode",
           "orgNodeCode",
           "channels",
@@ -27913,6 +28092,8 @@
           "channel",
           "subject",
           "body",
+          "bodyRedacted",
+          "requestedAt",
           "sentAt",
           "deliveredAt",
           "endedAt",
@@ -27935,6 +28116,12 @@
             ],
             "type": "string"
           },
+          "consentPurpose": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "recipientPartyId": {
             "type": "string",
             "format": "uuid"
@@ -27945,6 +28132,12 @@
           "sourceId": {
             "type": "string",
             "format": "uuid"
+          },
+          "sourceReference": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "productCode": {
             "type": [
@@ -27971,6 +28164,13 @@
             "$ref": "#/components/schemas/CommunicationsNotificationStatus"
           },
           "channel": {
+            "enum": [
+              "EMAIL",
+              "SMS",
+              "PUSH",
+              "WHATSAPP",
+              null
+            ],
             "type": [
               "null",
               "string"
@@ -27987,6 +28187,13 @@
               "null",
               "string"
             ]
+          },
+          "bodyRedacted": {
+            "type": "boolean"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
           },
           "sentAt": {
             "type": [
@@ -28033,6 +28240,9 @@
           "channel",
           "subject",
           "body",
+          "sourceType",
+          "sourceId",
+          "sourceReference",
           "sentAt",
           "deliveredAt"
         ],
@@ -28049,6 +28259,13 @@
             "$ref": "#/components/schemas/CommunicationsNotificationStatus"
           },
           "channel": {
+            "enum": [
+              "EMAIL",
+              "SMS",
+              "PUSH",
+              "WHATSAPP",
+              null
+            ],
             "type": [
               "null",
               "string"
@@ -28061,6 +28278,19 @@
             ]
           },
           "body": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceReference": {
             "type": [
               "null",
               "string"
@@ -28106,14 +28336,43 @@
       "CommunicationsPreferenceView": {
         "required": [
           "typeCode",
+          "category",
+          "labels",
+          "allowedChannels",
           "channels",
           "optedOut",
+          "canOptOut",
+          "consentPurpose",
+          "consentGranted",
           "rowVersion"
         ],
         "type": "object",
         "properties": {
           "typeCode": {
             "type": "string"
+          },
+          "category": {
+            "enum": [
+              "SERVICE",
+              "MARKETING"
+            ],
+            "type": "string"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "allowedChannels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "channels": {
             "type": "array",
@@ -28124,9 +28383,25 @@
           "optedOut": {
             "type": "boolean"
           },
+          "canOptOut": {
+            "type": "boolean"
+          },
+          "consentPurpose": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "consentGranted": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
           "rowVersion": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
+              "null",
               "integer",
               "string"
             ],
