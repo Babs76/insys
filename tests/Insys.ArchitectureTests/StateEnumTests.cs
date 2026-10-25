@@ -94,6 +94,8 @@ public sealed partial class StateEnumTests
         [("Document", "Requested", "missing")] = "The Requested state is document.generation_request, before a document exists.",
         [("StaticDataChange", "Draft", "missing")] = "The Draft state is the draft row in the owning module's table; a change request starts at submission.",
         [("PrivilegedAccessGrant", "Revoked", "extra")] = "OQ-041: V0007's CHECK allows REVOKED; domain-model.json has no transition to it.",
+        [("PayoutBatch", "Rejected", "extra")] = "D-1 (Wave 2 batch 1, signed off): an approval that is not granted ends the batch as Rejected; domain-model.json has no reject transition.",
+        [("ProviderPaymentRun", "Rejected", "extra")] = "D-2 (Wave 2 batch 1, signed off): an approval that is not granted ends the run as Rejected; domain-model.json has no reject transition.",
         [("UserAccount", "PendingIdentity", "extra")] = "keycloak-user-provisioning (signed off 24 October 2026) §4: a user of INSYS's own realm waits for its Keycloak user.",
     };
 
