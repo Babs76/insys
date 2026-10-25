@@ -74,6 +74,12 @@ public static class PrerequisiteCodes
     /// <summary>Item: username or email. The realm already has a user with it, in another tenant; the operator resolves it.</summary>
     public const string KeycloakUserConflict = "KEYCLOAK_USER_CONFLICT";
 
+    /// <summary>
+    /// Item: Keycloak's reason (for example error-person-name-invalid-character). Keycloak refused the request itself (a 4xx
+    /// that retrying cannot fix); the user's details are corrected, then the delivery is retried (BR-006).
+    /// </summary>
+    public const string KeycloakUserRefused = "KEYCLOAK_USER_REFUSED";
+
     /// <summary>Item: the realm. The user exists and is linked, but Keycloak could not send its invitation email.</summary>
     public const string KeycloakEmailUnsent = "KEYCLOAK_EMAIL_UNSENT";
 

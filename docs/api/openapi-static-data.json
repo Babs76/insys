@@ -192051,7 +192051,7 @@
                 "type": "string"
               }
             },
-            "description": "Validation failures (422): field name to its messages."
+            "description": "Validation failures (422): field name, as the request body spells it (camel case, with a path such as lines[0].amount for a nested field), to its messages."
           },
           "correlationId": {
             "type": "string",

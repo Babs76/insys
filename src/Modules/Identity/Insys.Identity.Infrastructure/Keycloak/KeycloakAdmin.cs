@@ -62,6 +62,15 @@ public sealed class KeycloakConflictException(string field) : Exception($"Keyclo
     public string Field { get; } = field;
 }
 
+/// <summary>
+/// Keycloak refused the request itself (a 4xx other than 401, 409 and the retryable 408 and 429): retrying the same request
+/// cannot succeed (BR-006). <see cref="Reason"/> is Keycloak's errorMessage, or its status.
+/// </summary>
+public sealed class KeycloakRefusedException(int status, string reason) : Exception($"Keycloak refused the request ({status}): {reason}")
+{
+    public string Reason { get; } = reason;
+}
+
 /// <summary>Keycloak could not send an email (its SMTP settings, or the mail server).</summary>
 public sealed class KeycloakEmailException(string message) : Exception(message);
 
@@ -184,8 +193,36 @@ internal sealed class KeycloakAdmin(IHttpClientFactory clients, IOptions<Keycloa
             _token = null;
         }
 
+        // A refusal retrying cannot fix: say why, never "unavailable" (BR-006).
+        if ((int)status is >= 400 and < 500 && status is not (HttpStatusCode.Unauthorized or HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests))
+        {
+            throw new KeycloakRefusedException((int)status, Reason(detail) ?? ((int)status).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
         // Keycloak's error text names what failed (for example "Failed to send execute actions email"); it holds no secret.
         throw new KeycloakUnavailableException($"Keycloak answered {(int)status}: {Truncate(detail, 200)}");
+    }
+
+    /// <summary>Keycloak's errorMessage (or error) from its JSON error body, if it has one.</summary>
+    private static string? Reason(string detail)
+    {
+        try
+        {
+            using var json = System.Text.Json.JsonDocument.Parse(detail);
+            foreach (var name in new[] { "errorMessage", "error" })
+            {
+                if (json.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object && json.RootElement.TryGetProperty(name, out var value)
+                    && value.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    return Truncate(value.GetString()!, 80);
+                }
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+        }
+
+        return null;
     }
 
     private async Task<string> Token(CancellationToken cancellationToken)

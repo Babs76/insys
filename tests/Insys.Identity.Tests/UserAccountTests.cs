@@ -253,4 +253,11 @@ public sealed class UserAccountTests
     [Fact]
     public void OrdinaryAssignment_IsActiveAtOnce() =>
         User().AssignRole(Role("CLERK"), [], [], Today, null, null, null, Admin, Today, Now).IsSuccess.ShouldBeTrue();
+
+    [Theory]
+    [InlineData("Pat Ng (Contractor)", "( )")]
+    [InlineData("A/B {x}", "/ { }")]
+    [InlineData("Zoë O'Brien-Smith", "")]
+    public void KeycloakNames_ListTheCharactersKeycloaksNameValidatorRefuses_BR006(string name, string refused) =>
+        string.Join(" ", KeycloakNames.Refused(name)).ShouldBe(refused);
 }

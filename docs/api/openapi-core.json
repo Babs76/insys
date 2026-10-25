@@ -24174,7 +24174,7 @@
           "Identity"
         ],
         "summary": "Provision a user",
-        "description": "For INSYS\u0027s own realm (idpCode KEYCLOAK) give email and no externalSubject: the user is PendingIdentity until INSYS has created its Keycloak user, then Invited (Keycloak emails it to set a password, and a one-time code with mfaEnrolled) until its first sign-in. For a federated identity provider give externalSubject: the user is Invited until the first request with a token for it. A user with no roles can sign in, and do nothing until a role is assigned. Completes asynchronously (GAP-027): for INSYS\u0027s own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the creation is parked (KEYCLOAK_UNAVAILABLE) and retried.",
+        "description": "For INSYS\u0027s own realm (idpCode KEYCLOAK) give email and no externalSubject: the user is PendingIdentity until INSYS has created its Keycloak user, then Invited (Keycloak emails it to set a password, and a one-time code with mfaEnrolled) until its first sign-in. For a federated identity provider give externalSubject: the user is Invited until the first request with a token for it. A user with no roles can sign in, and do nothing until a role is assigned. displayName must not contain a character Keycloak\u0027s name validator refuses (\u003C \u003E \u0026 \u0022 $ % ! # ? \u00A7 ; * ~ / \\ | ^ = [ ] { } ( ) and control characters): a 422 with a field error on displayName (BR-006). Completes asynchronously (GAP-027): for INSYS\u0027s own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the creation is parked (KEYCLOAK_UNAVAILABLE) and retried; if Keycloak refuses the user for a reason retrying cannot fix, it is parked (KEYCLOAK_USER_REFUSED, with Keycloak\u0027s reason) for someone to correct.",
         "operationId": "ProvisionUser",
         "parameters": [
           {
@@ -24238,7 +24238,7 @@
         "x-function": [
           "PROVISION_USER"
         ],
-        "x-eventual-effects": "for INSYS\u0027s own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the creation is parked (KEYCLOAK_UNAVAILABLE) and retried."
+        "x-eventual-effects": "for INSYS\u0027s own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the creation is parked (KEYCLOAK_UNAVAILABLE) and retried; if Keycloak refuses the user for a reason retrying cannot fix, it is parked (KEYCLOAK_USER_REFUSED, with Keycloak\u0027s reason) for someone to correct."
       },
       "get": {
         "tags": [
@@ -42931,7 +42931,7 @@
                 "type": "string"
               }
             },
-            "description": "Validation failures (422): field name to its messages."
+            "description": "Validation failures (422): field name, as the request body spells it (camel case, with a path such as lines[0].amount for a nested field), to its messages."
           },
           "correlationId": {
             "type": "string",

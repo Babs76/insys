@@ -31,6 +31,7 @@ using Insys.Identity.Application.Access;
 using Insys.Identity.Application.Tenants;
 using Insys.Identity.Application.Users;
 using Insys.Identity.Domain.Access;
+using Insys.Identity.Domain.Users;
 using Insys.Identity.Contracts;
 using Insys.Identity.Infrastructure;
 using Microsoft.AspNetCore.Builder;
@@ -146,9 +147,12 @@ public sealed class IdentityModule : IModule
             .WithDescription("For INSYS's own realm (idpCode KEYCLOAK) give email and no externalSubject: the user is PendingIdentity until INSYS has created its "
                 + "Keycloak user, then Invited (Keycloak emails it to set a password, and a one-time code with mfaEnrolled) until its first sign-in. For a "
                 + "federated identity provider give externalSubject: the user is Invited until the first request with a token for it. A user with no roles "
-                + "can sign in, and do nothing until a role is assigned.")
+                + "can sign in, and do nothing until a role is assigned. displayName must not contain a character Keycloak's name validator refuses ("
+                + string.Join(" ", KeycloakNames.ProhibitedCharacters.ToCharArray()) + " and control characters): a 422 with a field error on "
+                + "displayName (BR-006).")
             .WithEventualEffects("for INSYS's own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the "
-                + "creation is parked (KEYCLOAK_UNAVAILABLE) and retried.")
+                + "creation is parked (KEYCLOAK_UNAVAILABLE) and retried; if Keycloak refuses the user for a reason retrying cannot fix, it is parked "
+                + "(KEYCLOAK_USER_REFUSED, with Keycloak's reason) for someone to correct.")
             .RequirePermission(IdentityPermissions.UserCreate)
             .RequireIdempotencyKey();
 

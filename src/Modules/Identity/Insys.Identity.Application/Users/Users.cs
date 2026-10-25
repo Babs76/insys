@@ -153,6 +153,9 @@ public sealed class ProvisionUserValidator : AbstractValidator<ProvisionUser>
     {
         RuleFor(c => c.Username).NotEmpty().MaximumLength(120);
         RuleFor(c => c.DisplayName).NotEmpty().MaximumLength(120);
+        // BR-006: INSYS's own realm takes the name to Keycloak, whose person-name validator refuses some characters.
+        RuleFor(c => c.DisplayName).Must(name => KeycloakNames.Refused(name).Count == 0).When(c => c.IdpCode == UserAccount.OwnRealm)
+            .WithMessage(c => $"Keycloak does not accept these characters in a name: {string.Join(" ", KeycloakNames.Refused(c.DisplayName))}.");
         RuleFor(c => c.IdpCode).NotEmpty().MaximumLength(15);
         RuleFor(c => c.ExternalSubject).NotEmpty().MaximumLength(120).When(c => c.IdpCode != UserAccount.OwnRealm);
         RuleFor(c => c.ExternalSubject).Empty().When(c => c.IdpCode == UserAccount.OwnRealm)

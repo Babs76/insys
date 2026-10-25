@@ -71,8 +71,15 @@ public static class RequestValidation
         }
 
         var details = failures
-            .GroupBy(f => f.PropertyName)
+            .GroupBy(f => FieldName(f.PropertyName))
             .ToDictionary(g => g.Key, g => g.Select(f => f.ErrorMessage).ToArray());
         return Error.Validation(ErrorCodes.ValidationFailed, "The request is not valid.", details);
     }
+
+    /// <summary>
+    /// The request's own field name, as the JSON body spells it: each segment of a validator's property path in camel case
+    /// ("Lines[0].Amount" is "lines[0].amount"), so a client can put the message next to its field (BR-006).
+    /// </summary>
+    public static string FieldName(string propertyName) => string.Join('.', propertyName.Split('.')
+        .Select(segment => segment.Length == 0 || char.IsLower(segment[0]) ? segment : char.ToLowerInvariant(segment[0]) + segment[1..]));
 }

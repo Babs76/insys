@@ -735,3 +735,21 @@ public static class IdentityErrorCodes
     public const string TenantHasUsers = "TENANT_HAS_USERS";
 
 }
+
+/// <summary>
+/// The names Keycloak accepts for a user (BR-006): its default user profile validates firstName and lastName with
+/// person-name-prohibited-characters and at most 255 characters. INSYS checks a display name for INSYS's own realm with
+/// the same rule when the user is provisioned, so Keycloak never refuses it later.
+/// </summary>
+public static partial class KeycloakNames
+{
+    /// <summary>The characters Keycloak's person-name-prohibited-characters validator refuses by default, and control characters.</summary>
+    public const string ProhibitedCharacters = "<>&\"$%!#?§;*~/\\|^=[]{}()";
+
+    [System.Text.RegularExpressions.GeneratedRegex("[<>&\"$%!#?§;*~/\\\\|^=\\[\\]{}()\\u0000-\\u001F\\u007F]")]
+    private static partial System.Text.RegularExpressions.Regex Prohibited();
+
+    /// <summary>The characters of <paramref name="name"/> Keycloak would refuse, each once; empty when it accepts the name.</summary>
+    public static IReadOnlyList<char> Refused(string? name) =>
+        string.IsNullOrEmpty(name) ? [] : Prohibited().Matches(name).Select(m => m.Value[0]).Distinct().ToList();
+}

@@ -43,7 +43,8 @@ namespace Insys.Identity.Infrastructure.Keycloak;
 /// <item>disables the Keycloak user and ends its sessions when the user is locked or disabled, and enables it again on unlock.</item>
 /// </list>
 /// Keycloak unreachable parks the delivery (KEYCLOAK_UNAVAILABLE); a username or email of another tenant's user parks it
-/// for the operator (KEYCLOAK_USER_CONFLICT); an email that cannot be sent parks only the email (KEYCLOAK_EMAIL_UNSENT).
+/// for the operator (KEYCLOAK_USER_CONFLICT); any other refusal retrying cannot fix (a 4xx) parks it with Keycloak's reason
+/// (KEYCLOAK_USER_REFUSED, BR-006), never as unavailable; an email that cannot be sent parks only the email (KEYCLOAK_EMAIL_UNSENT).
 /// Keycloak usernames are tenant-qualified, "&lt;tenant code&gt;.&lt;username&gt;", as one realm serves every tenant.
 /// </summary>
 public sealed class KeycloakProvisioning(IUserRepository users, IKeycloakAdmin keycloak, ITenantProfiles tenants, ITenantContext tenant, IClock clock,
@@ -157,6 +158,10 @@ public sealed class KeycloakProvisioning(IUserRepository users, IKeycloakAdmin k
         catch (KeycloakConflictException conflict)
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.KeycloakUserConflict, conflict.Field);
+        }
+        catch (KeycloakRefusedException refused)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.KeycloakUserRefused, refused.Reason);
         }
     }
 

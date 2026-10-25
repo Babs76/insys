@@ -199,6 +199,35 @@ public sealed class KeycloakProvisioningTests(DatabaseFixture fixture, KeycloakP
         ["Identity:PermissionCache:AllowMultipleInstances"] = "true",
     };
 
+    /// <summary>
+    /// BR-006: a name Keycloak's person-name validator refuses is a field error when the user is provisioned; and a refusal
+    /// from Keycloak that retrying cannot fix parks under its own code with Keycloak's reason, never as unavailable.
+    /// </summary>
+    [Fact]
+    public async Task ANameKeycloakRefuses_IsAFieldError_AndARefusalParksWithItsReason_BR006()
+    {
+        var refused = await _admin.Send(HttpMethod.Post, "/api/v1/identity/users", new
+        {
+            username = "pat.ng", displayName = "Pat Ng (Contractor)", idpCode = "KEYCLOAK", email = "pat.ng@example.com", mfaEnrolled = false,
+        }, idempotent: true);
+        var body = await refused.Content.ReadAsStringAsync();
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, body);
+        (await refused.Json()).GetProperty("errors").GetProperty("displayName").EnumerateArray().Select(e => e.GetString())
+            .ShouldContain("Keycloak does not accept these characters in a name: ( ).", body);
+
+        // A name that reaches Keycloak anyway (changed in the database after provisioning, say): Keycloak's 400 parks the
+        // creation under KEYCLOAK_USER_REFUSED with Keycloak's reason, for someone to correct, not as Keycloak being down.
+        var user = await Provision(_admin, "lou.ng");
+        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_account SET display_name = 'Lou (Temp) Ng' WHERE id = @u", ("u", user));
+        await _factory.DrainOutbox();
+
+        var parked = await Parked("iam.KeycloakProvisioning.UserIdentityRequested", user);
+        parked.ShouldNotBeNull();
+        parked.ShouldStartWith("KEYCLOAK_USER_REFUSED ");
+        parked.ShouldNotContain("KEYCLOAK_UNAVAILABLE");
+        (await realm.Users("tena.lou.ng")).ShouldBeEmpty();
+    }
+
     private static async Task<Guid> Provision(HttpClient client, string username, bool mfa = false)
     {
         var created = await client.Send(HttpMethod.Post, "/api/v1/identity/users", new

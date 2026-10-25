@@ -142,7 +142,7 @@ public static class ErrorContract
         schema.Properties["errors"] = new OpenApiSchema
         {
             Type = JsonSchemaType.Object | JsonSchemaType.Null,
-            Description = "Validation failures (422): field name to its messages.",
+            Description = "Validation failures (422): field name, as the request body spells it (camel case, with a path such as lines[0].amount for a nested field), to its messages.",
             AdditionalProperties = new OpenApiSchema { Type = JsonSchemaType.Array, Items = new OpenApiSchema { Type = JsonSchemaType.String } },
         };
         schema.Properties["correlationId"] = new OpenApiSchema

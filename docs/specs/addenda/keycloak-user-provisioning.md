@@ -43,6 +43,8 @@ The new request field `email` is required for realm `insys`. The command returns
 - **The Keycloak user** is created by Identity's own consumer of that event.
   - A Keycloak 5xx, timeout or connection failure throws `PrerequisiteMissingException(KEYCLOAK_UNAVAILABLE, "insys")`. The delivery is parked under ADR-022: alerted, retried by the parking job, and escalated on the tenant's schedule. The user stays `PENDING_IDENTITY` and cannot sign in.
   - A 4xx that will not clear by retrying (a username or email already used in the realm) parks with `KEYCLOAK_USER_CONFLICT` and the field. The operator resolves it: a different username, or linking the existing user by its ID.
+  - Any other 4xx (other than 401, 408 and 429, which are retried as unavailable) parks with `KEYCLOAK_USER_REFUSED` and Keycloak's reason (its `errorMessage`, for example `error-person-name-invalid-character`), never as unavailable (BR-006). Someone corrects the user, then retries the delivery.
+  - A display name with a character Keycloak's name validator refuses (`< > & " $ % ! # ? § ; * ~ / \ | ^ = [ ] { } ( )` and control characters) is refused when the user is provisioned, as a 422 with a field error on `displayName`, so it does not reach Keycloak.
 - **Exactly one Keycloak user:**
   - Before creating, the consumer searches the realm for a user with the same username **and** `tenant_id` attribute. If found, it is linked, not created again. That covers a retry after Keycloak created the user but before INSYS recorded its ID.
   - Recording `externalSubject` and moving to `ACTIVE` happen in the consumer's transaction, with its inbox row (INT-005), so a replay of the event finds the user already linked and does nothing.
