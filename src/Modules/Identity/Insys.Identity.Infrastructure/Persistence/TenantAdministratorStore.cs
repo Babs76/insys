@@ -39,7 +39,7 @@ namespace Insys.Identity.Infrastructure.Persistence;
 /// rows are written through <see cref="BuildingBlocks.Infrastructure.Persistence.ModuleDbContext.WithinTenant"/>: in
 /// the caller's transaction, with row-level security set to the new tenant for that block only.
 /// </summary>
-internal sealed class TenantAdministratorStore(IdentityDbContext db, FunctionCatalogueReader catalogue, IClock clock) : ITenantAdministrators
+internal sealed class TenantAdministratorStore(IdentityDbContext db, IClock clock) : ITenantAdministrators
 {
     public Task<TenantAdministratorRequest?> Get(Guid requestId, CancellationToken cancellationToken) =>
         db.TenantAdministratorRequests.SingleOrDefaultAsync(r => r.Id == requestId, cancellationToken);
@@ -93,9 +93,9 @@ internal sealed class TenantAdministratorStore(IdentityDbContext db, FunctionCat
                 RoleCode = request.Role,
             });
 
-            // ADR-026: the role holds the functions that need only the agreed permissions, in force with it.
+            // ADR-026: the role holds the functions the two platform administrators agreed (OQ-099), in force with it.
             var grants = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RoleFunctionAssignments)).Lifecycle;
-            foreach (var function in FunctionsWithin(await catalogue.Functions(today, cancellationToken), request.Permissions))
+            foreach (var function in request.Functions)
             {
                 db.Set<RoleFunctionAssignments>().Add(new RoleFunctionAssignments
                 {
@@ -117,8 +117,4 @@ internal sealed class TenantAdministratorStore(IdentityDbContext db, FunctionCat
         }, cancellationToken);
         return user.Id;
     }
-
-    /// <summary>The functions whose required permissions are all among these (iam.functions_within).</summary>
-    internal static IEnumerable<string> FunctionsWithin(IReadOnlyDictionary<string, CatalogueEntry> functions, IReadOnlyCollection<string> permissions) =>
-        functions.Values.Where(f => f.Permissions.Count > 0 && f.Permissions.All(permissions.Contains)).Select(f => f.Code).Order(StringComparer.Ordinal);
 }

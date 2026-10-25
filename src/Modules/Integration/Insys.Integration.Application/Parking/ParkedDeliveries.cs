@@ -94,7 +94,8 @@ public sealed record ChangeParkingSetting(string ConfigurationOwnerRole, string?
 /// <summary>
 /// The Integration dashboard figures (GAP-046, addenda/dashboard-figures.md): DELIVERIES_PARKED by prerequisite code;
 /// DELIVERIES_FAILING (failing, retrying or waiting behind one); DEAD_LETTERS_OPEN (no resolution yet);
-/// WEBHOOK_DELIVERIES_FAILING (failed for good, or pending after a failed attempt); OLDEST_PARKED_AT.
+/// WEBHOOK_DELIVERIES_FAILING (failed for good, or pending after a failed attempt); OLDEST_PARKED_AT; JOB_FUNCTIONS_OFF (the JOB
+/// functions the tenant switched off, by code, whose work waits: OQ-098).
 /// </summary>
 public sealed record DeliveriesSummaryQuery : IQuery<DashboardSummary>;
 
@@ -105,11 +106,21 @@ public static class DeliveryFigures
     public const string DeadLettersOpen = "DEAD_LETTERS_OPEN";
     public const string WebhooksFailing = "WEBHOOK_DELIVERIES_FAILING";
     public const string OldestParkedAt = "OLDEST_PARKED_AT";
+    public const string JobFunctionsOff = "JOB_FUNCTIONS_OFF";
 }
 
-internal sealed class DeliveriesSummaryHandler(IParkedDeliveryStore store) : IQueryHandler<DeliveriesSummaryQuery, DashboardSummary>
+internal sealed class DeliveriesSummaryHandler(IParkedDeliveryStore store, IFunctionAvailability availability, ITenantContext tenant)
+    : IQueryHandler<DeliveriesSummaryQuery, DashboardSummary>
 {
-    public async Task<Result<DashboardSummary>> Handle(DeliveriesSummaryQuery query, CancellationToken cancellationToken) => await store.Summary(cancellationToken);
+    public async Task<Result<DashboardSummary>> Handle(DeliveriesSummaryQuery query, CancellationToken cancellationToken)
+    {
+        var summary = await store.Summary(cancellationToken);
+        var off = await availability.JobsSwitchedOff(tenant.RequireTenantId(), cancellationToken);
+        return summary with
+        {
+            Figures = [.. summary.Figures, new DashboardFigure(DeliveryFigures.JobFunctionsOff, off.Count, By: off.Select(code => new FigurePart(code, 1)).ToList())],
+        };
+    }
 }
 
 public static class ParkingErrorCodes

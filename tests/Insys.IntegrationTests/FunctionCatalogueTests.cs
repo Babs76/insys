@@ -79,7 +79,9 @@ public sealed class FunctionCatalogueTests(DatabaseFixture fixture) : IClassFixt
         await fixture.Host();
         var functions = FunctionRegistry.All();
         var codes = functions.Select(f => f.Function.Code).ToHashSet(StringComparer.Ordinal);
-        functions.Where(f => f.Function.Kind != FunctionKind.Job && f.Permissions.Count == 0).Select(f => f.Function.Code).ToList().ShouldBeEmpty();
+        // A privileged action a rule checks, rather than an operation, needs no permission (TENANT_SWITCH_OFF_MONEY_JOBS, OQ-098).
+        functions.Where(f => f.Function.Kind != FunctionKind.Job && f.Permissions.Count == 0 && !(f.Function.Privileged && f.Function.Endpoints.Count == 0))
+            .Select(f => f.Function.Code).ToList().ShouldBe([]);
         functions.Where(f => f.Function.Kind == FunctionKind.Action && (f.Function.Parent is null || !codes.Contains(f.Function.Parent)))
             .Select(f => f.Function.Code).ToList().ShouldBeEmpty();
     }

@@ -2,7 +2,16 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 1 batch 3 (branch `wave1-3`, not merged): the function catalogue (ADR-026) and Communications follow-ups
+## Wave 1 batch 4 (branch `wave1-4`, not merged): function catalogue decisions; business dates
+
+### Breaking
+- **`POST /api/v1/identity/tenant-administrators` names functions** (OQ-099): `functions` replaces `permissions`, and the request view returns `functions`. Each must be a staff function in force in the catalogue, else 422 `VALIDATION_FAILED` on `functions` ("Not a staff function in force: …"). The tenant's TENANT_ADMIN role is granted exactly those functions.
+
+### Changed behaviour
+- **Switching off a tenant's Billing or Payments daily job is privileged** (OQ-098): submitting a `tenancy/static/tenant-function-availability` version with `enabled: false` for `BILLING_DAILY_JOBS` or `PAYMENTS_DAILY_JOBS` needs the privileged function `TENANT_SWITCH_OFF_MONEY_JOBS` (403 `FUNCTION_NOT_GRANTED` otherwise). Holding it makes a role privileged (approval and MFA to assign).
+- **Switched-off JOB functions are shown** (OQ-098): `GET /integration/deliveries/summary` gains the figure `JOB_FUNCTIONS_OFF` (count, by function code); `/health` gains the check `job-functions`, naming each tenant's switched-off JOB functions (Healthy: it is the tenant's choice).
+
+## Wave 1 batch 3 (merged at `5583285`): the function catalogue (ADR-026) and Communications follow-ups
 
 ### Breaking
 - **`POST /api/v1/payments/callback-endpoints` needs `Idempotency-Key`**, as Communications' already does. Without it: 422 `IDEMPOTENCY_KEY_REQUIRED`.

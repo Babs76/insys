@@ -55,6 +55,7 @@ public static class TenancyInfrastructure
         services.AddSingleton<IOrganisationStructure, OrganisationStructureQuery>();
         services.AddSingleton<ITenantProfiles, TenantProfiles>();
         services.AddSingleton<ITenantFunctionSettings, TenantFunctionSettingsQuery>();
+        services.AddScoped<IStaticChangeGuard, MoneyJobSwitchGuard>();
         services.AddMemoryCache();
         services.AddSingleton<IStaticRecordValidator, LocaleDefaultsValidator>();
         services.AddSingleton<TenantLanguageSettings>();

@@ -197,6 +197,58 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
             "enabled again, the delivery is retried; it parks only on what the new tenant still lacks");
     }
 
+    [Fact]
+    public async Task SwitchingOffABillingOrPaymentsDailyJob_IsAPrivilegedFunction_OQ098()
+    {
+        const string url = "/api/v1/tenancy/static/tenant-function-availability";
+        var (tenant, _) = await NewTenant();
+        await fixture.Database.UserWithPermissions(tenant, "config-maker", "static_data.read", "static_data.create", "static_data.update");
+        var maker = _factory.ClientFor(tenant, "config-maker");
+
+        async Task<HttpResponseMessage> Submit(string function)
+        {
+            var created = await maker.Send(HttpMethod.Post, url, new { code = function, functionCode = function, enabled = false, changeReason = "Switch off" },
+                idempotent: true);
+            created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+            return await maker.Send(HttpMethod.Post, $"{url}/{function}/versions/1/submit", ifMatch: created.ETag());
+        }
+
+        var refused = await Submit("BILLING_DAILY_JOBS");
+        refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await refused.Code()).ShouldBe("FUNCTION_NOT_GRANTED");
+        (await Submit("NOTIFICATION_SENDING")).IsSuccessStatusCode.ShouldBeTrue("only the Billing and Payments daily jobs need the privileged function");
+
+        var role = await fixture.Database.ScalarAsOwner<string>(
+            "SELECT role_code FROM iam.user_role_assignment a JOIN iam.user_account u ON u.id = a.user_id AND u.tenant_id = a.tenant_id WHERE a.tenant_id = @t AND u.external_subject = 'config-maker'",
+            ("t", tenant));
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO iam.cfg_role_function_assignments (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, function_code)
+            VALUES (@t, @r || ':MONEY', 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', @r, 'TENANT_SWITCH_OFF_MONEY_JOBS')
+            """, ("t", tenant), ("r", role!));
+        await Activated(tenant, "iam", "cfg_role_function_assignments");
+        (await Submit("PAYMENTS_DAILY_JOBS")).IsSuccessStatusCode.ShouldBeTrue();
+        (await fixture.Database.ScalarAsOwner<bool>(
+                "SELECT privileged FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = 'TENANT_SWITCH_OFF_MONEY_JOBS' AND record_status = 'ACTIVE'"))
+            .ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task AJobFunctionSwitchedOff_ShowsInTheOperationsView_AndInHealthDetail_OQ098()
+    {
+        var (tenant, code) = await NewTenant();
+        await Disable(tenant, "NOTIFICATION_SENDING");
+        await fixture.Database.UserWithPermissions(tenant, "ops", Insys.Integration.Contracts.IntegrationPermissions.DeadLetterRead);
+
+        var summary = await (await _factory.ClientFor(tenant, "ops").GetAsync("/api/v1/integration/deliveries/summary")).Json();
+        var off = summary.GetProperty("figures").EnumerateArray().Single(f => f.GetProperty("code").GetString() == "JOB_FUNCTIONS_OFF");
+        off.GetProperty("count").GetInt64().ShouldBe(1L);
+        off.GetProperty("by")[0].GetProperty("key").GetString().ShouldBe("NOTIFICATION_SENDING");
+
+        var health = (await (await _factory.CreateClient().GetAsync("/health")).Json()).GetProperty("checks").GetProperty("job-functions");
+        health.GetProperty("status").GetString().ShouldBe("Healthy");
+        health.GetProperty("data").GetProperty(code).EnumerateArray().Select(j => j.GetString()).ShouldBe(["NOTIFICATION_SENDING"]);
+    }
+
     /// <summary>
     /// §7: every permission set of a role, as the release finds it, gives the same permissions once converted to functions;
     /// segregation-of-duties rules and channel rows are converted with it. The sets are the platform's own (the operator's

@@ -98,15 +98,11 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
                 "SELECT status || ' ' || approved_by FROM iam.user_role_assignment WHERE tenant_id = @t AND user_id = @u AND role_code = 'TENANT_ADMIN'",
                 ("t", tenantId), ("u", userId)))
             .ShouldBe($"ACTIVE {checker}");
-        // ADR-026: the role holds the functions that need only the agreed permissions, which give it exactly them.
-        (await fixture.Database.ScalarAsOwner<string[]>("""
-                SELECT array_agg(DISTINCT p) FROM iam.cfg_role_function_assignments g
-                JOIN iam.ref_function_catalogue c ON c.tenant_id IS NULL AND c.function_code = g.function_code AND c.record_status = 'ACTIVE' AND c.effective_to IS NULL
-                CROSS JOIN LATERAL unnest(c.required_permissions) AS p
-                WHERE g.tenant_id = @t AND g.role_code = 'TENANT_ADMIN'
-                """, ("t", tenantId)))
-            .ShouldBe([IntegrationPermissions.DeadLetterRead, IdentityPermissions.UserCreate, IdentityPermissions.UserRead, IdentityPermissions.UserUpdate],
-                ignoreOrder: true);
+        // OQ-099: the role holds exactly the functions the two platform administrators agreed.
+        (await fixture.Database.ScalarAsOwner<string[]>(
+                "SELECT array_agg(function_code ORDER BY function_code) FROM iam.cfg_role_function_assignments WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN'",
+                ("t", tenantId)))
+            .ShouldBe(AdminFunctions);
 
         // Tenancy completes the access step: the next one is current.
         var tenant = await one.GetAsync(tenantUrl);
@@ -186,7 +182,7 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         var body = new
         {
             tenantId, username = "own-admin", displayName = "Own Administrator", idpCode = "KEYCLOAK", email = "own.admin@example.com", mfaEnrolled = true,
-            permissions = new[] { IdentityPermissions.UserRead },
+            functions = new[] { "IDENTITY_USERS" },
         };
         var requested = await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", body, idempotent: true);
         requested.StatusCode.ShouldBe(HttpStatusCode.Created, await requested.Content.ReadAsStringAsync());
@@ -204,6 +200,27 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
             .ShouldBe("KEYCLOAK_UNAVAILABLE");
     }
 
+    [Fact]
+    public async Task ARequestNamingAFunctionNotForStaff_IsRefused_OQ099()
+    {
+        var one = _factory.ClientFor(Operator, "platform-one");
+        var (tenantId, _) = await RegisterTenantAtAccessStep(one, "BADFN");
+        var body = new
+        {
+            tenantId, username = "bad-fn", displayName = "Bad Function", idpCode = "OIDC", externalSubject = "bad-fn", mfaEnrolled = true,
+            functions = new[] { "IDENTITY_USERS", "BROKER_PORTAL_BILLING_INVOICES", "NOT_A_FUNCTION" },
+        };
+
+        var refused = await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", body, idempotent: true);
+
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await refused.Json()).GetProperty("errors").GetProperty("functions")[0].GetString()
+            .ShouldBe("Not a staff function in force: BROKER_PORTAL_BILLING_INVOICES, NOT_A_FUNCTION.");
+    }
+
+    // OQ-099: the request names functions: users (read), provisioning (create), role assignment (update) and dead letters (read).
+    private static readonly string[] AdminFunctions = ["ASSIGN_ROLE", "IDENTITY_USERS", "INTEGRATION_DEAD_LETTERS", "PROVISION_USER"];
+
     private static object Request(Guid tenantId, string username) => new
     {
         tenantId,
@@ -212,7 +229,7 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         idpCode = "OIDC",
         externalSubject = username,
         mfaEnrolled = true,
-        permissions = new[] { IdentityPermissions.UserRead, IdentityPermissions.UserCreate, IdentityPermissions.UserUpdate, IntegrationPermissions.DeadLetterRead },
+        functions = AdminFunctions,
     };
 
     private async Task<(Guid TenantId, string Url)> RegisterTenantAtAccessStep(HttpClient client, string code)

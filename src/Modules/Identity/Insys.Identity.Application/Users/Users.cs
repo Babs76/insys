@@ -66,10 +66,10 @@ public interface IRolePolicyReader
 }
 
 /// <summary>The per-request permission cache (OQ-014). Evicted after a change commits, and again when its event arrives.</summary>
-/// <summary>The function catalogue seen from permissions (ADR-026 §7): which of a set no function needing only that set grants.</summary>
-public interface IFunctionCoverage
+/// <summary>The function catalogue in force (ADR-026): which of these codes are not staff functions in force on the day.</summary>
+public interface IFunctionCatalogueQuery
 {
-    Task<IReadOnlyList<string>> Uncovered(IReadOnlyCollection<string> permissions, DateOnly day, CancellationToken cancellationToken);
+    Task<IReadOnlyList<string>> NotForStaff(IReadOnlyCollection<string> functionCodes, DateOnly day, CancellationToken cancellationToken);
 }
 
 public interface IPermissionCache

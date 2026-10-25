@@ -35,6 +35,9 @@ namespace Insys.BuildingBlocks.Application.Context;
 public interface IFunctionAvailability
 {
     Task<bool> IsEnabled(Guid tenantId, string functionCode, CancellationToken cancellationToken);
+
+    /// <summary>The JOB functions the tenant has switched off (OQ-098), for the operations view and /health detail.</summary>
+    Task<IReadOnlyList<string>> JobsSwitchedOff(Guid tenantId, CancellationToken cancellationToken);
 }
 
 /// <summary>

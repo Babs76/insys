@@ -56,10 +56,11 @@ public static class IdentityInfrastructure
         services.AddSingleton<IPermissionCache>(sp => sp.GetRequiredService<PermissionCache>());
         services.AddSingleton<BuildingBlocks.Application.Context.IPortalAuthentication, PortalAuthentication>();
         services.AddSingleton<FunctionCatalogueReader>();
-        services.AddSingleton<Application.Users.IFunctionCoverage, FunctionCoverage>();
+        services.AddSingleton<Application.Users.IFunctionCatalogueQuery, FunctionCatalogueQuery>();
         services.AddSingleton<Application.Users.IMenuBuilder, MenuBuilder>();
         services.AddSingleton<FunctionAvailability>();
         services.AddSingleton<BuildingBlocks.Application.Context.IFunctionAvailability>(sp => sp.GetRequiredService<FunctionAvailability>());
+        services.AddHealthChecks().AddCheck<JobFunctionsHealthCheck>("job-functions");
         services.AddSingleton<IPrincipalResolver, PrincipalResolver>();
         services.AddSingleton<Contracts.IUserRoleQuery, UserRoleQuery>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)

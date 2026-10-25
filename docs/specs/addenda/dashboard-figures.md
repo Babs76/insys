@@ -56,6 +56,7 @@
 | `DEAD_LETTERS_OPEN` | Count | `integration.dead_letter_message` | No `resolution` yet (not replayed or discarded). |
 | `WEBHOOK_DELIVERIES_FAILING` | Count | `integration.webhook_delivery` | The last attempt failed and it has not been delivered since. |
 | `OLDEST_PARKED_AT` | Timestamp or null | `integration.parked_delivery.parked_at` | The oldest delivery still parked, for an "attention since" label. |
+| `JOB_FUNCTIONS_OFF` | Count, with the function codes | `tenant.cfg_tenant_function_availability` | The JOB functions the tenant has switched off (OQ-098, Wave 1 batch 4): their consumers park and their daily jobs skip the tenant until switched on again. |
 
 These figures are tenant-wide (they are operations figures, not business records) and need `dead_letter.read`, as the existing dead-letter and parked-delivery views do.
 

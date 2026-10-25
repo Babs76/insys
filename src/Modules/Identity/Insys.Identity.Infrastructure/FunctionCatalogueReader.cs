@@ -129,15 +129,14 @@ public sealed class FunctionCatalogueReader([FromKeyedServices(IdentityDbContext
     }
 }
 
-/// <summary>A permission is covered when a function needing only permissions of the set needs it.</summary>
-internal sealed class FunctionCoverage(FunctionCatalogueReader catalogue) : Application.Users.IFunctionCoverage
+/// <summary>A code is a staff function when it is in force in the catalogue with STAFF among its audiences.</summary>
+internal sealed class FunctionCatalogueQuery(FunctionCatalogueReader catalogue) : Application.Users.IFunctionCatalogueQuery
 {
-    public async Task<IReadOnlyList<string>> Uncovered(IReadOnlyCollection<string> permissions, DateOnly day, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<string>> NotForStaff(IReadOnlyCollection<string> functionCodes, DateOnly day, CancellationToken cancellationToken)
     {
         var functions = await catalogue.Functions(day, cancellationToken);
-        var granted = Persistence.TenantAdministratorStore.FunctionsWithin(functions, permissions).SelectMany(f => functions[f].Permissions)
-            .ToHashSet(StringComparer.Ordinal);
-        return permissions.Where(p => !granted.Contains(p)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+        return functionCodes.Where(c => !functions.TryGetValue(c, out var f) || !f.Audiences.Contains("STAFF")).Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal).ToList();
     }
 }
 
@@ -207,6 +206,12 @@ public sealed class FunctionAvailability(FunctionCatalogueReader catalogue, Tena
             && (function.Feature is null || tenantId == platform.Value.OperatorTenantId || cached.Settings.EntitledFeatures.Contains(function.Feature));
     }
 
+    public async Task<IReadOnlyList<string>> JobsSwitchedOff(Guid tenantId, CancellationToken cancellationToken)
+    {
+        var jobs = (await catalogue.Functions(clock.UtcToday, cancellationToken)).Values.Where(f => f.Kind == "JOB").Select(f => f.Code).ToHashSet(StringComparer.Ordinal);
+        return (await settings.For(tenantId, clock.UtcToday, cancellationToken)).DisabledFunctions.Where(jobs.Contains).Order(StringComparer.Ordinal).ToList();
+    }
+
     public void Evict(Guid? tenantId)
     {
         if (tenantId is { } id)
@@ -217,5 +222,33 @@ public sealed class FunctionAvailability(FunctionCatalogueReader catalogue, Tena
         {
             _tenants.Clear();
         }
+    }
+}
+
+/// <summary>
+/// OQ-098: /health detail names every tenant with a JOB function switched off, and which; their work waits (consumers park,
+/// daily jobs skip the tenant). Healthy: it is the tenants' choice, shown so operators are not surprised by it.
+/// </summary>
+internal sealed class JobFunctionsHealthCheck(BuildingBlocks.Application.Context.ITenantDirectory tenants, Tenancy.Contracts.ITenantProfiles profiles,
+    BuildingBlocks.Application.Context.IFunctionAvailability availability) : Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck
+{
+    public async Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthAsync(
+        Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        var off = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+        {
+            if (await availability.JobsSwitchedOff(tenantId, cancellationToken) is { Count: > 0 } jobs)
+            {
+                off[(await profiles.Get(tenantId, cancellationToken))?.TenantCode ?? tenantId.ToString()] = jobs;
+            }
+        }
+
+        return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(
+            off.Count == 0
+                ? "Every active tenant runs every JOB function."
+                : $"{off.Count} tenant(s) have JOB functions switched off; their work waits until they are on again: "
+                  + string.Join("; ", off.Take(20).Select(t => $"{t.Key}: {string.Join(", ", (IReadOnlyList<string>)t.Value)}")),
+            off);
     }
 }

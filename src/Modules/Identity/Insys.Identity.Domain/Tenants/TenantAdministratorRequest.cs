@@ -70,7 +70,8 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
 
     public string Role { get; private set; } = RoleCode;
 
-    public string[] Permissions { get; private set; } = [];
+    /// <summary>The functions the tenant's TENANT_ADMIN role is granted (ADR-026, OQ-099).</summary>
+    public string[] Functions { get; private set; } = [];
 
     public Guid RequestedBy { get; private set; }
 
@@ -84,7 +85,7 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
     public Guid? UserId { get; private set; }
 
     public static TenantAdministratorRequest Create(Guid targetTenantId, string username, string displayName, string idpCode, string? externalSubject,
-        bool mfaEnrolled, IEnumerable<string> permissions, Guid requestedBy, DateTimeOffset now, string? email = null)
+        bool mfaEnrolled, IEnumerable<string> functions, Guid requestedBy, DateTimeOffset now, string? email = null)
     {
         var request = new TenantAdministratorRequest
         {
@@ -96,7 +97,7 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
             ExternalSubject = externalSubject is null ? null : Guard.MaxLength(Guard.NotNullOrWhiteSpace(externalSubject), 120),
             Email = email is null ? null : Guard.MaxLength(Guard.NotNullOrWhiteSpace(email), 254),
             MfaEnrolled = mfaEnrolled,
-            Permissions = [.. permissions.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)],
+            Functions = [.. functions.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)],
             RequestedBy = Guard.NotEmpty(requestedBy),
             Status = TenantAdministratorRequestStatus.PendingApproval,
         };

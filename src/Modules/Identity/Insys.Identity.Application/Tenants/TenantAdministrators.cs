@@ -43,11 +43,11 @@ namespace Insys.Identity.Application.Tenants;
 /// <summary>
 /// Command ProvisionTenantAdministrator (OQ-067, GAP-019): a platform administrator asks for a new tenant's first
 /// administrator while the tenant is Onboarding. The user signs in with the identity provider's subject, whose token
-/// carries the new tenant's tenant_id. Permissions are the TENANT_ADMIN role's permissions in the new tenant.
+/// carries the new tenant's tenant_id. Functions are the TENANT_ADMIN role's functions in the new tenant (ADR-026, OQ-099).
 /// </summary>
 /// <param name="Email">For INSYS's own realm (idpCode KEYCLOAK): INSYS creates the Keycloak user on approval and sends the invitation here.</param>
 public sealed record ProvisionTenantAdministrator(Guid TargetTenantId, string Username, string DisplayName, string IdpCode, string? ExternalSubject,
-    bool MfaEnrolled, string[] Permissions, string? Email = null) : ICommand<Guid>;
+    bool MfaEnrolled, string[] Functions, string? Email = null) : ICommand<Guid>;
 
 public sealed class ProvisionTenantAdministratorValidator : AbstractValidator<ProvisionTenantAdministrator>
 {
@@ -61,18 +61,18 @@ public sealed class ProvisionTenantAdministratorValidator : AbstractValidator<Pr
         RuleFor(c => c.ExternalSubject).Empty().When(c => c.IdpCode == UserAccount.OwnRealm)
             .WithMessage("INSYS creates the Keycloak user of its own realm; give its email, not an external subject.");
         RuleFor(c => c.Email).NotEmpty().MaximumLength(254).EmailAddress().When(c => c.IdpCode == UserAccount.OwnRealm);
-        RuleFor(c => c.Permissions).NotEmpty();
-        RuleForEach(c => c.Permissions).NotEmpty().MaximumLength(80);
+        RuleFor(c => c.Functions).NotEmpty();
+        RuleForEach(c => c.Functions).NotEmpty().MaximumLength(80);
     }
 }
 
 /// <summary>A request for a new tenant's first administrator and its decision.</summary>
 public sealed record TenantAdministratorRequestView(Guid Id, Guid TargetTenantId, string Username, string DisplayName, string IdpCode, string? ExternalSubject,
-    bool MfaEnrolled, string RoleCode, string[] Permissions, Guid RequestedBy, TenantAdministratorRequestStatus Status, Guid? DecidedBy,
+    bool MfaEnrolled, string RoleCode, string[] Functions, Guid RequestedBy, TenantAdministratorRequestStatus Status, Guid? DecidedBy,
     DateTimeOffset? DecidedAt, Guid? UserId, long RowVersion)
 {
     public static TenantAdministratorRequestView From(TenantAdministratorRequest r) => new(r.Id, r.TargetTenantId, r.Username, r.DisplayName, r.IdpCode,
-        r.ExternalSubject, r.MfaEnrolled, r.Role, r.Permissions, r.RequestedBy, r.Status, r.DecidedBy, r.DecidedAt, r.UserId, r.RowVersion);
+        r.ExternalSubject, r.MfaEnrolled, r.Role, r.Functions, r.RequestedBy, r.Status, r.DecidedBy, r.DecidedAt, r.UserId, r.RowVersion);
 }
 
 public sealed record GetTenantAdministratorRequest(Guid RequestId) : IQuery<TenantAdministratorRequestView>;
@@ -101,7 +101,7 @@ public interface ITenantAdministrators
 }
 
 internal sealed class ProvisionTenantAdministratorHandler(ITenantAdministrators administrators, ITenantProfiles tenants, IExecutionContext execution,
-    ITenantContext tenant, IOptions<PlatformOptions> platform, IClock clock, IAuditTrail audit, Users.IFunctionCoverage coverage)
+    ITenantContext tenant, IOptions<PlatformOptions> platform, IClock clock, IAuditTrail audit, Users.IFunctionCatalogueQuery catalogue)
     : ICommandHandler<ProvisionTenantAdministrator, Guid>
 {
     public async Task<Result<Guid>> Handle(ProvisionTenantAdministrator command, CancellationToken cancellationToken)
@@ -137,15 +137,15 @@ internal sealed class ProvisionTenantAdministratorHandler(ITenantAdministrators 
             return Error.Conflict(IdentityErrorCodes.TenantHasUsers, $"Tenant {target.TenantCode} already has users; its administrators add the others.");
         }
 
-        // ADR-026: the role is given the functions that need only these permissions, so each must be needed by such a function.
-        if (await coverage.Uncovered(command.Permissions, clock.UtcToday, cancellationToken) is { Count: > 0 } uncovered)
+        // ADR-026: each function must be in force in the catalogue and one staff use (OQ-099).
+        if (await catalogue.NotForStaff(command.Functions, clock.UtcToday, cancellationToken) is { Count: > 0 } unknown)
         {
-            return Error.Validation(ErrorCodes.ValidationFailed, "Every permission must be one a function grants with the others (ADR-026).",
-                new Dictionary<string, string[]> { ["permissions"] = [$"No function needs only these permissions, so the role cannot hold: {string.Join(", ", uncovered)}."] });
+            return Error.Validation(ErrorCodes.ValidationFailed, "Every function must be in force in the catalogue and for staff (ADR-026).",
+                new Dictionary<string, string[]> { ["functions"] = [$"Not a staff function in force: {string.Join(", ", unknown)}."] });
         }
 
         var request = TenantAdministratorRequest.Create(command.TargetTenantId, command.Username, command.DisplayName, command.IdpCode, command.ExternalSubject,
-            command.MfaEnrolled, command.Permissions, requester.Value, clock.UtcNow, command.Email);
+            command.MfaEnrolled, command.Functions, requester.Value, clock.UtcNow, command.Email);
         administrators.Add(request);
         audit.Record(new AuditEntry("IDENTITY", "ProvisionTenantAdministrator", nameof(TenantAdministratorRequest), request.Id.ToString(),
             new Dictionary<string, string?> { ["tenant"] = target.TenantCode, ["username"] = command.Username }));

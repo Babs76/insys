@@ -49,5 +49,10 @@ internal static class TenancyFunctions
         .Action("TERMINATE_TENANT", "TENANTS", "TerminateTenant")
         .Action("CHANGE_ISOLATION_PROFILE", "TENANTS", "ChangeIsolationProfile")
             .Functions,
+
+        // OQ-098: a privileged function checked by a rule, not an operation: submitting a tenant function availability row that
+        // switches off the Billing or Payments daily job. It is an action on the tenant management configuration screen.
+        new FunctionDeclaration("TENANT_SWITCH_OFF_MONEY_JOBS", FunctionKind.Action, "CONFIG_TENANCY", "Tenant Management", "SD_TENANT_MANAGEMENT_VIEW",
+            Audiences.StaffAndPlatform, null, null, Privileged: true, [], []),
     ];
 }

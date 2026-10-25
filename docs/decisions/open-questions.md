@@ -1026,12 +1026,13 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Decided (25 October 2026, Ade):** the list is confirmed, with two conditions:
   - switching off a tenant's Billing or Payments daily job is a privileged function;
   - while any JOB function is off for a tenant, it shows in the operations view and in `/health` detail.
-- Closed when built (Wave 1 batch 4).
+- **Built (Wave 1 batch 4):** the privileged function `TENANT_SWITCH_OFF_MONEY_JOBS`, checked when a version switching either job off is submitted; `JOB_FUNCTIONS_OFF` in the Integration operations figures; the `job-functions` check in `/health` detail. **Closed.**
 
 ### OQ-099 The first tenant administrator's request names permissions (function catalogue §7)
 - **Built:** the request still names permissions, so the API is unchanged. They are converted to the functions that need only them, and a permission no such function grants is refused (422 `VALIDATION_FAILED` on `permissions`).
 - **Open:** whether the request should name functions instead (breaking).
-- **Decided (25 October 2026, Ade):** the request names functions instead of permissions (breaking, in `contract-changes.md`); nothing consumes the API yet. To build in Wave 1 batch 4.
+- **Decided (25 October 2026, Ade):** the request names functions instead of permissions (breaking, in `contract-changes.md`); nothing consumes the API yet.
+- **Built (Wave 1 batch 4):** `functions` on the request (V0054 renames the column and converts requests already made); each must be a staff function in force. **Closed.**
 
 ### OQ-100 Function and menu labels (function catalogue §3)
 - **Built:** English labels: domains and sub-domains from `INSYS_NAVIGATION.md`, functions made from their codes ("Life policies"). The menu returns a translation key and the label in the request's language.

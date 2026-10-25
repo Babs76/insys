@@ -45,9 +45,9 @@ namespace Insys.Identity.Api;
 /// <param name="Email">For INSYS's own realm: INSYS creates the Keycloak user and Keycloak sends the invitation here.</param>
 public sealed record ProvisionUserRequest(string Username, string DisplayName, string IdpCode, string? ExternalSubject, bool MfaEnrolled, string? Email = null);
 
-/// <summary>A new tenant's first administrator (OQ-067): the user, and the permissions of the tenant's TENANT_ADMIN role.</summary>
+/// <summary>A new tenant's first administrator (OQ-067): the user, and the functions of the tenant's TENANT_ADMIN role (ADR-026, OQ-099).</summary>
 public sealed record ProvisionTenantAdministratorRequest(Guid TenantId, string Username, string DisplayName, string IdpCode, string? ExternalSubject,
-    bool MfaEnrolled, string[] Permissions, string? Email = null);
+    bool MfaEnrolled, string[] Functions, string? Email = null);
 
 public sealed record SubjectLinkRequest(Domain.Users.SubjectKind Kind, Guid? PartyId, string? IntermediaryCode, string? ProviderId);
 
@@ -400,7 +400,7 @@ public sealed class IdentityModule : IModule
     {
         requests.MapPost("/", async (ProvisionTenantAdministratorRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Send(new ProvisionTenantAdministrator(request.TenantId, request.Username, request.DisplayName, request.IdpCode,
-                    request.ExternalSubject, request.MfaEnrolled, request.Permissions ?? [], request.Email), ct))
+                    request.ExternalSubject, request.MfaEnrolled, request.Functions ?? [], request.Email), ct))
                 .ToHttp(id =>
                 {
                     Concurrency.SetETag(http, 1);
@@ -410,7 +410,7 @@ public sealed class IdentityModule : IModule
             .WithName("ProvisionTenantAdministrator")
             .WithSummary("Request a new tenant's first administrator")
             .WithDescription("Platform operator only, while the tenant is Onboarding and has no users. A second platform administrator approves it in "
-                + "Workflow (approval type TENANT_ADMINISTRATOR); then the tenant's TENANT_ADMIN role (with these permissions), the user and an active "
+                + "Workflow (approval type TENANT_ADMINISTRATOR); then the tenant's TENANT_ADMIN role (granted these functions: staff functions in force in the catalogue), the user and an active "
                 + "assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with "
                 + "externalSubject, whose token must carry the new tenant's tenant_id.")
             .WithEventualEffects("the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy "
