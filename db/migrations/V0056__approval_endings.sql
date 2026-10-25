@@ -27,7 +27,8 @@
 -- =====================================================================
 -- V0056: every way an approval can end leaves its record in a defined state (Wave 2 batch 1, D-1 to D-5).
 -- - workflow.cfg_approval_expiry: how long each approval type waits before it expires (D-4).
--- - A rejected payout batch or provider payment run ends as REJECTED, and its payments or claims are released (D-1, D-2).
+-- - A rejected payout batch or provider payment run ends as REJECTED, and its payments or claims are released (D-1, D-2);
+--   a claim may leave a run that has not been approved.
 -- - Authority limits carry a currency, the tenant's base currency when empty (OQ-112).
 -- - A new bank account no longer replaces the active one until verified: one active and one waiting may coexist (D-3).
 -- =====================================================================
@@ -94,3 +95,17 @@ ALTER TABLE party.bank_account ADD CONSTRAINT ex_bank_account_active
   EXCLUDE USING btree (tenant_id WITH =, party_id WITH =, currency WITH =) WHERE (status = 'ACTIVE') DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE party.bank_account ADD CONSTRAINT ex_bank_account_pending
   EXCLUDE USING btree (tenant_id WITH =, party_id WITH =, currency WITH =) WHERE (status = 'PENDING_VERIFICATION') DEFERRABLE INITIALLY DEFERRED;
+
+-- D-2: a claim may leave its payment run, only to no run, and only while the run has not been approved or released
+-- (a rejected run releases its claims for the next run). Moving a claim to another run, or out of an approved run, is
+-- still refused.
+CREATE OR REPLACE FUNCTION health.keep_payment_run() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.payment_run_id IS NOT NULL AND NEW.payment_run_id IS DISTINCT FROM OLD.payment_run_id
+     AND NOT (NEW.payment_run_id IS NULL AND EXISTS (
+       SELECT 1 FROM health.provider_payment_run r
+       WHERE r.tenant_id = OLD.tenant_id AND r.id = OLD.payment_run_id AND r.status IN ('OPEN', 'CUT_OFF', 'CALCULATED', 'REJECTED'))) THEN
+    RAISE EXCEPTION 'Claim % already belongs to payment run %', OLD.claim_number, OLD.payment_run_id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;

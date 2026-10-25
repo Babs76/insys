@@ -182,12 +182,12 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         return response.StatusCode == HttpStatusCode.NoContent ? null : $"{ending} returned {response.StatusCode}: {await response.Content.ReadAsStringAsync()}";
     }
 
-    /// <summary>The record's own view shows how its approval ended (OQ-113), where the view has latestRejection.</summary>
+    /// <summary>The record's own view shows how its approval ended (OQ-113): every record an approval is about has latestRejection.</summary>
     private static Task LatestRejection(List<string> problems, World world, JsonElement view, string approvalType, string ending)
     {
         if (!view.TryGetProperty("latestRejection", out var latest))
         {
-            TestContext.Current.TestOutputHelper?.WriteLine($"{approvalType}: the record's view has no latestRejection");
+            problems.Add("the record's view has no latestRejection (OQ-113)");
             return Task.CompletedTask;
         }
 
