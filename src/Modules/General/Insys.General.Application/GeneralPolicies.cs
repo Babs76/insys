@@ -187,16 +187,43 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
     {
         if (businessRefType == GeneralApprovals.EndorsementBusinessRefType && await general.Endorsement(id, cancellationToken) is { } endorsement)
         {
-            endorsement.Decide(approved, approvalId, checkerId, clock.UtcNow);
+            if (!approved && endorsement.EndingApplied(approvalId))
+            {
+                return;
+            }
+
+            var decided = endorsement.Decide(approved, approvalId, checkerId, clock.UtcNow);
+            NotApplied(decided, approved, GeneralApprovals.EndorsementApprovalType, approvalId, id);
         }
         else if (businessRefType == GeneralApprovals.SettlementBusinessRefType && await general.Claim(id, cancellationToken) is { } claim)
         {
-            var decided = claim.DecideSettlement(approved, approvalId, checkerId, subjectHash, clock.UtcNow);
-            if (decided.IsFailure)
+            if (!approved && claim.SettlementEndingApplied(approvalId))
             {
-                logger.LogWarning("Approval {ApprovalId} not applied to claim {ClaimId}: {Code}", approvalId, id, decided.Error.Code);
+                return;
             }
+
+            var decided = claim.DecideSettlement(approved, approvalId, checkerId, subjectHash, clock.UtcNow);
+            NotApplied(decided, approved, GeneralApprovals.SettlementApprovalType, approvalId, id);
         }
+    }
+
+    /// <summary>
+    /// An ending (rejected, expired, withdrawn) the record would not take parks the delivery (D-5, ADR-022), so it is
+    /// retried and escalated rather than left waiting; an approval that does not apply is logged, as before.
+    /// </summary>
+    private void NotApplied(BuildingBlocks.Domain.Result decided, bool approved, string approvalType, Guid approvalId, Guid id)
+    {
+        if (decided.IsSuccess)
+        {
+            return;
+        }
+
+        if (!approved)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{approvalType}:{approvalId}");
+        }
+
+        logger.LogWarning("Approval {ApprovalId} not applied to {ApprovalType} {Id}: {Code}", approvalId, approvalType, id, decided.Error.Code);
     }
 }
 

@@ -201,19 +201,28 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
         return result;
     }
 
-    /// <summary>Commands ApproveEndorsement and RejectEndorsement, from Workflow's decision. The checker is never the maker.</summary>
+    /// <summary>
+    /// Commands ApproveEndorsement and RejectEndorsement, from Workflow's decision. The checker is never the maker. Every
+    /// ending other than approval (rejected, expired, withdrawn) rejects it; an expired or withdrawn approval has no
+    /// checker (Guid.Empty), so nobody is recorded as having decided it.
+    /// </summary>
     public Result Decide(bool approved, Guid approvalId, Guid checkerId, DateTimeOffset now)
     {
-        if (checkerId == RequestedBy)
+        if (checkerId != Guid.Empty && checkerId == RequestedBy)
         {
             return MakerChecker.EnsureDifferentPeople(RequestedBy.ToString()!, checkerId.ToString());
+        }
+
+        if (approved && checkerId == Guid.Empty)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "An endorsement is approved by a checker.");
         }
 
         var result = Fire(approved ? EndorsementTrigger.ApproveEndorsement : EndorsementTrigger.RejectEndorsement);
         if (result.IsSuccess)
         {
             ApprovalId = approvalId;
-            DecidedBy = checkerId;
+            DecidedBy = checkerId == Guid.Empty ? null : checkerId;
             if (approved)
             {
                 Raise(new GeneralEndorsementApproved(Id, PolicyId, approvalId, now));
@@ -222,6 +231,9 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
 
         return result;
     }
+
+    /// <summary>Whether this approval's ending (not granted) is already applied: a redelivery changes nothing.</summary>
+    public bool EndingApplied(Guid approvalId) => Status == EndorsementStatus.Rejected && ApprovalId == approvalId;
 
     /// <summary>Transition "Policy updated": the policy has applied the changes.</summary>
     public Result MarkApplied() => Status == EndorsementStatus.Applied ? Result.Success() : Fire(EndorsementTrigger.PolicyUpdated);

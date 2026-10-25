@@ -163,10 +163,14 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
         return result;
     }
 
-    /// <summary>Command RejectChange, from Workflow's ApprovalRejected: the owning module returns the version to draft.</summary>
+    /// <summary>
+    /// Command RejectChange, from Workflow's ApprovalRejected: the owning module returns the version to draft. Every ending
+    /// other than approval (rejected, expired, withdrawn) rejects it; an expired or withdrawn approval has no checker
+    /// (Guid.Empty), so none is recorded.
+    /// </summary>
     public Result RejectChange(Guid checkerId, string reason, DateTimeOffset now)
     {
-        if (checkerId == Guid.Empty || checkerId == MakerId)
+        if (checkerId != Guid.Empty && checkerId == MakerId)
         {
             return Error.Forbidden(ErrorCodes.MakerCheckerSamePerson, "A change is rejected by a checker other than its maker.");
         }
@@ -174,7 +178,7 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
         var result = Fire(ChangeTrigger.RejectChange);
         if (result.IsSuccess)
         {
-            CheckerId = checkerId;
+            CheckerId = checkerId == Guid.Empty ? null : checkerId;
             Raise(new StaticDataChangeRejected(Id, After, checkerId, reason, now));
         }
 
@@ -368,7 +372,10 @@ public sealed class TenantGovernanceSettings : AggregateRoot<Guid>
         return true;
     }
 
-    /// <summary>Workflow's decision on the pending switch-off. The checker is never the requester (SRS-002).</summary>
+    /// <summary>
+    /// Workflow's decision on the pending switch-off. The checker is never the requester (SRS-002). Every ending other
+    /// than approval (rejected, expired, withdrawn) drops the pending change and the setting stays as it was.
+    /// </summary>
     public Result DecidePending(bool approved, Guid checkerId)
     {
         if (PendingTier2MakerChecker is not { } pending || PendingRequestedBy is not { } requester)
@@ -376,9 +383,14 @@ public sealed class TenantGovernanceSettings : AggregateRoot<Guid>
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "No governance change is waiting for approval.");
         }
 
-        if (checkerId == requester)
+        if (checkerId != Guid.Empty && checkerId == requester)
         {
             return MakerChecker.EnsureDifferentPeople(requester.ToString(), checkerId.ToString());
+        }
+
+        if (approved && checkerId == Guid.Empty)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "A governance change is approved by a checker.");
         }
 
         if (approved)

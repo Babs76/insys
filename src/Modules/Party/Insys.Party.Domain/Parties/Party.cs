@@ -80,7 +80,10 @@ public sealed record PartiesMerged(Guid SurvivorId, Guid MergedId, DateTimeOffse
 
 public sealed record PartyAnonymised(Guid PartyId, DateTimeOffset OccurredAt) : IDomainEvent;
 
-/// <summary>A party's bank account was added (superseding <paramref name="SupersededId"/>) or verified. Ids only, never account details.</summary>
+/// <summary>
+/// A party's bank account was added (superseding <paramref name="SupersededId"/>, a pending account whose verification is
+/// withdrawn), verified (superseding the previous active account) or rejected. Ids only, never account details.
+/// </summary>
 public sealed record PartyBankAccountChanged(Guid PartyId, Guid BankAccountId, Guid? SupersededId, string Status, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>Asks Workflow for a second person's verification of the account (BANK_ACCOUNT_VERIFICATION): its party, id and keyed hash only.</summary>
@@ -100,8 +103,8 @@ public enum BankAccountStatus
 
 /// <summary>
 /// Entity BankAccount (party.bank_account, V0018; a gap in the original specification): the account number is
-/// encrypted, with a keyed hash and its last four digits. A change is a new account; the previous one is superseded,
-/// never changed.
+/// encrypted, with a keyed hash and its last four digits. A change is a new account; the previous one is superseded
+/// once the new one is verified, never changed.
 /// </summary>
 public sealed class BankAccount : Entity<Guid>, ITenantScoped
 {
@@ -596,8 +599,8 @@ public sealed class Party : AggregateRoot<Guid>
 
     /// <summary>
     /// Command AddBankAccount: a new account, pending verification by a second person in Workflow (ADR-013). The party's
-    /// current account in the same currency is superseded (kept, never changed), so any payment approved against it needs
-    /// a fresh approval; if that account was itself still pending, its verification is withdrawn.
+    /// active account in the same currency stays active (and payable) until the new one is verified (D-3); if another
+    /// account in the currency was still pending, its verification is withdrawn and it is superseded by the new one.
     /// </summary>
     public Result<Guid> AddBankAccount(BankAccountData data, Guid requestedBy, DateTimeOffset now)
     {
@@ -608,22 +611,24 @@ public sealed class Party : AggregateRoot<Guid>
         }
 
         var account = BankAccount.Create(Id, data, Guard.NotEmpty(requestedBy));
-        var current = _bankAccounts.SingleOrDefault(a => a.Currency == data.Currency && a.Status is BankAccountStatus.PendingVerification or BankAccountStatus.Active);
-        if (current is { Status: BankAccountStatus.PendingVerification })
+        var pending = _bankAccounts.SingleOrDefault(a => a.Currency == data.Currency && a.Status == BankAccountStatus.PendingVerification);
+        if (pending is not null)
         {
-            Raise(new BankAccountVerificationWithdrawn(Id, current.Id, now));
+            Raise(new BankAccountVerificationWithdrawn(Id, pending.Id, now));
+            pending.Supersede(account.Id);
         }
 
-        current?.Supersede(account.Id);
         _bankAccounts.Add(account);
-        Raise(new PartyBankAccountChanged(Id, account.Id, current?.Id, "PENDING_VERIFICATION", now));
+        Raise(new PartyBankAccountChanged(Id, account.Id, pending?.Id, "PENDING_VERIFICATION", now));
         Raise(new BankAccountVerificationRequested(Id, account.Id, requestedBy, account.AccountNumberLast4, account.SubjectHash, now));
         return account.Id;
     }
 
     /// <summary>
-    /// Workflow's decision on the verification: approved by a second person, the account is active and payable;
-    /// rejected, it is never activated. A decision for another subject (an account since superseded) does not apply.
+    /// Workflow's decision on the verification: approved by a second person, the account is active and payable and the
+    /// party's previous active account in the currency is superseded by it; not approved (rejected, expired or withdrawn),
+    /// it is rejected and never activated, and the previous account stays active. A decision for another subject (an
+    /// account since changed) does not apply. With no checker (expired or withdrawn), maker ≠ checker does not arise.
     /// </summary>
     public Result DecideBankAccountVerification(Guid bankAccountId, bool approved, Guid approvalId, Guid checkerId, string? subjectHash, DateTimeOffset now)
     {
@@ -637,13 +642,25 @@ public sealed class Party : AggregateRoot<Guid>
             return Error.Conflict(PartyErrorCodes.BankAccountSubjectChanged, "The approval was for another account.");
         }
 
-        if (checkerId == account.RequestedBy)
+        if (checkerId != Guid.Empty && checkerId == account.RequestedBy)
         {
             return MakerChecker.EnsureDifferentPeople(account.RequestedBy.ToString()!, checkerId.ToString());
         }
 
+        if (approved && checkerId == Guid.Empty)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "A verification is approved by a checker.");
+        }
+
+        Guid? superseded = null;
         if (approved)
         {
+            if (_bankAccounts.SingleOrDefault(a => a.Id != account.Id && a.Currency == account.Currency && a.Status == BankAccountStatus.Active) is { } previous)
+            {
+                previous.Supersede(account.Id);
+                superseded = previous.Id;
+            }
+
             account.Verify(approvalId, checkerId, now);
         }
         else
@@ -651,9 +668,19 @@ public sealed class Party : AggregateRoot<Guid>
             account.Reject(approvalId);
         }
 
-        Raise(new PartyBankAccountChanged(Id, account.Id, null, approved ? "ACTIVE" : "REJECTED", now));
+        Raise(new PartyBankAccountChanged(Id, account.Id, superseded, approved ? "ACTIVE" : "REJECTED", now));
         return Result.Success();
     }
+
+    /// <summary>
+    /// Whether an approval's ending (not granted) is already applied to the account, so a redelivery changes nothing: it
+    /// was rejected by that approval, or this module withdrew its verification when another account replaced it before
+    /// it was verified (superseded without ever being active), which is already its defined state.
+    /// </summary>
+    public bool BankAccountEndingApplied(Guid bankAccountId, Guid approvalId) =>
+        _bankAccounts.SingleOrDefault(a => a.Id == bankAccountId) is { } account
+        && ((account.Status == BankAccountStatus.Rejected && account.ApprovalId == approvalId)
+            || (account.Status == BankAccountStatus.Superseded && account.VerifiedAt is null));
 
     public IReadOnlyList<PartyRelationship> Relationships => _relationships;
 

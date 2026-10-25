@@ -232,11 +232,27 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
         Result? decided = null;
         if (businessRefType == LifeApprovals.UnderwritingBusinessRefType && await life.Case(id, cancellationToken) is { } underwritingCase)
         {
+            if (!approved && underwritingCase.EndingApplied(approvalId))
+            {
+                return;
+            }
+
             decided = underwritingCase.Decide(approved, approvalId, checkerId, subjectHash, approvalType, clock.UtcNow);
         }
         else if (businessRefType == LifeApprovals.ClaimBusinessRefType && await life.Claim(id, cancellationToken) is { } claim)
         {
+            if (!approved && claim.EndingApplied(approvalId))
+            {
+                return;
+            }
+
             decided = claim.DecideApproval(approved, approvalId, checkerId, subjectHash, clock.UtcNow);
+        }
+
+        // D-5: an ending (rejected, expired, withdrawn) the record would not take parks the delivery (ADR-022) for a retry and escalation.
+        if (decided is { IsFailure: true } && !approved)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{approvalType}:{approvalId}");
         }
 
         if (decided is { IsFailure: true })

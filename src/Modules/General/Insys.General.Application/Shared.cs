@@ -288,7 +288,8 @@ public sealed record PolicyView(Guid Id, string PolicyNumber, string ProductCode
 }
 
 public sealed record EndorsementView(Guid Id, string EndorsementNumber, Guid PolicyId, string EndorsementType, DateOnly EffectiveDate, EndorsementStatus Status,
-    decimal PremiumDelta, decimal? NewAnnualPremium, Guid? RatingRequestId, Guid? DocumentId, IReadOnlyList<EndorsementChange> Changes, long RowVersion)
+    decimal PremiumDelta, decimal? NewAnnualPremium, Guid? RatingRequestId, Guid? DocumentId, IReadOnlyList<EndorsementChange> Changes, long RowVersion,
+    Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static EndorsementView From(GeneralEndorsement e) => new(e.Id, e.EndorsementNumber, e.PolicyId, e.EndorsementType, e.EffectiveDate, e.Status,
         e.PremiumDelta, e.NewAnnualPremium, e.RatingRequestId, e.DocumentId, e.Changes, e.RowVersion);
@@ -300,7 +301,7 @@ public sealed record SettlementView(decimal Amount, string Currency, Guid PayeeP
 
 public sealed record ClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt,
     string CauseCode, string PerilCode, string? CatEventCode, ClaimStatus Status, string? DecisionCode, string? DecisionRationale, SettlementView? Settlement,
-    IReadOnlyList<ClaimPartyView> Parties, long RowVersion)
+    IReadOnlyList<ClaimPartyView> Parties, long RowVersion, Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static ClaimView From(GeneralClaim c) => new(c.Id, c.ClaimNumber, c.PolicyId, c.RiskObjectId, c.CoverageCode, c.LossDate, c.NotifiedAt, c.CauseCode, c.PerilCode,
         c.CatEventCode, c.Status, c.DecisionCode, c.DecisionRationale,

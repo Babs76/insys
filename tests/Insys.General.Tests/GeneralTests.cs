@@ -487,4 +487,57 @@ public sealed class GeneralTests
         policy.RecordFirstPayment(paidOn.AddDays(30), paidOn.AddDays(30)).IsSuccess.ShouldBeTrue();
         policy.FirstPaidOn.ShouldBe(paidOn);
     }
+
+    /// <summary>Wave 2 rule: every ending of an endorsement's approval (rejected, expired, withdrawn) rejects it, once (D-5).</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Endorsement_EveryEndingOtherThanApproval_RejectsIt_AndARedeliveryIsAlreadyApplied(bool withChecker)
+    {
+        var policy = Policy();
+        var maker = Guid.CreateVersion7();
+        var type = new EndorsementType("CHANGE_SI", "FLAT", [], false);
+        var endorsement = GeneralEndorsement.DraftEndorsement(Guid.CreateVersion7(), "E1", policy, type, Today,
+            [new(EndorsementAction.ChangeRisk, Vehicle, null, [new CoverageRequest("OWN_DAMAGE", 300_000m, null)])], maker).Value;
+        endorsement.RateEndorsement(Guid.CreateVersion7(), 15_000m, policy, type).IsSuccess.ShouldBeTrue();
+        endorsement.SubmitEndorsement(maker, "ZAR", Now).IsSuccess.ShouldBeTrue();
+        var approval = Guid.CreateVersion7();
+        var checker = withChecker ? Guid.CreateVersion7() : Guid.Empty;
+
+        endorsement.Decide(true, approval, Guid.Empty, Now).IsFailure.ShouldBeTrue("an approval has a checker");
+        endorsement.EndingApplied(approval).ShouldBeFalse();
+        endorsement.Decide(false, approval, checker, Now).IsSuccess.ShouldBeTrue();
+
+        endorsement.Status.ShouldBe(EndorsementStatus.Rejected);
+        endorsement.DecidedBy.ShouldBe(withChecker ? checker : null);
+        endorsement.EndingApplied(approval).ShouldBeTrue();
+        endorsement.EndingApplied(Guid.CreateVersion7()).ShouldBeFalse("another approval's ending is not applied");
+        endorsement.Decide(false, approval, checker, Now).IsFailure.ShouldBeTrue("the handler parks this, unless already applied");
+    }
+
+    /// <summary>Wave 2 rule: every ending of a settlement's approval leaves the claim under assessment with the settlement cleared, once (D-5).</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Settlement_EveryEndingOtherThanApproval_KeepsTheClaimUnderAssessment_AndARedeliveryIsAlreadyApplied(bool withChecker)
+    {
+        var policy = Policy();
+        var claim = GeneralClaim.NotifyLoss(Guid.CreateVersion7(), policy.Id, Vehicle, "OWN_DAMAGE", Today, "COLLISION", "ACC", null, null, Today, Now).Value;
+        claim.RegisterClaim(policy, "GEN-3", Now);
+        claim.AppointAssessor(Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        var maker = Guid.CreateVersion7();
+        claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Repair quote accepted"),
+            policy.Coverage(Vehicle, "OWN_DAMAGE")!, [], "ZAR", maker, Now).IsSuccess.ShouldBeTrue();
+        var approval = Guid.CreateVersion7();
+        var checker = withChecker ? Guid.CreateVersion7() : Guid.Empty;
+
+        claim.DecideSettlement(true, approval, Guid.Empty, claim.SettlementSubjectHash, Now).IsFailure.ShouldBeTrue("an approval has a checker");
+        claim.DecideSettlement(false, approval, checker, "another subject", Now).Error!.Code.ShouldBe(GeneralErrorCodes.ApprovalSubjectChanged);
+        claim.SettlementEndingApplied(approval).ShouldBeFalse();
+        claim.DecideSettlement(false, approval, checker, claim.SettlementSubjectHash, Now).IsSuccess.ShouldBeTrue();
+
+        (claim.Status, claim.SettlementAmount, claim.SettlementPending).ShouldBe((ClaimStatus.UnderAssessment, (decimal?)null, false));
+        claim.SettlementEndingApplied(approval).ShouldBeTrue();
+        claim.DecideSettlement(false, approval, checker, null, Now).IsFailure.ShouldBeTrue("the handler parks this, unless already applied");
+    }
 }

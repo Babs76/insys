@@ -438,4 +438,57 @@ public sealed class LifeTests
     public void GroupScheme_IsRatedOnItsMembersCover_OQ052()
     {
     }
+
+    /// <summary>Wave 2 rule: every ending of an underwriting decision's approval keeps the case in assessment with the proposal cleared, once (D-5).</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void UnderwritingDecision_EveryEndingOtherThanApproval_KeepsTheCaseInAssessment_AndARedeliveryIsAlreadyApplied(bool withChecker)
+    {
+        var proposal = Quoted();
+        proposal.SubmitProposal(Now);
+        var underwriting = LifeUnderwritingCase.OpenCase(Guid.CreateVersion7(), proposal, Now).Value;
+        underwriting.StartAssessment();
+        underwriting.RequestDecision(UnderwritingOutcome.Accept, "STD", "STANDARD", [], new HashSet<string>(), 1m, "ZAR", Maker, Now).IsSuccess.ShouldBeTrue();
+        var hash = underwriting.DomainEvents.OfType<UnderwritingDecisionRequested>().Single().SubjectHash;
+        var approval = Guid.CreateVersion7();
+        var checker = withChecker ? Checker : Guid.Empty;
+
+        underwriting.Decide(true, approval, Guid.Empty, hash, null, Now).IsFailure.ShouldBeTrue("an approval has a checker");
+        underwriting.Decide(false, approval, Maker, hash, null, Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        underwriting.EndingApplied(approval).ShouldBeFalse();
+        underwriting.Decide(false, approval, checker, hash, null, Now).IsSuccess.ShouldBeTrue();
+
+        (underwriting.Status, underwriting.DecisionPending, underwriting.DecisionCode).ShouldBe((CaseStatus.InAssessment, false, (string?)null));
+        underwriting.EndingApplied(approval).ShouldBeTrue();
+        underwriting.Decide(false, approval, checker, hash, null, Now).IsFailure.ShouldBeTrue("the handler parks this, unless already applied");
+    }
+
+    /// <summary>Wave 2 rule: every ending of a claim's approval keeps it in assessment with the proposal cleared, once (D-5).</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ClaimApproval_EveryEndingOtherThanApproval_KeepsTheClaimInAssessment_AndARedeliveryIsAlreadyApplied(bool withChecker)
+    {
+        var policy = Policy(Today.AddMonths(-3));
+        var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Now).Value;
+        claim.RegisterClaim("CLM-LIFE-2", Now);
+        var death = policy.Benefits.Single(b => b.BenefitCode == "DEATH");
+        claim.AssessClaim([new BenefitLineRequest(death.Id, 1_000_000m)], new Dictionary<Guid, decimal> { [death.Id] = death.SumAssured }).IsSuccess.ShouldBeTrue();
+        claim.RequestApproval([new PayeeRequest(Spouse, Guid.CreateVersion7(), "h1", 100m)], 0m, "INDEMNITY", "DEATH_PROVEN", "Death certificate verified", Maker, Now)
+            .IsSuccess.ShouldBeTrue();
+        var status = claim.Status;
+        var approval = Guid.CreateVersion7();
+        var checker = withChecker ? Checker : Guid.Empty;
+
+        claim.DecideApproval(true, approval, Guid.Empty, claim.SubjectHash, Now).IsFailure.ShouldBeTrue("an approval has a checker");
+        claim.DecideApproval(false, approval, checker, "stale", Now).Error!.Code.ShouldBe(LifeErrorCodes.ApprovalSubjectChanged);
+        claim.EndingApplied(approval).ShouldBeFalse();
+        claim.DecideApproval(false, approval, checker, claim.SubjectHash, Now).IsSuccess.ShouldBeTrue();
+
+        (claim.Status, claim.ApprovalPending, claim.ApprovedAmount).ShouldBe((status, false, (decimal?)null));
+        claim.Payees.ShouldBeEmpty();
+        claim.EndingApplied(approval).ShouldBeTrue();
+        claim.DecideApproval(false, approval, checker, claim.SubjectHash, Now).IsFailure.ShouldBeTrue("the handler parks this, unless already applied");
+    }
 }

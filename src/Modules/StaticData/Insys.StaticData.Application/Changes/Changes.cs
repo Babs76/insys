@@ -130,7 +130,7 @@ internal sealed class ChangeTier2MakerCheckerHandler(IChangeRequestRepository re
 
 public sealed record ChangeRequestView(
     Guid Id, string RequestNumber, string EntityCode, string RecordKey, string Action, ChangeStatus Status, Guid MakerId, Guid? CheckerId, DateOnly EffectiveFrom,
-    string Reason, JsonElement Record, long RowVersion);
+    string Reason, JsonElement Record, long RowVersion, LatestRejection? LatestRejection = null);
 
 public sealed record ImportBatchView(Guid Id, string BatchNumber, string EntityCode, string FileRef, int RowCount, int RejectedCount, ImportStatus Status,
     Guid SubmittedBy, IReadOnlyList<ImportLineError> Errors);
@@ -164,10 +164,12 @@ internal sealed class ListChangeRequestsHandler(IChangeRequestQueries queries) :
         Result.Success(await queries.List(query.Status, query.EntityCode, query.AfterId, query.Limit, cancellationToken));
 }
 
-internal sealed class GetChangeRequestHandler(IChangeRequestQueries queries) : IQueryHandler<GetChangeRequest, ChangeRequestView>
+internal sealed class GetChangeRequestHandler(IChangeRequestQueries queries, IApprovalHistory history) : IQueryHandler<GetChangeRequest, ChangeRequestView>
 {
     public async Task<Result<ChangeRequestView>> Handle(GetChangeRequest query, CancellationToken cancellationToken) =>
-        await queries.Get(query.Id, cancellationToken) is { } view ? view : Error.NotFound(ErrorCodes.NotFound, "The change request was not found.");
+        await queries.Get(query.Id, cancellationToken) is { } view
+            ? view with { LatestRejection = await history.Latest(StaticDataApprovals.BusinessRefType, view.Id, cancellationToken) }
+            : Error.NotFound(ErrorCodes.NotFound, "The change request was not found.");
 }
 
 internal sealed class ListImportBatchesHandler(IChangeRequestQueries queries) : IQueryHandler<ListImportBatches, IReadOnlyList<ImportBatchView>>
@@ -178,7 +180,8 @@ internal sealed class ListImportBatchesHandler(IChangeRequestQueries queries) : 
 
 /// <summary>
 /// The Static Data module's policies for the owning modules' events. Each runs behind the inbox, so a duplicate
-/// delivery changes nothing (INT-005); a change request in an unexpected state is left as it is.
+/// delivery changes nothing (INT-005); a change request in an unexpected state is left as it is, except that an approval's
+/// ending (rejected, expired, withdrawn) it would not take parks the delivery (D-5, ADR-022).
 /// </summary>
 public sealed class StaticDataGovernancePolicies(IChangeRequestRepository changes, IClock clock) :
     IIntegrationEventHandler<StaticDataChangeSubmitted>,
@@ -214,21 +217,35 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
     /// <summary>Workflow rejected the change: RejectChange, and the owning module returns the version to draft.</summary>
     public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (rejected.BusinessRefType == StaticDataApprovals.BusinessRefType && await changes.Get(rejected.BusinessRefId, cancellationToken) is { } change)
+        // Every ending (rejected, expired, withdrawn) rejects the change; one already rejected is a redelivery (D-5: any other refusal parks).
+        if (rejected.BusinessRefType == StaticDataApprovals.BusinessRefType && await changes.Get(rejected.BusinessRefId, cancellationToken) is { } change
+            && change.Status != ChangeStatus.Rejected
+            && change.RejectChange(rejected.CheckerId, rejected.Reason, clock.UtcNow).IsFailure)
         {
-            change.RejectChange(rejected.CheckerId, rejected.Reason, clock.UtcNow);
+            throw NotApplied(rejected);
         }
 
-        await DecideGovernance(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.CheckerId, cancellationToken);
+        if (await DecideGovernance(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.CheckerId, cancellationToken) is { IsFailure: true })
+        {
+            throw NotApplied(rejected);
+        }
     }
 
-    /// <summary>Workflow's decision on a pending switch-off of Tier 2 maker-checker (OQ-046).</summary>
-    private async Task DecideGovernance(string businessRefType, Guid settingsId, bool approved, Guid checkerId, CancellationToken cancellationToken)
+    private static PrerequisiteMissingException NotApplied(ApprovalRejected rejected) =>
+        new(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
+
+    /// <summary>
+    /// Workflow's decision on a pending switch-off of Tier 2 maker-checker (OQ-046). An ending other than approval with
+    /// nothing pending any more is a redelivery: the setting is already as it was.
+    /// </summary>
+    private async Task<Result?> DecideGovernance(string businessRefType, Guid settingsId, bool approved, Guid checkerId, CancellationToken cancellationToken)
     {
-        if (businessRefType == StaticDataApprovals.GovernanceBusinessRefType && await changes.Settings(cancellationToken) is { } settings && settings.Id == settingsId)
+        if (businessRefType != StaticDataApprovals.GovernanceBusinessRefType || await changes.Settings(cancellationToken) is not { } settings || settings.Id != settingsId)
         {
-            settings.DecidePending(approved, checkerId);
+            return null;
         }
+
+        return !approved && settings.PendingTier2MakerChecker is null ? Result.Success() : settings.DecidePending(approved, checkerId);
     }
 
     public async Task Handle(StaticDataVersionActivated activated, EventEnvelope envelope, CancellationToken cancellationToken)

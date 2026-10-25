@@ -88,20 +88,25 @@ internal static class Cases
         await life.Case(id, cancellationToken) is { } found ? found : Error.NotFound(ErrorCodes.NotFound, "The underwriting case was not found.");
 }
 
-internal sealed class GetUnderwritingCaseHandler(ILifeRepository life) : IQueryHandler<GetUnderwritingCase, CaseView>
+internal sealed class GetUnderwritingCaseHandler(ILifeRepository life, Workflow.Contracts.IApprovalHistory history) : IQueryHandler<GetUnderwritingCase, CaseView>
 {
     public async Task<Result<CaseView>> Handle(GetUnderwritingCase query, CancellationToken cancellationToken)
     {
         var found = await Cases.Load(life, query.CaseId, cancellationToken);
-        return found.IsFailure ? found.Error : CaseView.From(found.Value);
+        return found.IsFailure
+            ? found.Error
+            : CaseView.From(found.Value) with
+            {
+                LatestRejection = await history.Latest(Contracts.LifeApprovals.UnderwritingBusinessRefType, found.Value.Id, cancellationToken),
+            };
     }
 }
 
-internal sealed class GetProposalCaseHandler(ILifeRepository life) : IQueryHandler<GetProposalCase, CaseView>
+internal sealed class GetProposalCaseHandler(ILifeRepository life, Workflow.Contracts.IApprovalHistory history) : IQueryHandler<GetProposalCase, CaseView>
 {
     public async Task<Result<CaseView>> Handle(GetProposalCase query, CancellationToken cancellationToken) =>
         await life.CaseForProposal(query.ProposalId, cancellationToken) is { } found
-            ? CaseView.From(found)
+            ? CaseView.From(found) with { LatestRejection = await history.Latest(Contracts.LifeApprovals.UnderwritingBusinessRefType, found.Id, cancellationToken) }
             : Error.NotFound(ErrorCodes.NotFound, "The proposal has no underwriting case.");
 }
 

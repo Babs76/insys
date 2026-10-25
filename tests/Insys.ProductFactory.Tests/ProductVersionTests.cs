@@ -162,8 +162,11 @@ public sealed class ProductVersionTests
         var version = Draft();
         version.ValidateVersion(Library, Now).IsSuccess.ShouldBeTrue();
         version.SubmitForApproval(Guid.CreateVersion7(), true, "", Now).IsSuccess.ShouldBeTrue();
+        version.RejectionApplied.ShouldBeFalse();
         version.RejectApproval().IsSuccess.ShouldBeTrue();
         version.Status.ShouldBe(ProductVersionStatus.Draft);
+        version.RejectionApplied.ShouldBeTrue("an expired, withdrawn or repeated ending finds it back with the maker");
+        version.RejectApproval().IsFailure.ShouldBeTrue("the handler parks this, unless already applied");
     }
 
     [Fact]

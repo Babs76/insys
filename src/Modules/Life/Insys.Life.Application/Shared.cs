@@ -197,7 +197,7 @@ public sealed record RequirementView(Guid Id, string EvidenceType, [property: On
 
 public sealed record CaseView(Guid Id, Guid ProposalId, CaseStatus Status, string? RulesetCode, int? RulesetVersion, string? RuleOutcome, string? Outcome, string? DecisionCode,
     string? DecisionReason, bool DecisionPending, Guid? DecidedBy, string? AuthorityRole, string? ReferredTo, IReadOnlyList<RequirementView> Requirements,
-    IReadOnlyList<DecisionItemRequest> Items, long RowVersion)
+    IReadOnlyList<DecisionItemRequest> Items, long RowVersion, Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static CaseView From(LifeUnderwritingCase c) => new(c.Id, c.ProposalId, c.Status, c.RulesetCode, c.RulesetVersion, c.RuleOutcome, c.Outcome?.ToString(),
         c.DecisionCode, c.DecisionReason, c.DecisionPending, c.DecidedBy, c.AuthorityRole, c.ReferredTo,
@@ -243,7 +243,8 @@ public sealed record ClaimPayeeView(Guid PartyId, Guid BankAccountId, decimal Sh
 
 public sealed record LifeClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, string ClaimType, DateOnly EventDate, string? CauseCode, Guid ClaimantPartyId,
     Guid InsuredLifeId, LifeClaimStatus Status, string Currency, decimal? AssessedAmount, decimal? ApprovedAmount, decimal PaidAmount, string? DecisionReason,
-    string? DecisionRationale, bool ApprovalPending, IReadOnlyList<ClaimLineView> Lines, IReadOnlyList<ClaimPayeeView> Payees, long RowVersion)
+    string? DecisionRationale, bool ApprovalPending, IReadOnlyList<ClaimLineView> Lines, IReadOnlyList<ClaimPayeeView> Payees, long RowVersion,
+    Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static LifeClaimView From(LifeClaim c) => new(c.Id, c.ClaimNumber, c.PolicyId, c.ClaimType, c.EventDate, c.CauseCode, c.ClaimantPartyId, c.InsuredLifeId,
         c.Status, c.Currency, c.AssessedAmount, c.ApprovedAmount, c.PaidAmount, c.DecisionReason, c.DecisionRationale, c.ApprovalPending,

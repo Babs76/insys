@@ -121,6 +121,29 @@ public sealed class StaticDataChangeTests
         settings.PendingTier2MakerChecker.ShouldBeNull();
     }
 
+    /// <summary>Wave 2 rule: an expired or withdrawn approval (no checker) rejects the change like a rejection, so the version returns to draft.</summary>
+    [Fact]
+    public void ExpiredOrWithdrawnChange_IsRejectedWithNoChecker()
+    {
+        var change = Submitted();
+        change.RejectChange(change.MakerId, "No", Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        change.RejectChange(Guid.Empty, "Expired", Now).IsSuccess.ShouldBeTrue();
+
+        (change.Status, change.CheckerId).ShouldBe((ChangeStatus.Rejected, (Guid?)null));
+        change.DomainEvents.OfType<StaticDataChangeRejected>().Single().CheckerId.ShouldBe(Guid.Empty);
+        change.RejectChange(Guid.Empty, "Expired", Now).IsFailure.ShouldBeTrue("the policy treats a Rejected change as already applied");
+    }
+
+    [Fact]
+    public void ExpiredOrWithdrawnSwitchOff_LeavesTier2On_AndCannotApprove()
+    {
+        var settings = TenantGovernanceSettings.Defaults(Guid.CreateVersion7());
+        settings.RequestTier2Off(Maker, "STATIC_DATA_T1", Now);
+        settings.DecidePending(approved: true, Guid.Empty).IsFailure.ShouldBeTrue("an approval has a checker");
+        settings.DecidePending(approved: false, Guid.Empty).IsSuccess.ShouldBeTrue();
+        (settings.Tier2MakerChecker, settings.PendingTier2MakerChecker).ShouldBe((true, (bool?)null));
+    }
+
     [Fact]
     public void RejectedSwitchOff_LeavesTier2On()
     {

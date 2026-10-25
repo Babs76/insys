@@ -250,7 +250,7 @@ public sealed class SubjectLink : Entity<Guid>, ITenantScoped
     };
 
     internal void Decide(bool approved, Guid checkerId, DateTimeOffset now) =>
-        (Status, DecidedBy, DecidedAt) = (approved ? SubjectLinkStatus.Active : SubjectLinkStatus.Rejected, checkerId, now);
+        (Status, DecidedBy, DecidedAt) = (approved ? SubjectLinkStatus.Active : SubjectLinkStatus.Rejected, checkerId == Guid.Empty ? null : checkerId, now);
 
     internal void End(Guid endedBy, DateTimeOffset now) => (Status, EndedBy, EndedAt) = (SubjectLinkStatus.Ended, endedBy, now);
 }
@@ -347,7 +347,16 @@ public sealed class UserAccount : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    /// <summary>Workflow's decision on a pending link; the checker is never the one who requested it (SRS-002).</summary>
+    /// <summary>Whether a non-approval ending is already applied to the link (it is Rejected): a redelivery changes nothing.</summary>
+    public bool SubjectLinkEndingApplied(Guid linkId) => _subjectLinks.Any(l => l.Id == linkId && l.Status == SubjectLinkStatus.Rejected);
+
+    /// <summary>Whether a non-approval ending is already applied to the assignment (it is Rejected): a redelivery changes nothing.</summary>
+    public bool AssignmentEndingApplied(Guid assignmentId) => _roleAssignments.Any(a => a.Id == assignmentId && a.Status == AssignmentStatus.Rejected);
+
+    /// <summary>
+    /// Workflow's decision on a pending link; the checker is never the one who requested it (SRS-002). Every ending other
+    /// than approval (rejected, expired, withdrawn) rejects it; with no checker (expired, withdrawn) nobody is recorded.
+    /// </summary>
     public Result DecideSubjectLink(Guid linkId, bool approved, Guid checkerId, DateTimeOffset now)
     {
         if (_subjectLinks.SingleOrDefault(l => l.Id == linkId && l.Status == SubjectLinkStatus.Pending) is not { } link)
@@ -355,9 +364,14 @@ public sealed class UserAccount : AggregateRoot<Guid>
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "No link with that ID is waiting for approval.");
         }
 
-        if (checkerId == link.RequestedBy)
+        if (checkerId != Guid.Empty && checkerId == link.RequestedBy)
         {
             return MakerChecker.EnsureDifferentPeople(link.RequestedBy.ToString(), checkerId.ToString());
+        }
+
+        if (approved && checkerId == Guid.Empty)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "A link is approved by a checker.");
         }
 
         link.Decide(approved, checkerId, now);
@@ -478,9 +492,14 @@ public sealed class UserAccount : AggregateRoot<Guid>
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "No assignment with that ID is waiting for approval.");
         }
 
-        if (checkerId == assignment.AssignedBy)
+        if (checkerId != Guid.Empty && checkerId == assignment.AssignedBy)
         {
             return MakerChecker.EnsureDifferentPeople(assignment.AssignedBy.ToString(), checkerId.ToString());
+        }
+
+        if (approved && checkerId == Guid.Empty)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "An assignment is approved by a checker.");
         }
 
         assignment.Decide(approved, checkerId, now);

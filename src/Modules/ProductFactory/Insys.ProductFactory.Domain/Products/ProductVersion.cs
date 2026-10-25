@@ -304,8 +304,14 @@ public sealed class ProductVersion : AggregateRoot<Guid>
         return result;
     }
 
-    /// <summary>Transition "Approval rejected": back to Draft for the maker.</summary>
+    /// <summary>Transition "Approval rejected": back to Draft for the maker, for every ending other than approval (rejected, expired, withdrawn).</summary>
     public Result RejectApproval() => Fire(ProductVersionTrigger.ApprovalRejected);
+
+    /// <summary>
+    /// Whether an ending (not granted) is already applied, so a redelivery changes nothing: the version is back with the
+    /// maker (Draft, or Validated again), not waiting for approval and not approved.
+    /// </summary>
+    public bool RejectionApplied => Status is ProductVersionStatus.Draft or ProductVersionStatus.Validated;
 
     /// <summary>Command ApproveVersion, from Workflow's ApprovalGranted (maker and checker already differ; SRS-002, PRD-006).</summary>
     public Result ApproveVersion(Guid checkerId, DateTimeOffset now)
