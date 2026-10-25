@@ -34,7 +34,8 @@
 | 8 Wave 0b batch 5 | External-user access (links, portal gate with channel and MFA, relationship scope, portal views, party-match review) for General, Life, Health and Party; Billing follows an assigned Health product; /health lists every plan product problem; old callback route removed; arrears open on the first run (request 46); Compliance idempotency and ETags (GAP-048); report run list and export (GAP-047); dashboard figures proposed (GAP-046) | **Merged** (`0f66f05`, 24 Oct 2026) |
 | 8 Wave 0b batch 6 | External-user remainder (portal documents, invoices, statements; member Life and Health claims; party-match resolution; portal Keycloak clients); arrears past the last bucket park; dashboard figures (GAP-046); onboarding readiness (TEN-008); Keycloak user provisioning; tenant users limited to configuration while Onboarding; smoke-run attestation; ADR-017 amendment 1 | **Merged** (`f97ed95`, 25 Oct 2026) |
 | 8 Wave 1 batch 1 | Requests 48–50 (GAP-050 Health productCode, GAP-052 x-permission declarations, GAP-051 aggregation alerts), completing Wave 0b; Communications addendum for sign-off | **Merged** (`8c007e7`, 25 Oct 2026) |
-| 8 Wave 1 batch 2 | Communications (F021, F031, F078, F095–F102): notifications, channels as stubs, preferences and consent, triggers, delivery callbacks, portal; function catalogue proposal (ADR-026) for sign-off | **Done on `wave1-2`, awaiting review** (25 Oct 2026) |
+| 8 Wave 1 batch 2 | Communications (F021, F031, F078, F095–F102): notifications, channels as stubs, preferences and consent, triggers, delivery callbacks, portal; function catalogue proposal (ADR-026) for sign-off | **Merged** (`2562160`, 25 Oct 2026) |
+| 8 Wave 1 batch 3 | Function catalogue (ADR-026): dynamic menus and function-based access; Communications follow-ups (proof of consent, claim communications list); Payments callback idempotency; CI split plan | **In progress on `wave1-3`** (25 Oct 2026) |
 
 ## Phase 1 review items
 

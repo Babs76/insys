@@ -1,6 +1,17 @@
 # Addendum: the function catalogue, dynamic menus and function-based access (ADR-026)
 
-**Proposed 25 October 2026, for sign-off.** Nothing is built until it is signed off. Then Wave 1 continues, and each later batch registers its own functions as it builds.
+**Signed off 25 October 2026** (Ade). Built in Wave 1 batch 3; each later batch registers its own functions as it builds.
+
+## Decisions at sign-off (they replace the proposal where they differ)
+1. **`audiences` (text[]) replaces `audience`.**
+   - Identity & Access, Static Data, Audit and Localisation functions carry `[STAFF, PLATFORM]`; nothing is duplicated.
+   - Data separation stays with tenant scope and static data scope.
+2. **OQ-092, the taxonomy:** the 12 domains and 54 sub-domains of `docs/specs/INSYS_NAVIGATION.md` (copied from the UI prototype), with their process areas, plus a Configuration domain for static data by module.
+   - The operator's screens sit in that file's PLATFORM domain, so no second Platform domain is added.
+3. **Portal screens belong to portal sub-domains,** so every function has a sub-domain. They are `BROKER_PORTAL`, `PROVIDER_PORTAL` and `CUSTOMER_PORTAL`, under a PORTALS domain, which is the one domain added beyond the file.
+4. **OQ-093:** static data functions per catalogue sub-module (view, maintain, approve), not per table.
+5. **OQ-091, the initial features:** `LIFE`, `GENERAL`, `HEALTH`, `REINSURANCE`, `BROKER_PORTAL`, `PROVIDER_PORTAL`, `CUSTOMER_PORTAL`. A function with no feature is base platform.
+6. **Members are `CUSTOMER`:** accepted.
 
 - **Basis:** Ade's decisions 1–5 (ADR-026), SRS-001 to SRS-003, IAM-001, IAM-006, IAM-007, TEN-001, §4.1, §8.
 - **Today:**

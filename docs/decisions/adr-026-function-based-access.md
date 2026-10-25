@@ -1,6 +1,12 @@
 # ADR-026: Roles hold functions; the menu and access come from one function catalogue
 
-- **Status:** **Proposed** (25 October 2026), for Ade's sign-off. Nothing is built until it is signed off.
+- **Status:** **Accepted** (25 October 2026, Ade), with six changes to the proposal (see `addenda/function-catalogue.md`, "Decisions at sign-off"):
+  1. `audiences` (a list), not `audience`.
+  2. The taxonomy comes from `docs/specs/INSYS_NAVIGATION.md`.
+  3. Portal screens belong to portal sub-domains.
+  4. Static data functions are per catalogue sub-module.
+  5. There are seven initial features.
+  6. Members are `CUSTOMER`.
 - **Requirements:** SRS-001 (role-based access), SRS-002 (maker-checker, segregation of duties), SRS-003 (access by product, organisation and relationship), IAM-001, IAM-006, IAM-007, TEN-001 and §4.1 (tenant feature entitlements), §8 (portals).
 - **Related:**
   - ADR-017 (Keycloak; tokens carry only `sub` and `tenant_id`);
