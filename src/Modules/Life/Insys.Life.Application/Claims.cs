@@ -249,8 +249,8 @@ internal sealed class AssessLifeClaimHandler(ILifeRepository life, IAuditTrail a
     }
 }
 
-internal sealed class ApproveLifeClaimHandler(ILifeRepository life, IBankAccounts bankAccounts, ITenantContext tenant, IExecutionContext execution, IClock clock,
-    IAuditTrail audit) : ICommandHandler<ApproveLifeClaim, LifeClaimView>
+internal sealed class ApproveLifeClaimHandler(ILifeRepository life, IBankAccounts bankAccounts, IClaimDecisionReasons reasons, ITenantContext tenant, IExecutionContext execution,
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<ApproveLifeClaim, LifeClaimView>
 {
     public async Task<Result<LifeClaimView>> Handle(ApproveLifeClaim command, CancellationToken cancellationToken)
     {
@@ -283,7 +283,10 @@ internal sealed class ApproveLifeClaimHandler(ILifeRepository life, IBankAccount
         // A policy loan is settled from the claim first (LifePolicyLoan: OffsetAgainstBenefit).
         var loanOffset = (await life.ActiveLoans(policy.Id, cancellationToken)).Sum(l => l.Balance);
         audit.Record(new AuditEntry("LIFE", "ApproveClaim", nameof(LifeClaim), claim.Id.ToString()));
-        var result = claim.RequestApproval(payees, loanOffset, command.ReserveType, command.DecisionReason, command.Rationale, user.Value, clock.UtcNow);
+        // The decision reason as a claim decision reason (OQ-102): an approval below the amount claimed needs a PARTIAL one.
+        var reason = await reasons.InForce(tenant.RequireTenantId(), command.DecisionReason, businessDate.Today, cancellationToken);
+        var result = claim.RequestApproval(payees, loanOffset, command.ReserveType, command.DecisionReason, command.Rationale, user.Value, clock.UtcNow,
+            reason?.DecisionType);
         return result.IsFailure ? result.Error : LifeClaimView.From(claim);
     }
 }

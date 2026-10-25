@@ -37,6 +37,9 @@ public static class TriggerSources
     public const string LifeClaim = "LIFE_CLAIM";
     public const string HealthClaim = "HEALTH_CLAIM";
     public const string HealthPreauth = "HEALTH_PREAUTH";
+
+    /// <summary>A Workflow case (addenda/cases.md §7).</summary>
+    public const string Case = "CASE";
 }
 
 /// <summary>How merge values are written: invariant culture, so a template renders the same in every tenant's locale.</summary>

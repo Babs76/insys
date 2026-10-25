@@ -66,6 +66,22 @@ public static class NotificationTypes
     public const string ClaimStatus = "CLAIM_STATUS";
     public const string HealthClaimDecision = "HEALTH_CLAIM_DECISION";
     public const string PreauthDecision = "PREAUTH_DECISION";
+
+    /// <summary>A case was acknowledged to the complainant (addenda/cases.md §7; OQ-107: the acknowledgement is the confirmation).</summary>
+    public const string CaseAcknowledged = "CASE_ACKNOWLEDGED";
+
+    /// <summary>A case's progress or delay, with its new expected date (§7, PPR 18.9).</summary>
+    public const string CaseUpdate = "CASE_UPDATE";
+
+    /// <summary>A case's decision, with its reasons, the review options and the ombud's details (§7, PPR 18.7).</summary>
+    public const string CaseDecision = "CASE_DECISION";
+
+    /// <summary>
+    /// The claimant's rights on a claim decision that declines all or part of a claim (§7, OQ-102, PPR 17.6.3): the
+    /// reasons, the right to make representations, internal escalation, the ombud and any time-bar. A claim module
+    /// requests it (NotificationRequested); the period and contact wording are the tenant's template.
+    /// </summary>
+    public const string ClaimDecisionRights = "CLAIM_DECISION_RIGHTS";
 }
 
 /// <summary>

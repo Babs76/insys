@@ -62,7 +62,9 @@ public sealed class HealthTests
         Model(HealthMembership.Lifecycle).ShouldBe(Spec("HealthMembership", ("Start date reached", "StartDateReached")));
         Model(Preauthorisation.Lifecycle).ShouldBe(Spec("Preauthorisation", ("Matched to a claim", "MatchedToClaim"), ("Validity ends", "ValidityEnds"),
             ("Conditions met", "ConditionsMet")));
-        Model(MedicalClaim.Lifecycle).ShouldBe(Spec("MedicalClaim", ("Information received", "InformationReceived"), ("Payment run released", "PaymentRunReleased")));
+        // OQ-103 (Wave 2 cases) adds "Rejected-ReopenClaim->Validated" for an upheld dispute or appeal, not yet in domain-model.json.
+        Model(MedicalClaim.Lifecycle).ShouldBe(string.Join("|", Spec("MedicalClaim", ("Information received", "InformationReceived"), ("Payment run released", "PaymentRunReleased"))
+            .Split('|').Append("Rejected-ReopenClaim->Validated").OrderBy(t => t, StringComparer.Ordinal)));
         Model(UtilisationCase.Lifecycle).ShouldBe(Spec("UtilisationCase"));
         Model(HealthFraudCase.Lifecycle).ShouldBe(Spec("HealthFraudCase"));
         // D-2 (Wave 2 batch 1, V0056) adds "Calculated-RejectRun->Rejected", not yet in domain-model.json.
@@ -214,7 +216,33 @@ public sealed class HealthTests
         var resolved = pended with { Lines = [pended.Lines[0], pended.Lines[1] with { Outcome = LineOutcome.Reject, Reason = AdjudicationReasons.Reviewer }] };
         claim.AdjudicateClaim(resolved, Now).IsSuccess.ShouldBeTrue();
         (claim.Status, claim.TotalPaid).ShouldBe((MedicalClaimStatus.Adjudicated, 900m));
-        claim.ApproveForPayment(Principal, Now).IsSuccess.ShouldBeTrue();
+
+        // OQ-102: a declined line, with the rest paid, is a partial approval, which gives a PARTIAL decision reason.
+        claim.ApproveForPayment(Principal, Now).Error!.Code.ShouldBe(HealthErrorCodes.RationaleRequired);
+        claim.ApproveForPayment(Principal, Now, "LINE_DECLINED", "DECLINE").IsFailure.ShouldBeTrue();
+        claim.ApproveForPayment(Principal, Now, "LINE_DECLINED", MedicalClaimOutcomes.PartialReasonType).IsSuccess.ShouldBeTrue();
+        (claim.DecisionOutcome, claim.DecisionReasonCode).ShouldBe((MedicalClaimOutcomes.PartlyApproved, "LINE_DECLINED"));
+        claim.NoticeDecisionRights(Principal, "HLT-CORE", null, Today, Now).IsSuccess.ShouldBeTrue();
+        claim.DomainEvents.OfType<MedicalClaimDecisionRightsDue>().Single().TotalPaid.ShouldBe(900m);
+    }
+
+    /// <summary>F013, F032, OQ-103: an upheld appeal sends a rejected medical claim back to Validated, to be adjudicated again; any other claim is left as it is.</summary>
+    [Fact]
+    public void UpheldAppeal_SendsARejectedClaimBackToValidation_OQ103()
+    {
+        var claim = MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC-R", ClaimSources.Provider, "PR-1", Guid.CreateVersion7(), Principal, Today, "API", "ZAR", null,
+            [new ClaimLineRequest("0300", null, 1, 900m, null)], Now).Value;
+        claim.ReopenForCase("CASE-1").ShouldBeFalse("a received claim is not rejected");
+        claim.ValidateClaim("NOT_COVERED", Now).IsSuccess.ShouldBeTrue();
+        claim.Status.ShouldBe(MedicalClaimStatus.Rejected);
+
+        claim.ReopenForCase("CASE-1").ShouldBeTrue();
+        (claim.Status, claim.TotalPaid, claim.PendReason).ShouldBe((MedicalClaimStatus.Validated, (decimal?)null, (string?)null));
+        claim.ReopenForCase("CASE-1").ShouldBeFalse("a redelivery changes nothing");
+        claim.AdjudicateClaim(new AdjudicationResult([new LineResult(1, LineOutcome.Pay, null, "SPECIALIST", NetworkStatus.InNetwork, 900m, 900m, 0, 0, 900m, 0, null, null)],
+            [], []), Now).IsSuccess.ShouldBeTrue();
+        claim.ApproveForPayment(Principal, Now).IsSuccess.ShouldBeTrue("paid in full: approved, no reason needed");
+        claim.DecisionOutcome.ShouldBe(MedicalClaimOutcomes.Approved);
     }
 
     /// <summary>

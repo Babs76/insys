@@ -68,6 +68,7 @@ public static class LifeInfrastructure
         services.AddSingleton<Workflow.Contracts.IApprovalAuthoritySource, ClaimsAuthority>();
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, LifeApprovalScopes>();
         services.AddIntegrationEventHandler<PremiumCalculated, LifeEventPolicies, LifeDbContext>(schema, "PremiumCalculated");
+        services.AddIntegrationEventHandler<Workflow.Contracts.CaseDecided, ReopenLifeClaimsOnUpheldCase, LifeDbContext>(schema, "CaseDecided");
         services.AddIntegrationEventHandler<RuleDecisionRecorded, LifeEventPolicies, LifeDbContext>(schema, "RuleDecisionRecorded");
         services.AddIntegrationEventHandler<LifeProposalSubmitted, LifeEventPolicies, LifeDbContext>(schema, "LifeProposalSubmitted");
         services.AddIntegrationEventHandler<LifeUnderwritingCaseOpened, LifeEventPolicies, LifeDbContext>(schema, "LifeUnderwritingCaseOpened");

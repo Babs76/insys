@@ -200,6 +200,9 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             claim.Property(c => c.Status).HasConversion(new UpperCaseEnumConverter<MedicalClaimStatus>()).HasMaxLength(30);
             claim.Property(c => c.Currency).HasColumnType("char(3)");
             claim.Property(c => c.PendReason).HasMaxLength(30);
+            claim.Ignore(c => c.PartlyApproved);
+            claim.Property(c => c.DecisionOutcome).HasMaxLength(20);
+            claim.Property(c => c.DecisionReasonCode).HasMaxLength(20);
             Children(claim, c => c.Lines, "ClaimId");
         });
 

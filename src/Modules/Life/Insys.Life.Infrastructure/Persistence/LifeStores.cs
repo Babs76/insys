@@ -224,6 +224,28 @@ internal sealed partial class LifeCodes(LifeDbContext db) : ILifeCodes
         db.Set<T>().AsNoTracking().InForce(LifeStaticData.Descriptors.Single(d => d.EntityType == typeof(T)).Lifecycle, day);
 }
 
+/// <summary>The merge values of CLAIM_DECISION_RIGHTS (OQ-102): business references and amounts, invariant, and the reason's customer wording.</summary>
+internal static class DecisionRightsMerge
+{
+    public static IReadOnlyDictionary<string, string> Of(string claimNumber, DateOnly decidedOn, string? reasons, decimal amount, decimal claimed, string currency)
+    {
+        var merge = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["claim_number"] = claimNumber,
+            ["decision_date"] = decidedOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            ["amount"] = amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+            ["claimed_amount"] = claimed.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+            ["currency"] = currency,
+        };
+        if (!string.IsNullOrWhiteSpace(reasons))
+        {
+            merge["decision_reasons"] = reasons;
+        }
+
+        return merge;
+    }
+}
+
 internal sealed class LifeEventMapper : IDomainEventMapper
 {
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
@@ -252,6 +274,9 @@ internal sealed class LifeEventMapper : IDomainEventMapper
         Domain.Claims.LifeClaimApproved e => new Contracts.LifeClaimApproved(e.ClaimId, e.ClaimNumber, e.PolicyId, e.Amount, e.LoanOffset, e.Currency, e.ReserveType,
             e.Payees.Select(p => new Contracts.LifeClaimPayee(p.PartyId, p.BankAccountId, p.BankAccountHash, p.Amount)).ToList(), e.ApprovalId, e.CheckerId),
         Domain.Claims.LifeClaimDeclined e => new Contracts.LifeClaimDeclined(e.ClaimId, e.ClaimNumber, e.DecisionReason),
+        Domain.Claims.LifeClaimDecisionRightsDue e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.ClaimDecisionRights,
+            e.RecipientPartyId, "LIFE_CLAIM", e.ClaimId, DecisionRightsMerge.Of(e.ClaimNumber, e.DecidedOn, e.DecisionReasons, e.Amount, e.ClaimedAmount, e.Currency),
+            e.ProductCode, e.OrgNodeCode),
         Domain.Claims.LifeClaimSettled e => new Contracts.LifeClaimSettled(e.ClaimId, e.ClaimNumber, e.PolicyId, e.PolicyBenefitIds, e.Amount, e.Currency, e.PaidOn),
         Domain.Groups.GroupMemberEnrolled e => new Contracts.GroupMemberEnrolled(e.SchemeId, e.SchemeNumber, e.MemberId, e.PartyId, e.CategoryCode, e.CoverAmount,
             e.EvidenceRequired),

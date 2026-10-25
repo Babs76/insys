@@ -113,7 +113,7 @@ public sealed record StatusChangeView(PaymentStatus From, PaymentStatus To, stri
 
 public sealed record AllocationView(Guid Id, Guid InvoiceId, decimal Amount, string Currency, DateTimeOffset AllocatedAt, Guid? ReversedById);
 
-public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission)] string Purpose, string MethodCode, string ProviderCode, decimal Amount, string Currency,
+public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission, PaymentPurposes.CaseRedress)] string Purpose, string MethodCode, string ProviderCode, decimal Amount, string Currency,
     PaymentStatus Status, string? ExternalRef, string IdempotencyKey, DateOnly? ValueDate, string? BusinessRefType, Guid? BusinessRefId, Guid? PayoutBatchId,
     IReadOnlyList<StatusChangeView> History, IReadOnlyList<AllocationView> Allocations)
 {
@@ -127,7 +127,7 @@ public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, [
 /// True when the batch also pays records outside the caller's scope (F103): the count and total are then of the payments
 /// in scope only, so no other branch's or product's figures show through the batch.
 /// </param>
-public sealed record BatchView(Guid Id, string BatchRef, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission)] string Purpose, int PaymentCount, decimal TotalAmount, string Currency, BatchStatus Status, Guid? BuiltBy,
+public sealed record BatchView(Guid Id, string BatchRef, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission, PaymentPurposes.CaseRedress)] string Purpose, int PaymentCount, decimal TotalAmount, string Currency, BatchStatus Status, Guid? BuiltBy,
     Guid? ApprovedBy, Guid? ReleasedBy, bool PartlyInScope, LatestRejection? LatestRejection = null)
 {
     public static BatchView From(PayoutBatch b) => new(b.Id, b.BatchRef, b.Purpose, b.PaymentCount, b.TotalAmount, b.Currency, b.Status, b.BuiltBy,
@@ -740,12 +740,16 @@ public static class PaymentPrerequisites
 
     /// <summary>No provider in the register supports the payout method (the item).</summary>
     public const string ProviderNotInForce = "PAYOUT_PROVIDER_NOT_IN_FORCE";
+
+    /// <summary>The payee has no verified, current bank account in the currency (the item: payee party and currency).</summary>
+    public const string PayeeAccountNotPayable = "PAYEE_ACCOUNT_NOT_PAYABLE";
 }
 
-public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter starter, IPaymentCodes codes, IAllocationPlanner planner, ITenantContext tenant,
-    IBusinessDate businessDate, IClock clock) :
+public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter starter, IPaymentCodes codes, IAllocationPlanner planner, IBankAccounts bankAccounts,
+    ITenantContext tenant, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<InvoiceIssued>,
     IIntegrationEventHandler<RefundApproved>,
+    IIntegrationEventHandler<CaseRedressApproved>,
     IIntegrationEventHandler<ClaimPaymentInstructed>,
     IIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased>,
     IIntegrationEventHandler<Distribution.Contracts.CommissionStatementApproved>,
@@ -771,6 +775,22 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     public Task Handle(RefundApproved approved, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Payout($"REFUND:{approved.RefundId:N}", PaymentPurposes.Refund, approved.Amount, approved.Currency, approved.PayerPartyId, BillingApprovals.RefundBusinessRefType,
             approved.RefundId, approved.BankAccountId, cancellationToken);
+
+    /// <summary>
+    /// Redress approved on a case by a second person (OQ-104) is paid to the payee's verified account through a payout
+    /// batch, as a refund is: purpose CASE_REDRESS, business reference CASE_REDRESS and the redress ID, once per redress.
+    /// With no account named, the payee's current verified account in the currency; with none, the delivery parks
+    /// (PAYEE_ACCOUNT_NOT_PAYABLE, ADR-022) until the payee has one.
+    /// </summary>
+    public async Task Handle(CaseRedressApproved approved, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var accountId = approved.BankAccountId
+                        ?? (await bankAccounts.Current(tenant.RequireTenantId(), approved.PayeePartyId, approved.Currency, cancellationToken) is { IsPayable: true } current
+                            ? current.Id
+                            : throw new PrerequisiteMissingException(PaymentPrerequisites.PayeeAccountNotPayable, $"{approved.PayeePartyId}:{approved.Currency}"));
+        await Payout($"CASE_REDRESS:{approved.RedressId:N}", CaseApprovals.RedressPaymentPurpose, approved.Amount, approved.Currency, approved.PayeePartyId,
+            CaseApprovals.RedressBusinessRefType, approved.RedressId, accountId, cancellationToken);
+    }
 
     public Task Handle(ClaimPaymentInstructed instructed, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Payout($"CLAIM_PAYMENT:{instructed.InstructionId:N}:{instructed.Attempt}", PaymentPurposes.ClaimPayout, instructed.Amount, instructed.Currency, instructed.PayeePartyId,

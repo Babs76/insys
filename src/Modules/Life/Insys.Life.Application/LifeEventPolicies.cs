@@ -46,8 +46,8 @@ namespace Insys.Life.Application;
 /// consistent through its events. PaymentAllocated carries no policy, so a payment in grace is seen through Billing's
 /// InvoiceSettled, which does.
 /// </summary>
-public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IPolicyArrears arrears, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
-    ILogger<LifeEventPolicies> logger) :
+public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IPolicyArrears arrears, ISellableProducts products, ClaimsFramework.Contracts.IClaimDecisionReasons reasons,
+    ITenantContext tenant, IBusinessDate businessDate, IClock clock, ILogger<LifeEventPolicies> logger) :
     IIntegrationEventHandler<PremiumCalculated>,
     IIntegrationEventHandler<RuleDecisionRecorded>,
     IIntegrationEventHandler<Contracts.LifeProposalSubmitted>,
@@ -257,6 +257,13 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
             }
 
             decided = claim.DecideApproval(approved, approvalId, checkerId, subjectHash, clock.UtcNow);
+
+            // OQ-102: a partial approval sends the claimant their rights on the declined part, with the reason's wording.
+            if (decided.IsSuccess && approved && claim.PartlyApproved)
+            {
+                var reason = await reasons.InForce(tenant.RequireTenantId(), claim.DecisionReason!, businessDate.Today, cancellationToken);
+                claim.NoticeDecisionRights(reason?.CustomerWording, businessDate.Today, clock.UtcNow);
+            }
         }
 
         // D-5: a decision the record would not take parks the delivery (ADR-022) for a retry and escalation, never only logged:

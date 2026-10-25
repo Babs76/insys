@@ -67,6 +67,20 @@ public static class CommunicationsInfrastructure
         services.AddIntegrationEventHandler<Party.Contracts.ConsentGranted, ClearOptOutOnConsent, CommunicationsDbContext>(schema);
         services.AddIntegrationEventHandler<Party.Contracts.PartyAnonymised, AnonymiseNotifications, CommunicationsDbContext>(schema);
 
+        // Onboarding readiness (OQ-110, addenda/cases.md §10): the three case notification types, each with a template in force.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, schema, ["SHARED_OPERATIONAL_SETUP"], async (context, connection, transaction, ct) =>
+        {
+            string[] caseTypes = [Contracts.NotificationTypes.CaseAcknowledged, Contracts.NotificationTypes.CaseUpdate, Contracts.NotificationTypes.CaseDecision];
+            var configured = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction, $"""
+                SELECT type_code FROM communication.cfg_notification_types WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}
+                INTERSECT
+                SELECT type_code FROM communication.cfg_notification_templates WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}
+                """, ct, ("t", context.TenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", context.Day));
+            return [BuildingBlocks.Application.ReadinessResult.Of("SHARED_OPERATIONAL_SETUP", "CASE_NOTICES",
+                "The case notification types (CASE_ACKNOWLEDGED, CASE_UPDATE, CASE_DECISION), each with a template in force",
+                caseTypes.Except(configured).Select(t => $"communication.cfg_notification_types/templates ({t})").ToList())];
+        });
+
         services.AddSingleton<NotificationSender>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {

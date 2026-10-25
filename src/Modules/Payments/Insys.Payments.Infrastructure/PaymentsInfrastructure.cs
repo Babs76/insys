@@ -61,6 +61,7 @@ public static class PaymentsInfrastructure
         services.AddSingleton<IPaymentGateway, SimulatorGateway>();
         services.AddIntegrationEventHandler<InvoiceIssued, PaymentPolicies, PaymentsDbContext>(schema, "InvoiceIssued");
         services.AddIntegrationEventHandler<RefundApproved, PaymentPolicies, PaymentsDbContext>(schema, "RefundApproved");
+        services.AddIntegrationEventHandler<Workflow.Contracts.CaseRedressApproved, PaymentPolicies, PaymentsDbContext>(schema, "CaseRedressApproved");
         services.AddIntegrationEventHandler<ClaimPaymentInstructed, PaymentPolicies, PaymentsDbContext>(schema, "ClaimPaymentInstructed");
         services.AddIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased, PaymentPolicies, PaymentsDbContext>(schema, "ProviderPaymentRunReleased");
         services.AddIntegrationEventHandler<Distribution.Contracts.CommissionStatementApproved, PaymentPolicies, PaymentsDbContext>(schema, "CommissionStatementApproved");

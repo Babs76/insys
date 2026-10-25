@@ -67,6 +67,7 @@ public static class HealthInfrastructure
         services.AddScoped<IHealthLists, HealthLists>();
         services.AddScoped<BenefitContexts>();
         services.AddIntegrationEventHandler<PreauthorisationApproved, HealthEventPolicies, HealthDbContext>(schema, "PreauthorisationApproved");
+        services.AddIntegrationEventHandler<Workflow.Contracts.CaseDecided, ReopenMedicalClaimsOnUpheldCase, HealthDbContext>(schema, "CaseDecided");
         services.AddIntegrationEventHandler<PreauthorisationReservationsChanged, HealthEventPolicies, HealthDbContext>(schema, "ReservationsChanged");
         services.AddIntegrationEventHandler<MedicalClaimAdjudicated, HealthEventPolicies, HealthDbContext>(schema, "MedicalClaimAdjudicated");
         services.AddIntegrationEventHandler<ApprovalGranted, HealthEventPolicies, HealthDbContext>(schema, "ApprovalGranted");

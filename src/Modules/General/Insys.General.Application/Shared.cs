@@ -301,13 +301,15 @@ public sealed record SettlementView(decimal Amount, string Currency, Guid PayeeP
 
 public sealed record ClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt,
     string CauseCode, string PerilCode, string? CatEventCode, ClaimStatus Status, string? DecisionCode, string? DecisionRationale, SettlementView? Settlement,
-    IReadOnlyList<ClaimPartyView> Parties, long RowVersion, Workflow.Contracts.LatestRejection? LatestRejection = null)
+    IReadOnlyList<ClaimPartyView> Parties, long RowVersion,
+    [property: OneOf(ClaimDecisionOutcomes.Approved, ClaimDecisionOutcomes.PartlyApproved, ClaimDecisionOutcomes.Declined)] string? Outcome = null,
+    decimal? ClaimedAmount = null, Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static ClaimView From(GeneralClaim c) => new(c.Id, c.ClaimNumber, c.PolicyId, c.RiskObjectId, c.CoverageCode, c.LossDate, c.NotifiedAt, c.CauseCode, c.PerilCode,
         c.CatEventCode, c.Status, c.DecisionCode, c.DecisionRationale,
         c.SettlementAmount is { } amount ? new SettlementView(amount, c.SettlementCurrency!, c.SettlementPayeePartyId!.Value, c.SettlementReserveType!, c.SettlementPending,
             c.SettlementApprovalId) : null,
-        c.Parties.Select(p => new ClaimPartyView(p.PartyId, p.Role, p.InsurerRef)).ToList(), c.RowVersion);
+        c.Parties.Select(p => new ClaimPartyView(p.PartyId, p.Role, p.InsurerRef)).ToList(), c.RowVersion, c.DecisionOutcome, c.ClaimedAmount);
 }
 
 public sealed record EstimateView(Guid Id, Guid RepairerPartyId, decimal Amount, [property: OneOf("SUBMITTED", "ACCEPTED", "REJECTED")] string Status);

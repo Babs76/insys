@@ -45,8 +45,8 @@ namespace Insys.General.Application;
 /// General's policies (domain-model.json: general consumes PremiumCalculated, ApprovalGranted, ClaimPaymentCompleted),
 /// and the reactions that keep its own aggregates consistent with each other through its events.
 /// </summary>
-public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
-    ILogger<GeneralPolicies> logger) :
+public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, IClaimDecisionReasons reasons, ITenantContext tenant,
+    IBusinessDate businessDate, IClock clock, ILogger<GeneralPolicies> logger) :
     IIntegrationEventHandler<PremiumCalculated>,
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
@@ -212,6 +212,13 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
 
             var decided = claim.DecideSettlement(approved, approvalId, checkerId, subjectHash, clock.UtcNow);
             NotApplied(decided, approved, GeneralApprovals.SettlementApprovalType, approvalId);
+
+            // OQ-102: a partial approval sends the policyholder their rights on the declined part, with the reason's wording.
+            if (approved && claim.PartlyApproved && await general.Policy(claim.PolicyId, cancellationToken) is { } policy)
+            {
+                var reason = await reasons.InForce(tenant.RequireTenantId(), claim.DecisionCode!, businessDate.Today, cancellationToken);
+                claim.NoticeDecisionRights(policy.PolicyholderPartyId, reason?.CustomerWording, businessDate.Today, clock.UtcNow);
+            }
         }
     }
 

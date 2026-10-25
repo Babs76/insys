@@ -92,4 +92,23 @@ internal sealed class ProviderDirectory([FromKeyedServices(HealthDbContext.Schem
         await transaction.CommitAsync(cancellationToken);
         return active;
     }
+
+    public async Task<Guid?> PartyOf(Guid tenantId, string providerId, DateOnly day, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT party_id FROM health.mst_provider_register
+            WHERE tenant_id = @t AND provider_id = @p AND record_status IN ('APPROVED', 'ACTIVE', 'DEPRECATED') AND effective_from <= @day
+              AND (effective_to IS NULL OR effective_to > @day)
+            ORDER BY version DESC LIMIT 1
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("p", providerId);
+        command.Parameters.AddWithValue("day", day);
+        var party = await command.ExecuteScalarAsync(cancellationToken) is Guid id ? id : (Guid?)null;
+        await transaction.CommitAsync(cancellationToken);
+        return party;
+    }
 }

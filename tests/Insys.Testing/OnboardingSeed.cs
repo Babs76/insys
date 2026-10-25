@@ -199,6 +199,15 @@ public static class OnboardingSeed
         await database.SeedStaticFilled(tenantId, "document.cfg_document_templates", "EFFECTIVE", "TPL-1", from, ("template_code", "TPL-1"), ("language", "en"),
             ("document_type", "POLICY_SCHEDULE"));
 
+        // OQ-110: the case notification types, each with a template.
+        foreach (var type in new[] { "CASE_ACKNOWLEDGED", "CASE_UPDATE", "CASE_DECISION" })
+        {
+            await database.SeedStaticFilled(tenantId, "communication.cfg_notification_types", "EFFECTIVE", $"NT-{type}", from, ("type_code", type), ("category", "SERVICE"),
+                ("consent_purpose", DBNull.Value), ("channels", new[] { "EMAIL" }));
+            await database.SeedStaticFilled(tenantId, "communication.cfg_notification_templates", "EFFECTIVE", $"NTT-{type}", from, ("type_code", type), ("channel", "EMAIL"),
+                ("language", "en"), ("subject", "Case {case_number}"), ("body", "Case {case_number}"));
+        }
+
         // PAYMENTS_AND_DISTRIBUTION
         await database.SeedStaticFilled(tenantId, "billing.ref_collection_methods", "ACTIVE", "DEBIT_ORDER", from, ("method_code", "DEBIT_ORDER"),
             ("payment_method", "DEBIT_ORDER"), ("lead_time", TimeSpan.FromDays(2)));

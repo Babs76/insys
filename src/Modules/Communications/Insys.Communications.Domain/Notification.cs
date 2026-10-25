@@ -174,7 +174,7 @@ public sealed class Notification : AggregateRoot<Guid>
         return notification;
     }
 
-    private static readonly string[] ReferenceFields = ["claim_number", "auth_number", "policy_number", "account_number"];
+    private static readonly string[] ReferenceFields = ["claim_number", "auth_number", "policy_number", "account_number", "case_number"];
 
     private static string? SourceReferenceOf(IReadOnlyDictionary<string, string> values) =>
         ReferenceFields.Select(f => values.TryGetValue(f, out var v) ? v : null).FirstOrDefault(v => !string.IsNullOrEmpty(v)) is { } reference

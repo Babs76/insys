@@ -58,6 +58,9 @@ public sealed record PendReviewRequest(IReadOnlyList<LineReview> Reviews);
 
 public sealed record ReasonRequest(string Reason);
 
+/// <param name="ReasonCode">A partial approval's reason (OQ-102): a claim decision reason of type PARTIAL, required when some lines were declined.</param>
+public sealed record ApproveClaimRequest(string? ReasonCode);
+
 public sealed record CaseOutcomeRequest(string Outcome);
 
 /// <summary>
@@ -201,7 +204,8 @@ public sealed class HealthModule : IModule
                 (await d.Send(new ReviewPendedClaim(id, r.Reviews), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
             .WithName("HealthReviewPendedClaim").WithSummary("Accept or reject pended lines, and adjudicate again").RequirePermission(HealthPermissions.ClaimApprove);
-        health.MapPost("/claims/{id:guid}/approve", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new ApproveMedicalClaim(id), ct)).ToHttp(Results.Ok))
+        health.MapPost("/claims/{id:guid}/approve", async (Guid id, ApproveClaimRequest? r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new ApproveMedicalClaim(id, r?.ReasonCode), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
             .WithName("HealthApproveClaim").WithSummary("Approve the adjudicated claim for payment").RequirePermission(HealthPermissions.ClaimApprove);
         health.MapPost("/claims/{id:guid}/reject", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) =>

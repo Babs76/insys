@@ -311,6 +311,9 @@ public sealed class LifeDbContext(DbContextOptions<LifeDbContext> options, Modul
             claim.Property(c => c.PaidAmount).HasPrecision(18, 2);
             claim.Property(c => c.ReserveType).HasMaxLength(15);
             claim.Property(c => c.DecisionReason).HasMaxLength(20);
+            claim.Ignore(c => c.PartlyApproved);
+            claim.Property(c => c.ClaimedAmount).HasPrecision(18, 2);
+            claim.Property(c => c.DecisionOutcome).HasMaxLength(20);
             claim.Property(c => c.AuthorityRole).HasMaxLength(30);
             Children(claim, c => c.Lines, "ClaimId");
             Children(claim, c => c.Payees, "ClaimId");

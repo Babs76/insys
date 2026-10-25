@@ -52,6 +52,19 @@ public enum MedicalClaimTrigger
     PaymentRunReleased,
     RejectClaim,
     ReverseClaim,
+
+    /// <summary>A dispute or appeal of a rejected claim was upheld: the claim is validated again and adjudicated (F013, OQ-103).</summary>
+    ReopenClaim,
+}
+
+/// <summary>The claim's approval as an outcome (OQ-102): approved for less than was claimed, it is a partial approval.</summary>
+public static class MedicalClaimOutcomes
+{
+    public const string Approved = "APPROVED";
+    public const string PartlyApproved = "PARTLY_APPROVED";
+
+    /// <summary>The decision type a partial approval's reason has (claims.ref_claim_decision_reason_codes).</summary>
+    public const string PartialReasonType = "PARTIAL";
 }
 
 public static class ClaimSources
@@ -75,6 +88,13 @@ public sealed record MedicalClaimSettled(Guid ClaimId, string ClaimNumber, strin
     DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record MedicalClaimRejected(Guid ClaimId, string ClaimNumber, Guid MembershipId, string ReasonCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>
+/// A claim was partly approved (OQ-102): the member is sent their rights on the declined part (CLAIM_DECISION_RIGHTS). As
+/// every Health notice, it carries the claim number, the date and the total paid only: never a reason or a line (HLT-008).
+/// </summary>
+public sealed record MedicalClaimDecisionRightsDue(Guid ClaimId, string ClaimNumber, Guid RecipientPartyId, string? ProductCode, string? OrgNodeCode, decimal TotalPaid,
+    string Currency, DateOnly DecidedOn, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record MedicalClaimReversed(Guid ClaimId, string ClaimNumber, string? ProviderId, decimal Amount, string Currency, string Reason, DateTimeOffset OccurredAt)
     : IDomainEvent;
@@ -167,7 +187,8 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
         .Allow(MedicalClaimStatus.Adjudicated, MedicalClaimTrigger.ApproveForPayment, MedicalClaimStatus.ApprovedForPayment)
         .Allow(MedicalClaimStatus.ApprovedForPayment, MedicalClaimTrigger.PaymentRunReleased, MedicalClaimStatus.Paid)
         .Allow(MedicalClaimStatus.Validated, MedicalClaimTrigger.RejectClaim, MedicalClaimStatus.Rejected)
-        .Allow(MedicalClaimStatus.Paid, MedicalClaimTrigger.ReverseClaim, MedicalClaimStatus.Reversed);
+        .Allow(MedicalClaimStatus.Paid, MedicalClaimTrigger.ReverseClaim, MedicalClaimStatus.Reversed)
+        .Allow(MedicalClaimStatus.Rejected, MedicalClaimTrigger.ReopenClaim, MedicalClaimStatus.Validated);
 
     private readonly List<MedicalClaimLine> _lines = [];
 
@@ -212,6 +233,14 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
     public Guid? PaymentRunId { get; private set; }
 
     public DateTimeOffset? ReversedAt { get; private set; }
+
+    /// <summary>The approval's outcome (OQ-102): APPROVED, or PARTLY_APPROVED when some lines were declined; null until approved.</summary>
+    public string? DecisionOutcome { get; private set; }
+
+    /// <summary>A partial approval's reason (claims.ref_claim_decision_reason_codes, decision type PARTIAL).</summary>
+    public string? DecisionReasonCode { get; private set; }
+
+    public bool PartlyApproved => DecisionOutcome == MedicalClaimOutcomes.PartlyApproved;
 
     public IReadOnlyList<MedicalClaimLine> Lines => _lines;
 
@@ -278,17 +307,63 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
         return result.Pended ? Fire(MedicalClaimTrigger.PendClaim) : Result.Success();
     }
 
-    /// <summary>Command ApproveForPayment: the adjudicated amount is approved by a person.</summary>
-    public Result ApproveForPayment(Guid by, DateTimeOffset now)
+    /// <summary>
+    /// Command ApproveForPayment: the adjudicated amount is approved by a person. A claim some of whose lines adjudication
+    /// declined, while it pays the rest, is a partial approval (OQ-102), which gives a decision reason of type PARTIAL. Paying
+    /// a line at the tariff, or less a co-payment or deductible, is the plan's terms, not a decline.
+    /// </summary>
+    /// <param name="reasonType">The decision type of <paramref name="reasonCode"/> as a claim decision reason in force, or null when it is none.</param>
+    public Result ApproveForPayment(Guid by, DateTimeOffset now, string? reasonCode = null, string? reasonType = null)
     {
+        var partly = Status == MedicalClaimStatus.Adjudicated && TotalPaid > 0 && _lines.Any(l => l.Outcome == "REJECT");
+        if (partly && (string.IsNullOrWhiteSpace(reasonCode) || reasonType != MedicalClaimOutcomes.PartialReasonType))
+        {
+            return Error.Validation(HealthErrorCodes.RationaleRequired,
+                $"Claim {ClaimNumber} declines some of its lines and pays {TotalPaid:0.00} {Currency}: a partial approval gives a decision reason of type PARTIAL (OQ-102).");
+        }
+
         var result = Fire(MedicalClaimTrigger.ApproveForPayment);
         if (result.IsSuccess)
         {
             ApprovedBy = by;
             ApprovedAt = now;
+            DecisionOutcome = partly ? MedicalClaimOutcomes.PartlyApproved : MedicalClaimOutcomes.Approved;
+            DecisionReasonCode = partly ? Guard.MaxLength(reasonCode!, 20) : null;
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The member's rights on a partial approval (OQ-102): asks Communications for CLAIM_DECISION_RIGHTS to the notice's
+    /// recipient (the patient, or the principal for a dependant under 18). Only a partly approved claim sends it.
+    /// </summary>
+    public Result NoticeDecisionRights(Guid recipientPartyId, string? productCode, string? orgNodeCode, DateOnly decidedOn, DateTimeOffset now)
+    {
+        if (!PartlyApproved)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a partly approved claim sends the rights on its declined part.");
+        }
+
+        Raise(new MedicalClaimDecisionRightsDue(Id, ClaimNumber, Guard.NotEmpty(recipientPartyId), productCode, orgNodeCode, TotalPaid ?? 0, Currency, decidedOn, now));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// A dispute or appeal of the claim was upheld or partly upheld (F013, OQ-103): a rejected claim goes back to Validated
+    /// to be adjudicated again. Returns false, changing nothing, for a claim that is not rejected (a redelivery, or a claim
+    /// still being decided). TODO(spec): reassessing an adjudicated, approved or paid claim after an upheld dispute is not specified.
+    /// </summary>
+    public bool ReopenForCase(string caseNumber)
+    {
+        if (string.IsNullOrWhiteSpace(caseNumber) || Status != MedicalClaimStatus.Rejected || Fire(MedicalClaimTrigger.ReopenClaim).IsFailure)
+        {
+            return false;
+        }
+
+        TotalPaid = null;
+        PendReason = null;
+        return true;
     }
 
     /// <summary>Command RejectClaim, after validation.</summary>

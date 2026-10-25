@@ -63,6 +63,9 @@ public static class PaymentPurposes
     public const string ClaimPayout = "CLAIM_PAYOUT";
     public const string Recovery = "RECOVERY";
     public const string Commission = "COMMISSION";
+
+    /// <summary>Compensation or goodwill on a case (OQ-104): Workflow's CaseApprovals.RedressPaymentPurpose.</summary>
+    public const string CaseRedress = "CASE_REDRESS";
 }
 
 /// <summary>Money was received and confirmed (Succeeded inbound). Never raised for an unknown outcome (PAY-005).</summary>
@@ -78,8 +81,11 @@ public static class PaymentReferenceTypes
 {
     public const string Invoice = "INVOICE";
 
+    /// <summary>Redress approved on a case (OQ-104): Workflow's CaseApprovals.RedressBusinessRefType, with the redress ID.</summary>
+    public const string CaseRedress = "CASE_REDRESS";
+
     public static readonly IReadOnlyList<string> Known =
-        [Invoice, "REFUND_REQUEST", "CLAIM_PAYMENT", "HEALTH_REMITTANCE", "COMMISSION_STATEMENT"];
+        [Invoice, "REFUND_REQUEST", "CLAIM_PAYMENT", "HEALTH_REMITTANCE", "COMMISSION_STATEMENT", CaseRedress];
 }
 
 /// <summary>

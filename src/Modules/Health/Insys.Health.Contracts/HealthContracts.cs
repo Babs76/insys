@@ -174,6 +174,9 @@ public sealed record ProviderPaymentRunReleased(Guid RunId, string RunCode, deci
 public interface IProviderDirectory
 {
     Task<bool> IsActive(Guid tenantId, string providerId, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The provider as a party (health.mst_provider_register.party_id) in force on the day, for its notices; null when it has none.</summary>
+    Task<Guid?> PartyOf(Guid tenantId, string providerId, DateOnly day, CancellationToken cancellationToken);
 }
 
 /// <summary>A medical claim was rejected after validation; the member is told (communications §6.3). The reason is a code, never clinical.</summary>
