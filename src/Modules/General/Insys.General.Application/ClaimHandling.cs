@@ -393,10 +393,12 @@ internal sealed class ChangeClaimHandler(IGeneralRepository general, IClock cloc
     }
 }
 
-internal sealed class GetClaimHandler(IGeneralRepository general) : IQueryHandler<GetClaim, ClaimView>
+internal sealed class GetClaimHandler(IGeneralRepository general, Workflow.Contracts.IApprovalHistory history) : IQueryHandler<GetClaim, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(GetClaim query, CancellationToken cancellationToken) =>
-        await general.Claim(query.ClaimId, cancellationToken) is { } claim ? ClaimView.From(claim) : Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
+        await general.Claim(query.ClaimId, cancellationToken) is { } claim
+            ? ClaimView.From(claim) with { LatestRejection = await history.Latest(Contracts.GeneralApprovals.SettlementBusinessRefType, claim.Id, cancellationToken) }
+            : Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
 }
 
 internal sealed class ChangeAssessmentHandler(IGeneralRepository general, IExecutionContext execution) : ICommandHandler<ChangeAssessment, AssessmentView>

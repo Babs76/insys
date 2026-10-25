@@ -69,7 +69,7 @@ public sealed class ProvisionTenantAdministratorValidator : AbstractValidator<Pr
 /// <summary>A request for a new tenant's first administrator and its decision.</summary>
 public sealed record TenantAdministratorRequestView(Guid Id, Guid TargetTenantId, string Username, string DisplayName, string IdpCode, string? ExternalSubject,
     bool MfaEnrolled, string RoleCode, string[] Functions, Guid RequestedBy, TenantAdministratorRequestStatus Status, Guid? DecidedBy,
-    DateTimeOffset? DecidedAt, Guid? UserId, long RowVersion)
+    DateTimeOffset? DecidedAt, Guid? UserId, long RowVersion, LatestRejection? LatestRejection = null)
 {
     public static TenantAdministratorRequestView From(TenantAdministratorRequest r) => new(r.Id, r.TargetTenantId, r.Username, r.DisplayName, r.IdpCode,
         r.ExternalSubject, r.MfaEnrolled, r.Role, r.Functions, r.RequestedBy, r.Status, r.DecidedBy, r.DecidedAt, r.UserId, r.RowVersion);
@@ -153,12 +153,15 @@ internal sealed class ProvisionTenantAdministratorHandler(ITenantAdministrators 
     }
 }
 
-internal sealed class GetTenantAdministratorRequestHandler(ITenantAdministrators administrators)
+internal sealed class GetTenantAdministratorRequestHandler(ITenantAdministrators administrators, IApprovalHistory history)
     : IQueryHandler<GetTenantAdministratorRequest, TenantAdministratorRequestView>
 {
     public async Task<Result<TenantAdministratorRequestView>> Handle(GetTenantAdministratorRequest query, CancellationToken cancellationToken) =>
         await administrators.Get(query.RequestId, cancellationToken) is { } request
-            ? TenantAdministratorRequestView.From(request)
+            ? TenantAdministratorRequestView.From(request) with
+            {
+                LatestRejection = await history.Latest(IdentityApprovals.TenantAdministratorBusinessRefType, request.Id, cancellationToken),
+            }
             : Error.NotFound(ErrorCodes.NotFound, "The request was not found.");
 }
 
@@ -179,20 +182,43 @@ public sealed class TenantAdministratorApprovalPolicy(ITenantAdministrators admi
     IIntegrationEventHandler<ApprovalRejected>
 {
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, cancellationToken);
+        Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, granted.CheckerId, cancellationToken);
 
     public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.CheckerId, cancellationToken);
+        Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.ApprovalId, rejected.CheckerId, cancellationToken);
 
-    private async Task Decide(string businessRefType, Guid requestId, bool approved, Guid checkerId, CancellationToken cancellationToken)
+    private async Task Decide(string businessRefType, Guid requestId, bool approved, Guid approvalId, Guid checkerId, CancellationToken cancellationToken)
     {
-        if (businessRefType != IdentityApprovals.TenantAdministratorBusinessRefType
-            || await administrators.Get(requestId, cancellationToken) is not { Status: TenantAdministratorRequestStatus.PendingApproval } request)
+        if (businessRefType != IdentityApprovals.TenantAdministratorBusinessRefType || await administrators.Get(requestId, cancellationToken) is not { } request)
         {
             return;
         }
 
+        // Every ending other than approval (rejected, expired, withdrawn) rejects the request; one already rejected is a redelivery.
+        if (!approved && request.Status == TenantAdministratorRequestStatus.Rejected)
+        {
+            return;
+        }
+
+        if (request.Status != TenantAdministratorRequestStatus.PendingApproval)
+        {
+            // D-5: an ending the request would not take (it was provisioned) parks the delivery (ADR-022); a repeated approval changes nothing.
+            if (!approved)
+            {
+                throw NotApplied(approvalId);
+            }
+
+            return;
+        }
+
         var userId = approved ? await administrators.Provision(request, checkerId, cancellationToken) : (Guid?)null;
-        request.Decide(approved, checkerId, userId, clock.UtcNow);
+        var decided = request.Decide(approved, checkerId, userId, clock.UtcNow);
+        if (decided.IsFailure && !approved)
+        {
+            throw NotApplied(approvalId);
+        }
     }
+
+    private static PrerequisiteMissingException NotApplied(Guid approvalId) =>
+        new(PrerequisiteCodes.ApprovalEndingNotApplied, $"{IdentityApprovals.TenantAdministratorApprovalType}:{approvalId}");
 }

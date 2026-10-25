@@ -214,6 +214,42 @@ public sealed class UserAccountTests
         user.DecideAssignment(assignment.Id, approved: true, Guid.CreateVersion7(), Now).IsFailure.ShouldBeTrue();
     }
 
+    /// <summary>Wave 2 rule: an expired or withdrawn approval (no checker) rejects the assignment like a rejection, once (D-5).</summary>
+    [Fact]
+    public void ExpiredOrWithdrawnPrivilegedAssignment_IsRejectedWithNoChecker_AndARedeliveryIsAlreadyApplied()
+    {
+        var user = User();
+        user.AssignRole(new RoleFacts("FINANCE_OFFICER", true, new HashSet<string>(), false, Privileged: true), [], [], Today, null, null, null, Admin, Today, Now);
+        var assignment = user.RoleAssignments.Single();
+
+        user.DecideAssignment(assignment.Id, approved: true, Guid.Empty, Now).IsFailure.ShouldBeTrue("an approval has a checker");
+        user.AssignmentEndingApplied(assignment.Id).ShouldBeFalse();
+        user.DecideAssignment(assignment.Id, approved: false, Guid.Empty, Now).IsSuccess.ShouldBeTrue();
+
+        (assignment.Status, assignment.ApprovedBy).ShouldBe((AssignmentStatus.Rejected, (Guid?)null));
+        user.AssignmentEndingApplied(assignment.Id).ShouldBeTrue();
+        user.DecideAssignment(assignment.Id, approved: false, Guid.Empty, Now).IsFailure.ShouldBeTrue("the handler parks this, unless already applied");
+        user.EffectiveAssignments(Today).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TenantAdministratorRequest_EveryEndingOtherThanApproval_RejectsIt(bool withChecker)
+    {
+        var requester = Guid.CreateVersion7();
+        var request = Domain.Tenants.TenantAdministratorRequest.Create(Guid.CreateVersion7(), "admin", "Admin", "KEYCLOAK", null, true, ["USERS"], requester, Now,
+            "admin@example.com");
+        var checker = withChecker ? Guid.CreateVersion7() : Guid.Empty;
+
+        request.Decide(true, Guid.Empty, Guid.CreateVersion7(), Now).IsFailure.ShouldBeTrue("an approval has a checker");
+        request.Decide(false, requester, null, Now).Error!.Code.ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        request.Decide(false, checker, null, Now).IsSuccess.ShouldBeTrue();
+
+        (request.Status, request.DecidedBy, request.UserId).ShouldBe((Domain.Tenants.TenantAdministratorRequestStatus.Rejected, withChecker ? checker : (Guid?)null, (Guid?)null));
+        request.Decide(false, checker, null, Now).IsFailure.ShouldBeTrue("already decided: the policy treats a Rejected request as already applied");
+    }
+
     [Fact]
     public void OrdinaryAssignment_IsActiveAtOnce() =>
         User().AssignRole(Role("CLERK"), [], [], Today, null, null, null, Admin, Today, Now).IsSuccess.ShouldBeTrue();

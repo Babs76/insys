@@ -113,13 +113,19 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "The request has already been decided.");
         }
 
-        if (checkerId == RequestedBy)
+        if (checkerId != Guid.Empty && checkerId == RequestedBy)
         {
             return MakerChecker.EnsureDifferentPeople(RequestedBy.ToString(), checkerId.ToString());
         }
 
+        if (approved && checkerId == Guid.Empty)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "A request is approved by a checker.");
+        }
+
+        // Every ending other than approval (rejected, expired, withdrawn) rejects it; with no checker nobody is recorded.
         Status = approved ? TenantAdministratorRequestStatus.Provisioned : TenantAdministratorRequestStatus.Rejected;
-        DecidedBy = checkerId;
+        DecidedBy = checkerId == Guid.Empty ? null : checkerId;
         DecidedAt = now;
         UserId = approved ? Guard.NotEmpty(userId ?? Guid.Empty) : null;
         if (approved)

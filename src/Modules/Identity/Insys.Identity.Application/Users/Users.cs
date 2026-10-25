@@ -83,7 +83,8 @@ public interface IPermissionCache
 /// <param name="RequiresApproval">Assigning the role needs a second administrator's approval: true for every privileged role (OQ-038).</param>
 /// <param name="RevokedAt">When a Revoked assignment was revoked (GAP-020); it gave no permission from the next request.</param>
 public sealed record RoleAssignmentView(Guid Id, string RoleCode, AssignmentStatus Status, DateOnly ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches,
-    Guid AssignedBy, Guid? ApprovedBy, bool Privileged, bool RequiresMfa, bool RequiresApproval, DateTimeOffset? RevokedAt, Guid? RevokedBy);
+    Guid AssignedBy, Guid? ApprovedBy, bool Privileged, bool RequiresMfa, bool RequiresApproval, DateTimeOffset? RevokedAt, Guid? RevokedBy,
+    Workflow.Contracts.LatestRejection? LatestRejection = null);
 
 /// <summary>
 /// A role the tenant can assign (GAP-021), with what assigning it involves: a privileged role needs MFA under the
@@ -348,10 +349,26 @@ internal sealed class ListRolesHandler(IRolePolicyReader roles, IClock clock) : 
             .ToList());
 }
 
-internal sealed class GetUserHandler(IUserQueries queries) : IQueryHandler<GetUser, UserView>
+internal sealed class GetUserHandler(IUserQueries queries, IApprovalHistory history) : IQueryHandler<GetUser, UserView>
 {
-    public async Task<Result<UserView>> Handle(GetUser query, CancellationToken cancellationToken) =>
-        await queries.Get(query.UserId, cancellationToken) is { } user ? user : Error.NotFound(ErrorCodes.NotFound, "The user was not found.");
+    public async Task<Result<UserView>> Handle(GetUser query, CancellationToken cancellationToken)
+    {
+        if (await queries.Get(query.UserId, cancellationToken) is not { } user)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The user was not found.");
+        }
+
+        // OQ-113: an assignment that needed approval shows how its latest approval ended without being granted.
+        var assignments = new List<RoleAssignmentView>(user.RoleAssignments.Count);
+        foreach (var assignment in user.RoleAssignments)
+        {
+            assignments.Add(assignment.RequiresApproval || assignment.Status is AssignmentStatus.Rejected or AssignmentStatus.PendingApproval
+                ? assignment with { LatestRejection = await history.Latest(IdentityApprovals.BusinessRefType, assignment.Id, cancellationToken) }
+                : assignment);
+        }
+
+        return user with { RoleAssignments = assignments };
+    }
 }
 
 /// <summary>
@@ -363,22 +380,35 @@ public sealed class PrivilegedRoleApprovalPolicy(IUserRepository users, IClock c
     IIntegrationEventHandler<ApprovalRejected>
 {
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.CheckerId, cancellationToken);
+        Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, granted.ApprovalType, granted.CheckerId, cancellationToken);
 
     public Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.CheckerId, cancellationToken);
+        Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.ApprovalId, rejected.ApprovalType, rejected.CheckerId, cancellationToken);
 
-    private async Task Decide(string businessRefType, Guid assignmentId, bool approved, Guid checkerId, CancellationToken cancellationToken)
+    private async Task Decide(string businessRefType, Guid assignmentId, bool approved, Guid approvalId, string approvalType, Guid checkerId,
+        CancellationToken cancellationToken)
     {
-        if (businessRefType == IdentityApprovals.BusinessRefType && await users.ByAssignment(assignmentId, cancellationToken) is { } user)
+        // Every ending other than approval (rejected, expired, withdrawn) rejects it; one already rejected is a redelivery.
+        if (businessRefType == IdentityApprovals.BusinessRefType && await users.ByAssignment(assignmentId, cancellationToken) is { } user
+            && (approved || !user.AssignmentEndingApplied(assignmentId)))
         {
-            user.DecideAssignment(assignmentId, approved, checkerId, clock.UtcNow);
+            Applied(user.DecideAssignment(assignmentId, approved, checkerId, clock.UtcNow), approved, approvalType, approvalId);
         }
 
-        // An external user's link (external-user-access.md §1): approved, it takes effect; rejected, it never does.
-        if (businessRefType == IdentityApprovals.SubjectLinkBusinessRefType && await users.ByLink(assignmentId, cancellationToken) is { } linked)
+        // An external user's link (external-user-access.md §1): approved, it takes effect; any other ending, it never does.
+        if (businessRefType == IdentityApprovals.SubjectLinkBusinessRefType && await users.ByLink(assignmentId, cancellationToken) is { } linked
+            && (approved || !linked.SubjectLinkEndingApplied(assignmentId)))
         {
-            linked.DecideSubjectLink(assignmentId, approved, checkerId, clock.UtcNow);
+            Applied(linked.DecideSubjectLink(assignmentId, approved, checkerId, clock.UtcNow), approved, approvalType, approvalId);
+        }
+    }
+
+    /// <summary>D-5: an ending the record would not take parks the delivery (ADR-022); an approval that does not apply changes nothing, as before.</summary>
+    private static void Applied(Result decided, bool approved, string approvalType, Guid approvalId)
+    {
+        if (decided.IsFailure && !approved)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{approvalType}:{approvalId}");
         }
     }
 }

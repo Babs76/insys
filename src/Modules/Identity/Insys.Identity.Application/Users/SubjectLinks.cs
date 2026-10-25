@@ -47,7 +47,7 @@ public sealed record EndSubjectLink(Guid UserId, long ExpectedVersion) : IComman
 public sealed record GetSubjectLink(Guid UserId) : IQuery<SubjectLinkView>;
 
 public sealed record SubjectLinkView(Guid Id, SubjectKind Kind, Guid? PartyId, string? IntermediaryCode, string? ProviderId, SubjectLinkStatus Status, Guid RequestedBy,
-    Guid? DecidedBy, DateTimeOffset? DecidedAt)
+    Guid? DecidedBy, DateTimeOffset? DecidedAt, Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static SubjectLinkView From(SubjectLink l) => new(l.Id, l.Kind, l.PartyId, l.IntermediaryCode, l.ProviderId, l.Status, l.RequestedBy, l.DecidedBy, l.DecidedAt);
 }
@@ -123,10 +123,13 @@ internal sealed class EndSubjectLinkHandler(IUserRepository users, IExecutionCon
     }
 }
 
-internal sealed class GetSubjectLinkHandler(IUserRepository users) : IQueryHandler<GetSubjectLink, SubjectLinkView>
+internal sealed class GetSubjectLinkHandler(IUserRepository users, Workflow.Contracts.IApprovalHistory history) : IQueryHandler<GetSubjectLink, SubjectLinkView>
 {
     public async Task<Result<SubjectLinkView>> Handle(GetSubjectLink query, CancellationToken cancellationToken) =>
         await users.Get(query.UserId, cancellationToken) is { CurrentLink: { } link }
-            ? SubjectLinkView.From(link)
+            ? SubjectLinkView.From(link) with
+            {
+                LatestRejection = await history.Latest(Contracts.IdentityApprovals.SubjectLinkBusinessRefType, link.Id, cancellationToken),
+            }
             : Error.NotFound(IdentityErrorCodes.SubjectLinkNotFound, "The user has no link pending or in effect.");
 }

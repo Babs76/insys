@@ -323,8 +323,10 @@ internal sealed class CloseLifeClaimHandler(ILifeRepository life) : ICommandHand
     }
 }
 
-internal sealed class GetLifeClaimHandler(ILifeRepository life) : IQueryHandler<GetLifeClaim, LifeClaimView>
+internal sealed class GetLifeClaimHandler(ILifeRepository life, Workflow.Contracts.IApprovalHistory history) : IQueryHandler<GetLifeClaim, LifeClaimView>
 {
     public async Task<Result<LifeClaimView>> Handle(GetLifeClaim query, CancellationToken cancellationToken) =>
-        await life.Claim(query.ClaimId, cancellationToken) is { } claim ? LifeClaimView.From(claim) : Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
+        await life.Claim(query.ClaimId, cancellationToken) is { } claim
+            ? LifeClaimView.From(claim) with { LatestRejection = await history.Latest(Contracts.LifeApprovals.ClaimBusinessRefType, claim.Id, cancellationToken) }
+            : Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
 }

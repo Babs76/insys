@@ -370,11 +370,17 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             return Error.Conflict(GeneralErrorCodes.ApprovalSubjectChanged, "The approval was for another settlement.");
         }
 
-        if (checkerId == SettlementRequestedBy)
+        if (checkerId != Guid.Empty && checkerId == SettlementRequestedBy)
         {
             return MakerChecker.EnsureDifferentPeople(SettlementRequestedBy.ToString()!, checkerId.ToString());
         }
 
+        if (approved && checkerId == Guid.Empty)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "A settlement is approved by a checker.");
+        }
+
+        // Every ending other than approval (rejected, expired, withdrawn): the claim stays under assessment, the settlement cleared.
         if (!approved)
         {
             SettlementAmount = null;
@@ -402,6 +408,12 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
 
         return result;
     }
+
+    /// <summary>
+    /// Whether a settlement approval's ending (not granted) is already applied, so a redelivery changes nothing: no
+    /// settlement is waiting (it was cleared), and the claim was not approved by that same approval.
+    /// </summary>
+    public bool SettlementEndingApplied(Guid approvalId) => !SettlementPending && SettlementApprovalId != approvalId;
 
     /// <summary>Command DeclineClaim, with the decision and its rationale (CLM-003).</summary>
     public Result DeclineClaim(string decisionCode, string rationale, Guid decidedBy, DateTimeOffset now)

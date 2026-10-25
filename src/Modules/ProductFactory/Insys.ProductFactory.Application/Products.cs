@@ -79,7 +79,7 @@ public interface ISimulationRuns
 
 public sealed record ProductVersionView(Guid Id, string ProductCode, int Version, string Domain, string Name, IReadOnlyList<string> Coverages, ProductVersionStatus Status,
     DateOnly EffectiveFrom, DateOnly? EffectiveTo, string? FamilyCode, string? ClassCode, string CoverStartsOn, string? ApprovedBy, DateTimeOffset? ApprovedAt,
-    long RowVersion, string? EligibilityRulesetCode, string ReinstatementArrears)
+    long RowVersion, string? EligibilityRulesetCode, string ReinstatementArrears, LatestRejection? LatestRejection = null)
 {
     public static ProductVersionView From(ProductVersion v) => new(v.Id, v.ProductCode, v.Version, v.Domain.ToString().ToUpperInvariant(), v.Name, v.Coverages,
         v.Status, v.EffectiveFrom, v.EffectiveTo, v.FamilyCode, v.ClassCode, v.CoverStartsOn.ToString(), v.ApprovedBy, v.ApprovedAt, v.RowVersion,
@@ -378,11 +378,11 @@ internal sealed class MakeVersionEffectiveHandler(IProductVersionRepository vers
     }
 }
 
-internal sealed class GetProductVersionHandler(IProductVersionRepository versions) : IQueryHandler<GetProductVersion, ProductVersionView>
+internal sealed class GetProductVersionHandler(IProductVersionRepository versions, IApprovalHistory history) : IQueryHandler<GetProductVersion, ProductVersionView>
 {
     public async Task<Result<ProductVersionView>> Handle(GetProductVersion query, CancellationToken cancellationToken) =>
         await versions.Get(query.ProductCode, query.Version, cancellationToken) is { } version
-            ? ProductVersionView.From(version)
+            ? ProductVersionView.From(version) with { LatestRejection = await history.Latest(ProductApprovals.BusinessRefType, version.Id, cancellationToken) }
             : Error.NotFound(ErrorCodes.NotFound, $"Product {query.ProductCode} has no version {query.Version}.");
 }
 
@@ -458,11 +458,19 @@ public sealed class ProductPolicies(IProductVersionRepository versions, ISimulat
 
     public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (rejected.BusinessRefType == ProductApprovals.BusinessRefType && await versions.Get(rejected.BusinessRefId, cancellationToken) is { } version
-            && version.RejectApproval().IsSuccess)
+        if (rejected.BusinessRefType != ProductApprovals.BusinessRefType || await versions.Get(rejected.BusinessRefId, cancellationToken) is not { } version
+            || version.RejectionApplied)
         {
-            await SimulationRuns.MarkStale(runs, version, cancellationToken);
+            return;
         }
+
+        // Every ending (rejected, expired, withdrawn) returns it to Draft; one it would not take parks the delivery (D-5, ADR-022).
+        if (version.RejectApproval().IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
+        }
+
+        await SimulationRuns.MarkStale(runs, version, cancellationToken);
     }
 
     public async Task Handle(StaticDataVersionActivated activated, EventEnvelope envelope, CancellationToken cancellationToken)

@@ -446,11 +446,17 @@ public sealed class LifeUnderwritingCase : AggregateRoot<Guid>
             return Error.Conflict(LifeErrorCodes.ApprovalSubjectChanged, "The approval was for another decision.");
         }
 
-        if (checkerId == RequestedBy)
+        if (checkerId != Guid.Empty && checkerId == RequestedBy)
         {
             return MakerChecker.EnsureDifferentPeople(RequestedBy.ToString()!, checkerId.ToString());
         }
 
+        if (approved && checkerId == Guid.Empty)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "A decision is approved by a checker.");
+        }
+
+        // Every ending other than approval (rejected, expired, withdrawn): the proposal is cleared and assessment continues.
         if (!approved)
         {
             Outcome = null;
@@ -474,6 +480,12 @@ public sealed class LifeUnderwritingCase : AggregateRoot<Guid>
 
         return result;
     }
+
+    /// <summary>
+    /// Whether an approval's ending (not granted) is already applied, so a redelivery changes nothing: no decision is
+    /// waiting (it was cleared), and the case was not decided by that same approval.
+    /// </summary>
+    public bool EndingApplied(Guid approvalId) => !DecisionPending && ApprovalId != approvalId;
 
     private UnderwritingRequirement? Requirement(Guid id) => _requirements.SingleOrDefault(r => r.Id == id);
 

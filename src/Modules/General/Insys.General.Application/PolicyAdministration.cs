@@ -321,10 +321,13 @@ internal sealed class SubmitEndorsementHandler(IGeneralRepository general, IGene
     }
 }
 
-internal sealed class GetEndorsementHandler(IGeneralRepository general) : IQueryHandler<GetEndorsement, EndorsementView>
+internal sealed class GetEndorsementHandler(IGeneralRepository general, Workflow.Contracts.IApprovalHistory history) : IQueryHandler<GetEndorsement, EndorsementView>
 {
     public async Task<Result<EndorsementView>> Handle(GetEndorsement query, CancellationToken cancellationToken) =>
         await general.Endorsement(query.EndorsementId, cancellationToken) is { } endorsement
-            ? EndorsementView.From(endorsement)
+            ? EndorsementView.From(endorsement) with
+            {
+                LatestRejection = await history.Latest(Contracts.GeneralApprovals.EndorsementBusinessRefType, endorsement.Id, cancellationToken),
+            }
             : Error.NotFound(ErrorCodes.NotFound, "The endorsement was not found.");
 }
