@@ -2,7 +2,7 @@
 
 Requests from the front end reach the back end through Ade. The front end is now `insys-console` (`Frontend/insys-console`), building one wave behind the back end; the back end does not read or write its repository. Requests 1 to 50 came from the first front end (`insys-web`) and were tracked in its `docs/backend-requests.md`; they are closed or recorded in `docs/traceability/functional-coverage.md` (GAP-001 to GAP-052).
 
-Each wave's batch report has the front-end readiness checklist and the independent API review.
+Each wave's batch report has the front-end readiness checklist and the independent API review. From `insys-console`'s phase 0 (against `5583285`), its own request IDs (BR-nnn, in its `docs/backend-requests.md`) are kept next to ours.
 
 | # | Request | Received | Status | Where |
 |---|---|---|---|---|
@@ -13,3 +13,13 @@ Each wave's batch report has the front-end readiness checklist and the independe
 | 55 | Integration guide: authority bands per role, where configured, OFT-ZA sample values | Wave 2 batch 1 | Answered; samples for the business to confirm (OQ-112) | guide §3 |
 | 56 | Integration guide: how a Life underwriting decision above authority is held | Wave 2 batch 1 | Answered | guide §4 |
 | 57 | Keycloak redirect and post-logout URIs per environment for `insys-web`, `broker-portal`, `member-portal`, `provider-portal` | Wave 2 batch 1 | Done (`wave2-1`) | `runbooks/deployment.md`, Front-end addresses per environment |
+| 58 (BR-007) | Isolation: a tenant administrator reads every tenant's rows in `tenancy/static/feature-entitlements`; sweep every scope G or GT static table with a `tenant` column | Wave 2 batch 1 | Done (`wave2-1`) | V0057 (row-level security on the `tenant` column); `TenantNamedRowsTests` covers every such table; `contract-changes.md` |
+| 59 (BR-006) | A display name Keycloak refuses (for example parentheses) fails creation with 400, parked as `KEYCLOAK_UNAVAILABLE` and retried forever | Wave 2 batch 1 | Done (`wave2-1`) | 422 field error on `displayName`; other Keycloak 4xx park as `KEYCLOAK_USER_REFUSED` with the reason; `addenda/keycloak-user-provisioning.md` §4 |
+| 60 (BR-001) | An optional reason on approve, recorded like the reject reason | Wave 2 batch 1 | Accepted: Wave 2 batch 2 | Additive: optional `reason` on `POST /workflow/approvals/{id}/approve`, kept on the approval and shown in its history |
+| 61 (BR-002) | The signed-in user's own authority per approval type | Wave 2 batch 1 | Accepted: Wave 2 batch 2 | A Workflow read allowed with `approval.read` (authority belongs to Workflow, not Identity): per approval type, the limit and its currency |
+| 62 (BR-003) | Are staff in-app notifications planned, and in which wave? | Wave 2 batch 1 | Not planned: no requirement (OQ-114) | The SRS has no notification requirements; the Workflow Inbox (tasks and approvals) is what tells staff about work today. Planned once the business specifies them |
+| 63 (BR-004) | A filter for approvals the user can decide now (not their own, within authority and limit) | Wave 2 batch 1 | Accepted: Wave 2 batch 2 | Additive: `decidable=true` on the approvals list, so the Inbox keeps the API's list and paging |
+| 64 (BR-005) | `approvalType` and `businessRefType` as enums in the contract; the screen each reference type opens | Wave 2 batch 1 | Accepted: Wave 2 batch 2 | Both are today free strings chosen by each module: they become one list in Workflow's contract (enums in OpenAPI), with an architecture test that every module uses a listed value. The screen is given as the function code of the menu entry that opens the record, which the console maps to its own route (the console owns its routes) |
+| 65 (BR-008) | How to ask Keycloak for MFA step-up per client; what a member without a one-time code sees | Wave 2 batch 1 | Accepted: Wave 2 batch 2 | Integration guide, a new section |
+| 66 (BR-009) | Catalogue labels written for people, with the names in `INSYS_NAVIGATION.md`, not generated from codes | Wave 2 batch 1 | Deferred: pre-go-live (OQ-100) | Decided 25 October 2026: generated labels stay until the business reviews the wording before go-live. The navigation names are used for domains and sub-domains already |
+| 67 (BR-010) | A user's external-subject link (kind, key, status, the approval ID while pending) on the user's view | Wave 2 batch 1 | Accepted: Wave 2 batch 2 | Additive: `externalSubjectLink` on the user view |

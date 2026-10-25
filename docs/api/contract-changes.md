@@ -20,6 +20,12 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **Authority (OQ-112):** `workflow/static/delegation-and-approval-authority` gains `currency` (empty: the tenant's base currency). A limit counts only for approvals in its currency.
 - **Error codes:** `APPROVAL_NOT_REQUESTER` (403) is new.
 
+### Breaking: front-end requests BR-007 and BR-006
+- **Tenant-named platform rows are the tenant's only (BR-007).** A static data row maintained by the platform that names a tenant (its `tenant` column) is read only by that tenant: list, by code and versions. Another tenant's rows are not listed, and reading one by code is 404. The platform operator still reads every tenant's rows through `…/global/{code}/versions`. The tables: `tenancy/static/feature-entitlements`, `tenancy/static/isolation-profile-assignment`, `tenancy/static/operational-limits`, and the tenant-named rows of `product/static/product-approval-workflow-settings`.
+- **A display name Keycloak refuses is a 422 (BR-006).** `POST /identity/users` and the first-administrator request, for INSYS's own realm (`idpCode` `KEYCLOAK`), refuse a `displayName` with any of `< > & " $ % ! # ? § ; * ~ / \ | ^ = [ ] { } ( )` or a control character, with a field error on `displayName`. It used to be accepted and fail in Keycloak.
+- **Validation error keys are the field as the request body spells it.** `errors` in a 422 is keyed by the camel-case field (`displayName`; `lines[0].amount` for a nested field). Validators' keys were the C# property names (`DisplayName`); keys written by hand (`defaultLanguage`) were already camel case.
+- **Parking:** Keycloak refusing a user for a reason retrying cannot fix parks as `KEYCLOAK_USER_REFUSED` with Keycloak's reason, in the operations view and `/health`, not as `KEYCLOAK_UNAVAILABLE`.
+
 ### Changed behaviour
 - **Analytics' rebuild by business date runs by itself** once per tenant after the release (recorded in `analytics.release_task`); no manual step.
 

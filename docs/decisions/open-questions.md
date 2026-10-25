@@ -1092,3 +1092,8 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Open:** whether records show the latest rejection's reason themselves (a settlement request, a statement, a version), or the front end reads it from the approval.
 - **Decided (25 October 2026, Ade):** yes; each record shows its latest rejection (who, when, the reason) itself.
 - **Built (Wave 2 batch 1):** every record an approval is about shows `latestRejection {ending, approvalType, by, at, reason}` in its view, from Workflow's approval history; expiry and withdrawal count. **Closed.**
+
+### OQ-114 Staff in-app notifications (front-end request 62, BR-003)
+- **The gap:** the SRS has no notification requirements, and F101 is "Not specified". Communications sends email, SMS, push and WhatsApp to customers; nothing notifies staff inside the console.
+- **Built:** the Workflow Inbox (tasks and approvals assigned to a user or their queues) is how staff learn of work, and the requester follow-up task (D-4) tells a maker their approval ended.
+- **Open:** whether staff get in-app notifications, for which events, and whether they are read, dismissed or expire. Planned in a wave once specified.
