@@ -2,7 +2,15 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 2 batch 1 (branch `wave2-1`, not merged)
+## Wave 2 batch 2 (branch `wave2-2`, not merged)
+
+### Contract metadata (Wave 2 batch 1's API review)
+- **`latestRejection.ending` is an enum:** `REJECTED`, `EXPIRED`, `WITHDRAWN`.
+- **`latestRejection` is required** on every view that has it: always present, null when the record's approvals never ended without being granted.
+- **`expiresAfter`** (`workflow/static/approval-expiry`) is `format: duration`, with its rule (at least one hour) and the 14-day default; **`currency`** on authority limits is described (empty: the tenant's base currency).
+- **Descriptions:** the first-administrator request states the `displayName` rule (BR-006); the list of each tenant-named static table says a row naming a tenant is that tenant's only (BR-007).
+
+## Wave 2 batch 1 (branch `wave2-1`, merged)
 
 ### Contract metadata
 - **`DashboardFigure.code` is an enum** of every figure code the summaries return: `WRITTEN_PREMIUM`, `POLICIES_WRITTEN`, `CLAIMS_INCURRED`, `CLAIMS_REPORTED`, `OPEN_ARREARS`, `PAYMENTS_UNKNOWN`, `RETURNS_BY_STATUS`, `RETURNS_AWAITING_ACTION`, `RETURNS_OVERDUE`, `DELIVERIES_PARKED`, `DELIVERIES_FAILING`, `DEAD_LETTERS_OPEN`, `WEBHOOK_DELIVERIES_FAILING`, `OLDEST_PARKED_AT`, `JOB_FUNCTIONS_OFF`.

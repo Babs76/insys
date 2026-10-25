@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Collections.Concurrent;
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using Insys.BuildingBlocks.Domain;
@@ -52,6 +53,14 @@ public static class StateEnums
 
     private static readonly ConcurrentDictionary<string, byte> Codes_ = new(StringComparer.Ordinal);
 
+    private static readonly ConcurrentDictionary<(Type Type, string Property), (string Description, string? Format)> Fields = new();
+
+    /// <summary>
+    /// Describes a field of a generated type (a static data record and its input), which has no documentation comments of
+    /// its own: the OpenAPI documents give it this description, and the format when one is given (for example duration).
+    /// </summary>
+    public static void Describe(Type type, string property, string description, string? format = null) => Fields[(type, property)] = (description, format);
+
     /// <summary>The entity codes of the static data tables mapped so far, which static data audit events name as their target type.</summary>
     public static IEnumerable<string> EntityCodes => Codes_.Keys;
 
@@ -66,6 +75,27 @@ public static class StateEnums
         {
             var target = schema.Type?.HasFlag(JsonSchemaType.Array) == true && schema.Items is OpenApiSchema items ? items : schema;
             SetEnum(target, oneOf.Values);
+        }
+
+        // AllowedValues: for contracts that reference no INSYS building block but BuildingBlocks.Contracts.
+        if (context.JsonPropertyInfo?.AttributeProvider is MemberInfo allowedMember && allowedMember.GetCustomAttribute<AllowedValuesAttribute>() is { } allowed)
+        {
+            SetEnum(schema, allowed.Values.Select(v => v?.ToString()!).Where(v => v is not null));
+        }
+
+        foreach (var ((type, name), (description, format)) in Fields)
+        {
+            if (type == context.JsonTypeInfo.Type && schema.Properties?.TryGetValue(name, out var field) == true && field is OpenApiSchema described)
+            {
+                described.Description = description;
+                described.Format = format ?? described.Format;
+            }
+        }
+
+        // A record's latest rejection (OQ-113) is always present: null when its approvals never ended without being granted.
+        if (schema.Properties?.ContainsKey("latestRejection") == true)
+        {
+            schema.Required = new HashSet<string>(schema.Required ?? new HashSet<string>(), StringComparer.Ordinal) { "latestRejection" };
         }
 
         if (context.JsonPropertyInfo?.AttributeProvider is MemberInfo monthMember && monthMember.GetCustomAttribute<YearMonthAttribute>() is not null)

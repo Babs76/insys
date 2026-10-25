@@ -113,7 +113,7 @@ public interface IBusinessTime
 /// </summary>
 /// <param name="Ending">REJECTED, EXPIRED or WITHDRAWN.</param>
 /// <param name="By">The checker who rejected it; null when it expired or was withdrawn.</param>
-public sealed record LatestRejection(string Ending,
+public sealed record LatestRejection([property: System.ComponentModel.DataAnnotations.AllowedValues("REJECTED", "EXPIRED", "WITHDRAWN")] string Ending,
     string ApprovalType, Guid? By, DateTimeOffset At, string Reason);
 
 /// <summary>Public query interface: a record's latest approval that ended without being granted, or null (OQ-113).</summary>

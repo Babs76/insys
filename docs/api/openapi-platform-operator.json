@@ -30268,7 +30268,7 @@
           "Identity"
         ],
         "summary": "Request a new tenant\u0027s first administrator",
-        "description": "Platform operator only, while the tenant is Onboarding and has no users. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR); then the tenant\u0027s TENANT_ADMIN role (granted these functions: at least one, each a staff function in force in the catalogue, else 422 VALIDATION_FAILED on functions), the user and an active assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with externalSubject, whose token must carry the new tenant\u0027s tenant_id. Completes asynchronously (GAP-027): the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy completes the onboarding step.",
+        "description": "Platform operator only, while the tenant is Onboarding and has no users. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR); then the tenant\u0027s TENANT_ADMIN role (granted these functions: at least one, each a staff function in force in the catalogue, else 422 VALIDATION_FAILED on functions), the user and an active assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with externalSubject, whose token must carry the new tenant\u0027s tenant_id. With idpCode KEYCLOAK, displayName must not contain a character Keycloak\u0027s name validator refuses (\u003C \u003E \u0026 \u0022 $ % ! # ? \u00A7 ; * ~ / \\ | ^ = [ ] { } ( ) and control characters): a 422 with a field error on displayName (BR-006). Completes asynchronously (GAP-027): the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy completes the onboarding step.",
         "operationId": "ProvisionTenantAdministrator",
         "parameters": [
           {
@@ -41672,7 +41672,8 @@
           "decidedBy",
           "decidedAt",
           "userId",
-          "rowVersion"
+          "rowVersion",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -56796,6 +56797,11 @@
         "type": "object",
         "properties": {
           "ending": {
+            "enum": [
+              "REJECTED",
+              "EXPIRED",
+              "WITHDRAWN"
+            ],
             "type": "string"
           },
           "approvalType": {

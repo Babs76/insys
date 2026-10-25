@@ -96,7 +96,7 @@ public static class StaticDataEndpoints
             .Produces<CursorPage<TEntity>>(StatusCodes.Status200OK)
             .WithName($"List{Pascal(descriptor)}")
             .WithSummary($"List {name} in force")
-            .WithDescription($"{name} records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).")
+            .WithDescription($"{name} records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).{NamesATenant(descriptor)}")
             .RequirePermission(StaticDataPermissions.Read);
 
         // ADR-025: "today" is the tenant's business date, the day new versions start on.
@@ -251,4 +251,14 @@ public static class StaticDataEndpoints
             return false;
         }
     }
+
+    /// <summary>
+    /// BR-007: a platform row that names a tenant (its tenant field) is read only by that tenant; the operator reads them all
+    /// through /global. Said on the list of every table that has such a field.
+    /// </summary>
+    private static string NamesATenant(StaticDataDescriptor descriptor) =>
+        descriptor.Scope != StaticScope.T && descriptor.EntityType.GetProperty("Tenant") is not null
+            ? " A row that names a tenant (tenant) is read only by that tenant: another tenant's row is not listed, and is 404 by code. "
+              + "The platform operator reads every tenant's rows through …/global/{code}/versions (BR-007)."
+            : "";
 }

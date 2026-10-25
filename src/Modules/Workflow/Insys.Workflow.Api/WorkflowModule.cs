@@ -71,7 +71,28 @@ public sealed class WorkflowModule : IModule
     /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
     public bool HoldsBusinessData => false;
 
-    public void Register(IServiceCollection services, IConfiguration configuration) => services.AddWorkflowInfrastructure();
+    public void Register(IServiceCollection services, IConfiguration configuration)
+    {
+        DescribeStaticFields();
+        services.AddWorkflowInfrastructure();
+    }
+
+    /// <summary>The generated static data fields whose rules a client needs in the OpenAPI documents (API review, Wave 2 batch 1).</summary>
+    private static void DescribeStaticFields()
+    {
+        const string expiresAfter = "How long an approval of this type waits for a decision before it expires: an ISO 8601 duration of at least one hour, "
+            + "for example P14D or PT48H. An approval type with no row in force expires after 14 days.";
+        const string currency = "The ISO 4217 currency the limit is in. A limit counts only for approvals in its currency; empty means the tenant's base currency.";
+        foreach (var type in new[] { typeof(Infrastructure.StaticData.ApprovalExpiry), typeof(Infrastructure.StaticData.ApprovalExpiryInput) })
+        {
+            StateEnums.Describe(type, "expiresAfter", expiresAfter, "duration");
+        }
+
+        foreach (var type in new[] { typeof(Infrastructure.StaticData.DelegationAndApprovalAuthority), typeof(Infrastructure.StaticData.DelegationAndApprovalAuthorityInput) })
+        {
+            StateEnums.Describe(type, "currency", currency);
+        }
+    }
 
     public void MapEndpoints(IEndpointRouteBuilder api)
     {

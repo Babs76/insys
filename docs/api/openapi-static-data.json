@@ -16517,7 +16517,7 @@
           "ProductFactory static data"
         ],
         "summary": "List Product approval workflow settings in force",
-        "description": "Product approval workflow settings records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "description": "Product approval workflow settings records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015). A row that names a tenant (tenant) is read only by that tenant: another tenant\u0027s row is not listed, and is 404 by code. The platform operator reads every tenant\u0027s rows through \u2026/global/{code}/versions (BR-007).",
         "operationId": "ListProductFactoryProductApprovalWorkflowSettings",
         "parameters": [
           {
@@ -117111,7 +117111,7 @@
           "Tenancy static data"
         ],
         "summary": "List Feature entitlements in force",
-        "description": "Feature entitlements records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "description": "Feature entitlements records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015). A row that names a tenant (tenant) is read only by that tenant: another tenant\u0027s row is not listed, and is 404 by code. The platform operator reads every tenant\u0027s rows through \u2026/global/{code}/versions (BR-007).",
         "operationId": "ListTenancyFeatureEntitlements",
         "parameters": [
           {
@@ -117304,7 +117304,7 @@
           "Tenancy static data"
         ],
         "summary": "List Isolation profile assignment in force",
-        "description": "Isolation profile assignment records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "description": "Isolation profile assignment records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015). A row that names a tenant (tenant) is read only by that tenant: another tenant\u0027s row is not listed, and is 404 by code. The platform operator reads every tenant\u0027s rows through \u2026/global/{code}/versions (BR-007).",
         "operationId": "ListTenancyIsolationProfileAssignment",
         "parameters": [
           {
@@ -118028,7 +118028,7 @@
           "Tenancy static data"
         ],
         "summary": "List Operational limits in force",
-        "description": "Operational limits records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "description": "Operational limits records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015). A row that names a tenant (tenant) is read only by that tenant: another tenant\u0027s row is not listed, and is 404 by code. The platform operator reads every tenant\u0027s rows through \u2026/global/{code}/versions (BR-007).",
         "operationId": "ListTenancyOperationalLimits",
         "parameters": [
           {
@@ -202679,7 +202679,8 @@
           "effectiveFrom",
           "reason",
           "record",
-          "rowVersion"
+          "rowVersion",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -211175,7 +211176,9 @@
             "type": "string"
           },
           "expiresAfter": {
-            "type": "string"
+            "type": "string",
+            "description": "How long an approval of this type waits for a decision before it expires: an ISO 8601 duration of at least one hour, for example P14D or PT48H. An approval type with no row in force expires after 14 days.",
+            "format": "duration"
           },
           "id": {
             "type": "string",
@@ -211358,7 +211361,9 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "How long an approval of this type waits for a decision before it expires: an ISO 8601 duration of at least one hour, for example P14D or PT48H. An approval type with no row in force expires after 14 days.",
+            "format": "duration"
           },
           "code": {
             "type": "string"
@@ -212082,7 +212087,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "The ISO 4217 currency the limit is in. A limit counts only for approvals in its currency; empty means the tenant\u0027s base currency."
           },
           "id": {
             "type": "string",
@@ -212286,7 +212292,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "The ISO 4217 currency the limit is in. A limit counts only for approvals in its currency; empty means the tenant\u0027s base currency."
           },
           "code": {
             "type": "string"
@@ -213001,6 +213008,11 @@
         "type": "object",
         "properties": {
           "ending": {
+            "enum": [
+              "REJECTED",
+              "EXPIRED",
+              "WITHDRAWN"
+            ],
             "type": "string"
           },
           "approvalType": {

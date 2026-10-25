@@ -24174,7 +24174,7 @@
           "Identity"
         ],
         "summary": "Provision a user",
-        "description": "For INSYS\u0027s own realm (idpCode KEYCLOAK) give email and no externalSubject: the user is PendingIdentity until INSYS has created its Keycloak user, then Invited (Keycloak emails it to set a password, and a one-time code with mfaEnrolled) until its first sign-in. For a federated identity provider give externalSubject: the user is Invited until the first request with a token for it. A user with no roles can sign in, and do nothing until a role is assigned. displayName must not contain a character Keycloak\u0027s name validator refuses (\u003C \u003E \u0026 \u0022 $ % ! # ? \u00A7 ; * ~ / \\ | ^ = [ ] { } ( ) and control characters): a 422 with a field error on displayName (BR-006). Completes asynchronously (GAP-027): for INSYS\u0027s own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the creation is parked (KEYCLOAK_UNAVAILABLE) and retried; if Keycloak refuses the user for a reason retrying cannot fix, it is parked (KEYCLOAK_USER_REFUSED, with Keycloak\u0027s reason) for someone to correct.",
+        "description": "For INSYS\u0027s own realm (idpCode KEYCLOAK) give email and no externalSubject: the user is PendingIdentity until INSYS has created its Keycloak user, then Invited (Keycloak emails it to set a password, and a one-time code with mfaEnrolled) until its first sign-in. For a federated identity provider give externalSubject: the user is Invited until the first request with a token for it. A user with no roles can sign in, and do nothing until a role is assigned. With idpCode KEYCLOAK, displayName must not contain a character Keycloak\u0027s name validator refuses (\u003C \u003E \u0026 \u0022 $ % ! # ? \u00A7 ; * ~ / \\ | ^ = [ ] { } ( ) and control characters): a 422 with a field error on displayName (BR-006). Completes asynchronously (GAP-027): for INSYS\u0027s own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the creation is parked (KEYCLOAK_UNAVAILABLE) and retried; if Keycloak refuses the user for a reason retrying cannot fix, it is parked (KEYCLOAK_USER_REFUSED, with Keycloak\u0027s reason) for someone to correct.",
         "operationId": "ProvisionUser",
         "parameters": [
           {
@@ -28379,7 +28379,8 @@
           "paymentId",
           "requestedBy",
           "decidedBy",
-          "bankAccountId"
+          "bankAccountId",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -28894,7 +28895,8 @@
           "bankAccountId",
           "payeeBankHash",
           "pendingPayeePartyId",
-          "pendingBankAccountId"
+          "pendingBankAccountId",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -31201,7 +31203,8 @@
           "bankAccountId",
           "paymentRef",
           "paidOn",
-          "rowVersion"
+          "rowVersion",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -31959,7 +31962,8 @@
           "closedBy",
           "closedAt",
           "reopenRequestedBy",
-          "rowVersion"
+          "rowVersion",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -32509,7 +32513,8 @@
           "decisionRationale",
           "settlement",
           "parties",
-          "rowVersion"
+          "rowVersion",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -32861,7 +32866,8 @@
           "ratingRequestId",
           "documentId",
           "changes",
-          "rowVersion"
+          "rowVersion",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -35707,7 +35713,8 @@
           "totalAmount",
           "remittances",
           "rowVersion",
-          "partlyInScope"
+          "partlyInScope",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -37739,7 +37746,8 @@
           "requiresMfa",
           "requiresApproval",
           "revokedAt",
-          "revokedBy"
+          "revokedBy",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -38019,7 +38027,8 @@
           "status",
           "requestedBy",
           "decidedBy",
-          "decidedAt"
+          "decidedAt",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -38995,7 +39004,8 @@
           "referredTo",
           "requirements",
           "items",
-          "rowVersion"
+          "rowVersion",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -39287,7 +39297,8 @@
           "approvalPending",
           "lines",
           "payees",
-          "rowVersion"
+          "rowVersion",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -41172,7 +41183,8 @@
           "currency",
           "status",
           "verifiedAt",
-          "supersededById"
+          "supersededById",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -42287,7 +42299,8 @@
           "builtBy",
           "approvedBy",
           "releasedBy",
-          "partlyInScope"
+          "partlyInScope",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -43128,7 +43141,8 @@
           "approvedAt",
           "rowVersion",
           "eligibilityRulesetCode",
-          "reinstatementArrears"
+          "reinstatementArrears",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -44309,6 +44323,11 @@
         "type": "object",
         "properties": {
           "ending": {
+            "enum": [
+              "REJECTED",
+              "EXPIRED",
+              "WITHDRAWN"
+            ],
             "type": "string"
           },
           "approvalType": {

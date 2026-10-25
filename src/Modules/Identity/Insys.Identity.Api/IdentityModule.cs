@@ -74,6 +74,10 @@ public sealed class IdentityModule : IModule
     /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
     public bool HoldsBusinessData => false;
 
+    /// <summary>BR-006: the display-name rule of INSYS's own realm, in the description of each endpoint that provisions a user.</summary>
+    private static readonly string DisplayNameRule = "With idpCode KEYCLOAK, displayName must not contain a character Keycloak's name validator refuses ("
+        + string.Join(" ", KeycloakNames.ProhibitedCharacters.ToCharArray()) + " and control characters): a 422 with a field error on displayName (BR-006).";
+
     public void Register(IServiceCollection services, IConfiguration configuration) => services.AddIdentityInfrastructure();
 
     public void MapEndpoints(IEndpointRouteBuilder api)
@@ -147,9 +151,7 @@ public sealed class IdentityModule : IModule
             .WithDescription("For INSYS's own realm (idpCode KEYCLOAK) give email and no externalSubject: the user is PendingIdentity until INSYS has created its "
                 + "Keycloak user, then Invited (Keycloak emails it to set a password, and a one-time code with mfaEnrolled) until its first sign-in. For a "
                 + "federated identity provider give externalSubject: the user is Invited until the first request with a token for it. A user with no roles "
-                + "can sign in, and do nothing until a role is assigned. displayName must not contain a character Keycloak's name validator refuses ("
-                + string.Join(" ", KeycloakNames.ProhibitedCharacters.ToCharArray()) + " and control characters): a 422 with a field error on "
-                + "displayName (BR-006).")
+                + "can sign in, and do nothing until a role is assigned. " + DisplayNameRule)
             .WithEventualEffects("for INSYS's own realm, the user becomes Invited once its Keycloak user is created; if Keycloak cannot be reached, the "
                 + "creation is parked (KEYCLOAK_UNAVAILABLE) and retried; if Keycloak refuses the user for a reason retrying cannot fix, it is parked "
                 + "(KEYCLOAK_USER_REFUSED, with Keycloak's reason) for someone to correct.")
@@ -416,7 +418,7 @@ public sealed class IdentityModule : IModule
             .WithDescription("Platform operator only, while the tenant is Onboarding and has no users. A second platform administrator approves it in "
                 + "Workflow (approval type TENANT_ADMINISTRATOR); then the tenant's TENANT_ADMIN role (granted these functions: at least one, each a staff function in force in the catalogue, else 422 VALIDATION_FAILED on functions), the user and an active "
                 + "assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with "
-                + "externalSubject, whose token must carry the new tenant's tenant_id.")
+                + "externalSubject, whose token must carry the new tenant's tenant_id. " + DisplayNameRule)
             .WithEventualEffects("the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy "
                 + "completes the onboarding step.")
             .RequirePlatformPermission(IdentityPermissions.UserCreate)
