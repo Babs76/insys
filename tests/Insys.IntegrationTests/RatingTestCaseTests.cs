@@ -58,7 +58,7 @@ public sealed class RatingTestCaseTests(DatabaseFixture fixture) : IClassFixture
 
     private static object Case(string code, object inputs) => new
     {
-        code, caseId = code, productVersion = "GEN-MOTOR-1", inputs, expectedPremium = 3_050m, tolerance = 0.01m, effectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow),
+        code, caseId = code, productVersion = "GEN-MOTOR-1", inputs, expectedPremium = 3_050m, tolerance = 0.01m, effectiveFrom = TestClock.Today,
         changeReason = "Test case",
     };
 }

@@ -49,7 +49,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
 {
     private static readonly Guid Tenant = TestTenants.A;
     private static readonly Guid SponsorParty = Guid.CreateVersion7();
-    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Today = TestClock.Today;
 
     private static readonly string[] Permissions =
     [

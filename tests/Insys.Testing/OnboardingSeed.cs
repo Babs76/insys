@@ -123,7 +123,7 @@ public static class OnboardingSeed
     public static async Task<string> RecordSmokeRun(this HttpClient recorder, HttpClient approver, string url, string etag)
     {
         var recorded = await recorder.Send(HttpMethod.Post, $"{url}/smoke-run",
-            new { runReference = "UAT-RUN-1", runDate = DateOnly.FromDateTime(DateTime.UtcNow), outcome = "PASSED", ranBy = "Test operator" }, ifMatch: etag);
+            new { runReference = "UAT-RUN-1", runDate = TestClock.Today, outcome = "PASSED", ranBy = "Test operator" }, ifMatch: etag);
         await Expect(recorded, System.Net.HttpStatusCode.NoContent, "smoke-run");
         var approved = await approver.Send(HttpMethod.Post, $"{url}/smoke-run/approve", ifMatch: recorded.ETag());
         await Expect(approved, System.Net.HttpStatusCode.NoContent, "smoke-run/approve");

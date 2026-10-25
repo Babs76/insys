@@ -45,7 +45,7 @@ public sealed class RatingPerformanceSmokeTests(DatabaseFixture fixture) : IClas
         _factory = await fixture.Host(new Dictionary<string, string?> { ["RateLimiting:PermitsPerMinute"] = "100000" });
         await fixture.Database.UserWithPermissions(Tenant, "rating-smoke", RatingPermissions.CalculationCreate, RatingPermissions.CalculationRead);
         _client = _factory.ClientFor(Tenant, "rating-smoke");
-        var from = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30);
+        var from = TestClock.Today.AddDays(-30);
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO product.cfg_product_definitions_and_versions (tenant_id, id, code, version, effective_from, record_status, created_by, change_reason,
                                                                      product_code, domain, name, coverages, family_code, class_code, cover_starts_on)

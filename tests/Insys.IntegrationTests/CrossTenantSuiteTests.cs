@@ -78,7 +78,7 @@ public sealed class CrossTenantSuiteTests(DatabaseFixture fixture) : IClassFixtu
         _b = _factory.ClientFor(B, "cross-b");
         foreach (var tenant in new[] { A, B })
         {
-            await fixture.Database.SeedStatic(tenant, "document.ref_document_categories", "ACTIVE", "NOTE", DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1),
+            await fixture.Database.SeedStatic(tenant, "document.ref_document_categories", "ACTIVE", "NOTE", TestClock.Today.AddDays(-1),
                 ("category_code", "NOTE"), ("label", "Note"), ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
         }
     }
@@ -235,7 +235,7 @@ public sealed class CrossTenantSuiteTests(DatabaseFixture fixture) : IClassFixtu
     /// <summary>A General motor product rated at sum insured × the tenant's own factor, plus a fee of 50.</summary>
     private async Task RatingProduct(Guid tenant, decimal factor)
     {
-        var from = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30);
+        var from = TestClock.Today.AddDays(-30);
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO product.cfg_product_definitions_and_versions (tenant_id, id, code, version, effective_from, record_status, created_by, change_reason,
                                                                      product_code, domain, name, coverages, family_code, class_code, cover_starts_on)

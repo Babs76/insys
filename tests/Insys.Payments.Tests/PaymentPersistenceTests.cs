@@ -39,7 +39,7 @@ namespace Insys.Payments.Tests;
 public sealed class PaymentPersistenceTests(PostgresServer server) : IAsyncLifetime
 {
     private static readonly Guid Tenant = TestTenants.A;
-    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Today = TestClock.Today;
     private TestDatabase _db = null!;
     private InsysApiFactory _factory = null!;
     private HttpClient _client = null!;

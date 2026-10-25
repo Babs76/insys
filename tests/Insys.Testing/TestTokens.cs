@@ -89,6 +89,8 @@ public static class TestTokens
         ["Outbox:RelayEnabled"] = "false",
         ["Outbox:Parking:JobEnabled"] = "false",
         ["Testing:DailyJobRunner:Enabled"] = "true",
+        ["BusinessDate:TestDate"] = TestClock.TodayText,
+        ["BusinessDate:DefaultTimeZone"] = TestClock.DefaultTimeZone,
         ["Workflow:TimersEnabled"] = "false",
         ["Billing:Jobs:Enabled"] = "false",
         ["Payments:Jobs:Enabled"] = "false",

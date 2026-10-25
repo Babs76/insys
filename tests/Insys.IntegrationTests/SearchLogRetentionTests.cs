@@ -51,7 +51,7 @@ public sealed class SearchLogRetentionTests(DatabaseFixture fixture) : IClassFix
         var held = await Entry(DatabaseFixture.TenantA, "clerk-held", "Held", TimeSpan.FromDays(6 * 365));
 
         // Tenant B's own SECURITY policy is two years.
-        await db.SeedStatic(DatabaseFixture.TenantB, "audit.cfg_audit_retention_policies", "EFFECTIVE", "RET-SEC-ZA", DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1),
+        await db.SeedStatic(DatabaseFixture.TenantB, "audit.cfg_audit_retention_policies", "EFFECTIVE", "RET-SEC-ZA", TestClock.Today.AddDays(-1),
             ("event_class", "SECURITY"), ("jurisdiction", "ZA"), ("period", new NpgsqlTypes.NpgsqlInterval(24, 0, 0)));
         var threeYears = await Entry(DatabaseFixture.TenantB, "clerk-b", "ThreeYears", TimeSpan.FromDays(3 * 365));
 

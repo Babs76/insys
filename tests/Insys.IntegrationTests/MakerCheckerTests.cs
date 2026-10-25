@@ -63,7 +63,7 @@ public sealed class MakerCheckerTests(DatabaseFixture fixture) : IClassFixture<D
             VALUES (@t, @role, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test seed', @role)
             ON CONFLICT DO NOTHING
             """, ("t", Tenant), ("role", PrivilegedRole));
-        await db.GrantFunctionsWithin(Tenant, PrivilegedRole, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1), IntegrationPermissions.DeadLetterRead,
+        await db.GrantFunctionsWithin(Tenant, PrivilegedRole, TestClock.Today.AddDays(-1), IntegrationPermissions.DeadLetterRead,
             IntegrationPermissions.DeadLetterUpdate);
         await db.ExecuteAsOwner("""
             INSERT INTO iam.cfg_authentication_and_session_policies

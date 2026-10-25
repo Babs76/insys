@@ -281,7 +281,7 @@ public sealed class ParkedDeliveryTests(DatabaseFixture fixture) : IClassFixture
 
     private async Task PublishConfiguration(Guid tenantId)
     {
-        var activated = new StaticDataVersionActivated(null, new StaticRecordRef("tenant", "cfg_locale_defaults", "LOCALE_DEFAULTS", "tenant", "locale-defaults", Guid.CreateVersion7(), "DEFAULT", 2, false), DateOnly.FromDateTime(DateTime.UtcNow), null);
+        var activated = new StaticDataVersionActivated(null, new StaticRecordRef("tenant", "cfg_locale_defaults", "LOCALE_DEFAULTS", "tenant", "locale-defaults", Guid.CreateVersion7(), "DEFAULT", 2, false), TestClock.Today, null);
         var envelope = new EventEnvelope(Guid.CreateVersion7(), tenantId, "sdm.StaticDataVersionActivated", 1, DateTimeOffset.UtcNow, "StaticRecord", Guid.CreateVersion7(),
             Guid.CreateVersion7(), null, JsonSerializer.SerializeToElement(activated, JsonSerializerOptions.Web));
         await _services.GetRequiredService<IEventBus>().Publish(envelope, CancellationToken.None);

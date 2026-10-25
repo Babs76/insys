@@ -89,7 +89,7 @@ public sealed class ExternalUserLinkTests(DatabaseFixture fixture) : IClassFixtu
 
         // Linked, the user is external: only through the member portal's channel.
         (await (await person.GetAsync("/api/v1/identity/me")).Code()).ShouldBe("CHANNEL_NOT_ENABLED");
-        await db.SeedStatic(Tenant, "channel.cfg_channel_definitions", "EFFECTIVE", "CH-MEM", DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1), ("channel_code", "MEM"),
+        await db.SeedStatic(Tenant, "channel.cfg_channel_definitions", "EFFECTIVE", "CH-MEM", TestClock.Today.AddDays(-1), ("channel_code", "MEM"),
             ("audience", "CUSTOMER"), ("name", "Member portal"), ("client_ids", new[] { "member-portal" }));
         var me = await (await person.GetAsync("/api/v1/identity/me")).Json();
         (me.GetProperty("external").GetProperty("kind").GetString(), me.GetProperty("external").GetProperty("partyId").GetGuid()).ShouldBe(("Party", party));

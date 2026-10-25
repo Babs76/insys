@@ -59,7 +59,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
     private const string Product = "E2E-EMOT";
     private const string Broker = "BRK-1";
     private static readonly Guid Tenant = TestTenants.A;
-    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Today = TestClock.Today;
     private static readonly string Month = Today.ToString("yyyy-MM");
     private static readonly Guid Assessor = Guid.CreateVersion7();
 
@@ -484,7 +484,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         var policy = await IssuedPolicy(await Vehicle());
         var holder = await _maker.RegisterPerson("Renewing");
         await _db.AddContact(Tenant, holder, "EMAIL", "renewal@example.com");
-        var periodEnd = BusinessDates.Today.AddDays(30);
+        var periodEnd = TestClock.Today.AddDays(30);
         await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @d, policyholder_party_id = @h WHERE id = @p", ("d", periodEnd), ("h", holder),
             ("p", policy));
         var jobs = _factory.Services.GetRequiredService<GeneralJobs>();

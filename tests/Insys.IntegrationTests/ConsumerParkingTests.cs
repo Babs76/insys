@@ -42,7 +42,7 @@ namespace Insys.IntegrationTests;
 public sealed class ConsumerParkingTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
     private static readonly Guid Tenant = DatabaseFixture.TenantA;
-    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Today = TestClock.Today;
     private InsysApiFactory _factory = null!;
 
     public async ValueTask InitializeAsync() => _factory = await fixture.Host();

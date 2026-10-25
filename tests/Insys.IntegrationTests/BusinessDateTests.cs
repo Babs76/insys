@@ -130,4 +130,51 @@ public sealed class BusinessDateTests(DatabaseFixture fixture) : IClassFixture<D
         run.StatusCode.ShouldBe(HttpStatusCode.OK, await run.Content.ReadAsStringAsync());
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @p AND due_date = '2026-12-01'", ("p", policy))).ShouldBe(1);
     }
+
+    /// <summary>
+    /// Wave 1 batch 4, ADR-025: at 23:30 UTC on 31 October, a policy issued now counts in Analytics on 1 November for the
+    /// Johannesburg tenant and on 31 October for the tenant on UTC. A fact logged before this release by the UTC day is
+    /// dated again by the tenant's business date when the projections are rebuilt.
+    /// </summary>
+    [Fact]
+    public async Task AtHalfPastElevenUtc_AnalyticsCountsOnEachTenantsBusinessDate_AndARebuildCorrectsAFactDatedByTheUtcDay_ADR025()
+    {
+        var bus = _factory.Services.GetRequiredService<Insys.BuildingBlocks.Application.Messaging.IEventBus>();
+        foreach (var (tenant, product) in new[] { (DatabaseFixture.TenantA, "BD-JHB"), (DatabaseFixture.TenantB, "BD-UTC") })
+        {
+            var policy = Guid.CreateVersion7();
+            var party = Guid.CreateVersion7();
+            var issued = new Insys.General.Contracts.GeneralPolicyIssued(policy, $"GP-{policy.ToString("N")[^8..]}", product, 1, party, party, Guid.CreateVersion7(),
+                "MONTHLY", "DEBIT_ORDER", "ZAR", 1_200m, new DateOnly(2026, 11, 1), new DateOnly(2027, 10, 31), null);
+            await bus.Deliver(Envelope(tenant, issued, "general.GeneralPolicyIssued", "GeneralPolicy", policy), CancellationToken.None);
+        }
+
+        (await DateKey(DatabaseFixture.TenantA, "BD-JHB")).ShouldBe(new DateOnly(2026, 11, 1), "01:30 on 1 November in Johannesburg");
+        (await DateKey(DatabaseFixture.TenantB, "BD-UTC")).ShouldBe(new DateOnly(2026, 10, 31), "still the 31st on UTC");
+
+        // As the previous release logged it: dated by the UTC day.
+        var old = new Insys.Analytics.Application.ProjectionEntry(Insys.Analytics.Application.ProjectionEntry.WrittenPremium, new DateOnly(2026, 10, 31), "BD-OLD",
+            "DIRECT", "ALL", 500m, 1, "ZAR");
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO analytics.event_log (tenant_id, event_id, event_type, occurred_at, received_at, payload)
+            VALUES (@t, gen_random_uuid(), 'general.GeneralPolicyIssued', @at, now(), @payload::jsonb)
+            """, ("t", DatabaseFixture.TenantA), ("at", Instant), ("payload", System.Text.Json.JsonSerializer.Serialize(old, System.Text.Json.JsonSerializerOptions.Web)));
+
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            scope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(DatabaseFixture.TenantA, "test");
+            (await scope.ServiceProvider.GetRequiredService<Insys.BuildingBlocks.Application.Messaging.IDispatcher>()
+                .Send(new Insys.Analytics.Application.RebuildProjections(), CancellationToken.None)).IsSuccess.ShouldBeTrue();
+        }
+
+        (await DateKey(DatabaseFixture.TenantA, "BD-OLD")).ShouldBe(new DateOnly(2026, 11, 1), "rebuilt by the tenant's business date");
+        (await DateKey(DatabaseFixture.TenantA, "BD-JHB")).ShouldBe(new DateOnly(2026, 11, 1));
+    }
+
+    private Task<DateOnly> DateKey(Guid tenant, string product) =>
+        fixture.Database.ScalarAsOwner<DateOnly>("SELECT date_key FROM analytics.fact_written_premium WHERE tenant_id = @t AND product_code = @p", ("t", tenant), ("p", product));
+
+    private static Insys.BuildingBlocks.Contracts.EventEnvelope Envelope<T>(Guid tenant, T integrationEvent, string type, string aggregateType, Guid aggregateId) =>
+        new(Guid.CreateVersion7(), tenant, type, 1, Instant, aggregateType, aggregateId, Guid.CreateVersion7(), null,
+            System.Text.Json.JsonSerializer.SerializeToElement(integrationEvent, System.Text.Json.JsonSerializerOptions.Web));
 }

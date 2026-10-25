@@ -39,7 +39,7 @@ namespace Insys.IntegrationTests;
 public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
     private const string OperatorAdmin = "readiness-operator";
-    private static readonly DateOnly From = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30);
+    private static readonly DateOnly From = TestClock.Today.AddDays(-30);
     private InsysApiFactory _factory = null!;
     private HttpClient _operator = null!;
     private HttpClient _checker = null!;

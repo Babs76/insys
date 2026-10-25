@@ -95,12 +95,27 @@ public sealed class DailyJobRunner(IServiceProvider services, OutboxProcessor re
 /// <summary>Refuses to start a host that enables the test-only daily job runner outside Development and Testing (ADR-025).</summary>
 public sealed class DailyJobRunnerGuard(IConfiguration configuration, IHostEnvironment environment) : IHostedService
 {
-    public Task StartAsync(CancellationToken cancellationToken) =>
-        configuration.GetValue<bool>("Testing:DailyJobRunner:Enabled") && !InsysAuthenticationOptions.AllowsDevelopmentKey(environment)
-            ? throw new InvalidOperationException(
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        if (InsysAuthenticationOptions.AllowsDevelopmentKey(environment))
+        {
+            return Task.CompletedTask;
+        }
+
+        var allowed = string.Join(" and ", InsysAuthenticationOptions.DevelopmentKeyEnvironments);
+        if (configuration.GetValue<bool>("Testing:DailyJobRunner:Enabled"))
+        {
+            throw new InvalidOperationException(
                 $"Testing:DailyJobRunner:Enabled is set in the {environment.EnvironmentName} environment. The test-only daily job runner is allowed only in "
-                + $"{string.Join(" and ", InsysAuthenticationOptions.DevelopmentKeyEnvironments)}; remove the setting.")
-            : Task.CompletedTask;
+                + $"{allowed}; remove the setting.");
+        }
+
+        // The test-only fixed business date (Wave 1 batch 4) would make every tenant's today wrong in production.
+        return string.IsNullOrEmpty(configuration["BusinessDate:TestDate"])
+            ? Task.CompletedTask
+            : throw new InvalidOperationException(
+                $"BusinessDate:TestDate is set in the {environment.EnvironmentName} environment. It is allowed only in {allowed}; remove the setting.");
+    }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

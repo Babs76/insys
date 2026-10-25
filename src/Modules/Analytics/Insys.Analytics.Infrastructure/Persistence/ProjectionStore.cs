@@ -103,7 +103,7 @@ internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tena
         return await reader.ReadAsync(cancellationToken) && !reader.IsDBNull(0) ? (reader.GetString(0), reader.GetString(1)) : null;
     }
 
-    public async Task<int> Rebuild(DateTimeOffset now, CancellationToken cancellationToken)
+    public async Task<int> Rebuild(DateTimeOffset now, Func<DateTimeOffset, DateOnly> businessDateOf, CancellationToken cancellationToken)
     {
         await using (var clear = await Command("DELETE FROM analytics.fact_written_premium WHERE tenant_id = @t; DELETE FROM analytics.fact_claims_incurred WHERE tenant_id = @t",
                          cancellationToken))
@@ -112,12 +112,13 @@ internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tena
         }
 
         var entries = new List<ProjectionEntry>();
-        await using (var read = await Command("SELECT payload FROM analytics.event_log WHERE tenant_id = @t ORDER BY occurred_at, event_id", cancellationToken))
+        await using (var read = await Command("SELECT payload, occurred_at FROM analytics.event_log WHERE tenant_id = @t ORDER BY occurred_at, event_id", cancellationToken))
         await using (var reader = await read.ExecuteReaderAsync(cancellationToken))
         {
             while (await reader.ReadAsync(cancellationToken))
             {
-                entries.Add(JsonSerializer.Deserialize<ProjectionEntry>(reader.GetString(0), Json)!);
+                var entry = JsonSerializer.Deserialize<ProjectionEntry>(reader.GetString(0), Json)!;
+                entries.Add(entry.DatedByOccurrence ? entry with { Day = businessDateOf(reader.GetFieldValue<DateTimeOffset>(1)) } : entry);
             }
         }
 

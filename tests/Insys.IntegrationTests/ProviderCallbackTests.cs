@@ -47,7 +47,7 @@ namespace Insys.IntegrationTests;
 /// </summary>
 public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
-    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Today = TestClock.Today;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
     private readonly CapturedLogs _logs = new();
     private WebApplicationFactory<Program> _app = null!;

@@ -44,7 +44,7 @@ public sealed class MeTests(DatabaseFixture fixture) : IClassFixture<DatabaseFix
         _factory = await fixture.Host();
         foreach (var (code, name) in new[] { ("en", "English"), ("zu", "isiZulu") })
         {
-            await fixture.Database.SeedGlobalStatic("refdata.ref_languages", "ACTIVE", code, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1), ("name", name));
+            await fixture.Database.SeedGlobalStatic("refdata.ref_languages", "ACTIVE", code, TestClock.Today.AddDays(-1), ("name", name));
         }
     }
 
@@ -73,9 +73,9 @@ public sealed class MeTests(DatabaseFixture fixture) : IClassFixture<DatabaseFix
             .ShouldBe((DatabaseFixture.TenantA, "TENA", false));
 
         // ADR-025: the tenant's time zone and today's business date in it, for defaulting dates (this tenant has none, so the default).
-        tenant.GetProperty("timeZone").GetString().ShouldBe("Africa/Johannesburg");
+        tenant.GetProperty("timeZone").GetString().ShouldBe(TestClock.DefaultTimeZone);
         DateOnly.Parse(tenant.GetProperty("businessDate").GetString()!, System.Globalization.CultureInfo.InvariantCulture)
-            .ShouldBe(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Africa/Johannesburg")).DateTime));
+            .ShouldBe(TestClock.Today);
         me.GetProperty("language").GetProperty("request").GetString().ShouldBe("en");
         me.GetProperty("roles").GetArrayLength().ShouldBe(2);
         me.GetProperty("roles").EnumerateArray().ShouldAllBe(r => r.GetProperty("inEffect").GetBoolean());

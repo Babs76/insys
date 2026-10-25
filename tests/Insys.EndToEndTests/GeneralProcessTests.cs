@@ -52,7 +52,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 {
     private const string Product = "E2E-GMOT";
     private static readonly Guid Tenant = TestTenants.A;
-    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Today = TestClock.Today;
     private static readonly Guid Assessor = Guid.CreateVersion7();
     private static readonly Guid Repairer = Guid.CreateVersion7();
 
@@ -433,7 +433,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<string>("""
             SELECT status || ':' || channel || ':' || body FROM communication.notification
             WHERE recipient_party_id = @h AND type_code = 'CLAIM_STATUS' AND source_type = 'GENERAL_CLAIM' AND source_id = @c
-            """, ("h", holder), ("c", claim))).ShouldBe($"SENT:EMAIL:Your claim {number} is REGISTERED ({BusinessDates.Today:yyyy-MM-dd}).");
+            """, ("h", holder), ("c", claim))).ShouldBe($"SENT:EMAIL:Your claim {number} is REGISTERED ({TestClock.Today:yyyy-MM-dd}).");
         (await _db.ScalarAsOwner<string>("SELECT direction || ':' || channel FROM claims.claim_communication WHERE claim_number = @n", ("n", number)))
             .ShouldBe("OUT:EMAIL", "the claim's correspondence log records the notice");
     }
@@ -664,7 +664,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     [Fact]
     public async Task AtOneThirtyInJohannesburg_CoverStartingThatDayIsInForce_ItsDebitOrderIsDue_AndAFirstDayClaimIsAccepted_GAP044()
     {
-        var utcDay = DateOnly.FromDateTime(DateTime.UtcNow);
+        var utcDay = TestClock.Today;
         var localDay = utcDay.AddDays(1);
         await using var boundary = new InsysApiFactory(_db, new Dictionary<string, string?> { ["Identity:PermissionCache:AllowMultipleInstances"] = "true" },
             time: new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(utcDay.ToDateTime(new TimeOnly(23, 30)), TimeSpan.Zero)));

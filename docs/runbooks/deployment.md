@@ -232,6 +232,10 @@ Each module's daily transitions run on a timer in every API instance. The work i
    - An advisory lock stops two runners from applying migrations at once.
    - Repeatable scripts (`R__*.sql`, such as the error code catalogue) run again only when their content changes.
 4. Deploy the new host and check `/health/ready`.
+5. Follow the release's own steps, if it has any (below).
+
+### Release steps
+- **Wave 1 batch 4 (Analytics by business date, ADR-025):** rebuild each tenant's Analytics projections once, with `POST /api/v1/analytics/projections/rebuild` as a user holding `ANALYTICS_REBUILD_PROJECTIONS`. Before this release, written premium and registered claims were dated by the UTC day of the event, so an event between 00:00 and 02:00 Johannesburg time (22:00 to 24:00 UTC) counted on the day before. The rebuild dates them again from the logged event time in the tenant's time zone. Claims incurred are dated by their movement date and do not change.
 
 There is no down migration. To undo a release, restore the backup taken in step 2, or deploy a fix forward with a new migration.
 

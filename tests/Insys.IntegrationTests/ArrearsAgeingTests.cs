@@ -46,7 +46,7 @@ public sealed class ArrearsAgeingTests(DatabaseFixture fixture) : IClassFixture<
     private const string Consumer = "billing.ArrearsOnOverdue.InvoiceOverdue";
     private static readonly Guid Tenant = DatabaseFixture.TenantA;
     private static readonly Guid TenantB = DatabaseFixture.TenantB;
-    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Today = TestClock.Today;
     private InsysApiFactory _factory = null!;
     private HttpClient _clerk = null!;
 

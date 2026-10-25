@@ -54,6 +54,6 @@ public sealed class FraudIndicatorDefinitionTests(DatabaseFixture fixture) : ICl
     private static Dictionary<string, object> Indicator(string code, string logic, string thresholdField) => new()
     {
         ["code"] = code, ["indicatorCode"] = code, ["logic"] = logic, ["score"] = 10, [thresholdField] = 100, ["referralQueue"] = "FRAUD",
-        ["effectiveFrom"] = DateOnly.FromDateTime(DateTime.UtcNow), ["changeReason"] = "Test indicator",
+        ["effectiveFrom"] = TestClock.Today, ["changeReason"] = "Test indicator",
     };
 }

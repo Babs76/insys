@@ -51,6 +51,12 @@ public sealed record ProjectionEntry(string Kind, DateOnly Day, string ProductCo
 
     /// <summary>The month key of the claims incurred projection, yyyy-MM.</summary>
     public string MonthKey => Day.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Whether the entry's day is the business date the event occurred on (ADR-025): written premium and registered claims.
+    /// Claims incurred carry their movement's own date.
+    /// </summary>
+    public bool DatedByOccurrence => Kind is WrittenPremium or ClaimRegistered;
 }
 
 public sealed record WrittenPremiumRow(DateOnly DateKey, string ProductCode, string ChannelCode, string BranchCode, int PolicyCount, decimal WrittenPremium, string Currency);
@@ -67,8 +73,11 @@ public interface IProjectionStore
     /// <summary>The product and branch a claim number was registered against (its CLAIM_REGISTERED entry).</summary>
     Task<(string ProductCode, string Branch)?> ClaimDimensions(string claimNumber, CancellationToken cancellationToken);
 
-    /// <summary>Clears the tenant's projections and replays its event log in order; returns the entries replayed.</summary>
-    Task<int> Rebuild(DateTimeOffset now, CancellationToken cancellationToken);
+    /// <summary>
+    /// Clears the tenant's projections and replays its event log in order; returns the entries replayed. An entry dated by its event's occurrence is dated again from the logged
+    /// occurred_at in the tenant's time zone (<paramref name="businessDateOf"/>), so facts logged by the UTC day are corrected (ADR-025).
+    /// </summary>
+    Task<int> Rebuild(DateTimeOffset now, Func<DateTimeOffset, DateOnly> businessDateOf, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<WrittenPremiumRow>> WrittenPremium(DateOnly from, DateOnly to, CancellationToken cancellationToken);
 
@@ -119,9 +128,10 @@ internal sealed class ProjectionQueries(IProjectionStore store) :
         Result.Success(await store.ClaimsIncurred(query.FromMonth, query.ToMonth, cancellationToken));
 }
 
-internal sealed class RebuildProjectionsHandler(IProjectionStore store, IClock clock) : ICommandHandler<RebuildProjections, int>
+internal sealed class RebuildProjectionsHandler(IProjectionStore store, IBusinessDate businessDate, IClock clock) : ICommandHandler<RebuildProjections, int>
 {
-    public async Task<Result<int>> Handle(RebuildProjections command, CancellationToken cancellationToken) => await store.Rebuild(clock.UtcNow, cancellationToken);
+    public async Task<Result<int>> Handle(RebuildProjections command, CancellationToken cancellationToken) =>
+        await store.Rebuild(clock.UtcNow, businessDate.DateOf, cancellationToken);
 }
 
 /// <summary>
@@ -133,7 +143,8 @@ internal sealed class RebuildProjectionsHandler(IProjectionStore store, IClock c
 /// endorsement deltas, less cancellation refunds. TODO(spec): Health is not projected (no product on its events); the
 /// projections assume one currency per tenant (their keys have none).
 /// </summary>
-public sealed class ProjectionPolicies(IProjectionStore store, IEnumerable<IPolicyDistribution> policies, IPolicyArrears billing, ITenantContext tenant, IClock clock) :
+public sealed class ProjectionPolicies(IProjectionStore store, IEnumerable<IPolicyDistribution> policies, IPolicyArrears billing, ITenantContext tenant, IBusinessDate businessDate,
+    IClock clock) :
     IIntegrationEventHandler<GeneralPolicyIssued>,
     IIntegrationEventHandler<GeneralPolicyEndorsed>,
     IIntegrationEventHandler<GeneralPolicyCancelled>,
@@ -215,5 +226,7 @@ public sealed class ProjectionPolicies(IProjectionStore store, IEnumerable<IPoli
         return (policy is { IntermediaryCode: { Length: > 0 } } ? "INTERMEDIARY" : "DIRECT", policy?.OrgNodeCode ?? AllBranches);
     }
 
-    private static DateOnly Day(EventEnvelope envelope) => DateOnly.FromDateTime(envelope.OccurredAt.UtcDateTime);
+    // ADR-025: a figure counts on the tenant's business date when the event occurred, not the UTC date (an event at 23:30 UTC
+    // is the next day in Johannesburg).
+    private DateOnly Day(EventEnvelope envelope) => businessDate.DateOf(envelope.OccurredAt);
 }

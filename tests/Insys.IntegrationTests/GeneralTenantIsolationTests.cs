@@ -104,12 +104,12 @@ public sealed class GeneralTenantIsolationTests(DatabaseFixture fixture) : IClas
 
         (await client.PostAsync($"/api/v1/general/risk-objects/{_risk}/deactivate", null)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await client.PostAsync($"/api/v1/general/quotes/{_quote}/issue", null)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        (await client.PostAsJsonAsync($"/api/v1/general/policies/{_policy}/cancel", new { reasonCode = "INS_REQUEST", effectiveDate = DateOnly.FromDateTime(DateTime.UtcNow) }))
+        (await client.PostAsJsonAsync($"/api/v1/general/policies/{_policy}/cancel", new { reasonCode = "INS_REQUEST", effectiveDate = TestClock.Today }))
             .StatusCode.ShouldBeOneOf(HttpStatusCode.NotFound, HttpStatusCode.UnprocessableEntity);
         (await client.PostAsync($"/api/v1/general/claims/{_claim}/register", null)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await client.Send(HttpMethod.Post, "/api/v1/general/claims", new
         {
-            policyId = _policy, coverageCode = "OWN_DAMAGE", lossDate = DateOnly.FromDateTime(DateTime.UtcNow), causeCode = "COLLISION", perilCode = "ACC",
+            policyId = _policy, coverageCode = "OWN_DAMAGE", lossDate = TestClock.Today, causeCode = "COLLISION", perilCode = "ACC",
         }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM general.policy WHERE id = @p", ("p", _policy))).ShouldBe("IN_FORCE");

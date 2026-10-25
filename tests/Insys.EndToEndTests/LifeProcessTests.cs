@@ -52,7 +52,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
 {
     private const string Product = "E2E-LTERM";
     private static readonly Guid Tenant = TestTenants.A;
-    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Today = TestClock.Today;
 
     private static readonly string[] Permissions =
     [

@@ -46,4 +46,6 @@
   - a claim event on the first day of cover is accepted;
   - a debit order falls due;
   - the month that has just ended can be closed.
+- **Analytics** (Wave 1 batch 4) dates written premium and registered claims by the tenant's business date when the event occurred, not its UTC day. A rebuild dates logged events again the same way, so projections written before the change are corrected by rebuilding each tenant once (deployment runbook, release steps). Claims incurred keep their movement date.
+- **The fixed test clock** (Wave 1 batch 4): every test and test host judge "today" as one date per run (`TestClock.Today`, given to hosts as the test-only `BusinessDate:TestDate`, refused outside Development and Testing), so the suite gives the same results at any hour. Hosts with a fixed instant of their own leave it unset and exercise the conversion; `BusinessDateTests` runs the boundary cases at 23:30 UTC, Analytics among them. `INSYS_TEST_DEFAULT_TIME_ZONE=Pacific/Kiritimati` (UTC+14) runs the whole suite as if it were late evening in UTC.
 - **The front end** can default dates to the tenant's date. `/identity/me` already returns the tenant's locale; the zone is in its locale defaults.

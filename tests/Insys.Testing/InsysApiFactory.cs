@@ -69,7 +69,15 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
         {
             builder.UseSetting(key, value);
         }
-        builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(TestTokens.HostSettings(Database)).AddInMemoryCollection(settings ?? new Dictionary<string, string?>()));
+        // A host with a fixed clock of its own judges dates from it (the time-zone conversion under test), not from the run's fixed date.
+        var hostSettings = TestTokens.HostSettings(Database);
+        // Outside Development and Testing the host refuses it, as production would.
+        if (time is not null || environment is not ("Development" or "Testing"))
+        {
+            hostSettings.Remove("BusinessDate:TestDate");
+        }
+
+        builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(hostSettings).AddInMemoryCollection(settings ?? new Dictionary<string, string?>()));
 
         // Captured logs, for tests that check what is never logged.
         if (logs is not null)

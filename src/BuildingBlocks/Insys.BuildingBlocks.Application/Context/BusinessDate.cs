@@ -62,6 +62,13 @@ public sealed class BusinessDateOptions
 
     /// <summary>How long a tenant's time zone is cached.</summary>
     public TimeSpan CacheFor { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Test only (Development and Testing; the host refuses it elsewhere): every tenant's business date is this day, so a test
+    /// run judges "today" the same at any hour (Wave 1 batch 4). Instants and time zones are untouched; a host with a fixed
+    /// clock leaves it unset to exercise the conversion itself.
+    /// </summary>
+    public DateOnly? TestDate { get; set; }
 }
 
 /// <summary>Tenants' time zones, cached for a minute; the default when a tenant has none or it is not a known zone.</summary>
@@ -70,6 +77,9 @@ public sealed class TenantTimeZones(IServiceProvider services, IClock clock, IOp
     private readonly ConcurrentDictionary<Guid, (TimeZoneInfo Zone, DateTimeOffset LoadedAt)> _zones = new();
 
     public TimeZoneInfo Default => Find(options.Value.DefaultTimeZone) ?? TimeZoneInfo.Utc;
+
+    /// <summary>The test-only business date of every tenant (BusinessDateOptions.TestDate), or null.</summary>
+    public DateOnly? TestDate => options.Value.TestDate;
 
     public TimeZoneInfo For(Guid? tenantId)
     {
@@ -136,7 +146,8 @@ public static class BusinessDateOverride
 /// <summary>Tenants' business dates for work that spans tenants, such as the daily jobs. A singleton.</summary>
 public sealed class TenantBusinessDates(TenantTimeZones zones, IClock clock)
 {
-    public DateOnly TodayFor(Guid tenantId) => BusinessDateOverride.Day ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.UtcNow, zones.For(tenantId)).DateTime);
+    public DateOnly TodayFor(Guid tenantId) =>
+        BusinessDateOverride.Day ?? zones.TestDate ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.UtcNow, zones.For(tenantId)).DateTime);
 }
 
 /// <summary>The business date in the current scope's tenant.</summary>
@@ -144,9 +155,10 @@ public sealed class BusinessDate(ITenantContext tenant, TenantTimeZones zones, I
 {
     public TimeZoneInfo Zone => zones.For(tenant.TenantId);
 
-    public DateOnly Today => BusinessDateOverride.Day ?? DateOf(clock.UtcNow);
+    public DateOnly Today => BusinessDateOverride.Day ?? zones.TestDate ?? DateOf(clock.UtcNow);
 
-    public DateOnly TodayFor(Guid tenantId) => BusinessDateOverride.Day ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.UtcNow, zones.For(tenantId)).DateTime);
+    public DateOnly TodayFor(Guid tenantId) =>
+        BusinessDateOverride.Day ?? zones.TestDate ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.UtcNow, zones.For(tenantId)).DateTime);
 
     public DateOnly DateOf(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
 }

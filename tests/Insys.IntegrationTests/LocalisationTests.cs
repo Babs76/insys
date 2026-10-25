@@ -49,7 +49,7 @@ public sealed class LocalisationTests(DatabaseFixture fixture) : IClassFixture<D
 {
     private static readonly Guid A = DatabaseFixture.TenantA;
     private static readonly Guid B = DatabaseFixture.TenantB;
-    private static readonly DateOnly From = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30);
+    private static readonly DateOnly From = TestClock.Today.AddDays(-30);
 
     private static readonly string[] Permissions =
     [
@@ -279,7 +279,7 @@ public sealed class LocalisationTests(DatabaseFixture fixture) : IClassFixture<D
     private async Task<string?> Invite(Guid tenant, Guid? party)
     {
         var policy = Guid.CreateVersion7();
-        var invited = new GeneralRenewalInvited(policy, $"GP-{policy.ToString("N")[^6..]}", "GEN-MOTOR", 1, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30), "TPL-REN", party);
+        var invited = new GeneralRenewalInvited(policy, $"GP-{policy.ToString("N")[^6..]}", "GEN-MOTOR", 1, TestClock.Today.AddDays(30), "TPL-REN", party);
         await _factory.Services.GetRequiredService<IEventBus>().Publish(new EventEnvelope(Guid.CreateVersion7(), tenant, "general.GeneralRenewalInvited", 1,
             DateTimeOffset.UtcNow, "GeneralPolicy", policy, Guid.CreateVersion7(), null, JsonSerializer.SerializeToElement(invited, ModuleDbContext.EventJson)), CancellationToken.None);
         return await fixture.Database.ScalarAsOwner<string>("""

@@ -50,7 +50,7 @@ namespace Insys.IntegrationTests;
 public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
     private static readonly Guid Tenant = DatabaseFixture.TenantA;
-    private static readonly DateOnly From = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30);
+    private static readonly DateOnly From = TestClock.Today.AddDays(-30);
 
     private static readonly string[] Permissions =
     [

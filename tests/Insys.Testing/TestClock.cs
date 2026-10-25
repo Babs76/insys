@@ -27,12 +27,21 @@
 namespace Insys.Testing;
 
 /// <summary>
-/// "Today" as the platform sees it: the business date in the default time zone (ADR-025, Africa/Johannesburg). It
-/// differs from the UTC date between 22:00 and 24:00 UTC. Tests that compare with business dates use it.
+/// The fixed test clock for dates (Wave 1 batch 4, ADR-025): every test and every test host judge "today" as this one day,
+/// the UTC date the test run started, whatever the hour. The hosts get it as BusinessDate:TestDate (test only), so a run
+/// between 22:00 and 24:00 UTC, when Johannesburg is already on the next date, behaves as any other. A host given a fixed
+/// clock of its own (BusinessDateTests, the 23:30 UTC boundary cases) leaves it unset to exercise the time-zone conversion.
 /// </summary>
-public static class BusinessDates
+public static class TestClock
 {
-    private static readonly TimeZoneInfo Zone = TimeZoneInfo.FindSystemTimeZoneById("Africa/Johannesburg");
+    public static DateOnly Today { get; } = DateOnly.FromDateTime(DateTime.UtcNow);
 
-    public static DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Zone).DateTime);
+    public static string TodayText => Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The hosts' default time zone: Africa/Johannesburg, or INSYS_TEST_DEFAULT_TIME_ZONE (Pacific/Kiritimati, UTC+14, is
+    /// already tomorrow for most of the UTC day), to show at any hour that no test depends on the hour it runs.
+    /// </summary>
+    public static string DefaultTimeZone { get; } =
+        Environment.GetEnvironmentVariable("INSYS_TEST_DEFAULT_TIME_ZONE") is { Length: > 0 } zone ? zone : "Africa/Johannesburg";
 }

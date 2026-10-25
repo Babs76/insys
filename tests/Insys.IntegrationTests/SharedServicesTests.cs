@@ -55,7 +55,7 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
         await Static("document.ref_document_categories", "MEDICAL_EVIDENCE", "category_code, label, classification, domain, allowed_roles",
             "'MEDICAL_EVIDENCE', 'Medical evidence', 'HIGHLY_SENSITIVE', 'HEALTH', ARRAY['CLAIMS_ASSESSOR']", reference: true);
         await Static("iam.cfg_roles_and_permission_sets", "CLAIMS_ASSESSOR", "role_code", "'CLAIMS_ASSESSOR'");
-        await fixture.Database.GrantFunctionsWithin(TenantA, "CLAIMS_ASSESSOR", DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1), "document.read");
+        await fixture.Database.GrantFunctionsWithin(TenantA, "CLAIMS_ASSESSOR", TestClock.Today.AddDays(-1), "document.read");
         if (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE user_id = @u AND role_code = 'CLAIMS_ASSESSOR'", ("u", assessor)) == 0)
         {
             await fixture.Database.AssignRole(TenantA, assessor, "CLAIMS_ASSESSOR");
@@ -208,7 +208,7 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
         var document = await generated.Json();
         document.GetProperty("templateVersion").GetInt32().ShouldBe(1);
         document.GetProperty("productVersionRef").GetString().ShouldBe("LIF-TERM v1");
-        document.GetProperty("retentionUntil").GetString().ShouldBe(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(5).ToString("yyyy-MM-dd"));
+        document.GetProperty("retentionUntil").GetString().ShouldBe(TestClock.Today.AddYears(5).ToString("yyyy-MM-dd"));
         var url = $"/api/v1/documents/documents/{document.GetProperty("id").GetGuid()}";
 
         (await client.GetAsync($"{url}/content")).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);

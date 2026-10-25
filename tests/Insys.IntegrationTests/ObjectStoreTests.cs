@@ -82,7 +82,7 @@ public sealed class ObjectStoreTests(DatabaseFixture fixture) : IClassFixture<Da
         };
         var factory = await fixture.Host(settings);
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "obs-user", DocumentPermissions.DocumentCreate, DocumentPermissions.DocumentRead);
-        await fixture.Database.SeedStatic(DatabaseFixture.TenantA, "document.ref_document_categories", "ACTIVE", "NOTE", DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1),
+        await fixture.Database.SeedStatic(DatabaseFixture.TenantA, "document.ref_document_categories", "ACTIVE", "NOTE", TestClock.Today.AddDays(-1),
             ("category_code", "NOTE"), ("label", "Note"), ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
         var client = factory.ClientFor(DatabaseFixture.TenantA, "obs-user");
 

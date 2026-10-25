@@ -63,7 +63,7 @@ public sealed class BankAccountTests(DatabaseFixture fixture) : IClassFixture<Da
             await db.AssignRole(DatabaseFixture.TenantA, user, role);
         }
 
-        await db.AllowBankAccountVerification(DatabaseFixture.TenantA, role, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30));
+        await db.AllowBankAccountVerification(DatabaseFixture.TenantA, role, TestClock.Today.AddDays(-30));
         _clerk = _factory.ClientFor(DatabaseFixture.TenantA, "bank-clerk");
         _verifier = _factory.ClientFor(DatabaseFixture.TenantA, "bank-verifier");
         _approverWithoutVerify = _factory.ClientFor(DatabaseFixture.TenantA, "bank-approver-no-verify");

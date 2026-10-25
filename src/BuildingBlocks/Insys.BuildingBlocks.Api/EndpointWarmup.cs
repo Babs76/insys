@@ -75,7 +75,12 @@ public sealed class WarmupGateMiddleware
     {
         _next = next;
         _warmup = warmup;
-        lifetime.ApplicationStarted.Register(() => _ = Task.Run(() => Warm(scopes, logger)));
+        // The build-time OpenAPI tool (GetDocument.Insider) builds the endpoints itself; warming them at the same time raced
+        // inside API versioning's group builder (a HashSet changed by two threads) and failed the build once.
+        if (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name != "GetDocument.Insider")
+        {
+            lifetime.ApplicationStarted.Register(() => _ = Task.Run(() => Warm(scopes, logger)));
+        }
     }
 
     public Task InvokeAsync(HttpContext context)

@@ -93,7 +93,7 @@ public sealed class ProductPublicationTests(PostgresServer server) : IAsyncLifet
     {
         var maker = _factory.ClientFor(Tenant, "product-manager");
         var checker = _factory.ClientFor(Tenant, "senior-actuary");
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = TestClock.Today;
         var v1 = $"{Versions}/1";
 
         // CreateDraftVersion (RegisterProduct for a new code) and EditConfiguration.

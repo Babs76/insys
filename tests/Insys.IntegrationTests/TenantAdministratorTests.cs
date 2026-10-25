@@ -239,7 +239,7 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         var tenantId = (await registered.Json()).GetProperty("id").GetGuid();
         var url = $"/api/v1/tenancy/tenants/{tenantId}";
         var etag = (await client.GetAsync(url)).ETag();
-        await fixture.Database.SeedReadyTenant(tenantId, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-30));
+        await fixture.Database.SeedReadyTenant(tenantId, TestClock.Today.AddDays(-30));
         foreach (var step in new[] { "PLATFORM_REFERENCE_DATA", "TENANT_REGISTRATION" })
         {
             var completed = await client.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", new { step }, ifMatch: etag);
