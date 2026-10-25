@@ -25968,7 +25968,6 @@
                 "cfg_notification_types",
                 "cfg_operational_limits",
                 "cfg_package_section_definition",
-                "cfg_payment_release_limits",
                 "cfg_payment_run_calendars",
                 "cfg_plans_and_options",
                 "cfg_policy_loan_rates",
@@ -26389,7 +26388,6 @@
                 "cfg_notification_types",
                 "cfg_operational_limits",
                 "cfg_package_section_definition",
-                "cfg_payment_release_limits",
                 "cfg_payment_run_calendars",
                 "cfg_plans_and_options",
                 "cfg_policy_loan_rates",
@@ -44121,6 +44119,7 @@
         "enum": [
           "Requested",
           "Approved",
+          "NotApplied",
           "Rejected",
           "Expired",
           "Withdrawn"
@@ -44240,6 +44239,19 @@
               "string"
             ],
             "format": "int64"
+          },
+          "notAppliedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "notAppliedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },

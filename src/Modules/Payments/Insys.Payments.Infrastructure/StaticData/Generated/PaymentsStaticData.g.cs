@@ -34,12 +34,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Payments.Infrastructure.StaticData;
 
-/// <summary>The 8 static data tables owned by the Payments module.</summary>
+/// <summary>The 7 static data tables owned by the Payments module.</summary>
 public static class PaymentsStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
-        new("payment", "cfg_payment_release_limits", "cfg_payment_release_limits", "Payment release limits", "payments", "payment-release-limits", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(PaymentReleaseLimits), typeof(PaymentReleaseLimitsInput), "Payments and Settlements"),
         new("payment", "cfg_reconciliation_matching_rules", "cfg_reconciliation_matching_rules", "Reconciliation matching rules", "payments", "reconciliation-matching-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ReconciliationMatchingRules), typeof(ReconciliationMatchingRulesInput), "Payments and Settlements"),
         new("payment", "mst_payment_provider_and_bank_register", "mst_payment_provider_and_bank_register", "Payment provider and bank register", "payments", "payment-provider-and-bank-register", StaticScope.T, 1, StaticLifecycle.Reference, typeof(PaymentProviderAndBankRegister), typeof(PaymentProviderAndBankRegisterInput), "Payments and Settlements"),
         new("payment", "mst_tenant_bank_accounts", "mst_tenant_bank_accounts", "Tenant bank accounts", "payments", "tenant-bank-accounts", StaticScope.T, 1, StaticLifecycle.Reference, typeof(TenantBankAccounts), typeof(TenantBankAccountsInput), "Payments and Settlements"),
@@ -51,15 +50,6 @@ public static class PaymentsStaticData
 
     public static void Configure(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<PaymentReleaseLimits>(entity =>
-        {
-            entity.ToTable("cfg_payment_release_limits", "payment");
-            StaticModel.ConfigureCommon(entity);
-            entity.Property(x => x.PaymentType).HasColumnName("payment_type").HasMaxLength(40);
-            entity.Property(x => x.Role).HasColumnName("role").HasMaxLength(80);
-            entity.Property(x => x.LimitValue).HasColumnName("limit_value").HasPrecision(18, 2);
-            entity.Property(x => x.SecondApproverAbove).HasColumnName("second_approver_above").HasPrecision(18, 2);
-        });
         modelBuilder.Entity<ReconciliationMatchingRules>(entity =>
         {
             entity.ToTable("cfg_reconciliation_matching_rules", "payment");

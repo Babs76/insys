@@ -42,13 +42,12 @@ public static class PaymentsStaticDataEndpoints
 
     public static void MapStaticData(IEndpointRouteBuilder api)
     {
-        api.MapStaticEntity<PaymentsDbContext, PaymentReleaseLimits, PaymentReleaseLimitsInput>(PaymentsStaticData.Descriptors[0], Tag);
-        api.MapStaticEntity<PaymentsDbContext, ReconciliationMatchingRules, ReconciliationMatchingRulesInput>(PaymentsStaticData.Descriptors[1], Tag);
-        api.MapStaticEntity<PaymentsDbContext, PaymentProviderAndBankRegister, PaymentProviderAndBankRegisterInput>(PaymentsStaticData.Descriptors[2], Tag);
-        api.MapStaticEntity<PaymentsDbContext, TenantBankAccounts, TenantBankAccountsInput>(PaymentsStaticData.Descriptors[3], Tag);
-        api.MapStaticEntity<PaymentsDbContext, BankAndBranchDirectory, BankAndBranchDirectoryInput>(PaymentsStaticData.Descriptors[4], Tag);
-        api.MapStaticEntity<PaymentsDbContext, PaymentMethods, PaymentMethodsInput>(PaymentsStaticData.Descriptors[5], Tag);
-        api.MapStaticEntity<PaymentsDbContext, PaymentStatusMappings, PaymentStatusMappingsInput>(PaymentsStaticData.Descriptors[6], Tag);
-        api.MapStaticEntity<PaymentsDbContext, RefundAndReversalReasonCodes, RefundAndReversalReasonCodesInput>(PaymentsStaticData.Descriptors[7], Tag);
+        api.MapStaticEntity<PaymentsDbContext, ReconciliationMatchingRules, ReconciliationMatchingRulesInput>(PaymentsStaticData.Descriptors[0], Tag);
+        api.MapStaticEntity<PaymentsDbContext, PaymentProviderAndBankRegister, PaymentProviderAndBankRegisterInput>(PaymentsStaticData.Descriptors[1], Tag);
+        api.MapStaticEntity<PaymentsDbContext, TenantBankAccounts, TenantBankAccountsInput>(PaymentsStaticData.Descriptors[2], Tag);
+        api.MapStaticEntity<PaymentsDbContext, BankAndBranchDirectory, BankAndBranchDirectoryInput>(PaymentsStaticData.Descriptors[3], Tag);
+        api.MapStaticEntity<PaymentsDbContext, PaymentMethods, PaymentMethodsInput>(PaymentsStaticData.Descriptors[4], Tag);
+        api.MapStaticEntity<PaymentsDbContext, PaymentStatusMappings, PaymentStatusMappingsInput>(PaymentsStaticData.Descriptors[5], Tag);
+        api.MapStaticEntity<PaymentsDbContext, RefundAndReversalReasonCodes, RefundAndReversalReasonCodesInput>(PaymentsStaticData.Descriptors[6], Tag);
     }
 }

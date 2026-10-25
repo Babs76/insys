@@ -56,7 +56,7 @@ Answers to questions the front end raises that the OpenAPI documents cannot answ
 - **Bands are by role and approval type, not by product or branch.** A checker sees and decides only approvals within their own F103 scope (their role assignment's products and branches), so scope narrows who can act; the amount does not vary by product.
 - **Limits have no currency;** they are compared with the approval's amount in the tenant's currency. A multi-currency tenant would need limits per currency (**OQ-112**).
 - **`delegation_allowed`** is stored but not yet used: nobody can delegate their authority today (OQ-112).
-- **`payment.cfg_payment_release_limits`** exists in the schema but nothing reads it; payment release uses the Workflow table above (OQ-112).
+- **Payment release limits:** `payment.cfg_payment_release_limits` was retired (V0059, OQ-112) because nothing read it; `payments/static/payment-release-limits` is gone. Payment release uses the Workflow table above.
 - **Sample values for OFT Insurance South Africa** (Workstream F, not loaded yet). These are samples for the seed and for demonstrations, **for the business to confirm** (OQ-112), in rand:
 
   | Approval type | Role | Limit |

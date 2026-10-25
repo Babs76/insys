@@ -4,6 +4,9 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 2 (branch `wave2-2`, not merged)
 
+### Breaking
+- **`payments/static/payment-release-limits` is removed** (OQ-112, V0059): nothing read the table. Release limits are the approval authority in `workflow/static/delegation-and-approval-authority` (by approval type and currency).
+
 ### Contract metadata (Wave 2 batch 1's API review)
 - **`latestRejection.ending` is an enum:** `REJECTED`, `EXPIRED`, `WITHDRAWN`.
 - **`latestRejection` is required** on every view that has it: always present, null when the record's approvals never ended without being granted.

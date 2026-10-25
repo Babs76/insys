@@ -49,8 +49,8 @@ internal sealed record Table(string Schema, string Name, List<Column> Columns, s
 /// <summary>
 /// Reads the static data tables from the migrations, in order: the CREATE TABLE statements of V0002, static tables
 /// created by later migrations in the same form (a table is static data when it has the record_status CHECK), and
-/// single-line <c>ALTER TABLE … ADD COLUMN</c>, <c>ALTER COLUMN … DROP NOT NULL</c> and <c>ADD CONSTRAINT …_ckN CHECK</c> statements on them. The SQL is
-/// authoritative for names and types (PROMPT §7).
+/// single-line <c>ALTER TABLE … ADD COLUMN</c>, <c>ALTER COLUMN … DROP NOT NULL</c> and <c>ADD CONSTRAINT …_ckN CHECK</c> statements on them, and
+/// <c>DROP TABLE</c> of a static table a later migration retires (OQ-112). The SQL is authoritative for names and types (PROMPT §7).
 /// </summary>
 internal static partial class Schema
 {
@@ -94,6 +94,9 @@ internal static partial class Schema
     [GeneratedRegex(@"^ALTER TABLE (?<schema>[a-z_]+)\.(?<table>[a-z0-9_]+) ALTER COLUMN (?<name>[a-z0-9_]+) DROP NOT NULL;$")]
     private static partial Regex DropNotNull();
 
+    [GeneratedRegex(@"^DROP TABLE (?<schema>[a-z_]+)\.(?<table>[a-z0-9_]+);$")]
+    private static partial Regex DropTable();
+
     [GeneratedRegex(@"^V(?<number>\d+)__.*\.sql$")]
     private static partial Regex MigrationFile();
 
@@ -112,7 +115,11 @@ internal static partial class Schema
 
             foreach (var line in File.ReadLines(file))
             {
-                if (AddColumn().Match(line) is { Success: true } add && tables.TryGetValue($"{add.Groups["schema"].Value}.{add.Groups["table"].Value}", out var table))
+                if (DropTable().Match(line) is { Success: true } dropped)
+                {
+                    tables.Remove($"{dropped.Groups["schema"].Value}.{dropped.Groups["table"].Value}");
+                }
+                else if (AddColumn().Match(line) is { Success: true } add && tables.TryGetValue($"{add.Groups["schema"].Value}.{add.Groups["table"].Value}", out var table))
                 {
                     table.Columns.Add(new Column(add.Groups["name"].Value, add.Groups["type"].Value, add.Groups["rest"].Value.Contains("NOT NULL")));
                 }
