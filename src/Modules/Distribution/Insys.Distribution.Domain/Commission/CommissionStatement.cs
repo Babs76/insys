@@ -168,6 +168,9 @@ public sealed class CommissionStatement : AggregateRoot<Guid>
     /// <summary>True when this approval's ending (rejected, expired or withdrawn) was already applied: a redelivery changes nothing.</summary>
     public bool EndedBy(Guid approvalId) => Status == StatementStatus.Draft && !ApprovalPending && ApprovalId == approvalId;
 
+    /// <summary>True when this approval's grant was already applied (approved, and perhaps paid since): a redelivered grant changes nothing.</summary>
+    public bool GrantedBy(Guid approvalId) => Status is StatementStatus.Approved or StatementStatus.Paid && ApprovalId == approvalId;
+
     /// <summary>
     /// Command ApproveStatement: Workflow's decision for this statement as prepared (the subject must match). Approval
     /// pays the net amount when it is positive. Every other ending (rejected, expired, withdrawn) returns the statement

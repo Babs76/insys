@@ -197,6 +197,18 @@ public sealed class PaymentTests
     }
 
     [Fact]
+    public void ABatchApprovedByTheChecker_IsGrantedByThem_SoARedeliveredGrantChangesNothing_D5()
+    {
+        var checker = Guid.CreateVersion7();
+        var batch = PayoutBatch.BuildBatch(Guid.CreateVersion7(), "REFUND", "ZAR", [Payout()], Guid.CreateVersion7(), Now).Value;
+        batch.GrantedBy(checker).ShouldBeFalse();
+
+        batch.ApproveBatch(checker).IsSuccess.ShouldBeTrue();
+        (batch.GrantedBy(checker), batch.GrantedBy(Guid.CreateVersion7())).ShouldBe((true, false));
+        batch.ApproveBatch(checker).IsFailure.ShouldBeTrue();
+    }
+
+    [Fact]
     public void ASentPayment_NeverLeavesItsBatch_D1()
     {
         var payment = Payout();

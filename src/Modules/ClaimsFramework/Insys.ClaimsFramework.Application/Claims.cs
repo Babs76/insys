@@ -616,8 +616,25 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
     IIntegrationEventHandler<LifeClaimApproved>,
     IIntegrationEventHandler<RecoveryRecorded>
 {
-    public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, granted.SubjectHash, cancellationToken);
+    /// <summary>
+    /// The approval of a new instruction or of new payee details was granted: the instruction is approved, or takes the new
+    /// payee details (and a failed payment is released again). One this approval already applied to is a redelivery; one
+    /// that will not take it (it changed after it was submitted: another subject, no longer awaiting it) parks the delivery
+    /// (APPROVAL_NOT_APPLIED, ADR-022, D-5), never only logged.
+    /// </summary>
+    public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (granted.BusinessRefType != ClaimsApprovals.InstructionBusinessRefType || await claims.Instruction(granted.BusinessRefId, cancellationToken) is not { } instruction
+            || await claims.ByNumber(instruction.ClaimNumber, cancellationToken) is not { } claim || instruction.GrantedBy(granted.ApprovalId, granted.SubjectHash))
+        {
+            return;
+        }
+
+        if (instruction.Decide(true, granted.ApprovalId, granted.SubjectHash, claim.Domain, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
+        }
+    }
 
     /// <summary>
     /// The approval of a new instruction or of new payee details ended without being granted, whether rejected, expired or
@@ -783,19 +800,6 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
     }
 
     /// <summary>A decision for other payee details or another amount than those now on the instruction does not apply.</summary>
-    private async Task Decide(string businessRefType, Guid instructionId, bool approved, Guid approvalId, string? subjectHash, CancellationToken cancellationToken)
-    {
-        if (businessRefType == ClaimsApprovals.InstructionBusinessRefType && await claims.Instruction(instructionId, cancellationToken) is { } instruction
-            && await claims.ByNumber(instruction.ClaimNumber, cancellationToken) is { } claim)
-        {
-            var decided = instruction.Decide(approved, approvalId, subjectHash, claim.Domain, clock.UtcNow);
-            if (decided.IsFailure)
-            {
-                logger.LogWarning("Approval {ApprovalId} not applied to instruction {InstructionId}: {Code}", approvalId, instructionId, decided.Error.Code);
-            }
-        }
-    }
-
     private async Task Outcome(string? businessRefType, Guid? instructionId, bool succeeded, Guid paymentId, DateOnly paidOn, CancellationToken cancellationToken)
     {
         if (businessRefType == ClaimsApprovals.InstructionBusinessRefType && instructionId is { } id && await claims.Instruction(id, cancellationToken) is { } instruction

@@ -310,6 +310,20 @@ public sealed class ClaimsTests
     }
 
     [Fact]
+    public void AnInstructionApprovedByAnApproval_IsGrantedByIt_AndAChangedOneIsNot_D5()
+    {
+        var claim = Claim();
+        var instruction = Draft(claim, Guid.CreateVersion7());
+        instruction.SubmitInstruction(Guid.CreateVersion7(), Now);
+        var approvalId = Guid.CreateVersion7();
+
+        instruction.Decide(true, approvalId, "the subject before a change", claim.Domain, Now).Error!.Code.ShouldBe(ClaimsErrorCodes.ApprovalSubjectChanged);
+        instruction.GrantedBy(approvalId, "the subject before a change").ShouldBeFalse();
+        instruction.Decide(true, approvalId, instruction.SubjectHash, claim.Domain, Now).IsSuccess.ShouldBeTrue();
+        (instruction.GrantedBy(approvalId, instruction.SubjectHash), instruction.GrantedBy(Guid.CreateVersion7(), "another subject")).ShouldBe((true, false));
+    }
+
+    [Fact]
     public void InstructionEnding_RejectsItForGood_AndARedeliveryChangesNothing_SRS002()
     {
         var claim = Claim();

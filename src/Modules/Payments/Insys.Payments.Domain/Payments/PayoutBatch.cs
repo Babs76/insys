@@ -113,6 +113,9 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
         return batch;
     }
 
+    /// <summary>True when this checker's approval was already applied (approved, and perhaps released since): a redelivered grant changes nothing.</summary>
+    public bool GrantedBy(Guid checkerId) => Status is BatchStatus.Approved or BatchStatus.Released or BatchStatus.Settled && ApprovedBy == checkerId;
+
     /// <summary>Command ApproveBatch, from Workflow's ApprovalGranted; the approver is never the builder.</summary>
     public Result ApproveBatch(Guid approvedBy)
     {

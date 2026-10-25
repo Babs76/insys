@@ -36,6 +36,7 @@ using Insys.General.Contracts;
 using Insys.Health.Contracts;
 using Insys.Identity.Contracts;
 using Insys.Integration.Contracts;
+using Insys.Integration.Infrastructure.Parking;
 using Insys.Life.Contracts;
 using Insys.Party.Contracts;
 using Insys.Payments.Contracts;
@@ -207,6 +208,49 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         problems.ShouldBeEmpty($"{approvalType} refused:{Environment.NewLine}{string.Join(Environment.NewLine, problems)}");
     }
 
+    /// <summary>
+    /// D-5, recovery: a refund that would not take its granted approval (its amount changed) is put right, an operator
+    /// retries the parked delivery, and the refund takes the approval after all: the approval is APPROVED again, no longer
+    /// marked not applied, and the delivery is resolved.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedGrant_OnceTheRecordIsPutRight_AndTheParkedDeliveryRetried_IsApprovedAgain_D5()
+    {
+        var @case = Cases[BillingApprovals.RefundApprovalType];
+        var world = await World.Create(fixture, _factory, @case);
+        var waiting = await @case.Setup(world);
+        await _factory.DrainOutbox();
+        var approval = (await fixture.Database.ScalarAsOwner<Guid?>("""
+            SELECT id FROM workflow.approval WHERE tenant_id = @t AND business_ref_type = @r AND business_ref_id = @i AND status = 'REQUESTED'
+            """, ("t", world.Tenant), ("r", waiting.BusinessRefType), ("i", waiting.BusinessRefId))).ShouldNotBeNull();
+
+        await RefuseRefund(world, waiting);
+        (await End(world, approval, Approved)).ShouldBeNull();
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM workflow.approval WHERE id = @a", ("a", approval))).ShouldBe("NOT_APPLIED");
+        (await waiting.State()).ShouldBe("Requested");
+        var parked = await fixture.Database.ScalarAsOwner<Guid>("""
+            SELECT id FROM integration.parked_delivery
+            WHERE tenant_id = @t AND status = 'PARKED' AND prerequisite_code = 'APPROVAL_NOT_APPLIED' AND prerequisite_item LIKE '%' || @a
+            """, ("t", world.Tenant), ("a", approval.ToString()));
+
+        // The record is put right (the amount the approval was for), and an operator retries the parked delivery.
+        await fixture.Database.ExecuteAsOwner("UPDATE billing.refund_request SET amount = 25 WHERE tenant_id = @t AND id = @id", ("t", world.Tenant),
+            ("id", waiting.BusinessRefId));
+        await fixture.Database.UserWithPermissions(world.Tenant, $"operator-{world.Suffix}", IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate);
+        var operatorClient = _factory.ClientFor(world.Tenant, $"operator-{world.Suffix}");
+        var retry = await operatorClient.PostAsync($"/api/v1/integration/parked-deliveries/{parked}/retry", null);
+        retry.StatusCode.ShouldBe(HttpStatusCode.Accepted, await retry.Content.ReadAsStringAsync());
+        var pass = await _factory.Services.GetRequiredService<ParkingJob>().RunForTenant(world.Tenant, CancellationToken.None);
+        pass.Resolved.ShouldBe(1);
+        await _factory.DrainOutbox();
+
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM integration.parked_delivery WHERE id = @p", ("p", parked))).ShouldBe("RESOLVED");
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM workflow.approval WHERE id = @a", ("a", approval))).ShouldBe(Approved);
+        (await fixture.Database.ScalarAsOwner<string?>("SELECT not_applied_by FROM workflow.approval WHERE id = @a", ("a", approval))).ShouldBeNull();
+        (await waiting.State()).ShouldBe("Approved");
+    }
+
     private async Task<string?> End(World world, Guid approval, string ending)
     {
         if (ending == Expired)
@@ -314,13 +358,13 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         [GeneralApprovals.EndorsementApprovalType] = new(GeneralPermissionSet, [GeneralApprovals.EndorsementApprovalType], GeneralEndorsement,
             "PendingApproval", ["Approved", "Applied"], "Rejected", Refuse: RefuseGeneralEndorsement, WhenRefused: "PendingApproval"),
         [ClaimsApprovals.InstructionApprovalType] = new(MoneyPermissionSet, [ClaimsApprovals.InstructionApprovalType, "BANK_ACCOUNT_VERIFICATION"], ClaimPayment,
-            "PendingApproval", ["Approved"], "Rejected"),
+            "PendingApproval", ["Approved"], "Rejected", Refuse: RefuseClaimPayment, WhenRefused: "PendingApproval"),
         [BillingApprovals.RefundApprovalType] = new(MoneyPermissionSet, [BillingApprovals.RefundApprovalType, "BANK_ACCOUNT_VERIFICATION"], Refund,
-            "Requested", ["Approved"], "Rejected"),
+            "Requested", ["Approved"], "Rejected", Refuse: RefuseRefund, WhenRefused: "Requested"),
         [DistributionApprovals.StatementApprovalType] = new(CommissionPermissionSet, [DistributionApprovals.StatementApprovalType, "BANK_ACCOUNT_VERIFICATION"],
-            CommissionStatement, "Draft|approval pending", ["Approved"], "Draft"),
+            CommissionStatement, "Draft|approval pending", ["Approved"], "Draft", Refuse: RefuseCommissionStatement, WhenRefused: "Draft|approval pending"),
         [FinanceApprovals.ReopenApprovalType] = new([FinancePermissions.PeriodRead, FinancePermissions.PeriodUpdate, .. Approving], [FinanceApprovals.ReopenApprovalType],
-            PeriodReopen, "SoftClose|reopen requested", ["Open"], "SoftClose"),
+            PeriodReopen, "SoftClose|reopen requested", ["Open"], "SoftClose", Refuse: RefusePeriodReopen, WhenRefused: "SoftClose"),
         [ProductApprovals.ApprovalType] = new(ProductPermissionSet, [ProductApprovals.ApprovalType], ProductPublication, "Submitted", ["Approved", "Published"], "Draft",
             Refuse: RefuseProductPublication, WhenRefused: "Draft"),
         ["STATIC_DATA_T1"] = new(StaticPermissionSet, ["STATIC_DATA_T1"], w => StaticDataChange(w, tier1: true),
@@ -345,9 +389,9 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
             ["BANK_ACCOUNT_VERIFICATION"], BankAccount, "new PENDING_VERIFICATION|previous ACTIVE", ["new ACTIVE|previous SUPERSEDED"], "new REJECTED|previous ACTIVE",
             Refuse: RefuseBankAccount, WhenRefused: "new PENDING_VERIFICATION|previous ACTIVE"),
         [HealthApprovals.RunApprovalType] = new(HealthPermissionSet, [HealthApprovals.RunApprovalType, "BANK_ACCOUNT_VERIFICATION"], ProviderPaymentRun,
-            "Calculated", ["Approved"], "Rejected"),
+            "Calculated", ["Approved"], "Rejected", Refuse: RefuseProviderPaymentRun, WhenRefused: "Calculated"),
         [PaymentApprovals.PayoutApprovalType] = new(MoneyPermissionSet, [PaymentApprovals.PayoutApprovalType, BillingApprovals.RefundApprovalType, "BANK_ACCOUNT_VERIFICATION"],
-            PayoutBatch, "Built", ["Approved"], "Rejected"),
+            PayoutBatch, "Built", ["Approved"], "Rejected", Refuse: RefusePayoutBatch, WhenRefused: "Rejected"),
     };
 
     /// <summary>A tenant of its own for one row, with a maker and a checker (another user, holding authority for the case's types).</summary>
@@ -733,6 +777,13 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
             () => w.Get($"/api/v1/billing/refunds/{refund}"));
     }
 
+    /// <summary>
+    /// D-5: the refund's amount changes after it was submitted (25 to 30), so the granted approval is for another subject.
+    /// No API changes a requested refund, so an owner SQL update stands in for the change.
+    /// </summary>
+    private static Task RefuseRefund(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE billing.refund_request SET amount = 30 WHERE tenant_id = @t AND id = @id", ("t", w.Tenant), ("id", waiting.BusinessRefId));
+
     private static async Task<Waiting> ClaimPayment(World w)
     {
         await MoneyWorld(w);
@@ -749,6 +800,13 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         var url = $"/api/v1/claims/payment-instructions/{instruction}";
         return new(ClaimsApprovals.InstructionBusinessRefType, instruction, async () => (await w.Get(url)).GetProperty("status").GetString()!, () => w.Get(url));
     }
+
+    /// <summary>
+    /// D-5: the instruction's amount changes after it was submitted (400 to 300), so the granted approval is for another
+    /// subject. No API changes an instruction awaiting approval, so an owner SQL update stands in for the change.
+    /// </summary>
+    private static Task RefuseClaimPayment(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE claims.claim_payment_instruction SET amount = 300 WHERE tenant_id = @t AND id = @id", ("t", w.Tenant), ("id", waiting.BusinessRefId));
 
     /// <summary>
     /// D-1: an approved refund's payment in a built batch. After an ending other than approval, the batch's payments leave it
@@ -794,6 +852,13 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         return new(PaymentApprovals.PayoutBusinessRefType, batch, async () => (await w.Get(url)).GetProperty("status").GetString()!, () => w.Get(url), After);
     }
 
+    /// <summary>
+    /// D-5: the batch is no longer built when its grant arrives (it was rejected meanwhile), so it cannot be approved. No API
+    /// ends a built batch other than its approval, so an owner SQL update stands in for the change.
+    /// </summary>
+    private static Task RefusePayoutBatch(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE payment.payout_batch SET status = 'REJECTED' WHERE tenant_id = @t AND id = @id", ("t", w.Tenant), ("id", waiting.BusinessRefId));
+
     private static async Task<Waiting> PeriodReopen(World w)
     {
         await w.Finance(0);
@@ -811,6 +876,15 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
 
         return new(FinanceApprovals.PeriodBusinessRefType, (await Period()).GetProperty("id").GetGuid(), State, Period);
     }
+
+    /// <summary>
+    /// D-5: the period's reopen request is gone when the grant arrives (the period stays soft-closed), so there is nothing
+    /// for the approval to reopen. No API drops a waiting request (and the schema forbids closing a period with one waiting),
+    /// so an owner SQL update stands in for the change.
+    /// </summary>
+    private static Task RefusePeriodReopen(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE finance.accounting_period SET reopen_requested_by = NULL, reopen_requested_at = NULL WHERE tenant_id = @t AND id = @id",
+            ("t", w.Tenant), ("id", waiting.BusinessRefId));
 
     private static readonly string[] CommissionPermissionSet =
     [
@@ -865,6 +939,17 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
 
         return new(DistributionApprovals.StatementBusinessRefType, statement, State, () => w.Get(url), After);
     }
+
+    /// <summary>
+    /// D-5: the statement's amounts change after it was submitted (one more gross and net), so the granted approval is for
+    /// another subject. No API changes a statement awaiting approval (preparing again is refused), so an owner SQL update
+    /// stands in for the change.
+    /// </summary>
+    private static Task RefuseCommissionStatement(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("""
+            UPDATE commission.commission_statement SET gross_amount = gross_amount + 1, net_amount = net_amount + 1 WHERE tenant_id = @t AND id = @id
+            """, ("t", w.Tenant),
+            ("id", waiting.BusinessRefId));
 
     // ---- Product Factory ---------------------------------------------------------------------------------------------
 
@@ -1386,4 +1471,12 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
 
         return new(HealthApprovals.RunBusinessRefType, run, async () => (await w.Get(url)).GetProperty("status").GetString()!, () => w.Get(url), After);
     }
+
+    /// <summary>
+    /// D-5: the run's total changes after it was calculated, so the granted approval is for another subject. No API changes a
+    /// calculated run, so an owner SQL update stands in for the change.
+    /// </summary>
+    private static Task RefuseProviderPaymentRun(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE health.provider_payment_run SET total_amount = total_amount + 1 WHERE tenant_id = @t AND id = @id", ("t", w.Tenant),
+            ("id", waiting.BusinessRefId));
 }

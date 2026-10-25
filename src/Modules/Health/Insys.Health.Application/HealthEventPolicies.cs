@@ -89,8 +89,24 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
         }
     }
 
-    public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Decide(granted.BusinessRefType, granted.BusinessRefId, true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash, cancellationToken);
+    /// <summary>
+    /// The run's approval was granted: the run is approved for release. One already approved by this approval is a
+    /// redelivery; one that will not take it (it changed after it was calculated: another subject, no longer calculated)
+    /// parks the delivery (APPROVAL_NOT_APPLIED, ADR-022, D-5), never only logged.
+    /// </summary>
+    public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (granted.BusinessRefType != HealthApprovals.RunBusinessRefType || await health.Run(granted.BusinessRefId, cancellationToken) is not { } run
+            || run.GrantedBy(granted.ApprovalId))
+        {
+            return;
+        }
+
+        if (run.DecideApproval(true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
+        }
+    }
 
     /// <summary>
     /// The run's approval ended without being granted, whether rejected, expired or withdrawn (D-2): the run ends as
@@ -191,18 +207,6 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
         }
 
         return existing.Values.ToList();
-    }
-
-    private async Task Decide(string businessRefType, Guid id, bool approved, Guid approvalId, Guid checkerId, string? subjectHash, CancellationToken cancellationToken)
-    {
-        if (businessRefType == HealthApprovals.RunBusinessRefType && await health.Run(id, cancellationToken) is { } run)
-        {
-            var decided = run.DecideApproval(approved, approvalId, checkerId, subjectHash);
-            if (decided.IsFailure)
-            {
-                logger.LogWarning("Approval {ApprovalId} not applied to run {RunCode}: {Code}", approvalId, run.RunCode, decided.Error.Code);
-            }
-        }
     }
 }
 
