@@ -283,8 +283,8 @@ public sealed class TriggerMappingTests
         var services = new ServiceCollection().AddNotificationTriggers();
         var consumers = services.Where(d => d.ServiceType == typeof(EventSubscription)).Select(d => ((EventSubscription)d.ImplementationInstance!).Consumer).ToList();
 
-        consumers.Count.ShouldBe(18);
-        consumers.Distinct(StringComparer.Ordinal).Count().ShouldBe(18);
+        consumers.Count.ShouldBe(21);
+        consumers.Distinct(StringComparer.Ordinal).Count().ShouldBe(21);
         consumers.ShouldAllBe(c => c.Length <= 60);
     }
 }
