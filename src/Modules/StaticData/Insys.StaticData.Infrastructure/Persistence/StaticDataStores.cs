@@ -100,8 +100,9 @@ internal sealed class ChangeRequestQueries(StaticDataDbContext db) : IChangeRequ
     private static ChangeRequestView View(StaticDataChange c)
     {
         using var record = JsonDocument.Parse(c.After);
+        var root = record.RootElement.Clone();
         return new ChangeRequestView(c.Id, c.RequestNumber, c.EntityCode, c.RecordKey, c.Action, c.Status, c.MakerId, c.CheckerId, c.EffectiveFrom,
-            c.Reason, record.RootElement.Clone(), c.RowVersion);
+            c.Reason, root, ChangeRequestLinks.VersionNumber(c.RecordKey, root), ChangeRequestLinks.EntityRoute(c.RecordKey, root), c.RowVersion);
     }
 }
 

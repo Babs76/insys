@@ -87,6 +87,8 @@ public sealed class StaticDataModule : IModule
             .Produces<ChangeRequestView>(StatusCodes.Status200OK)
             .WithName("GetChangeRequest")
             .WithSummary("Get a static data change request")
+            .WithDescription("versionNumber and entityRoute lead to the version the change creates or changes, draft, submitted or in force: "
+                + "GET /api/v1/{entityRoute}/{record.code}/versions lists it (BR-015). The table list shows only the records in force (SDM-008).")
             .RequirePermission(StaticDataGovernancePermissions.ChangeRequestRead);
 
         var settings = governance.MapGroup("/static-data/settings").WithTags(tag);
@@ -99,7 +101,9 @@ public sealed class StaticDataModule : IModule
             .Produces<GovernanceSettingsView>(StatusCodes.Status200OK)
             .WithName("GetGovernanceSettings")
             .WithSummary("Get the tenant's static data governance settings")
-            .WithDescription("Tier 1 maker-checker is always on; Tier 2 is on unless the tenant switches it off (SDM-003).")
+            .WithDescription("Tier 1 maker-checker is always on; Tier 2 is on unless the tenant switches it off (SDM-003). The response carries an ETag "
+                + "header: the settings' rowVersion in double quotes, for example ETag: \"3\" (\"0\" until the settings are first changed). Send it as "
+                + "If-Match to change them (BR-014).")
             .RequirePermission(StaticDataGovernancePermissions.SettingRead);
 
         settings.MapPut("/tier2-maker-checker", async (Tier2MakerCheckerRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
@@ -117,9 +121,11 @@ public sealed class StaticDataModule : IModule
                 });
             })
             .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
             .WithName("ChangeTier2MakerChecker")
             .WithSummary("Switch Tier 2 maker-checker on or off for the tenant")
-            .WithDescription("Audited. Use the ETag from GET; it is \"0\" until the setting is first changed.")
+            .WithDescription("Audited. If-Match is the ETag from GET: the settings' rowVersion in double quotes, for example If-Match: \"3\"; it is \"0\" "
+                + "until the settings are first changed. Missing gives 428; stale gives 412. The response's ETag is the new rowVersion (BR-014).")
             .RequirePermission(StaticDataGovernancePermissions.SettingUpdate);
 
         governance.MapGroup("/static-data/imports").WithTags(tag).MapGet("/", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
