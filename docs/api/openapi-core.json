@@ -46934,6 +46934,7 @@
       "TenancyStepReadinessView": {
         "required": [
           "step",
+          "label",
           "completed",
           "ready",
           "checks"
@@ -46941,6 +46942,9 @@
         "type": "object",
         "properties": {
           "step": {
+            "type": "string"
+          },
+          "label": {
             "type": "string"
           },
           "completed": {

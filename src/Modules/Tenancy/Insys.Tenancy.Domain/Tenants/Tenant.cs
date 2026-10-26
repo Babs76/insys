@@ -73,6 +73,22 @@ public static class OnboardingSteps
         "INTEGRATION_AND_REPORTING",
         "END_TO_END_TESTS",
     ];
+
+    /// <summary>Each step's English label, as the readiness views return it (BR-020); the wording is reviewed before go-live (OQ-100).</summary>
+    public static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["PLATFORM_REFERENCE_DATA"] = "Platform reference data",
+        ["TENANT_REGISTRATION"] = "Tenant registration",
+        ["ORGANISATION_AND_ACCESS"] = "Organisation and access",
+        ["FINANCIAL_FOUNDATIONS"] = "Financial foundations",
+        ["SHARED_OPERATIONAL_SETUP"] = "Shared operational setup",
+        ["PAYMENTS_AND_DISTRIBUTION"] = "Payments and distribution",
+        ["DOMAIN_REFERENCE_DATA"] = "Domain reference data",
+        ["PRODUCT_FACTORY"] = "Product factory",
+        ["REINSURANCE"] = "Reinsurance",
+        ["INTEGRATION_AND_REPORTING"] = "Integration and reporting",
+        ["END_TO_END_TESTS"] = "End-to-end tests",
+    };
 }
 
 /// <summary>Entity OnboardingCase (tenant.onboarding_case): the tenant's progress through the onboarding steps.</summary>

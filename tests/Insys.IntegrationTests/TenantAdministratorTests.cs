@@ -28,6 +28,7 @@ using System.Net;
 using System.Text.Json;
 using Insys.Identity.Contracts;
 using Insys.Integration.Contracts;
+using Insys.StaticData.Contracts;
 using Insys.Tenancy.Contracts;
 using Insys.Testing;
 using Insys.Workflow.Contracts;
@@ -177,6 +178,131 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
             "SELECT count(*) FROM iam.cfg_roles_and_permission_sets WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN'", ("t", tenantId))).ShouldBe(1, "the existing role");
     }
 
+    /// <summary>
+    /// BR-013 end to end, with the privileged flags on: a tenant is created, configured and activated, and every approval
+    /// inside it is decided by its own people. Its two administrators create a role (a Tier 1 static data change), grant it
+    /// a privileged function (another), provision a user and assign them the role (a privileged assignment), each approved
+    /// by the other administrator; then a third administrator is added, approved by a second platform administrator.
+    /// </summary>
+    [Fact]
+    public async Task ATenant_IsCreatedConfiguredAndActivated_UsingOnlyItsOwnPeople_WithThePrivilegedFlagsOn_BR013()
+    {
+        var one = _factory.ClientFor(Operator, "platform-one");
+        var two = _factory.ClientFor(Operator, "platform-two");
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT string_agg(function_code || '=' || privileged, ',' ORDER BY function_code) FROM iam.ref_function_catalogue
+            WHERE tenant_id IS NULL AND function_code IN ('ASSIGN_ROLE', 'DISCARD_MESSAGE', 'SD_IDENTITY_AND_ACCESS_MANAGEMENT_APPROVE')
+              AND record_status = 'ACTIVE' AND effective_to IS NULL
+            """)).ShouldBe("ASSIGN_ROLE=true,DISCARD_MESSAGE=true,SD_IDENTITY_AND_ACCESS_MANAGEMENT_APPROVE=true");
+
+        // The platform: register the tenant and ask for its two administrators; a second platform administrator approves.
+        var (tenantId, url) = await RegisterTenantAtAccessStep(one, "OWNPEOPLE");
+        var request = new { tenantId, administrators = new[] { Person("ownpeople-ana"), Person("ownpeople-ben") }, functions = ConfiguringFunctions };
+        var requestId = (await (await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", request, idempotent: true)).Json()).GetProperty("id").GetGuid();
+        await _factory.DrainOutbox();
+        (await two.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{await Approval(one, requestId)}/approve", ifMatch: "\"1\"")).StatusCode
+            .ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+        // The administrators' approval authority is in force in the tenant with them (role-templates.md, OQ-119).
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT string_agg(transaction_type, ',' ORDER BY transaction_type) FROM workflow.cfg_delegation_and_approval_authority
+            WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN' AND record_status = 'PUBLISHED'
+            """, ("t", tenantId))).ShouldBe("EXTERNAL_SUBJECT_LINK,PRIVILEGED_ROLE,STATIC_DATA_T1,STATIC_DATA_T2",
+            await fixture.Database.ScalarAsOwner<string>("SELECT string_agg(consumer || ' ' || status || ' ' || coalesce(prerequisite_code, ''), '; ') FROM integration.parked_delivery WHERE consumer LIKE '%Authority%'"));
+        var ana = _factory.ClientFor(tenantId, "ownpeople-ana");
+        var ben = _factory.ClientFor(tenantId, "ownpeople-ben");
+
+        // The tenant's administrators: a new role, made by one and approved by the other.
+        const string roles = "/api/v1/identity/static/roles-and-permission-sets";
+        var role = await ana.Send(HttpMethod.Post, roles, new { code = "OPS_LEAD", roleCode = "OPS_LEAD", changeReason = "Operations lead" }, idempotent: true);
+        role.StatusCode.ShouldBe(HttpStatusCode.Created, await role.Content.ReadAsStringAsync());
+        (await ana.Send(HttpMethod.Post, $"{roles}/OPS_LEAD/versions/1/submit", ifMatch: role.ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await ApproveInTenant(ana, ben, tenantId, StaticDataApprovals.BusinessRefType, "OPS_LEAD@1");
+        await Activate(ana, $"{roles}/OPS_LEAD");
+
+        // A privileged function granted to it: Tier 1 again, and it makes the role privileged.
+        const string grants = "/api/v1/identity/static/role-function-assignments";
+        var grant = await ana.Send(HttpMethod.Post, grants, new { code = "OPS_LEAD:DISCARD_MESSAGE", roleCode = "OPS_LEAD", functionCode = "DISCARD_MESSAGE",
+            changeReason = "Operations lead discards dead letters" }, idempotent: true);
+        grant.StatusCode.ShouldBe(HttpStatusCode.Created, await grant.Content.ReadAsStringAsync());
+        (await ana.Send(HttpMethod.Post, $"{grants}/OPS_LEAD:DISCARD_MESSAGE/versions/1/submit", ifMatch: grant.ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await ApproveInTenant(ana, ben, tenantId, StaticDataApprovals.BusinessRefType, "OPS_LEAD:DISCARD_MESSAGE@1");
+        await Activate(ana, $"{grants}/OPS_LEAD:DISCARD_MESSAGE");
+
+        // A user, given the privileged role: pending until the other administrator approves (SRS-002).
+        var provisioned = await ana.Send(HttpMethod.Post, "/api/v1/identity/users", new
+        {
+            username = "ownpeople-ops", displayName = "Operations Lead", idpCode = "OIDC", externalSubject = "ownpeople-ops", mfaEnrolled = true,
+        }, idempotent: true);
+        provisioned.StatusCode.ShouldBe(HttpStatusCode.Created, await provisioned.Content.ReadAsStringAsync());
+        var opsId = (await provisioned.Json()).GetProperty("id").GetGuid();
+        var ops = await ana.GetAsync($"/api/v1/identity/users/{opsId}");
+        var assigned = await ana.Send(HttpMethod.Post, $"/api/v1/identity/users/{opsId}/assign-role", new { roleCode = "OPS_LEAD" }, ifMatch: ops.ETag());
+        assigned.StatusCode.ShouldBe(HttpStatusCode.NoContent, await assigned.Content.ReadAsStringAsync());
+        var assignment = (await (await ana.GetAsync($"/api/v1/identity/users/{opsId}")).Json()).GetProperty("roleAssignments").EnumerateArray().Single();
+        (assignment.GetProperty("status").GetString(), assignment.GetProperty("privileged").GetBoolean()).ShouldBe(("PendingApproval", true));
+        await ApproveInTenant(ana, ben, tenantId, IdentityApprovals.BusinessRefType, assignment.GetProperty("id").GetGuid().ToString());
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM iam.user_role_assignment WHERE tenant_id = @t AND user_id = @u",
+            ("t", tenantId), ("u", opsId))).ShouldBe("ACTIVE");
+
+        // Activation: both administrators are active, the steps complete, and the tenant goes live.
+        (await AccessCheck(one, url)).ShouldBeEmpty();
+        await CompleteOnboardingAndActivate(one, url, (await one.GetAsync(url)).ETag(), "ORGANISATION_AND_ACCESS");
+        (await (await one.GetAsync(url)).Json()).GetProperty("status").GetString().ShouldBe("Active");
+
+        // A third administrator: asked for by the platform, approved by a second platform administrator, never inside the tenant.
+        var additional = await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators/additional",
+            new { tenantId, administrator = Person("ownpeople-cara") }, idempotent: true);
+        additional.StatusCode.ShouldBe(HttpStatusCode.Created, await additional.Content.ReadAsStringAsync());
+        var additionalId = (await additional.Json()).GetProperty("id").GetGuid();
+        await _factory.DrainOutbox();
+        (await two.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{await Approval(one, additionalId)}/approve", ifMatch: "\"1\"")).StatusCode
+            .ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+        (await _factory.ClientFor(tenantId, "ownpeople-cara").GetAsync("/api/v1/identity/users")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // Every approval decided inside the tenant was decided by one of its own people.
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT count(*) || ' decided, ' || count(*) FILTER (WHERE NOT EXISTS (
+                SELECT 1 FROM iam.user_account u WHERE u.tenant_id = a.tenant_id AND u.id = a.checker_id)) || ' by outsiders'
+            FROM workflow.approval a WHERE a.tenant_id = @t AND a.status = 'APPROVED'
+            """, ("t", tenantId))).ShouldBe("3 decided, 0 by outsiders");
+    }
+
+    /// <summary>
+    /// What a tenant's first administrators need to configure it themselves: users and roles, the role tables (privileged),
+    /// change requests, and approving.
+    /// </summary>
+    private static readonly string[] ConfiguringFunctions =
+    [
+        "ASSIGN_ROLE", "IDENTITY_USERS", "PROVISION_USER", "SD_IDENTITY_AND_ACCESS_MANAGEMENT_APPROVE", "SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN",
+        "SD_IDENTITY_AND_ACCESS_MANAGEMENT_VIEW", "STATIC_DATA_CHANGE_REQUESTS", "WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", "WORKFLOW_REJECT",
+    ];
+
+    /// <summary>Publishes an approved first version, so that it is in force.</summary>
+    private static async Task Activate(HttpClient client, string record)
+    {
+        var approved = (await (await client.GetAsync($"{record}/versions")).Json())[0];
+        approved.GetProperty("recordStatus").GetString().ShouldBe("APPROVED");
+        var activated = await client.Send(HttpMethod.Post, $"{record}/versions/1/activate", ifMatch: $"\"{approved.GetProperty("rowVersion").GetInt64()}\"");
+        activated.StatusCode.ShouldBe(HttpStatusCode.OK, await activated.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>The waiting approval for a record in the tenant: its maker cannot decide it, the other administrator approves it.</summary>
+    private async Task ApproveInTenant(HttpClient maker, HttpClient checker, Guid tenantId, string businessRefType, string reference)
+    {
+        await _factory.DrainOutbox();
+        var refId = businessRefType == StaticDataApprovals.BusinessRefType
+            ? await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM sdm.change_request WHERE tenant_id = @t AND record_key = @k", ("t", tenantId), ("k", reference))
+            : Guid.Parse(reference);
+        var page = await (await checker.GetAsync($"/api/v1/workflow/approvals?status=Requested&businessRefType={businessRefType}&businessRefId={refId}")).Json();
+        var approval = page.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        (await (await maker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        var approved = await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"");
+        approved.StatusCode.ShouldBe(HttpStatusCode.NoContent, await approved.Content.ReadAsStringAsync());
+        await _factory.DrainOutbox();
+    }
+
     [Fact]
     public async Task ARequestNamingOneAdministrator_OrTheSamePersonTwice_IsRefused_BR013()
     {
@@ -276,8 +402,9 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         var readiness = await response.Json();
         DocumentedSchema.ResponseProblems(readiness, "core", "GetOwnTenantReadiness").ShouldBeEmpty();
         readiness.GetProperty("tenantId").GetGuid().ShouldBe(tenantId);
-        readiness.GetProperty("steps").EnumerateArray().Single(s => s.GetProperty("step").GetString() == "ORGANISATION_AND_ACCESS")
-            .GetProperty("checks").EnumerateArray().Single(c => c.GetProperty("code").GetString() == "FIRST_ADMINISTRATOR")
+        var access = readiness.GetProperty("steps").EnumerateArray().Single(s => s.GetProperty("step").GetString() == "ORGANISATION_AND_ACCESS");
+        access.GetProperty("label").GetString().ShouldBe("Organisation and access"); // BR-020
+        access.GetProperty("checks").EnumerateArray().Single(c => c.GetProperty("code").GetString() == "FIRST_ADMINISTRATOR")
             .GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["TENANT_ADMIN: 0 of 2 active"]);
 
         // BR-022: /identity/me gives the locale to format with: this request's language and the tenant's country, and its currency.

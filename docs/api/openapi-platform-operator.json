@@ -31352,6 +31352,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityRetryView"
+                }
+              }
+            }
+          },
           "401": {
             "$ref": "#/components/responses/Problem401"
           },
@@ -42653,6 +42663,22 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "IdentityRetryView": {
+        "required": [
+          "retried"
+        ],
+        "type": "object",
+        "properties": {
+          "retried": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -57457,6 +57483,7 @@
       "TenancyStepReadinessView": {
         "required": [
           "step",
+          "label",
           "completed",
           "ready",
           "checks"
@@ -57464,6 +57491,9 @@
         "type": "object",
         "properties": {
           "step": {
+            "type": "string"
+          },
+          "label": {
             "type": "string"
           },
           "completed": {

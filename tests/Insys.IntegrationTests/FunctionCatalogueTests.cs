@@ -74,6 +74,23 @@ public sealed class FunctionCatalogueTests(DatabaseFixture fixture) : IClassFixt
     }
 
     [Fact]
+    public async Task StaticDataFunctions_AreLabelledByTheirCatalogueModule_BR020()
+    {
+        await fixture.Host();
+        var labels = new List<string>();
+        foreach (var code in new[] { "SD_BILLING_AND_PREMIUM_RECEIVABLES_VIEW", "SD_BILLING_AND_PREMIUM_RECEIVABLES_MAINTAIN", "SD_INTEGRATION_AND_API_MANAGEMENT_APPROVE" })
+        {
+            labels.Add((await fixture.Database.ScalarAsOwner<string>("""
+                SELECT labels->>'en' FROM iam.ref_function_catalogue
+                WHERE tenant_id IS NULL AND code = @code AND record_status = 'ACTIVE' AND effective_to IS NULL
+                """, ("code", code)))!);
+        }
+
+        labels.ShouldBe(["Billing and premium receivables static data", "Maintain billing and premium receivables static data",
+            "Approve integration and API management static data"]);
+    }
+
+    [Fact]
     public async Task EveryScreenAndAction_RequiresAPermission_AndEveryActionHasAScreen_ADR026()
     {
         await fixture.Host();

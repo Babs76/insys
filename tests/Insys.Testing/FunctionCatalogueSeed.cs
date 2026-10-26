@@ -74,7 +74,7 @@ public static class FunctionCatalogueSeed
         Table(s, "iam.ref_function_catalogue",
             ["function_code", "sub_domain_code", "process_area", "interaction_type", "function_kind", "parent_function_code", "audiences", "route_key",
              "required_permissions", "required_feature", "privileged", "allowed_while_onboarding"],
-            functions.Select(f => new Row(f.Function.Code, Label(f.Function.Code), f.Order,
+            functions.Select(f => new Row(f.Function.Code, Label(f.Function), f.Order,
             [
                 Text(f.Function.Code), Text(f.Function.SubDomain), Text(f.Function.ProcessArea), Text(f.Function.InteractionType),
                 Text(f.Function.Kind.ToString().ToUpperInvariant()), Text(f.Function.Parent), Array(f.Function.Audiences), Text(f.Function.RouteKey),
@@ -119,7 +119,45 @@ public static class FunctionCatalogueSeed
             """);
     }
 
-    /// <summary>The English label of a function, from its code (LIFE_POLICY_VIEW: "Life policy view"); other languages come through labels.</summary>
+    /// <summary>
+    /// The English label of a function: a static data function's from its catalogue module ("Billing and premium receivables
+    /// static data", BR-020), any other's from its code (LIFE_POLICY_VIEW: "Life policy view"); other languages come through labels.
+    /// </summary>
+    public static string Label(FunctionDeclaration function)
+    {
+        if (function.Code.StartsWith("SD_", StringComparison.Ordinal))
+        {
+            var module = SentenceCase(function.ProcessArea) + " static data";
+            if (function.Code.EndsWith("_VIEW", StringComparison.Ordinal))
+            {
+                return module;
+            }
+
+            if (function.Code.EndsWith("_MAINTAIN", StringComparison.Ordinal))
+            {
+                return "Maintain " + Lower(module);
+            }
+
+            if (function.Code.EndsWith("_APPROVE", StringComparison.Ordinal))
+            {
+                return "Approve " + Lower(module);
+            }
+        }
+
+        return Label(function.Code);
+    }
+
+    /// <summary>Words after the first in lower case, except acronyms (API, UI): "Integration and API Management" is "Integration and API management".</summary>
+    private static string SentenceCase(string text)
+    {
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(' ', words.Select((w, i) => i == 0 || IsAcronym(w) ? w : w.ToLowerInvariant()));
+    }
+
+    private static string Lower(string text) => IsAcronym(text.Split(' ')[0]) ? text : char.ToLowerInvariant(text[0]) + text[1..];
+
+    private static bool IsAcronym(string word) => word.Length > 1 && word.All(c => !char.IsLetter(c) || char.IsUpper(c));
+
     public static string Label(string code)
     {
         var words = code.Split('_', StringSplitOptions.RemoveEmptyEntries).Select(w => w.ToLowerInvariant()).ToList();

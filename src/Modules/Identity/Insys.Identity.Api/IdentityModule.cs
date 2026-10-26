@@ -453,8 +453,9 @@ public sealed class IdentityModule : IModule
             .RequireIdempotencyKey();
 
         requests.MapPost("/{id:guid}/retry-identity", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new RetryAdministratorIdentity(id), ct)).ToHttp(count => Results.Ok(new { retried = count })))
+                (await dispatcher.Send(new RetryAdministratorIdentity(id), ct)).ToHttp(count => Results.Ok(new IdentityRetryView(count))))
             .WithName("RetryAdministratorIdentity")
+            .Produces<IdentityRetryView>(StatusCodes.Status200OK)
             .WithSummary("Retry the creation of an approved request's parked or failed identities")
             .WithDescription("BR-018: after the cause is fixed (a username conflict resolved in Keycloak, say), the identities that are IdentityParked or "
                 + "IdentityFailed are tried again; the request reads AwaitingIdentity until they are linked. 409 when none is parked or failed.")
@@ -480,3 +481,6 @@ public sealed class IdentityModule : IModule
             .RequirePlatformPermission(IdentityPermissions.UserRead);
     }
 }
+
+/// <param name="Retried">How many parked or failed identity creations were put back to be tried again.</param>
+public sealed record IdentityRetryView(int Retried);
