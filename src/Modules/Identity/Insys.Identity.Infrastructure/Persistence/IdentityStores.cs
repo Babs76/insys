@@ -180,6 +180,7 @@ internal sealed class IdentityEventMapper : IDomainEventMapper
             e.RequestedBy, null, null, $"Administrators {e.Usernames} for tenant {e.TargetTenantId}"),
         Domain.Tenants.TenantAdministratorProvisioned e => new Contracts.TenantAdministratorProvisioned(e.TargetTenantId, e.UserId, e.RoleCode),
         Domain.Users.RoleAssigned e => new Contracts.RoleAssigned(e.UserId, e.RoleCode, e.ValidFrom, e.ValidTo),
+        Domain.Users.AdministratorGranted e => new Contracts.AdministratorGranted(e.UserId, e.RoleCode),
         Domain.Users.RoleRevoked e => new Contracts.RoleRevoked(e.UserId, e.RoleCode),
         Domain.Users.PrivilegedRoleRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.IdentityApprovals.BusinessRefType, e.AssignmentId,
             Contracts.IdentityApprovals.ApprovalType, e.AssignedBy, null, null, $"Assign {e.RoleCode} to user {e.UserId}"),

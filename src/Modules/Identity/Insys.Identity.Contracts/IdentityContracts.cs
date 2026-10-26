@@ -107,6 +107,14 @@ public sealed record SubjectLinkChanged(Guid UserId) : IIntegrationEvent;
 public sealed record TenantAdministratorProvisioned(Guid TargetTenantId, Guid UserId, string RoleCode) : IIntegrationEvent;
 
 /// <summary>
+/// An administrator the platform provisioned (first or additional) holds the tenant administrator role (BR-013).
+/// Published in the administrator's own tenant; Workflow puts the role's approval authority in force there if the
+/// tenant has none for it yet.
+/// </summary>
+[IntegrationEvent("iam.AdministratorGranted")]
+public sealed record AdministratorGranted(Guid UserId, string RoleCode) : IIntegrationEvent;
+
+/// <summary>
 /// The tenant's staff roles in force with their permissions (onboarding readiness CHANNELS): every role except those whose
 /// every holder is an external (portal) user, who act through partner channels instead.
 /// </summary>

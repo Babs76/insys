@@ -182,6 +182,9 @@ public sealed record DutyConflictRule(string FunctionA, string FunctionB, string
 
 public sealed record RoleAssigned(Guid UserId, string RoleCode, DateOnly ValidFrom, DateOnly? ValidTo, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>An administrator the platform provisioned (first or additional) holds the tenant administrator role (BR-013).</summary>
+public sealed record AdministratorGranted(Guid UserId, string RoleCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public enum SubjectKind
 {
     Party,
@@ -436,6 +439,7 @@ public sealed class UserAccount : AggregateRoot<Guid>
         assignment.Decide(approved: true, approvedBy, now);
         _roleAssignments.Add(assignment);
         Raise(new RoleAssigned(Id, roleCode, validFrom, null, now));
+        Raise(new AdministratorGranted(Id, roleCode, now));
     }
 
     /// <summary>
