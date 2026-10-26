@@ -1046,7 +1046,8 @@
         "tags": [
           "Party"
         ],
-        "summary": "Release a legal hold; the entries are deleted at the next retention run once past their period",
+        "summary": "Ask for a legal hold to be released; a second person approves it (LEGAL_HOLD_RELEASE)",
+        "description": "Releasing a hold needs a second person (OQ-111). The request is recorded on the hold and waits for a LEGAL_HOLD_RELEASE approval; the hold stays in force until it is approved, and the entries are then deleted at the next retention run once past their period. A rejected, expired or withdrawn approval clears the request, and the hold stays (its latestRejection says how it ended).",
         "operationId": "PartyReleaseSearchLogHold",
         "parameters": [
           {
@@ -1059,9 +1060,26 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartySearchLogHoldReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "204": {
-            "description": "No Content"
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySearchLogHoldView"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -8239,7 +8257,8 @@
         "tags": [
           "Documents"
         ],
-        "summary": "Release a legal hold",
+        "summary": "Ask for a legal hold to be released; a second person approves it (LEGAL_HOLD_RELEASE)",
+        "description": "Releasing a hold needs a second person (OQ-111), so no one person can release a hold and dispose of what it protected. The request is recorded on the hold and waits for a LEGAL_HOLD_RELEASE approval; the hold stays in force until it is approved. A rejected, expired or withdrawn approval clears the request, and the hold stays (its latestRejection says how it ended).",
         "operationId": "DocumentsReleaseLegalHold",
         "parameters": [
           {
@@ -8261,9 +8280,26 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentsLegalHoldReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "204": {
-            "description": "No Content"
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentsLegalHoldView"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -33948,6 +33984,17 @@
           }
         }
       },
+      "DocumentsLegalHoldReleaseRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "DocumentsLegalHoldRequest": {
         "required": [
           "reasonCode"
@@ -33965,7 +34012,12 @@
           "reasonCode",
           "placedBy",
           "placedAt",
-          "releasedAt"
+          "releasedAt",
+          "releasedBy",
+          "releaseRequestedBy",
+          "releaseRequestedAt",
+          "releaseReason",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -33990,6 +34042,43 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "releasedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "releaseRequestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "releaseRequestedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "releaseReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -44525,6 +44614,17 @@
           }
         }
       },
+      "PartySearchLogHoldReleaseRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "PartySearchLogHoldRequest": {
         "required": [
           "searchedBy",
@@ -44551,7 +44651,11 @@
           "placedBy",
           "placedAt",
           "releasedBy",
-          "releasedAt"
+          "releasedAt",
+          "releaseRequestedBy",
+          "releaseRequestedAt",
+          "releaseReason",
+          "latestRejection"
         ],
         "type": "object",
         "properties": {
@@ -44587,6 +44691,36 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "releaseRequestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "releaseRequestedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "releaseReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -46893,6 +47027,7 @@
               "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "COMMISSION_STATEMENT",
+              "DOCUMENT_LEGAL_HOLD",
               "GENERAL_CLAIM",
               "GENERAL_ENDORSEMENT",
               "GOVERNANCE_SETTING",
@@ -46904,6 +47039,7 @@
               "PRODUCT_VERSION",
               "REFUND_REQUEST",
               "ROLE_ASSIGNMENT",
+              "SEARCH_LOG_HOLD",
               "STATIC_DATA_CHANGE",
               "SUBJECT_LINK",
               "TENANT_ADMIN_REQUEST"
@@ -46923,6 +47059,7 @@
               "COMMISSION_STATEMENT",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
+              "LEGAL_HOLD_RELEASE",
               "LIFE_CLAIM",
               "LIFE_UNDERWRITING",
               "PARTY_MATCH_RESOLUTION",
@@ -47087,6 +47224,7 @@
               "COMMISSION_STATEMENT",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
+              "LEGAL_HOLD_RELEASE",
               "LIFE_CLAIM",
               "LIFE_UNDERWRITING",
               "PARTY_MATCH_RESOLUTION",
@@ -48258,6 +48396,7 @@
               "COMMISSION_STATEMENT",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
+              "LEGAL_HOLD_RELEASE",
               "LIFE_CLAIM",
               "LIFE_UNDERWRITING",
               "PARTY_MATCH_RESOLUTION",

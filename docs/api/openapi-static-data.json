@@ -217574,6 +217574,7 @@
               "COMMISSION_STATEMENT",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
+              "LEGAL_HOLD_RELEASE",
               "LIFE_CLAIM",
               "LIFE_UNDERWRITING",
               "PARTY_MATCH_RESOLUTION",
