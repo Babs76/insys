@@ -9913,6 +9913,7 @@
           "StaticData governance"
         ],
         "summary": "Get a static data change request",
+        "description": "versionNumber and entityRoute lead to the version the change creates or changes, draft, submitted or in force: GET /api/v1/{entityRoute}/{record.code}/versions lists it (BR-015). The table list shows only the records in force (SDM-008).",
         "operationId": "GetChangeRequest",
         "parameters": [
           {
@@ -9970,7 +9971,7 @@
           "StaticData governance"
         ],
         "summary": "Get the tenant\u0027s static data governance settings",
-        "description": "Tier 1 maker-checker is always on; Tier 2 is on unless the tenant switches it off (SDM-003).",
+        "description": "Tier 1 maker-checker is always on; Tier 2 is on unless the tenant switches it off (SDM-003). The response carries an ETag header: the settings\u0027 rowVersion in double quotes, for example ETag: \u00223\u0022 (\u00220\u0022 until the settings are first changed). Send it as If-Match to change them (BR-014).",
         "operationId": "GetGovernanceSettings",
         "responses": {
           "200": {
@@ -10011,8 +10012,19 @@
           "StaticData governance"
         ],
         "summary": "Switch Tier 2 maker-checker on or off for the tenant",
-        "description": "Audited. Use the ETag from GET; it is \u00220\u0022 until the setting is first changed.",
+        "description": "Audited. If-Match is the ETag from GET: the settings\u0027 rowVersion in double quotes, for example If-Match: \u00223\u0022; it is \u00220\u0022 until the settings are first changed. Missing gives 428; stale gives 412. The response\u0027s ETag is the new rowVersion (BR-014).",
         "operationId": "ChangeTier2MakerChecker",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -10026,6 +10038,12 @@
         "responses": {
           "204": {
             "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -205384,6 +205402,8 @@
           "effectiveFrom",
           "reason",
           "record",
+          "versionNumber",
+          "entityRoute",
           "rowVersion",
           "latestRejection"
         ],
@@ -205428,6 +205448,20 @@
           },
           "record": {
             "$ref": "#/components/schemas/JsonElement"
+          },
+          "versionNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "entityRoute": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "rowVersion": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",

@@ -2446,7 +2446,7 @@
         },
         "x-permission": "dead_letter.read",
         "x-function": [
-          "INTEGRATION_PARKED_DELIVERIES"
+          "PLATFORM_PARKED_DELIVERIES"
         ]
       }
     },
