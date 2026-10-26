@@ -42,7 +42,7 @@ internal static class IntegrationFunctions
         .Action("REPLAY_MESSAGE", "INTEGRATION_DEAD_LETTERS", "ReplayMessage")
         .Action("DISCARD_MESSAGE", "INTEGRATION_DEAD_LETTERS", "DiscardMessage")
         .Screen("INTEGRATION_DELIVERIES", "INTEGRATION_OPERATIONS", "Parked deliveries", "integration/deliveries", "IntegrationDeliveriesSummary")
-        .Screen("INTEGRATION_PARKED_DELIVERIES", "INTEGRATION_OPERATIONS", "Parked deliveries", "integration/parked-deliveries", "ListParkedDeliveries", "GetParkedDelivery", "ListParkedDeliveriesByTenant")
+        .Screen("INTEGRATION_PARKED_DELIVERIES", "INTEGRATION_OPERATIONS", "Parked deliveries", "integration/parked-deliveries", "ListParkedDeliveries", "GetParkedDelivery")
         .Action("RETRY_PARKED_DELIVERY", "INTEGRATION_PARKED_DELIVERIES", "RetryParkedDelivery")
         .Action("RETRY_PARKED_DELIVERIES_FOR_CODE", "INTEGRATION_PARKED_DELIVERIES", "RetryParkedDeliveriesForCode")
         .Action("DISCARD_PARKED_DELIVERY", "INTEGRATION_PARKED_DELIVERIES", "DiscardParkedDelivery")
@@ -51,6 +51,12 @@ internal static class IntegrationFunctions
         .Screen("INTEGRATION_WEBHOOK_DELIVERIES", "INTEGRATION_OPERATIONS", "Webhook deliveries", "integration/webhook-deliveries", "ListWebhookDeliveries")
         .Action("RETRY_WEBHOOK_DELIVERY", "INTEGRATION_WEBHOOK_DELIVERIES", "RetryWebhookDelivery")
         .Job("WEBHOOK_DELIVERY", "INTEGRATION_OPERATIONS", "Background processing")
+            .Functions,
+
+        // BR-011: the platform operator's view of parked deliveries across tenants (RequirePlatformPermission), so the
+        // operator's menu offers it; tenant staff never see it.
+        .. new FunctionMap([Audiences.Platform], null)
+        .Screen("PLATFORM_PARKED_DELIVERIES", "INTEGRATION_OPERATIONS", "Parked deliveries", "integration/parked-deliveries/by-tenant", "ListParkedDeliveriesByTenant")
             .Functions,
     ];
 }

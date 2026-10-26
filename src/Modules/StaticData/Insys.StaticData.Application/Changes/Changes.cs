@@ -128,9 +128,42 @@ internal sealed class ChangeTier2MakerCheckerHandler(IChangeRequestRepository re
     }
 }
 
+/// <summary>A static data change request (SDM-003), with the way to the version it creates or changes (BR-015).</summary>
+/// <param name="VersionNumber">The version the change creates or changes.</param>
+/// <param name="EntityRoute">
+/// The table's API route under /api/v1, for example "billing/static/billing-frequencies", ending "/global" for a platform-global
+/// row. The version is GET {entityRoute}/{record.code}/versions (its versionNumber among them), and its lifecycle actions are
+/// under {entityRoute}/{record.code}/versions/{versionNumber}. Null only when the record reference does not name it.
+/// </param>
 public sealed record ChangeRequestView(
     Guid Id, string RequestNumber, string EntityCode, string RecordKey, string Action, ChangeStatus Status, Guid MakerId, Guid? CheckerId, DateOnly EffectiveFrom,
-    string Reason, JsonElement Record, long RowVersion, LatestRejection? LatestRejection = null);
+    string Reason, JsonElement Record, int VersionNumber, string? EntityRoute, long RowVersion, LatestRejection? LatestRejection = null);
+
+/// <summary>
+/// Where a change request's version lives (BR-015): from the record reference the owning module sent (StaticRecordRef,
+/// stored in change_request.after), and the record key "{code}@{version}" for the version number.
+/// </summary>
+public static class ChangeRequestLinks
+{
+    public static int VersionNumber(string recordKey, JsonElement record) =>
+        record.ValueKind == JsonValueKind.Object && record.TryGetProperty("version", out var version) && version.TryGetInt32(out var number)
+            ? number
+            : int.TryParse(recordKey.AsSpan(recordKey.LastIndexOf('@') + 1), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture,
+                out var fromKey) ? fromKey : 0;
+
+    public static string? EntityRoute(string recordKey, JsonElement record)
+    {
+        if (record.ValueKind != JsonValueKind.Object
+            || !record.TryGetProperty("moduleRoute", out var module) || module.GetString() is not { Length: > 0 } moduleRoute
+            || !record.TryGetProperty("entityRoute", out var entity) || entity.GetString() is not { Length: > 0 } entityRoute)
+        {
+            return null;
+        }
+
+        var global = record.TryGetProperty("global", out var g) ? g.ValueKind == JsonValueKind.True : recordKey.StartsWith("G:", StringComparison.Ordinal);
+        return $"{moduleRoute}/static/{entityRoute}{(global ? "/global" : "")}";
+    }
+}
 
 public sealed record ImportBatchView(Guid Id, string BatchNumber, string EntityCode, string FileRef, int RowCount, int RejectedCount, ImportStatus Status,
     Guid SubmittedBy, IReadOnlyList<ImportLineError> Errors);
