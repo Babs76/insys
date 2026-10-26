@@ -10,6 +10,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`status`** is now `PendingApproval`, `AwaitingIdentity`, `IdentityParked`, `IdentityFailed`, `Provisioned` or `Rejected`. Provisioned means every administrator's identity is linked and usable (BR-018). `identityState` per person is `Pending`, `Parked`, `Failed` or `Linked`; `identityReason` gives the parking code and item for Parked or Failed (for example `KEYCLOAK_USER_CONFLICT username`).
 - **New:** `POST /identity/tenant-administrators/additional` `{tenantId, administrator}` (Idempotency-Key): one more administrator for an existing Active or Onboarding tenant, approved by a second platform administrator. `POST /identity/tenant-administrators/{id}/retry-identity`: after the cause is fixed, retries the parked or failed identities; `{retried}`; 409 when none is parked or failed.
 - **Readiness:** `ORGANISATION_AND_ACCESS` / `FIRST_ADMINISTRATOR` needs two active administrators (identity linked, signed in once); its `missing` reads `TENANT_ADMIN: n of 2 active`.
+- **The administrators' approval authority:** once the first administrators exist, the tenant has `TENANT_ADMIN` rows in `workflow/static/delegation-and-approval-authority` for `PRIVILEGED_ROLE`, `EXTERNAL_SUBJECT_LINK`, `STATIC_DATA_T1` and `STATIC_DATA_T2`, so its administrators approve each other's changes from the start (OQ-119, for confirmation). They are the tenant's own rows, changed like any other.
 - **New error code `IDENTITY_NOT_LINKED`** (403, with `Retry-After`): the token is for a user of the tenant whose identity is not linked yet; retry the same call. A console treats it as "still setting up", not as a refusal.
 
 ### Breaking: releasing a legal hold needs a second person (OQ-111)
@@ -27,6 +28,12 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **Role function grants (BR-019):** creating or importing an `iam/static/role-function-assignments` row with a function code not in the catalogue, or a JOB function, is 422 `VALIDATION_FAILED` on the function field.
 - **Labels (BR-020):** static data functions are labelled from their catalogue module ("Billing and premium receivables static data", "Maintain …", "Approve …"); the readiness views' steps gain `label` ("Organisation and access"). Operations that return labels: `GetMyMenu`, the readiness views, the communication preference views, and every static data record's `labels`.
 - **Locale (BR-022):** `MeView` gains `locale {tag, country, baseCurrency}`, always present: the request's language with the tenant's country (`en-ZA`) and its base currency, from the locale defaults in force; null fields while the tenant has none.
+
+### From the API review
+- `IDENTITY_NOT_LINKED` is listed among the 403 codes any operation may return, and every 403 documents `Retry-After` (sent only with that code).
+- The legal hold release `reason` is 1 to 200 characters; both release operations name their 409 (`INVALID_STATE_TRANSITION`: a release already waits, or the hold is released); the hold views say how a pending release reads.
+- `administrators` is exactly two items and `functions` at least one in the schema; an administrator's `idpCode` points to the identity provider configurations; the person input no longer shows a `details` property; `identityState` and `userId` are null until approval, and `identityReason` is for display.
+- `retry-identity` takes no body and names its 409 (`INVALID_STATE_TRANSITION`). `MeView.locale` is in `required`.
 
 ## Wave 2 batch 2 (branch `wave2-2`, merged)
 

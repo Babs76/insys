@@ -53,7 +53,7 @@ public sealed record DeliverDocumentRequest(string Channel, string Recipient);
 public sealed record LegalHoldRequest(string ReasonCode);
 
 /// <param name="Reason">Why the hold may be released (at most 200 characters); the checker sees it.</param>
-public sealed record LegalHoldReleaseRequest(string Reason);
+public sealed record LegalHoldReleaseRequest([property: System.ComponentModel.DataAnnotations.MinLength(1), System.ComponentModel.DataAnnotations.MaxLength(200)] string Reason);
 
 /// <summary>The Documents module: generation, storage, delivery, retention and audited access (DOC-001 to DOC-004).</summary>
 public sealed class DocumentsModule : IModule
@@ -153,7 +153,8 @@ public sealed class DocumentsModule : IModule
             .WithSummary("Ask for a legal hold to be released; a second person approves it (LEGAL_HOLD_RELEASE)")
             .WithDescription("Releasing a hold needs a second person (OQ-111), so no one person can release a hold and dispose of what it protected. "
                 + "The request is recorded on the hold and waits for a LEGAL_HOLD_RELEASE approval; the hold stays in force until it is approved. "
-                + "A rejected, expired or withdrawn approval clears the request, and the hold stays (its latestRejection says how it ended).")
+                + "A rejected, expired or withdrawn approval clears the request, and the hold stays (its latestRejection says how it ended). "
+                + "409 INVALID_STATE_TRANSITION when a release already waits for approval or the hold is released.")
             .RequirePermission(DocumentPermissions.LegalHoldManage);
 
         documents.MapPost("/{id:guid}/dispose", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

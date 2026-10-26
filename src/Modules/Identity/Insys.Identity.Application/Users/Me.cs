@@ -75,7 +75,7 @@ public sealed record MePermission(string Permission, IReadOnlyList<PermissionSco
 /// <param name="External">For an external user, the party, intermediary or provider they are (external-user access §1); null for staff.</param>
 public sealed record MeView(Guid UserId, string Username, string DisplayName, UserStatus Status, bool MfaEnrolled, MeTenant Tenant, MeLanguage Language,
     IReadOnlyList<MeRole> Roles, IReadOnlyList<MePermission> Permissions, long RowVersion, MeExternalSubject? External, bool ScopesEnforced = true,
-    MeLocale? Locale = null);
+    [property: BuildingBlocks.Contracts.AlwaysPresent] MeLocale? Locale = null);
 
 /// <summary>What an external user's approved link names.</summary>
 public sealed record MeExternalSubject(SubjectKind Kind, Guid? PartyId, string? IntermediaryCode, string? ProviderId);

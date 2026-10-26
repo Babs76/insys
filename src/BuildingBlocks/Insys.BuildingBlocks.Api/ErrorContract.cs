@@ -64,7 +64,7 @@ public static class ErrorContract
         document.Components.Headers[ContentLanguageHeader] = Header(
             "The language of the error's title (docs/specs/addenda/localisation.md §4).", new OpenApiSchema { Type = JsonSchemaType.String });
         document.Components.Headers[RetryAfterHeader] = Header(
-            "Whole seconds to wait before retrying.", new OpenApiSchema { Type = JsonSchemaType.Integer, Minimum = "1" });
+            "Whole seconds to wait before retrying (on a 403, sent only with IDENTITY_NOT_LINKED: the sign-in is still being set up).", new OpenApiSchema { Type = JsonSchemaType.Integer, Minimum = "1" });
 
         if (document.Components.Schemas?.TryGetValue("ProblemDetails", out var problem) == true && problem is OpenApiSchema schema)
         {
@@ -92,7 +92,7 @@ public static class ErrorContract
                         [CorrelationHeader] = new OpenApiHeaderReference(CorrelationHeader, document),
                         [ContentLanguageHeader] = new OpenApiHeaderReference(ContentLanguageHeader, document),
                     };
-                    if (status is "429" or "503")
+                    if (status is "403" or "429" or "503")
                     {
                         concrete.Headers[RetryAfterHeader] = new OpenApiHeaderReference(RetryAfterHeader, document);
                     }
@@ -122,7 +122,7 @@ public static class ErrorContract
     private static readonly (string Id, string[] Codes)[] KnownCodes =
     [
         ("Problem403", [ErrorCodes.Forbidden, ErrorCodes.TenantContextMissing, ErrorCodes.FunctionNotGranted, ErrorCodes.FunctionDisabled, ErrorCodes.FeatureNotEntitled,
-            ErrorCodes.OutOfScope, ErrorCodes.ChannelNotEnabled, ErrorCodes.ChannelNotAllowed, ErrorCodes.ChannelApprovalRequired]),
+            ErrorCodes.OutOfScope, ErrorCodes.ChannelNotEnabled, ErrorCodes.ChannelNotAllowed, ErrorCodes.ChannelApprovalRequired, ErrorCodes.IdentityNotLinked]),
         ("Problem409", [ErrorCodes.TenantNotActive, ErrorCodes.IdempotencyInProgress, ErrorCodes.IdempotencyResponseNotKept, ErrorCodes.InvalidStateTransition]),
         ("Problem422", [ErrorCodes.ValidationFailed, ErrorCodes.IdempotencyKeyRequired, ErrorCodes.IdempotencyKeyReused]),
     ];

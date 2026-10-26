@@ -40,11 +40,16 @@ using Microsoft.Extensions.Options;
 
 namespace Insys.Identity.Application.Tenants;
 
-/// <summary>One person a tenant administrator request names.</summary>
+/// <summary>
+/// One person a tenant administrator request names: a federated person gives their externalSubject; a person of INSYS's own
+/// realm (idpCode KEYCLOAK) gives an email instead.
+/// </summary>
+/// <param name="IdpCode">The identity provider's code, from iam/static/identity-provider-configurations (KEYCLOAK for INSYS's own realm).</param>
 /// <param name="Email">For INSYS's own realm (idpCode KEYCLOAK): INSYS creates the Keycloak user on approval and sends the invitation here.</param>
 public sealed record TenantAdministratorPersonInput(string Username, string DisplayName, string IdpCode, string? ExternalSubject, bool MfaEnrolled,
     string? Email = null)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
     public TenantAdministratorPersonDetails Details => new(Username, DisplayName, IdpCode, ExternalSubject, MfaEnrolled, Email);
 }
 
@@ -126,7 +131,12 @@ public enum AdministratorIdentityState
     Linked,
 }
 
-/// <param name="IdentityReason">Why the identity is parked or failed: the parking code and item (for example KEYCLOAK_USER_CONFLICT with the username).</param>
+/// <param name="UserId">The administrator's user in the tenant; null until the request is approved.</param>
+/// <param name="IdentityState">Whether the user's sign-in identity is usable; null until the request is approved (no user yet) and on a rejected request.</param>
+/// <param name="IdentityReason">
+/// Why the identity is parked or failed, for display: the parking code, then the item (for example "KEYCLOAK_USER_CONFLICT username"). The code
+/// is a parking code (the error code catalogue); null unless Parked or Failed.
+/// </param>
 public sealed record TenantAdministratorPersonView(string Username, string DisplayName, string IdpCode, string? ExternalSubject, bool MfaEnrolled, Guid? UserId,
     [property: BuildingBlocks.Contracts.AlwaysPresent] AdministratorIdentityState? IdentityState,
     [property: BuildingBlocks.Contracts.AlwaysPresent] string? IdentityReason);

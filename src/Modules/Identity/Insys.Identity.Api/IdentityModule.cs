@@ -49,7 +49,9 @@ public sealed record ProvisionUserRequest(string Username, string DisplayName, s
 /// <summary>A new tenant's first administrator (OQ-067): the user, and the functions of the tenant's TENANT_ADMIN role (ADR-026, OQ-099).</summary>
 /// <param name="Administrators">Exactly two people (BR-013), each with a username of their own.</param>
 /// <param name="Functions">The functions of the tenant's TENANT_ADMIN role: at least one, each a staff function in force in the catalogue (OQ-099).</param>
-public sealed record ProvisionTenantAdministratorRequest(Guid TenantId, IReadOnlyList<TenantAdministratorPersonInput> Administrators, string[] Functions);
+public sealed record ProvisionTenantAdministratorRequest(Guid TenantId,
+    [property: System.ComponentModel.DataAnnotations.MinLength(2), System.ComponentModel.DataAnnotations.MaxLength(2)] IReadOnlyList<TenantAdministratorPersonInput> Administrators,
+    [property: System.ComponentModel.DataAnnotations.MinLength(1)] string[] Functions);
 
 public sealed record AdditionalAdministratorRequest(Guid TenantId, TenantAdministratorPersonInput Administrator);
 
@@ -458,7 +460,8 @@ public sealed class IdentityModule : IModule
             .Produces<IdentityRetryView>(StatusCodes.Status200OK)
             .WithSummary("Retry the creation of an approved request's parked or failed identities")
             .WithDescription("BR-018: after the cause is fixed (a username conflict resolved in Keycloak, say), the identities that are IdentityParked or "
-                + "IdentityFailed are tried again; the request reads AwaitingIdentity until they are linked. 409 when none is parked or failed.")
+                + "IdentityFailed are tried again; the request reads AwaitingIdentity until they are linked. No request body. 409 INVALID_STATE_TRANSITION when none "
+                + "is parked or failed.")
             .WithEventualEffects("the parking job tries each identity again; once linked the request reads Provisioned.")
             .RequirePlatformPermission(IdentityPermissions.UserCreate);
 

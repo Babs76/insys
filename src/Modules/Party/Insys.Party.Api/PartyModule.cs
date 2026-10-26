@@ -359,8 +359,8 @@ public sealed class PartyModule : IModule
             .WithName("PartyReleaseSearchLogHold")
             .WithSummary("Ask for a legal hold to be released; a second person approves it (LEGAL_HOLD_RELEASE)")
             .WithDescription("Releasing a hold needs a second person (OQ-111). The request is recorded on the hold and waits for a LEGAL_HOLD_RELEASE approval; "
-                + "the hold stays in force until it is approved, and the entries are then deleted at the next retention run once past their period. A rejected, "
-                + "expired or withdrawn approval clears the request, and the hold stays (its latestRejection says how it ended).")
+                + "the hold stays in force until it is approved. A rejected, expired or withdrawn approval clears the request, and the hold stays (its "
+                + "latestRejection says how it ended). 409 INVALID_STATE_TRANSITION when a release already waits for approval or the hold is released.")
             .RequirePermission(PartyPermissions.SearchLogHold);
     }
 }
@@ -368,4 +368,4 @@ public sealed class PartyModule : IModule
 public sealed record SearchLogHoldRequest(string? SearchedBy, string Reason);
 
 /// <param name="Reason">Why the hold may be released (at most 200 characters); the checker sees it.</param>
-public sealed record SearchLogHoldReleaseRequest(string Reason);
+public sealed record SearchLogHoldReleaseRequest([property: System.ComponentModel.DataAnnotations.MinLength(1), System.ComponentModel.DataAnnotations.MaxLength(200)] string Reason);

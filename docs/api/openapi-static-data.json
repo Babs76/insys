@@ -218609,13 +218609,16 @@
         }
       },
       "Problem403": {
-        "description": "Forbidden. Codes any operation may return: FORBIDDEN, TENANT_CONTEXT_MISSING, FUNCTION_NOT_GRANTED, FUNCTION_DISABLED, FEATURE_NOT_ENTITLED, OUT_OF_SCOPE, CHANNEL_NOT_ENABLED, CHANNEL_NOT_ALLOWED, CHANNEL_APPROVAL_REQUIRED.",
+        "description": "Forbidden. Codes any operation may return: FORBIDDEN, TENANT_CONTEXT_MISSING, FUNCTION_NOT_GRANTED, FUNCTION_DISABLED, FEATURE_NOT_ENTITLED, OUT_OF_SCOPE, CHANNEL_NOT_ENABLED, CHANNEL_NOT_ALLOWED, CHANNEL_APPROVAL_REQUIRED, IDENTITY_NOT_LINKED.",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"
           },
           "Content-Language": {
             "$ref": "#/components/headers/Content-Language"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
           }
         },
         "content": {
@@ -218810,7 +218813,7 @@
         }
       },
       "Retry-After": {
-        "description": "Whole seconds to wait before retrying.",
+        "description": "Whole seconds to wait before retrying (on a 403, sent only with IDENTITY_NOT_LINKED: the sign-in is still being set up).",
         "schema": {
           "minimum": 1,
           "type": "integer"

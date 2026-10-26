@@ -49,8 +49,9 @@ public sealed class ApprovalKindsTests(DatabaseFixture fixture) : IClassFixture<
     [Fact]
     public async Task TheContract_ListsTheDeclaredTypes_AndAnApprovalNamesItsScreen_BR005()
     {
-        var factory = await fixture.Host();
-        using var document = System.Text.Json.JsonDocument.Parse(await factory.CreateClient().GetStringAsync("/openapi/core.json"));
+        // The committed document: OpenApiContractTests checks it is the one the host serves, so this read needs no host.
+        await fixture.Host();
+        using var document = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(RepositoryPaths.Root, "docs", "api", "openapi-core.json")));
         var view = document.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("WorkflowApprovalView").GetProperty("properties");
         view.GetProperty("approvalType").GetProperty("enum").EnumerateArray().Select(e => e.GetString()).ShouldBe(ApprovalKinds.ApprovalTypes);
         view.GetProperty("businessRefType").GetProperty("enum").EnumerateArray().Select(e => e.GetString()).ShouldBe(ApprovalKinds.BusinessRefTypes);

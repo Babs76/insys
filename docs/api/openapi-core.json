@@ -1047,7 +1047,7 @@
           "Party"
         ],
         "summary": "Ask for a legal hold to be released; a second person approves it (LEGAL_HOLD_RELEASE)",
-        "description": "Releasing a hold needs a second person (OQ-111). The request is recorded on the hold and waits for a LEGAL_HOLD_RELEASE approval; the hold stays in force until it is approved, and the entries are then deleted at the next retention run once past their period. A rejected, expired or withdrawn approval clears the request, and the hold stays (its latestRejection says how it ended).",
+        "description": "Releasing a hold needs a second person (OQ-111). The request is recorded on the hold and waits for a LEGAL_HOLD_RELEASE approval; the hold stays in force until it is approved. A rejected, expired or withdrawn approval clears the request, and the hold stays (its latestRejection says how it ended). 409 INVALID_STATE_TRANSITION when a release already waits for approval or the hold is released.",
         "operationId": "PartyReleaseSearchLogHold",
         "parameters": [
           {
@@ -8258,7 +8258,7 @@
           "Documents"
         ],
         "summary": "Ask for a legal hold to be released; a second person approves it (LEGAL_HOLD_RELEASE)",
-        "description": "Releasing a hold needs a second person (OQ-111), so no one person can release a hold and dispose of what it protected. The request is recorded on the hold and waits for a LEGAL_HOLD_RELEASE approval; the hold stays in force until it is approved. A rejected, expired or withdrawn approval clears the request, and the hold stays (its latestRejection says how it ended).",
+        "description": "Releasing a hold needs a second person (OQ-111), so no one person can release a hold and dispose of what it protected. The request is recorded on the hold and waits for a LEGAL_HOLD_RELEASE approval; the hold stays in force until it is approved. A rejected, expired or withdrawn approval clears the request, and the hold stays (its latestRejection says how it ended). 409 INVALID_STATE_TRANSITION when a release already waits for approval or the hold is released.",
         "operationId": "DocumentsReleaseLegalHold",
         "parameters": [
           {
@@ -33991,6 +33991,8 @@
         "type": "object",
         "properties": {
           "reason": {
+            "maxLength": 200,
+            "minLength": 1,
             "type": "string"
           }
         }
@@ -39906,7 +39908,8 @@
           "roles",
           "permissions",
           "rowVersion",
-          "external"
+          "external",
+          "locale"
         ],
         "type": "object",
         "properties": {
@@ -44621,6 +44624,8 @@
         "type": "object",
         "properties": {
           "reason": {
+            "maxLength": 200,
+            "minLength": 1,
             "type": "string"
           }
         }
@@ -49157,13 +49162,16 @@
         }
       },
       "Problem403": {
-        "description": "Forbidden. Codes any operation may return: FORBIDDEN, TENANT_CONTEXT_MISSING, FUNCTION_NOT_GRANTED, FUNCTION_DISABLED, FEATURE_NOT_ENTITLED, OUT_OF_SCOPE, CHANNEL_NOT_ENABLED, CHANNEL_NOT_ALLOWED, CHANNEL_APPROVAL_REQUIRED.",
+        "description": "Forbidden. Codes any operation may return: FORBIDDEN, TENANT_CONTEXT_MISSING, FUNCTION_NOT_GRANTED, FUNCTION_DISABLED, FEATURE_NOT_ENTITLED, OUT_OF_SCOPE, CHANNEL_NOT_ENABLED, CHANNEL_NOT_ALLOWED, CHANNEL_APPROVAL_REQUIRED, IDENTITY_NOT_LINKED.",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"
           },
           "Content-Language": {
             "$ref": "#/components/headers/Content-Language"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
           }
         },
         "content": {
@@ -49340,7 +49348,7 @@
         }
       },
       "Retry-After": {
-        "description": "Whole seconds to wait before retrying.",
+        "description": "Whole seconds to wait before retrying (on a 403, sent only with IDENTITY_NOT_LINKED: the sign-in is still being set up).",
         "schema": {
           "minimum": 1,
           "type": "integer"

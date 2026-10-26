@@ -31338,7 +31338,7 @@
           "Identity"
         ],
         "summary": "Retry the creation of an approved request\u0027s parked or failed identities",
-        "description": "BR-018: after the cause is fixed (a username conflict resolved in Keycloak, say), the identities that are IdentityParked or IdentityFailed are tried again; the request reads AwaitingIdentity until they are linked. 409 when none is parked or failed. Completes asynchronously (GAP-027): the parking job tries each identity again; once linked the request reads Provisioned.",
+        "description": "BR-018: after the cause is fixed (a username conflict resolved in Keycloak, say), the identities that are IdentityParked or IdentityFailed are tried again; the request reads AwaitingIdentity until they are linked. No request body. 409 INVALID_STATE_TRANSITION when none is parked or failed. Completes asynchronously (GAP-027): the parking job tries each identity again; once linked the request reads Provisioned.",
         "operationId": "RetryAdministratorIdentity",
         "parameters": [
           {
@@ -42653,12 +42653,15 @@
             "format": "uuid"
           },
           "administrators": {
+            "maxItems": 2,
+            "minItems": 2,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/IdentityTenantAdministratorPersonInput"
             }
           },
           "functions": {
+            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string"
@@ -42679,43 +42682,6 @@
               "string"
             ],
             "format": "int32"
-          }
-        }
-      },
-      "IdentityTenantAdministratorPersonDetails": {
-        "required": [
-          "username",
-          "displayName",
-          "idpCode",
-          "externalSubject",
-          "mfaEnrolled",
-          "email"
-        ],
-        "type": "object",
-        "properties": {
-          "username": {
-            "type": "string"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "idpCode": {
-            "type": "string"
-          },
-          "externalSubject": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "mfaEnrolled": {
-            "type": "boolean"
-          },
-          "email": {
-            "type": [
-              "null",
-              "string"
-            ]
           }
         }
       },
@@ -42752,9 +42718,6 @@
               "null",
               "string"
             ]
-          },
-          "details": {
-            "$ref": "#/components/schemas/IdentityTenantAdministratorPersonDetails"
           }
         }
       },
@@ -58735,13 +58698,16 @@
         }
       },
       "Problem403": {
-        "description": "Forbidden. Codes any operation may return: FORBIDDEN, TENANT_CONTEXT_MISSING, FUNCTION_NOT_GRANTED, FUNCTION_DISABLED, FEATURE_NOT_ENTITLED, OUT_OF_SCOPE, CHANNEL_NOT_ENABLED, CHANNEL_NOT_ALLOWED, CHANNEL_APPROVAL_REQUIRED.",
+        "description": "Forbidden. Codes any operation may return: FORBIDDEN, TENANT_CONTEXT_MISSING, FUNCTION_NOT_GRANTED, FUNCTION_DISABLED, FEATURE_NOT_ENTITLED, OUT_OF_SCOPE, CHANNEL_NOT_ENABLED, CHANNEL_NOT_ALLOWED, CHANNEL_APPROVAL_REQUIRED, IDENTITY_NOT_LINKED.",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"
           },
           "Content-Language": {
             "$ref": "#/components/headers/Content-Language"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
           }
         },
         "content": {
@@ -58936,7 +58902,7 @@
         }
       },
       "Retry-After": {
-        "description": "Whole seconds to wait before retrying.",
+        "description": "Whole seconds to wait before retrying (on a 403, sent only with IDENTITY_NOT_LINKED: the sign-in is still being set up).",
         "schema": {
           "minimum": 1,
           "type": "integer"

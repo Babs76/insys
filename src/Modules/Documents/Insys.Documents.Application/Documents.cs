@@ -94,6 +94,7 @@ public interface IDocumentRepository
 
 public sealed record DeliveryView(Guid Id, string Channel, string Recipient, [property: OneOf("SENT", "FAILED")] string Status, string? ProviderRef, DateTimeOffset? SentAt);
 
+/// <summary>A legal hold: in force until releasedAt is set; a release waits for approval while releaseRequestedAt is set (OQ-111).</summary>
 /// <param name="ReleaseRequestedBy">Who asked for the hold to be released, while that waits for a second person's approval (OQ-111); the hold is in force meanwhile.</param>
 /// <param name="ReleasedBy">The checker who approved the release.</param>
 /// <param name="LatestRejection">The hold's latest release approval that ended without being granted (OQ-113), or null.</param>
