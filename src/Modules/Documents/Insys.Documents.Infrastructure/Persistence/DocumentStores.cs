@@ -46,6 +46,11 @@ internal sealed class DocumentRepository(DocumentsDbContext db) : IDocumentRepos
     public Task<Document?> Get(Guid id, CancellationToken cancellationToken) =>
         db.Documents.Include(d => d.Deliveries).Include(d => d.Holds).SingleOrDefaultAsync(d => d.Id == id, cancellationToken);
 
+    public async Task<Document?> WithHold(Guid holdId, CancellationToken cancellationToken) =>
+        await db.Set<LegalHold>().AsNoTracking().Where(h => h.Id == holdId).Select(h => (Guid?)h.ScopeId).SingleOrDefaultAsync(cancellationToken) is { } documentId
+            ? await Get(documentId, cancellationToken)
+            : null;
+
     public async Task<IReadOnlyList<Document>> ForBusinessRef(string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
         await db.Documents.AsNoTracking().Include(d => d.Deliveries).Include(d => d.Holds)
             .Where(d => d.BusinessRefType == businessRefType && d.BusinessRefId == businessRefId).OrderBy(d => d.Id).ToListAsync(cancellationToken);
@@ -212,6 +217,8 @@ internal sealed class DocumentsEventMapper : IDomainEventMapper
         DocumentGenerated e => new Contracts.DocumentGenerated(e.DocumentId, e.CategoryCode, e.BusinessRefType, e.BusinessRefId, e.TemplateCode, e.TemplateVersion),
         DocumentDelivered e => new Contracts.DocumentDelivered(e.DocumentId, e.Channel),
         DocumentDisposed e => new Contracts.DocumentDisposed(e.DocumentId),
+        LegalHoldReleaseRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.DocumentApprovals.LegalHoldBusinessRefType, e.HoldId,
+            Contracts.DocumentApprovals.LegalHoldReleaseType, e.RequestedBy, null, null, $"Release legal hold ({e.ReasonCode}) on document {e.DocumentId}: {e.Reason}"),
         _ => null,
     };
 }

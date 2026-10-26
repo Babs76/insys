@@ -250,8 +250,10 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
 
         var hold = await (await client.Send(HttpMethod.Post, $"/api/v1/documents/documents/{id}/legal-holds", new { reasonCode = "LITIGATION" })).Json();
         (await (await client.GetAsync($"/api/v1/documents/documents/{id}")).Json()).GetProperty("legalHold").GetBoolean().ShouldBeTrue();
-        (await client.Send(HttpMethod.Post, $"/api/v1/documents/documents/{id}/legal-holds/{hold.GetProperty("id").GetGuid()}/release"))
-            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        // Releasing it needs a second person (OQ-111): the request is accepted and the hold stays in force until approved.
+        (await client.Send(HttpMethod.Post, $"/api/v1/documents/documents/{id}/legal-holds/{hold.GetProperty("id").GetGuid()}/release", new { reason = "Settled" }))
+            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        (await (await client.GetAsync($"/api/v1/documents/documents/{id}")).Json()).GetProperty("legalHold").GetBoolean().ShouldBeTrue();
     }
 
     private static async Task<Guid> Register(HttpClient client, string firstNames, string surname)
