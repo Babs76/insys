@@ -37,7 +37,9 @@
 | 8 Wave 1 batch 2 | Communications (F021, F031, F078, F095–F102): notifications, channels as stubs, preferences and consent, triggers, delivery callbacks, portal; function catalogue proposal (ADR-026) for sign-off | **Merged** (`2562160`, 25 Oct 2026) |
 | 8 Wave 1 batch 3 | Function catalogue (ADR-026): dynamic menus and function-based access; Communications follow-ups (proof of consent, claim communications list); Payments callback idempotency; CI split plan | **Merged** (`5583285`, 25 Oct 2026) |
 | 8 Wave 1 batch 4 | CI integration split into two shards; OQ-098 conditions and OQ-099; business dates (Analytics by the tenant's business date, a fixed test clock, the 23:30 UTC boundary test) | **Merged** (`9cc94c3`, 25 Oct 2026) |
-| 9 Wave 2 batch 1 | Release tasks (Analytics rebuild once per tenant), month pattern and figure code enum, Keycloak addresses per environment; Wave 2 cases addendum for sign-off | **In progress on `wave2-1`** (25 Oct 2026) |
+| 9 Wave 2 batch 1 | Release tasks (Analytics rebuild once per tenant), month pattern and figure code enum, Keycloak addresses per environment; approval endings D-1 to D-5; front-end requests BR-006 and BR-007; Wave 2 cases addendum signed off | **Merged** (`77d377a`, 25 Oct 2026; CI run 40205730406) |
+| 9 Wave 2 batch 2 | D-5 extended (refused grants never log-only); OQ-112 (payment release limits retired); OQ-111 role templates in code and tested; BR-001, 002, 004, 005, 010 built; Wave 2 cases (Workflow cases, portal, notices, claim reopen and partial approval, redress paid and posted) | **Merged** (`ea84183`, 26 Oct 2026; CI run 40380406037) |
+| 9 Wave 2 batch 3 | BR-013 (two first administrators), BR-018 (Provisioned means usable), the 20 privileged flags, `LEGAL_HOLD_RELEASE`, BR-019, front-end requests BR-011, 012, 014, 015, 020, 022; proposals BR-016, BR-021, record-scoped history | **In progress on `wave2-3`** (26 Oct 2026) |
 
 ## Phase 1 review items
 
