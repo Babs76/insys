@@ -39645,6 +39645,34 @@
           }
         }
       },
+      "IdentityMeLocale": {
+        "required": [
+          "tag",
+          "country",
+          "baseCurrency"
+        ],
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "baseCurrency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "IdentityMePermission": {
         "required": [
           "permission",
@@ -39848,6 +39876,16 @@
           "scopesEnforced": {
             "type": "boolean",
             "default": true
+          },
+          "locale": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IdentityMeLocale"
+              }
+            ]
           }
         }
       },

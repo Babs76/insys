@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Net;
+using System.Text.Json;
 using Insys.Identity.Contracts;
 using Insys.Integration.Contracts;
 using Insys.Tenancy.Contracts;
@@ -278,6 +279,10 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         readiness.GetProperty("steps").EnumerateArray().Single(s => s.GetProperty("step").GetString() == "ORGANISATION_AND_ACCESS")
             .GetProperty("checks").EnumerateArray().Single(c => c.GetProperty("code").GetString() == "FIRST_ADMINISTRATOR")
             .GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["TENANT_ADMIN: 0 of 2 active"]);
+
+        // BR-022: /identity/me gives the locale to format with: this request's language and the tenant's country, and its currency.
+        var locale = (await (await _factory.ClientFor(tenantId, "ownready-reader").GetAsync("/api/v1/identity/me")).Json()).GetProperty("locale");
+        (locale.GetProperty("tag").GetString(), locale.GetProperty("country").GetString(), locale.GetProperty("baseCurrency").GetString()).ShouldBe(("en-ZA", "ZA", "ZAR"));
 
         // Another tenant's user reads its own tenant's, never this one's.
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "tenant-a-ready-reader", TenancyPermissions.Read);

@@ -150,8 +150,9 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     {
         using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
 
+        // Tenancy is the platform operator's, except a tenant's own staff reading their tenant's readiness (BR-012).
         core.RootElement.GetProperty("paths").EnumerateObject().Select(p => p.Name)
-            .ShouldAllBe(p => !p.Contains("/static/") && !p.Contains("/static-data/") && !p.StartsWith("/api/v1/tenancy/"));
+            .ShouldAllBe(p => !p.Contains("/static/") && !p.Contains("/static-data/") && (!p.StartsWith("/api/v1/tenancy/") || p == "/api/v1/tenancy/readiness"));
     }
 
     [Fact]

@@ -82,6 +82,15 @@ public interface ITenantBaseCurrency
     Task<string?> BaseCurrency(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
 }
 
+/// <summary>The tenant's locale defaults that formatting needs (BR-022): its ISO 3166 country and ISO 4217 base currency.</summary>
+public sealed record TenantFormatting(string Country, string BaseCurrency);
+
+/// <summary>Public query interface: the tenant's locale on a day (tenant.cfg_locale_defaults), or null when none is in force.</summary>
+public interface ITenantFormatting
+{
+    Task<TenantFormatting?> Formatting(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+}
+
 /// <summary>Public query interface: the tenant's IANA time zone on a day (tenant.cfg_locale_defaults), or null when none is in force.</summary>
 public interface ITenantTimeZone
 {

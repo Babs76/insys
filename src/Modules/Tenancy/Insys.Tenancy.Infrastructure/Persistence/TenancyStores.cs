@@ -134,8 +134,14 @@ internal sealed class TenantStatusQuery([FromKeyedServices(TenancyDbContext.Sche
     }
 }
 
-internal sealed class TenantLocaleDefaults([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantBaseCurrency, ITenantTimeZone, BuildingBlocks.Application.Context.ITenantTimeZoneSource
+internal sealed class TenantLocaleDefaults([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource)
+    : ITenantBaseCurrency, ITenantTimeZone, ITenantFormatting, BuildingBlocks.Application.Context.ITenantTimeZoneSource
 {
+    public async Task<TenantFormatting?> Formatting(Guid tenantId, DateOnly day, CancellationToken cancellationToken) =>
+        await Column("country", tenantId, day, cancellationToken) is { } country && await BaseCurrency(tenantId, day, cancellationToken) is { } currency
+            ? new TenantFormatting(country, currency)
+            : null;
+
     public Task<string?> BaseCurrency(Guid tenantId, DateOnly day, CancellationToken cancellationToken) => Column("base_currency", tenantId, day, cancellationToken);
 
     public Task<string?> TimeZone(Guid tenantId, DateOnly day, CancellationToken cancellationToken) => Column("time_zone", tenantId, day, cancellationToken);

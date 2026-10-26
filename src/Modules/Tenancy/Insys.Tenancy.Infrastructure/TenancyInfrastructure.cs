@@ -49,6 +49,7 @@ public static class TenancyInfrastructure
         services.AddSingleton<ITenantStatusQuery, TenantStatusQuery>();
         services.AddSingleton<TenantLocaleDefaults>();
         services.AddSingleton<ITenantBaseCurrency>(sp => sp.GetRequiredService<TenantLocaleDefaults>());
+        services.AddSingleton<ITenantFormatting>(sp => sp.GetRequiredService<TenantLocaleDefaults>());
         services.AddSingleton<ITenantTimeZone>(sp => sp.GetRequiredService<TenantLocaleDefaults>());
         services.AddSingleton<BuildingBlocks.Application.Context.ITenantTimeZoneSource>(sp => sp.GetRequiredService<TenantLocaleDefaults>());
         services.AddHealthChecks().AddCheck<TenantTimeZonesHealthCheck>("tenant-time-zones");

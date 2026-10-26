@@ -165,7 +165,7 @@ public static class OnboardingSeed
 
         // TENANT_REGISTRATION
         await database.SeedStaticFilled(tenantId, "tenant.cfg_locale_defaults", "EFFECTIVE", "LOCALE", from, ("base_currency", "ZAR"), ("languages", new[] { "en" }),
-            ("default_language", "en"), ("time_zone", "Africa/Johannesburg"));
+            ("default_language", "en"), ("time_zone", "Africa/Johannesburg"), ("country", "ZA"));
 
         // ORGANISATION_AND_ACCESS (the first administrator is provisioned by the test; the back-office channel has no
         // staff roles to cover until roles with channel-scoped permissions exist).

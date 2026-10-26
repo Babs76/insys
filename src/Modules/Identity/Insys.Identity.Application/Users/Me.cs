@@ -43,6 +43,14 @@ namespace Insys.Identity.Application.Users;
 public sealed record MeTenant(Guid Id, string TenantCode, string Name, [property: OneOf("Onboarding", "Active", "Suspended", "Terminated")] string Status,
     bool IsPlatformOperator, string TimeZone, DateOnly BusinessDate);
 
+/// <summary>
+/// BR-022: how to format dates and numbers for this caller. Tag is a BCP 47 tag of this request's language and the
+/// tenant's country (en-ZA), null when the tenant has no locale defaults in force; then a client falls back to its own
+/// configuration. Dates follow the tenant's time zone (MeTenant.TimeZone); money is shown in its own currency.
+/// </summary>
+public sealed record MeLocale([property: BuildingBlocks.Contracts.AlwaysPresent] string? Tag, [property: BuildingBlocks.Contracts.AlwaysPresent] string? Country,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] string? BaseCurrency);
+
 /// <summary>The caller's preferred language, this request's language, and the tenant's languages (OQ-068).</summary>
 public sealed record MeLanguage(string? Preferred, string Request, string TenantDefault, IReadOnlyList<string> Supported);
 
@@ -66,7 +74,8 @@ public sealed record MePermission(string Permission, IReadOnlyList<PermissionSco
 /// </param>
 /// <param name="External">For an external user, the party, intermediary or provider they are (external-user access §1); null for staff.</param>
 public sealed record MeView(Guid UserId, string Username, string DisplayName, UserStatus Status, bool MfaEnrolled, MeTenant Tenant, MeLanguage Language,
-    IReadOnlyList<MeRole> Roles, IReadOnlyList<MePermission> Permissions, long RowVersion, MeExternalSubject? External, bool ScopesEnforced = true);
+    IReadOnlyList<MeRole> Roles, IReadOnlyList<MePermission> Permissions, long RowVersion, MeExternalSubject? External, bool ScopesEnforced = true,
+    MeLocale? Locale = null);
 
 /// <summary>What an external user's approved link names.</summary>
 public sealed record MeExternalSubject(SubjectKind Kind, Guid? PartyId, string? IntermediaryCode, string? ProviderId);
@@ -83,7 +92,8 @@ public sealed class ChangeMyPreferredLanguageValidator : AbstractValidator<Chang
 }
 
 internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader roles, ITenantProfiles tenants, ILanguageSettings languages, RequestLanguage request,
-    IExecutionContext execution, ITenantContext tenant, IOptions<PlatformOptions> platform, IClock clock, IBusinessDate businessDate) : IQueryHandler<GetMe, MeView>
+    IExecutionContext execution, ITenantContext tenant, IOptions<PlatformOptions> platform, IClock clock, IBusinessDate businessDate, ITenantFormatting formatting)
+    : IQueryHandler<GetMe, MeView>
 {
     public async Task<Result<MeView>> Handle(GetMe query, CancellationToken cancellationToken)
     {
@@ -109,6 +119,7 @@ internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader role
 
         var profile = await tenants.Get(tenantId, cancellationToken);
         var tenantLanguages = await languages.For(tenantId, cancellationToken);
+        var locale = await formatting.Formatting(tenantId, businessDate.Today, cancellationToken);
         return new MeView(user.Id, user.Username, user.DisplayName, user.Status, user.MfaEnrolled,
             new MeTenant(tenantId, profile?.TenantCode ?? "", profile?.LegalName ?? "", profile?.Status ?? "", tenantId == platform.Value.OperatorTenantId,
                 businessDate.Zone.Id, businessDate.Today),
@@ -116,7 +127,10 @@ internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader role
             assignments, permissions, user.RowVersion,
             user.SubjectLinks.SingleOrDefault(l => l.Status == SubjectLinkStatus.Active) is { } link
                 ? new MeExternalSubject(link.Kind, link.PartyId, link.IntermediaryCode, link.ProviderId)
-                : null);
+                : null)
+        {
+            Locale = new MeLocale(locale is { Country.Length: 2 } ? $"{request.Language}-{locale.Country.ToUpperInvariant()}" : null, locale?.Country, locale?.BaseCurrency),
+        };
     }
 }
 
