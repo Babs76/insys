@@ -41,6 +41,7 @@ public static class PartyInfrastructure
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.BankAccountBusinessRefType, "PARTY_BANK_ACCOUNTS", Insys.Party.Contracts.PartyApprovals.BankAccountVerificationType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.MatchBusinessRefType, "PARTIES", Insys.Party.Contracts.PartyApprovals.MatchResolutionType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.SearchLogHoldBusinessRefType, "PARTY_SEARCH_LOG", Insys.Party.Contracts.PartyApprovals.LegalHoldReleaseType);
         services.AddModuleDbContext<PartyDbContext>(PartyDbContext.SchemaName, "Party");
         services.AddStaticData<PartyDbContext>(PartyDbContext.SchemaName, PartyStaticData.Descriptors);
         services.AddModuleHandlers<PartyDbContext>(typeof(RegisterParty).Assembly);
@@ -68,6 +69,8 @@ public static class PartyInfrastructure
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, PartyMatchResolutionPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, PartyMatchResolutionPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalRejected");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, BankAccountVerificationPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalRejected");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, SearchLogHoldReleasePolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalGranted");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, SearchLogHoldReleasePolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalRejected");
         return services;
     }
 }

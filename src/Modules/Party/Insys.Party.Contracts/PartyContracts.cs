@@ -38,6 +38,12 @@ public static class PartyApprovals
     public const string MatchBusinessRefType = "PARTY_MATCH";
 
     public const string MatchResolutionType = "PARTY_MATCH_RESOLUTION";
+
+    /// <summary>A legal hold on the party search log (OQ-073); the business reference is the hold.</summary>
+    public const string SearchLogHoldBusinessRefType = "SEARCH_LOG_HOLD";
+
+    /// <summary>Releasing a legal hold needs a second person (OQ-111, 25 October 2026); the compliance officer is the checker.</summary>
+    public const string LegalHoldReleaseType = "LEGAL_HOLD_RELEASE";
 }
 
 public static class PartyPermissions

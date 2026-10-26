@@ -30,6 +30,7 @@ using Insys.Audit.Contracts;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.Party.Domain.Parties;
 using Microsoft.Extensions.Options;
@@ -61,9 +62,23 @@ public sealed record SearchLogRetentionRun(Guid RunId, int Minimised, int Delete
 
 public sealed record PlaceSearchLogHold(string? SearchedBy, string Reason) : ICommand<Guid>;
 
-public sealed record ReleaseSearchLogHold(Guid HoldId) : ICommand<long>;
+/// <summary>Command RequestSearchLogHoldRelease: asks for a second person's approval to release the hold (OQ-111); it stays in force until approved.</summary>
+public sealed record RequestSearchLogHoldRelease(Guid HoldId, string Reason) : ICommand<SearchLogHoldView>;
 
-public sealed record SearchLogHoldView(Guid Id, string? SearchedBy, string Reason, string PlacedBy, DateTimeOffset PlacedAt, string? ReleasedBy, DateTimeOffset? ReleasedAt);
+/// <param name="ReleasedBy">The checker who approved the release.</param>
+/// <param name="ReleaseRequestedBy">Who asked for the hold to be released, while that waits for a second person's approval (OQ-111); the hold is in force meanwhile.</param>
+/// <param name="LatestRejection">The hold's latest release approval that ended without being granted (OQ-113), or null.</param>
+public sealed record SearchLogHoldView(Guid Id, string? SearchedBy, string Reason, string PlacedBy, DateTimeOffset PlacedAt, string? ReleasedBy, DateTimeOffset? ReleasedAt,
+    Guid? ReleaseRequestedBy, DateTimeOffset? ReleaseRequestedAt, string? ReleaseReason, Workflow.Contracts.LatestRejection? LatestRejection = null)
+{
+    public static SearchLogHoldView From(SearchLogHold h, Workflow.Contracts.LatestRejection? latestRejection = null) =>
+        new(h.Id, h.SearchedBy, h.Reason, h.PlacedBy, h.PlacedAt, h.ReleasedBy, h.ReleasedAt, h.ReleaseRequestedBy, h.ReleaseRequestedAt, h.ReleaseReason, latestRejection);
+}
+
+public sealed class RequestSearchLogHoldReleaseValidator : AbstractValidator<RequestSearchLogHoldRelease>
+{
+    public RequestSearchLogHoldReleaseValidator() => RuleFor(c => c.Reason).NotEmpty().MaximumLength(200);
+}
 
 public sealed record ListSearchLogHolds : IQuery<IReadOnlyList<SearchLogHoldView>>;
 
@@ -90,10 +105,10 @@ public interface ISearchLogRetention
 }
 
 internal sealed class SearchLogRetentionHandlers(ISearchLogRetention log, IAuditRetention retention, IOptions<SearchLogRetentionOptions> options, IExecutionContext execution,
-    IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit, Workflow.Contracts.IApprovalHistory history) :
     ICommandHandler<ApplySearchLogRetention, SearchLogRetentionRun>,
     ICommandHandler<PlaceSearchLogHold, Guid>,
-    ICommandHandler<ReleaseSearchLogHold, long>,
+    ICommandHandler<RequestSearchLogHoldRelease, SearchLogHoldView>,
     IQueryHandler<ListSearchLogHolds, IReadOnlyList<SearchLogHoldView>>
 {
     public async Task<Result<SearchLogRetentionRun>> Handle(ApplySearchLogRetention command, CancellationToken cancellationToken)
@@ -126,19 +141,76 @@ internal sealed class SearchLogRetentionHandlers(ISearchLogRetention log, IAudit
         return Task.FromResult(Result<Guid>.Success(hold.Id));
     }
 
-    public async Task<Result<long>> Handle(ReleaseSearchLogHold command, CancellationToken cancellationToken)
+    public async Task<Result<SearchLogHoldView>> Handle(RequestSearchLogHoldRelease command, CancellationToken cancellationToken)
     {
+        if (execution.ActorType != ActorType.User || !Guid.TryParse(execution.ActorId, out var user))
+        {
+            return Error.Forbidden(ErrorCodes.Forbidden, "This is done by an identified user.");
+        }
+
         if (await log.Hold(command.HoldId, cancellationToken) is not { } hold)
         {
             return Error.NotFound(ErrorCodes.NotFound, "The hold was not found.");
         }
 
-        audit.Record(new AuditEntry("PARTY", "ReleaseSearchLogHold", nameof(SearchLogHold), hold.Id.ToString()));
-        var released = hold.Release(execution.ActorId, clock.UtcNow);
-        return released.IsFailure ? released.Error : hold.RowVersion + 1;
+        var requested = hold.RequestRelease(user, command.Reason, clock.UtcNow);
+        if (requested.IsFailure)
+        {
+            return requested.Error;
+        }
+
+        audit.Record(new AuditEntry("PARTY", "RequestSearchLogHoldRelease", nameof(SearchLogHold), hold.Id.ToString()));
+        return SearchLogHoldView.From(hold);
     }
 
-    public async Task<Result<IReadOnlyList<SearchLogHoldView>>> Handle(ListSearchLogHolds query, CancellationToken cancellationToken) =>
-        Result.Success<IReadOnlyList<SearchLogHoldView>>((await log.Holds(cancellationToken))
-            .Select(h => new SearchLogHoldView(h.Id, h.SearchedBy, h.Reason, h.PlacedBy, h.PlacedAt, h.ReleasedBy, h.ReleasedAt)).ToList());
+    public async Task<Result<IReadOnlyList<SearchLogHoldView>>> Handle(ListSearchLogHolds query, CancellationToken cancellationToken)
+    {
+        var views = new List<SearchLogHoldView>();
+        foreach (var hold in await log.Holds(cancellationToken))
+        {
+            views.Add(SearchLogHoldView.From(hold, await history.Latest(Contracts.PartyApprovals.SearchLogHoldBusinessRefType, hold.Id, cancellationToken)));
+        }
+
+        return views;
+    }
+}
+
+/// <summary>
+/// Workflow's decision on releasing a search log hold (LEGAL_HOLD_RELEASE, OQ-111). Approved: the hold is released, and
+/// retention may then delete the entries it kept. Rejected, expired or withdrawn: the request is cleared and the hold
+/// stays in force. A redelivered grant already applied changes nothing; one the hold will not take (no release waits any
+/// more, or the checker is the requester) parks the delivery (D-5, ADR-022): a grant as APPROVAL_NOT_APPLIED, an ending as
+/// APPROVAL_ENDING_NOT_APPLIED.
+/// </summary>
+public sealed class SearchLogHoldReleasePolicy(ISearchLogRetention log, IClock clock, IAuditTrail audit) :
+    IIntegrationEventHandler<Workflow.Contracts.ApprovalGranted>,
+    IIntegrationEventHandler<Workflow.Contracts.ApprovalRejected>
+{
+    public Task Handle(Workflow.Contracts.ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Decide(granted.BusinessRefType, granted.BusinessRefId, true, granted.ApprovalId, granted.CheckerId, cancellationToken);
+
+    public Task Handle(Workflow.Contracts.ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Decide(rejected.BusinessRefType, rejected.BusinessRefId, false, rejected.ApprovalId, rejected.CheckerId, cancellationToken);
+
+    private async Task Decide(string businessRefType, Guid holdId, bool approved, Guid approvalId, Guid checkerId, CancellationToken cancellationToken)
+    {
+        if (businessRefType != Contracts.PartyApprovals.SearchLogHoldBusinessRefType || await log.Hold(holdId, cancellationToken) is not { } hold)
+        {
+            return;
+        }
+
+        if (approved && hold.ReleaseApplied(approvalId))
+        {
+            return;
+        }
+
+        if (hold.DecideRelease(approved, approvalId, checkerId, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(approved ? PrerequisiteCodes.ApprovalNotApplied : PrerequisiteCodes.ApprovalEndingNotApplied,
+                $"{Contracts.PartyApprovals.LegalHoldReleaseType}:{approvalId}");
+        }
+
+        audit.Record(new AuditEntry("PARTY", approved ? "ReleaseSearchLogHold" : "KeepSearchLogHold", nameof(SearchLogHold), holdId.ToString(),
+            new Dictionary<string, string?> { ["approval"] = approvalId.ToString() }));
+    }
 }

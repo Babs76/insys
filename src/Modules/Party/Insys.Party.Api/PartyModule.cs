@@ -353,13 +353,19 @@ public sealed class PartyModule : IModule
             .WithSummary("The legal holds on the party search log, active and released")
             .RequirePermission(Audit.Contracts.AuditPermissions.Read);
 
-        holds.MapPost("/{id:guid}/release", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new ReleaseSearchLogHold(id), ct)).ToHttp(_ => Results.NoContent()))
-            .Produces(StatusCodes.Status204NoContent)
+        holds.MapPost("/{id:guid}/release", async (Guid id, SearchLogHoldReleaseRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new RequestSearchLogHoldRelease(id, r.Reason), ct)).ToHttp(view => Results.Accepted(null, view)))
+            .Produces<SearchLogHoldView>(StatusCodes.Status202Accepted)
             .WithName("PartyReleaseSearchLogHold")
-            .WithSummary("Release a legal hold; the entries are deleted at the next retention run once past their period")
+            .WithSummary("Ask for a legal hold to be released; a second person approves it (LEGAL_HOLD_RELEASE)")
+            .WithDescription("Releasing a hold needs a second person (OQ-111). The request is recorded on the hold and waits for a LEGAL_HOLD_RELEASE approval; "
+                + "the hold stays in force until it is approved, and the entries are then deleted at the next retention run once past their period. A rejected, "
+                + "expired or withdrawn approval clears the request, and the hold stays (its latestRejection says how it ended).")
             .RequirePermission(PartyPermissions.SearchLogHold);
     }
 }
 
 public sealed record SearchLogHoldRequest(string? SearchedBy, string Reason);
+
+/// <param name="Reason">Why the hold may be released (at most 200 characters); the checker sees it.</param>
+public sealed record SearchLogHoldReleaseRequest(string Reason);

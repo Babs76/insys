@@ -58,6 +58,9 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             hold.Property(h => h.Reason).HasMaxLength(200);
             hold.Property(h => h.PlacedBy).HasMaxLength(80);
             hold.Property(h => h.ReleasedBy).HasMaxLength(80);
+            hold.Property(h => h.ReleaseReason).HasMaxLength(200);
+            hold.Ignore(h => h.IsActive);
+            hold.Ignore(h => h.ReleasePending);
         });
 
         modelBuilder.Entity<PartySearchLog>(log =>
