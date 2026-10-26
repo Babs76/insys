@@ -49,6 +49,12 @@ public static partial class StaticDataFunctions
 
     public static string Approve(StaticDataDescriptor d) => $"SD_{ModuleCode(d)}_APPROVE";
 
+    /// <summary>
+    /// Catalogue modules whose maintain and approve functions are privileged: Identity and access management holds the roles and
+    /// their function grants, the way to every other privilege (role-templates.md, approved 25 October 2026).
+    /// </summary>
+    private static readonly HashSet<string> PrivilegedModules = new(["IDENTITY_AND_ACCESS_MANAGEMENT"], StringComparer.Ordinal);
+
     public static string SubDomain(StaticDataDescriptor d) => "CONFIG_" + string.Join('_', NotWord().Split(d.ModuleRoute.ToUpperInvariant()).Where(w => w.Length > 0));
 
     /// <summary>The three functions of a table's catalogue module; declaring them again for another table of the module changes nothing.</summary>
@@ -63,11 +69,12 @@ public static partial class StaticDataFunctions
             "reinsurance" => Features.Reinsurance,
             _ => null,
         };
+        var privileged = PrivilegedModules.Contains(ModuleCode(d));
         var map = new FunctionMap(Audiences.StaffAndPlatform, feature)
             .Screen(View(d), SubDomain(d), area, $"configuration/{d.ModuleRoute}/{ModuleCode(d).ToLowerInvariant().Replace('_', '-')}")
-            .Action(Maintain(d), View(d), Array.Empty<string>())
+            .Action(Maintain(d), View(d), Array.Empty<string>(), privileged)
             // Approve and reject are one Workflow route for every table, which finds this function from the route (ADR-009).
-            .Permission(Approve(d), View(d), StaticDataPermissions.Approve);
+            .Permission(Approve(d), View(d), StaticDataPermissions.Approve, privileged);
         FunctionRegistry.Declare(map.Functions);
     }
 

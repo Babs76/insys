@@ -74,26 +74,26 @@ public static class RoleTemplates
         new("CASE_REOPEN", "Reopens a closed case, a complaint among them (OQ-109)", Flagged: true),
         new("CASE_PLACE_LEGAL_HOLD", "Keeps a case past its retention (legal hold)", Flagged: true),
         new("CASE_RELEASE_LEGAL_HOLD", "Lets a held case be disposed of when its retention ends", Flagged: true),
-        new("SUSPEND_TENANT", "Stops every user of a tenant from working"),
-        new("CHANGE_ISOLATION_PROFILE", "Changes where a tenant's data is held and how it is separated"),
-        new("ASSIGN_ROLE", "Grants a user functions; the way to every other privilege"),
-        new("REVOKE_ROLE", "Takes functions away; misuse locks people out of their work"),
-        new("SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN", "Maintains roles and their function grants (iam.cfg_role_function_assignments)"),
-        new("SD_IDENTITY_AND_ACCESS_MANAGEMENT_APPROVE", "Approves changes to roles and their function grants"),
-        new("PARTY_ANONYMISE", "Irreversibly removes a person's identity (POPIA erasure)"),
-        new("PARTY_MERGE_PARTIES", "Joins two people's records; a wrong merge exposes one person's data to another"),
-        new("PARTY_PLACE_SEARCH_LOG_HOLD", "Keeps the party search log past its retention (legal hold)"),
-        new("PARTY_RELEASE_SEARCH_LOG_HOLD", "Lets held search log entries be disposed of"),
-        new("DOCUMENTS_DISPOSE", "Destroys a document"),
-        new("DOCUMENTS_PLACE_LEGAL_HOLD", "Keeps documents past their retention (legal hold)"),
-        new("DOCUMENTS_RELEASE_LEGAL_HOLD", "Lets held documents be disposed of"),
-        new("DISCARD_PARKED_DELIVERY", "Drops an event a module never applied: the record stays as it was"),
-        new("DISCARD_MESSAGE", "Drops a dead-lettered message for good"),
-        new("PAYMENTS_ISSUE_CALLBACK_ENDPOINT", "Issues a signing secret a payment provider uses to report payments"),
-        new("PAYMENTS_REVOKE_CALLBACK_ENDPOINT", "Stops a payment provider's reports being accepted"),
-        new("COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT", "Issues a signing secret a messaging provider uses to report deliveries"),
-        new("COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT", "Stops a messaging provider's reports being accepted"),
-        new("PAYMENTS_REVERSE", "Reverses a payment already made"),
+        new("SUSPEND_TENANT", "Stops every user of a tenant from working", Flagged: true),
+        new("CHANGE_ISOLATION_PROFILE", "Changes where a tenant's data is held and how it is separated", Flagged: true),
+        new("ASSIGN_ROLE", "Grants a user functions; the way to every other privilege", Flagged: true),
+        new("REVOKE_ROLE", "Takes functions away; misuse locks people out of their work", Flagged: true),
+        new("SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN", "Maintains roles and their function grants (iam.cfg_role_function_assignments)", Flagged: true),
+        new("SD_IDENTITY_AND_ACCESS_MANAGEMENT_APPROVE", "Approves changes to roles and their function grants", Flagged: true),
+        new("PARTY_ANONYMISE", "Irreversibly removes a person's identity (POPIA erasure)", Flagged: true),
+        new("PARTY_MERGE_PARTIES", "Joins two people's records; a wrong merge exposes one person's data to another", Flagged: true),
+        new("PARTY_PLACE_SEARCH_LOG_HOLD", "Keeps the party search log past its retention (legal hold)", Flagged: true),
+        new("PARTY_RELEASE_SEARCH_LOG_HOLD", "Lets held search log entries be disposed of", Flagged: true),
+        new("DOCUMENTS_DISPOSE", "Destroys a document", Flagged: true),
+        new("DOCUMENTS_PLACE_LEGAL_HOLD", "Keeps documents past their retention (legal hold)", Flagged: true),
+        new("DOCUMENTS_RELEASE_LEGAL_HOLD", "Lets held documents be disposed of", Flagged: true),
+        new("DISCARD_PARKED_DELIVERY", "Drops an event a module never applied: the record stays as it was", Flagged: true),
+        new("DISCARD_MESSAGE", "Drops a dead-lettered message for good", Flagged: true),
+        new("PAYMENTS_ISSUE_CALLBACK_ENDPOINT", "Issues a signing secret a payment provider uses to report payments", Flagged: true),
+        new("PAYMENTS_REVOKE_CALLBACK_ENDPOINT", "Stops a payment provider's reports being accepted", Flagged: true),
+        new("COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT", "Issues a signing secret a messaging provider uses to report deliveries", Flagged: true),
+        new("COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT", "Stops a messaging provider's reports being accepted", Flagged: true),
+        new("PAYMENTS_REVERSE", "Reverses a payment already made", Flagged: true),
     ];
 
     private static readonly string[] Approving = ["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", "WORKFLOW_REJECT"];
@@ -158,7 +158,7 @@ public static class RoleTemplates
         new("COMPLIANCE_OFFICER", "Compliance officer", "STAFF",
             "Regulatory returns, risk limits, consent, the audit trail and the party search log; complaints, and the impartial review of appeals (PPR 18.6)",
             ["REGULATORY_REPORTING", "RISK_LIMITS", "CONSENT_PREFERENCES", "AUDIT", "CONFIG_COMPLIANCE", "CUSTOMER_SERVICE"], Extra: ["PARTY_SEARCH_LOG"],
-            PrivilegedGrants: ["CASE_DECIDE_APPEAL"]),
+            PrivilegedGrants: ["CASE_DECIDE_APPEAL"], Approves: ["LEGAL_HOLD_RELEASE"]),
         new("DATA_PROTECTION_OFFICER", "Data protection officer", "STAFF",
             "Anonymises and merges parties, disposes of documents, and places and releases legal holds on documents and the party search log",
             ["CONSENT_PREFERENCES", "AUDIT"], Extra: ["PARTY_SEARCH_LOG"],
@@ -269,11 +269,11 @@ public static class RoleTemplates
 
         s.AppendLine().AppendLine("Approvals already need a second person (the checker is never the maker); these rules also keep one person from holding both sides of a payment.");
         s.AppendLine().AppendLine("## The privileged flag").AppendLine();
-        s.AppendLine("Assigning a role that holds a privileged function is itself an approval (`PRIVILEGED_ROLE`). Two functions were flagged; `TERMINATE_TENANT` is "
-            + "flagged as decided. **The other 20 are approved (25 October 2026, Ade) and are switched on in the same batch as the fix for front-end request "
-            + "BR-013 (a new tenant needs at least two administrators), not before:** flagging `ASSIGN_ROLE` and the role-grant functions makes the tenant "
-            + "administrator a privileged role, so a new tenant with one administrator could not assign anything. The templates already treat every one as "
-            + "privileged: none is in an everyday template, and each is named where a template holds it.").AppendLine();
+        s.AppendLine("Assigning a role that holds a privileged function is itself an approval (`PRIVILEGED_ROLE`). Every function below is flagged. "
+            + "Eight were flagged first; **the other 20 were approved (25 October 2026, Ade) and switched on with the fix for front-end request BR-013** "
+            + "(a new tenant has at least two administrators), since flagging `ASSIGN_ROLE` and the role-grant functions makes the tenant administrator a "
+            + "privileged role, which a tenant with one administrator could not have assigned. None is in an everyday template, and each is named where a "
+            + "template holds it.").AppendLine();
         s.AppendLine("| Function | Flag | Why | Held by |").AppendLine("|---|---|---|---|");
         foreach (var p in Privileged)
         {
@@ -285,19 +285,13 @@ public static class RoleTemplates
         s.AppendLine("**Decided (25 October 2026, Ade): a separate Health auditor.** HLT-008 restricts medical information by role, purpose and minimum necessary "
             + "access, and the party search log shows who looked up whom. `AUDITOR` reads every staff screen except "
             + $"{Codes(SensitiveReadScreens)}; `HEALTH_AUDITOR` reads those with the audit trail.").AppendLine();
-        s.AppendLine("## Proposed: a second person for releasing a legal hold").AppendLine();
+        s.AppendLine("## A second person for releasing a legal hold (OQ-111)").AppendLine();
         s.AppendLine("The data protection officer places and releases legal holds and disposes of documents, so one person could release a hold and destroy "
-            + "what it protected. **Proposed: a new approval type, `LEGAL_HOLD_RELEASE`, not a segregation-of-duties rule.** Releasing a hold on documents "
-            + "(`DOCUMENTS_RELEASE_LEGAL_HOLD`) or on the party search log (`PARTY_RELEASE_SEARCH_LOG_HOLD`) becomes a request that a second person approves in "
-            + "Workflow; the hold stays in force until then, and a rejection, expiry or withdrawal leaves it in force (the approval endings rule). The checker "
-            + "is whoever has `LEGAL_HOLD_RELEASE` authority, suggested the compliance officer.");
-        s.AppendLine("- **Why not a rule:** a rule that no role holds both releasing and disposing still lets one person release a hold with no one checking, "
-            + "and a tenant with one data protection officer could no longer release at all. An approval puts the second person on the release itself, "
-            + "whoever later disposes.");
-        s.AppendLine("- **To build, once confirmed:** the release request and its approval in Documents and Party (with the approval endings and D-5 handling, "
-            + "and two rows in the approval endings table test), the approval kind, and the compliance officer approving it.").AppendLine();
+            + "what it protected. **Decided (25 October 2026, Ade): an approval type, `LEGAL_HOLD_RELEASE`, not a segregation-of-duties rule.** Releasing a "
+            + "hold on documents (`DOCUMENTS_RELEASE_LEGAL_HOLD`) or on the party search log (`PARTY_RELEASE_SEARCH_LOG_HOLD`) is a request that a second "
+            + "person approves in Workflow; the hold stays in force until then, and a rejection, expiry or withdrawal leaves it in force. The compliance "
+            + "officer approves it.").AppendLine();
         s.AppendLine("## Open points");
-        s.AppendLine("- Confirm the legal hold release approval above.");
         s.AppendLine("- Deferred (25 October 2026): which templates OFT Insurance South Africa loads and their authority bands (Workstream F, OQ-112); "
             + "whether a tenant may hide templates it does not use; Keycloak step-up (`acr_values`) before the portals launch.").AppendLine();
         s.AppendLine("## Appendix: the functions of each template").AppendLine();

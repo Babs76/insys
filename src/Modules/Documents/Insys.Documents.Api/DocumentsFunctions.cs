@@ -42,9 +42,9 @@ internal static class DocumentsFunctions
         .Action("DOCUMENTS_GENERATE", "DOCUMENTS", "DocumentsGenerate")
         .Action("DOCUMENTS_STORE", "DOCUMENTS", "DocumentsStore")
         .Action("DOCUMENTS_DELIVER", "DOCUMENTS", "DocumentsDeliver")
-        .Action("DOCUMENTS_PLACE_LEGAL_HOLD", "DOCUMENTS", "DocumentsPlaceLegalHold")
-        .Action("DOCUMENTS_RELEASE_LEGAL_HOLD", "DOCUMENTS", "DocumentsReleaseLegalHold")
-        .Action("DOCUMENTS_DISPOSE", "DOCUMENTS", "DocumentsDispose")
+        .Action("DOCUMENTS_PLACE_LEGAL_HOLD", "DOCUMENTS", "DocumentsPlaceLegalHold", privileged: true)
+        .Action("DOCUMENTS_RELEASE_LEGAL_HOLD", "DOCUMENTS", "DocumentsReleaseLegalHold", privileged: true)
+        .Action("DOCUMENTS_DISPOSE", "DOCUMENTS", "DocumentsDispose", privileged: true)
             .Functions,
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
         .Screen("CUSTOMER_PORTAL_DOCUMENTS_LIST", "CUSTOMER_PORTAL", "Documents", "portal/documents", "PortalDocumentsList")

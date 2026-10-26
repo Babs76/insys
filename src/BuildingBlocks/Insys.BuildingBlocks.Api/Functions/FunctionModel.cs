@@ -103,8 +103,8 @@ public sealed class FunctionMap(IReadOnlyList<string> audiences, string? feature
             endpoints, []));
 
     /// <summary>An action a handler checks with a permission of its own, beside an operation (x-additional-permissions).</summary>
-    public FunctionMap Permission(string code, string parent, string permission) =>
-        Add(new FunctionDeclaration(code, FunctionKind.Action, Parent(parent).SubDomain, Parent(parent).ProcessArea, parent, audiences, null, feature, false, [],
+    public FunctionMap Permission(string code, string parent, string permission, bool privileged = false) =>
+        Add(new FunctionDeclaration(code, FunctionKind.Action, Parent(parent).SubDomain, Parent(parent).ProcessArea, parent, audiences, null, feature, privileged, [],
             [permission]));
 
     /// <summary>System work (a job or the module's event consumers); disabled for a tenant, its work parks (ADR-022).</summary>

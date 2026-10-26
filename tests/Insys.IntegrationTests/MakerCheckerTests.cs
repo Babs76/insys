@@ -121,7 +121,8 @@ public sealed class MakerCheckerTests(DatabaseFixture fixture) : IClassFixture<D
     [Fact]
     public async Task RolesAndAssignments_SayWhetherTheRoleIsPrivileged_RequiresMfa_AndNeedsApproval_GAP021()
     {
-        var copied = await fixture.Database.RoleWithPermissions(Tenant, IntegrationPermissions.DeadLetterUpdate);
+        // The dead letters screen only: dead_letter.update would bring DISCARD_MESSAGE, a privileged function, which needs MFA itself.
+        var copied = await fixture.Database.RoleWithPermissions(Tenant, IntegrationPermissions.DeadLetterRead);
         var plain = await fixture.Database.RoleWithPermissions(Tenant, IntegrationPermissions.WebhookRead);
         var adminOne = _factory.ClientFor(Tenant, "admin-one");
 

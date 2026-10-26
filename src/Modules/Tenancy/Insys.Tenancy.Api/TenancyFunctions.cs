@@ -44,10 +44,10 @@ internal static class TenancyFunctions
         .Action("RECORD_SMOKE_RUN", "TENANTS", "RecordSmokeRun")
         .Action("APPROVE_SMOKE_RUN", "TENANTS", "ApproveSmokeRun")
         .Action("ACTIVATE_TENANT", "TENANTS", "ActivateTenant")
-        .Action("SUSPEND_TENANT", "TENANTS", "SuspendTenant")
+        .Action("SUSPEND_TENANT", "TENANTS", "SuspendTenant", privileged: true)
         .Action("REACTIVATE_TENANT", "TENANTS", "ReactivateTenant")
         .Action("TERMINATE_TENANT", "TENANTS", "TerminateTenant", privileged: true)
-        .Action("CHANGE_ISOLATION_PROFILE", "TENANTS", "ChangeIsolationProfile")
+        .Action("CHANGE_ISOLATION_PROFILE", "TENANTS", "ChangeIsolationProfile", privileged: true)
             .Functions,
 
         // BR-012: a tenant's staff read their own tenant's onboarding readiness.
