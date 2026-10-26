@@ -106,7 +106,8 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
             SELECT id FROM workflow.approval WHERE tenant_id = @t AND business_ref_type = @r AND business_ref_id = @i AND status = 'REQUESTED'
             """, ("t", world.Tenant), ("r", waiting.BusinessRefType), ("i", waiting.BusinessRefId));
         approval.ShouldNotBeNull($"no {approvalType} approval waits for {waiting.BusinessRefType} {waiting.BusinessRefId}");
-        (await fixture.Database.ScalarAsOwner<string>("SELECT approval_type FROM workflow.approval WHERE id = @a", ("a", approval.Value))).ShouldBe(approvalType);
+        (await fixture.Database.ScalarAsOwner<string>("SELECT approval_type FROM workflow.approval WHERE id = @a", ("a", approval.Value)))
+            .ShouldBe(@case.ApprovalType ?? approvalType);
 
         var problems = new List<string>();
         Expect(problems, "while waiting", await waiting.State(), @case.WhileWaiting);
@@ -146,7 +147,7 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
 
             if (ending != Approved && waiting.View is not null)
             {
-                await LatestRejection(problems, world, await waiting.View(), approvalType, ending);
+                await LatestRejection(problems, world, await waiting.View(), @case.ApprovalType ?? approvalType, ending);
             }
 
             if (waiting.After is not null)
@@ -323,8 +324,9 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
     /// <param name="Operator">The record is the platform operator's (a first tenant administrator).</param>
     /// <param name="Refuse">Changes the waiting record, as a user or the module could after it was submitted, so that it will not take the approval (D-5).</param>
     /// <param name="WhenRefused">Its state once the approval is granted after that change: as the change left it.</param>
+    /// <param name="ApprovalType">The approval type, when the row's key is not it: one type used for two records (LEGAL_HOLD_RELEASE, OQ-111) has a row per record.</param>
     private sealed record Case(string[] Permissions, string[] AuthorityTypes, Func<World, Task<Waiting>> Setup, string WhileWaiting, string[] WhenApproved,
-        string WhenNotApproved, bool Operator = false, Func<World, Waiting, Task>? Refuse = null, string? WhenRefused = null);
+        string WhenNotApproved, bool Operator = false, Func<World, Waiting, Task>? Refuse = null, string? WhenRefused = null, string? ApprovalType = null);
 
     /// <param name="State">The record's state, as a short text compared with the case's expected states.</param>
     /// <param name="View">The record's own view, for latestRejection.</param>
@@ -392,6 +394,14 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
             "Calculated", ["Approved"], "Rejected", Refuse: RefuseProviderPaymentRun, WhenRefused: "Calculated"),
         [PaymentApprovals.PayoutApprovalType] = new(MoneyPermissionSet, [PaymentApprovals.PayoutApprovalType, BillingApprovals.RefundApprovalType, "BANK_ACCOUNT_VERIFICATION"],
             PayoutBatch, "Built", ["Approved"], "Rejected", Refuse: RefusePayoutBatch, WhenRefused: "Rejected"),
+        [$"{DocumentApprovals.LegalHoldReleaseType}/{DocumentApprovals.LegalHoldBusinessRefType}"] = new(
+            [DocumentPermissions.DocumentCreate, DocumentPermissions.DocumentRead, DocumentPermissions.LegalHoldManage, .. Approving],
+            [DocumentApprovals.LegalHoldReleaseType], DocumentLegalHold, "held|release pending", ["released"], "held", Refuse: RefuseLegalHoldRelease,
+            WhenRefused: "held", ApprovalType: DocumentApprovals.LegalHoldReleaseType),
+        [$"{PartyApprovals.LegalHoldReleaseType}/{PartyApprovals.SearchLogHoldBusinessRefType}"] = new(
+            [PartyPermissions.SearchLogHold, Insys.Audit.Contracts.AuditPermissions.Read, .. Approving],
+            [PartyApprovals.LegalHoldReleaseType], SearchLogHold, "held|release pending", ["released"], "held", Refuse: RefuseLegalHoldRelease,
+            WhenRefused: "held", ApprovalType: PartyApprovals.LegalHoldReleaseType),
     };
 
     /// <summary>A tenant of its own for one row, with a maker and a checker (another user, holding authority for the case's types).</summary>
@@ -613,6 +623,68 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         await w.Ok(await w.Factory.ClientFor(w.Tenant, $"merger-{w.Suffix}").Send(HttpMethod.Post, "/api/v1/party/merges",
             new { survivorId = survivor, mergedId = known, reason = "Same person" }, idempotent: true));
     }
+
+    // ---- Legal hold release (OQ-111): one approval type for a document's hold and the party search log's hold ----------
+
+    /// <summary>The hold's state: held (in force, with "release pending" while a release waits) or released.</summary>
+    private static string HoldState(JsonElement hold) =>
+        hold.GetProperty("releasedAt").ValueKind != JsonValueKind.Null ? "released"
+        : hold.GetProperty("releaseRequestedBy").ValueKind == JsonValueKind.Null ? "held" : "held|release pending";
+
+    private static async Task<Waiting> DocumentLegalHold(World w)
+    {
+        await w.Seed("document.ref_document_categories", "ACTIVE", "NOTE", ("category_code", "NOTE"), ("label", "Note"), ("classification", "PERSONAL"),
+            ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+        await w.Seed("document.ref_legal_hold_reason_codes", "ACTIVE", "LITIGATION", ("label", "Pending litigation"), ("authority_role", "COMPLIANCE_OFFICER"));
+        var document = await w.Created("/api/v1/documents/documents", new
+        {
+            categoryCode = "NOTE", businessRefType = "PARTY", businessRefId = Guid.CreateVersion7(), mimeType = "text/plain",
+            contentBase64 = Convert.ToBase64String("held"u8.ToArray()),
+        });
+        var placed = await w.Maker.Send(HttpMethod.Post, $"/api/v1/documents/documents/{document}/legal-holds", new { reasonCode = "LITIGATION" });
+        await w.Ok(placed);
+        var hold = (await placed.Json()).GetProperty("id").GetGuid();
+        await w.Ok(await w.Maker.Send(HttpMethod.Post, $"/api/v1/documents/documents/{document}/legal-holds/{hold}/release", new { reason = "Litigation settled" }),
+            HttpStatusCode.Accepted);
+
+        async Task<JsonElement> Hold() =>
+            (await w.Get($"/api/v1/documents/documents/{document}")).GetProperty("holds").EnumerateArray().Single(h => h.GetProperty("id").GetGuid() == hold);
+
+        async Task<string> State()
+        {
+            var view = await w.Get($"/api/v1/documents/documents/{document}");
+            var state = HoldState(view.GetProperty("holds").EnumerateArray().Single(h => h.GetProperty("id").GetGuid() == hold));
+            var held = view.GetProperty("legalHold").GetBoolean();
+            return state.StartsWith("held", StringComparison.Ordinal) == held ? state : $"{state}|document legalHold {held}";
+        }
+
+        return new(DocumentApprovals.LegalHoldBusinessRefType, hold, State, Hold);
+    }
+
+    private static async Task<Waiting> SearchLogHold(World w)
+    {
+        var placed = await w.Maker.Send(HttpMethod.Post, "/api/v1/party/search-log/holds", new { searchedBy = $"clerk-{w.Suffix}", reason = "Investigation 42" },
+            idempotent: true);
+        await w.Ok(placed, HttpStatusCode.Created);
+        var hold = (await placed.Json()).GetProperty("id").GetGuid();
+        await w.Ok(await w.Maker.Send(HttpMethod.Post, $"/api/v1/party/search-log/holds/{hold}/release", new { reason = "Investigation closed" }),
+            HttpStatusCode.Accepted);
+
+        async Task<JsonElement> Hold() =>
+            (await w.Get("/api/v1/party/search-log/holds")).EnumerateArray().Single(h => h.GetProperty("id").GetGuid() == hold);
+
+        return new(PartyApprovals.SearchLogHoldBusinessRefType, hold, async () => HoldState(await Hold()), Hold);
+    }
+
+    /// <summary>
+    /// D-5: the release request is gone when the grant arrives (the hold stays in force), so there is nothing for the
+    /// approval to release. No API drops a waiting request, so an owner SQL update stands in for the change.
+    /// </summary>
+    private static Task RefuseLegalHoldRelease(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner($"""
+            UPDATE {(waiting.BusinessRefType == DocumentApprovals.LegalHoldBusinessRefType ? "document.legal_hold" : "party.search_log_hold")}
+            SET release_requested_by = NULL, release_requested_at = NULL, release_reason = NULL WHERE tenant_id = @t AND id = @id
+            """, ("t", w.Tenant), ("id", waiting.BusinessRefId));
 
     private static async Task<Waiting> PrivilegedRole(World w)
     {

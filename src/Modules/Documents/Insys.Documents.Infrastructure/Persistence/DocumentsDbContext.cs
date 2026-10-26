@@ -84,6 +84,8 @@ public sealed class DocumentsDbContext(DbContextOptions<DocumentsDbContext> opti
             hold.HasKey(h => new { h.TenantId, h.Id });
             hold.HasAuditColumns();
             hold.Ignore(h => h.IsActive);
+            hold.Ignore(h => h.ReleasePending);
+            hold.Property(h => h.ReleaseReason).HasMaxLength(200);
             hold.Property(h => h.ScopeType).HasMaxLength(30);
             hold.Property(h => h.ReasonCode).HasMaxLength(15);
         });

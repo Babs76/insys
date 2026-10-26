@@ -75,11 +75,115 @@ public sealed class DocumentTests
         var hold = document.PlaceLegalHold("LITIGATION", Guid.CreateVersion7(), Now).Value;
         document.DisposeDocument(Today, Now).Error!.Code.ShouldBe(DocumentErrorCodes.OnLegalHold);
 
-        document.ReleaseLegalHold(hold, Now).IsSuccess.ShouldBeTrue();
+        var maker = Guid.CreateVersion7();
+        document.RequestLegalHoldRelease(hold, maker, "Litigation settled", Now).IsSuccess.ShouldBeTrue();
+        document.DecideLegalHoldRelease(hold, true, Guid.CreateVersion7(), Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
         document.LegalHold.ShouldBeFalse();
         document.DisposeDocument(Today, Now).IsSuccess.ShouldBeTrue();
         document.Status.ShouldBe(DocumentStatus.Disposed);
         document.DisposedAt.ShouldBe(Now);
+    }
+
+    [Fact]
+    public void ReleasingALegalHold_IsARequest_TheHoldStaysInForce_AndDisposalIsRefused_UntilApproved_OQ111()
+    {
+        var document = Generated(Today.AddDays(-1));
+        var hold = document.PlaceLegalHold("LITIGATION", Guid.CreateVersion7(), Now).Value;
+        var maker = Guid.CreateVersion7();
+
+        document.RequestLegalHoldRelease(hold, maker, "Litigation settled", Now).IsSuccess.ShouldBeTrue();
+
+        var requested = document.DomainEvents.OfType<LegalHoldReleaseRequested>().Single();
+        requested.HoldId.ShouldBe(hold);
+        requested.RequestedBy.ShouldBe(maker);
+        requested.Reason.ShouldBe("Litigation settled");
+        var held = document.Holds.Single();
+        held.ReleasePending.ShouldBeTrue();
+        held.IsActive.ShouldBeTrue();
+        (held.ReleaseRequestedBy, held.ReleaseRequestedAt, held.ReleaseReason).ShouldBe((maker, Now, "Litigation settled"));
+        document.LegalHold.ShouldBeTrue();
+        document.DisposeDocument(Today, Now).Error!.Code.ShouldBe(DocumentErrorCodes.OnLegalHold);
+        document.RequestLegalHoldRelease(hold, maker, "Again", Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+    }
+
+    [Fact]
+    public void ApprovedRelease_ReleasesTheHold_AndARedeliveredGrantIsRecognised_OQ111()
+    {
+        var document = Generated(Today.AddDays(-1));
+        var hold = document.PlaceLegalHold("LITIGATION", Guid.CreateVersion7(), Now).Value;
+        document.RequestLegalHoldRelease(hold, Guid.CreateVersion7(), "Settled", Now);
+        var approval = Guid.CreateVersion7();
+        var checker = Guid.CreateVersion7();
+
+        document.LegalHoldReleaseApplied(hold, approval).ShouldBeFalse();
+        document.DecideLegalHoldRelease(hold, true, approval, checker, Now).IsSuccess.ShouldBeTrue();
+
+        var released = document.Holds.Single();
+        released.IsActive.ShouldBeFalse();
+        released.ReleasePending.ShouldBeFalse();
+        (released.ReleasedBy, released.ReleaseApprovalId, released.ReleasedAt).ShouldBe((checker, approval, Now));
+        released.ReleaseRequestedBy.ShouldBeNull();
+        document.LegalHoldReleaseApplied(hold, approval).ShouldBeTrue();
+        document.LegalHoldReleaseApplied(hold, Guid.CreateVersion7()).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void EndingWithoutApproval_ClearsTheRequest_AndTheHoldStays_RejectedExpiredWithdrawn_OQ111(bool byAChecker)
+    {
+        var document = Generated(Today.AddDays(-1));
+        var hold = document.PlaceLegalHold("LITIGATION", Guid.CreateVersion7(), Now).Value;
+        document.RequestLegalHoldRelease(hold, Guid.CreateVersion7(), "Settled", Now);
+
+        // Expired and withdrawn endings have no checker (Guid.Empty).
+        document.DecideLegalHoldRelease(hold, false, Guid.CreateVersion7(), byAChecker ? Guid.CreateVersion7() : Guid.Empty, Now).IsSuccess.ShouldBeTrue();
+
+        var kept = document.Holds.Single();
+        kept.IsActive.ShouldBeTrue();
+        kept.ReleasePending.ShouldBeFalse();
+        (kept.ReleaseRequestedBy, kept.ReleaseRequestedAt, kept.ReleaseReason).ShouldBe((null, null, null));
+        document.LegalHold.ShouldBeTrue();
+        document.DisposeDocument(Today, Now).Error!.Code.ShouldBe(DocumentErrorCodes.OnLegalHold);
+
+        // A redelivered ending changes nothing; a new request can be made.
+        document.DecideLegalHoldRelease(hold, false, Guid.CreateVersion7(), Guid.Empty, Now).IsSuccess.ShouldBeTrue();
+        document.RequestLegalHoldRelease(hold, Guid.CreateVersion7(), "Settled after all", Now).IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void AGrant_WithNoReleaseWaiting_IsRefused_D5()
+    {
+        var document = Generated(Today.AddDays(-1));
+        var hold = document.PlaceLegalHold("LITIGATION", Guid.CreateVersion7(), Now).Value;
+
+        document.DecideLegalHoldRelease(hold, true, Guid.CreateVersion7(), Guid.CreateVersion7(), Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        document.Holds.Single().IsActive.ShouldBeTrue();
+        document.DecideLegalHoldRelease(Guid.CreateVersion7(), true, Guid.CreateVersion7(), Guid.CreateVersion7(), Now).Error!.Code.ShouldBe(ErrorCodes.NotFound);
+    }
+
+    [Fact]
+    public void TheRequester_CannotApproveTheirOwnRelease_SRS002()
+    {
+        var document = Generated(Today.AddDays(-1));
+        var hold = document.PlaceLegalHold("LITIGATION", Guid.CreateVersion7(), Now).Value;
+        var maker = Guid.CreateVersion7();
+        document.RequestLegalHoldRelease(hold, maker, "Settled", Now);
+
+        document.DecideLegalHoldRelease(hold, true, Guid.CreateVersion7(), maker, Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        document.Holds.Single().ReleasePending.ShouldBeTrue();
+        document.LegalHold.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void AReleasedHold_CannotBeAskedToBeReleasedAgain()
+    {
+        var document = Generated(Today.AddDays(-1));
+        var hold = document.PlaceLegalHold("LITIGATION", Guid.CreateVersion7(), Now).Value;
+        document.RequestLegalHoldRelease(hold, Guid.CreateVersion7(), "Settled", Now);
+        document.DecideLegalHoldRelease(hold, true, Guid.CreateVersion7(), Guid.CreateVersion7(), Now);
+
+        document.RequestLegalHoldRelease(hold, Guid.CreateVersion7(), "Again", Now).Error!.Code.ShouldBe(ErrorCodes.NotFound);
     }
 
     [Fact]

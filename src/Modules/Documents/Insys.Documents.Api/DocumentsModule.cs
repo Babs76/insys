@@ -52,6 +52,9 @@ public sealed record DeliverDocumentRequest(string Channel, string Recipient);
 
 public sealed record LegalHoldRequest(string ReasonCode);
 
+/// <param name="Reason">Why the hold may be released (at most 200 characters); the checker sees it.</param>
+public sealed record LegalHoldReleaseRequest(string Reason);
+
 /// <summary>The Documents module: generation, storage, delivery, retention and audited access (DOC-001 to DOC-004).</summary>
 public sealed class DocumentsModule : IModule
 {
@@ -142,11 +145,15 @@ public sealed class DocumentsModule : IModule
             .WithSummary("Place a legal hold; the document cannot be disposed of while it holds")
             .RequirePermission(DocumentPermissions.LegalHoldManage);
 
-        documents.MapPost("/{id:guid}/legal-holds/{holdId:guid}/release", async (Guid id, Guid holdId, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new ReleaseLegalHold(id, holdId), ct)).ToHttp(_ => Results.NoContent()))
-            .Produces(StatusCodes.Status204NoContent)
+        documents.MapPost("/{id:guid}/legal-holds/{holdId:guid}/release", async (Guid id, Guid holdId, LegalHoldReleaseRequest r, IDispatcher dispatcher,
+                CancellationToken ct) =>
+                (await dispatcher.Send(new RequestLegalHoldRelease(id, holdId, r.Reason), ct)).ToHttp(view => Results.Accepted(null, view)))
+            .Produces<LegalHoldView>(StatusCodes.Status202Accepted)
             .WithName("DocumentsReleaseLegalHold")
-            .WithSummary("Release a legal hold")
+            .WithSummary("Ask for a legal hold to be released; a second person approves it (LEGAL_HOLD_RELEASE)")
+            .WithDescription("Releasing a hold needs a second person (OQ-111), so no one person can release a hold and dispose of what it protected. "
+                + "The request is recorded on the hold and waits for a LEGAL_HOLD_RELEASE approval; the hold stays in force until it is approved. "
+                + "A rejected, expired or withdrawn approval clears the request, and the hold stays (its latestRejection says how it ended).")
             .RequirePermission(DocumentPermissions.LegalHoldManage);
 
         documents.MapPost("/{id:guid}/dispose", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

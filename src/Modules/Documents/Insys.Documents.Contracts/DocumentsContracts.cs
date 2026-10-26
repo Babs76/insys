@@ -37,6 +37,16 @@ public static class DocumentPermissions
     public const string LegalHoldManage = "legal_hold.manage";
 }
 
+/// <summary>Approvals the Documents module asks Workflow for (ADR-009).</summary>
+public static class DocumentApprovals
+{
+    /// <summary>A document's legal hold; the business reference is the hold.</summary>
+    public const string LegalHoldBusinessRefType = "DOCUMENT_LEGAL_HOLD";
+
+    /// <summary>Releasing a legal hold needs a second person (OQ-111, 25 October 2026); the compliance officer is the checker.</summary>
+    public const string LegalHoldReleaseType = "LEGAL_HOLD_RELEASE";
+}
+
 [IntegrationEvent("document.DocumentGenerated")]
 public sealed record DocumentGenerated(Guid DocumentId, string CategoryCode, string BusinessRefType, Guid BusinessRefId, string? TemplateCode, int? TemplateVersion)
     : IIntegrationEvent;

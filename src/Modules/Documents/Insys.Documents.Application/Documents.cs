@@ -29,6 +29,7 @@ using FluentValidation;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.Documents.Domain.Documents;
 using Insys.Identity.Contracts;
@@ -79,6 +80,9 @@ public interface IDocumentRepository
 {
     Task<Document?> Get(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The document a legal hold is on.</summary>
+    Task<Document?> WithHold(Guid holdId, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Document>> ForBusinessRef(string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
 
     void Add(Document document);
@@ -90,16 +94,38 @@ public interface IDocumentRepository
 
 public sealed record DeliveryView(Guid Id, string Channel, string Recipient, [property: OneOf("SENT", "FAILED")] string Status, string? ProviderRef, DateTimeOffset? SentAt);
 
-public sealed record LegalHoldView(Guid Id, string ReasonCode, Guid PlacedBy, DateTimeOffset PlacedAt, DateTimeOffset? ReleasedAt);
+/// <param name="ReleaseRequestedBy">Who asked for the hold to be released, while that waits for a second person's approval (OQ-111); the hold is in force meanwhile.</param>
+/// <param name="ReleasedBy">The checker who approved the release.</param>
+/// <param name="LatestRejection">The hold's latest release approval that ended without being granted (OQ-113), or null.</param>
+public sealed record LegalHoldView(Guid Id, string ReasonCode, Guid PlacedBy, DateTimeOffset PlacedAt, DateTimeOffset? ReleasedAt, Guid? ReleasedBy,
+    Guid? ReleaseRequestedBy, DateTimeOffset? ReleaseRequestedAt, string? ReleaseReason, Workflow.Contracts.LatestRejection? LatestRejection = null)
+{
+    public static LegalHoldView From(Domain.Documents.LegalHold h, Workflow.Contracts.LatestRejection? latestRejection = null) =>
+        new(h.Id, h.ReasonCode, h.PlacedBy, h.PlacedAt, h.ReleasedAt, h.ReleasedBy, h.ReleaseRequestedBy, h.ReleaseRequestedAt, h.ReleaseReason, latestRejection);
+}
 
 public sealed record DocumentView(Guid Id, string CategoryCode, string Classification, DocumentStatus Status, string MimeType, long SizeBytes, string Sha256, string? TemplateCode,
     int? TemplateVersion, string? ProductVersionRef, string BusinessRefType, Guid BusinessRefId, DateOnly? RetentionUntil, bool LegalHold, DateTimeOffset? DisposedAt,
     IReadOnlyList<DeliveryView> Deliveries, IReadOnlyList<LegalHoldView> Holds, long RowVersion)
 {
-    public static DocumentView From(Document d) => new(d.Id, d.CategoryCode, d.Classification, d.Status, d.MimeType, d.SizeBytes, d.Sha256, d.TemplateCode,
-        d.TemplateVersion, d.ProductVersionRef, d.BusinessRefType, d.BusinessRefId, d.RetentionUntil, d.LegalHold, d.DisposedAt,
+    /// <param name="rejections">Each hold's latest release approval that ended without being granted (OQ-113), by hold.</param>
+    public static DocumentView From(Document d, IReadOnlyDictionary<Guid, Workflow.Contracts.LatestRejection?>? rejections = null) => new(d.Id, d.CategoryCode,
+        d.Classification, d.Status, d.MimeType, d.SizeBytes, d.Sha256, d.TemplateCode, d.TemplateVersion, d.ProductVersionRef, d.BusinessRefType, d.BusinessRefId,
+        d.RetentionUntil, d.LegalHold, d.DisposedAt,
         d.Deliveries.OrderBy(x => x.Id).Select(x => new DeliveryView(x.Id, x.Channel, x.Recipient, x.Status, x.ProviderRef, x.SentAt)).ToList(),
-        d.Holds.OrderBy(h => h.Id).Select(h => new LegalHoldView(h.Id, h.ReasonCode, h.PlacedBy, h.PlacedAt, h.ReleasedAt)).ToList(), d.RowVersion);
+        d.Holds.OrderBy(h => h.Id).Select(h => LegalHoldView.From(h, rejections?.GetValueOrDefault(h.Id))).ToList(), d.RowVersion);
+
+    /// <summary>The view with each hold's latest release rejection, from Workflow's approval history (OQ-113).</summary>
+    public static async Task<DocumentView> With(Document d, Workflow.Contracts.IApprovalHistory history, CancellationToken cancellationToken)
+    {
+        var rejections = new Dictionary<Guid, Workflow.Contracts.LatestRejection?>();
+        foreach (var hold in d.Holds)
+        {
+            rejections[hold.Id] = await history.Latest(Contracts.DocumentApprovals.LegalHoldBusinessRefType, hold.Id, cancellationToken);
+        }
+
+        return From(d, rejections);
+    }
 }
 
 public sealed record DocumentContent(byte[] Content, string MimeType);
@@ -116,7 +142,8 @@ public sealed record DeliverDocument(Guid DocumentId, string Channel, string Rec
 
 public sealed record PlaceLegalHold(Guid DocumentId, string ReasonCode) : ICommand<Guid>;
 
-public sealed record ReleaseLegalHold(Guid DocumentId, Guid HoldId) : ICommand<long>;
+/// <summary>Command RequestLegalHoldRelease: asks for a second person's approval to release the hold (OQ-111); it stays in force until approved.</summary>
+public sealed record RequestLegalHoldRelease(Guid DocumentId, Guid HoldId, string Reason) : ICommand<LegalHoldView>;
 
 public sealed record DisposeDocument(Guid DocumentId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
@@ -167,6 +194,11 @@ public sealed class StoreDocumentValidator : AbstractValidator<StoreDocument>
         RuleFor(c => c.Content).NotEmpty().Must(c => c.Length <= MaxBytes).WithMessage("A stored document is at most 10 MB.");
         RuleFor(c => c.ProductVersionRef).MaximumLength(30);
     }
+}
+
+public sealed class RequestLegalHoldReleaseValidator : AbstractValidator<RequestLegalHoldRelease>
+{
+    public RequestLegalHoldReleaseValidator() => RuleFor(c => c.Reason).NotEmpty().MaximumLength(200);
 }
 
 public sealed class DeliverDocumentValidator : AbstractValidator<DeliverDocument>
@@ -308,19 +340,67 @@ internal sealed class PlaceLegalHoldHandler(IDocumentRepository documents, IDocu
     }
 }
 
-internal sealed class ReleaseLegalHoldHandler(IDocumentRepository documents, IClock clock, IAuditTrail audit) : ICommandHandler<ReleaseLegalHold, long>
+internal sealed class RequestLegalHoldReleaseHandler(IDocumentRepository documents, IExecutionContext execution, IClock clock, IAuditTrail audit)
+    : ICommandHandler<RequestLegalHoldRelease, LegalHoldView>
 {
-    public async Task<Result<long>> Handle(ReleaseLegalHold command, CancellationToken cancellationToken)
+    public async Task<Result<LegalHoldView>> Handle(RequestLegalHoldRelease command, CancellationToken cancellationToken)
     {
+        var user = Users.Require(execution);
         var document = await Loaded.Document(documents, command.DocumentId, cancellationToken);
-        if (document.IsFailure)
+        if (user.IsFailure || document.IsFailure)
         {
-            return document.Error;
+            return user.IsFailure ? user.Error : document.Error!;
         }
 
-        audit.Record(new AuditEntry("DOCUMENT", "ReleaseLegalHold", nameof(Document), command.DocumentId.ToString()));
-        var result = document.Value.ReleaseLegalHold(command.HoldId, clock.UtcNow);
-        return result.IsFailure ? result.Error : document.Value.RowVersion + 1;
+        var result = document.Value.RequestLegalHoldRelease(command.HoldId, user.Value, command.Reason, clock.UtcNow);
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        audit.Record(new AuditEntry("DOCUMENT", "RequestLegalHoldRelease", nameof(Document), command.DocumentId.ToString(),
+            new Dictionary<string, string?> { ["hold"] = command.HoldId.ToString() }));
+        return LegalHoldView.From(document.Value.Holds.Single(h => h.Id == command.HoldId));
+    }
+}
+
+/// <summary>
+/// Workflow's decision on releasing a document's legal hold (LEGAL_HOLD_RELEASE, OQ-111). Approved: the hold is released,
+/// and the document may then be disposed of under the retention rules. Rejected, expired or withdrawn: the request is
+/// cleared and the hold stays in force. A redelivered grant already applied changes nothing; one the hold will not take
+/// (no release waits any more, or the checker is the requester) parks the delivery (D-5, ADR-022): a grant as
+/// APPROVAL_NOT_APPLIED, an ending as APPROVAL_ENDING_NOT_APPLIED.
+/// </summary>
+public sealed class LegalHoldReleasePolicy(IDocumentRepository documents, IClock clock, IAuditTrail audit) :
+    IIntegrationEventHandler<Workflow.Contracts.ApprovalGranted>,
+    IIntegrationEventHandler<Workflow.Contracts.ApprovalRejected>
+{
+    public Task Handle(Workflow.Contracts.ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Decide(granted.BusinessRefType, granted.BusinessRefId, true, granted.ApprovalId, granted.CheckerId, cancellationToken);
+
+    public Task Handle(Workflow.Contracts.ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Decide(rejected.BusinessRefType, rejected.BusinessRefId, false, rejected.ApprovalId, rejected.CheckerId, cancellationToken);
+
+    private async Task Decide(string businessRefType, Guid holdId, bool approved, Guid approvalId, Guid checkerId, CancellationToken cancellationToken)
+    {
+        if (businessRefType != Contracts.DocumentApprovals.LegalHoldBusinessRefType || await documents.WithHold(holdId, cancellationToken) is not { } document)
+        {
+            return;
+        }
+
+        if (approved && document.LegalHoldReleaseApplied(holdId, approvalId))
+        {
+            return;
+        }
+
+        if (document.DecideLegalHoldRelease(holdId, approved, approvalId, checkerId, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(approved ? PrerequisiteCodes.ApprovalNotApplied : PrerequisiteCodes.ApprovalEndingNotApplied,
+                $"{Contracts.DocumentApprovals.LegalHoldReleaseType}:{approvalId}");
+        }
+
+        audit.Record(new AuditEntry("DOCUMENT", approved ? "ReleaseLegalHold" : "KeepLegalHold", nameof(Document), document.Id.ToString(),
+            new Dictionary<string, string?> { ["hold"] = holdId.ToString(), ["approval"] = approvalId.ToString() }));
     }
 }
 
@@ -404,14 +484,24 @@ internal sealed class ReadDocumentContentHandler(IDocumentRepository documents, 
     }
 }
 
-internal sealed class GetDocumentHandler(IDocumentRepository documents) : IQueryHandler<GetDocument, DocumentView>
+internal sealed class GetDocumentHandler(IDocumentRepository documents, Workflow.Contracts.IApprovalHistory history) : IQueryHandler<GetDocument, DocumentView>
 {
     public async Task<Result<DocumentView>> Handle(GetDocument query, CancellationToken cancellationToken) =>
-        await documents.Get(query.DocumentId, cancellationToken) is { } document ? DocumentView.From(document) : Error.NotFound(ErrorCodes.NotFound, "The document was not found.");
+        await documents.Get(query.DocumentId, cancellationToken) is { } document
+            ? await DocumentView.With(document, history, cancellationToken)
+            : Error.NotFound(ErrorCodes.NotFound, "The document was not found.");
 }
 
-internal sealed class ListDocumentsHandler(IDocumentRepository documents) : IQueryHandler<ListDocuments, IReadOnlyList<DocumentView>>
+internal sealed class ListDocumentsHandler(IDocumentRepository documents, Workflow.Contracts.IApprovalHistory history) : IQueryHandler<ListDocuments, IReadOnlyList<DocumentView>>
 {
-    public async Task<Result<IReadOnlyList<DocumentView>>> Handle(ListDocuments query, CancellationToken cancellationToken) =>
-        (await documents.ForBusinessRef(query.BusinessRefType, query.BusinessRefId, cancellationToken)).Select(DocumentView.From).ToList();
+    public async Task<Result<IReadOnlyList<DocumentView>>> Handle(ListDocuments query, CancellationToken cancellationToken)
+    {
+        var views = new List<DocumentView>();
+        foreach (var document in await documents.ForBusinessRef(query.BusinessRefType, query.BusinessRefId, cancellationToken))
+        {
+            views.Add(await DocumentView.With(document, history, cancellationToken));
+        }
+
+        return views;
+    }
 }

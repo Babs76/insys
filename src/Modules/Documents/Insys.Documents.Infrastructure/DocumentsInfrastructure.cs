@@ -38,6 +38,9 @@ public static class DocumentsInfrastructure
 {
     public static IServiceCollection AddDocumentsInfrastructure(this IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
     {
+        // Its approval kind and the screen that opens its record (BR-005): releasing a legal hold needs a second person (OQ-111).
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Contracts.DocumentApprovals.LegalHoldBusinessRefType, "DOCUMENTS",
+            Contracts.DocumentApprovals.LegalHoldReleaseType);
         services.AddModuleDbContext<DocumentsDbContext>(DocumentsDbContext.SchemaName, "Documents");
         services.AddStaticData<DocumentsDbContext>(DocumentsDbContext.SchemaName, DocumentsStaticData.Descriptors);
         services.AddModuleHandlers<DocumentsDbContext>(typeof(GenerateDocument).Assembly);
@@ -58,7 +61,9 @@ public static class DocumentsInfrastructure
         services.AddSingleton<IDocumentDelivery, StubDocumentDelivery>();
         services.AddScoped<DocumentGenerator>();
         services.AddScoped<DocumentLanguages>();
-        services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralPolicyIssued");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, LegalHoldReleasePolicy, DocumentsDbContext>(DocumentsDbContext.SchemaName, "ApprovalGranted");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, LegalHoldReleasePolicy, DocumentsDbContext>(DocumentsDbContext.SchemaName, "ApprovalRejected");
+        services.AddIntegrationEventHandler<GeneralPolicyIssued,GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralPolicyIssued");
         services.AddIntegrationEventHandler<GeneralPolicyEndorsed, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralPolicyEndorsed");
         services.AddIntegrationEventHandler<GeneralRenewalInvited, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralRenewalInvited");
         services.AddIntegrationEventHandler<Life.Contracts.LifePolicyIssued, LifeDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "LifePolicyIssued");

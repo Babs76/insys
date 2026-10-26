@@ -65,6 +65,9 @@ public sealed record DocumentDelivered(Guid DocumentId, string Channel, DateTime
 
 public sealed record DocumentDisposed(Guid DocumentId, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>Releasing a legal hold asks Workflow for a second person's approval (LEGAL_HOLD_RELEASE, OQ-111).</summary>
+public sealed record LegalHoldReleaseRequested(Guid DocumentId, Guid HoldId, string ReasonCode, Guid RequestedBy, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>Entity Delivery (document.delivery).</summary>
 public sealed class Delivery : Entity<Guid>, ITenantScoped
 {
@@ -124,14 +127,50 @@ public sealed class LegalHold : Entity<Guid>, ITenantScoped
 
     public DateTimeOffset? ReleasedAt { get; private set; }
 
+    /// <summary>The checker who approved the release; null while the hold is in force (and for holds released before OQ-111).</summary>
+    public Guid? ReleasedBy { get; private set; }
+
+    /// <summary>The LEGAL_HOLD_RELEASE approval that released the hold.</summary>
+    public Guid? ReleaseApprovalId { get; private set; }
+
+    /// <summary>Who asked for the hold to be released, while the release waits for approval (OQ-111).</summary>
+    public Guid? ReleaseRequestedBy { get; private set; }
+
+    public DateTimeOffset? ReleaseRequestedAt { get; private set; }
+
+    public string? ReleaseReason { get; private set; }
+
     public long RowVersion { get; private set; }
 
     public bool IsActive => ReleasedAt is null;
 
+    /// <summary>A release was asked for and waits for a second person's approval; the hold stays in force meanwhile.</summary>
+    public bool ReleasePending => IsActive && ReleaseRequestedBy is not null;
+
     internal static LegalHold Place(Guid documentId, string reasonCode, Guid placedBy, DateTimeOffset now) =>
         new() { Id = Guid.CreateVersion7(), ScopeId = documentId, ReasonCode = reasonCode, PlacedBy = placedBy, PlacedAt = now };
 
-    internal void Release(DateTimeOffset now) => ReleasedAt = now;
+    internal void RequestRelease(Guid requestedBy, string reason, DateTimeOffset now)
+    {
+        ReleaseRequestedBy = requestedBy;
+        ReleaseRequestedAt = now;
+        ReleaseReason = reason;
+    }
+
+    internal void ClearReleaseRequest()
+    {
+        ReleaseRequestedBy = null;
+        ReleaseRequestedAt = null;
+        ReleaseReason = null;
+    }
+
+    internal void Release(Guid checkerId, Guid approvalId, DateTimeOffset now)
+    {
+        ClearReleaseRequest();
+        ReleasedAt = now;
+        ReleasedBy = checkerId;
+        ReleaseApprovalId = approvalId;
+    }
 }
 
 /// <summary>Entity AccessRecord (document.document_access_log): one read of a sensitive document (DOC-003). Never changed.</summary>
@@ -318,7 +357,12 @@ public sealed class Document : AggregateRoot<Guid>
         return hold.Id;
     }
 
-    public Result ReleaseLegalHold(Guid holdId, DateTimeOffset now)
+    /// <summary>
+    /// Command RequestLegalHoldRelease (OQ-111, 25 October 2026): releasing a hold needs a second person, so no one person
+    /// can release a hold and dispose of what it protected. The request is recorded on the hold (who, when, why) and asks
+    /// Workflow for LEGAL_HOLD_RELEASE approval; the hold stays in force until the release is approved.
+    /// </summary>
+    public Result RequestLegalHoldRelease(Guid holdId, Guid requestedBy, string reason, DateTimeOffset now)
     {
         var hold = _holds.SingleOrDefault(h => h.Id == holdId && h.IsActive);
         if (hold is null)
@@ -326,8 +370,55 @@ public sealed class Document : AggregateRoot<Guid>
             return Error.NotFound(ErrorCodes.NotFound, "The document has no such active legal hold.");
         }
 
-        hold.Release(now);
-        LegalHold = _holds.Any(h => h.IsActive);
+        if (hold.ReleasePending)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Releasing the hold is already waiting for approval.");
+        }
+
+        var why = Guard.MaxLength(Guard.NotNullOrWhiteSpace(reason), 200);
+        hold.RequestRelease(requestedBy, why, now);
+        Raise(new LegalHoldReleaseRequested(Id, holdId, hold.ReasonCode, requestedBy, why, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>True when the granted release was already applied: the hold was released by that approval. A redelivered grant changes nothing.</summary>
+    public bool LegalHoldReleaseApplied(Guid holdId, Guid approvalId) => _holds.Any(h => h.Id == holdId && !h.IsActive && h.ReleaseApprovalId == approvalId);
+
+    /// <summary>
+    /// Workflow's decision on a release request. Approved: the hold is released, and disposal may then proceed under the
+    /// retention rules. Every other ending (rejected, expired, withdrawn) clears the request and the hold stays in force;
+    /// with no request waiting, such an ending was already applied. A grant with no request waiting (the hold changed: it
+    /// was released, or the request is gone) is refused, as is a checker who is the requester (SRS-002).
+    /// </summary>
+    public Result DecideLegalHoldRelease(Guid holdId, bool approved, Guid approvalId, Guid checkerId, DateTimeOffset now)
+    {
+        var hold = _holds.SingleOrDefault(h => h.Id == holdId);
+        if (hold is null)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The document has no such legal hold.");
+        }
+
+        if (!hold.ReleasePending || hold.ReleaseRequestedBy is not { } requester)
+        {
+            return approved ? Error.Conflict(ErrorCodes.InvalidStateTransition, "No release of the hold is waiting for approval.") : Result.Success();
+        }
+
+        if ((approved || checkerId != Guid.Empty) && checkerId == requester)
+        {
+            return MakerChecker.EnsureDifferentPeople(requester.ToString(), checkerId.ToString());
+        }
+
+        if (approved)
+        {
+            hold.Release(checkerId, approvalId, now);
+            LegalHold = _holds.Any(h => h.IsActive);
+        }
+        else
+        {
+            hold.ClearReleaseRequest();
+        }
+
         MarkChanged();
         return Result.Success();
     }

@@ -51,6 +51,21 @@ public sealed class SearchLogHold : AggregateRoot<Guid>
 
     public DateTimeOffset? ReleasedAt { get; private set; }
 
+    /// <summary>The LEGAL_HOLD_RELEASE approval that released the hold.</summary>
+    public Guid? ReleaseApprovalId { get; private set; }
+
+    /// <summary>Who asked for the hold to be released, while the release waits for approval (OQ-111).</summary>
+    public Guid? ReleaseRequestedBy { get; private set; }
+
+    public DateTimeOffset? ReleaseRequestedAt { get; private set; }
+
+    public string? ReleaseReason { get; private set; }
+
+    public bool IsActive => ReleasedAt is null;
+
+    /// <summary>A release was asked for and waits for a second person's approval; the hold stays in force meanwhile.</summary>
+    public bool ReleasePending => IsActive && ReleaseRequestedBy is not null;
+
     public static SearchLogHold Place(string? searchedBy, string reason, string placedBy, DateTimeOffset now) => new()
     {
         Id = Guid.CreateVersion7(),
@@ -60,16 +75,66 @@ public sealed class SearchLogHold : AggregateRoot<Guid>
         PlacedAt = now,
     };
 
-    public Result Release(string releasedBy, DateTimeOffset now)
+    /// <summary>
+    /// Command RequestSearchLogHoldRelease (OQ-111, 25 October 2026): releasing a hold needs a second person, so no one
+    /// person can release a hold and have the entries it protected deleted. The request is recorded (who, when, why) and
+    /// asks Workflow for LEGAL_HOLD_RELEASE approval; the hold stays in force until the release is approved.
+    /// </summary>
+    public Result RequestRelease(Guid requestedBy, string reason, DateTimeOffset now)
     {
-        if (ReleasedAt is not null)
+        if (!IsActive)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "The hold is already released.");
         }
 
-        ReleasedBy = Guard.MaxLength(releasedBy, 80);
-        ReleasedAt = now;
+        if (ReleasePending)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Releasing the hold is already waiting for approval.");
+        }
+
+        ReleaseRequestedBy = requestedBy;
+        ReleaseRequestedAt = now;
+        ReleaseReason = Guard.MaxLength(Guard.NotNullOrWhiteSpace(reason), 200);
+        Raise(new SearchLogHoldReleaseRequested(Id, SearchedBy, requestedBy, ReleaseReason, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>True when the granted release was already applied: the hold was released by that approval. A redelivered grant changes nothing.</summary>
+    public bool ReleaseApplied(Guid approvalId) => !IsActive && ReleaseApprovalId == approvalId;
+
+    /// <summary>
+    /// Workflow's decision on a release request. Approved: the hold is released, and retention may then delete the entries
+    /// it kept. Every other ending (rejected, expired, withdrawn) clears the request and the hold stays in force; with no
+    /// request waiting, such an ending was already applied. A grant with no request waiting (the hold changed: released, or
+    /// the request gone) is refused, as is a checker who is the requester (SRS-002).
+    /// </summary>
+    public Result DecideRelease(bool approved, Guid approvalId, Guid checkerId, DateTimeOffset now)
+    {
+        if (!ReleasePending || ReleaseRequestedBy is not { } requester)
+        {
+            return approved ? Error.Conflict(ErrorCodes.InvalidStateTransition, "No release of the hold is waiting for approval.") : Result.Success();
+        }
+
+        if ((approved || checkerId != Guid.Empty) && checkerId == requester)
+        {
+            return MakerChecker.EnsureDifferentPeople(requester.ToString(), checkerId.ToString());
+        }
+
+        ReleaseRequestedBy = null;
+        ReleaseRequestedAt = null;
+        ReleaseReason = null;
+        if (approved)
+        {
+            ReleasedBy = checkerId.ToString();
+            ReleasedAt = now;
+            ReleaseApprovalId = approvalId;
+        }
+
         MarkChanged();
         return Result.Success();
     }
 }
+
+/// <summary>Releasing a search log hold asks Workflow for a second person's approval (LEGAL_HOLD_RELEASE, OQ-111).</summary>
+public sealed record SearchLogHoldReleaseRequested(Guid HoldId, string? SearchedBy, Guid RequestedBy, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
