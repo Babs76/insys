@@ -5784,7 +5784,7 @@
         },
         "x-permission": "case.read",
         "x-function": [
-          "SERVICE_CASE_REPORTS"
+          "SERVICE_COMPLAINTS"
         ]
       }
     },

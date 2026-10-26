@@ -66,6 +66,13 @@ public sealed class OperatorTenantTests(DatabaseFixture fixture) : IClassFixture
             e.Tags.Any(t => PlatformModules.Any(m => t == m || t == $"{m} static data"))
             || e.Route.Contains("/static-data/", StringComparison.Ordinal) || e.Route.Contains("/{module}/static/", StringComparison.Ordinal)
             || e.Route.Contains("/testing/", StringComparison.Ordinal);
+
+        // Cases (Wave 2) are business records hosted in the Workflow module: the operator tenant has no complaints or disputes, so
+        // their routes refuse it, as a business module's do.
+        static bool IsCase((string Route, List<string> Tags, bool Refused) e) =>
+            e.Route.Contains("/workflow/cases", StringComparison.Ordinal) || e.Route.Contains("/portal/cases", StringComparison.Ordinal);
+        endpoints.Where(IsCase).Where(e => !e.Refused).Select(e => e.Route).ShouldBeEmpty("case endpoints that do not refuse the operator tenant");
+        endpoints = [.. endpoints.Where(e => !IsCase(e))];
         endpoints.Where(e => !e.Refused && !IsPlatform(e)).Select(e => e.Route).ShouldBeEmpty("business module endpoints that do not refuse the operator tenant");
         endpoints.Where(e => e.Refused && IsPlatform(e)).Select(e => e.Route).ShouldBeEmpty("platform module endpoints that refuse the operator tenant");
     }

@@ -58,7 +58,8 @@ internal static class WorkflowFunctions
         // Cases (addenda/cases.md §9). An operation maps to one staff function, so the case operations sit under the
         // complaints screen; the other case screens are entries of the same case list, filtered by family or link.
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("SERVICE_COMPLAINTS", "CUSTOMER_SERVICE", "Complaints", "workflow/cases/complaints", "WorkflowListCases", "WorkflowGetCase", "WorkflowGetCaseRedress")
+        .Screen("SERVICE_COMPLAINTS", "CUSTOMER_SERVICE", "Complaints", "workflow/cases/complaints", "WorkflowListCases", "WorkflowGetCase", "WorkflowGetCaseRedress",
+            "WorkflowCasesSummary")
         .Action("CASE_REGISTER", "SERVICE_COMPLAINTS", "WorkflowOpenCase")
         .Action("CASE_ACKNOWLEDGE", "SERVICE_COMPLAINTS", "WorkflowAcknowledgeCase")
         .Action("CASE_UPDATE", "SERVICE_COMPLAINTS", ["WorkflowAddCaseMessage", "WorkflowStartCase", "WorkflowCaseAwaitComplainant", "WorkflowResumeCase"])
@@ -75,7 +76,9 @@ internal static class WorkflowFunctions
         .Action("CASE_SHARE_WITH_BROKER", "SERVICE_COMPLAINTS", "WorkflowShareCaseWithBroker")
         .Action("CASE_PLACE_LEGAL_HOLD", "SERVICE_COMPLAINTS", "WorkflowPlaceCaseLegalHold", privileged: true)
         .Action("CASE_RELEASE_LEGAL_HOLD", "SERVICE_COMPLAINTS", "WorkflowReleaseCaseLegalHold", privileged: true)
-        .Screen("SERVICE_CASE_REPORTS", "CUSTOMER_SERVICE", "Case reporting", "workflow/cases/reports", "WorkflowCasesSummary", "WorkflowComplaintsReport")
+        // The complaints report alone, so a role holding only case_report.read keeps a function for it (ADR-026 conversion);
+        // the cases dashboard (case.read) is on the complaints screen.
+        .Screen("SERVICE_CASE_REPORTS", "CUSTOMER_SERVICE", "Case reporting", "workflow/cases/reports", "WorkflowComplaintsReport")
         .Job(CaseFunctions.Timelines, "CUSTOMER_SERVICE", "Background processing")
             .Functions,
 
