@@ -42,10 +42,10 @@ namespace Insys.Identity.Infrastructure.Persistence;
 internal sealed class TenantAdministratorStore(IdentityDbContext db, IClock clock) : ITenantAdministrators
 {
     public Task<TenantAdministratorRequest?> Get(Guid requestId, CancellationToken cancellationToken) =>
-        db.TenantAdministratorRequests.SingleOrDefaultAsync(r => r.Id == requestId, cancellationToken);
+        db.TenantAdministratorRequests.Include(r => r.People).SingleOrDefaultAsync(r => r.Id == requestId, cancellationToken);
 
     public async Task<IReadOnlyList<TenantAdministratorRequest>> List(Guid? targetTenantId, CancellationToken cancellationToken) =>
-        await db.TenantAdministratorRequests.AsNoTracking().Where(r => targetTenantId == null || r.TargetTenantId == targetTenantId)
+        await db.TenantAdministratorRequests.AsNoTracking().Include(r => r.People).Where(r => targetTenantId == null || r.TargetTenantId == targetTenantId)
             .OrderBy(r => r.Id).ToListAsync(cancellationToken);
 
     public Task<bool> HasPendingRequest(Guid targetTenantId, CancellationToken cancellationToken) =>
@@ -61,60 +61,101 @@ internal sealed class TenantAdministratorStore(IdentityDbContext db, IClock cloc
         return any;
     }
 
-    public async Task<Guid> Provision(TenantAdministratorRequest request, Guid checkerId, CancellationToken cancellationToken)
+    public async Task<bool> TenantHasAdministratorRole(Guid targetTenantId, CancellationToken cancellationToken)
+    {
+        var inForce = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RolesAndPermissionSets)).Lifecycle.InForce;
+        var today = clock.UtcToday;
+        var any = false;
+        await db.WithinTenant(targetTenantId, async () => any = await db.Set<RolesAndPermissionSets>().AnyAsync(r => r.RoleCode == TenantAdministratorRequest.RoleCode
+            && inForce.Contains(r.RecordStatus) && r.EffectiveFrom <= today && (r.EffectiveTo == null || r.EffectiveTo > today), cancellationToken), cancellationToken);
+        return any;
+    }
+
+    public async Task<IReadOnlyList<string>> UsernamesTaken(Guid targetTenantId, IEnumerable<string> usernames, CancellationToken cancellationToken)
+    {
+        var names = usernames.ToList();
+        List<string> taken = [];
+        await db.WithinTenant(targetTenantId, async () => taken = await db.Users.Where(u => names.Contains(u.Username)).Select(u => u.Username).ToListAsync(cancellationToken),
+            cancellationToken);
+        return taken;
+    }
+
+    public async Task<IReadOnlyList<AdministratorUser>> Users(Guid targetTenantId, IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken)
+    {
+        List<AdministratorUser> users = [];
+        await db.WithinTenant(targetTenantId, async () => users = await db.Users.AsNoTracking().Where(u => userIds.Contains(u.Id))
+            .Select(u => new AdministratorUser(u.Id, u.ExternalSubject != null)).ToListAsync(cancellationToken), cancellationToken);
+        return users;
+    }
+
+    public async Task<IReadOnlyList<Guid>> Provision(TenantAdministratorRequest request, Guid checkerId, CancellationToken cancellationToken)
     {
         var now = clock.UtcNow;
         var today = clock.UtcToday;
-        // INSYS's own realm: the user waits for its Keycloak user, which Identity's consumer creates (keycloak-user-provisioning §1).
-        var user = request.IdpCode == UserAccount.OwnRealm
-            ? UserAccount.ProvisionUserInOwnRealm(Guid.CreateVersion7(), request.Username, request.DisplayName, request.Email!, request.MfaEnrolled, now)
-            : UserAccount.ProvisionUser(Guid.CreateVersion7(), request.Username, request.DisplayName, request.IdpCode, request.ExternalSubject!, request.MfaEnrolled);
+        // INSYS's own realm: each user waits for its Keycloak user, which Identity's consumer creates (keycloak-user-provisioning §1).
+        var users = request.People.OrderBy(p => p.Position).Select(p => p.IdpCode == UserAccount.OwnRealm
+            ? UserAccount.ProvisionUserInOwnRealm(Guid.CreateVersion7(), p.Username, p.DisplayName, p.Email!, p.MfaEnrolled, now)
+            : UserAccount.ProvisionUser(Guid.CreateVersion7(), p.Username, p.DisplayName, p.IdpCode, p.ExternalSubject!, p.MfaEnrolled)).ToList();
         await db.WithinTenant(request.TargetTenantId, async () =>
         {
-            if (await db.Users.AnyAsync(cancellationToken))
+            if (request.Kind == TenantAdministratorRequestKind.FirstAdministrators)
             {
-                throw new InvalidOperationException($"Tenant {request.TargetTenantId} already has users; its first administrator was not provisioned.");
+                if (await db.Users.AnyAsync(cancellationToken))
+                {
+                    throw new InvalidOperationException($"Tenant {request.TargetTenantId} already has users; its first administrators were not provisioned.");
+                }
+
+                AddRole(request, checkerId, today, now);
             }
 
-            // The TENANT_ADMIN role definition, with the permissions the two platform administrators agreed. It is in
-            // force at once: the second administrator's approval is its approval (SDM-003).
-            var lifecycle = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RolesAndPermissionSets)).Lifecycle;
-            db.Set<RolesAndPermissionSets>().Add(new RolesAndPermissionSets
+            // Each administrator holds the TENANT_ADMIN role: the two platform administrators' approval is its approval.
+            foreach (var user in users)
+            {
+                user.GrantFirstAdministratorRole(request.Role, today, checkerId, now);
+                db.Users.Add(user);
+            }
+        }, cancellationToken);
+        return [.. users.Select(u => u.Id)];
+    }
+
+    /// <summary>
+    /// A new tenant's TENANT_ADMIN role definition and its function grants, with the functions the two platform
+    /// administrators agreed (OQ-099), in force at once: the second administrator's approval is its approval (SDM-003).
+    /// </summary>
+    private void AddRole(TenantAdministratorRequest request, Guid checkerId, DateOnly today, DateTimeOffset now)
+    {
+        var lifecycle = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RolesAndPermissionSets)).Lifecycle;
+        db.Set<RolesAndPermissionSets>().Add(new RolesAndPermissionSets
+        {
+            Id = Guid.CreateVersion7(),
+            TenantId = request.TargetTenantId,
+            Code = request.Role,
+            Version = 1,
+            EffectiveFrom = today,
+            RecordStatus = lifecycle.Active,
+            ApprovedAt = now,
+            ApprovedBy = checkerId.ToString(),
+            ChangeReason = $"First administrators of the tenant (OQ-067, BR-013), request {request.Id}",
+            RoleCode = request.Role,
+        });
+
+        var grants = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RoleFunctionAssignments)).Lifecycle;
+        foreach (var function in request.Functions)
+        {
+            db.Set<RoleFunctionAssignments>().Add(new RoleFunctionAssignments
             {
                 Id = Guid.CreateVersion7(),
                 TenantId = request.TargetTenantId,
-                Code = request.Role,
+                Code = $"{request.Role}:{function}",
                 Version = 1,
                 EffectiveFrom = today,
-                RecordStatus = lifecycle.Active,
+                RecordStatus = grants.Active,
                 ApprovedAt = now,
                 ApprovedBy = checkerId.ToString(),
-                ChangeReason = $"First administrator of the tenant (OQ-067), request {request.Id}",
+                ChangeReason = $"First administrators of the tenant (OQ-067, BR-013), request {request.Id}",
                 RoleCode = request.Role,
+                FunctionCode = function,
             });
-
-            // ADR-026: the role holds the functions the two platform administrators agreed (OQ-099), in force with it.
-            var grants = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RoleFunctionAssignments)).Lifecycle;
-            foreach (var function in request.Functions)
-            {
-                db.Set<RoleFunctionAssignments>().Add(new RoleFunctionAssignments
-                {
-                    Id = Guid.CreateVersion7(),
-                    TenantId = request.TargetTenantId,
-                    Code = $"{request.Role}:{function}",
-                    Version = 1,
-                    EffectiveFrom = today,
-                    RecordStatus = grants.Active,
-                    ApprovedAt = now,
-                    ApprovedBy = checkerId.ToString(),
-                    ChangeReason = $"First administrator of the tenant (OQ-067), request {request.Id}",
-                    RoleCode = request.Role,
-                    FunctionCode = function,
-                });
-            }
-            user.GrantFirstAdministratorRole(request.Role, today, checkerId, now);
-            db.Users.Add(user);
-        }, cancellationToken);
-        return user.Id;
+        }
     }
 }

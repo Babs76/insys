@@ -91,6 +91,9 @@ public sealed class PermissionCache(IMemoryCache cache, IOptions<PermissionCache
         }
     }
 
+    /// <summary>One user's entry: the user's identity was linked, or its access changed (BR-018).</summary>
+    public void Evict(Guid tenantId, string subject) => cache.Remove(Key(tenantId, subject));
+
     private static string Key(Guid tenantId, string subject) => $"principal:{tenantId:N}:{subject}";
 }
 
@@ -122,8 +125,40 @@ public sealed class PrincipalResolver(
 
         var access = await tenants.UserAccess(tenantId, cancellationToken);
         var principal = access == TenantUserAccess.None ? null : await Load(tenantId, subject, access == TenantUserAccess.ConfigurationOnly, cancellationToken);
-        cache.Set(tenantId, subject, principal);
+        // BR-018: a refusal is not cached. An unknown subject may be a user whose identity is being linked this moment;
+        // its next request must find it.
+        if (principal is not null)
+        {
+            cache.Set(tenantId, subject, principal);
+        }
+
         return principal;
+    }
+
+    /// <summary>
+    /// BR-018: a token whose subject is unknown, for a user of the tenant still waiting for its Keycloak identity: found by
+    /// Keycloak's tenant-qualified username, "&lt;tenant code&gt;.&lt;username&gt;" (keycloak-user-provisioning §2).
+    /// </summary>
+    public async Task<bool> AwaitsIdentity(Guid tenantId, string? username, CancellationToken cancellationToken)
+    {
+        if (username?.IndexOf('.') is not int dot || dot < 1 || dot == username.Length - 1)
+        {
+            return false;
+        }
+
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var find = new NpgsqlCommand("""
+            SELECT EXISTS (SELECT 1 FROM iam.user_account WHERE tenant_id = @t AND lower(username) = lower(@username) AND external_subject IS NULL
+                           AND status = @pending)
+            """, connection, transaction);
+        find.Parameters.AddWithValue("t", tenantId);
+        find.Parameters.AddWithValue("username", username[(dot + 1)..]);
+        find.Parameters.AddWithValue("pending", UpperCaseEnumConverter<UserStatus>.ToCode(UserStatus.PendingIdentity));
+        var awaits = await find.ExecuteScalarAsync(cancellationToken) is true;
+        await transaction.CommitAsync(cancellationToken);
+        return awaits;
     }
 
     private async Task<ResolvedPrincipal?> Load(Guid tenantId, string subject, bool configurationOnly, CancellationToken cancellationToken)

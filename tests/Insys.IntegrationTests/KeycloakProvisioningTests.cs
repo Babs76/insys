@@ -228,6 +228,145 @@ public sealed class KeycloakProvisioningTests(DatabaseFixture fixture, KeycloakP
         (await realm.Users("tena.lou.ng")).ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// BR-018: an approved first administrator is not usable until its Keycloak identity is linked. Before then a call
+    /// with its Keycloak token is refused with IDENTITY_NOT_LINKED (retryable), not FORBIDDEN, and the request reads its own
+    /// state, not Provisioned. Once linked, the next call works at once, with no wait for a cached refusal to expire.
+    /// </summary>
+    [Fact]
+    public async Task AnApprovedAdministrator_IsRefusedWithIdentityNotLinked_UntilLinked_ThenWorksAtOnce_BR018()
+    {
+        var (one, two) = await PlatformAdministrators();
+        var target = await TenantAtAccessStep(one, "KCADM");
+        await using var down = new InsysApiFactory(fixture.Database, Settings("http://127.0.0.1:1"));
+        var requestId = await ApprovedAdministrators(down, target, "kcadm-a", "kcadm-b");
+
+        // Keycloak unreachable: the users exist, waiting for their identities, and the request says so.
+        (await RequestState(requestId)).ShouldBe("IdentityParked");
+        var waiting = await _factory.ClientFor(target, "kc-not-yet-linked", username: "kcadm.kcadm-a").GetAsync("/api/v1/identity/me");
+        waiting.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await waiting.Code()).ShouldBe("IDENTITY_NOT_LINKED");
+        waiting.Headers.RetryAfter.ShouldNotBeNull();
+        // A token for no user at all is still plainly refused.
+        (await (await _factory.ClientFor(target, "nobody", username: "kcadm.nobody").GetAsync("/api/v1/identity/me")).Code()).ShouldBe("FORBIDDEN");
+
+        // The operator retries once Keycloak is back; the parking job, in a host that reaches Keycloak, creates and links them.
+        var retried = await _factory.ClientFor(DatabaseFixture.Operator, "kc-platform-one").Send(HttpMethod.Post,
+            $"/api/v1/identity/tenant-administrators/{requestId}/retry-identity");
+        retried.StatusCode.ShouldBe(HttpStatusCode.OK, await retried.Content.ReadAsStringAsync());
+        (await RequestState(requestId)).ShouldBe("AwaitingIdentity");
+        await _factory.Services.GetRequiredService<ParkingJob>().RunForTenant(target, CancellationToken.None);
+        await _factory.DrainOutbox();
+        (await RequestState(requestId)).ShouldBe("Provisioned");
+
+        var subject = await fixture.Database.ScalarAsOwner<string>("SELECT external_subject FROM iam.user_account WHERE tenant_id = @t AND username = 'kcadm-a'",
+            ("t", target));
+        (await _factory.ClientFor(target, subject!, username: "kcadm.kcadm-a").GetAsync("/api/v1/identity/me")).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    /// <summary>
+    /// BR-018: an identity Keycloak refuses for good (another tenant's user holds the username) leaves the request
+    /// IdentityFailed, with the reason; once the cause is fixed, the operator's retry returns it to AwaitingIdentity, and it
+    /// is Provisioned when linked.
+    /// </summary>
+    [Fact]
+    public async Task AnIdentityThatFails_ShowsIdentityFailed_WithTheReason_AndARetryAfterTheFixProvisionsIt_BR018()
+    {
+        var (one, _) = await PlatformAdministrators();
+        var target = await TenantAtAccessStep(one, "KCFAIL");
+        await realm.Admin(HttpMethod.Post, "/users", new
+        {
+            username = "kcfail.kcfail-a", email = "other@example.com", enabled = true, firstName = "Other", lastName = "Tenant",
+            attributes = new Dictionary<string, string[]> { ["tenant_id"] = [DatabaseFixture.TenantB.ToString()] },
+        });
+        var requestId = await ApprovedAdministrators(_factory, target, "kcfail-a", "kcfail-b");
+
+        var request = await (await _factory.ClientFor(DatabaseFixture.Operator, "kc-platform-one").GetAsync($"/api/v1/identity/tenant-administrators/{requestId}")).Json();
+        request.GetProperty("status").GetString().ShouldBe("IdentityFailed");
+        request.GetProperty("administrators").EnumerateArray().Select(a => (a.GetProperty("username").GetString(), a.GetProperty("identityState").GetString(),
+            a.GetProperty("identityReason").ValueKind == JsonValueKind.Null ? null : a.GetProperty("identityReason").GetString()))
+            .ShouldBe([("kcfail-a", "Failed", "KEYCLOAK_USER_CONFLICT username"), ("kcfail-b", "Linked", null)]);
+
+        // The fix: the other tenant's Keycloak user is renamed away. Then the operator retries.
+        var conflict = (await realm.Users("kcfail.kcfail-a")).Single().GetProperty("id").GetString();
+        await realm.Admin(HttpMethod.Delete, $"/users/{conflict}");
+        (await _factory.ClientFor(DatabaseFixture.Operator, "kc-platform-one").Send(HttpMethod.Post,
+            $"/api/v1/identity/tenant-administrators/{requestId}/retry-identity")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await RequestState(requestId)).ShouldBe("AwaitingIdentity");
+        await _factory.Services.GetRequiredService<ParkingJob>().RunForTenant(target, CancellationToken.None);
+        await _factory.DrainOutbox();
+        (await RequestState(requestId)).ShouldBe("Provisioned");
+    }
+
+    private async Task<string> RequestState(Guid requestId) =>
+        (await (await _factory.ClientFor(DatabaseFixture.Operator, "kc-platform-one").GetAsync($"/api/v1/identity/tenant-administrators/{requestId}")).Json())
+            .GetProperty("status").GetString()!;
+
+    /// <summary>Two platform administrators; the second holds authority for tenant administrator approvals (WFL-004).</summary>
+    private async Task<(HttpClient One, HttpClient Two)> PlatformAdministrators()
+    {
+        string[] permissions =
+        [
+            Tenancy.Contracts.TenancyPermissions.Read, Tenancy.Contracts.TenancyPermissions.Create, Tenancy.Contracts.TenancyPermissions.Update,
+            IdentityPermissions.UserRead, IdentityPermissions.UserCreate, Workflow.Contracts.WorkflowPermissions.ApprovalRead,
+            Workflow.Contracts.WorkflowPermissions.ApprovalApprove,
+        ];
+        var db = fixture.Database;
+        await db.UserWithPermissions(DatabaseFixture.Operator, "kc-platform-one", permissions);
+        var second = await db.UserWithPermissions(DatabaseFixture.Operator, "kc-platform-two", permissions);
+        var role = await db.RoleWithPermissions(DatabaseFixture.Operator);
+        await db.AssignRole(DatabaseFixture.Operator, second, role);
+        await db.ExecuteAsOwner($"""
+            INSERT INTO workflow.cfg_delegation_and_approval_authority
+              (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, transaction_type, limit_value, delegation_allowed)
+            VALUES (@t, @code, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', @role, '{IdentityApprovals.TenantAdministratorApprovalType}', 0, false)
+            ON CONFLICT DO NOTHING
+            """, ("t", DatabaseFixture.Operator), ("code", "AUTH-" + role[..12]), ("role", role));
+        return (_factory.ClientFor(DatabaseFixture.Operator, "kc-platform-one"), _factory.ClientFor(DatabaseFixture.Operator, "kc-platform-two"));
+    }
+
+    private async Task<Guid> TenantAtAccessStep(HttpClient operatorClient, string code)
+    {
+        var registered = await operatorClient.Send(HttpMethod.Post, "/api/v1/tenancy/tenants",
+            new { tenantCode = code, legalName = code + " Ltd", isolationProfile = "B", timeZone = "Africa/Johannesburg" }, idempotent: true);
+        registered.StatusCode.ShouldBe(HttpStatusCode.Created, await registered.Content.ReadAsStringAsync());
+        var tenantId = (await registered.Json()).GetProperty("id").GetGuid();
+        var url = $"/api/v1/tenancy/tenants/{tenantId}";
+        var etag = (await operatorClient.GetAsync(url)).ETag();
+        await fixture.Database.SeedReadyTenant(tenantId, TestClock.Today.AddDays(-30));
+        foreach (var step in new[] { "PLATFORM_REFERENCE_DATA", "TENANT_REGISTRATION" })
+        {
+            var completed = await operatorClient.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", new { step }, ifMatch: etag);
+            completed.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            etag = completed.ETag();
+        }
+
+        return tenantId;
+    }
+
+    /// <summary>Two administrators of INSYS's own realm, requested and approved by two platform administrators through <paramref name="host"/>.</summary>
+    private async Task<Guid> ApprovedAdministrators(InsysApiFactory host, Guid target, string first, string second)
+    {
+        var one = host.ClientFor(DatabaseFixture.Operator, "kc-platform-one");
+        var body = new
+        {
+            tenantId = target,
+            administrators = new[] { first, second }.Select(u => new { username = u, displayName = "Admin " + u, idpCode = "KEYCLOAK", email = $"{u}@example.com", mfaEnrolled = false }),
+            functions = new[] { "IDENTITY_USERS" },
+        };
+        var requested = await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", body, idempotent: true);
+        requested.StatusCode.ShouldBe(HttpStatusCode.Created, await requested.Content.ReadAsStringAsync());
+        var requestId = (await requested.Json()).GetProperty("id").GetGuid();
+        await host.DrainOutbox();
+        var page = await (await one.GetAsync(
+            $"/api/v1/workflow/approvals?status=Requested&businessRefType={IdentityApprovals.TenantAdministratorBusinessRefType}&businessRefId={requestId}")).Json();
+        var approval = page.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        (await host.ClientFor(DatabaseFixture.Operator, "kc-platform-two").Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\""))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await host.DrainOutbox();
+        return requestId;
+    }
+
     private static async Task<Guid> Provision(HttpClient client, string username, bool mfa = false)
     {
         var created = await client.Send(HttpMethod.Post, "/api/v1/identity/users", new

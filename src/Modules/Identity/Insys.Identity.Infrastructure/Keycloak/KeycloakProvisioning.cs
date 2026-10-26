@@ -48,7 +48,7 @@ namespace Insys.Identity.Infrastructure.Keycloak;
 /// Keycloak usernames are tenant-qualified, "&lt;tenant code&gt;.&lt;username&gt;", as one realm serves every tenant.
 /// </summary>
 public sealed class KeycloakProvisioning(IUserRepository users, IKeycloakAdmin keycloak, ITenantProfiles tenants, ITenantContext tenant, IClock clock,
-    IAuditTrail audit) :
+    IAuditTrail audit, PermissionCache permissions) :
     IIntegrationEventHandler<Contracts.UserIdentityRequested>,
     IIntegrationEventHandler<Contracts.UserInvitationRequested>,
     IIntegrationEventHandler<Contracts.UserDisabled>,
@@ -86,6 +86,9 @@ public sealed class KeycloakProvisioning(IUserRepository users, IKeycloakAdmin k
         {
             throw new InvalidOperationException($"User {user.Id} cannot be linked to its Keycloak user: {linked.Error.Code}");
         }
+
+        // BR-018: the user's next request resolves afresh, with no wait for a cached entry to expire.
+        permissions.Evict(tenantId, subject);
 
         audit.Record(new AuditEntry("IDENTITY", "CreateKeycloakUser", nameof(UserAccount), user.Id.ToString(),
             new Dictionary<string, string?> { ["realm"] = Realm }));

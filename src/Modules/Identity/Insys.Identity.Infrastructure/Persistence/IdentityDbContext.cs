@@ -105,12 +105,22 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             request.HasAuditColumns();
             request.Ignore(r => r.DomainEvents);
             request.Ignore(r => r.HasChanges);
-            request.Property(r => r.Username).HasMaxLength(120);
-            request.Property(r => r.DisplayName).HasMaxLength(120);
-            request.Property(r => r.IdpCode).HasMaxLength(15);
-            request.Property(r => r.ExternalSubject).HasMaxLength(120);
             request.Property(r => r.Role).HasColumnName("role_code").HasMaxLength(30);
             request.Property(r => r.Status).HasConversion(new UpperCaseEnumConverter<TenantAdministratorRequestStatus>()).HasMaxLength(20);
+            request.Property(r => r.Kind).HasConversion(new UpperCaseEnumConverter<TenantAdministratorRequestKind>()).HasMaxLength(24);
+            request.HasMany(r => r.People).WithOne().HasForeignKey(p => new { p.TenantId, p.RequestId });
+            request.Navigation(r => r.People).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<TenantAdministratorPerson>(person =>
+        {
+            person.ToTable("tenant_administrator_person");
+            person.HasKey(p => new { p.TenantId, p.Id });
+            person.Property(p => p.Username).HasMaxLength(120);
+            person.Property(p => p.DisplayName).HasMaxLength(120);
+            person.Property(p => p.IdpCode).HasMaxLength(15);
+            person.Property(p => p.ExternalSubject).HasMaxLength(120);
+            person.Property(p => p.Email).HasMaxLength(254);
         });
 
         modelBuilder.Entity<PrivilegedAccessGrant>(grant =>

@@ -102,8 +102,7 @@ public sealed class TenancyTests(DatabaseFixture fixture) : IClassFixture<Databa
 
         var etag = tenant.ETag();
         await fixture.Database.SeedReadyTenant(tenantId, TestClock.Today.AddDays(-30));
-        var admin = await fixture.Database.UserWithPermissions(tenantId, "acme-admin", IntegrationPermissions.DeadLetterRead);
-        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET role_code = 'TENANT_ADMIN' WHERE user_id = @u", ("u", admin));
+        var admin = (await fixture.Database.SeedActiveAdministrators(tenantId, "acme-admin", IntegrationPermissions.DeadLetterRead))[0];
         etag = await client.CompleteOnboarding(_factory.ClientFor(DatabaseFixture.Operator, OperatorAdmin + "-2"), url, etag);
 
         (await client.Send(HttpMethod.Post, $"{url}/activate", new { reason = "Go live" }, ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.NoContent);

@@ -64,6 +64,7 @@ public static class IntegrationInfrastructure
         services.AddSingleton<IDeliveryLedger, Parking.PostgresDeliveryLedger>();
         services.AddSingleton<Parking.ParkingJob>();
         services.AddScoped<Application.Parking.IParkedDeliveryStore, Parking.ParkedDeliveryStore>();
+        services.AddSingleton<Contracts.IRecordDeliveries, Parking.RecordDeliveries>();
         services.AddSingleton<IConfigurationOwner, Parking.ConfigurationOwner>();
         services.AddIntegrationEventHandler<Insys.BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated, Parking.RetryParkedOnConfiguration, IntegrationDbContext>(
             IntegrationDbContext.SchemaName, "ParkedRetry");

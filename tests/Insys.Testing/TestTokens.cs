@@ -44,9 +44,15 @@ public static class TestTokens
     /// <summary>A token valid around <paramref name="now"/>, for a host whose clock is fixed (business date tests).</summary>
     /// <param name="clientId">The OAuth client the token was issued to (azp), which names the request's channel (F005).</param>
     /// <param name="multiFactor">Whether the token shows a second factor (amr otp), as Keycloak's AMR mapper adds after OTP (external-user access §6).</param>
-    public static string For(Guid? tenantId, string subject, DateTime now, string? clientId = null, bool multiFactor = false)
+    /// <param name="username">Keycloak's preferred_username, "&lt;tenant code&gt;.&lt;username&gt;" (BR-018).</param>
+    public static string For(Guid? tenantId, string subject, DateTime now, string? clientId = null, bool multiFactor = false, string? username = null)
     {
         var claims = new List<Claim> { new("sub", subject) };
+        if (username is not null)
+        {
+            claims.Add(new Claim("preferred_username", username));
+        }
+
         if (tenantId is not null)
         {
             claims.Add(new Claim("tenant_id", tenantId.Value.ToString()));

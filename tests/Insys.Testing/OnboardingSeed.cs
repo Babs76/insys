@@ -139,6 +139,22 @@ public static class OnboardingSeed
     }
 
     /// <summary>Everything every readiness check needs, in force from <paramref name="from"/>; <paramref name="staffRole"/> gets its channel rows.</summary>
+    /// <summary>
+    /// BR-013: two active tenant administrators (a TENANT_ADMIN assignment, the identity linked, signed in once), as the
+    /// ORGANISATION_AND_ACCESS step needs. Returns their user IDs; each holds <paramref name="permissions"/> too.
+    /// </summary>
+    public static async Task<Guid[]> SeedActiveAdministrators(this TestDatabase database, Guid tenantId, string prefix, params string[] permissions)
+    {
+        var users = new[] { await database.UserWithPermissions(tenantId, prefix, permissions), await database.UserWithPermissions(tenantId, prefix + "-2", permissions) };
+        foreach (var user in users)
+        {
+            await database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET role_code = 'TENANT_ADMIN' WHERE user_id = @u", ("u", user));
+            await database.ExecuteAsOwner("UPDATE iam.user_account SET status = 'ACTIVE', last_login_at = now() WHERE id = @u", ("u", user));
+        }
+
+        return users;
+    }
+
     public static async Task SeedReadyTenant(this TestDatabase database, Guid tenantId, DateOnly from)
     {
         // PLATFORM_REFERENCE_DATA: global rows (shared by every tenant of the test database).

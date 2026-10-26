@@ -50,6 +50,9 @@ public static class InsysClaims
 
     public const string Subject = "sub";
 
+    /// <summary>The identity provider's username (Keycloak: "&lt;tenant code&gt;.&lt;username&gt;", keycloak-user-provisioning §2).</summary>
+    public const string PreferredUsername = "preferred_username";
+
     /// <summary>The OAuth client the token was issued to, which names the request's channel (F005 §1).</summary>
     public const string AuthorisedParty = "azp";
 }
@@ -205,6 +208,15 @@ public sealed class ProblemAuthorizationResultHandler : IAuthorizationMiddleware
             return;
         }
 
+        // BR-018: a user whose identity is still being linked is told so, and when to try again, not refused for good.
+        if (context.Items.ContainsKey(ExecutionScopeMiddleware.IdentityNotLinkedItem))
+        {
+            context.Response.Headers.RetryAfter = "2";
+            await Write(context, StatusCodes.Status403Forbidden, ErrorCodes.IdentityNotLinked,
+                "Your sign-in is still being set up. Try again in a moment.");
+            return;
+        }
+
         await Write(context, StatusCodes.Status403Forbidden,
             tenantMissing ? ErrorCodes.TenantContextMissing : ErrorCodes.Forbidden,
             tenantMissing ? "No tenant is established for the caller." : "The caller does not hold the required permission.");
@@ -300,6 +312,9 @@ public sealed record PlatformOperatorEndpointMetadata;
 /// </summary>
 public sealed class ExecutionScopeMiddleware(RequestDelegate next)
 {
+    /// <summary>HttpContext item: the token is for a user whose identity is not linked yet (BR-018).</summary>
+    public const string IdentityNotLinkedItem = "insys:identity-not-linked";
+
     private static readonly string[] SecondFactors = ["otp", "mfa", "hwk", "swk"];
 
     /// <summary>
@@ -331,6 +346,11 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
         if (tenantId is not null && subject is not null && context.RequestServices.GetService<IPrincipalResolver>() is { } resolver)
         {
             var principal = await resolver.Resolve(tenantId.Value, subject, context.RequestAborted);
+            if (principal is null && await resolver.AwaitsIdentity(tenantId.Value, user.FindFirstValue(InsysClaims.PreferredUsername), context.RequestAborted))
+            {
+                context.Items[IdentityNotLinkedItem] = true;
+            }
+
             if (principal is not null)
             {
                 actor = principal.UserId.ToString();

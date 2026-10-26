@@ -58,4 +58,11 @@ public interface IPrincipalResolver
 {
     /// <summary>Returns null when the subject is unknown, locked or disabled in the tenant, or the tenant is neither active nor onboarding.</summary>
     Task<ResolvedPrincipal?> Resolve(Guid tenantId, string subject, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For a token whose subject is unknown: whether it is a user of the tenant still waiting for its identity to be linked
+    /// (BR-018), found by the identity provider's username. The caller is then refused with IDENTITY_NOT_LINKED, a retryable
+    /// refusal, rather than FORBIDDEN.
+    /// </summary>
+    Task<bool> AwaitsIdentity(Guid tenantId, string? username, CancellationToken cancellationToken) => Task.FromResult(false);
 }

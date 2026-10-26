@@ -81,8 +81,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         errors.GetProperty("CHANNELS").EnumerateArray().Select(m => m.GetString()).ShouldBe(["UNDERWRITER: GENERAL_CREATE_QUOTE"], "reads are not channel-scoped");
         (await (await _operator.GetAsync(url)).Json()).GetProperty("onboardingStep").GetString().ShouldBe("ORGANISATION_AND_ACCESS", "nothing changed");
 
-        var admin = await fixture.Database.UserWithPermissions(tenantId, "ready-admin", "user.read");
-        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET role_code = 'TENANT_ADMIN' WHERE user_id = @u", ("u", admin));
+        await fixture.Database.SeedActiveAdministrators(tenantId, "ready-admin", "user.read");
         await fixture.Database.SeedStaticFilled(tenantId, "channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CP-UW", From, ("channel_code", "STF"),
             ("role_code", "UNDERWRITER"), ("transaction_type", "general_quote.create"), ("product_code", DBNull.Value), ("allowed", true),
             ("requires_approval", false));
@@ -148,8 +147,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         (await refused.Code()).ShouldBe("TENANT_NOT_ACTIVE");
         (await clerk.GetAsync($"/api/v1/billing/accounts/{Guid.CreateVersion7()}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "reads are allowed");
 
-        var admin = await fixture.Database.UserWithPermissions(tenantId, "config-admin", "user.read");
-        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET role_code = 'TENANT_ADMIN' WHERE user_id = @u", ("u", admin));
+        await fixture.Database.SeedActiveAdministrators(tenantId, "config-admin", "user.read");
         var etag = await _operator.CompleteOnboarding(_checker, url, (await _operator.GetAsync(url)).ETag());
         (await _operator.Send(HttpMethod.Post, $"{url}/activate", new { reason = "Go live" }, ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         await _factory.DrainOutbox();

@@ -31140,8 +31140,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Request a new tenant\u0027s first administrator",
-        "description": "Platform operator only, while the tenant is Onboarding and has no users. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR); then the tenant\u0027s TENANT_ADMIN role (granted these functions: at least one, each a staff function in force in the catalogue, else 422 VALIDATION_FAILED on functions), the user and an active assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with externalSubject, whose token must carry the new tenant\u0027s tenant_id. With idpCode KEYCLOAK, displayName must not contain a character Keycloak\u0027s name validator refuses (\u003C \u003E \u0026 \u0022 $ % ! # ? \u00A7 ; * ~ / \\ | ^ = [ ] { } ( ) and control characters): a 422 with a field error on displayName (BR-006). Completes asynchronously (GAP-027): the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy completes the onboarding step.",
+        "summary": "Request a new tenant\u0027s two first administrators",
+        "description": "Platform operator only, while the tenant is Onboarding and has no users. Names exactly two administrators (BR-013), so that from the start one can approve what the other does (a privileged role, a static data change); else 422 VALIDATION_FAILED on administrators. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR); a platform administrator never approves anything inside the tenant. Then the tenant\u0027s TENANT_ADMIN role (granted these functions: at least one, each a staff function in force in the catalogue, else 422 VALIDATION_FAILED on functions), both users and their active assignments are created. status is then AwaitingIdentity until both identities are linked (Provisioned), IdentityParked while one waits on Keycloak, or IdentityFailed when one needs a fix and a retry (BR-018). The ORGANISATION_AND_ACCESS step completes once both administrators are active: identity linked and at least one successful authenticated request each. With idpCode KEYCLOAK, displayName must not contain a character Keycloak\u0027s name validator refuses (\u003C \u003E \u0026 \u0022 $ % ! # ? \u00A7 ; * ~ / \\ | ^ = [ ] { } ( ) and control characters): a 422 with a field error on displayName (BR-006). Completes asynchronously (GAP-027): the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the users\u0027 identities are created and linked (Provisioned), and Tenancy checks the onboarding step.",
         "operationId": "ProvisionTenantAdministrator",
         "parameters": [
           {
@@ -31205,7 +31205,7 @@
         "x-function": [
           "PROVISION_TENANT_ADMINISTRATOR"
         ],
-        "x-eventual-effects": "the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy completes the onboarding step."
+        "x-eventual-effects": "the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the users\u0027 identities are created and linked (Provisioned), and Tenancy checks the onboarding step."
       },
       "get": {
         "tags": [
@@ -31257,6 +31257,134 @@
         "x-function": [
           "IDENTITY_TENANT_ADMINISTRATORS"
         ]
+      }
+    },
+    "/api/v1/identity/tenant-administrators/additional": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Request one more administrator for an existing tenant",
+        "description": "Platform operator only (BR-013), for a tenant that is Active or Onboarding and has its TENANT_ADMIN role in force. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR), never anyone inside the tenant; the user is then created with an active TENANT_ADMIN assignment, and the request reads as a first-administrator request does (BR-018). 409 DUPLICATE_RECORD when the tenant has the username or another request waits. With idpCode KEYCLOAK, displayName must not contain a character Keycloak\u0027s name validator refuses (\u003C \u003E \u0026 \u0022 $ % ! # ? \u00A7 ; * ~ / \\ | ^ = [ ] { } ( ) and control characters): a 422 with a field error on displayName (BR-006). Completes asynchronously (GAP-027): the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the user\u0027s identity is created and linked.",
+        "operationId": "RequestAdditionalAdministrator",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityAdditionalAdministratorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedId"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "user.create",
+        "x-function": [
+          "REQUEST_ADDITIONAL_ADMINISTRATOR"
+        ],
+        "x-eventual-effects": "the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the user\u0027s identity is created and linked."
+      }
+    },
+    "/api/v1/identity/tenant-administrators/{id}/retry-identity": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Retry the creation of an approved request\u0027s parked or failed identities",
+        "description": "BR-018: after the cause is fixed (a username conflict resolved in Keycloak, say), the identities that are IdentityParked or IdentityFailed are tried again; the request reads AwaitingIdentity until they are linked. 409 when none is parked or failed. Completes asynchronously (GAP-027): the parking job tries each identity again; once linked the request reads Provisioned.",
+        "operationId": "RetryAdministratorIdentity",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "user.create",
+        "x-function": [
+          "RETRY_ADMINISTRATOR_IDENTITY"
+        ],
+        "x-eventual-effects": "the parking job tries each identity again; once linked the request reads Provisioned."
       }
     },
     "/api/v1/identity/tenant-administrators/{id}": {
@@ -40834,6 +40962,31 @@
           }
         }
       },
+      "IdentityAdditionalAdministratorRequest": {
+        "required": [
+          "tenantId",
+          "administrator"
+        ],
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "administrator": {
+            "$ref": "#/components/schemas/IdentityTenantAdministratorPersonInput"
+          }
+        }
+      },
+      "IdentityAdministratorIdentityState": {
+        "enum": [
+          "Pending",
+          "Parked",
+          "Failed",
+          "Linked",
+          null
+        ]
+      },
       "IdentityAuthenticationAndSessionPolicies": {
         "type": "object",
         "properties": {
@@ -42480,11 +42633,7 @@
       "IdentityProvisionTenantAdministratorRequest": {
         "required": [
           "tenantId",
-          "username",
-          "displayName",
-          "idpCode",
-          "externalSubject",
-          "mfaEnrolled",
+          "administrators",
           "functions"
         ],
         "type": "object",
@@ -42493,6 +42642,31 @@
             "type": "string",
             "format": "uuid"
           },
+          "administrators": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityTenantAdministratorPersonInput"
+            }
+          },
+          "functions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "IdentityTenantAdministratorPersonDetails": {
+        "required": [
+          "username",
+          "displayName",
+          "idpCode",
+          "externalSubject",
+          "mfaEnrolled",
+          "email"
+        ],
+        "type": "object",
+        "properties": {
           "username": {
             "type": "string"
           },
@@ -42511,12 +42685,6 @@
           "mfaEnrolled": {
             "type": "boolean"
           },
-          "functions": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
           "email": {
             "type": [
               "null",
@@ -42525,9 +42693,113 @@
           }
         }
       },
-      "IdentityTenantAdministratorRequestStatus": {
+      "IdentityTenantAdministratorPersonInput": {
+        "required": [
+          "username",
+          "displayName",
+          "idpCode",
+          "externalSubject",
+          "mfaEnrolled"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "idpCode": {
+            "type": "string"
+          },
+          "externalSubject": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "mfaEnrolled": {
+            "type": "boolean"
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "details": {
+            "$ref": "#/components/schemas/IdentityTenantAdministratorPersonDetails"
+          }
+        }
+      },
+      "IdentityTenantAdministratorPersonView": {
+        "required": [
+          "username",
+          "displayName",
+          "idpCode",
+          "externalSubject",
+          "mfaEnrolled",
+          "userId",
+          "identityState",
+          "identityReason"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "idpCode": {
+            "type": "string"
+          },
+          "externalSubject": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "mfaEnrolled": {
+            "type": "boolean"
+          },
+          "userId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "identityState": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IdentityAdministratorIdentityState"
+              }
+            ]
+          },
+          "identityReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "IdentityTenantAdministratorRequestKind": {
+        "enum": [
+          "FirstAdministrators",
+          "AdditionalAdministrator"
+        ]
+      },
+      "IdentityTenantAdministratorRequestState": {
         "enum": [
           "PendingApproval",
+          "AwaitingIdentity",
+          "IdentityParked",
+          "IdentityFailed",
           "Provisioned",
           "Rejected"
         ]
@@ -42536,18 +42808,14 @@
         "required": [
           "id",
           "targetTenantId",
-          "username",
-          "displayName",
-          "idpCode",
-          "externalSubject",
-          "mfaEnrolled",
+          "kind",
           "roleCode",
           "functions",
           "requestedBy",
           "status",
           "decidedBy",
           "decidedAt",
-          "userId",
+          "administrators",
           "rowVersion",
           "latestRejection"
         ],
@@ -42561,23 +42829,8 @@
             "type": "string",
             "format": "uuid"
           },
-          "username": {
-            "type": "string"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "idpCode": {
-            "type": "string"
-          },
-          "externalSubject": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "mfaEnrolled": {
-            "type": "boolean"
+          "kind": {
+            "$ref": "#/components/schemas/IdentityTenantAdministratorRequestKind"
           },
           "roleCode": {
             "type": "string"
@@ -42593,7 +42846,7 @@
             "format": "uuid"
           },
           "status": {
-            "$ref": "#/components/schemas/IdentityTenantAdministratorRequestStatus"
+            "$ref": "#/components/schemas/IdentityTenantAdministratorRequestState"
           },
           "decidedBy": {
             "type": [
@@ -42609,12 +42862,11 @@
             ],
             "format": "date-time"
           },
-          "userId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
+          "administrators": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityTenantAdministratorPersonView"
+            }
           },
           "rowVersion": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",

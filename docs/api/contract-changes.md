@@ -2,7 +2,17 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 2 batch 2 (branch `wave2-2`, not merged)
+## Wave 2 batch 3 (branch `wave2-3`, not merged)
+
+### Breaking: a tenant's administrators (BR-013, BR-018)
+- **`POST /identity/tenant-administrators`** body is now `{tenantId, administrators: [two people], functions}`, each person `{username, displayName, idpCode, externalSubject | email, mfaEnrolled}`. A new tenant gets exactly two administrators (422 `VALIDATION_FAILED` on `administrators` otherwise; the usernames must differ).
+- **`TenantAdministratorRequestView`** loses the single person's fields (`username`, `displayName`, `idpCode`, `externalSubject`, `mfaEnrolled`, `userId`) and gains `kind` (`FirstAdministrators`, `AdditionalAdministrator`) and `administrators: [{username, displayName, idpCode, externalSubject, mfaEnrolled, userId, identityState, identityReason}]`.
+- **`status`** is now `PendingApproval`, `AwaitingIdentity`, `IdentityParked`, `IdentityFailed`, `Provisioned` or `Rejected`. Provisioned means every administrator's identity is linked and usable (BR-018). `identityState` per person is `Pending`, `Parked`, `Failed` or `Linked`; `identityReason` gives the parking code and item for Parked or Failed (for example `KEYCLOAK_USER_CONFLICT username`).
+- **New:** `POST /identity/tenant-administrators/additional` `{tenantId, administrator}` (Idempotency-Key): one more administrator for an existing Active or Onboarding tenant, approved by a second platform administrator. `POST /identity/tenant-administrators/{id}/retry-identity`: after the cause is fixed, retries the parked or failed identities; `{retried}`; 409 when none is parked or failed.
+- **Readiness:** `ORGANISATION_AND_ACCESS` / `FIRST_ADMINISTRATOR` needs two active administrators (identity linked, signed in once); its `missing` reads `TENANT_ADMIN: n of 2 active`.
+- **New error code `IDENTITY_NOT_LINKED`** (403, with `Retry-After`): the token is for a user of the tenant whose identity is not linked yet; retry the same call. A console treats it as "still setting up", not as a refusal.
+
+## Wave 2 batch 2 (branch `wave2-2`, merged)
 
 ### Breaking
 - **`payments/static/payment-release-limits` is removed** (OQ-112, V0059): nothing read the table. Release limits are the approval authority in `workflow/static/delegation-and-approval-authority` (by approval type and currency).

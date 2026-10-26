@@ -47,8 +47,11 @@ namespace Insys.Identity.Api;
 public sealed record ProvisionUserRequest(string Username, string DisplayName, string IdpCode, string? ExternalSubject, bool MfaEnrolled, string? Email = null);
 
 /// <summary>A new tenant's first administrator (OQ-067): the user, and the functions of the tenant's TENANT_ADMIN role (ADR-026, OQ-099).</summary>
-public sealed record ProvisionTenantAdministratorRequest(Guid TenantId, string Username, string DisplayName, string IdpCode, string? ExternalSubject,
-    bool MfaEnrolled, string[] Functions, string? Email = null);
+/// <param name="Administrators">Exactly two people (BR-013), each with a username of their own.</param>
+/// <param name="Functions">The functions of the tenant's TENANT_ADMIN role: at least one, each a staff function in force in the catalogue (OQ-099).</param>
+public sealed record ProvisionTenantAdministratorRequest(Guid TenantId, IReadOnlyList<TenantAdministratorPersonInput> Administrators, string[] Functions);
+
+public sealed record AdditionalAdministratorRequest(Guid TenantId, TenantAdministratorPersonInput Administrator);
 
 public sealed record SubjectLinkRequest(Domain.Users.SubjectKind Kind, Guid? PartyId, string? IntermediaryCode, string? ProviderId);
 
@@ -405,8 +408,7 @@ public sealed class IdentityModule : IModule
     private static void MapTenantAdministrators(RouteGroupBuilder requests)
     {
         requests.MapPost("/", async (ProvisionTenantAdministratorRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
-                (await dispatcher.Send(new ProvisionTenantAdministrator(request.TenantId, request.Username, request.DisplayName, request.IdpCode,
-                    request.ExternalSubject, request.MfaEnrolled, request.Functions ?? [], request.Email), ct))
+                (await dispatcher.Send(new ProvisionTenantAdministrators(request.TenantId, request.Administrators ?? [], request.Functions ?? []), ct))
                 .ToHttp(id =>
                 {
                     Concurrency.SetETag(http, 1);
@@ -414,15 +416,46 @@ public sealed class IdentityModule : IModule
                 }))
             .Produces<CreatedId>(StatusCodes.Status201Created)
             .WithName("ProvisionTenantAdministrator")
-            .WithSummary("Request a new tenant's first administrator")
-            .WithDescription("Platform operator only, while the tenant is Onboarding and has no users. A second platform administrator approves it in "
-                + "Workflow (approval type TENANT_ADMINISTRATOR); then the tenant's TENANT_ADMIN role (granted these functions: at least one, each a staff function in force in the catalogue, else 422 VALIDATION_FAILED on functions), the user and an active "
-                + "assignment are created, and the ORGANISATION_AND_ACCESS onboarding step completes when it is the current one. The user signs in with "
-                + "externalSubject, whose token must carry the new tenant's tenant_id. " + DisplayNameRule)
-            .WithEventualEffects("the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the request becomes Provisioned and Tenancy "
-                + "completes the onboarding step.")
+            .WithSummary("Request a new tenant's two first administrators")
+            .WithDescription("Platform operator only, while the tenant is Onboarding and has no users. Names exactly two administrators (BR-013), so that "
+                + "from the start one can approve what the other does (a privileged role, a static data change); else 422 VALIDATION_FAILED on "
+                + "administrators. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR); a platform administrator "
+                + "never approves anything inside the tenant. Then the tenant's TENANT_ADMIN role (granted these functions: at least one, each a staff "
+                + "function in force in the catalogue, else 422 VALIDATION_FAILED on functions), both users and their active assignments are created. "
+                + "status is then AwaitingIdentity until both identities are linked (Provisioned), IdentityParked while one waits on Keycloak, or "
+                + "IdentityFailed when one needs a fix and a retry (BR-018). The ORGANISATION_AND_ACCESS step completes once both administrators are "
+                + "active: identity linked and at least one successful authenticated request each. " + DisplayNameRule)
+            .WithEventualEffects("the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the users' identities are created and linked "
+                + "(Provisioned), and Tenancy checks the onboarding step.")
             .RequirePlatformPermission(IdentityPermissions.UserCreate)
             .RequireIdempotencyKey();
+
+        requests.MapPost("/additional", async (AdditionalAdministratorRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Send(new RequestAdditionalAdministrator(request.TenantId, request.Administrator), ct))
+                .ToHttp(id =>
+                {
+                    Concurrency.SetETag(http, 1);
+                    return Results.Created($"/api/v1/identity/tenant-administrators/{id}", new { id });
+                }))
+            .Produces<CreatedId>(StatusCodes.Status201Created)
+            .WithName("RequestAdditionalAdministrator")
+            .WithSummary("Request one more administrator for an existing tenant")
+            .WithDescription("Platform operator only (BR-013), for a tenant that is Active or Onboarding and has its TENANT_ADMIN role in force. A second "
+                + "platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR), never anyone inside the tenant; the user is then "
+                + "created with an active TENANT_ADMIN assignment, and the request reads as a first-administrator request does (BR-018). 409 "
+                + "DUPLICATE_RECORD when the tenant has the username or another request waits. " + DisplayNameRule)
+            .WithEventualEffects("the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the user's identity is created and linked.")
+            .RequirePlatformPermission(IdentityPermissions.UserCreate)
+            .RequireIdempotencyKey();
+
+        requests.MapPost("/{id:guid}/retry-identity", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new RetryAdministratorIdentity(id), ct)).ToHttp(count => Results.Ok(new { retried = count })))
+            .WithName("RetryAdministratorIdentity")
+            .WithSummary("Retry the creation of an approved request's parked or failed identities")
+            .WithDescription("BR-018: after the cause is fixed (a username conflict resolved in Keycloak, say), the identities that are IdentityParked or "
+                + "IdentityFailed are tried again; the request reads AwaitingIdentity until they are linked. 409 when none is parked or failed.")
+            .WithEventualEffects("the parking job tries each identity again; once linked the request reads Provisioned.")
+            .RequirePlatformPermission(IdentityPermissions.UserCreate);
 
         requests.MapGet("/", async (Guid? tenantId, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListTenantAdministratorRequests(tenantId), ct)).ToHttp(items => Results.Ok(items)))

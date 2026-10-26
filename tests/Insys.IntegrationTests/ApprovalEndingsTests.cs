@@ -684,7 +684,12 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
 
         var request = await w.Created("/api/v1/identity/tenant-administrators", new
         {
-            tenantId, username = $"admin-{w.Suffix}", displayName = "First administrator", idpCode = "OIDC", externalSubject = $"admin-{w.Suffix}", mfaEnrolled = true,
+            tenantId,
+            administrators = new[]
+            {
+                new { username = $"admin-{w.Suffix}", displayName = "First administrator", idpCode = "OIDC", externalSubject = $"admin-{w.Suffix}", mfaEnrolled = true },
+                new { username = $"admin2-{w.Suffix}", displayName = "Second administrator", idpCode = "OIDC", externalSubject = $"admin2-{w.Suffix}", mfaEnrolled = true },
+            },
             functions = new[] { "ASSIGN_ROLE", "IDENTITY_USERS", "INTEGRATION_DEAD_LETTERS", "PROVISION_USER" },
         });
         return new(IdentityApprovals.TenantAdministratorBusinessRefType, request,

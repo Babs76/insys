@@ -105,12 +105,17 @@ public static class IdentityInfrastructure
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("ORGANISATION_AND_ACCESS", "AUTHENTICATION_POLICY", "iam.cfg_authentication_and_session_policies", "An authentication and session policy, the tenant's or global", null, GlobalRows: true));
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.IdentityDbContext.SchemaName, ["ORGANISATION_AND_ACCESS"], async (context, connection, transaction, ct) =>
         {
+            // BR-013 (decided 26 October 2026): two active administrators, so that one can approve what the other does. Active means
+            // an active TENANT_ADMIN assignment, the identity linked, and at least one successful authenticated request (last_login_at).
             var admins = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, """
-                SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN' AND status = 'ACTIVE'
-                  AND valid_from <= @day AND (valid_to IS NULL OR valid_to > @day)
+                SELECT count(DISTINCT a.user_id) FROM iam.user_role_assignment a
+                JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id
+                WHERE a.tenant_id = @t AND a.role_code = 'TENANT_ADMIN' AND a.status = 'ACTIVE' AND a.valid_from <= @day AND (a.valid_to IS NULL OR a.valid_to > @day)
+                  AND u.status = 'ACTIVE' AND u.external_subject IS NOT NULL AND u.last_login_at IS NOT NULL
                 """, ct, ("t", context.TenantId), ("day", context.Day));
-            return [BuildingBlocks.Application.ReadinessResult.Of("ORGANISATION_AND_ACCESS", "FIRST_ADMINISTRATOR", "An active tenant administrator (OQ-067)",
-                admins > 0 ? [] : ["TENANT_ADMIN"])];
+            return [BuildingBlocks.Application.ReadinessResult.Of("ORGANISATION_AND_ACCESS", "FIRST_ADMINISTRATOR",
+                "Two active tenant administrators: identity linked and signed in at least once (OQ-067, BR-013)",
+                admins >= 2 ? [] : [$"TENANT_ADMIN: {admins} of 2 active"])];
         });
         services.AddSingleton<Contracts.IStaffRoles, Persistence.StaffRoles>();
         // INSYS creates the Keycloak users of its own realm (keycloak-user-provisioning).

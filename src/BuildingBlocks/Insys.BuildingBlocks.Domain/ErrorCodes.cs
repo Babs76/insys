@@ -93,6 +93,13 @@ public static class ErrorCodes
     [ErrorCode(403, "error.access.external_user_not_allowed")]
     public const string ExternalUserNotAllowed = "EXTERNAL_USER_NOT_ALLOWED";
 
+    /// <summary>
+    /// BR-018: the token is for a user of the tenant whose identity is not linked yet (its Keycloak user is being created).
+    /// Retryable: the response carries Retry-After, and the same call works once the identity is linked.
+    /// </summary>
+    [ErrorCode(403, "error.access.identity_not_linked")]
+    public const string IdentityNotLinked = "IDENTITY_NOT_LINKED";
+
     /// <summary>External-user access §6: the portal requires MFA, and the token shows none.</summary>
     [ErrorCode(403, "error.access.portal_mfa_required")]
     public const string PortalMfaRequired = "PORTAL_MFA_REQUIRED";

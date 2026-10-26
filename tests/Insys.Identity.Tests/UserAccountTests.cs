@@ -238,17 +238,40 @@ public sealed class UserAccountTests
     public void TenantAdministratorRequest_EveryEndingOtherThanApproval_RejectsIt(bool withChecker)
     {
         var requester = Guid.CreateVersion7();
-        var request = Domain.Tenants.TenantAdministratorRequest.Create(Guid.CreateVersion7(), "admin", "Admin", "KEYCLOAK", null, true, ["USERS"], requester, Now,
-            "admin@example.com");
+        var request = Domain.Tenants.TenantAdministratorRequest.ForNewTenant(Guid.CreateVersion7(), [Person("admin"), Person("admin2")], ["USERS"], requester, Now).Value;
         var checker = withChecker ? Guid.CreateVersion7() : Guid.Empty;
 
-        request.Decide(true, Guid.Empty, Guid.CreateVersion7(), Now).IsFailure.ShouldBeTrue("an approval has a checker");
+        request.Decide(true, Guid.Empty, [Guid.CreateVersion7(), Guid.CreateVersion7()], Now).IsFailure.ShouldBeTrue("an approval has a checker");
         request.Decide(false, requester, null, Now).Error!.Code.ShouldBe("MAKER_CHECKER_SAME_PERSON");
         request.Decide(false, checker, null, Now).IsSuccess.ShouldBeTrue();
 
-        (request.Status, request.DecidedBy, request.UserId).ShouldBe((Domain.Tenants.TenantAdministratorRequestStatus.Rejected, withChecker ? checker : (Guid?)null, (Guid?)null));
+        (request.Status, request.DecidedBy, request.People.All(p => p.UserId is null)).ShouldBe((Domain.Tenants.TenantAdministratorRequestStatus.Rejected, withChecker ? checker : (Guid?)null, true));
         request.Decide(false, checker, null, Now).IsFailure.ShouldBeTrue("already decided: the policy treats a Rejected request as already applied");
     }
+
+    /// <summary>BR-013: a new tenant's request names exactly two administrators with their own usernames; approval gives each a user.</summary>
+    [Fact]
+    public void ANewTenantsRequest_NamesTwoAdministrators_AndApprovalGivesEachAUser_BR013()
+    {
+        var requester = Guid.CreateVersion7();
+        Domain.Tenants.TenantAdministratorRequest.ForNewTenant(Guid.CreateVersion7(), [Person("one")], ["USERS"], requester, Now).Error!.Code.ShouldBe("VALIDATION_FAILED");
+        Domain.Tenants.TenantAdministratorRequest.ForNewTenant(Guid.CreateVersion7(), [Person("same"), Person("SAME")], ["USERS"], requester, Now).Error!.Code
+            .ShouldBe("VALIDATION_FAILED");
+        Domain.Tenants.TenantAdministratorRequest.ForNewTenant(Guid.CreateVersion7(), [Person("a"), Person("b")], [], requester, Now).Error!.Code.ShouldBe("VALIDATION_FAILED");
+
+        var request = Domain.Tenants.TenantAdministratorRequest.ForNewTenant(Guid.CreateVersion7(), [Person("a"), Person("b")], ["USERS"], requester, Now).Value;
+        request.Decide(true, Guid.CreateVersion7(), [Guid.CreateVersion7()], Now).IsFailure.ShouldBeTrue("a user for each person");
+        var users = new[] { Guid.CreateVersion7(), Guid.CreateVersion7() };
+        request.Decide(true, Guid.CreateVersion7(), users, Now).IsSuccess.ShouldBeTrue();
+        request.People.OrderBy(p => p.Position).Select(p => p.UserId!.Value).ShouldBe(users);
+        request.DomainEvents.OfType<Domain.Tenants.TenantAdministratorProvisioned>().Count().ShouldBe(2);
+
+        var additional = Domain.Tenants.TenantAdministratorRequest.ForExistingTenant(Guid.CreateVersion7(), Person("c"), requester, Now).Value;
+        (additional.Kind, additional.People.Count, additional.Functions.Length).ShouldBe((Domain.Tenants.TenantAdministratorRequestKind.AdditionalAdministrator, 1, 0));
+    }
+
+    private static Domain.Tenants.TenantAdministratorPersonDetails Person(string username) =>
+        new(username, "Admin " + username, "KEYCLOAK", null, true, $"{username}@example.com");
 
     [Fact]
     public void OrdinaryAssignment_IsActiveAtOnce() =>

@@ -28,30 +28,36 @@ using Insys.BuildingBlocks.Domain;
 
 namespace Insys.Identity.Domain.Tenants;
 
-/// <summary>iam.tenant_administrator_request.status (V0026).</summary>
+/// <summary>iam.tenant_administrator_request.status (V0026, V0062): the decision. An approved request's identities are read separately (BR-018).</summary>
 public enum TenantAdministratorRequestStatus
 {
     PendingApproval,
-    Provisioned,
+    Approved,
     Rejected,
 }
 
-/// <summary>
-/// A platform operator's request for a new tenant's first administrator (OQ-067, GAP-019), held in the operator tenant.
-/// A platform administrator names the user and the permissions of the tenant's TENANT_ADMIN role; a second platform
-/// administrator approves it in Workflow (SRS-002). On approval the user, the role and an active assignment are created
-/// in the new tenant, and the request records the new user.
-/// </summary>
-public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
+/// <summary>What the request is for (V0062, BR-013).</summary>
+public enum TenantAdministratorRequestKind
 {
-    /// <summary>The role the first administrator holds. Its permissions are given in the request (OQ-067).</summary>
-    public const string RoleCode = "TENANT_ADMIN";
+    /// <summary>A new tenant's first administrators: two people, while the tenant is onboarding and has no users.</summary>
+    FirstAdministrators,
 
-    private TenantAdministratorRequest()
+    /// <summary>One more administrator for an existing tenant, in its existing TENANT_ADMIN role.</summary>
+    AdditionalAdministrator,
+}
+
+/// <summary>A person a request names (iam.tenant_administrator_person).</summary>
+public sealed class TenantAdministratorPerson : Entity<Guid>, ITenantScoped
+{
+    private TenantAdministratorPerson()
     {
     }
 
-    public Guid TargetTenantId { get; private set; }
+    public Guid TenantId { get; private set; }
+
+    public Guid RequestId { get; private set; }
+
+    public short Position { get; private set; }
 
     public string Username { get; private set; } = "";
 
@@ -59,7 +65,6 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
 
     public string IdpCode { get; private set; } = "";
 
-    /// <summary>The identity provider's subject for the user (Keycloak: the user's ID), whose token carries the new tenant's tenant_id.</summary>
     /// <summary>The subject at a federated identity provider; null for INSYS's own realm, where INSYS creates the Keycloak user.</summary>
     public string? ExternalSubject { get; private set; }
 
@@ -68,9 +73,58 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
 
     public bool MfaEnrolled { get; private set; }
 
+    /// <summary>The user created in the tenant, once approved.</summary>
+    public Guid? UserId { get; private set; }
+
+    internal static TenantAdministratorPerson Create(Guid requestId, short position, TenantAdministratorPersonDetails details) => new()
+    {
+        Id = Guid.CreateVersion7(),
+        RequestId = requestId,
+        Position = position,
+        Username = Guard.MaxLength(Guard.NotNullOrWhiteSpace(details.Username), 120),
+        DisplayName = Guard.MaxLength(Guard.NotNullOrWhiteSpace(details.DisplayName), 120),
+        IdpCode = Guard.MaxLength(Guard.NotNullOrWhiteSpace(details.IdpCode), 15),
+        ExternalSubject = details.ExternalSubject is null ? null : Guard.MaxLength(Guard.NotNullOrWhiteSpace(details.ExternalSubject), 120),
+        Email = details.Email is null ? null : Guard.MaxLength(Guard.NotNullOrWhiteSpace(details.Email), 254),
+        MfaEnrolled = details.MfaEnrolled,
+    };
+
+    internal void Provisioned(Guid userId) => UserId = Guard.NotEmpty(userId);
+}
+
+/// <summary>Who a request names: the user's details, as the tenant will hold them.</summary>
+public sealed record TenantAdministratorPersonDetails(string Username, string DisplayName, string IdpCode, string? ExternalSubject, bool MfaEnrolled, string? Email);
+
+/// <summary>
+/// A platform operator's request for a tenant's administrators (OQ-067, GAP-019, BR-013), held in the operator tenant.
+/// For a new tenant it names two people and the functions of the tenant's TENANT_ADMIN role, so that from the start one
+/// administrator can approve what the other does; for an existing tenant it names one more administrator for the
+/// existing role. A second platform administrator approves it in Workflow (SRS-002); a platform administrator never
+/// approves anything inside the tenant. On approval the users (and, for a new tenant, the role) are created in the tenant.
+/// </summary>
+public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
+{
+    /// <summary>The role the administrators hold. A new tenant's request gives its functions (OQ-067, OQ-099).</summary>
+    public const string RoleCode = "TENANT_ADMIN";
+
+    /// <summary>A new tenant's first administrators: two, so that neither is left alone with a privileged role (BR-013).</summary>
+    public const int FirstAdministratorCount = 2;
+
+    private readonly List<TenantAdministratorPerson> _people = [];
+
+    private TenantAdministratorRequest()
+    {
+    }
+
+    public Guid TargetTenantId { get; private set; }
+
+    public TenantAdministratorRequestKind Kind { get; private set; }
+
+    public IReadOnlyList<TenantAdministratorPerson> People => _people;
+
     public string Role { get; private set; } = RoleCode;
 
-    /// <summary>The functions the tenant's TENANT_ADMIN role is granted (ADR-026, OQ-099).</summary>
+    /// <summary>The functions the tenant's TENANT_ADMIN role is granted (ADR-026, OQ-099); none for an additional administrator.</summary>
     public string[] Functions { get; private set; } = [];
 
     public Guid RequestedBy { get; private set; }
@@ -81,32 +135,64 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
 
     public DateTimeOffset? DecidedAt { get; private set; }
 
-    /// <summary>The user created in the new tenant, once provisioned.</summary>
-    public Guid? UserId { get; private set; }
-
-    public static TenantAdministratorRequest Create(Guid targetTenantId, string username, string displayName, string idpCode, string? externalSubject,
-        bool mfaEnrolled, IEnumerable<string> functions, Guid requestedBy, DateTimeOffset now, string? email = null)
+    /// <summary>A new tenant's first administrators: exactly two people, with distinct usernames, and at least one function.</summary>
+    public static Result<TenantAdministratorRequest> ForNewTenant(Guid targetTenantId, IReadOnlyList<TenantAdministratorPersonDetails> people,
+        IEnumerable<string> functions, Guid requestedBy, DateTimeOffset now)
     {
+        if (people.Count != FirstAdministratorCount)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, $"A new tenant's request names {FirstAdministratorCount} administrators (BR-013).",
+                new Dictionary<string, string[]> { ["administrators"] = [$"Give exactly {FirstAdministratorCount} administrators."] });
+        }
+
+        var granted = functions.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        if (granted.Length == 0)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "The TENANT_ADMIN role needs at least one function (OQ-099).",
+                new Dictionary<string, string[]> { ["functions"] = ["Give at least one function."] });
+        }
+
+        return Create(targetTenantId, TenantAdministratorRequestKind.FirstAdministrators, people, granted, requestedBy, now);
+    }
+
+    /// <summary>One more administrator for an existing tenant, in its TENANT_ADMIN role (BR-013).</summary>
+    public static Result<TenantAdministratorRequest> ForExistingTenant(Guid targetTenantId, TenantAdministratorPersonDetails person, Guid requestedBy,
+        DateTimeOffset now) =>
+        Create(targetTenantId, TenantAdministratorRequestKind.AdditionalAdministrator, [person], [], requestedBy, now);
+
+    private static Result<TenantAdministratorRequest> Create(Guid targetTenantId, TenantAdministratorRequestKind kind,
+        IReadOnlyList<TenantAdministratorPersonDetails> people, string[] functions, Guid requestedBy, DateTimeOffset now)
+    {
+        if (people.Select(p => p.Username).Distinct(StringComparer.OrdinalIgnoreCase).Count() != people.Count)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "Each administrator needs a username of their own.",
+                new Dictionary<string, string[]> { ["administrators"] = ["The usernames must differ."] });
+        }
+
         var request = new TenantAdministratorRequest
         {
             Id = Guid.CreateVersion7(),
             TargetTenantId = Guard.NotEmpty(targetTenantId),
-            Username = Guard.MaxLength(Guard.NotNullOrWhiteSpace(username), 120),
-            DisplayName = Guard.MaxLength(Guard.NotNullOrWhiteSpace(displayName), 120),
-            IdpCode = Guard.MaxLength(Guard.NotNullOrWhiteSpace(idpCode), 15),
-            ExternalSubject = externalSubject is null ? null : Guard.MaxLength(Guard.NotNullOrWhiteSpace(externalSubject), 120),
-            Email = email is null ? null : Guard.MaxLength(Guard.NotNullOrWhiteSpace(email), 254),
-            MfaEnrolled = mfaEnrolled,
-            Functions = [.. functions.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)],
+            Kind = kind,
+            Functions = functions,
             RequestedBy = Guard.NotEmpty(requestedBy),
             Status = TenantAdministratorRequestStatus.PendingApproval,
         };
-        request.Raise(new TenantAdministratorRequested(request.Id, targetTenantId, username, requestedBy, now));
+        short position = 0;
+        foreach (var person in people)
+        {
+            request._people.Add(TenantAdministratorPerson.Create(request.Id, ++position, person));
+        }
+
+        request.Raise(new TenantAdministratorRequested(request.Id, targetTenantId, string.Join(", ", people.Select(p => p.Username)), requestedBy, now));
         return request;
     }
 
-    /// <summary>The second platform administrator's decision. The checker is never the requester (SRS-002).</summary>
-    public Result Decide(bool approved, Guid checkerId, Guid? userId, DateTimeOffset now)
+    /// <summary>
+    /// The second platform administrator's decision. The checker is never the requester (SRS-002). Approved, each person
+    /// has the user created for them (<paramref name="userIds"/>, by position).
+    /// </summary>
+    public Result Decide(bool approved, Guid checkerId, IReadOnlyList<Guid>? userIds, DateTimeOffset now)
     {
         if (Status != TenantAdministratorRequestStatus.PendingApproval)
         {
@@ -118,19 +204,22 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
             return MakerChecker.EnsureDifferentPeople(RequestedBy.ToString(), checkerId.ToString());
         }
 
-        if (approved && checkerId == Guid.Empty)
+        if (approved && (checkerId == Guid.Empty || userIds is null || userIds.Count != _people.Count))
         {
-            return Error.Conflict(ErrorCodes.InvalidStateTransition, "A request is approved by a checker.");
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "A request is approved by a checker, with a user for each person it names.");
         }
 
         // Every ending other than approval (rejected, expired, withdrawn) rejects it; with no checker nobody is recorded.
-        Status = approved ? TenantAdministratorRequestStatus.Provisioned : TenantAdministratorRequestStatus.Rejected;
+        Status = approved ? TenantAdministratorRequestStatus.Approved : TenantAdministratorRequestStatus.Rejected;
         DecidedBy = checkerId == Guid.Empty ? null : checkerId;
         DecidedAt = now;
-        UserId = approved ? Guard.NotEmpty(userId ?? Guid.Empty) : null;
         if (approved)
         {
-            Raise(new TenantAdministratorProvisioned(Id, TargetTenantId, UserId!.Value, Role, now));
+            foreach (var (person, userId) in _people.OrderBy(p => p.Position).Zip(userIds!))
+            {
+                person.Provisioned(userId);
+                Raise(new TenantAdministratorProvisioned(Id, TargetTenantId, userId, Role, now));
+            }
         }
 
         MarkChanged();
@@ -139,7 +228,7 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
 }
 
 /// <summary>Asks Workflow for the second platform administrator's approval (ADR-009).</summary>
-public sealed record TenantAdministratorRequested(Guid RequestId, Guid TargetTenantId, string Username, Guid RequestedBy, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record TenantAdministratorRequested(Guid RequestId, Guid TargetTenantId, string Usernames, Guid RequestedBy, DateTimeOffset OccurredAt) : IDomainEvent;
 
-/// <summary>The new tenant's first administrator exists; Tenancy completes the ORGANISATION_AND_ACCESS onboarding step.</summary>
+/// <summary>An administrator was created in the tenant; Tenancy checks the ORGANISATION_AND_ACCESS onboarding step.</summary>
 public sealed record TenantAdministratorProvisioned(Guid RequestId, Guid TargetTenantId, Guid UserId, string RoleCode, DateTimeOffset OccurredAt) : IDomainEvent;

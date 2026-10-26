@@ -177,7 +177,7 @@ internal sealed class IdentityEventMapper : IDomainEventMapper
     {
         Domain.Tenants.TenantAdministratorRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(
             Contracts.IdentityApprovals.TenantAdministratorBusinessRefType, e.RequestId, Contracts.IdentityApprovals.TenantAdministratorApprovalType,
-            e.RequestedBy, null, null, $"First administrator {e.Username} for tenant {e.TargetTenantId}"),
+            e.RequestedBy, null, null, $"Administrators {e.Usernames} for tenant {e.TargetTenantId}"),
         Domain.Tenants.TenantAdministratorProvisioned e => new Contracts.TenantAdministratorProvisioned(e.TargetTenantId, e.UserId, e.RoleCode),
         Domain.Users.RoleAssigned e => new Contracts.RoleAssigned(e.UserId, e.RoleCode, e.ValidFrom, e.ValidTo),
         Domain.Users.RoleRevoked e => new Contracts.RoleRevoked(e.UserId, e.RoleCode),
