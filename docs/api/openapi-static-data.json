@@ -124403,7 +124403,7 @@
           "Identity static data"
         ],
         "summary": "Create a tenant Role function assignments draft",
-        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker. Rules (422 with field errors otherwise): functionCode is a screen or action function in the function catalogue (identity/static/function-catalogue); a JOB function, or a code the catalogue does not have, is refused (422 on functionCode, BR-019).",
         "operationId": "CreateIdentityRoleFunctionAssignmentsDraft",
         "parameters": [
           {
@@ -124599,7 +124599,7 @@
           "Identity static data"
         ],
         "summary": "Edit a tenant Role function assignments draft",
-        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002). Rules (422 with field errors otherwise): functionCode is a screen or action function in the function catalogue (identity/static/function-catalogue); a JOB function, or a code the catalogue does not have, is refused (422 on functionCode, BR-019).",
         "operationId": "EditIdentityRoleFunctionAssignmentsDraft",
         "parameters": [
           {

@@ -262,6 +262,29 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
             .ShouldAllBe(p => p.Item1 == "Parked" && p.Item2!.StartsWith("KEYCLOAK_UNAVAILABLE"));
     }
 
+    /// <summary>BR-012: a tenant's own staff read its onboarding readiness (their Home shows what is missing), and only their own tenant's.</summary>
+    [Fact]
+    public async Task ATenantsOwnStaff_ReadItsOnboardingReadiness_BR012()
+    {
+        var one = _factory.ClientFor(Operator, "platform-one");
+        var (tenantId, _) = await RegisterTenantAtAccessStep(one, "OWNREADY");
+        await fixture.Database.UserWithPermissions(tenantId, "ownready-reader", TenancyPermissions.Read);
+
+        var response = await _factory.ClientFor(tenantId, "ownready-reader").GetAsync("/api/v1/tenancy/readiness");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var readiness = await response.Json();
+        DocumentedSchema.ResponseProblems(readiness, "core", "GetOwnTenantReadiness").ShouldBeEmpty();
+        readiness.GetProperty("tenantId").GetGuid().ShouldBe(tenantId);
+        readiness.GetProperty("steps").EnumerateArray().Single(s => s.GetProperty("step").GetString() == "ORGANISATION_AND_ACCESS")
+            .GetProperty("checks").EnumerateArray().Single(c => c.GetProperty("code").GetString() == "FIRST_ADMINISTRATOR")
+            .GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["TENANT_ADMIN: 0 of 2 active"]);
+
+        // Another tenant's user reads its own tenant's, never this one's.
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "tenant-a-ready-reader", TenancyPermissions.Read);
+        (await (await _factory.ClientFor(DatabaseFixture.TenantA, "tenant-a-ready-reader").GetAsync("/api/v1/tenancy/readiness")).Json())
+            .GetProperty("tenantId").GetGuid().ShouldBe(DatabaseFixture.TenantA);
+    }
+
     [Fact]
     public async Task ARequestNamingAFunctionNotForStaff_IsRefused_OQ099()
     {

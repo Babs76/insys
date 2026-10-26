@@ -81,7 +81,11 @@ public sealed class IdentityModule : IModule
     private static readonly string DisplayNameRule = "With idpCode KEYCLOAK, displayName must not contain a character Keycloak's name validator refuses ("
         + string.Join(" ", KeycloakNames.ProhibitedCharacters.ToCharArray()) + " and control characters): a 422 with a field error on displayName (BR-006).";
 
-    public void Register(IServiceCollection services, IConfiguration configuration) => services.AddIdentityInfrastructure();
+    public void Register(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddIdentityInfrastructure();
+        services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator, RoleFunctionGrantValidator>();
+    }
 
     public void MapEndpoints(IEndpointRouteBuilder api)
     {

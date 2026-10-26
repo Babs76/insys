@@ -50,6 +50,11 @@ internal static class TenancyFunctions
         .Action("CHANGE_ISOLATION_PROFILE", "TENANTS", "ChangeIsolationProfile")
             .Functions,
 
+        // BR-012: a tenant's staff read their own tenant's onboarding readiness.
+        .. new FunctionMap([Audiences.Staff], null)
+        .Screen("TENANT_ONBOARDING_READINESS", "CONFIG_TENANCY", "Tenant Management", "tenancy/readiness", "GetOwnTenantReadiness")
+            .Functions,
+
         // OQ-098: a privileged function checked by a rule, not an operation: submitting a tenant function availability row that
         // switches off the Billing or Payments daily job. It is an action on the tenant management configuration screen.
         new FunctionDeclaration("TENANT_SWITCH_OFF_MONEY_JOBS", FunctionKind.Action, "CONFIG_TENANCY", "Tenant Management", "SD_TENANT_MANAGEMENT_VIEW",

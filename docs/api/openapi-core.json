@@ -26249,6 +26249,47 @@
         ]
       }
     },
+    "/api/v1/tenancy/readiness": {
+      "get": {
+        "tags": [
+          "Tenancy"
+        ],
+        "summary": "The signed-in user\u0027s own tenant\u0027s onboarding readiness: every step\u0027s checks and what each still needs",
+        "description": "BR-012: for the tenant\u0027s staff, while it onboards (their Home shows what is missing), and once active. The same view as the platform operator\u0027s GetTenantReadiness, for the caller\u0027s own tenant only; nothing is completed.",
+        "operationId": "GetOwnTenantReadiness",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenancyTenantReadinessView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "tenant.read",
+        "x-function": [
+          "TENANT_ONBOARDING_READINESS"
+        ]
+      }
+    },
     "/api/v1/identity/me": {
       "get": {
         "tags": [
@@ -46623,6 +46664,151 @@
         "type": "string",
         "format": "binary"
       },
+      "TenancyOnboardingAttestationView": {
+        "required": [
+          "kind",
+          "note",
+          "by",
+          "at"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "by": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "runDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "outcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ranBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "TenancyReadinessCheckView": {
+        "required": [
+          "code",
+          "ready",
+          "what",
+          "missing",
+          "attestation"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "what": {
+            "type": "string"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attestation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TenancyOnboardingAttestationView"
+              }
+            ]
+          }
+        }
+      },
+      "TenancyStepReadinessView": {
+        "required": [
+          "step",
+          "completed",
+          "ready",
+          "checks"
+        ],
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenancyReadinessCheckView"
+            }
+          }
+        }
+      },
+      "TenancyTenantReadinessView": {
+        "required": [
+          "tenantId",
+          "day",
+          "steps"
+        ],
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenancyStepReadinessView"
+            }
+          }
+        }
+      },
       "WorkflowApprovalStatus": {
         "enum": [
           "Requested",
@@ -49048,6 +49234,9 @@
     },
     {
       "name": "Analytics"
+    },
+    {
+      "name": "Tenancy"
     },
     {
       "name": "Identity"

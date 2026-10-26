@@ -236,6 +236,33 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
             .ShouldBe(5);
     }
 
+    /// <summary>
+    /// BR-019: a role's function grant naming a function the catalogue does not have (SD_BILLING_VIEW), or a JOB function, is
+    /// refused with a field error on create and on import; it used to be approved and grant nothing.
+    /// </summary>
+    [Fact]
+    public async Task ARoleFunctionGrant_NamesAFunctionInTheCatalogue_OnCreateAndImport_BR019()
+    {
+        const string grants = "/api/v1/identity/static/role-function-assignments";
+        Insys.BuildingBlocks.Api.Functions.FunctionRegistry.All().Any(f => f.Function.Code == "SD_BILLING_VIEW").ShouldBeFalse("the example is not a catalogue function");
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        static object Grant(string code, string function) => new { code, roleCode = "BR019_ROLE", functionCode = function, changeReason = "BR-019" };
+
+        var unknown = await maker.Send(HttpMethod.Post, grants, Grant("BR019-UNKNOWN", "SD_BILLING_VIEW"), idempotent: true);
+        unknown.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await unknown.Content.ReadAsStringAsync());
+        (await unknown.Json()).GetProperty("errors").GetProperty("functionCode")[0].GetString().ShouldBe("SD_BILLING_VIEW is not a function in the catalogue.");
+
+        var job = await maker.Send(HttpMethod.Post, grants, Grant("BR019-JOB", "WEBHOOK_DELIVERY"), idempotent: true);
+        (await job.Json()).GetProperty("errors").GetProperty("functionCode")[0].GetString()!.ShouldContain("JOB function");
+
+        var imported = await maker.Send(HttpMethod.Post, $"{grants}/imports",
+            new { fileRef = "grants-bad.csv", lines = new[] { Grant("BR019-OK", "IDENTITY_USERS"), Grant("BR019-BAD", "SD_BILLING_VIEW") } }, idempotent: true);
+        imported.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await imported.Json()).GetProperty("errors").TryGetProperty("line 2", out _).ShouldBeTrue();
+
+        (await maker.Send(HttpMethod.Post, grants, Grant("BR019-GOOD", "IDENTITY_USERS"), idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created);
+    }
+
     [Fact]
     public async Task Import_IsAllOrNothing_AndReportsEveryRejectedLine_SDM012()
     {

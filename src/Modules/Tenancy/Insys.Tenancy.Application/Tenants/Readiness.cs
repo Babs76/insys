@@ -120,6 +120,9 @@ public sealed record GetTenantReadiness(Guid TenantId) : IQuery<TenantReadinessV
     public Guid TargetTenantId => TenantId;
 }
 
+/// <summary>BR-012: the signed-in user's own tenant's readiness, so its staff see what onboarding still needs.</summary>
+public sealed record GetOwnTenantReadiness : IQuery<TenantReadinessView>;
+
 /// <summary>A waiver (TREATIES, WEBHOOKS_OR_NONE) with its reason, or evidence (SMOKE_RUN) with its reference.</summary>
 public sealed record OnboardingAttestationRequest(string Check, string Note);
 
@@ -188,6 +191,15 @@ public sealed class OnboardingReadiness(IEnumerable<IReadinessCheck> checks, ITe
             ? Error.Validation(TenancyErrorCodes.OnboardingStepNotReady, $"{step} is not ready: {string.Join(", ", view.Checks.Where(c => !c.Ready).Select(c => c.Code))}.",
                 view.Checks.Where(c => !c.Ready).ToDictionary(c => c.Code, c => c.Missing.ToArray()))
             : null;
+}
+
+internal sealed class GetOwnTenantReadinessHandler(ITenantRepository tenants, OnboardingReadiness readiness, ITenantContext tenant)
+    : IQueryHandler<GetOwnTenantReadiness, TenantReadinessView>
+{
+    public async Task<Result<TenantReadinessView>> Handle(GetOwnTenantReadiness query, CancellationToken cancellationToken) =>
+        await tenants.Get(tenant.RequireTenantId(), cancellationToken) is { } own
+            ? await readiness.For(own, cancellationToken)
+            : Error.NotFound(ErrorCodes.NotFound, "The tenant was not found.");
 }
 
 internal sealed class GetTenantReadinessHandler(ITenantRepository tenants, OnboardingReadiness readiness) : IQueryHandler<GetTenantReadiness, TenantReadinessView>

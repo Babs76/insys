@@ -69,6 +69,15 @@ public sealed class TenancyModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         TenancyStaticDataEndpoints.MapStaticData(api);
+        api.MapGroup("/tenancy").WithTags(Name).MapGet("/readiness", async (IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetOwnTenantReadiness(), ct)).ToHttp(Results.Ok))
+            .Produces<TenantReadinessView>(StatusCodes.Status200OK)
+            .WithName("GetOwnTenantReadiness")
+            .WithSummary("The signed-in user's own tenant's onboarding readiness: every step's checks and what each still needs")
+            .WithDescription("BR-012: for the tenant's staff, while it onboards (their Home shows what is missing), and once active. The same view as the "
+                + "platform operator's GetTenantReadiness, for the caller's own tenant only; nothing is completed.")
+            .RequirePermission(TenancyPermissions.Read);
+
         var tenants = api.MapGroup("/tenancy/tenants").WithTags(Name);
 
         tenants.MapPost("/", async (RegisterTenantRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
