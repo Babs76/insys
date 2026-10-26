@@ -12,6 +12,22 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **Readiness:** `ORGANISATION_AND_ACCESS` / `FIRST_ADMINISTRATOR` needs two active administrators (identity linked, signed in once); its `missing` reads `TENANT_ADMIN: n of 2 active`.
 - **New error code `IDENTITY_NOT_LINKED`** (403, with `Retry-After`): the token is for a user of the tenant whose identity is not linked yet; retry the same call. A console treats it as "still setting up", not as a refusal.
 
+### Breaking: releasing a legal hold needs a second person (OQ-111)
+- **`POST /documents/{id}/legal-holds/{holdId}/release`** and **`POST /party/search-log/holds/{id}/release`** now take a body `{reason}` (required, at most 200 characters) and return **202** with the hold: the release is a request, approved in Workflow as a `LEGAL_HOLD_RELEASE` approval (20 approval kinds now; business reference types `DOCUMENT_LEGAL_HOLD` and `SEARCH_LOG_HOLD`, 21). The hold stays in force until it is approved; a rejection, expiry or withdrawal leaves it in force and clears the request. The compliance officer template approves it.
+- **Views:** the document legal hold and the search log hold gain `releaseRequestedBy`, `releaseRequestedAt`, `releaseReason` and `latestRejection` (the document hold also `releasedBy`); always present, null when they have no value. A second release request while one waits is 409.
+
+### Breaking: the 20 approved privileged functions are flagged
+- `SUSPEND_TENANT`, `CHANGE_ISOLATION_PROFILE`, `ASSIGN_ROLE`, `REVOKE_ROLE`, `SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN`, `SD_IDENTITY_AND_ACCESS_MANAGEMENT_APPROVE`, `PARTY_ANONYMISE`, `PARTY_MERGE_PARTIES`, `PARTY_PLACE_SEARCH_LOG_HOLD`, `PARTY_RELEASE_SEARCH_LOG_HOLD`, `DOCUMENTS_DISPOSE`, `DOCUMENTS_PLACE_LEGAL_HOLD`, `DOCUMENTS_RELEASE_LEGAL_HOLD`, `DISCARD_PARKED_DELIVERY`, `DISCARD_MESSAGE`, `PAYMENTS_ISSUE_CALLBACK_ENDPOINT`, `PAYMENTS_REVOKE_CALLBACK_ENDPOINT`, `COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT`, `COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT`, `PAYMENTS_REVERSE` (`privileged: true` in the catalogue, `addenda/role-templates.md`). Assigning a role that holds one is a `PRIVILEGED_ROLE` approval decided by another administrator of the tenant, and the user needs MFA. The tenant administrator role is now privileged; a tenant has two administrators from the start (BR-013).
+
+### Added: front-end requests BR-011, BR-012, BR-014, BR-015, BR-019, BR-020, BR-022
+- **Parked deliveries for the operator (BR-011):** a PLATFORM screen function `PLATFORM_PARKED_DELIVERIES` for `ListParkedDeliveriesByTenant`.
+- **A tenant's own readiness (BR-012):** `GET /tenancy/readiness` (`GetOwnTenantReadiness`, `tenant.read`), the same view as the operator's `GetTenantReadiness`, for the signed-in user's tenant; STAFF screen `TENANT_ONBOARDING_READINESS`, route key `tenancy/readiness`.
+- **Governance settings concurrency (BR-014):** the governance settings GET returns an ETag (the row version in double quotes) and the Tier 2 maker-checker PUT requires `If-Match` (428 without it, 412 when stale).
+- **A change request links to its version (BR-015):** `ChangeRequestView` gains `versionNumber` and `entityRoute`; a pending code's versions are at `/api/v1/{entityRoute}/{record.code}/versions` (global routes end in `/global`).
+- **Role function grants (BR-019):** creating or importing an `iam/static/role-function-assignments` row with a function code not in the catalogue, or a JOB function, is 422 `VALIDATION_FAILED` on the function field.
+- **Labels (BR-020):** static data functions are labelled from their catalogue module ("Billing and premium receivables static data", "Maintain …", "Approve …"); the readiness views' steps gain `label` ("Organisation and access"). Operations that return labels: `GetMyMenu`, the readiness views, the communication preference views, and every static data record's `labels`.
+- **Locale (BR-022):** `MeView` gains `locale {tag, country, baseCurrency}`, always present: the request's language with the tenant's country (`en-ZA`) and its base currency, from the locale defaults in force; null fields while the tenant has none.
+
 ## Wave 2 batch 2 (branch `wave2-2`, merged)
 
 ### Breaking

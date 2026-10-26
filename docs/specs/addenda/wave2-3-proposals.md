@@ -1,6 +1,6 @@
-# Proposals for Wave 2 batch 3: record-scoped history and batch approval of imports
+# Proposals for Wave 2 batch 3: record-scoped history, batch approval of imports, and staff display names
 
-**For sign-off. Nothing here is built.** Two changes to how access and governance work, asked for on 25 October 2026: a record's history for the people who work on the record (OQ-111 follow-up), and approving a static data import as one change (front-end request BR-016).
+**For sign-off. Nothing here is built.** Two changes to how access and governance work, asked for on 25 October 2026: a record's history for the people who work on the record (OQ-111 follow-up), approving a static data import as one change (front-end request BR-016), and showing staff names where the API returns a user ID (BR-021, added 26 October 2026).
 
 ## 1. A record's history, for whoever may read the record
 
@@ -53,3 +53,24 @@
   - one line changed underneath: nothing applied, parked;
   - Tier 2 with maker-checker off;
   - a draft of a submitted batch refused on its own.
+
+## 3. Staff display names for user IDs (BR-021)
+
+### What is built today
+- Many views return a user ID that people see: about 25 fields in the core and static data documents, among them `requestedBy`, `decidedBy` and `approvedBy` (approvals and change requests), `makerId` and `checkerId`, `assigneeId` and `assignedTo` (tasks and cases), and `releaseRequestedBy` and `releasedBy` (legal holds).
+- The only read that turns an ID into a name is `GetUser` (`IDENTITY_USERS`), a user administration screen with `user.read`. Ordinary staff do not hold it, so the front end shows raw IDs.
+- `iam.user_account.display_name` is required on every user, so each ID the API returns has a name.
+
+### Proposal: a lookup, not names on every view
+- **`POST /api/v1/identity/users/display-names`** with `{ "ids": ["…", …] }`, at most 100 IDs, returning `[{ "id", "displayName" }]` for the IDs that are users of the **caller's own tenant**. An ID not in the tenant (or not a user) is left out of the answer, never an error, so the lookup does not confirm whether an ID exists elsewhere. POST because the list is long; it changes nothing and needs no `Idempotency-Key`.
+- **Under a basic staff function, `IDENTITY_DISPLAY_NAMES`** (an action on no screen of its own, with a new permission `user.display_name.read`), which every staff template holds. It returns the display name only: no username, email, status, roles or subject.
+- **Why a lookup and not a name on each view:** the names live in Identity; adding them to every view means every module reads Identity's users (a cross-module call per row) or copies names that then go stale when a user is renamed. One cached lookup per screen keeps modules apart (CLAUDE.md, modules talk only through contracts) and names current.
+- **Portal users: proposed no.** A portal user (member, broker, provider) sees only their own records; the staff IDs on them (who handled a claim, who decided a complaint) are not theirs to resolve to a person. Where a portal view needs a name, it shows a role ("Claims assessor") or a team, decided per view. The function is STAFF-only, so the portal never holds it.
+- **Platform operators:** the operator's own views already show platform users; an operator acting as a tenant resolves that tenant's names through the same lookup, audited as any cross-tenant read.
+- **Not personal data in logs:** names are returned, never logged or put in events; the audit entry records the count of IDs only.
+
+### To decide
+1. The lookup as proposed, with a new function every staff template holds.
+2. Portal users may not resolve staff names (proposed), or they may for named views.
+3. Whether a removed (disabled) user's name is still returned (proposed yes, since history shows who did what).
+
