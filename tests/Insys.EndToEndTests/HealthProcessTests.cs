@@ -242,6 +242,10 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         // Compensation: a rejected authorisation reserves nothing.
         var rejected = await Authorisation(membership, principal);
         (await _maker.PostAsync($"/api/v1/health/preauthorisations/{rejected}/review", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        // BR-073: a reason longer than INSYS stores is a 422 field error, not a 500.
+        var tooLong = await _maker.PostAsJsonAsync($"/api/v1/health/preauthorisations/{rejected}/reject", new { reason = new string('X', 31) });
+        tooLong.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await tooLong.Content.ReadAsStringAsync());
+        (await tooLong.Json()).GetProperty("errors").GetProperty("reason")[0].GetString().ShouldBe("reason must be at most 30 characters.");
         (await _maker.PostAsJsonAsync($"/api/v1/health/preauthorisations/{rejected}/reject", new { reason = "NOT_INDICATED" })).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         (await Accumulator(membership, "MEMBER")).ShouldBe((0m, 0m));

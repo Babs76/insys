@@ -60,7 +60,7 @@ public sealed class InsysExceptionHandler(IProblemDetailsService problemDetails,
             httpContext.Response.Headers.RetryAfter = DatabaseBusyRetryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        return await problemDetails.TryWriteAsync(new ProblemDetailsContext
+        var context = new ProblemDetailsContext
         {
             HttpContext = httpContext,
             Exception = exception,
@@ -70,7 +70,15 @@ public sealed class InsysExceptionHandler(IProblemDetailsService problemDetails,
                 Title = message,
                 Extensions = { ["code"] = code },
             },
-        });
+        };
+
+        // BR-073: a missing or too long value a validator did not cover is a field error, as a validator's would be.
+        if (exception is GuardException guard)
+        {
+            context.ProblemDetails.Extensions["errors"] = new Dictionary<string, string[]> { [guard.Field] = [guard.Problem] };
+        }
+
+        return await problemDetails.TryWriteAsync(context);
     }
 
     /// <summary>How long a client should wait after DATABASE_BUSY.</summary>
@@ -89,6 +97,7 @@ public sealed class InsysExceptionHandler(IProblemDetailsService problemDetails,
             TenantContextMissingException => (403, ErrorCodes.TenantContextMissing, "No tenant is established for the caller."),
             TenantMismatchException => (403, ErrorCodes.Forbidden, "The operation is not allowed for this tenant."),
             OutOfScopeException => (403, ErrorCodes.OutOfScope, "The record is outside your product or organisation scope for this action."),
+            GuardException => (422, ErrorCodes.ValidationFailed, "The request is not valid."),
             ChannelRefusedException refused => (403, refused.Code, refused.Message),
             DbUpdateConcurrencyException => (409, ErrorCodes.ConcurrencyConflict, "The record was changed by another request."),
             BadHttpRequestException bad => (bad.StatusCode, ErrorCodes.ValidationFailed, "The request could not be read."),
