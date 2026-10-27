@@ -42,6 +42,7 @@ public sealed class AccessReviewSchedules : StaticRecord<AccessReviewSchedulesIn
     [Insys.BuildingBlocks.Domain.OneOf("PRIVILEGED", "ALL_USERS", "SERVICE_ACCOUNTS")]
     public string Scope { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string Frequency { get; set; } = "";
 
     public string ReviewerRole { get; set; } = "";
@@ -60,6 +61,7 @@ public sealed record AccessReviewSchedulesInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.OneOf("PRIVILEGED", "ALL_USERS", "SERVICE_ACCOUNTS")]
     public string? Scope { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? Frequency { get; init; }
 
     public string? ReviewerRole { get; init; }

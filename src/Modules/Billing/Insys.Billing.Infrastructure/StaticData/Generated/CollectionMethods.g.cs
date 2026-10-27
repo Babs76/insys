@@ -43,6 +43,7 @@ public sealed class CollectionMethods : StaticRecord<CollectionMethodsInput>
 
     public string PaymentMethod { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string LeadTime { get; set; } = "";
 
     public string? Label { get; set; }
@@ -63,6 +64,7 @@ public sealed record CollectionMethodsInput : StaticRecordInput
 
     public string? PaymentMethod { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? LeadTime { get; init; }
 
     public string? Label { get; init; }

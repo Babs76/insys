@@ -44,6 +44,7 @@ public sealed class DisabilityDefinitions : StaticRecord<DisabilityDefinitionsIn
     [Insys.BuildingBlocks.Domain.OneOf("OWN_OCCUPATION", "SUITED_OCCUPATION", "ANY_OCCUPATION", "ACTIVITIES_OF_DAILY_LIVING")]
     public string Basis { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string DeferredPeriod { get; set; } = "";
 
     public string? CriteriaRef { get; set; }
@@ -65,6 +66,7 @@ public sealed record DisabilityDefinitionsInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.OneOf("OWN_OCCUPATION", "SUITED_OCCUPATION", "ANY_OCCUPATION", "ACTIVITIES_OF_DAILY_LIVING")]
     public string? Basis { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? DeferredPeriod { get; init; }
 
     public string? CriteriaRef { get; init; }

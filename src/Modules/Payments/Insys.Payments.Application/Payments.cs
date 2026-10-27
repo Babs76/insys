@@ -60,6 +60,9 @@ public interface IPaymentRepository
 
     Task<IReadOnlyList<Guid>> PendingSince(DateTimeOffset before, int limit, CancellationToken cancellationToken);
 
+    /// <summary>BR-042: a bank statement line matched to the payment, by reference and amount (PAY-003).</summary>
+    Task<BankStatementLine?> MatchedLine(Guid paymentId, CancellationToken cancellationToken);
+
     /// <summary>Payments whose outcome is unknown, waiting for a person's decision (PAY-005).</summary>
     Task<IReadOnlyList<Payment>> Unknown(CancellationToken cancellationToken);
 
@@ -115,13 +118,20 @@ public sealed record AllocationView(Guid Id, Guid InvoiceId, decimal Amount, str
 
 public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission, PaymentPurposes.CaseRedress)] string Purpose, string MethodCode, string ProviderCode, decimal Amount, string Currency,
     PaymentStatus Status, string? ExternalRef, string IdempotencyKey, DateOnly? ValueDate, string? BusinessRefType, Guid? BusinessRefId, Guid? PayoutBatchId,
-    IReadOnlyList<StatusChangeView> History, IReadOnlyList<AllocationView> Allocations)
+    IReadOnlyList<StatusChangeView> History, IReadOnlyList<AllocationView> Allocations, ResolutionRequestView? ResolutionRequest)
 {
     public static PaymentView From(Payment p) => new(p.Id, p.PaymentRef, p.Direction.ToString(), p.Purpose, p.MethodCode, p.ProviderCode, p.Amount, p.Currency,
         p.Status, p.ExternalRef, p.IdempotencyKey, p.ValueDate, p.BusinessRefType, p.BusinessRefId, p.PayoutBatchId,
         p.History.OrderBy(h => h.ChangedAt).ThenBy(h => h.Id).Select(h => new StatusChangeView(h.FromStatus, h.ToStatus, h.Source, h.ChangedAt)).ToList(),
-        p.Allocations.Select(a => new AllocationView(a.Id, a.InvoiceId, a.Amount, a.Currency, a.AllocatedAt, a.ReversedById)).ToList());
+        p.Allocations.Select(a => new AllocationView(a.Id, a.InvoiceId, a.Amount, a.Currency, a.AllocatedAt, a.ReversedById)).ToList(),
+        p.ResolutionRequestedBy is { } by ? new ResolutionRequestView(by, p.ResolutionRequestedAt!.Value, p.ResolutionEvidence!) : null);
 }
+
+/// <summary>
+/// BR-042: an Unknown payment's resolution as succeeded, waiting for a second person's approval (UNKNOWN_PAYMENT_RESOLUTION
+/// in the Workflow inbox). Null when none is waiting.
+/// </summary>
+public sealed record ResolutionRequestView(Guid RequestedBy, DateTimeOffset RequestedAt, string Evidence);
 
 /// <param name="PartlyInScope">
 /// True when the batch also pays records outside the caller's scope (F103): the count and total are then of the payments
@@ -354,9 +364,18 @@ internal sealed class ResolveUnknownHandler(IPaymentRepository payments, IExecut
             return Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
         }
 
-        audit.Record(new AuditEntry("PAYMENT", "ResolveUnknown", nameof(Payment), payment.Id.ToString(),
-            new Dictionary<string, string?> { ["succeeded"] = command.Succeeded.ToString(), ["evidence"] = command.Evidence }));
-        var result = payment.ResolveUnknown(command.Succeeded, command.Evidence, businessDate.Today, clock.UtcNow);
+        // BR-042: as succeeded, one person decides only on a matched bank statement line; otherwise a second person approves.
+        var line = command.Succeeded ? await payments.MatchedLine(payment.Id, cancellationToken) : null;
+        var needsApproval = command.Succeeded && line is null;
+        audit.Record(new AuditEntry("PAYMENT", needsApproval ? "RequestUnknownResolution" : "ResolveUnknown", nameof(Payment), payment.Id.ToString(),
+            new Dictionary<string, string?>
+            {
+                ["succeeded"] = command.Succeeded.ToString(), ["evidence"] = command.Evidence, ["statementLine"] = line?.Id.ToString(),
+            }));
+        var result = needsApproval
+            ? payment.RequestSucceededResolution(user.Value, command.Evidence, clock.UtcNow)
+            : payment.ResolveUnknown(command.Succeeded, line is null ? command.Evidence : $"{command.Evidence} (statement line {line.Reference}, {line.StatementDate:yyyy-MM-dd})",
+                businessDate.Today, clock.UtcNow);
         return result.IsFailure ? result.Error : PaymentView.From(payment);
     }
 }
@@ -485,7 +504,7 @@ internal sealed class ReleaseBatchHandler(IPaymentRepository payments, PaymentSc
         }
 
         audit.Record(new AuditEntry("PAYMENT", "ReleaseBatch", nameof(PayoutBatch), batch.Id.ToString()));
-        var result = batch.ReleaseBatch(user.Value, clock.UtcNow);
+        var result = batch.ReleaseBatch(user.Value, all, clock.UtcNow);
         if (result.IsFailure)
         {
             return result.Error;
@@ -818,13 +837,20 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     /// </summary>
     public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        if (granted.BusinessRefType == PaymentApprovals.PaymentBusinessRefType)
+        {
+            await DecideResolution(true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash, $"{granted.ApprovalType}:{granted.ApprovalId}",
+                PrerequisiteCodes.ApprovalNotApplied, granted.BusinessRefId, cancellationToken);
+            return;
+        }
+
         if (granted.BusinessRefType != PaymentApprovals.PayoutBusinessRefType || await payments.Batch(granted.BusinessRefId, cancellationToken) is not { } batch
             || batch.GrantedBy(granted.CheckerId))
         {
             return;
         }
 
-        if (batch.ApproveBatch(granted.CheckerId).IsFailure)
+        if (batch.ApproveBatch(granted.CheckerId, granted.SubjectHash).IsFailure)
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
         }
@@ -837,6 +863,13 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     /// </summary>
     public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        if (rejected.BusinessRefType == PaymentApprovals.PaymentBusinessRefType)
+        {
+            await DecideResolution(false, rejected.ApprovalId, rejected.CheckerId, rejected.SubjectHash, $"{rejected.ApprovalType}:{rejected.ApprovalId}",
+                PrerequisiteCodes.ApprovalEndingNotApplied, rejected.BusinessRefId, cancellationToken);
+            return;
+        }
+
         if (rejected.BusinessRefType != PaymentApprovals.PayoutBusinessRefType || await payments.Batch(rejected.BusinessRefId, cancellationToken) is not { } batch
             || batch.Status == BatchStatus.Rejected)
         {
@@ -853,6 +886,26 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
         foreach (var payment in inBatch.Where(p => released.Value.Contains(p.Id)))
         {
             payment.LeaveBatch(batch.Id);
+        }
+    }
+
+    /// <summary>
+    /// BR-042: Workflow's decision on resolving an Unknown payment as succeeded. A decision already applied (this approval
+    /// resolved it, or an ending found no request left) changes nothing; one the payment will not take (another request,
+    /// the requester as checker) parks the delivery (ADR-022, D-5), never only logged.
+    /// </summary>
+    private async Task DecideResolution(bool approved, Guid approvalId, Guid checkerId, string? subjectHash, string item, string prerequisite, Guid paymentId,
+        CancellationToken cancellationToken)
+    {
+        if (await payments.Get(paymentId, cancellationToken) is not { } payment || payment.ResolutionApplied(approvalId)
+            || (!approved && !payment.ResolutionPending))
+        {
+            return;
+        }
+
+        if (payment.DecideSucceededResolution(approved, approvalId, checkerId, subjectHash, businessDate.Today, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(prerequisite, item);
         }
     }
 

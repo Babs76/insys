@@ -43,6 +43,7 @@ public sealed class SLADefinitions : StaticRecord<SLADefinitionsInput>
 
     public string TaskType { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string Duration { get; set; } = "";
 
     public string Calendar { get; set; } = "";
@@ -67,6 +68,7 @@ public sealed record SLADefinitionsInput : StaticRecordInput
 
     public string? TaskType { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? Duration { get; init; }
 
     public string? Calendar { get; init; }

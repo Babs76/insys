@@ -46,8 +46,10 @@ public sealed class RetryAndDeadLetterPolicies : StaticRecord<RetryAndDeadLetter
     [Insys.BuildingBlocks.Domain.OneOf("FIXED", "EXPONENTIAL")]
     public string Backoff { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string InitialDelay { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? MaxDelay { get; set; }
 
     public string DeadLetterTarget { get; set; } = "";
@@ -73,8 +75,10 @@ public sealed record RetryAndDeadLetterPoliciesInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.OneOf("FIXED", "EXPONENTIAL")]
     public string? Backoff { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? InitialDelay { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? MaxDelay { get; init; }
 
     public string? DeadLetterTarget { get; init; }

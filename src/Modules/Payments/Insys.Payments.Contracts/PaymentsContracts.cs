@@ -53,6 +53,12 @@ public static class PaymentApprovals
 {
     public const string PayoutBusinessRefType = "PAYOUT_BATCH";
     public const string PayoutApprovalType = "PAYOUT_RELEASE";
+
+    /// <summary>BR-042: a payment; its approvals open the payments screen.</summary>
+    public const string PaymentBusinessRefType = "PAYMENT";
+
+    /// <summary>BR-042: resolving an Unknown payment as succeeded without a matched bank statement line needs a second person.</summary>
+    public const string UnknownResolutionApprovalType = "UNKNOWN_PAYMENT_RESOLUTION";
 }
 
 /// <summary>Who a payment is for: purposes and the business records they pay.</summary>

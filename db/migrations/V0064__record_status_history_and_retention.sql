@@ -101,8 +101,8 @@ CREATE TABLE life.policy_status_history (
   created_at                 timestamptz NOT NULL,
   created_by                 varchar(80) NOT NULL,
   record_id                  uuid NOT NULL,
-  from_status                varchar(15),
-  to_status                  varchar(15) NOT NULL,
+  from_status                varchar(40),
+  to_status                  varchar(40) NOT NULL,
   changed_at                 timestamptz NOT NULL,
   CONSTRAINT pk_policy_status_history PRIMARY KEY (tenant_id, id)
 );
@@ -115,8 +115,8 @@ CREATE TABLE life.claim_status_history (
   created_at                 timestamptz NOT NULL,
   created_by                 varchar(80) NOT NULL,
   record_id                  uuid NOT NULL,
-  from_status                varchar(15),
-  to_status                  varchar(15) NOT NULL,
+  from_status                varchar(40),
+  to_status                  varchar(40) NOT NULL,
   changed_at                 timestamptz NOT NULL,
   CONSTRAINT pk_claim_status_history PRIMARY KEY (tenant_id, id)
 );
@@ -129,8 +129,8 @@ CREATE TABLE general.policy_status_history (
   created_at                 timestamptz NOT NULL,
   created_by                 varchar(80) NOT NULL,
   record_id                  uuid NOT NULL,
-  from_status                varchar(15),
-  to_status                  varchar(15) NOT NULL,
+  from_status                varchar(40),
+  to_status                  varchar(40) NOT NULL,
   changed_at                 timestamptz NOT NULL,
   CONSTRAINT pk_policy_status_history PRIMARY KEY (tenant_id, id)
 );
@@ -143,8 +143,8 @@ CREATE TABLE general.claim_status_history (
   created_at                 timestamptz NOT NULL,
   created_by                 varchar(80) NOT NULL,
   record_id                  uuid NOT NULL,
-  from_status                varchar(15),
-  to_status                  varchar(15) NOT NULL,
+  from_status                varchar(40),
+  to_status                  varchar(40) NOT NULL,
   changed_at                 timestamptz NOT NULL,
   CONSTRAINT pk_claim_status_history PRIMARY KEY (tenant_id, id)
 );
@@ -157,8 +157,8 @@ CREATE TABLE health.membership_status_history (
   created_at                 timestamptz NOT NULL,
   created_by                 varchar(80) NOT NULL,
   record_id                  uuid NOT NULL,
-  from_status                varchar(15),
-  to_status                  varchar(15) NOT NULL,
+  from_status                varchar(40),
+  to_status                  varchar(40) NOT NULL,
   changed_at                 timestamptz NOT NULL,
   CONSTRAINT pk_membership_status_history PRIMARY KEY (tenant_id, id)
 );
@@ -171,8 +171,8 @@ CREATE TABLE health.medical_claim_status_history (
   created_at                 timestamptz NOT NULL,
   created_by                 varchar(80) NOT NULL,
   record_id                  uuid NOT NULL,
-  from_status                varchar(15),
-  to_status                  varchar(15) NOT NULL,
+  from_status                varchar(40),
+  to_status                  varchar(40) NOT NULL,
   changed_at                 timestamptz NOT NULL,
   CONSTRAINT pk_medical_claim_status_history PRIMARY KEY (tenant_id, id)
 );

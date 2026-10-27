@@ -33362,7 +33362,8 @@
             "type": "string"
           },
           "period": {
-            "type": "string"
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "id": {
             "type": "string",
@@ -33557,7 +33558,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "code": {
             "type": "string"
@@ -33654,7 +33656,8 @@
             "type": "string"
           },
           "leadTime": {
-            "type": "string"
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "label": {
             "type": [
@@ -33847,7 +33850,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "label": {
             "type": [
@@ -41410,7 +41414,8 @@
             }
           },
           "sessionTimeout": {
-            "type": "string"
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "lockoutAttempts": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -41625,7 +41630,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "lockoutAttempts": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -44270,7 +44276,8 @@
             "format": "int32"
           },
           "windowDuration": {
-            "type": "string"
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "burst": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -44489,7 +44496,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "burst": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -44607,13 +44615,15 @@
             "type": "string"
           },
           "initialDelay": {
-            "type": "string"
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "maxDelay": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "deadLetterTarget": {
             "type": "string"
@@ -44819,13 +44829,15 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "maxDelay": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "deadLetterTarget": {
             "type": [
@@ -48727,7 +48739,8 @@
             "type": "string"
           },
           "period": {
-            "type": "string"
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "basis": {
             "type": [
@@ -48928,7 +48941,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "basis": {
             "type": [
@@ -50669,30 +50683,47 @@
                     "NO_RETENTION_POLICY"
                   ],
                   "type": "string",
-                  "description": "OPEN: the record has not ended or closed. IN_RETENTION: inside the tenant\u0027s retention period until \u0060until\u0060. LEGAL_HOLD: a hold is in force on the record or one of its documents. NO_RETENTION_POLICY: the tenant has no retention period in force for the record\u0027s kind."
+                  "description": "Why it blocks. OPEN: the record has not reached a final status. IN_RETENTION: it reached one, and the tenant\u0027s retention period from that business date runs until \u0060until\u0060. LEGAL_HOLD: a legal hold is in force on the record or one of its documents. NO_RETENTION_POLICY: the tenant has no retention period in force for the record\u0027s kind, so it is kept (fail closed)."
                 },
                 "recordType": {
+                  "enum": [
+                    "LIFE_POLICY",
+                    "LIFE_CLAIM",
+                    "GENERAL_POLICY",
+                    "GENERAL_CLAIM",
+                    "HEALTH_MEMBERSHIP",
+                    "HEALTH_CLAIM",
+                    "PAYMENT",
+                    "AUDIT_EVIDENCE",
+                    "PARTY"
+                  ],
                   "type": "string",
-                  "description": "LIFE_POLICY, LIFE_CLAIM, GENERAL_POLICY, GENERAL_CLAIM, HEALTH_MEMBERSHIP, HEALTH_CLAIM, PAYMENT, AUDIT_EVIDENCE; for a legal hold, the held document\u0027s business reference type."
+                  "description": "The record. Its retention kind: LIFE_POLICY, GENERAL_POLICY and HEALTH_MEMBERSHIP are POLICY; LIFE_CLAIM, GENERAL_CLAIM and HEALTH_CLAIM are CLAIM; PAYMENT is PAYMENT. AUDIT_EVIDENCE is the audit events about the party. PARTY is the party itself (a legal hold on one of its own documents)."
                 },
                 "recordId": {
                   "type": "string",
-                  "description": "The record; for AUDIT_EVIDENCE, the party.",
+                  "description": "The record; for AUDIT_EVIDENCE and PARTY, the party.",
                   "format": "uuid"
                 },
                 "retention": {
+                  "enum": [
+                    "POLICY",
+                    "CLAIM",
+                    "PAYMENT",
+                    "AUDIT"
+                  ],
                   "type": [
                     "null",
                     "string"
                   ],
-                  "description": "The period that applies: POLICY_END or CLAIM_CLOSURE (the tenant\u0027s longest document retention schedule with that trigger), FINANCIAL (the audit class), AUDIT (the longest audit class). Null for a legal hold."
+                  "description": "The retention period that applies: POLICY, CLAIM or PAYMENT (the tenant\u0027s record retention policies, /party/static/record-retention-policies; working default 7 years), or AUDIT (the longest audit retention class). Null for LEGAL_HOLD."
                 },
                 "until": {
                   "type": [
                     "null",
                     "string"
                   ],
-                  "description": "For IN_RETENTION: the first business date on which the record no longer blocks.",
+                  "description": "For IN_RETENTION: the first business date on which the record no longer blocks. Null for every other reason.",
                   "format": "date"
                 },
                 "holdId": {
@@ -50700,7 +50731,7 @@
                     "null",
                     "string"
                   ],
-                  "description": "For LEGAL_HOLD: the hold.",
+                  "description": "For LEGAL_HOLD: the hold (null for a document flagged as held without a hold record). Null for every other reason.",
                   "format": "uuid"
                 },
                 "documentId": {
@@ -50708,12 +50739,12 @@
                     "null",
                     "string"
                   ],
-                  "description": "For LEGAL_HOLD on a document: the document.",
+                  "description": "For LEGAL_HOLD on a document: the held document. Null for every other reason.",
                   "format": "uuid"
                 }
               }
             },
-            "description": "Only with PARTY_ANONYMISATION_BLOCKED (409, D-34): each record that still keeps the party\u0027s data. Anonymise again once none is left."
+            "description": "Only with PARTY_ANONYMISATION_BLOCKED (409, D-34): each thing that still keeps the party\u0027s data. Anonymise again once none is left."
           },
           "correlationId": {
             "type": "string",
@@ -51726,16 +51757,20 @@
             "type": "string"
           },
           "backupFrequency": {
-            "type": "string"
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "retention": {
-            "type": "string"
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "rpoTarget": {
-            "type": "string"
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "rtoTarget": {
-            "type": "string"
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "id": {
             "type": "string",
@@ -51918,25 +51953,29 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "retention": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "rpoTarget": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "rtoTarget": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "code": {
             "type": "string"
@@ -53862,7 +53901,8 @@
             ]
           },
           "refreshCadence": {
-            "type": "string"
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "lastLoad": {
             "type": [
@@ -54068,7 +54108,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
           "lastLoad": {
             "type": [
@@ -59105,7 +59146,8 @@
               "REFUND",
               "STATIC_DATA_T1",
               "STATIC_DATA_T2",
-              "TENANT_ADMINISTRATOR"
+              "TENANT_ADMINISTRATOR",
+              "UNKNOWN_PAYMENT_RESOLUTION"
             ],
             "type": "string"
           },

@@ -50,6 +50,7 @@ public sealed class ConsentPurposes : StaticRecord<ConsentPurposesInput>
 
     public bool DefaultValue { get; set; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? RetentionPeriod { get; set; }
 
     public override void ApplyFields(ConsentPurposesInput input, IFieldProtector protector)
@@ -77,6 +78,7 @@ public sealed record ConsentPurposesInput : StaticRecordInput
 
     public bool? DefaultValue { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? RetentionPeriod { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

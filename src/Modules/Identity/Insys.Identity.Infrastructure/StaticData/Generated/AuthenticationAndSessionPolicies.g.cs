@@ -43,6 +43,7 @@ public sealed class AuthenticationAndSessionPolicies : StaticRecord<Authenticati
 
     public string[] MfaRequiredRoles { get; set; } = [];
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string SessionTimeout { get; set; } = "";
 
     public int LockoutAttempts { get; set; }
@@ -69,6 +70,7 @@ public sealed record AuthenticationAndSessionPoliciesInput : StaticRecordInput
 
     public string[]? MfaRequiredRoles { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? SessionTimeout { get; init; }
 
     public int? LockoutAttempts { get; init; }

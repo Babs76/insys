@@ -54,7 +54,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         Insys.Party.Contracts.PartyPermissions.BankAccountVerify,
         BillingPermissions.AccountRead, BillingPermissions.AccountCreate, BillingPermissions.AccountUpdate, BillingPermissions.InvoiceRead,
         BillingPermissions.InvoiceCreate, BillingPermissions.RefundRead, BillingPermissions.RefundCreate, PaymentPermissions.PaymentRead, PaymentPermissions.PaymentResolve,
-        PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.ReconciliationRead,
+        PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.ReconciliationRead, PaymentPermissions.ReconciliationUpdate,
         PaymentPermissions.CallbackEndpointUpdate, FinancePermissions.JournalRead, FinancePermissions.PeriodRead, FinancePermissions.PeriodUpdate,
         FinancePermissions.PostingExceptionRead, ClaimsPermissions.ClaimRead, ClaimsPermissions.ClaimCreate, ClaimsPermissions.FinancialsRead,
         ClaimsPermissions.FinancialsUpdate, ClaimsPermissions.InstructionRead, ClaimsPermissions.InstructionCreate, ClaimsPermissions.InstructionRelease,
@@ -78,7 +78,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         var approverRole = await db.RoleWithPermissions(Tenant);
         await db.AssignRole(Tenant, checker, approverRole);
         await db.AllowBankAccountVerification(Tenant, approverRole, Today.AddDays(-90));
-        foreach (var type in new[] { BillingApprovals.RefundApprovalType, PaymentApprovals.PayoutApprovalType, ClaimsApprovals.InstructionApprovalType })
+        foreach (var type in new[] { BillingApprovals.RefundApprovalType, PaymentApprovals.PayoutApprovalType, ClaimsApprovals.InstructionApprovalType, PaymentApprovals.UnknownResolutionApprovalType })
         {
             await Seed("workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", 1, Today.AddDays(-90), null,
                 ("role_code", approverRole), ("transaction_type", type), ("limit_value", 1_000_000m), ("delegation_allowed", false));
@@ -227,13 +227,119 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         waiting.Count.ShouldBeGreaterThanOrEqualTo(1L);
         waiting.Zar.ShouldBeGreaterThanOrEqualTo(150.99m);
 
-        // A person decides from evidence; only then is it received, allocated and posted.
-        (await _maker.PostAsJsonAsync($"/api/v1/payments/payments/{payment}/resolve", new { succeeded = true, evidence = "Bank statement 2026-10-21 line 7" }))
-            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        // A person decides from evidence; only then is it received, allocated and posted. With a bank statement line matched
+        // to it, one person decides (BR-042).
+        await MatchedStatementLine(payment);
+        var resolved = await _maker.PostAsJsonAsync($"/api/v1/payments/payments/{payment}/resolve", new { succeeded = true, evidence = "Bank statement 2026-10-21 line 7" });
+        resolved.StatusCode.ShouldBe(HttpStatusCode.OK, await resolved.Content.ReadAsStringAsync());
+        (await resolved.Json()).GetProperty("status").GetString().ShouldBe("Succeeded");
         await _factory.DrainOutbox();
         (await Unknown()).ShouldBe((waiting.Count - 1, waiting.Zar - 150.99m));
         (await Journals("PAYMENT", payment)).Count.ShouldBe(1);
         (await (await _maker.GetAsync($"/api/v1/billing/invoices/{invoice}")).Json()).GetProperty("status").GetString().ShouldBe("Paid");
+    }
+
+    /// <summary>
+    /// BR-042: with no bank statement line matched to it, resolving an Unknown payment as succeeded is a request that a
+    /// second person approves; the requester cannot, and nothing else resolves it while it waits.
+    /// </summary>
+    [Fact]
+    public async Task ResolvingAnUnknownPaymentAsSucceeded_WithoutAMatchedStatementLine_NeedsASecondPerson_BR042()
+    {
+        var (_, invoice) = await IssueInvoice(160.99m);
+        await _factory.DrainOutbox();
+        var payment = await CollectionFor(invoice);
+
+        var requested = await _maker.PostAsJsonAsync($"/api/v1/payments/payments/{payment}/resolve", new { succeeded = true, evidence = "Provider report 17" });
+        requested.StatusCode.ShouldBe(HttpStatusCode.Accepted, await requested.Content.ReadAsStringAsync());
+        var view = await requested.Json();
+        ShouldMatchDocumented(view, "PaymentsResolveUnknown");
+        view.GetProperty("status").GetString().ShouldBe("Unknown");
+        view.GetProperty("resolutionRequest").GetProperty("evidence").GetString().ShouldBe("Provider report 17");
+
+        // While it waits: not resolved another way, by anyone.
+        (await (await _checker.PostAsJsonAsync($"/api/v1/payments/payments/{payment}/resolve", new { succeeded = false, evidence = "Bounced" })).Code())
+            .ShouldBe("PAYMENT_RESOLUTION_PENDING");
+
+        await _factory.DrainOutbox();
+        await Approve(PaymentApprovals.PaymentBusinessRefType, payment);
+        var after = await (await _maker.GetAsync($"/api/v1/payments/payments/{payment}")).Json();
+        after.GetProperty("status").GetString().ShouldBe("Succeeded");
+        after.GetProperty("resolutionRequest").ValueKind.ShouldBe(JsonValueKind.Null);
+        (await Journals("PAYMENT", payment)).Count.ShouldBe(1);
+        (await (await _maker.GetAsync($"/api/v1/billing/invoices/{invoice}")).Json()).GetProperty("status").GetString().ShouldBe("Paid");
+    }
+
+    /// <summary>BR-042: a rejected request leaves the payment Unknown; resolving it as failed stays one person's decision.</summary>
+    [Fact]
+    public async Task ARejectedResolution_LeavesThePaymentUnknown_AndResolvingAsFailedIsOnePersonsDecision_BR042()
+    {
+        var (_, invoice) = await IssueInvoice(170.99m);
+        await _factory.DrainOutbox();
+        var payment = await CollectionFor(invoice);
+        (await _maker.PostAsJsonAsync($"/api/v1/payments/payments/{payment}/resolve", new { succeeded = true, evidence = "Provider report 18" }))
+            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        await _factory.DrainOutbox();
+
+        var approval = (await (await _checker.GetAsync(
+            $"/api/v1/workflow/approvals?status=Requested&businessRefType={PaymentApprovals.PaymentBusinessRefType}&businessRefId={payment}")).Json())
+            .GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        (await _checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/reject", new { reason = "No bank evidence" }, ifMatch: "\"1\""))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+        var view = await (await _maker.GetAsync($"/api/v1/payments/payments/{payment}")).Json();
+        view.GetProperty("status").GetString().ShouldBe("Unknown");
+        view.GetProperty("resolutionRequest").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        var failed = await _maker.PostAsJsonAsync($"/api/v1/payments/payments/{payment}/resolve", new { succeeded = false, evidence = "Returned unpaid" });
+        failed.StatusCode.ShouldBe(HttpStatusCode.OK, await failed.Content.ReadAsStringAsync());
+        (await failed.Json()).GetProperty("status").GetString().ShouldBe("Failed");
+        (await Journals("PAYMENT", payment)).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// A payout batch is released only as approved: a payment in it changed after the approval (no API changes one, so an
+    /// owner SQL update stands in) and the release is refused, PAYOUT_BATCH_CHANGED; put back as approved, it is released.
+    /// </summary>
+    [Fact]
+    public async Task APayoutBatchThatChangedAfterItsReleaseWasApproved_IsNotReleased()
+    {
+        var payer = await _maker.RegisterPerson("Refundee changed");
+        var bankAccount = await _maker.AddVerifiedBankAccount(_checker, _factory, payer, "62000555511");
+        var (account, _) = await IssueInvoice(80m, payer);
+        await _factory.DrainOutbox();
+        var refund = (await (await _maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/refunds",
+            new { amount = 25m, reasonCode = "OVERPAID", bankAccountId = bankAccount }, idempotent: true)).Json()).GetProperty("id").GetGuid();
+        await _factory.DrainOutbox();
+        await Approve(BillingApprovals.RefundBusinessRefType, refund);
+        await _factory.DrainOutbox();
+        var built = await _maker.Send(HttpMethod.Post, "/api/v1/payments/payout-batches", new { purpose = PaymentPurposes.Refund, currency = "ZAR" }, idempotent: true);
+        built.StatusCode.ShouldBe(HttpStatusCode.Created, await built.Content.ReadAsStringAsync());
+        var batch = (await built.Json()).GetProperty("id").GetGuid();
+        await _factory.DrainOutbox();
+        await Approve(PaymentApprovals.PayoutBusinessRefType, batch);
+
+        await fixture.Database.ExecuteAsOwner("UPDATE payment.payment SET amount = amount + 1 WHERE payout_batch_id = @b", ("b", batch));
+        var refused = await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null);
+        refused.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await refused.Code()).ShouldBe("PAYOUT_BATCH_CHANGED");
+        (await (await _maker.GetAsync($"/api/v1/payments/payout-batches/{batch}")).Json()).GetProperty("status").GetString().ShouldBe("Approved");
+
+        await fixture.Database.ExecuteAsOwner("UPDATE payment.payment SET amount = amount - 1 WHERE payout_batch_id = @b", ("b", batch));
+        (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    /// <summary>A bank statement line matched to the payment, by its reference and amount (PAY-003).</summary>
+    private async Task MatchedStatementLine(Guid payment)
+    {
+        var view = await (await _maker.GetAsync($"/api/v1/payments/payments/{payment}")).Json();
+        var imported = await _maker.Send(HttpMethod.Post, "/api/v1/payments/bank-statements", new
+        {
+            accountRef = "BANK-1",
+            lines = new[] { new { date = Today, amount = view.GetProperty("amount").GetDecimal(), currency = "ZAR", reference = view.GetProperty("paymentRef").GetString() } },
+        }, idempotent: true);
+        imported.StatusCode.ShouldBe(HttpStatusCode.OK, await imported.Content.ReadAsStringAsync());
+        (await imported.Json()).GetProperty("matched").GetInt32().ShouldBe(1);
     }
 
     [Fact]

@@ -47,6 +47,7 @@ public sealed class ExternalSourceRegister : StaticRecord<ExternalSourceRegister
 
     public string? LicenceRef { get; set; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string RefreshCadence { get; set; } = "";
 
     public DateTimeOffset? LastLoad { get; set; }
@@ -73,6 +74,7 @@ public sealed record ExternalSourceRegisterInput : StaticRecordInput
 
     public string? LicenceRef { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? RefreshCadence { get; init; }
 
     public DateTimeOffset? LastLoad { get; init; }

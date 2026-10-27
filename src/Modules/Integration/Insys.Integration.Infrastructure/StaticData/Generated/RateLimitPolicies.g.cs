@@ -48,6 +48,7 @@ public sealed class RateLimitPolicies : StaticRecord<RateLimitPoliciesInput>
 
     public int LimitValue { get; set; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string WindowDuration { get; set; } = "";
 
     public int? Burst { get; set; }
@@ -75,6 +76,7 @@ public sealed record RateLimitPoliciesInput : StaticRecordInput
 
     public int? LimitValue { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? WindowDuration { get; init; }
 
     public int? Burst { get; init; }

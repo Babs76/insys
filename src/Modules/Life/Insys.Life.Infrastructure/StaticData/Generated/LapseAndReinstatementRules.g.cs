@@ -43,6 +43,7 @@ public sealed class LapseAndReinstatementRules : StaticRecord<LapseAndReinstatem
 
     public int MissedPaymentsToLapse { get; set; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string ReinstatementWindow { get; set; } = "";
 
     [Insys.BuildingBlocks.Domain.OneOf("NONE", "DECLARATION", "FULL_UNDERWRITING")]
@@ -64,6 +65,7 @@ public sealed record LapseAndReinstatementRulesInput : StaticRecordInput
 
     public int? MissedPaymentsToLapse { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? ReinstatementWindow { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NONE", "DECLARATION", "FULL_UNDERWRITING")]

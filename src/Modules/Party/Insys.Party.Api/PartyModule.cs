@@ -278,12 +278,14 @@ public sealed class PartyModule : IModule
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName("PartyAnonymise")
             .WithSummary("Anonymise a deceased or dormant party whose retention has ended")
-            .WithDescription("D-34: retention is checked, not assumed. 409 PARTY_ANONYMISATION_BLOCKED lists in `blocks` every record that still keeps the "
-                + "party's data, its own or a merged party's: a policy, membership or claim not yet ended or closed (OPEN); one inside the tenant's retention "
-                + "period (IN_RETENTION, with `until`: a policy from its end and a claim from its closure by the longest document retention schedule with that "
-                + "trigger, a payment from its value date by the FINANCIAL audit class, and the audit evidence about the party from its latest event by the "
-                + "longest audit class); a legal hold on any of them or their documents (LEGAL_HOLD); or a kind with no retention period in force "
-                + "(NO_RETENTION_POLICY). A party that is not deceased or dormant is refused with INVALID_STATE_TRANSITION. Erasure for a living party is a "
+            .WithDescription("D-34, OQ-120: retention is checked, not assumed. Refused with 409 PARTY_ANONYMISATION_BLOCKED while anything still keeps "
+                + "the party's data; the problem's `blocks` lists each (see ProblemDetails). Every Life, General and Health policy, membership and claim "
+                + "linked to the party, and every payment, counts, the party's own and those of parties merged into it. A record is OPEN until it reaches a "
+                + "final status; it is then IN_RETENTION for the tenant's record retention policy for its kind (POLICY, CLAIM or PAYMENT, "
+                + "/party/static/record-retention-policies; working default 7 years) from the business date it reached that status, by its status "
+                + "history. With no period in force for its kind it blocks as NO_RETENTION_POLICY. The audit evidence about the party blocks for the "
+                + "longest audit retention class from its latest event, and a legal hold in force on any of these records or their documents blocks as "
+                + "LEGAL_HOLD. A party that is not deceased or dormant is refused with 409 INVALID_STATE_TRANSITION. Erasure for a living party is a "
                 + "data-subject request (Wave 6), not this operation.")
             .RequirePermission(PartyPermissions.PartyAnonymise);
 

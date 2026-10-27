@@ -26,17 +26,36 @@ What changed in the API contract, newest first, so the front end can sync. The O
 ### Breaking: anonymising a party checks its retention (D-34, OQ-120)
 - `POST /party/parties/{id}/anonymise` (`PartyAnonymise`) now refuses with **409 `PARTY_ANONYMISATION_BLOCKED`** while anything still keeps the party's data. The problem carries a new member, **`blocks`** (documented on `ProblemDetails`). Each item has:
   - `reason`, one of:
-    - `OPEN`: a policy, membership, claim or payment not yet ended, closed or settled;
+    - `OPEN`: a policy, membership, claim or payment that has not reached a final status;
     - `IN_RETENTION`: inside the tenant's retention period, with `until`, the first business date it no longer blocks. The period runs from the business date the record reached its final status, from its status history. The tenant's record retention policies set it; the working default is 7 years (OQ-120);
     - `LEGAL_HOLD`: a hold on the record or one of its documents, with `holdId` and `documentId`;
     - `NO_RETENTION_POLICY`: the tenant has no period in force for the record's kind.
-  - `recordType`: `LIFE_POLICY`, `LIFE_CLAIM`, `GENERAL_POLICY`, `GENERAL_CLAIM`, `HEALTH_MEMBERSHIP`, `HEALTH_CLAIM`, `PAYMENT` or `AUDIT_EVIDENCE`.
-  - `recordId`.
+  - `recordType`: `LIFE_POLICY`, `LIFE_CLAIM`, `GENERAL_POLICY`, `GENERAL_CLAIM`, `HEALTH_MEMBERSHIP`, `HEALTH_CLAIM`, `PAYMENT`, `AUDIT_EVIDENCE`, or `PARTY` (a hold on one of the party's own documents). The retention kinds: the policy and membership types are `POLICY`, the claim types `CLAIM`, and `PAYMENT` is `PAYMENT`.
+  - `recordId`: for `AUDIT_EVIDENCE` and `PARTY`, the party.
   - `retention`: `POLICY`, `CLAIM` or `PAYMENT` (the record retention policies), or `AUDIT` (the longest audit class, for `AUDIT_EVIDENCE`).
 - Records of a party merged into this one count.
-- **Added:** static data `party.cfg_record_retention_policies`, maintained through the generated static data endpoints (`/party/static/record-retention-policies`). It holds `recordKind` (`POLICY`, `CLAIM`, `PAYMENT`), `jurisdiction`, `period` and `basis`. The platform rows are the 7-year working default.
+- **Added:** static data `party.cfg_record_retention_policies`, maintained through the generated static data endpoints (`/party/static/record-retention-policies`). It holds `recordKind` (`POLICY`, `CLAIM`, `PAYMENT`), `jurisdiction` (a country code; where several apply the longest period wins), `period` (an ISO 8601 duration such as `P7Y`) and `basis` (free text, the legal basis). The platform rows (`tenantId` null, read at `…/global`) are the 7-year working default. A tenant's own rows replace them for that kind.
+- **Changed, every static data document:** every duration field (`period` and similar) now says it is an ISO 8601 duration.
+- `until`, `holdId`, `documentId` and `retention` are null when they do not apply to the block's reason.
 - A party that is not Deceased or Dormant is still refused with 409 `INVALID_STATE_TRANSITION`, now before its records are read.
 - Erasure for a living party is not this operation (Wave 6 data-subject requests).
+
+### Breaking: resolving an Unknown payment as succeeded needs a matched statement line or a second person (BR-042)
+- `POST /payments/payments/{id}/resolve` (`PaymentsResolveUnknown`) with `succeeded: false` is unchanged: 200, one person's decision.
+- With `succeeded: true`, it depends on whether a bank statement line is matched to the payment (by reference and amount, `POST /payments/bank-statements`):
+  - **matched:** decided at once, 200; the evidence records the line;
+  - **not matched:** **202**, and the payment stays `Unknown`, with a new `resolutionRequest` (`requestedBy`, `requestedAt`, `evidence`). The `UNKNOWN_PAYMENT_RESOLUTION` approval (business reference `PAYMENT`, which opens the payments screen) appears in the Workflow inbox.
+    - The requester cannot approve it (`MAKER_CHECKER_SAME_PERSON`).
+    - Granted: the payment becomes `Succeeded`.
+    - Rejected, expired or withdrawn: the request is cleared, and the payment stays `Unknown`.
+- **409 `PAYMENT_RESOLUTION_PENDING`** for any resolve while a request waits.
+- `PaymentView.resolutionRequest` is null when nothing waits. The approval and reference type enums gain `UNKNOWN_PAYMENT_RESOLUTION` and `PAYMENT`.
+- The finance manager template approves it.
+
+### Fixed: a payout batch is released only as approved
+- `POST /payments/payout-batches/{id}/release` (`PaymentsReleaseBatch`) is refused with **409 `PAYOUT_BATCH_CHANGED`** when the batch's payments are not exactly those its release approval covered. That means a payment added or removed, or one with another amount, currency, payee or bank account.
+- The release approval is bound to the batch (its subject hash), and a grant for another subject is not applied.
+- No API changes a built batch, so this is defence in depth; nothing a client does today changes.
 
 ### Added: front-end requests BR-011, BR-012, BR-014, BR-015, BR-019, BR-020, BR-022
 - **Parked deliveries for the operator (BR-011):** a PLATFORM screen function `PLATFORM_PARKED_DELIVERIES` for `ListParkedDeliveriesByTenant`.

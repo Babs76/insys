@@ -201,6 +201,23 @@ public sealed class Payment : AggregateRoot<Guid>
     /// <summary>For a payout: the payee's bank account (party.bank_account), by id. Its details are read from the Party module only to send it.</summary>
     public Guid? BankAccountId { get; private set; }
 
+    /// <summary>BR-042: who asked for this Unknown payment to be resolved as succeeded, while a second person's approval is awaited.</summary>
+    public Guid? ResolutionRequestedBy { get; private set; }
+
+    public DateTimeOffset? ResolutionRequestedAt { get; private set; }
+
+    /// <summary>The evidence the requester gave (a bank statement, the provider's report).</summary>
+    public string? ResolutionEvidence { get; private set; }
+
+    /// <summary>The UNKNOWN_PAYMENT_RESOLUTION approval that resolved the payment as succeeded.</summary>
+    public Guid? ResolutionApprovalId { get; private set; }
+
+    public bool ResolutionPending => ResolutionRequestedBy is not null;
+
+    /// <summary>What a resolution approval covers: this payment, its amount and the request.</summary>
+    public string ResolutionSubjectHash =>
+        ApprovalSubject.Hash("UNKNOWN_PAYMENT_RESOLUTION", Id, Amount, Currency, ResolutionRequestedBy, ResolutionEvidence);
+
     public IReadOnlyList<StatusChange> History => _history;
 
     public IReadOnlyList<PaymentAllocation> Allocations => _allocations;
@@ -299,12 +316,21 @@ public sealed class Payment : AggregateRoot<Guid>
     /// <summary>Command MarkUnknown: no answer within the time allowed.</summary>
     public Result MarkUnknown(DateOnly today, DateTimeOffset now) => Outcome(ProviderOutcome.Unknown, "TIMEOUT", "No answer from the provider", today, now);
 
-    /// <summary>Command ResolveUnknown: a person decides from the evidence (a bank statement, the provider's report) (PAY-005).</summary>
+    /// <summary>
+    /// Command ResolveUnknown: a person decides from the evidence (PAY-005). As failed, one person decides. As succeeded,
+    /// one person decides only with a bank statement line matched to the payment; otherwise it is a request for a second
+    /// person's approval (<see cref="RequestSucceededResolution"/>, BR-042).
+    /// </summary>
     public Result ResolveUnknown(bool succeeded, string evidence, DateOnly today, DateTimeOffset now)
     {
         if (Status != PaymentStatus.Unknown)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Payment {PaymentRef} is {Status}, not Unknown.");
+        }
+
+        if (ResolutionPending)
+        {
+            return Error.Conflict(PaymentErrorCodes.ResolutionPending, $"Payment {PaymentRef} has a resolution waiting for approval.");
         }
 
         var result = Change(succeeded ? PaymentTrigger.ResolveUnknownSucceeded : PaymentTrigger.ResolveUnknownFailed, "OPERATOR", now);
@@ -314,6 +340,80 @@ public sealed class Payment : AggregateRoot<Guid>
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// BR-042: resolving an Unknown payment as succeeded with no matched bank statement line asks for a second person's
+    /// approval (UNKNOWN_PAYMENT_RESOLUTION). The payment stays Unknown until it is decided.
+    /// </summary>
+    public Result RequestSucceededResolution(Guid requestedBy, string evidence, DateTimeOffset now)
+    {
+        if (Status != PaymentStatus.Unknown)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Payment {PaymentRef} is {Status}, not Unknown.");
+        }
+
+        if (ResolutionPending)
+        {
+            return Error.Conflict(PaymentErrorCodes.ResolutionPending, $"Payment {PaymentRef} has a resolution waiting for approval.");
+        }
+
+        ResolutionRequestedBy = requestedBy;
+        ResolutionRequestedAt = now;
+        ResolutionEvidence = Guard.MaxLength(Guard.NotNullOrWhiteSpace(evidence).Trim(), 500);
+        Raise(new UnknownPaymentResolutionRequested(Id, PaymentRef, Amount, Currency, requestedBy, ResolutionEvidence, ResolutionSubjectHash, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>True when this approval already resolved the payment: a redelivered grant changes nothing.</summary>
+    public bool ResolutionApplied(Guid approvalId) => ResolutionApprovalId == approvalId;
+
+    /// <summary>
+    /// Workflow's decision on a requested resolution (BR-042). Granted, by someone other than the requester and for this
+    /// request, the payment is resolved as succeeded; rejected, expired or withdrawn, the request is cleared and the payment
+    /// stays Unknown for another decision.
+    /// </summary>
+    public Result DecideSucceededResolution(bool approved, Guid approvalId, Guid checkerId, string? subjectHash, DateOnly today, DateTimeOffset now)
+    {
+        if (Status != PaymentStatus.Unknown || ResolutionRequestedBy is not { } requester)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Payment {PaymentRef} has no resolution waiting for approval.");
+        }
+
+        if (subjectHash is not null && subjectHash != ResolutionSubjectHash)
+        {
+            return Error.Conflict(PaymentErrorCodes.ResolutionChanged, $"Payment {PaymentRef}'s resolution request changed after its approval was requested.");
+        }
+
+        if (!approved)
+        {
+            ClearResolutionRequest();
+            return Result.Success();
+        }
+
+        if (checkerId == requester)
+        {
+            return MakerChecker.EnsureDifferentPeople(requester.ToString(), checkerId.ToString());
+        }
+
+        var evidence = ResolutionEvidence!;
+        ClearResolutionRequest();
+        var result = ResolveUnknown(true, $"{evidence} (approved by a second person)", today, now);
+        if (result.IsSuccess)
+        {
+            ResolutionApprovalId = approvalId;
+        }
+
+        return result;
+    }
+
+    private void ClearResolutionRequest()
+    {
+        ResolutionRequestedBy = null;
+        ResolutionRequestedAt = null;
+        ResolutionEvidence = null;
+        MarkChanged();
     }
 
     /// <summary>Command AllocatePayment: a received payment applied to invoices, never above the amount received (BIL-003).</summary>
@@ -417,8 +517,24 @@ public sealed class Payment : AggregateRoot<Guid>
     }
 }
 
+/// <summary>BR-042: asks Workflow for a second person's approval of an Unknown payment resolved as succeeded without a matched statement line.</summary>
+public sealed record UnknownPaymentResolutionRequested(Guid PaymentId, string PaymentRef, decimal Amount, string Currency, Guid RequestedBy, string Evidence,
+    string SubjectHash, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public static class PaymentErrorCodes
 {
+    /// <summary>A payout batch's payments differ from those its release approval covers.</summary>
+    [ErrorCode(409, "error.payment.payout_batch_changed")]
+    public const string PayoutBatchChanged = "PAYOUT_BATCH_CHANGED";
+
+    /// <summary>BR-042: the payment's resolution as succeeded is waiting for a second person's approval.</summary>
+    [ErrorCode(409, "error.payment.resolution_pending")]
+    public const string ResolutionPending = "PAYMENT_RESOLUTION_PENDING";
+
+    /// <summary>BR-042: the decided approval is not for the payment's current resolution request.</summary>
+    [ErrorCode(409, "error.payment.resolution_changed")]
+    public const string ResolutionChanged = "PAYMENT_RESOLUTION_CHANGED";
+
     [ErrorCode(422, "error.payment.over_allocated")]
     public const string OverAllocated = "PAYMENT_OVER_ALLOCATED";
 

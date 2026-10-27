@@ -127,6 +127,15 @@ public static class ErrorContract
         ("Problem422", [ErrorCodes.ValidationFailed, ErrorCodes.IdempotencyKeyRequired, ErrorCodes.IdempotencyKeyReused]),
     ];
 
+    private static OpenApiSchema Enum(string description, params string[] values) => Enum(description, false, values);
+
+    private static OpenApiSchema Enum(string description, bool nullable, params string[] values) => new()
+    {
+        Type = nullable ? JsonSchemaType.String | JsonSchemaType.Null : JsonSchemaType.String,
+        Enum = [.. values.Select(v => (JsonNode)JsonValue.Create(v))],
+        Description = description,
+    };
+
     private static OpenApiHeader Header(string description, OpenApiSchema schema) => new() { Description = description, Schema = schema };
 
     private static void Extend(OpenApiSchema schema)
@@ -148,41 +157,43 @@ public static class ErrorContract
         schema.Properties["blocks"] = new OpenApiSchema
         {
             Type = JsonSchemaType.Array | JsonSchemaType.Null,
-            Description = "Only with PARTY_ANONYMISATION_BLOCKED (409, D-34): each record that still keeps the party's data. Anonymise again once none is left.",
+            Description = "Only with PARTY_ANONYMISATION_BLOCKED (409, D-34): each thing that still keeps the party's data. Anonymise again once none is left.",
             Items = new OpenApiSchema
             {
                 Type = JsonSchemaType.Object,
                 Required = new HashSet<string> { "reason", "recordType", "recordId" },
                 Properties = new Dictionary<string, IOpenApiSchema>
                 {
-                    ["reason"] = new OpenApiSchema
-                    {
-                        Type = JsonSchemaType.String,
-                        Enum = [JsonValue.Create("OPEN"), JsonValue.Create("IN_RETENTION"), JsonValue.Create("LEGAL_HOLD"), JsonValue.Create("NO_RETENTION_POLICY")],
-                        Description = "OPEN: the record has not ended or closed. IN_RETENTION: inside the tenant's retention period until `until`. LEGAL_HOLD: a hold "
-                            + "is in force on the record or one of its documents. NO_RETENTION_POLICY: the tenant has no retention period in force for the record's kind.",
-                    },
-                    ["recordType"] = new OpenApiSchema
-                    {
-                        Type = JsonSchemaType.String,
-                        Description = "LIFE_POLICY, LIFE_CLAIM, GENERAL_POLICY, GENERAL_CLAIM, HEALTH_MEMBERSHIP, HEALTH_CLAIM, PAYMENT, AUDIT_EVIDENCE; for a "
-                            + "legal hold, the held document's business reference type.",
-                    },
-                    ["recordId"] = new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid", Description = "The record; for AUDIT_EVIDENCE, the party." },
-                    ["retention"] = new OpenApiSchema
-                    {
-                        Type = JsonSchemaType.String | JsonSchemaType.Null,
-                        Description = "The period that applies: POLICY_END or CLAIM_CLOSURE (the tenant's longest document retention schedule with that trigger), "
-                            + "FINANCIAL (the audit class), AUDIT (the longest audit class). Null for a legal hold.",
-                    },
+                    ["reason"] = Enum("Why it blocks. OPEN: the record has not reached a final status. IN_RETENTION: it reached one, and the tenant's retention "
+                        + "period from that business date runs until `until`. LEGAL_HOLD: a legal hold is in force on the record or one of its documents. "
+                        + "NO_RETENTION_POLICY: the tenant has no retention period in force for the record's kind, so it is kept (fail closed).",
+                        "OPEN", "IN_RETENTION", "LEGAL_HOLD", "NO_RETENTION_POLICY"),
+                    ["recordType"] = Enum("The record. Its retention kind: LIFE_POLICY, GENERAL_POLICY and HEALTH_MEMBERSHIP are POLICY; LIFE_CLAIM, GENERAL_CLAIM "
+                        + "and HEALTH_CLAIM are CLAIM; PAYMENT is PAYMENT. AUDIT_EVIDENCE is the audit events about the party. PARTY is the party itself (a legal "
+                        + "hold on one of its own documents).",
+                        "LIFE_POLICY", "LIFE_CLAIM", "GENERAL_POLICY", "GENERAL_CLAIM", "HEALTH_MEMBERSHIP", "HEALTH_CLAIM", "PAYMENT", "AUDIT_EVIDENCE", "PARTY"),
+                    ["recordId"] = new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid", Description = "The record; for AUDIT_EVIDENCE and PARTY, the party." },
+                    ["retention"] = Enum("The retention period that applies: POLICY, CLAIM or PAYMENT (the tenant's record retention policies, "
+                        + "/party/static/record-retention-policies; working default 7 years), or AUDIT (the longest audit retention class). Null for LEGAL_HOLD.",
+                        nullable: true, "POLICY", "CLAIM", "PAYMENT", "AUDIT"),
                     ["until"] = new OpenApiSchema
                     {
                         Type = JsonSchemaType.String | JsonSchemaType.Null,
                         Format = "date",
-                        Description = "For IN_RETENTION: the first business date on which the record no longer blocks.",
+                        Description = "For IN_RETENTION: the first business date on which the record no longer blocks. Null for every other reason.",
                     },
-                    ["holdId"] = new OpenApiSchema { Type = JsonSchemaType.String | JsonSchemaType.Null, Format = "uuid", Description = "For LEGAL_HOLD: the hold." },
-                    ["documentId"] = new OpenApiSchema { Type = JsonSchemaType.String | JsonSchemaType.Null, Format = "uuid", Description = "For LEGAL_HOLD on a document: the document." },
+                    ["holdId"] = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.String | JsonSchemaType.Null,
+                        Format = "uuid",
+                        Description = "For LEGAL_HOLD: the hold (null for a document flagged as held without a hold record). Null for every other reason.",
+                    },
+                    ["documentId"] = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.String | JsonSchemaType.Null,
+                        Format = "uuid",
+                        Description = "For LEGAL_HOLD on a document: the held document. Null for every other reason.",
+                    },
                 },
             },
         };

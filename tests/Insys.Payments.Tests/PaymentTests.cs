@@ -139,16 +139,89 @@ public sealed class PaymentTests
 
         batch.TotalAmount.ShouldBe(25m);
         payments.ShouldAllBe(p => p.PayoutBatchId == batch.Id);
-        batch.ReleaseBatch(builder, Now).IsFailure.ShouldBeTrue();
+        batch.ReleaseBatch(builder, payments, Now).IsFailure.ShouldBeTrue();
         batch.ApproveBatch(builder).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
         batch.Status.ShouldBe(BatchStatus.Built);
 
         batch.ApproveBatch(Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
-        batch.ReleaseBatch(builder, Now).IsSuccess.ShouldBeTrue();
+        batch.ReleaseBatch(builder, payments, Now).IsSuccess.ShouldBeTrue();
         batch.Settle(allPaymentsFinal: false);
         batch.Status.ShouldBe(BatchStatus.Released);
         batch.Settle(allPaymentsFinal: true);
         batch.Status.ShouldBe(BatchStatus.Settled);
+    }
+
+    [Fact]
+    public void ABatchWhosePaymentsChangedAfterApproval_IsNotReleased()
+    {
+        var payments = new[] { Payout(10m), Payout(15m) };
+        var batch = PayoutBatch.BuildBatch(Guid.CreateVersion7(), "REFUND", "ZAR", payments, Guid.CreateVersion7(), Now).Value;
+        batch.SubjectHash.ShouldNotBeNull();
+        batch.ApproveBatch(Guid.CreateVersion7(), batch.SubjectHash).IsSuccess.ShouldBeTrue();
+
+        // A payment more, or one fewer, than was approved: refused, and the batch stays approved.
+        batch.ReleaseBatch(Guid.CreateVersion7(), [.. payments, Payout(5m)], Now).Error!.Code.ShouldBe(PaymentErrorCodes.PayoutBatchChanged);
+        batch.ReleaseBatch(Guid.CreateVersion7(), [payments[0]], Now).Error!.Code.ShouldBe(PaymentErrorCodes.PayoutBatchChanged);
+        batch.Status.ShouldBe(BatchStatus.Approved);
+
+        // Exactly the approved payments, in any order: released.
+        batch.ReleaseBatch(Guid.CreateVersion7(), [payments[1], payments[0]], Now).IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void AGrantForAnotherSubject_DoesNotApproveTheBatch()
+    {
+        var batch = PayoutBatch.BuildBatch(Guid.CreateVersion7(), "REFUND", "ZAR", [Payout()], Guid.CreateVersion7(), Now).Value;
+
+        batch.ApproveBatch(Guid.CreateVersion7(), new string('0', 64)).Error!.Code.ShouldBe(PaymentErrorCodes.PayoutBatchChanged);
+        batch.Status.ShouldBe(BatchStatus.Built);
+    }
+
+    private static Payment UnknownPayment()
+    {
+        var payment = New();
+        payment.Sent(ProviderOutcome.Unknown, null, null, Today, Now).IsSuccess.ShouldBeTrue();
+        return payment;
+    }
+
+    [Fact]
+    public void ResolvingAsSucceeded_WithoutAStatementLine_WaitsForASecondPerson_WhoIsNotTheRequester_BR042()
+    {
+        var payment = UnknownPayment();
+        var requester = Guid.CreateVersion7();
+        payment.RequestSucceededResolution(requester, "Provider report 17", Now).IsSuccess.ShouldBeTrue();
+        payment.Status.ShouldBe(PaymentStatus.Unknown);
+        var requested = payment.DomainEvents.OfType<UnknownPaymentResolutionRequested>().ShouldHaveSingleItem();
+        requested.SubjectHash.ShouldBe(payment.ResolutionSubjectHash);
+
+        // While it waits, nobody resolves it another way, nor asks again.
+        payment.ResolveUnknown(false, "Bounced", Today, Now).Error!.Code.ShouldBe(PaymentErrorCodes.ResolutionPending);
+        payment.RequestSucceededResolution(Guid.CreateVersion7(), "Again", Now).Error!.Code.ShouldBe(PaymentErrorCodes.ResolutionPending);
+
+        var approval = Guid.CreateVersion7();
+        payment.DecideSucceededResolution(true, approval, requester, requested.SubjectHash, Today, Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        payment.DecideSucceededResolution(true, approval, Guid.CreateVersion7(), new string('0', 64), Today, Now).Error!.Code.ShouldBe(PaymentErrorCodes.ResolutionChanged);
+        payment.Status.ShouldBe(PaymentStatus.Unknown);
+
+        payment.DecideSucceededResolution(true, approval, Guid.CreateVersion7(), requested.SubjectHash, Today, Now).IsSuccess.ShouldBeTrue();
+        payment.Status.ShouldBe(PaymentStatus.Succeeded);
+        payment.ResolutionPending.ShouldBeFalse();
+        payment.ResolutionApplied(approval).ShouldBeTrue();
+        payment.DomainEvents.OfType<PaymentConfirmed>().ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void ARejectedResolution_LeavesThePaymentUnknown_AndOnePersonMayResolveItAsFailed_BR042()
+    {
+        var payment = UnknownPayment();
+        payment.RequestSucceededResolution(Guid.CreateVersion7(), "Provider report 18", Now).IsSuccess.ShouldBeTrue();
+
+        payment.DecideSucceededResolution(false, Guid.CreateVersion7(), Guid.CreateVersion7(), payment.ResolutionSubjectHash, Today, Now).IsSuccess.ShouldBeTrue();
+        payment.Status.ShouldBe(PaymentStatus.Unknown);
+        payment.ResolutionPending.ShouldBeFalse();
+
+        payment.ResolveUnknown(false, "Returned unpaid", Today, Now).IsSuccess.ShouldBeTrue();
+        payment.Status.ShouldBe(PaymentStatus.Failed);
     }
 
     [Fact]

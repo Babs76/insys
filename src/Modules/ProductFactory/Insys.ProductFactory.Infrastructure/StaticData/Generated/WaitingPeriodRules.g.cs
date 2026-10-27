@@ -43,6 +43,7 @@ public sealed class WaitingPeriodRules : StaticRecord<WaitingPeriodRulesInput>
 
     public string Benefit { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string Duration { get; set; } = "";
 
     public bool? AccidentExempt { get; set; }
@@ -66,6 +67,7 @@ public sealed record WaitingPeriodRulesInput : StaticRecordInput
 
     public string? Benefit { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? Duration { get; init; }
 
     public bool? AccidentExempt { get; init; }

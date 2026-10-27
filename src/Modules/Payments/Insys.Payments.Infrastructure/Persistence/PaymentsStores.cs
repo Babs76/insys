@@ -44,6 +44,10 @@ internal sealed class PaymentRepository(PaymentsDbContext db) : IPaymentReposito
 
     public Task<Payment?> Get(Guid id, CancellationToken cancellationToken) => Payments().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
+    public Task<BankStatementLine?> MatchedLine(Guid paymentId, CancellationToken cancellationToken) =>
+        db.StatementLines.AsNoTracking().Where(l => l.MatchedPaymentId == paymentId && l.MatchStatus == "MATCHED").OrderBy(l => l.StatementDate)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public Task<Payment?> ByIdempotencyKey(string key, CancellationToken cancellationToken) => Payments().SingleOrDefaultAsync(p => p.IdempotencyKey == key, cancellationToken);
 
     public Task<Payment?> ByExternalRef(string providerCode, string externalRef, CancellationToken cancellationToken) =>
@@ -176,7 +180,10 @@ internal sealed class PaymentsEventMapper : IDomainEventMapper
         Domain.Payments.PayoutReleased e => new Contracts.PayoutReleased(e.BatchId, e.BatchRef, e.Purpose, e.PaymentCount, e.TotalAmount, e.Currency),
         Domain.Payments.ReconciliationExceptionRaised e => new Contracts.ReconciliationExceptionRaised(e.ExceptionId, e.ExceptionType, e.PaymentId, e.StatementLineId, e.Amount),
         PayoutBatchBuilt e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.PaymentApprovals.PayoutBusinessRefType, e.BatchId,
-            Contracts.PaymentApprovals.PayoutApprovalType, e.BuiltBy, e.TotalAmount, e.Currency, $"Release payout batch {e.BatchRef}"),
+            Contracts.PaymentApprovals.PayoutApprovalType, e.BuiltBy, e.TotalAmount, e.Currency, $"Release payout batch {e.BatchRef}", e.SubjectHash),
+        Domain.Payments.UnknownPaymentResolutionRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.PaymentApprovals.PaymentBusinessRefType,
+            e.PaymentId, Contracts.PaymentApprovals.UnknownResolutionApprovalType, e.RequestedBy, e.Amount, e.Currency,
+            $"Resolve unknown payment {e.PaymentRef} as succeeded: {e.Evidence}", e.SubjectHash),
         _ => null,
     };
 

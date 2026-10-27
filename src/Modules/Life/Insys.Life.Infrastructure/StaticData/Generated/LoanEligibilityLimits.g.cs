@@ -43,6 +43,7 @@ public sealed class LoanEligibilityLimits : StaticRecord<LoanEligibilityLimitsIn
 
     public decimal MaxPctCashValue { get; set; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string MinPolicyDuration { get; set; } = "";
 
     public override void ApplyFields(LoanEligibilityLimitsInput input, IFieldProtector protector)
@@ -60,6 +61,7 @@ public sealed record LoanEligibilityLimitsInput : StaticRecordInput
 
     public decimal? MaxPctCashValue { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? MinPolicyDuration { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

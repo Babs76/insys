@@ -48,7 +48,8 @@ public enum BatchTrigger
 }
 
 /// <summary>Asks Workflow for a second person's approval of the batch before release (SRS-002).</summary>
-public sealed record PayoutBatchBuilt(Guid BatchId, string BatchRef, Guid BuiltBy, decimal TotalAmount, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record PayoutBatchBuilt(Guid BatchId, string BatchRef, Guid BuiltBy, decimal TotalAmount, string Currency, string SubjectHash, DateTimeOffset OccurredAt)
+    : IDomainEvent;
 
 public sealed record PayoutReleased(Guid BatchId, string BatchRef, string Purpose, int PaymentCount, decimal TotalAmount, string Currency, DateTimeOffset OccurredAt)
     : IDomainEvent;
@@ -84,6 +85,17 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
 
     public Guid? ReleasedBy { get; private set; }
 
+    /// <summary>
+    /// What the release approval covers (BuildingBlocks.Domain.ApprovalSubject): the batch and each of its payments' id,
+    /// amount, currency, payee and bank account, as built. Null for a batch built before V0065.
+    /// </summary>
+    public string? SubjectHash { get; private set; }
+
+    /// <summary>The subject of a batch with these payments, in any order.</summary>
+    public static string Subject(Guid batchId, string purpose, string currency, IEnumerable<Payment> payments) =>
+        ApprovalSubject.Hash("PAYOUT_BATCH", batchId, purpose, currency, string.Join(";", payments.OrderBy(p => p.Id).Select(p =>
+            FormattableString.Invariant($"{p.Id:N}:{p.Amount:0.00}:{p.Currency}:{p.CounterpartyPartyId:N}:{p.BankAccountId:N}"))));
+
     /// <summary>Command BuildBatch from payments waiting to be paid out, all in one purpose and currency.</summary>
     public static Result<PayoutBatch> BuildBatch(Guid id, string purpose, string currency, IReadOnlyList<Payment> payments, Guid builtBy, DateTimeOffset now)
     {
@@ -108,7 +120,8 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
             payment.AssignToBatch(id);
         }
 
-        batch.Raise(new PayoutBatchBuilt(id, batch.BatchRef, builtBy, batch.TotalAmount, currency, now));
+        batch.SubjectHash = Subject(id, purpose, currency, payments);
+        batch.Raise(new PayoutBatchBuilt(id, batch.BatchRef, builtBy, batch.TotalAmount, currency, batch.SubjectHash, now));
         batch.MarkChanged();
         return batch;
     }
@@ -116,12 +129,20 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
     /// <summary>True when this checker's approval was already applied (approved, and perhaps released since): a redelivered grant changes nothing.</summary>
     public bool GrantedBy(Guid checkerId) => Status is BatchStatus.Approved or BatchStatus.Released or BatchStatus.Settled && ApprovedBy == checkerId;
 
-    /// <summary>Command ApproveBatch, from Workflow's ApprovalGranted; the approver is never the builder.</summary>
-    public Result ApproveBatch(Guid approvedBy)
+    /// <summary>
+    /// Command ApproveBatch, from Workflow's ApprovalGranted; the approver is never the builder, and the approval applies
+    /// only to the batch it was requested for (<paramref name="subjectHash"/>, when the grant carries one).
+    /// </summary>
+    public Result ApproveBatch(Guid approvedBy, string? subjectHash = null)
     {
         if (approvedBy == BuiltBy)
         {
             return MakerChecker.EnsureDifferentPeople(BuiltBy.ToString()!, approvedBy.ToString());
+        }
+
+        if (subjectHash is not null && SubjectHash is not null && subjectHash != SubjectHash)
+        {
+            return Error.Conflict(PaymentErrorCodes.PayoutBatchChanged, $"Payout batch {BatchRef} is not the batch this approval was requested for.");
         }
 
         var result = Fire(BatchTrigger.ApproveBatch);
@@ -149,9 +170,19 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
         return Result.Success<IReadOnlyList<Guid>>(payments.Where(p => p.CanLeaveBatch(Id)).Select(p => p.Id).ToList());
     }
 
-    /// <summary>Command ReleaseBatch: the caller sends each payment to its provider.</summary>
-    public Result ReleaseBatch(Guid releasedBy, DateTimeOffset now)
+    /// <summary>
+    /// Command ReleaseBatch: the caller sends each payment to its provider. Refused when the batch's payments
+    /// (<paramref name="payments"/>, as they are now) are not exactly what was approved: a payment added, removed, or with
+    /// another amount, payee or bank account since the batch was built.
+    /// </summary>
+    public Result ReleaseBatch(Guid releasedBy, IReadOnlyList<Payment> payments, DateTimeOffset now)
     {
+        if (Status == BatchStatus.Approved && SubjectHash is not null && Subject(Id, Purpose, Currency, payments) != SubjectHash)
+        {
+            return Error.Conflict(PaymentErrorCodes.PayoutBatchChanged,
+                $"Payout batch {BatchRef} changed after its release was approved; it cannot be released.");
+        }
+
         var result = Fire(BatchTrigger.ReleaseBatch);
         if (result.IsSuccess)
         {

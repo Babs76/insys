@@ -44,6 +44,7 @@ public sealed class RecordRetentionPolicies : StaticRecord<RecordRetentionPolici
 
     public string Jurisdiction { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string Period { get; set; } = "";
 
     public string? Basis { get; set; }
@@ -65,6 +66,7 @@ public sealed record RecordRetentionPoliciesInput : StaticRecordInput
 
     public string? Jurisdiction { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? Period { get; init; }
 
     public string? Basis { get; init; }

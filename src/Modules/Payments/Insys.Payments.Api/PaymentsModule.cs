@@ -130,10 +130,20 @@ public sealed class PaymentsModule : IModule
             .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "commission payouts are counted only for a caller who also holds it");
 
         payments.MapPost("/payments/{id:guid}/resolve", async (Guid id, ResolveUnknownRequest r, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new ResolveUnknown(id, r.Succeeded, r.Evidence), ct)).ToHttp(Results.Ok))
+                (await dispatcher.Send(new ResolveUnknown(id, r.Succeeded, r.Evidence), ct)).ToHttp(view =>
+                    view.ResolutionRequest is null ? Results.Ok(view) : Results.Json(view, statusCode: StatusCodes.Status202Accepted)))
             .Produces<PaymentView>(StatusCodes.Status200OK)
+            .Produces<PaymentView>(StatusCodes.Status202Accepted)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName("PaymentsResolveUnknown")
             .WithSummary("Decide an unknown outcome from the evidence (PAY-005)")
+            .WithDescription("BR-042. As failed (succeeded false): decided at once, 200. As succeeded: decided at once (200) only when a bank statement "
+                + "line is matched to the payment (by reference and amount, PAY-003), and the evidence records the line; otherwise it is a request for a "
+                + "second person's approval, 202 with the payment still Unknown and `resolutionRequest` set. The UNKNOWN_PAYMENT_RESOLUTION approval "
+                + "appears in the Workflow inbox; the requester cannot approve it. 409 PAYMENT_RESOLUTION_PENDING while a request waits; "
+                + "INVALID_STATE_TRANSITION when the payment is not Unknown.")
+            .WithEventualEffects("granted, the payment becomes Succeeded (payment.PaymentSucceeded); rejected, expired or withdrawn, the request is cleared "
+                + "and the payment stays Unknown for another decision.")
             .RequirePermission(PaymentPermissions.PaymentResolve);
 
         payments.MapPost("/payments/{id:guid}/reverse", async (Guid id, ReversePaymentRequest r, IDispatcher dispatcher, CancellationToken ct) =>

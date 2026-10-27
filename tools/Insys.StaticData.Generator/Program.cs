@@ -182,6 +182,9 @@ internal sealed record Field(Column Column, string Property, string EntityType, 
 
 internal static class Emit
 {
+    /// <summary>How a duration (an interval column) is read and written, for the OpenAPI documents.</summary>
+    private const string DurationDescription = "An ISO 8601 duration, such as P7Y, P18M or P30D.";
+
     /// <summary>The OpenFactor source file header (tools/source-header.txt), set before any file is emitted.</summary>
     public static string[] Notice { get; set; } = [];
 
@@ -232,6 +235,11 @@ internal static class Emit
                 s.AppendLine($"    [Insys.BuildingBlocks.Domain.OneOf({string.Join(", ", entityValues.Select(Names.Literal))})]");
             }
 
+            if (field.Column.SqlType == "interval")
+            {
+                s.AppendLine($"    [System.ComponentModel.Description({Names.Literal(DurationDescription)})]");
+            }
+
             s.AppendLine($"    public {field.EntityType} {field.Property} {{ get; set; }}{initializer}");
             s.AppendLine();
         }
@@ -254,6 +262,11 @@ internal static class Emit
             if (field.Column.AllowedValues is { } inputValues)
             {
                 s.AppendLine($"    [Insys.BuildingBlocks.Domain.OneOf({string.Join(", ", inputValues.Select(Names.Literal))})]");
+            }
+
+            if (field.Column.SqlType == "interval")
+            {
+                s.AppendLine($"    [System.ComponentModel.Description({Names.Literal(DurationDescription)})]");
             }
 
             s.AppendLine($"    public {field.InputType} {InputName(field)} {{ get; init; }}");

@@ -59,6 +59,29 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
                 ("record_kind", kind), ("jurisdiction", "ZA"), ("period", Period($"{years} years")));
         }
 
+        // The later host audits what it does eight years on: the audit table needs the months around that day, as
+        // audit.ensure_monthly_partitions makes them (it reaches only 24 months ahead).
+        await db.ExecuteAsOwner("""
+            DO $$
+            DECLARE
+              month_start date;
+              partition_name text;
+            BEGIN
+              FOR i IN -1..1 LOOP
+                month_start := (date_trunc('month', @later::date) + make_interval(months => i))::date;
+                partition_name := 'audit.audit_event_' || to_char(month_start, 'YYYY_MM');
+                IF to_regclass(partition_name) IS NULL THEN
+                  EXECUTE format('CREATE TABLE %s PARTITION OF audit.audit_event FOR VALUES FROM (%L) TO (%L)',
+                                 partition_name, month_start, (month_start + INTERVAL '1 month')::date);
+                  EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', partition_name);
+                  EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', partition_name);
+                  EXECUTE format($p$CREATE POLICY tenant_isolation ON %s USING (tenant_id = current_setting('app.tenant_id')::uuid)
+                                    WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid)$p$, partition_name);
+                END IF;
+              END LOOP;
+            END $$;
+            """.Replace("@later", $"'{Later.UtcDateTime:yyyy-MM-dd}'", StringComparison.Ordinal));
+
         // Fail closed: with the platform's payment row retired, tenant B has no retention period for payments.
         await db.ExecuteAsOwner("UPDATE party.cfg_record_retention_policies SET record_status = 'RETIRED' WHERE tenant_id IS NULL AND record_kind = 'PAYMENT'");
         foreach (var tenant in new[] { DatabaseFixture.TenantA, DatabaseFixture.TenantB })
@@ -214,6 +237,20 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
         var read = await (await _later.ClientFor(DatabaseFixture.TenantA, Officer).GetAsync($"/api/v1/party/parties/{party}")).Json();
         read.GetProperty("status").GetString().ShouldBe("Anonymised");
         read.GetProperty("displayName").GetString().ShouldBe("Anonymised");
+    }
+
+    /// <summary>The status history (V0064) takes every status its record has, the longest included, on insert and on each change.</summary>
+    [Fact]
+    public async Task TheStatusHistory_RecordsEveryStatus_OnInsertAndOnEachChange_D34()
+    {
+        var party = await DeceasedParty(DatabaseFixture.TenantA, "Historied");
+        var claim = await GeneralClaim(DatabaseFixture.TenantA, party, "FIRST_NOTIFICATION", closedYearsAgo: 1);
+        await fixture.Database.ExecuteAsOwner("UPDATE general.claim SET status = 'UNDER_ASSESSMENT', updated_at = @at WHERE id = @c", ("at", Later.AddDays(-2)), ("c", claim));
+        await fixture.Database.ExecuteAsOwner("UPDATE general.claim SET status = 'CLOSED', updated_at = @at WHERE id = @c", ("at", Later.AddDays(-1)), ("c", claim));
+
+        (await fixture.Database.ScalarAsOwner<string>(
+            "SELECT string_agg(coalesce(from_status, '-') || '>' || to_status, ',' ORDER BY changed_at) FROM general.claim_status_history WHERE record_id = @c", ("c", claim)))
+            .ShouldBe("->FIRST_NOTIFICATION,FIRST_NOTIFICATION>UNDER_ASSESSMENT,UNDER_ASSESSMENT>CLOSED");
     }
 
     [Fact]

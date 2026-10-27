@@ -44,6 +44,7 @@ public sealed class AuditRetentionPolicies : StaticRecord<AuditRetentionPolicies
 
     public string Jurisdiction { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string Period { get; set; } = "";
 
     public override void ApplyFields(AuditRetentionPoliciesInput input, IFieldProtector protector)
@@ -62,6 +63,7 @@ public sealed record AuditRetentionPoliciesInput : StaticRecordInput
 
     public string? Jurisdiction { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? Period { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

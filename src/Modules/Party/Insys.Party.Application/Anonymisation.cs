@@ -35,7 +35,7 @@ namespace Insys.Party.Application;
 /// (inside the tenant's period until <c>until</c>, exclusive), LEGAL_HOLD (a hold in force on the record or one of its
 /// documents) or NO_RETENTION_POLICY (the tenant has no period in force for the record's kind, so its end cannot be known).
 /// </summary>
-/// <param name="RecordType">LIFE_POLICY, LIFE_CLAIM, GENERAL_POLICY, GENERAL_CLAIM, HEALTH_MEMBERSHIP, HEALTH_CLAIM, PAYMENT or AUDIT_EVIDENCE.</param>
+/// <param name="RecordType">LIFE_POLICY, LIFE_CLAIM, GENERAL_POLICY, GENERAL_CLAIM, HEALTH_MEMBERSHIP, HEALTH_CLAIM, PAYMENT, AUDIT_EVIDENCE, or PARTY (a hold on the party's own document).</param>
 /// <param name="RecordId">The record; for AUDIT_EVIDENCE, the party.</param>
 /// <param name="Retention">The period that applies: POLICY, CLAIM or PAYMENT (the record retention policies), or AUDIT (the longest audit class); null for a hold.</param>
 /// <param name="Until">For IN_RETENTION, the first business date the record no longer keeps the party's data.</param>
@@ -81,6 +81,7 @@ public sealed class AnonymisationCheck(IEnumerable<IPartyLinkedRecords> sources,
 {
     public const string AuditEvidence = "AUDIT_EVIDENCE";
     public const string AuditRetention = "AUDIT";
+    public const string PartyRecord = "PARTY";
 
     public async Task<IReadOnlyList<AnonymisationBlock>> Blocks(Guid partyId, CancellationToken cancellationToken)
     {
@@ -143,9 +144,12 @@ public sealed class AnonymisationCheck(IEnumerable<IPartyLinkedRecords> sources,
             }
         }
 
+        // A hold is named by the record it protects, in this list's own types: the party itself, or one of its records.
+        var typeOf = records.ToDictionary(r => r.RecordId, r => r.RecordType);
         foreach (var hold in await holds.Holds([.. partyIds, .. records.Select(r => r.RecordId)], cancellationToken))
         {
-            blocks.Add(new AnonymisationBlock(AnonymisationBlockReasons.LegalHold, hold.RecordType, hold.RecordId, HoldId: hold.HoldId, DocumentId: hold.DocumentId));
+            var recordType = typeOf.GetValueOrDefault(hold.RecordId) ?? PartyRecord;
+            blocks.Add(new AnonymisationBlock(AnonymisationBlockReasons.LegalHold, recordType, hold.RecordId, HoldId: hold.HoldId, DocumentId: hold.DocumentId));
         }
 
         return blocks;

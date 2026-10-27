@@ -75,6 +75,9 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
             payment.Property(p => p.ExternalRef).HasMaxLength(80);
             payment.Property(p => p.IdempotencyKey).HasMaxLength(80);
             payment.Property(p => p.BusinessRefType).HasMaxLength(30);
+            payment.Property(p => p.ResolutionEvidence).HasMaxLength(500);
+            payment.Ignore(p => p.ResolutionPending);
+            payment.Ignore(p => p.ResolutionSubjectHash);
             // So a batch is inserted before the payments assigned to it (fk_payment_payout_batch_id).
             payment.HasOne<PayoutBatch>().WithMany().HasForeignKey(p => new { p.TenantId, p.PayoutBatchId });
             payment.HasMany(p => p.History).WithOne().HasForeignKey(h => new { h.TenantId, h.PaymentId });
@@ -117,6 +120,7 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
             batch.Property(b => b.TotalAmount).HasPrecision(18, 2);
             batch.Property(b => b.Currency).HasColumnType("char(3)");
             batch.Property(b => b.Status).HasConversion(new UpperCaseEnumConverter<BatchStatus>()).HasMaxLength(12);
+            batch.Property(b => b.SubjectHash).HasMaxLength(64);
         });
 
         modelBuilder.Entity<ReconciliationException>(exception =>

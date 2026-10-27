@@ -44,6 +44,7 @@ public sealed class HealthWaitingPeriodRules : StaticRecord<HealthWaitingPeriodR
     [Insys.BuildingBlocks.Domain.OneOf("GENERAL", "CONDITION_SPECIFIC")]
     public string Type { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string Duration { get; set; } = "";
 
     public string[]? Exceptions { get; set; }
@@ -71,6 +72,7 @@ public sealed record HealthWaitingPeriodRulesInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.OneOf("GENERAL", "CONDITION_SPECIFIC")]
     public string? Type { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? Duration { get; init; }
 
     public string[]? Exceptions { get; init; }

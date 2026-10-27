@@ -43,6 +43,7 @@ public sealed class RetentionSchedules : StaticRecord<RetentionSchedulesInput>
 
     public string Jurisdiction { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string Period { get; set; } = "";
 
     [Insys.BuildingBlocks.Domain.OneOf("CREATION", "POLICY_END", "CLAIM_CLOSURE")]
@@ -68,6 +69,7 @@ public sealed record RetentionSchedulesInput : StaticRecordInput
 
     public string? Jurisdiction { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? Period { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("CREATION", "POLICY_END", "CLAIM_CLOSURE")]

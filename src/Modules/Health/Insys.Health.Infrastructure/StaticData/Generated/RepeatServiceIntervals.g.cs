@@ -41,6 +41,7 @@ public sealed class RepeatServiceIntervals : StaticRecord<RepeatServiceIntervals
 {
     public string Service { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string MinInterval { get; set; } = "";
 
     public string? OverrideRole { get; set; }
@@ -58,6 +59,7 @@ public sealed record RepeatServiceIntervalsInput : StaticRecordInput
 {
     public string? Service { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? MinInterval { get; init; }
 
     public string? OverrideRole { get; init; }

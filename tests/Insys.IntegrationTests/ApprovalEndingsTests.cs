@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Insys.Billing.Contracts;
 using Insys.BuildingBlocks.Api.StaticData;
@@ -394,6 +395,8 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
             "Calculated", ["Approved"], "Rejected", Refuse: RefuseProviderPaymentRun, WhenRefused: "Calculated"),
         [PaymentApprovals.PayoutApprovalType] = new(MoneyPermissionSet, [PaymentApprovals.PayoutApprovalType, BillingApprovals.RefundApprovalType, "BANK_ACCOUNT_VERIFICATION"],
             PayoutBatch, "Built", ["Approved"], "Rejected", Refuse: RefusePayoutBatch, WhenRefused: "Rejected"),
+        [PaymentApprovals.UnknownResolutionApprovalType] = new(MoneyPermissionSet, [PaymentApprovals.UnknownResolutionApprovalType, "BANK_ACCOUNT_VERIFICATION"], UnknownPaymentResolution,
+            "Unknown|requested", ["Succeeded|none"], "Unknown|none", Refuse: RefuseUnknownPaymentResolution, WhenRefused: "Unknown|requested"),
         [$"{DocumentApprovals.LegalHoldReleaseType}/{DocumentApprovals.LegalHoldBusinessRefType}"] = new(
             [DocumentPermissions.DocumentCreate, DocumentPermissions.DocumentRead, DocumentPermissions.LegalHoldManage, .. Approving],
             [DocumentApprovals.LegalHoldReleaseType], DocumentLegalHold, "held|release pending", ["released"], "held", Refuse: RefuseLegalHoldRelease,
@@ -935,6 +938,43 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
     /// </summary>
     private static Task RefusePayoutBatch(World w, Waiting waiting) =>
         w.Db.ExecuteAsOwner("UPDATE payment.payout_batch SET status = 'REJECTED' WHERE tenant_id = @t AND id = @id", ("t", w.Tenant), ("id", waiting.BusinessRefId));
+
+    /// <summary>
+    /// BR-042: a collection of 150.99, which the simulator never answers, so it is Unknown; resolved as succeeded with no
+    /// matched bank statement line, it waits for a second person. The state is the payment's status and its request.
+    /// </summary>
+    private static async Task<Waiting> UnknownPaymentResolution(World w)
+    {
+        await MoneyWorld(w);
+        var (payer, _) = await w.Payee("Unanswered", "62000555503");
+        var account = (await (await w.Maker.Send(HttpMethod.Post, "/api/v1/billing/accounts/",
+            new { payerPartyId = payer, currency = "ZAR", collectionMethod = "DEBIT_ORDER" }, idempotent: true)).Json()).GetProperty("id").GetGuid();
+        await w.Ok(await w.Maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/schedules", new
+        {
+            sourceDomain = "GENERAL", policyRef = Guid.CreateVersion7(), productVersionRef = "MOTOR-v1", frequency = "MONTHLY", startDate = Today,
+            endDate = (DateOnly?)null, instalmentAmount = 150.99m,
+        }, idempotent: true));
+        var invoice = (await (await w.Maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/invoices", new { asOf = Today }, idempotent: true)).Json())
+            .EnumerateArray().Single().GetProperty("id").GetGuid();
+        await w.Factory.DrainOutbox();
+        var payment = await w.Db.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_type = 'INVOICE' AND business_ref_id = @i", ("i", invoice));
+        var url = $"/api/v1/payments/payments/{payment}";
+        var resolved = await w.Maker.PostAsJsonAsync($"{url}/resolve", new { succeeded = true, evidence = "Provider report 17" });
+        resolved.StatusCode.ShouldBe(HttpStatusCode.Accepted, await resolved.Content.ReadAsStringAsync());
+
+        async Task<string> State()
+        {
+            var view = await w.Get(url);
+            return $"{view.GetProperty("status").GetString()}|{(view.GetProperty("resolutionRequest").ValueKind == JsonValueKind.Null ? "none" : "requested")}";
+        }
+
+        return new(PaymentApprovals.PaymentBusinessRefType, payment, State);
+    }
+
+    /// <summary>D-5: the request's evidence changes after it was submitted, so the granted approval is for another subject.</summary>
+    private static Task RefuseUnknownPaymentResolution(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE payment.payment SET resolution_evidence = 'Changed afterwards' WHERE tenant_id = @t AND id = @id", ("t", w.Tenant),
+            ("id", waiting.BusinessRefId));
 
     private static async Task<Waiting> PeriodReopen(World w)
     {

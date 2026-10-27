@@ -41,12 +41,16 @@ public sealed class BackupAndRecoveryPolicies : StaticRecord<BackupAndRecoveryPo
 {
     public string DataClass { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string BackupFrequency { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string Retention { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string RpoTarget { get; set; } = "";
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string RtoTarget { get; set; } = "";
 
     public override void ApplyFields(BackupAndRecoveryPoliciesInput input, IFieldProtector protector)
@@ -64,12 +68,16 @@ public sealed record BackupAndRecoveryPoliciesInput : StaticRecordInput
 {
     public string? DataClass { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? BackupFrequency { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? Retention { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? RpoTarget { get; init; }
 
+    [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? RtoTarget { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
