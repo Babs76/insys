@@ -31,8 +31,10 @@ Usage: integration-shards.py SHARD COUNT   prints the --filter-class arguments o
                                                     output) on stdin and fails unless each one is in a shard or excluded.
 
 Every test class in tests/Insys.IntegrationTests is assigned, so a new class always runs. The endpoint sweeps run in
-their own job and are left out. A class weighs a fixed start-up cost (its database and host) plus one per test, and
-known slow classes weigh more; classes are placed heaviest first on the lightest shard, so the split is stable.
+their own job and are left out. A class weighs its measured time (MEASURED: seconds per class from a full run's xUnit
+XML report, -result-xml, with the classes running side by side as on CI, so only their ratios matter); a class not yet
+measured is estimated from its tests. Classes are placed heaviest first on the lightest shard, so the split is stable.
+Re-measure when the shards' CI times drift apart.
 """
 import pathlib
 import re
@@ -40,10 +42,32 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "tests" / "Insys.IntegrationTests"
 EXCLUDED = {"EndpointSecuritySweepTests"}
-STARTUP = 4
-# Classes whose tests drive whole processes or their own hosts (minutes on CI, not seconds).
-SLOW = {"ApprovalEndingsTests": 120, "OnboardingReadinessTests": 30, "MoneyFlowTests": 25, "ProviderCallbackTests": 15, "CommunicationsTests": 15, "FunctionAccessTests": 15,
-        "TenantAdministratorTests": 15, "ConsumerParkingTests": 12, "BusinessDateTests": 12, "ArrearsAgeingTests": 10, "OpenApiContractTests": 10}
+# Measured on 27 October 2026 (wave2-3, 487 tests). A new class is estimated as ESTIMATE_BASE + ESTIMATE_PER_TEST * tests.
+ESTIMATE_BASE = 60
+ESTIMATE_PER_TEST = 50
+MEASURED = {
+    "AccessTests": 145, "ApprovalEndingsTests": 1934, "ApprovalKindsTests": 500, "ArrearsAgeingTests": 372,
+    "AssignRoleBusinessDateTests": 1026, "AuditTargetTypeTests": 59, "BankAccountTests": 249,
+    "BusinessDateTests": 784, "CaseConsumersTests": 854, "CaseTests": 260, "CaseTimelineBoundaryTests": 89,
+    "ClaimsScopeTests": 155, "CommunicationsTests": 195, "ConsumerParkingTests": 62, "CorsTests": 430,
+    "CrossTenantSuiteTests": 253, "DatabaseBusyTests": 147, "DbContextColumnsTests": 86,
+    "DevelopmentSigningKeyTests": 640, "EnvelopeEncryptionTests": 210, "ErrorCodeCatalogueTests": 6,
+    "ErrorCorrelationOwnHostTests": 132, "ErrorCorrelationTests": 188, "ExternalUserLinkTests": 118,
+    "FraudIndicatorDefinitionTests": 159, "FreeCoverBandTests": 145, "FunctionAccessTests": 462,
+    "FunctionCatalogueTests": 401, "GeneralTenantIsolationTests": 117, "HealthPlanProductTests": 140,
+    "IdempotencyTests": 7, "IdentityTests": 143, "KeycloakProvisioningTests": 1793, "KeycloakRealmTests": 133,
+    "LegalHoldReleaseTests": 255, "LocalisationTests": 339, "MakerCheckerTests": 173, "MeTests": 161,
+    "MigrationTests": 1, "ModuleRoleAndPartitionTests": 0, "MoneyFlowTests": 299, "ObjectStoreTests": 205,
+    "OnboardingReadinessTests": 196, "OpenApiContractTests": 537, "OpenApiReviewTests": 37, "OperationsTests": 92,
+    "OperatorTenantTests": 447, "OutboxAndInboxTests": 4, "ParkedDeliveryTests": 5, "PartyAnonymisationTests": 304,
+    "PartySearchTests": 165, "PayoutParkingTests": 143, "PlatformBootstrapTests": 120,
+    "PlatformParkedDeliveriesMenuTests": 417, "PostedFinancialRecordsTests": 2, "ProviderCallbackTests": 1595,
+    "RateLimitResponseTests": 327, "RatingPerformanceSmokeTests": 165, "RatingTestCaseTests": 148,
+    "RecordHistoryTests": 179, "RoleTemplateTests": 278, "RowLevelSecurityTests": 0, "SchemaGapTests": 0,
+    "SearchLogRetentionTests": 191, "SharedServicesTests": 218, "StaticDataChangeRequestLinkTests": 141,
+    "StaticDataTests": 558, "TenancyTests": 66, "TenantAdministratorTests": 535, "TenantIsolationApiTests": 178,
+    "TenantNamedRowsTests": 191, "WarmupTests": 134, "WorkflowTests": 143,
+}
 
 
 def classes():
@@ -53,7 +77,7 @@ def classes():
         for name in re.findall(r"\bclass (\w+Tests)\b", text):
             if name not in EXCLUDED:
                 tests = len(re.findall(r"^\s*\[(?:Fact|Theory|InlineData)", text, re.M))
-                found[name] = STARTUP + tests + SLOW.get(name, 0)
+                found[name] = MEASURED.get(name, ESTIMATE_BASE + ESTIMATE_PER_TEST * tests)
     return found
 
 
