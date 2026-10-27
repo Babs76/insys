@@ -47,6 +47,8 @@ public static class PartyInfrastructure
         services.AddModuleHandlers<PartyDbContext>(typeof(RegisterParty).Assembly);
         services.AddDomainEventMapper<PartyEventMapper>(PartyDbContext.SchemaName);
         services.AddScoped<IPartyRepository, PartyRepository>();
+        services.AddScoped<AnonymisationCheck>(); // D-34
+        services.AddScoped<IRecordRetentionPolicies, RecordRetentionPolicyReader>(); // OQ-120
         services.AddScoped<IPartySearch, PartySearchStore>();
         services.AddScoped<ISearchLogRetention, SearchLogRetentionStore>();
         services.AddOptions<SearchLogRetentionOptions>().BindConfiguration("Party:SearchLogRetention");

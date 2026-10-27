@@ -49,3 +49,16 @@ internal sealed class AuditRetention(AuditDbContext db) : IAuditRetention
             .FirstOrDefault();
     }
 }
+
+/// <summary>The latest audit event about a target (D-34), on the audit index by tenant and target, in its own read transaction.</summary>
+internal sealed class AuditedTargets(AuditDbContext db) : IAuditedTargets
+{
+    public async Task<DateTimeOffset?> LatestAbout(string targetType, string targetId, CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var latest = await db.AuditEvents.AsNoTracking().Where(e => e.TargetType == targetType && e.TargetId == targetId)
+            .MaxAsync(e => (DateTimeOffset?)e.OccurredAt, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return latest;
+    }
+}

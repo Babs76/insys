@@ -46,6 +46,7 @@ public static class AuditInfrastructure
         services.AddScoped<IAuditEventQueries, AuditEventQueries>();
         services.AddScoped<IAuditSink, AuditSink>();
         services.AddScoped<Contracts.IAuditRetention, Persistence.AuditRetention>();
+        services.AddScoped<Contracts.IAuditedTargets, Persistence.AuditedTargets>(); // D-34: the party anonymisation check
         services.AddIntegrationEventHandler<SensitiveOperationRecorded, SensitiveOperationRecordedHandler, AuditDbContext>(AuditDbContext.SchemaName);
 
         services.AddOptions<PartitionOptions>().BindConfiguration("Audit:Partitions");

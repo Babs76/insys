@@ -47,6 +47,21 @@ public static class DocumentApprovals
     public const string LegalHoldReleaseType = "LEGAL_HOLD_RELEASE";
 }
 
+/// <summary>A legal hold in force on a document of a record, or on the record itself.</summary>
+/// <param name="HoldId">The hold, or null for a document flagged as held with no hold row in force.</param>
+/// <param name="DocumentId">The held document, or null for a hold on the record itself.</param>
+public sealed record RecordHold(Guid? HoldId, Guid? DocumentId, string RecordType, Guid RecordId, string? ReasonCode);
+
+/// <summary>
+/// Public query interface (D-34): the legal holds in force on records, read on the Documents module's own role, for the
+/// party anonymisation check. Holds are placed on documents today; a hold whose scope is the record itself counts too.
+/// </summary>
+public interface IRecordHolds
+{
+    /// <summary>The legal holds in force on the records (by ID), or on a document whose business reference is one of them.</summary>
+    Task<IReadOnlyList<RecordHold>> Holds(IReadOnlyCollection<Guid> recordIds, CancellationToken cancellationToken);
+}
+
 [IntegrationEvent("document.DocumentGenerated")]
 public sealed record DocumentGenerated(Guid DocumentId, string CategoryCode, string BusinessRefType, Guid BusinessRefId, string? TemplateCode, int? TemplateVersion)
     : IIntegrationEvent;

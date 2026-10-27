@@ -58,6 +58,11 @@ public static class Problems
             extensions["errors"] = error.Details;
         }
 
+        foreach (var (name, value) in error.Extensions ?? new Dictionary<string, object?>())
+        {
+            extensions[name] = value;
+        }
+
         return Results.Problem(detail: error.Message, statusCode: StatusFor(error.Kind), title: TitleFor(error.Kind), extensions: extensions);
     }
 

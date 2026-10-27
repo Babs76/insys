@@ -738,6 +738,45 @@
           "sample": "P5Y"
         }
       ]
+    },
+    {
+      "layer": "Shared Insurance Services",
+      "module": "Party Management",
+      "subModule": "Data retention",
+      "entity": "Record retention policies",
+      "table": "party.cfg_record_retention_policies",
+      "class": "CFG",
+      "scope": "GT",
+      "tier": 1,
+      "proposedOwner": "Compliance Officer",
+      "provenance": "D-34 and OQ-120 (27 October 2026): working default for compliance to confirm before go-live",
+      "basis": "§30 data retention; DBA-022",
+      "fields": [
+        {
+          "name": "record_kind",
+          "logicalType": "Enum{Policy,Claim,Payment}",
+          "mandatory": true,
+          "sample": "Policy"
+        },
+        {
+          "name": "jurisdiction",
+          "logicalType": "Ref Country",
+          "mandatory": true,
+          "sample": "ZA"
+        },
+        {
+          "name": "period",
+          "logicalType": "Duration",
+          "mandatory": true,
+          "sample": "P7Y (working default)"
+        },
+        {
+          "name": "basis",
+          "logicalType": "String(200)",
+          "mandatory": false,
+          "sample": "FICA s23; Companies Act s24(1)"
+        }
+      ]
     }
   ]
 }

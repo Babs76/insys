@@ -37,6 +37,20 @@ namespace Insys.Party.Infrastructure.Persistence;
 
 internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
 {
+    public async Task<IReadOnlyList<Guid>> MergedInto(Guid partyId, CancellationToken cancellationToken)
+    {
+        var found = new List<Guid>();
+        var next = new List<Guid> { partyId };
+        while (next.Count > 0)
+        {
+            next = await db.Parties.AsNoTracking().Where(p => p.MergedIntoId != null && next.Contains(p.MergedIntoId.Value) && !found.Contains(p.Id) && p.Id != partyId)
+                .Select(p => p.Id).ToListAsync(cancellationToken);
+            found.AddRange(next);
+        }
+
+        return found;
+    }
+
     public Task<Domain.Parties.Party?> Get(Guid id, CancellationToken cancellationToken) =>
         db.Parties.Include(p => p.Individual).Include(p => p.Organisation).Include(p => p.Addresses).Include(p => p.ContactPoints).Include(p => p.Identifiers).Include(p => p.BankAccounts)
             .Include(p => p.Relationships).Include(p => p.Roles).AsSplitQuery().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);

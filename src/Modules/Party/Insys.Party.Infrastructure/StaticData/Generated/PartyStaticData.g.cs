@@ -34,13 +34,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Party.Infrastructure.StaticData;
 
-/// <summary>The 10 static data tables owned by the Party module.</summary>
+/// <summary>The 11 static data tables owned by the Party module.</summary>
 public static class PartyStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
         new("party", "cfg_consent_purposes", "cfg_consent_purposes", "Consent purposes", "party", "consent-purposes", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ConsentPurposes), typeof(ConsentPurposesInput), "Party Management"),
         new("party", "cfg_matching_rules_and_thresholds", "cfg_matching_rules_and_thresholds", "Matching rules and thresholds", "party", "matching-rules-and-thresholds", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(MatchingRulesAndThresholds), typeof(MatchingRulesAndThresholdsInput), "Party Management"),
+        new("party", "cfg_record_retention_policies", "cfg_record_retention_policies", "Record retention policies", "party", "record-retention-policies", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(RecordRetentionPolicies), typeof(RecordRetentionPoliciesInput), "Party Management"),
         new("party", "ref_address_formats_and_administrative_regions", "ref_address_formats_and_adminis_65cb55f1", "Address formats and administrative regions", "party", "address-formats-and-administrative-regions", StaticScope.G, 3, StaticLifecycle.Reference, typeof(AddressFormatsAndAdministrativeRegions), typeof(AddressFormatsAndAdministrativeRegionsInput), "Party Management"),
         new("party", "ref_contact_channel_types", "ref_contact_channel_types", "Contact channel types", "party", "contact-channel-types", StaticScope.G, 3, StaticLifecycle.Reference, typeof(ContactChannelTypes), typeof(ContactChannelTypesInput), "Party Management"),
         new("party", "ref_customer_status_codes", "ref_customer_status_codes", "Customer status codes", "party", "customer-status-codes", StaticScope.GT, 3, StaticLifecycle.Reference, typeof(CustomerStatusCodes), typeof(CustomerStatusCodesInput), "Party Management"),
@@ -72,6 +73,15 @@ public static class PartyStaticData
             entity.Property(x => x.ComparedAttributes).HasColumnName("compared_attributes").HasColumnType("jsonb");
             entity.Property(x => x.ReviewThreshold).HasColumnName("review_threshold").HasPrecision(3, 2);
             entity.Property(x => x.AutoMergeThreshold).HasColumnName("auto_merge_threshold").HasPrecision(3, 2);
+        });
+        modelBuilder.Entity<RecordRetentionPolicies>(entity =>
+        {
+            entity.ToTable("cfg_record_retention_policies", "party");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.RecordKind).HasColumnName("record_kind").HasMaxLength(20);
+            entity.Property(x => x.Jurisdiction).HasColumnName("jurisdiction").HasMaxLength(80);
+            entity.Property(x => x.Period).HasColumnName("period").HasConversion(StaticConverters.Duration).HasColumnType("interval");
+            entity.Property(x => x.Basis).HasColumnName("basis").HasMaxLength(200);
         });
         modelBuilder.Entity<AddressFormatsAndAdministrativeRegions>(entity =>
         {

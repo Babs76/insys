@@ -30,6 +30,7 @@
     <ProjectReference Include="..\Insys.Party.Domain\Insys.Party.Domain.csproj" />
     <ProjectReference Include="..\Insys.Party.Contracts\Insys.Party.Contracts.csproj" />
     <ProjectReference Include="..\..\Audit\Insys.Audit.Contracts\Insys.Audit.Contracts.csproj" />
+    <ProjectReference Include="..\..\Documents\Insys.Documents.Contracts\Insys.Documents.Contracts.csproj" />
     <ProjectReference Include="..\..\Workflow\Insys.Workflow.Contracts\Insys.Workflow.Contracts.csproj" />
     <ProjectReference Include="..\..\StaticData\Insys.StaticData.Contracts\Insys.StaticData.Contracts.csproj" />
     <ProjectReference Include="..\..\Communications\Insys.Communications.Contracts\Insys.Communications.Contracts.csproj" />

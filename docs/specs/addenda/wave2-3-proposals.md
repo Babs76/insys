@@ -74,3 +74,30 @@
 2. Portal users may not resolve staff names (proposed), or they may for named views.
 3. Whether a removed (disabled) user's name is still returned (proposed yes, since history shows who did what).
 
+## 4. Legal holds on a party, a policy or a claim (D-34), proposed for the next batch
+
+### What is built today
+- **Holds on documents only.** A legal hold sits on one document (`document.legal_hold`, scope `DOCUMENT`) and stops it being disposed of. Releasing it needs a second person (`LEGAL_HOLD_RELEASE`, OQ-111).
+- **The anonymisation check already counts both kinds.** It counts a hold on any document of the party, its policies, memberships and claims. It also counts a hold whose scope is the party or one of those records itself (`scope_id`). Holds of the new scopes will therefore block anonymisation with no change to the check.
+
+### Why not in batch 3
+- **A new aggregate:** a record hold belongs to no document, so it needs an aggregate of its own in Documents, alongside the document's holds.
+- **Place and release endpoints:** the release is a `LEGAL_HOLD_RELEASE` request, with its four approval endings and the refused grant (ApprovalEndingsTests).
+- **Two new functions,** flagged privileged like the document ones, plus role template changes.
+- **Target validation:** checking that the party, policy or claim exists needs a record-scope query in Party, Life, General and Health. OQ-118 proposes the same queries for cases.
+
+### Proposal
+1. **Place a hold:** `POST /documents/legal-holds` with `scopeType` (`PARTY`, `LIFE_POLICY`, `GENERAL_POLICY`, `HEALTH_MEMBERSHIP`, `LIFE_CLAIM`, `GENERAL_CLAIM`, `HEALTH_CLAIM`), `scopeId` and `reasonCode` (`document.ref_legal_hold_reason_codes`).
+   - Function `LEGAL_HOLDS_PLACE`, privileged.
+   - The target is checked through its module's record query: 404 if absent, 403 out of scope.
+2. **List holds:** `GET /documents/legal-holds?scopeType=&scopeId=&status=`, with cursor paging.
+3. **Release a hold:** `POST /documents/legal-holds/{id}/release`, a `LEGAL_HOLD_RELEASE` approval as for a document hold.
+   - Function `LEGAL_HOLDS_RELEASE`, privileged.
+   - The compliance officer is the checker.
+4. **What a hold on a record covers:** the record and every document whose business reference is that record. Disposal of those documents is refused while it is in force, and so is the party's anonymisation.
+5. **No migration needed:** `document.legal_hold` already has `scope_type` and `scope_id`, so only the allowed scope types and the code change.
+
+### To decide
+1. The scopes as listed, or also payments and cases.
+2. Whether a hold on a party also covers every record that party is linked to (proposed: yes for anonymisation, which the check already does; no for document disposal, where only the party's own documents are held).
+

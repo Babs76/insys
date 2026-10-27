@@ -85,6 +85,7 @@ public static class GeneralInfrastructure
             services.AddHostedService<GeneralJobsService>();
         }
 
+        services.AddSingleton<BuildingBlocks.Application.Context.IPartyLinkedRecords, Persistence.GeneralPartyRecords>(); // D-34: the anonymisation check
         services.AddSingleton<GeneralPortalRelations>(); // external-user access §2: other modules' portal reads
         services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations>(sp => sp.GetRequiredService<GeneralPortalRelations>());
         services.AddSingleton<BuildingBlocks.Application.Context.IBrokeredPolicies>(sp => sp.GetRequiredService<GeneralPortalRelations>());

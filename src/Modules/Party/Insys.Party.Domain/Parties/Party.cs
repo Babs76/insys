@@ -990,4 +990,8 @@ public static class PartyErrorCodes
 
     [ErrorCode(422, "error.party.code_not_in_force")]
     public const string CodeNotInForce = "PARTY_CODE_NOT_IN_FORCE";
+
+    /// <summary>D-34: a record linked to the party is open, inside its retention period or under legal hold; the problem's blocks list each.</summary>
+    [ErrorCode(409, "error.party.anonymisation_blocked")]
+    public const string AnonymisationBlocked = "PARTY_ANONYMISATION_BLOCKED";
 }

@@ -48,6 +48,7 @@ public static class DocumentsInfrastructure
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<PortalDocuments>();
         services.AddScoped<IDocumentCatalogue, DocumentCatalogue>();
+        services.AddScoped<Contracts.IRecordHolds, RecordHolds>(); // D-34: the party anonymisation check
         services.AddOptions<DocumentStorageOptions>().BindConfiguration("Documents:Storage");
         if (string.Equals(configuration["Documents:Storage:Provider"], "object-store", StringComparison.OrdinalIgnoreCase))
         {

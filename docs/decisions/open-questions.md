@@ -385,7 +385,7 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 ### OQ-054 Party lifecycle triggers, retention and merge
 - **Gaps:**
   - **Dormancy:** "No activity" and "New activity" (Active ↔ Dormant) are not defined, so nothing makes a party dormant.
-  - **Retention:** no retention period is defined for parties. AnonymiseParty is a permissioned command for a Deceased or Dormant party.
+  - **Retention:** no retention period is defined for parties. AnonymiseParty is a permissioned command for a Deceased or Dormant party, and since D-34 (27 October 2026) it checks the retention of the party's records first: see OQ-120.
   - **Merge:** the merged party points to the survivor and keeps a history snapshot without identifier numbers. Moving its roles and relationships to the survivor is not specified.
   - **Duplicate candidates:** `party.duplicate_candidate` and the matching rules are not used yet.
   - **Death claims:** consuming `LifeClaimRegistered` comes with the Life domain.
@@ -1142,3 +1142,33 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - BR-018: a request is Provisioned only once each administrator's Keycloak identity is linked. Until then it reads AwaitingIdentity, IdentityParked (the creation waits on Keycloak and is retried) or IdentityFailed (dead-lettered, or refused for good, for example a username conflict, with the reason); after the cause is fixed an operator's retry returns it to AwaitingIdentity. A user whose identity is not linked yet is refused with IDENTITY_NOT_LINKED (retryable, Retry-After), not FORBIDDEN; an unknown subject is not cached; linking evicts the user's cached permissions.
 - **Built (Wave 2 batch 3):** V0062 (`iam.tenant_administrator_person`, the request's `kind`); `POST /identity/tenant-administrators` (two administrators), `POST …/additional`, `POST …/{id}/retry-identity`; the `FIRST_ADMINISTRATOR` readiness check counts active administrators.
 - **Found while building the end-to-end test (26 October 2026), for confirmation:** two administrators were not enough on their own. Workflow refuses a checker with no authority row for the approval type (WFL-004, `APPROVAL_AUTHORITY_MISSING`), a new tenant has none, and adding one is itself a Tier 1 change that needs authority. **Built:** when the first administrators are provisioned, Workflow puts in force the tenant administrator's authority as `role-templates.md` lists it (`PRIVILEGED_ROLE`, `EXTERNAL_SUBJECT_LINK`, `STATIC_DATA_T1`, `STATIC_DATA_T2`, for `TENANT_ADMIN`), approved by the same two platform administrators' approval, as the role and its grants are (SDM-003). It is done only when the tenant has no authority row for the role. **Open: Ade to confirm.** Otherwise **closed.**
+
+### OQ-120 When a party's retention has ended (front-end request D-34)
+- **The gap (D-34, before go-live):** AnonymiseParty moved a Deceased or Dormant party to Anonymised ("Retention ended") without checking anything. The specification gives no retention period for policies, claims or payments themselves. Document retention schedules cover documents and audit retention covers audit events.
+- **Design accepted (27 October 2026, Ade):**
+  - Fail closed when no retention period is configured.
+  - Records of parties merged into this one count.
+  - The refusal is 409 `PARTY_ANONYMISATION_BLOCKED`, with `blocks` documented in `contract-changes.md`.
+- **Working default (27 October 2026, Ade), for compliance to confirm before go-live. It is not a requirement:**
+  - **The rule:** a party may be anonymised only when every linked policy, claim and payment has passed 7 years from the business date on which it reached its final status (from its status history), and no legal hold applies.
+  - **Basis:** FICA s23 (at least 5 years from the end of the relationship or transaction) and Companies Act s24(1) (7 years for company records, including accounting records).
+  - **Per-tenant configuration:** `party.cfg_record_retention_policies` (V0064; CFG, scope GT, Tier 1). It has one row per record kind: `POLICY` (policies and memberships), `CLAIM` and `PAYMENT`. The platform's rows hold the default, 7 years each, and a tenant's own rows replace them. Where several jurisdictions apply, the longest period wins.
+- **Built (Wave 2 batch 3):**
+  - **Final statuses:**
+    - Life policy: TERMINATED, SURRENDERED, CLAIMED or MATURED. A lapsed policy can be reinstated, so it is open.
+    - General policy: CANCELLED, EXPIRED or RENEWED.
+    - Health membership: TERMINATED.
+    - Life and General claims: CLOSED or DECLINED. A reopened claim is open again.
+    - Health claim: PAID, REJECTED or REVERSED.
+    - Payment: SUCCEEDED, FAILED or REVERSED.
+  - **Status history:**
+    - V0064 adds a status history for Life and General policies and claims, Health memberships and medical claims. A trigger writes it on every insert and status change, and it is insert-only. Payments already had one.
+    - Records that existed before V0064 get one row: their current status, dated by their last change.
+    - The date used is the business date, in the tenant's time zone, of the latest entry into the record's current final status.
+  - **Audit evidence:** the audit evidence about the party is kept for the longest audit class (`audit.cfg_audit_retention_policies`) from its latest event, as D-34 asked. An event's class is not recorded.
+  - **Legal holds:** a hold in force on a document of the party or of any of these records blocks. So would a hold scoped to the party or the record. Placing those is proposed for the next batch (`addenda/wave2-3-proposals.md` §4).
+- **Not covered:** proposals and quotes, billing accounts, cases, communications and identity links name a party but were not in D-34. They do not block.
+- **Erasure for a living party** stays with the Wave 6 data-subject requests. This command is only for a party that is deceased or dormant.
+- **Open:**
+  - Compliance to confirm the 7 years and the final statuses before go-live.
+  - Whether audit evidence should keep blocking once the record periods are confirmed.

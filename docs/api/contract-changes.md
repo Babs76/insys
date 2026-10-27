@@ -21,7 +21,22 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - `SUSPEND_TENANT`, `CHANGE_ISOLATION_PROFILE`, `ASSIGN_ROLE`, `REVOKE_ROLE`, `SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN`, `SD_IDENTITY_AND_ACCESS_MANAGEMENT_APPROVE`, `PARTY_ANONYMISE`, `PARTY_MERGE_PARTIES`, `PARTY_PLACE_SEARCH_LOG_HOLD`, `PARTY_RELEASE_SEARCH_LOG_HOLD`, `DOCUMENTS_DISPOSE`, `DOCUMENTS_PLACE_LEGAL_HOLD`, `DOCUMENTS_RELEASE_LEGAL_HOLD`, `DISCARD_PARKED_DELIVERY`, `DISCARD_MESSAGE`, `PAYMENTS_ISSUE_CALLBACK_ENDPOINT`, `PAYMENTS_REVOKE_CALLBACK_ENDPOINT`, `COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT`, `COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT`, `PAYMENTS_REVERSE` (`privileged: true` in the catalogue, `addenda/role-templates.md`). Assigning a role that holds one is a `PRIVILEGED_ROLE` approval decided by another administrator of the tenant, and the user needs MFA. The tenant administrator role is now privileged; a tenant has two administrators from the start (BR-013).
 
 ### Fixed: dates are the tenant's business date (BR-040, GAP-038, ADR-025)
-- Assigning, revoking and listing roles, a user's roles in effect (`/identity/me`, the user views), permissions, the menu, function availability, language settings, error texts, webhook subscriptions, Life and General claim notification checks, a payment's timeout outcome date, and Finance's posting dates now use the tenant's business date, not the UTC date. Between 00:00 and 02:00 in Johannesburg (00:00 and 03:00 for a UTC+3 tenant) a record effective "today" is now in force, where it was refused before. No field or endpoint changes.
+- Assigning, revoking and listing roles, a user's roles in effect (`/identity/me`, the user views), permissions, the menu, function availability, language settings, error texts, webhook subscriptions, Life and General claim notification checks, and Finance's posting dates now use the tenant's business date, not the UTC date. Between 00:00 and 02:00 in Johannesburg (00:00 and 03:00 for a UTC+3 tenant) a record effective "today" is now in force, where it was refused before. Permissions resolved before the tenant's midnight are not used after it, so a role ending that day stops at midnight in the tenant's time zone rather than up to 30 seconds later. Timestamps (`…At` fields) stay UTC instants. No field or endpoint changes.
+
+### Breaking: anonymising a party checks its retention (D-34, OQ-120)
+- `POST /party/parties/{id}/anonymise` (`PartyAnonymise`) now refuses with **409 `PARTY_ANONYMISATION_BLOCKED`** while anything still keeps the party's data. The problem carries a new member, **`blocks`** (documented on `ProblemDetails`). Each item has:
+  - `reason`, one of:
+    - `OPEN`: a policy, membership, claim or payment not yet ended, closed or settled;
+    - `IN_RETENTION`: inside the tenant's retention period, with `until`, the first business date it no longer blocks. The period runs from the business date the record reached its final status, from its status history. The tenant's record retention policies set it; the working default is 7 years (OQ-120);
+    - `LEGAL_HOLD`: a hold on the record or one of its documents, with `holdId` and `documentId`;
+    - `NO_RETENTION_POLICY`: the tenant has no period in force for the record's kind.
+  - `recordType`: `LIFE_POLICY`, `LIFE_CLAIM`, `GENERAL_POLICY`, `GENERAL_CLAIM`, `HEALTH_MEMBERSHIP`, `HEALTH_CLAIM`, `PAYMENT` or `AUDIT_EVIDENCE`.
+  - `recordId`.
+  - `retention`: `POLICY`, `CLAIM` or `PAYMENT` (the record retention policies), or `AUDIT` (the longest audit class, for `AUDIT_EVIDENCE`).
+- Records of a party merged into this one count.
+- **Added:** static data `party.cfg_record_retention_policies`, maintained through the generated static data endpoints (`/party/static/record-retention-policies`). It holds `recordKind` (`POLICY`, `CLAIM`, `PAYMENT`), `jurisdiction`, `period` and `basis`. The platform rows are the 7-year working default.
+- A party that is not Deceased or Dormant is still refused with 409 `INVALID_STATE_TRANSITION`, now before its records are read.
+- Erasure for a living party is not this operation (Wave 6 data-subject requests).
 
 ### Added: front-end requests BR-011, BR-012, BR-014, BR-015, BR-019, BR-020, BR-022
 - **Parked deliveries for the operator (BR-011):** a PLATFORM screen function `PLATFORM_PARKED_DELIVERIES` for `ListParkedDeliveriesByTenant`.

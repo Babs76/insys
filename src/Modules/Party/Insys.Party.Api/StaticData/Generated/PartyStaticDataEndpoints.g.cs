@@ -44,13 +44,14 @@ public static class PartyStaticDataEndpoints
     {
         api.MapStaticEntity<PartyDbContext, ConsentPurposes, ConsentPurposesInput>(PartyStaticData.Descriptors[0], Tag);
         api.MapStaticEntity<PartyDbContext, MatchingRulesAndThresholds, MatchingRulesAndThresholdsInput>(PartyStaticData.Descriptors[1], Tag);
-        api.MapStaticEntity<PartyDbContext, AddressFormatsAndAdministrativeRegions, AddressFormatsAndAdministrativeRegionsInput>(PartyStaticData.Descriptors[2], Tag);
-        api.MapStaticEntity<PartyDbContext, ContactChannelTypes, ContactChannelTypesInput>(PartyStaticData.Descriptors[3], Tag);
-        api.MapStaticEntity<PartyDbContext, CustomerStatusCodes, CustomerStatusCodesInput>(PartyStaticData.Descriptors[4], Tag);
-        api.MapStaticEntity<PartyDbContext, IdentityDocumentTypes, IdentityDocumentTypesInput>(PartyStaticData.Descriptors[5], Tag);
-        api.MapStaticEntity<PartyDbContext, PartyRoleTypes, PartyRoleTypesInput>(PartyStaticData.Descriptors[6], Tag);
-        api.MapStaticEntity<PartyDbContext, PartyTypesAndLegalForms, PartyTypesAndLegalFormsInput>(PartyStaticData.Descriptors[7], Tag);
-        api.MapStaticEntity<PartyDbContext, PersonalAttributeCodeLists, PersonalAttributeCodeListsInput>(PartyStaticData.Descriptors[8], Tag);
-        api.MapStaticEntity<PartyDbContext, RelationshipTypes, RelationshipTypesInput>(PartyStaticData.Descriptors[9], Tag);
+        api.MapStaticEntity<PartyDbContext, RecordRetentionPolicies, RecordRetentionPoliciesInput>(PartyStaticData.Descriptors[2], Tag);
+        api.MapStaticEntity<PartyDbContext, AddressFormatsAndAdministrativeRegions, AddressFormatsAndAdministrativeRegionsInput>(PartyStaticData.Descriptors[3], Tag);
+        api.MapStaticEntity<PartyDbContext, ContactChannelTypes, ContactChannelTypesInput>(PartyStaticData.Descriptors[4], Tag);
+        api.MapStaticEntity<PartyDbContext, CustomerStatusCodes, CustomerStatusCodesInput>(PartyStaticData.Descriptors[5], Tag);
+        api.MapStaticEntity<PartyDbContext, IdentityDocumentTypes, IdentityDocumentTypesInput>(PartyStaticData.Descriptors[6], Tag);
+        api.MapStaticEntity<PartyDbContext, PartyRoleTypes, PartyRoleTypesInput>(PartyStaticData.Descriptors[7], Tag);
+        api.MapStaticEntity<PartyDbContext, PartyTypesAndLegalForms, PartyTypesAndLegalFormsInput>(PartyStaticData.Descriptors[8], Tag);
+        api.MapStaticEntity<PartyDbContext, PersonalAttributeCodeLists, PersonalAttributeCodeListsInput>(PartyStaticData.Descriptors[9], Tag);
+        api.MapStaticEntity<PartyDbContext, RelationshipTypes, RelationshipTypesInput>(PartyStaticData.Descriptors[10], Tag);
     }
 }

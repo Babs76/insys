@@ -84,6 +84,9 @@ BEGIN
     SELECT n.nspname, c.relname, r.role_name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     JOIN (VALUES ('finance', 'journal', 'insys_finance'), ('finance', 'subledger_entry', 'insys_finance'),
                  ('claims', 'claim_financial_movement', 'insys_claims'), ('payment', 'payment_status_history', 'insys_payment'),
+                 ('life', 'policy_status_history', 'insys_life'), ('life', 'claim_status_history', 'insys_life'),
+                 ('general', 'policy_status_history', 'insys_general'), ('general', 'claim_status_history', 'insys_general'),
+                 ('health', 'membership_status_history', 'insys_health'), ('health', 'medical_claim_status_history', 'insys_health'),
                  ('party', 'party_search_log', 'insys_party'))
       AS r(schema_name, table_name, role_name)
       ON n.nspname = r.schema_name AND (c.relname = r.table_name OR c.relname LIKE r.table_name || '\_2%')

@@ -79,6 +79,7 @@ public static class PaymentsInfrastructure
         }
 
         // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
+        services.AddSingleton<BuildingBlocks.Application.Context.IPartyLinkedRecords, Persistence.PartyPayments>(); // D-34: the anonymisation check
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.PaymentsDbContext.SchemaName, PaymentsStaticData.Descriptors,
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PAYMENTS_AND_DISTRIBUTION", "TENANT_BANK_ACCOUNT", "payment.mst_tenant_bank_accounts", "A tenant bank account"));
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.PaymentsDbContext.SchemaName, ["PAYMENTS_AND_DISTRIBUTION"], async (context, connection, transaction, ct) =>

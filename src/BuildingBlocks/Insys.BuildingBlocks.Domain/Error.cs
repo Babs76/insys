@@ -43,6 +43,9 @@ public sealed record Error(string Code, string Message, ErrorKind Kind)
 {
     public IReadOnlyDictionary<string, string[]>? Details { get; init; }
 
+    /// <summary>More members for the problem response, such as the list of what blocks an operation (D-34).</summary>
+    public IReadOnlyDictionary<string, object?>? Extensions { get; init; }
+
     public static Error Validation(string code, string message, IReadOnlyDictionary<string, string[]>? details = null) =>
         new(code, message, ErrorKind.Validation) { Details = details };
 

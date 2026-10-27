@@ -45,9 +45,21 @@ public interface IAuditRetention
     Task<RetentionPeriod?> Period(string eventClass, DateOnly day, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Public query interface (D-34): when the caller's tenant last audited something about a target, read on Audit's own
+/// role, so a module can tell whether the audit evidence about it is still inside its retention period.
+/// </summary>
+public interface IAuditedTargets
+{
+    /// <summary>The latest audit event's instant for the target, or null when none was recorded.</summary>
+    Task<DateTimeOffset?> LatestAbout(string targetType, string targetId, CancellationToken cancellationToken);
+}
+
 public static class RetentionClasses
 {
     public const string Security = "SECURITY";
     public const string Financial = "FINANCIAL";
     public const string Operational = "OPERATIONAL";
+
+    public static readonly IReadOnlyList<string> All = [Security, Financial, Operational];
 }

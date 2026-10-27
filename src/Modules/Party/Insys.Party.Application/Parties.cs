@@ -53,6 +53,9 @@ public interface IPartyRepository
 
     Task<IReadOnlyList<ConsentRecord>> Consents(Guid partyId, CancellationToken cancellationToken);
 
+    /// <summary>The parties merged into this one, directly or through others (PTY-004): their records are the survivor's.</summary>
+    Task<IReadOnlyList<Guid>> MergedInto(Guid partyId, CancellationToken cancellationToken);
+
     void Add(Domain.Parties.Party party);
 
     void Add(ConsentRecord record);
@@ -608,13 +611,35 @@ internal sealed class MergePartiesHandler(IPartyRepository parties, IExecutionCo
     }
 }
 
-internal sealed class AnonymisePartyHandler(IPartyRepository parties, IClock clock, IAuditTrail audit) : ICommandHandler<AnonymiseParty, long>
+internal sealed class AnonymisePartyHandler(IPartyRepository parties, AnonymisationCheck check, IClock clock, IAuditTrail audit) : ICommandHandler<AnonymiseParty, long>
 {
-    public Task<Result<long>> Handle(AnonymiseParty command, CancellationToken cancellationToken)
+    public async Task<Result<long>> Handle(AnonymiseParty command, CancellationToken cancellationToken)
     {
-        // TODO(spec): no retention period for parties is defined; the caller decides that retention has ended (OQ-054).
+        var party = await Parties.Load(parties, command.PartyId, command.ExpectedVersion, cancellationToken);
+        if (party.IsFailure)
+        {
+            return party.Error;
+        }
+
+        // Only a deceased or dormant party: any other refuses as an invalid transition before its records are read.
+        if (party.Value.Status is not (PartyStatus.Deceased or PartyStatus.Dormant))
+        {
+            return party.Value.AnonymiseParty(clock.UtcNow).Error!;
+        }
+
+        // D-34: "Retention ended" is checked, not assumed. Everything that still keeps the party's data is listed.
+        if (await check.Blocks(party.Value.Id, cancellationToken) is { Count: > 0 } blocks)
+        {
+            return new Error(PartyErrorCodes.AnonymisationBlocked,
+                $"The party cannot be anonymised yet: {blocks.Count} record(s) still keep its data. See blocks.", ErrorKind.Conflict)
+            {
+                Extensions = new Dictionary<string, object?> { ["blocks"] = blocks },
+            };
+        }
+
         audit.Record(new AuditEntry("PARTY", "AnonymiseParty", nameof(Domain.Parties.Party), command.PartyId.ToString()));
-        return Parties.Change(parties, command.PartyId, command.ExpectedVersion, p => p.AnonymiseParty(clock.UtcNow), cancellationToken);
+        var result = party.Value.AnonymiseParty(clock.UtcNow);
+        return result.IsFailure ? result.Error : party.Value.RowVersion + 1;
     }
 }
 

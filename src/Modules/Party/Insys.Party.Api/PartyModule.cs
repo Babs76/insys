@@ -275,8 +275,16 @@ public sealed class PartyModule : IModule
                 Versioned(http, v => dispatcher.Send(new AnonymiseParty(id, v), ct)))
             .Produces(StatusCodes.Status204NoContent)
             .RequireIfMatch()
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName("PartyAnonymise")
             .WithSummary("Anonymise a deceased or dormant party whose retention has ended")
+            .WithDescription("D-34: retention is checked, not assumed. 409 PARTY_ANONYMISATION_BLOCKED lists in `blocks` every record that still keeps the "
+                + "party's data, its own or a merged party's: a policy, membership or claim not yet ended or closed (OPEN); one inside the tenant's retention "
+                + "period (IN_RETENTION, with `until`: a policy from its end and a claim from its closure by the longest document retention schedule with that "
+                + "trigger, a payment from its value date by the FINANCIAL audit class, and the audit evidence about the party from its latest event by the "
+                + "longest audit class); a legal hold on any of them or their documents (LEGAL_HOLD); or a kind with no retention period in force "
+                + "(NO_RETENTION_POLICY). A party that is not deceased or dormant is refused with INVALID_STATE_TRANSITION. Erasure for a living party is a "
+                + "data-subject request (Wave 6), not this operation.")
             .RequirePermission(PartyPermissions.PartyAnonymise);
 
         parties.MapGet("/{id:guid}/consents", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>

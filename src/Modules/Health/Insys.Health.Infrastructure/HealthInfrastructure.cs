@@ -82,6 +82,7 @@ public static class HealthInfrastructure
             services.AddHostedService<HealthJobsService>();
         }
 
+        services.AddSingleton<BuildingBlocks.Application.Context.IPartyLinkedRecords, Persistence.HealthPartyRecords>(); // D-34: the anonymisation check
         services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations, HealthPortalRelations>(); // external-user access §2
         // Onboarding readiness DOMAIN_CODES: once the tenant sets HEALTH up (its numbering scheme), its own reference data is in force too.
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.HealthDbContext.SchemaName, ["DOMAIN_REFERENCE_DATA"], async (context, connection, transaction, ct) =>
