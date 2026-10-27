@@ -35,6 +35,8 @@ Both need PostgreSQL 18.
      - the role's approval authority for PRIVILEGED_ROLE and TENANT_ADMINISTRATOR (WFL-004).
 
      The two assignments are the one change that bypasses maker-checker.
+   - **Who may run it:** only infrastructure staff with deployment access, the people who hold the owner connection. It is never a platform administrator's tool: it is the one path that assigns PLATFORM_ADMIN without a second person.
+   - **Audit:** each assignment it makes is an audit event (operation `BootstrapPlatformAdministrator`, actor `SERVICE` `bootstrap`, target the user), with the person's username and display name, and `completedExistingEnvironment` true when a rerun added a missing administrator.
    - **Run again:** it changes nothing.
    - **An environment bootstrapped with one administrator before BR-061** (deadlocked): run it again with both administrators configured. The first is kept and the second is added. The runner refuses a configured person who would be a third.
    - **More administrators** are added through the API, where the other administrator approves.

@@ -100,6 +100,38 @@ public sealed class PlatformBootstrapTests(DatabaseFixture fixture) : IClassFixt
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM tenant.tenant")).ShouldBe(0L);
     }
 
+    /// <summary>
+    /// Every assignment the bootstrap makes is audited, actor bootstrap, with the person: both on a first run, and only
+    /// the added one when a rerun completes an environment bootstrapped with one administrator before BR-061.
+    /// </summary>
+    [Fact]
+    public async Task EachAdministratorTheBootstrapAssigns_IsAudited_WithTheActorBootstrapAndThePerson_BR061()
+    {
+        const string Events = """
+            SELECT string_agg(details->>'username' || ':' || (details->>'completedExistingEnvironment'), ',' ORDER BY details->>'username')
+            FROM audit.audit_event WHERE operation = 'BootstrapPlatformAdministrator' AND actor_type = 'SERVICE' AND actor_id = 'bootstrap'
+              AND target_type = 'UserAccount' AND outcome = 'SUCCESS'
+            """;
+        var fresh = await fixture.Server.CreateMigratedDatabase();
+        await new MigrationRunner(fresh.OwnerConnectionString).BootstrapOperator(Script, Operator, [Ada, Ben]);
+        (await fresh.ScalarAsOwner<string>(Events)).ShouldBe("ada.platform:false,ben.platform:false");
+
+        // An environment bootstrapped before BR-061, with one administrator: the rerun adds the second, and says so.
+        var old = await fixture.Server.CreateMigratedDatabase();
+        await old.ExecuteAsOwner("""
+            INSERT INTO tenant.tenant (id, tenant_code, legal_name, isolation_profile, status, created_at) VALUES (@t, 'OPERATOR', 'Platform operator', 'C', 'ACTIVE', now());
+            INSERT INTO iam.user_account (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, username, display_name, idp_code, external_subject, status, mfa_enrolled)
+            VALUES (@t, @u, 1, now(), 'bootstrap', now(), 'bootstrap', 'ada.platform', 'Ada Platform', 'OIDC', 'operator-ada', 'ACTIVE', true);
+            INSERT INTO iam.user_role_assignment (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, role_code, valid_from, assigned_by, status)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'bootstrap', now(), 'bootstrap', @u, 'PLATFORM_ADMIN', current_date, @u, 'ACTIVE');
+            """, ("t", Operator), ("u", Guid.CreateVersion7()));
+        await new MigrationRunner(old.OwnerConnectionString).BootstrapOperator(Script, Operator, [Ada, Ben]);
+        (await old.ScalarAsOwner<string>(Events)).ShouldBe("ben.platform:true");
+        (await old.ScalarAsOwner<string>(
+            "SELECT details->>'displayName' FROM audit.audit_event WHERE operation = 'BootstrapPlatformAdministrator'")).ShouldBe("Ben O'Platform");
+        (await old.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE role_code = 'PLATFORM_ADMIN' AND status = 'ACTIVE'")).ShouldBe(2L);
+    }
+
     [Fact]
     public async Task RunAgain_TheBootstrapChangesNothing_AndRefusesAThirdAdministrator_BR061()
     {

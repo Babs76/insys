@@ -72,6 +72,9 @@ SELECT '{{OPERATOR_TENANT_ID}}', 'PLATFORM_ADMIN:' || t, 1, current_date, 'EFFEC
 FROM unnest(ARRAY['PRIVILEGED_ROLE', 'TENANT_ADMINISTRATOR']) AS t
 ON CONFLICT DO NOTHING;
 
+-- The audit table is partitioned by month; a new environment's partitions may not exist before the host first starts.
+SELECT audit.ensure_monthly_partitions(3);
+
 DO $$
 DECLARE
   admins CONSTANT jsonb := '[
@@ -81,7 +84,10 @@ DECLARE
   admin jsonb;
   admin_id uuid;
   held integer;
+  before_run integer;
 BEGIN
+  SELECT count(*) INTO before_run FROM iam.user_role_assignment
+  WHERE tenant_id = '{{OPERATOR_TENANT_ID}}' AND role_code = 'PLATFORM_ADMIN' AND status = 'ACTIVE';
   FOR admin IN SELECT * FROM jsonb_array_elements(admins) LOOP
     SELECT id INTO admin_id FROM iam.user_account
     WHERE tenant_id = '{{OPERATOR_TENANT_ID}}' AND (external_subject = admin->>'subject' OR username = admin->>'username');
@@ -105,6 +111,14 @@ BEGIN
                                             user_id, role_code, valid_from, assigned_by, status)
       VALUES ('{{OPERATOR_TENANT_ID}}', gen_random_uuid(), 1, now(), 'bootstrap', now(), 'bootstrap',
               admin_id, 'PLATFORM_ADMIN', current_date, admin_id, 'ACTIVE');
+      -- Audited (IAM-006): the bootstrap made this assignment without a second person, and on a rerun it completed an
+      -- environment that had fewer than two administrators.
+      INSERT INTO audit.audit_event (tenant_id, id, created_at, created_by, event_type, actor_type, actor_id, operation,
+                                     target_type, target_id, outcome, occurred_at, correlation_id, details)
+      VALUES ('{{OPERATOR_TENANT_ID}}', gen_random_uuid(), now(), 'bootstrap', 'IDENTITY', 'SERVICE', 'bootstrap', 'BootstrapPlatformAdministrator',
+              'UserAccount', admin_id::text, 'SUCCESS', now(), gen_random_uuid(),
+              jsonb_build_object('username', admin->>'username', 'displayName', admin->>'name', 'role', 'PLATFORM_ADMIN',
+                                 'completedExistingEnvironment', before_run > 0, 'reference', 'BR-061'));
     END IF;
   END LOOP;
 END $$;
