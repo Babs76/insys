@@ -2,7 +2,88 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 2 batch 3 (branch `wave2-3`, not merged)
+## Wave 2 batch 4 (branch `wave2-4`, not merged)
+
+### Fixed: static data and product lists no longer skip a row at a page boundary (BR-087)
+- **Every static data list** (`GET /api/v1/{module}/static/{entity}`) and **the product list** (`GET /api/v1/product-factory/products`) now compare their cursor and order their codes bytewise (PostgreSQL `COLLATE "C"`). Before, the database ordered codes by its own collation (en_US, which ignores underscores) while the service re-sorted them ordinally, so a code that fell on a page boundary was never returned; in the 687-function catalogue at 200 a page, `SD_BENEFIT_MANAGEMENT_MAINTAIN` was one.
+- **Static data and product lists now come back in byte order** (`PGB` before `PG_A`): digits and upper-case letters sort before `_`, as an ordinal comparison sorts them. Before, the order followed the server's collation (`PG_A` before `PGB`). A client that shows the list in the order returned will see codes with underscores move after their neighbours without one. Cursors issued before the change still decode and continue from the code they name.
+- No other list was affected: every other cursor-paged list pages on its record's UUID, compared and ordered in SQL.
+
+### Breaking: static data inputs declare their required fields, and four more are required (BR-084, BR-085)
+- **Every static data input schema now has a `required` list** (`<Module><Entity>Input`, in `openapi-static-data.json` and `openapi-platform-operator.json`, and the lines of its import). It lists `code`, `changeReason` and every field the table's catalogue entry marks mandatory, which are exactly the fields the API refuses a draft or an import line without (422 `VALIDATION_FAILED`, "`<field>` is required."). Before, no input declared any, so a console reading the contract took every field as optional. For example, `WorkflowCaseTypesInput` requires `caseTypeCode`, `family`, `processCode`, `linkTypes`, `requiresCategory` and `appealRoute` (BR-085). Those were already required; only the contract changed.
+- **Four fields are now refused when missing on a draft's create or edit, and on an import line.** Before, the check ran later, or (for the Health plan's product) only at submit:
+
+  | Input | Field | Before |
+  |---|---|---|
+  | `HealthPlansAndOptionsInput` | `productCode` (BR-084) | Refused only when the draft was submitted (`HEALTH_PLAN_PRODUCT_INVALID`). A draft without a product could be saved. |
+  | `IntegrationChannelTransactionPermissionsInput` | `functionCode` | Refused on save, by the table's own rule, with "Required: the function the row allows". Only the message changes. |
+  | `IdentitySegregationOfDutiesConflictRulesInput` | `functionA` and `functionB` | Refused on save, by the table's own rule. Only the message changes. |
+
+  The submit check on a Health plan option stays, for drafts saved before this change.
+- **Not changed:** requirements that depend on another field stay in each table's rule text, in the create and edit operation descriptions. Examples:
+  - a notification template's subject for email and push;
+  - a marketing notification type's consent purpose.
+
+  They are not in `required`, because they are not always required.
+- **A case type's process need not be in force when the case type is saved.** A case still opens if its type's process is not in force: the case opens without a process and a warning is logged, so a complaint is never lost (`addenda/cases.md` §3). No readiness check covers a case type's process yet, though the code's comment says one does. That gap is in the batch 4 report.
+- **The catalogue matches** (`docs/specs/static-data-catalogue*.json`):
+  - 35 fields that later migrations added are now listed;
+  - `plans-and-options.product_code` is mandatory;
+  - five retired fields are no longer mandatory: `channel-transaction-permissions.transaction_type`, `roles-and-permission-sets.permissions`, and `segregation-of-duties-conflict-rules.permission_a` and `permission_b`. They must be empty (ADR-026).
+
+  The batch report lists every field.
+
+### New: legal holds on a party, policy, membership, claim or case (D-34)
+- **`POST /documents/legal-holds`** (`DocumentsPlaceRecordHold`, Idempotency-Key) `{scopeType, scopeId, reasonCode}` returns **201** with the hold and its ETag.
+  - `scopeType` is one of `PARTY`, `LIFE_POLICY`, `GENERAL_POLICY`, `HEALTH_MEMBERSHIP`, `LIFE_CLAIM`, `GENERAL_CLAIM`, `HEALTH_CLAIM` or `CASE`. A payment is held through its policy or claim.
+  - The record must exist (404) and be in the caller's scope (403 `OUT_OF_SCOPE`, F103), and the reason must be in force.
+- **`GET /documents/legal-holds?scopeType=&scopeId=&inForce=&cursor=&limit=`** (`DocumentsListRecordHolds`) and **`GET /documents/legal-holds/{id}`** (`DocumentsGetRecordHold`, with ETag). Holds on records outside the caller's scope are left out.
+- **`POST /documents/legal-holds/{id}/release`** (`DocumentsReleaseRecordHold`, **If-Match**) `{reason}` returns **202**. As for a document's hold, the release waits for a `LEGAL_HOLD_RELEASE` approval (new business reference type `RECORD_LEGAL_HOLD`), and the hold stays in force until it is approved.
+- **What a hold does while in force:**
+  - the record's documents are not disposed of (409 `DOCUMENT_ON_LEGAL_HOLD`);
+  - a held case is not disposed of after its retention;
+  - the party it is on, or whose policy, membership or claim it is on, is not anonymised (409 `PARTY_ANONYMISATION_BLOCKED`, a `LEGAL_HOLD` block).
+- **Functions:** placing, listing and reading are `DOCUMENTS_PLACE_LEGAL_HOLD`; releasing is `DOCUMENTS_RELEASE_LEGAL_HOLD`. These are the existing privileged functions, so the approved privileged list is unchanged.
+
+### Breaking: If-Match on General, claims, billing, distribution, Life and Health changes (BR-031, BR-057, BR-064, BR-071)
+- **If-Match on every change to an existing record:** each read of a record that has a `rowVersion` now returns it as the **ETag**, and so does each change that returns the record. 88 operations now require **If-Match**, 428 without it and 412 when stale:
+  - every General quote, proposal, policy, endorsement, claim, assessment and recovery action, and the risk object's changes;
+  - the claim payment instruction's submit, release, retry and redirect;
+  - `BillingAmendSchedule`, `BillingAgeAccount` and `BillingCloseAccount`;
+  - `DistributionClawBack`;
+  - every Life proposal, underwriting case, policy, claim and group scheme action;
+  - every Health scheme, membership, preauthorisation, medical claim, utilisation case, fraud case and payment run action.
+
+  The contract lists them as the operations with a required `If-Match` header.
+- **New Idempotency-Key requirements:** the claims framework's creates (`ClaimsAllocateNumber`, communications, evidence requests, evidence, fraud evaluations, reserve movements, payment instruction drafts) and `DistributionPrepareStatement`. A repeat with the same key returns the first response.
+- **`rowVersion` added** to `ClaimsFrameworkInstructionView` and `GeneralProposalView`.
+- `HealthCheckEligibility` changes nothing, so it takes neither header.
+
+### Fixed: a reason or code that is too long is a 422, not a 500 (BR-073)
+- **Too long or empty:** any reason, code or other text longer than INSYS stores, or empty where one is required, now answers **422 `VALIDATION_FAILED`**, with `errors` naming the field (`{"reason": ["reason must be at most 30 characters."]}`). Before, it was a 500. This covers every such value, not only the six the front end found.
+- **The limits are the stored lengths:**
+  - a membership event's reason, and a preauthorisation's or medical claim's reject reason: 30 characters;
+  - an approve `reasonCode`: 20;
+  - a utilisation case's `ruleCode`: 15, and its outcome: 20;
+  - a fraud case's outcome code: 15.
+
+### Added: BR-008, BR-017 and BR-022 have tests of their own
+No contract change:
+- BR-008: the realm's MFA flows are held to the integration guide §5;
+- BR-017: every dead letter's error comes from a type name, a status or a fixed sentence, and an architecture test refuses an exception's message there;
+- BR-022: `/identity/me`'s `locale` has a test of its own.
+
+### Breaking: a static data import is approved as one change (BR-016)
+- **The import response** `StaticDataImportResult` gains `batchId`. Every imported draft carries `importBatchId` (a new field on every static data record), and is submitted only with the rest of its import: submitting one alone is 409 `INVALID_STATE_TRANSITION`.
+- **New on every static data table:**
+  - `GET …/imports/{batchId}` (`Get<Table>Import`): every line, in code order, for the maker and the checker.
+  - `POST …/imports/{batchId}/submit` (`Change<Table>Import`): one change request (action `IMPORT`) and one approval of the table's tier. It returns `{batchId, changeRequestId, lines, hash}`.
+  - `POST …/imports/{batchId}/activate`: once approved, every line is put in force together.
+- **Approved or rejected as a whole, never partly.** A rejection, expiry or withdrawal returns every line to draft, and the corrected import is submitted again as a new change.
+- **The approval is bound to the SHA-256 of the complete import.** If a line changed after submission, the approval is not applied: it parks (`APPROVAL_NOT_APPLIED`) and no line is approved.
+- **Change requests:** `ChangeRequestView.action` can be `IMPORT`; its `after` names `batchId`, `lineCount` and `hash`, with the table's routes.
+
+## Wave 2 batch 3 (branch `wave2-3`, merged at `1416683`)
 
 ### Breaking: a tenant's administrators (BR-013, BR-018)
 - **`POST /identity/tenant-administrators`** body is now `{tenantId, administrators: [two people], functions}`, each person `{username, displayName, idpCode, externalSubject | email, mfaEnrolled}`. A new tenant gets exactly two administrators (422 `VALIDATION_FAILED` on `administrators` otherwise; the usernames must differ).

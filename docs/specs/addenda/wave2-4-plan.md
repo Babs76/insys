@@ -6,6 +6,7 @@
 
 | # | Item | What gets built | Proof (tests) | Size |
 |---|---|---|---|---|
+| 0 | **BR-084, BR-085** static data required fields (requested after this plan was sent) | Built ahead of the plan's approval, at your request. Every static data table was swept: the catalogue's mandatory flag, the API's validation and the OpenAPI `required` list now agree, and an architecture test holds them together. See the batch 4 report. | `StaticDataRequiredFieldTests` (two theories over every table) | Done |
 | 1 | **OQ-052** (actuary's brief) | Nothing more to build. The addendum `docs/specs/addenda/life-policy-values.md` (branch `life-values-brief`, `1c6e889`) was sent earlier today. It is waiting on your four decisions. Once approved, it merges with this batch. | None (a document) | Done, waiting on review |
 | 2 | **D-34 legal holds on a party, policy or claim** | As `wave2-3-proposals.md` §4 proposes:<br>• `POST /documents/legal-holds` to place a hold. The scope types are `PARTY`, `LIFE_POLICY`, `GENERAL_POLICY`, `HEALTH_MEMBERSHIP`, `LIFE_CLAIM`, `GENERAL_CLAIM` and `HEALTH_CLAIM`. The target is checked through its module's record query.<br>• `GET /documents/legal-holds` to list them.<br>• `POST /documents/legal-holds/{id}/release`, through a `LEGAL_HOLD_RELEASE` approval.<br>• Functions `LEGAL_HOLDS_PLACE` and `LEGAL_HOLDS_RELEASE`, both privileged.<br>• A hold covers the record and its documents.<br>No migration: `document.legal_hold` already has `scope_type` and `scope_id`. | • A hold on each scope blocks anonymisation, and its release unblocks it.<br>• A held record's document is not disposed of.<br>• A missing target gives 404; an out-of-scope one gives 403.<br>• The release's approval endings rows. | Medium |
 | 3 | **BR-022** dedicated test | `MeReturnsTheTenantsLocale_BR022`:<br>• `/identity/me` gives `locale {tag, country, baseCurrency}` from the tenant's locale defaults in force.<br>• The tag follows the request's language.<br>• A tenant with other defaults gets its own values. | The test itself | Small |
@@ -53,11 +54,21 @@ The group C items (BR-014 done; BR-023, 030, 037, 038, 041, 060) are mostly decl
 - Before hand-back: the full local integration suite, plus `OperatorTenantTests` and `FunctionAccessTests` (endpoints and functions change).
 - The scope table and the head's CI counts per job come to you for review. It merges into `main` only on your approval and green CI on the exact head.
 
-## Decisions for Ade
-1. **BR-009:** write the labels now, which replaces the 25 October decision that generated labels stay until the pre-go-live review. The business still reviews the wording before go-live, and translations stay with Workstream B. Or keep the decision, and drop BR-009 from this batch.
-2. **BR-064, BR-071 and BR-073 in this batch** (proposed), or in batch 5.
-3. **D-34 holds:** the two open points of `wave2-3-proposals.md` §4.
-   - The scopes as listed (proposed), or also payments and cases.
-   - A hold on a party also blocks anonymisation for its linked records (proposed: yes). For document disposal, it holds only the party's own documents (proposed).
-4. **BR-016:** sign-off on `wave2-3-proposals.md` §2 as written.
-5. **Group B mapping** as in the table.
+## Decided (Ade, 27 October 2026)
+1. **BR-009:** the 25 October decision stands (OQ-100). Labels are written once, in the business wording review before go-live. BR-009 is scheduled with that review, not in batch 4; item 7 is dropped.
+2. **BR-064, BR-071 and BR-073 are in batch 4.** The concurrency sweep (item 4) covers General, claims, billing, distribution, Life and Health.
+3. **Legal holds:** the scopes are party, policy, claim and case. Payments are covered through their policy or claim. A hold on a party blocks anonymisation through all its linked records.
+4. **BR-016 is signed off on three conditions:**
+   - the import is approved or rejected as a whole, never partly;
+   - the checker sees every line;
+   - the approval is bound to a hash of the complete import, so any change needs a new approval.
+
+   `wave2-3-proposals.md` §2 is adjusted to match.
+5. **Group B mapping accepted:**
+   - batch 5: phases 1–3 (BR-021 needs your sign-off on proposal §3);
+   - batch 6: money;
+   - batch 7: Life and Health.
+
+   BR-082 and BR-083 wait on OQ-052.
+
+The shard times are watched; they are rebalanced only if the gap persists.

@@ -33,9 +33,10 @@
 - An import (`sdm.import_batch`) validates every line and creates all its drafts at once, all or nothing.
 - Each draft is then its own change request (`sdm.change_request`, one per record), submitted and approved one by one. About 100 channel permission rows means about 100 submits and 100 approvals.
 
-### Proposal: an import is approved as one change request
+### Proposal: an import is approved as one change request (signed off 27 October 2026, with the hash binding below)
 - **Submitting an import** (`POST /static-data/imports/{id}/submit`, If-Match) makes one change request with action `IMPORT`, naming the batch. One Workflow approval follows, of the table's tier (`STATIC_DATA_T1` or `STATIC_DATA_T2`); an import is always one table, so it is always one tier. Tier 2 with maker-checker switched off applies at once, as a single draft does today.
 - **The checker sees every line** (`GET /static-data/imports/{id}/lines`): each line's proposed record, whether it creates a code or changes one, and the version in force it would replace.
+- **Bound to the complete import (Ade's condition, 27 October 2026):** the approval carries a hash of the whole batch: every line's proposed record, its action and the version it replaces, in line order (`ApprovalSubject.Hash`, as payout batches use). Approval applies the batch only if its hash still matches. Any change to a line after submission (an edit, a line added or removed) needs a new approval.
 - **All or nothing:**
   - Approval approves every version in one transaction.
   - If any line can no longer be applied (its code changed since), nothing is applied. The approval is not applied and parks (D-5).
@@ -46,7 +47,8 @@
   - `sdm.change_request` gains `import_batch_id`, and `IMPORT` among its actions;
   - `record_key` holds the batch number;
   - `after` holds a summary (row count, codes);
-  - `sdm.import_batch` gains the statuses `SUBMITTED`, `APPROVED` and `REJECTED`.
+  - every static data table gains `import_batch_id`, so a draft knows its import;
+  - `sdm.import_batch` keeps its statuses: as built, an import's state is its change request's status, and each line's.
 - **Tests:**
   - a 100-row import approved with one decision;
   - one rejected, then corrected and approved;
@@ -74,7 +76,11 @@
 2. Portal users may not resolve staff names (proposed), or they may for named views.
 3. Whether a removed (disabled) user's name is still returned (proposed yes, since history shows who did what).
 
-## 4. Legal holds on a party, a policy or a claim (D-34), proposed for the next batch
+## 4. Legal holds on a party, a policy, a claim or a case (D-34), Wave 2 batch 4
+
+**Decided (Ade, 27 October 2026):**
+- The scopes are party, policy, claim and case. Payments are covered through their policy or claim.
+- A hold on a party blocks anonymisation through all its linked records.
 
 ### What is built today
 - **Holds on documents only.** A legal hold sits on one document (`document.legal_hold`, scope `DOCUMENT`) and stops it being disposed of. Releasing it needs a second person (`LEGAL_HOLD_RELEASE`, OQ-111).
@@ -95,7 +101,7 @@
    - Function `LEGAL_HOLDS_RELEASE`, privileged.
    - The compliance officer is the checker.
 4. **What a hold on a record covers:** the record and every document whose business reference is that record. Disposal of those documents is refused while it is in force, and so is the party's anonymisation.
-5. **No migration needed:** `document.legal_hold` already has `scope_type` and `scope_id`, so only the allowed scope types and the code change.
+5. **As built: a table of its own,** `document.record_hold` (V0066). `document.legal_hold` belongs to the document aggregate, and EF cannot map a second hold type onto it.
 
 ### To decide
 1. The scopes as listed, or also payments and cases.
