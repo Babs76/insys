@@ -209,23 +209,37 @@ public sealed partial class MigrationRunner(string connectionString, Action<stri
         log?.Invoke("Applied module role grants.");
     }
 
-    /// <summary>Creates the platform operator tenant, its first administrator and the PLATFORM_ADMIN role (db/bootstrap/operator.sql).</summary>
-    public async Task BootstrapOperator(string scriptPath, Guid operatorTenantId, string adminSubject, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Creates the platform operator tenant, its two platform administrators and the PLATFORM_ADMIN role
+    /// (db/bootstrap/operator.sql). BR-061: exactly two distinct people, or nothing privileged could ever be approved.
+    /// </summary>
+    public async Task BootstrapOperator(string scriptPath, Guid operatorTenantId, IReadOnlyList<PlatformAdministrator> administrators,
+        CancellationToken cancellationToken = default)
     {
-        if (operatorTenantId == Guid.Empty || string.IsNullOrWhiteSpace(adminSubject) || adminSubject.Contains('\'', StringComparison.Ordinal))
+        PlatformAdministrator.Validate(administrators);
+        if (operatorTenantId == Guid.Empty)
         {
-            throw new ArgumentException("A non-empty operator tenant ID and an administrator subject without quotes are required.");
+            throw new ArgumentException("The operator tenant ID must not be empty.");
         }
 
-        var adminUserId = Guid.CreateVersion7();
-        var sql = (await File.ReadAllTextAsync(scriptPath, cancellationToken))
-            .Replace("{{OPERATOR_TENANT_ID}}", operatorTenantId.ToString(), StringComparison.Ordinal)
-            .Replace("{{ADMIN_SUBJECT}}", adminSubject, StringComparison.Ordinal)
-            .Replace("{{ADMIN_USER_ID}}", adminUserId.ToString(), StringComparison.Ordinal);
+        var sql = (await File.ReadAllTextAsync(scriptPath, cancellationToken)).Replace("{{OPERATOR_TENANT_ID}}", operatorTenantId.ToString(), StringComparison.Ordinal);
+        for (var i = 0; i < administrators.Count; i++)
+        {
+            var (n, admin) = (i + 1, administrators[i]);
+            sql = sql
+                .Replace($"{{{{ADMIN{n}_USER_ID}}}}", Guid.CreateVersion7().ToString(), StringComparison.Ordinal)
+                .Replace($"{{{{ADMIN{n}_SUBJECT}}}}", Literal(admin.Subject), StringComparison.Ordinal)
+                .Replace($"{{{{ADMIN{n}_USERNAME}}}}", Literal(admin.Username), StringComparison.Ordinal)
+                .Replace($"{{{{ADMIN{n}_NAME}}}}", Literal(admin.DisplayName), StringComparison.Ordinal);
+        }
+
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
         await Execute(connection, sql, cancellationToken);
-        log?.Invoke($"Bootstrapped operator tenant {operatorTenantId}.");
+        log?.Invoke($"Bootstrapped operator tenant {operatorTenantId} with platform administrators {administrators[0].Username} and {administrators[1].Username}.");
+
+        // Inside a JSON string inside a SQL string literal: JSON escapes quotes, backslashes and apostrophes (as \u0027).
+        static string Literal(string value) => System.Text.Json.JsonEncodedText.Encode(value).ToString();
     }
 
     private async Task Apply(NpgsqlConnection connection, Migration migration, CancellationToken cancellationToken)
@@ -272,5 +286,31 @@ public sealed partial class MigrationRunner(string connectionString, Action<stri
         }
 
         return await command.ExecuteScalarAsync(cancellationToken);
+    }
+}
+
+/// <summary>A platform administrator the bootstrap creates (BR-061): the IdP subject, the username and the display name.</summary>
+public sealed record PlatformAdministrator(string Subject, string Username, string DisplayName)
+{
+    public const string Required =
+        "The platform bootstrap needs two distinct platform administrators, named in the deployment configuration (BR-061): "
+        + "--admin1-subject, --admin1-username, --admin1-name and --admin2-subject, --admin2-username, --admin2-name "
+        + "(or INSYS_BOOTSTRAP_ADMIN1_SUBJECT, ..._USERNAME, ..._NAME and INSYS_BOOTSTRAP_ADMIN2_...). "
+        + "With one administrator no privileged change can ever be approved, because every one needs a second person.";
+
+    /// <summary>Exactly two, each complete, and two different people (subject and username).</summary>
+    public static void Validate(IReadOnlyList<PlatformAdministrator> administrators)
+    {
+        if (administrators.Count != 2 || administrators.Any(a => string.IsNullOrWhiteSpace(a.Subject) || string.IsNullOrWhiteSpace(a.Username)
+                || string.IsNullOrWhiteSpace(a.DisplayName)))
+        {
+            throw new ArgumentException($"{Required} Configured: {administrators.Count(a => !string.IsNullOrWhiteSpace(a.Subject))} complete administrator(s).");
+        }
+
+        if (string.Equals(administrators[0].Subject, administrators[1].Subject, StringComparison.Ordinal)
+            || string.Equals(administrators[0].Username, administrators[1].Username, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException($"{Required} Both are configured as the same person ({administrators[0].Username}).");
+        }
     }
 }

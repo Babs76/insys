@@ -27,9 +27,12 @@
 using Insys.DbMigrator;
 
 // Usage: dotnet run --project tools/Insys.DbMigrator -- [--connection <owner connection string>] [--migrations db/migrations]
-//          [--roles db/roles] [--bootstrap-operator <operator tenant id> --admin-subject <sub>]
+//          [--roles db/roles] [--bootstrap-operator <operator tenant id>
+//           --admin1-subject <sub> --admin1-username <name> --admin1-name <display name> --admin2-subject ... --admin2-name ...]
 // The connection may also come from INSYS_MIGRATION_CONNECTION. With --roles, the module grants are applied; if
 // INSYS_ROLE_PASSWORD is set, the local login roles are created first with that password (never on the command line).
+// The bootstrap needs two distinct platform administrators (BR-061); each value may also come from
+// INSYS_BOOTSTRAP_ADMIN1_SUBJECT, INSYS_BOOTSTRAP_ADMIN1_USERNAME, INSYS_BOOTSTRAP_ADMIN1_NAME and the ADMIN2 equivalents.
 var options = ParseArguments(args);
 var connection = options.GetValueOrDefault("connection") ?? Environment.GetEnvironmentVariable("INSYS_MIGRATION_CONNECTION");
 if (string.IsNullOrWhiteSpace(connection))
@@ -50,8 +53,19 @@ try
 
     if (options.TryGetValue("bootstrap-operator", out var operatorTenant))
     {
-        await runner.BootstrapOperator(options.GetValueOrDefault("bootstrap-script") ?? "db/bootstrap/operator.sql", Guid.Parse(operatorTenant),
-            options.GetValueOrDefault("admin-subject") ?? throw new ArgumentException("--admin-subject is required with --bootstrap-operator."));
+        if (options.ContainsKey("admin-subject"))
+        {
+            throw new ArgumentException($"--admin-subject (one administrator) is replaced. {PlatformAdministrator.Required}");
+        }
+
+        PlatformAdministrator Admin(int n)
+        {
+            string Value(string field) => options.GetValueOrDefault($"admin{n}-{field}")
+                ?? Environment.GetEnvironmentVariable($"INSYS_BOOTSTRAP_ADMIN{n}_{(field == "name" ? "NAME" : field.ToUpperInvariant())}") ?? "";
+            return new PlatformAdministrator(Value("subject"), Value("username"), Value("name"));
+        }
+
+        await runner.BootstrapOperator(options.GetValueOrDefault("bootstrap-script") ?? "db/bootstrap/operator.sql", Guid.Parse(operatorTenant), [Admin(1), Admin(2)]);
     }
 
     return 0;
