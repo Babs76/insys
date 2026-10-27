@@ -71,4 +71,8 @@ The group C items (BR-014 done; BR-023, 030, 037, 038, 041, 060) are mostly decl
 
    BR-082 and BR-083 wait on OQ-052.
 
+Added after approval:
+- **BR-087** (static data paging lost the row on a page boundary, group A): first in the batch, shipped on its own on `br-087`.
+- **BR-088** (the default role templates through the API, group A): read only, from the same source as the template tests.
+
 The shard times are watched; they are rebalanced only if the gap persists.

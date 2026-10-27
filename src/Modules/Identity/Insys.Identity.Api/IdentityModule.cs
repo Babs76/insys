@@ -25,7 +25,10 @@
  * ============================================================================
  */
 using Insys.BuildingBlocks.Api;
+using Insys.BuildingBlocks.Api.Functions;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Domain;
 using Insys.Identity.Api.StaticData;
 using Insys.Identity.Application.Access;
 using Insys.Identity.Application.Tenants;
@@ -34,11 +37,13 @@ using Insys.Identity.Domain.Access;
 using Insys.Identity.Domain.Users;
 using Insys.Identity.Contracts;
 using Insys.Identity.Infrastructure;
+using Insys.Tenancy.Contracts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Insys.Identity.Api;
 
@@ -134,6 +139,62 @@ public sealed class IdentityModule : IModule
             .WithSummary("List the roles the tenant can assign")
             .WithDescription("Each role says whether it is privileged, requires MFA and needs a second administrator's approval to assign (GAP-021, OQ-038). "
                 + "Assigning a role that needs approval creates a PendingApproval assignment that gives no permission until approved.")
+            .RequirePermission(IdentityPermissions.UserRead);
+
+        // BR-088: the default role templates (OQ-111), read only, from the same source as the addendum and its tests. The
+        // front end prefills a tenant's first-administrator request with TENANT_ADMIN's functions.
+        var templates = api.MapGroup("/identity/role-templates").WithTags(Name);
+        templates.MapGet("/", () => Results.Ok(RoleTemplates.Summaries(FunctionRegistry.All())))
+            .Produces<IReadOnlyList<RoleTemplateSummary>>(StatusCodes.Status200OK)
+            .WithName("IdentityListRoleTemplates")
+            .WithSummary("List the default role templates (OQ-111)")
+            .WithDescription("Starting points for a tenant's own roles, never seeded: copying one creates the tenant's role and its function grants, approved "
+                + "like any Tier 1 change. Every template passes the segregation-of-duties rules. Platform templates (actorType PLATFORM) are for the operator tenant.")
+            .RequirePermission(IdentityPermissions.UserRead);
+
+        templates.MapGet("/{code}", async (string code, Guid? tenantId, ITenantContext tenant, IOptions<PlatformOptions> platform, ITenantProfiles profiles,
+                ITenantFunctionSettings settings, IBusinessDate businessDate, CancellationToken ct) =>
+            {
+                if (RoleTemplates.All.All(t => t.Code != code))
+                {
+                    return Problems.For(ErrorCodes.NotFound, $"No role template has the code {code}.", StatusCodes.Status404NotFound);
+                }
+
+                if (tenantId is not { } target)
+                {
+                    return Results.Ok(RoleTemplates.View(code, FunctionRegistry.All()));
+                }
+
+                // A tenant reads availability for itself; the platform operator for any tenant (its first administrators).
+                var operatorId = platform.Value.OperatorTenantId;
+                if (target != tenant.RequireTenantId() && tenant.RequireTenantId() != operatorId)
+                {
+                    return Problems.For(ErrorCodes.Forbidden, "Only the platform operator reads a template for another tenant.", StatusCodes.Status403Forbidden);
+                }
+
+                if (await profiles.Get(target, ct) is null)
+                {
+                    return Problems.For(ErrorCodes.NotFound, "The tenant was not found.", StatusCodes.Status404NotFound);
+                }
+
+                // The checks a user holding the function meets (ADR-026 §2): disabled, then not entitled. The operator keeps
+                // platform data for every feature and needs no entitlement.
+                var allowed = await settings.For(target, businessDate.TodayFor(target), ct);
+                return Results.Ok(RoleTemplates.View(code, FunctionRegistry.All(), target, f =>
+                    allowed.DisabledFunctions.Contains(f.Code) ? ErrorCodes.FunctionDisabled
+                    : f.Feature is { } feature && target != operatorId && !allowed.EntitledFeatures.Contains(feature) ? ErrorCodes.FeatureNotEntitled
+                    : null));
+            })
+            .Produces<RoleTemplateView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("IdentityGetRoleTemplate")
+            .WithSummary("Get a default role template with its functions, their audiences and privileged flags (OQ-111)")
+            .WithDescription("The template's functions are expanded from the function catalogue as built: the screens and actions of its sub-domains for its "
+                + "actor type, less JOB, privileged and excluded functions, then the functions it names. An action brings its screen. Privileged says whether "
+                + "assigning a role holding the function is a PRIVILEGED_ROLE approval. With tenantId (the caller's own tenant, or any tenant for the platform "
+                + "operator), each function says whether that tenant can hold it now: not disabled by the tenant and its feature entitled. Prefill a request "
+                + "for the tenant, such as its first administrators' TENANT_ADMIN functions, with the available ones only.")
             .RequirePermission(IdentityPermissions.UserRead);
 
         api.MapGet("/identity/role-assignments/scoped", async (IDispatcher dispatcher, CancellationToken ct) =>

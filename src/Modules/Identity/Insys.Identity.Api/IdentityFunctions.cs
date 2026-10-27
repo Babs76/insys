@@ -48,6 +48,7 @@ internal static class IdentityFunctions
         .Action("APPROVE_ACCESS", "IDENTITY_PRIVILEGED_ACCESS", "ApproveAccess")
         .Action("REJECT_ACCESS", "IDENTITY_PRIVILEGED_ACCESS", "RejectAccess")
         .Screen("IDENTITY_ROLES", "IDENTITY_ACCESS", "Roles", "identity/roles", "ListRoles")
+        .Screen("IDENTITY_ROLE_TEMPLATES", "IDENTITY_ACCESS", "Roles", "identity/role-templates", "IdentityListRoleTemplates", "IdentityGetRoleTemplate")
         .Screen("IDENTITY_TENANT_ADMINISTRATORS", "TENANTS", "Tenant administrators", "identity/tenant-administrators", "ListTenantAdministratorRequests", "GetTenantAdministratorRequest")
         .Action("PROVISION_TENANT_ADMINISTRATOR", "IDENTITY_TENANT_ADMINISTRATORS", "ProvisionTenantAdministrator")
         .Action("REQUEST_ADDITIONAL_ADMINISTRATOR", "IDENTITY_TENANT_ADMINISTRATORS", "RequestAdditionalAdministrator")
