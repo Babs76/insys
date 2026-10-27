@@ -32,6 +32,7 @@ using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.Identity.Contracts;
 using Insys.Identity.Domain.Users;
+using Insys.Tenancy.Contracts;
 using Insys.Workflow.Contracts;
 
 namespace Insys.Identity.Application.Users;
@@ -70,6 +71,25 @@ public interface IRolePolicyReader
 public interface IFunctionCatalogueQuery
 {
     Task<IReadOnlyList<string>> NotForStaff(IReadOnlyCollection<string> functionCodes, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The functions a tenant cannot hold now, each with its refusal (<see cref="FunctionHolding.Refusal"/>): a role holding
+    /// one would be granted it and refused on every use.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string>> NotHoldable(Guid tenantId, IReadOnlyCollection<string> functionCodes, DateOnly day, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Whether a tenant allows a function (ADR-026 §2), in the order a user holding it meets the checks: disabled by the
+/// tenant (FUNCTION_DISABLED), then needing a feature the tenant is not entitled to (FEATURE_NOT_ENTITLED, OQ-091). The
+/// operator tenant keeps platform data for every feature, so it needs no entitlement. Null when the tenant allows it.
+/// </summary>
+public static class FunctionHolding
+{
+    public static string? Refusal(string functionCode, string? feature, TenantFunctionSettings settings, bool operatorTenant) =>
+        settings.DisabledFunctions.Contains(functionCode) ? ErrorCodes.FunctionDisabled
+        : feature is { } f && !operatorTenant && !settings.EntitledFeatures.Contains(f) ? ErrorCodes.FeatureNotEntitled
+        : null;
 }
 
 public interface IPermissionCache

@@ -435,6 +435,48 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
             .ShouldBe("Not a staff function in force: BROKER_PORTAL_BILLING_INVOICES, NOT_A_FUNCTION.");
     }
 
+    /// <summary>
+    /// BR-088: the request names only functions the new tenant can hold. A tenant entitled to GENERAL only, with one
+    /// function switched off, is refused a Life function (FEATURE_NOT_ENTITLED) and the switched-off one
+    /// (FUNCTION_DISABLED), each named; General and base functions are accepted, as the template read for it marks them.
+    /// </summary>
+    [Fact]
+    public async Task ARequestNamingAFunctionTheTenantCannotHold_IsRefused_NamingEach_BR088()
+    {
+        var one = _factory.ClientFor(Operator, "platform-one");
+        var (tenantId, _) = await RegisterTenantAtAccessStep(one, "GENONLY");
+        await fixture.Database.ExecuteAsOwner("""
+            UPDATE tenant.cfg_feature_entitlements SET record_status = 'RETIRED' WHERE tenant = 'GENONLY' AND feature <> 'GENERAL';
+            INSERT INTO tenant.cfg_feature_entitlements (tenant_id, code, version, effective_from, record_status, created_by, change_reason, tenant, feature, enabled)
+            VALUES (NULL, 'GENONLY:GENERAL', 1, DATE '2000-01-01', 'EFFECTIVE', 'seed', 'test seed', 'GENONLY', 'GENERAL', true)
+            ON CONFLICT DO NOTHING
+            """);
+        var catalogue = Insys.BuildingBlocks.Api.Functions.FunctionRegistry.All().Select(f => f.Function)
+            .Where(f => f.Audiences.Contains("STAFF") && f.Kind != Insys.BuildingBlocks.Api.Functions.FunctionKind.Job).ToList();
+        var life = catalogue.First(f => f.Feature == "LIFE").Code;
+        var general = catalogue.First(f => f.Feature == "GENERAL").Code;
+        await fixture.Database.SeedStatic(tenantId, "tenant.cfg_tenant_function_availability", "EFFECTIVE", "GENONLY-OFF", new DateOnly(2000, 1, 1),
+            ("function_code", "INTEGRATION_DEAD_LETTERS"), ("enabled", false));
+
+        var refused = await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", new
+        {
+            tenantId, administrators = new[] { Person("genonly-a"), Person("genonly-b") }, functions = new[] { "IDENTITY_USERS", general, life, "INTEGRATION_DEAD_LETTERS" },
+        }, idempotent: true);
+
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await refused.Content.ReadAsStringAsync());
+        (await refused.Json()).GetProperty("errors").GetProperty("functions").EnumerateArray().Select(e => e.GetString()).ShouldBe(new[]
+        {
+            "INTEGRATION_DEAD_LETTERS: FUNCTION_DISABLED, the tenant has switched it off.",
+            $"{life}: FEATURE_NOT_ENTITLED, the tenant is not entitled to its feature.",
+        }.OrderBy(m => m, StringComparer.Ordinal));
+
+        var accepted = await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", new
+        {
+            tenantId, administrators = new[] { Person("genonly-a"), Person("genonly-b") }, functions = new[] { "IDENTITY_USERS", general },
+        }, idempotent: true);
+        accepted.StatusCode.ShouldBe(HttpStatusCode.Created, await accepted.Content.ReadAsStringAsync());
+    }
+
     // OQ-099: the request names functions: users (read), provisioning (create), role assignment (update) and dead letters (read).
     private static readonly string[] AdminFunctions = ["ASSIGN_ROLE", "IDENTITY_USERS", "INTEGRATION_DEAD_LETTERS", "PROVISION_USER"];
 

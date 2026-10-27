@@ -177,13 +177,9 @@ public sealed class IdentityModule : IModule
                     return Problems.For(ErrorCodes.NotFound, "The tenant was not found.", StatusCodes.Status404NotFound);
                 }
 
-                // The checks a user holding the function meets (ADR-026 §2): disabled, then not entitled. The operator keeps
-                // platform data for every feature and needs no entitlement.
+                // The checks a user holding the function meets (ADR-026 §2), as the first-administrator request applies them.
                 var allowed = await settings.For(target, businessDate.TodayFor(target), ct);
-                return Results.Ok(RoleTemplates.View(code, FunctionRegistry.All(), target, f =>
-                    allowed.DisabledFunctions.Contains(f.Code) ? ErrorCodes.FunctionDisabled
-                    : f.Feature is { } feature && target != operatorId && !allowed.EntitledFeatures.Contains(feature) ? ErrorCodes.FeatureNotEntitled
-                    : null));
+                return Results.Ok(RoleTemplates.View(code, FunctionRegistry.All(), target, f => FunctionHolding.Refusal(f.Code, f.Feature, allowed, target == operatorId)));
             })
             .Produces<RoleTemplateView>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden)

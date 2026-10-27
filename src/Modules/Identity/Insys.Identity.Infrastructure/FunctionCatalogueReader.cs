@@ -130,8 +130,26 @@ public sealed class FunctionCatalogueReader([FromKeyedServices(IdentityDbContext
 }
 
 /// <summary>A code is a staff function when it is in force in the catalogue with STAFF among its audiences.</summary>
-internal sealed class FunctionCatalogueQuery(FunctionCatalogueReader catalogue) : Application.Users.IFunctionCatalogueQuery
+internal sealed class FunctionCatalogueQuery(FunctionCatalogueReader catalogue, Tenancy.Contracts.ITenantFunctionSettings settings,
+    Microsoft.Extensions.Options.IOptions<BuildingBlocks.Application.Context.PlatformOptions> platform) : Application.Users.IFunctionCatalogueQuery
 {
+    public async Task<IReadOnlyDictionary<string, string>> NotHoldable(Guid tenantId, IReadOnlyCollection<string> functionCodes, DateOnly day,
+        CancellationToken cancellationToken)
+    {
+        var functions = await catalogue.Functions(day, cancellationToken);
+        var allowed = await settings.For(tenantId, day, cancellationToken);
+        var refused = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var code in functionCodes.Where(functions.ContainsKey))
+        {
+            if (Application.Users.FunctionHolding.Refusal(code, functions[code].Feature, allowed, tenantId == platform.Value.OperatorTenantId) is { } refusal)
+            {
+                refused[code] = refusal;
+            }
+        }
+
+        return refused;
+    }
+
     public async Task<IReadOnlyList<string>> NotForStaff(IReadOnlyCollection<string> functionCodes, DateOnly day, CancellationToken cancellationToken)
     {
         var functions = await catalogue.Functions(day, cancellationToken);
@@ -203,8 +221,7 @@ public sealed class FunctionAvailability(FunctionCatalogueReader catalogue, Tena
             _tenants[tenantId] = cached;
         }
 
-        return !cached.Settings.DisabledFunctions.Contains(functionCode)
-            && (function.Feature is null || tenantId == platform.Value.OperatorTenantId || cached.Settings.EntitledFeatures.Contains(function.Feature));
+        return Application.Users.FunctionHolding.Refusal(functionCode, function.Feature, cached.Settings, tenantId == platform.Value.OperatorTenantId) is null;
     }
 
     public async Task<IReadOnlyList<string>> JobsSwitchedOff(Guid tenantId, CancellationToken cancellationToken)

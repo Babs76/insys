@@ -273,10 +273,22 @@ internal sealed class ProvisionTenantAdministratorsHandler(ITenantAdministrators
                 new Dictionary<string, string[]> { ["functions"] = [$"Not a staff function in force: {string.Join(", ", unknown)}."] });
         }
 
+        // BR-088: and one the tenant can hold. A function it switched off, or whose feature it is not entitled to, would be
+        // granted and refused on every use; each is named with why.
+        if (await catalogue.NotHoldable(command.TargetTenantId, command.Functions, businessDate.TodayFor(command.TargetTenantId), cancellationToken) is { Count: > 0 } refused)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, $"Tenant {target.TenantCode} cannot hold every function asked for (ADR-026 §2).",
+                new Dictionary<string, string[]> { ["functions"] = [.. refused.Select(r => $"{r.Key}: {Why(r.Value)}")] });
+        }
+
         var created = TenantAdministratorRequest.ForNewTenant(command.TargetTenantId, [.. command.Administrators.Select(a => a.Details)], command.Functions,
             requester, clock.UtcNow);
         return Record(created, target.TenantCode, "ProvisionTenantAdministrators");
     }
+
+    private static string Why(string refusal) => refusal == ErrorCodes.FunctionDisabled
+        ? $"{refusal}, the tenant has switched it off."
+        : $"{refusal}, the tenant is not entitled to its feature.";
 
     public async Task<Result<Guid>> Handle(RequestAdditionalAdministrator command, CancellationToken cancellationToken)
     {
