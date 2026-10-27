@@ -52,6 +52,15 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
 
     public async ValueTask InitializeAsync()
     {
+        var hosts = await fixture.Shared(nameof(PartyAnonymisationTests), Setup);
+        (_today, _later) = (hosts.Today, hosts.Later);
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    /// <summary>The class's seeds and its two hosts, once for all its tests.</summary>
+    private async Task<Hosts> Setup()
+    {
         var db = fixture.Database;
         foreach (var (kind, years) in new[] { ("POLICY", 5), ("CLAIM", 3), ("PAYMENT", 7) })
         {
@@ -97,15 +106,18 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
 
         // Two hosts on one database: today's for the setup, the later one for anonymising.
         var settings = new Dictionary<string, string?> { ["Identity:PermissionCache:AllowMultipleInstances"] = "true" };
-        _today = new InsysApiFactory(db, settings);
-        _later = new InsysApiFactory(db, settings, time: new FakeTimeProvider(Later));
+        return new Hosts(await new InsysApiFactory(db, settings).Warm(), await new InsysApiFactory(db, settings, time: new FakeTimeProvider(Later)).Warm());
     }
 
-    public async ValueTask DisposeAsync()
+    private sealed record Hosts(InsysApiFactory Today, InsysApiFactory Later) : IAsyncDisposable
     {
-        await _today.DisposeAsync();
-        await _later.DisposeAsync();
+        public async ValueTask DisposeAsync()
+        {
+            await Today.DisposeAsync();
+            await Later.DisposeAsync();
+        }
     }
+
 
     [Fact]
     public async Task APolicyNotYetEnded_BlocksAnonymisation_AsOpen_D34()

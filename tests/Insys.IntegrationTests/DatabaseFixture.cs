@@ -43,6 +43,7 @@ public sealed class DatabaseFixture(PostgresServer server) : IAsyncLifetime
     public static readonly Guid Operator = TestTenants.Operator;
 
     private readonly ConcurrentDictionary<string, Lazy<Task<InsysApiFactory>>> _hosts = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Lazy<Task<object>>> _shared = new(StringComparer.Ordinal);
 
     public TestDatabase Database { get; private set; } = null!;
 
@@ -72,11 +73,38 @@ public sealed class DatabaseFixture(PostgresServer server) : IAsyncLifetime
         return factory;
     }
 
+    /// <summary>
+    /// Something a test class sets up once for all its tests (xUnit makes a new instance per test): hosts of its own, with
+    /// settings or a clock the shared host does not have, and the seeds they need. Disposed with the fixture.
+    /// </summary>
+    public async Task<T> Shared<T>(string key, Func<Task<T>> create) where T : class =>
+        (T)await _shared.GetOrAdd(key, _ => new Lazy<Task<object>>(async () => await create())).Value;
+
     public async ValueTask DisposeAsync()
     {
         foreach (var host in _hosts.Values.Where(h => h.IsValueCreated))
         {
             await (await host.Value).DisposeAsync();
+        }
+
+        foreach (var shared in _shared.Values.Where(s => s.IsValueCreated))
+        {
+            switch (await shared.Value)
+            {
+                case IAsyncDisposable disposable:
+                    await disposable.DisposeAsync();
+                    break;
+                case System.Runtime.CompilerServices.ITuple tuple:
+                    for (var i = 0; i < tuple.Length; i++)
+                    {
+                        if (tuple[i] is IAsyncDisposable part)
+                        {
+                            await part.DisposeAsync();
+                        }
+                    }
+
+                    break;
+            }
         }
     }
 }
