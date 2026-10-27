@@ -25,12 +25,16 @@
  * ============================================================================
  */
 -- =====================================================================
--- Bootstrap of the platform operator (run once per environment, as the owner).
--- Creates the operator tenant, its first administrator and the PLATFORM_ADMIN
--- role. This is the one change that cannot go through maker-checker, because
--- no checker exists yet; a second administrator must be provisioned through
--- the API before any static data can be approved (SDM-003). OQ-031.
--- Placeholders: {{OPERATOR_TENANT_ID}}, {{ADMIN_SUBJECT}}, {{ADMIN_USER_ID}}.
+-- Bootstrap of the platform operator (run once per environment, as the owner; safe to run again).
+-- Creates the operator tenant, its two platform administrators and the PLATFORM_ADMIN role, and gives the role the
+-- approval authority the operator's own approvals need (WFL-004). BR-061: two distinct named people, from deployment
+-- configuration, the platform's equivalent of a new tenant's two first administrators (BR-013). PLATFORM_ADMIN holds
+-- TERMINATE_TENANT, so it is privileged and assigning it to anyone else needs a second person's approval: with one
+-- administrator nothing could ever be approved. The two assignments below are the one change that cannot go through
+-- maker-checker, because no checker exists yet (OQ-031). The runner refuses fewer than two, or the same person twice.
+-- Run again, it completes the pair (an environment bootstrapped with one administrator before BR-061), and refuses a
+-- configured person who would make a third: more administrators are added through the API, with approval.
+-- Placeholders: {{OPERATOR_TENANT_ID}}, {{ADMINn_USER_ID}}, {{ADMINn_SUBJECT}}, {{ADMINn_USERNAME}}, {{ADMINn_NAME}} (n = 1, 2).
 -- =====================================================================
 BEGIN;
 SELECT set_config('app.tenant_id', '{{OPERATOR_TENANT_ID}}', true);
@@ -38,12 +42,6 @@ SELECT set_config('app.tenant_id', '{{OPERATOR_TENANT_ID}}', true);
 INSERT INTO tenant.tenant (id, tenant_code, legal_name, isolation_profile, status, created_at)
 VALUES ('{{OPERATOR_TENANT_ID}}', 'OPERATOR', 'Platform operator', 'C', 'ACTIVE', now())
 ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO iam.user_account (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by,
-                              username, display_name, idp_code, external_subject, status, mfa_enrolled)
-VALUES ('{{OPERATOR_TENANT_ID}}', '{{ADMIN_USER_ID}}', 1, now(), 'bootstrap', now(), 'bootstrap',
-        'platform.admin', 'Platform administrator', 'OIDC', '{{ADMIN_SUBJECT}}', 'INVITED', true)
-ON CONFLICT DO NOTHING;
 
 -- The role holds the functions that need only these permissions (ADR-026), in force with it.
 INSERT INTO iam.cfg_roles_and_permission_sets (tenant_id, code, version, effective_from, record_status, created_by,
@@ -59,15 +57,55 @@ SELECT '{{OPERATOR_TENANT_ID}}', 'PLATFORM_ADMIN:' || f, 1, current_date, 'EFFEC
 FROM iam.functions_within(ARRAY['tenant.read', 'tenant.create', 'tenant.update',
                                 'user.read', 'user.create', 'user.update',
                                 'static_data.read', 'static_data.create', 'static_data.update', 'static_data.approve',
-                                'change_request.read', 'audit_event.read', 'dead_letter.read', 'dead_letter.update']) AS f
+                                'change_request.read', 'audit_event.read', 'dead_letter.read', 'dead_letter.update',
+                                -- BR-061: the Workflow inbox, to decide the other administrator's requests.
+                                'approval.read', 'approval.approve']) AS f
 ON CONFLICT DO NOTHING;
 
--- The first platform administrator is the one assignment made without a second person: there is no one else yet
--- (OQ-031). Every later privileged assignment waits for approval in Workflow (OQ-038).
-INSERT INTO iam.user_role_assignment (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by,
-                                      user_id, role_code, valid_from, assigned_by, status)
-SELECT '{{OPERATOR_TENANT_ID}}', gen_random_uuid(), 1, now(), 'bootstrap', now(), 'bootstrap',
-       '{{ADMIN_USER_ID}}', 'PLATFORM_ADMIN', current_date, '{{ADMIN_USER_ID}}', 'ACTIVE'
-WHERE NOT EXISTS (SELECT 1 FROM iam.user_role_assignment
-                  WHERE tenant_id = '{{OPERATOR_TENANT_ID}}' AND user_id = '{{ADMIN_USER_ID}}' AND role_code = 'PLATFORM_ADMIN');
+-- Approval authority for what platform administrators approve in the operator tenant (WFL-004): another platform
+-- administrator's privileged role (PLATFORM_ADMIN itself), and a new tenant's first administrators. Without a row, no
+-- one could approve either, and adding one is itself a change that needs approval.
+INSERT INTO workflow.cfg_delegation_and_approval_authority (tenant_id, code, version, effective_from, record_status, created_by,
+                                                            approved_at, approved_by, change_reason, role_code, transaction_type, limit_value, delegation_allowed)
+SELECT '{{OPERATOR_TENANT_ID}}', 'PLATFORM_ADMIN:' || t, 1, current_date, 'EFFECTIVE', 'bootstrap', now(), 'bootstrap',
+       'Bootstrap of the platform operator (BR-061)', 'PLATFORM_ADMIN', t, 0, false
+FROM unnest(ARRAY['PRIVILEGED_ROLE', 'TENANT_ADMINISTRATOR']) AS t
+ON CONFLICT DO NOTHING;
+
+DO $$
+DECLARE
+  admins CONSTANT jsonb := '[
+    {"id": "{{ADMIN1_USER_ID}}", "subject": "{{ADMIN1_SUBJECT}}", "username": "{{ADMIN1_USERNAME}}", "name": "{{ADMIN1_NAME}}"},
+    {"id": "{{ADMIN2_USER_ID}}", "subject": "{{ADMIN2_SUBJECT}}", "username": "{{ADMIN2_USERNAME}}", "name": "{{ADMIN2_NAME}}"}
+  ]';
+  admin jsonb;
+  admin_id uuid;
+  held integer;
+BEGIN
+  FOR admin IN SELECT * FROM jsonb_array_elements(admins) LOOP
+    SELECT id INTO admin_id FROM iam.user_account
+    WHERE tenant_id = '{{OPERATOR_TENANT_ID}}' AND (external_subject = admin->>'subject' OR username = admin->>'username');
+    IF admin_id IS NULL THEN
+      admin_id := (admin->>'id')::uuid;
+      INSERT INTO iam.user_account (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by,
+                                    username, display_name, idp_code, external_subject, status, mfa_enrolled)
+      VALUES ('{{OPERATOR_TENANT_ID}}', admin_id, 1, now(), 'bootstrap', now(), 'bootstrap',
+              admin->>'username', admin->>'name', 'OIDC', admin->>'subject', 'INVITED', true);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM iam.user_role_assignment
+                   WHERE tenant_id = '{{OPERATOR_TENANT_ID}}' AND user_id = admin_id AND role_code = 'PLATFORM_ADMIN' AND status = 'ACTIVE') THEN
+      SELECT count(*) INTO held FROM iam.user_role_assignment
+      WHERE tenant_id = '{{OPERATOR_TENANT_ID}}' AND role_code = 'PLATFORM_ADMIN' AND status = 'ACTIVE';
+      IF held >= 2 THEN
+        RAISE EXCEPTION 'The operator already has two platform administrators; % (%) would be a third. Add administrators through the API, where a second person approves (BR-061).',
+          admin->>'username', admin->>'subject';
+      END IF;
+      INSERT INTO iam.user_role_assignment (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by,
+                                            user_id, role_code, valid_from, assigned_by, status)
+      VALUES ('{{OPERATOR_TENANT_ID}}', gen_random_uuid(), 1, now(), 'bootstrap', now(), 'bootstrap',
+              admin_id, 'PLATFORM_ADMIN', current_date, admin_id, 'ACTIVE');
+    END IF;
+  END LOOP;
+END $$;
 COMMIT;

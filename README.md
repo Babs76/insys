@@ -30,7 +30,9 @@ INSYS Core is a multi-tenant insurance administration platform for Life, General
 docker compose up -d postgres
 INSYS_ROLE_PASSWORD=insys_local dotnet run --project tools/Insys.DbMigrator -- \
   --connection "Host=localhost;Port=55433;Database=insys;Username=insys_owner;Password=insys_owner_local" --roles db/roles \
-  --bootstrap-operator 0199f000-0000-7000-8000-000000000001 --admin-subject <your IdP subject>
+  --bootstrap-operator 0199f000-0000-7000-8000-000000000001 \
+  --admin1-subject <IdP subject> --admin1-username <username> --admin1-name "<name>" \
+  --admin2-subject <IdP subject> --admin2-username <username> --admin2-name "<name>"
 dotnet run --project src/Host/Insys.Api
 ```
 
@@ -48,6 +50,7 @@ dotnet run --project src/Host/Insys.Api
 | `Authentication:Authority`, `Audience`, `RequireHttpsMetadata` | The OIDC issuer (Keycloak realm, ADR-017) and audience; tokens carry only `sub` and `tenant_id` | none, `insys-core-api`, true |
 | `Authentication:DevelopmentSigningKey` | HS256 key for local tokens; refused outside Development and Testing | none |
 | `Platform:OperatorTenantId` | The platform operator tenant, the only one allowed on platform endpoints | none |
+| `INSYS_BOOTSTRAP_ADMIN1_SUBJECT`, `_USERNAME`, `_NAME` and `INSYS_BOOTSTRAP_ADMIN2_…` (or `--admin1-…`, `--admin2-…`) | Migrator, with `--bootstrap-operator`: the two platform administrators, two distinct named people (BR-061). Fewer, incomplete or the same person twice is refused. See `docs/runbooks/deployment.md` | none |
 | `FieldProtection:Keys`, `ActiveKeyId`, `HashKey` | AES-256-GCM keys for encrypted fields, and the HMAC key for lookups (OQ-020) | none |
 | `FieldProtection:Provider`, `Envelope:*` | `local` or `envelope` (DEW KMS data keys, cache, rotation; ADR-018) | local; 1 h cache, 90-day rotation |
 | `Huawei:Kms:*`, `Huawei:Obs:*` | DEW KMS and OBS settings; access keys from the secret store (ADR-016) | af-south-1 |

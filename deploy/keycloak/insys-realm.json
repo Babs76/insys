@@ -296,6 +296,28 @@
       "requiredActions": []
     },
     {
+      "id": "0199f000-0000-7000-8000-0000000000a2",
+      "username": "insys-admin-2",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Second platform",
+      "lastName": "Administrator",
+      "email": "insys-admin-2@example.com",
+      "attributes": {
+        "tenant_id": [
+          "0199f000-0000-7000-8000-000000000001"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${INSYS_DEV_ADMIN_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "requiredActions": []
+    },
+    {
       "username": "service-account-insys-user-admin",
       "enabled": true,
       "serviceAccountClientId": "insys-user-admin",

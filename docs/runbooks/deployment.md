@@ -18,11 +18,26 @@ Both need PostgreSQL 18.
 ## First installation
 
 1. Create the database and the owner role. Create the module login roles (see above).
-2. Apply the migrations and the grants, and bootstrap the operator. Pass the connection in the environment, not on the command line:
+2. Apply the migrations and the grants, and bootstrap the operator with **two platform administrators** (BR-061). Pass the connection and the administrators in the environment, not on the command line:
    ```bash
-   INSYS_MIGRATION_CONNECTION="<owner connection>" dotnet run --project tools/Insys.DbMigrator -- --roles db/roles --bootstrap-operator <operator tenant id> --admin-subject <IdP subject of the first administrator>
+   INSYS_MIGRATION_CONNECTION="<owner connection>" \
+   INSYS_BOOTSTRAP_ADMIN1_SUBJECT="<IdP subject>" INSYS_BOOTSTRAP_ADMIN1_USERNAME="<username>" INSYS_BOOTSTRAP_ADMIN1_NAME="<display name>" \
+   INSYS_BOOTSTRAP_ADMIN2_SUBJECT="<IdP subject>" INSYS_BOOTSTRAP_ADMIN2_USERNAME="<username>" INSYS_BOOTSTRAP_ADMIN2_NAME="<display name>" \
+   dotnet run --project tools/Insys.DbMigrator -- --roles db/roles --bootstrap-operator <operator tenant id>
    ```
-   The bootstrap (`db/bootstrap/operator.sql`, OQ-031) creates the operator tenant, its first administrator (status INVITED) and the PLATFORM_ADMIN role. It is the one change that bypasses maker-checker. Run it once per environment: each run makes a new administrator user ID, so a second run is not guaranteed to be a no-op.
+   (or `--admin1-subject`, `--admin1-username`, `--admin1-name` and the `--admin2-` equivalents.)
+   - **Two different named people.** The runner refuses one, an incomplete one, or the same subject or username twice, with a message naming the settings, and creates nothing. There is no single-operator mode.
+   - **Why two:** PLATFORM_ADMIN holds TERMINATE_TENANT, which is privileged, so assigning it to anyone else needs a second person's approval. With one administrator nothing privileged could ever be approved.
+   - **What the bootstrap creates** (`db/bootstrap/operator.sql`, OQ-031):
+     - the operator tenant;
+     - both administrators (status INVITED), each with PLATFORM_ADMIN;
+     - the PLATFORM_ADMIN role, which includes the Workflow approvals inbox;
+     - the role's approval authority for PRIVILEGED_ROLE and TENANT_ADMINISTRATOR (WFL-004).
+
+     The two assignments are the one change that bypasses maker-checker.
+   - **Run again:** it changes nothing.
+   - **An environment bootstrapped with one administrator before BR-061** (deadlocked): run it again with both administrators configured. The first is kept and the second is added. The runner refuses a configured person who would be a third.
+   - **More administrators** are added through the API, where the other administrator approves.
 3. Configure the host (README, Configuration):
    - `ConnectionStrings:Template`, with `{role}` standing for the module role;
    - `Authentication:Authority` and `Audience`;
@@ -32,7 +47,7 @@ Both need PostgreSQL 18.
 
    Never use the values in `appsettings.Development.json` outside development.
 4. Start the host. Check that `/health/ready` answers Healthy (see [monitoring.md](monitoring.md)).
-5. **Through the API, provision a second platform administrator** (`POST /api/v1/identity/users` and then `assign-role`). Until one exists, no static data change can be approved, because the checker must not be the maker (SDM-003, SRS-002).
+5. **Both administrators sign in.** Each change one makes (a static data change, a tenant's first administrators, another administrator's PLATFORM_ADMIN) is approved by the other in the Workflow inbox (SDM-003, SRS-002).
 
 ## Identity provider: Keycloak (ADR-017)
 
@@ -45,7 +60,16 @@ Both need PostgreSQL 18.
    - `Authentication:Audience=insys-core-api`;
    - `Authentication:RequireHttpsMetadata=false` (local only);
    - an empty `Authentication:DevelopmentSigningKey`.
-4. The realm's `insys-admin` user has a fixed `sub`, `0199f000-0000-7000-8000-0000000000a1`, and the operator tenant `0199f000-0000-7000-8000-000000000001`. Bootstrap the operator with `--bootstrap-operator 0199f000-0000-7000-8000-000000000001 --admin-subject 0199f000-0000-7000-8000-0000000000a1`, so that user is the first platform administrator.
+4. The realm's two platform administrators have fixed subjects, both in the operator tenant `0199f000-0000-7000-8000-000000000001`:
+   - `insys-admin`: `0199f000-0000-7000-8000-0000000000a1`;
+   - `insys-admin-2`: `0199f000-0000-7000-8000-0000000000a2`.
+
+   Both use the password `INSYS_DEV_ADMIN_PASSWORD`. Bootstrap the operator with both:
+   ```bash
+   --bootstrap-operator 0199f000-0000-7000-8000-000000000001 \
+     --admin1-subject 0199f000-0000-7000-8000-0000000000a1 --admin1-username insys-admin --admin1-name "Platform Administrator" \
+     --admin2-subject 0199f000-0000-7000-8000-0000000000a2 --admin2-username insys-admin-2 --admin2-name "Second platform Administrator"
+   ```
 
 ### What the realm contains
 
