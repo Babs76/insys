@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 namespace Insys.BuildingBlocks.Infrastructure.Persistence;
@@ -76,4 +77,30 @@ public static class RecordScopeReader
         await transaction.CommitAsync(cancellationToken);
         return scopes;
     }
+}
+
+/// <summary>
+/// A module's legal hold targets (D-34) as one query per scope type, on the module's own connection: each returns the
+/// record's product and node, or no row when the record does not exist.
+/// </summary>
+public sealed class SqlLegalHoldTargets(NpgsqlDataSource dataSource, IReadOnlyDictionary<string, string> sqlByScope) : Contracts.ILegalHoldTargets
+{
+    public bool Covers(string scopeType) => sqlByScope.ContainsKey(scopeType);
+
+    public async Task<IReadOnlyList<(string? ProductCode, string? OrgNodeCode)>?> ScopesOf(Guid tenantId, string scopeType, Guid recordId, CancellationToken cancellationToken)
+    {
+        if (!sqlByScope.TryGetValue(scopeType, out var sql) || await RecordScopeReader.Read(dataSource, tenantId, sql, recordId, cancellationToken) is not { } scope)
+        {
+            return null;
+        }
+
+        return scope.Product is null && scope.OrgNode is null ? [] : [(scope.Product, scope.OrgNode)];
+    }
+}
+
+public static class LegalHoldTargetRegistration
+{
+    /// <summary>Registers a module's legal hold targets (D-34): one query per scope type, with the parameter <c>@id</c>, returning the record's product and node.</summary>
+    public static IServiceCollection AddLegalHoldTargets(this IServiceCollection services, string schema, IReadOnlyDictionary<string, string> sqlByScope) =>
+        services.AddSingleton<Contracts.ILegalHoldTargets>(provider => new SqlLegalHoldTargets(provider.GetRequiredKeyedService<NpgsqlDataSource>(schema), sqlByScope));
 }

@@ -37,6 +37,7 @@ using Insys.General.Infrastructure.Persistence;
 using Insys.General.Infrastructure.StaticData;
 using Insys.Rating.Contracts;
 using Insys.Workflow.Contracts;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -55,6 +56,12 @@ public static class GeneralInfrastructure
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.GeneralDbContext.SchemaName, "GENERAL_EVENT_PROCESSING");
         const string schema = GeneralDbContext.SchemaName;
         services.AddModuleDbContext<GeneralDbContext>(schema, "General");
+        // D-34: a legal hold on a General policy or claim itself, placed only within the caller's scope (F103).
+        services.AddLegalHoldTargets(schema, new Dictionary<string, string>
+        {
+            ["GENERAL_POLICY"] = "SELECT product_code, org_node_code FROM general.policy WHERE id = @id",
+            ["GENERAL_CLAIM"] = "SELECT product_code, org_node_code FROM general.claim WHERE id = @id",
+        });
         services.AddStaticData<GeneralDbContext>(schema, GeneralStaticData.Descriptors);
         services.AddModuleHandlers<GeneralDbContext>(typeof(CreateQuote).Assembly);
         services.AddDomainEventMapper<GeneralEventMapper>(schema);

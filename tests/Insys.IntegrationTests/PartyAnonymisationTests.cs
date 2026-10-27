@@ -213,6 +213,32 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
         block.GetProperty("documentId").GetGuid().ShouldBe(document);
     }
 
+    /// <summary>A hold on the party itself (D-34, 27 October 2026) blocks its anonymisation, with every record past retention.</summary>
+    [Fact]
+    public async Task ALegalHoldOnThePartyItself_BlocksItsAnonymisation_D34()
+    {
+        var party = await DeceasedParty(DatabaseFixture.TenantA, "PartyHeld");
+        await GeneralPolicy(DatabaseFixture.TenantA, party, "CANCELLED", closedYearsAgo: 6);
+        var hold = await RecordHold(DatabaseFixture.TenantA, "PARTY", party);
+
+        (await Blocked(DatabaseFixture.TenantA, party)).ShouldBe([$"LEGAL_HOLD PARTY {party}"]);
+        await fixture.Database.ExecuteAsOwner("UPDATE document.record_hold SET released_at = now() WHERE id = @h", ("h", hold));
+        (await Anonymise(_later, DatabaseFixture.TenantA, party)).StatusCode.ShouldBe(HttpStatusCode.NoContent, "the hold was released");
+    }
+
+    /// <summary>A hold on one of the party's records (a policy, a claim) blocks the party's anonymisation through that record.</summary>
+    [Fact]
+    public async Task ALegalHoldOnAPolicyOrClaimOfTheParty_BlocksItsAnonymisation_ThroughThatRecord_D34()
+    {
+        var party = await DeceasedParty(DatabaseFixture.TenantA, "RecordHeld");
+        var policy = await LifePolicy(DatabaseFixture.TenantA, party, "MATURED", closedYearsAgo: 6);
+        var claim = await GeneralClaim(DatabaseFixture.TenantA, party, "CLOSED", closedYearsAgo: 4);
+        await RecordHold(DatabaseFixture.TenantA, "LIFE_POLICY", policy);
+        await RecordHold(DatabaseFixture.TenantA, "GENERAL_CLAIM", claim);
+
+        (await Blocked(DatabaseFixture.TenantA, party)).Order().ShouldBe(new[] { $"LEGAL_HOLD GENERAL_CLAIM {claim}", $"LEGAL_HOLD LIFE_POLICY {policy}" }.Order());
+    }
+
     [Fact]
     public async Task WithNoRetentionPeriodInForceForPayments_APaymentBlocks_FailClosed_D34()
     {
@@ -285,7 +311,8 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
         body.GetProperty("code").GetString().ShouldBe("PARTY_ANONYMISATION_BLOCKED");
         return body.GetProperty("blocks").EnumerateArray().Select(b => string.Join(' ', new[]
         {
-            b.GetProperty("reason").GetString(), b.GetProperty("recordType").GetString(), b.GetProperty("recordId").GetString(), b.GetProperty("retention").GetString(),
+            b.GetProperty("reason").GetString(), b.GetProperty("recordType").GetString(), b.GetProperty("recordId").GetString(),
+            b.TryGetProperty("retention", out var retention) && retention.ValueKind == JsonValueKind.String ? retention.GetString() : null,
             b.TryGetProperty("until", out var until) && until.ValueKind == JsonValueKind.String ? until.GetString() : null,
         }.Where(s => s is not null))).ToArray();
     }
@@ -339,6 +366,11 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
         return (document, hold);
     }
 
+    /// <summary>A legal hold in force on the record itself (document.record_hold).</summary>
+    private Task<Guid> RecordHold(Guid tenant, string scopeType, Guid recordId) =>
+        Insert(tenant, "document.record_hold", ("row_version", 1L), ("scope_type", scopeType), ("scope_id", recordId), ("reason_code", "LITIGATION"),
+            ("placed_at", DateTimeOffset.UtcNow));
+
     private static DateOnly Ago(int years) => LaterDay.AddYears(-years);
 
     /// <summary>The record's last change, which dates a closure recorded only by status, that many years before the later day.</summary>
@@ -347,98 +379,7 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
 
     private static object Period(string years) => new NpgsqlTypes.NpgsqlInterval(int.Parse(years.Split(' ')[0]) * 12, 0, 0);
 
-    /// <summary>Values the table's checks need where a type's default would not do.</summary>
-    private static readonly Dictionary<string, (string Column, object Value)[]> Defaults = new(StringComparer.Ordinal)
-    {
-        ["general.policy"] = [("status", "IN_FORCE"), ("cover_starts_on", "ISSUE"), ("period_start", LaterDay.AddYears(-31))],
-        ["life.proposal"] = [("status", "DRAFT")],
-        ["document.document"] = [("status", "GENERATED")],
-        ["general.claim"] = [("claim_number", "GC-" + Guid.NewGuid().ToString("N")[..10])],
-        ["payment.payment"] = [("direction", "OUT")],
-    };
-
-    /// <summary>
-    /// Inserts a row as the owner: the given values, the table's <see cref="Defaults"/>, a filled parent row for each
-    /// required foreign key, and for every other required column with no default a value of its type. Returns its id.
-    /// </summary>
-    private async Task<Guid> Insert(Guid tenant, string table, params (string Column, object Value)[] values)
-    {
-        var id = Guid.CreateVersion7();
-        var given = new Dictionary<string, object>(StringComparer.Ordinal) { ["tenant_id"] = tenant, ["id"] = id };
-        foreach (var (column, value) in Defaults.GetValueOrDefault(table, []).Concat(values))
-        {
-            given[column] = column == "claim_number" && value is string number && number.StartsWith("GC-", StringComparison.Ordinal)
-                ? "GC-" + Guid.NewGuid().ToString("N")[..10] : value;
-        }
-
-        var parts = table.Split('.');
-        var required = new List<(string Name, string Type, int? Length)>();
-        var parents = new List<(string Column, string Table)>();
-        await using (var connection = new NpgsqlConnection(fixture.Database.OwnerConnectionString))
-        {
-            await connection.OpenAsync();
-            await using (var columns = new NpgsqlCommand("""
-                SELECT column_name, data_type, character_maximum_length FROM information_schema.columns
-                WHERE table_schema = @s AND table_name = @n AND is_nullable = 'NO' AND column_default IS NULL
-                """, connection))
-            {
-                columns.Parameters.AddWithValue("s", parts[0]);
-                columns.Parameters.AddWithValue("n", parts[1]);
-                await using var reader = await columns.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    required.Add((reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetInt32(2)));
-                }
-            }
-
-            // Each foreign key on (tenant_id, column) to another table's (tenant_id, id).
-            await using (var keys = new NpgsqlCommand("""
-                SELECT a.attname, c.confrelid::regclass::text FROM pg_constraint c
-                JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[2]
-                WHERE c.contype = 'f' AND c.conrelid = (@s || '.' || @n)::regclass AND array_length(c.conkey, 1) = 2 AND c.confrelid <> c.conrelid
-                """, connection))
-            {
-                keys.Parameters.AddWithValue("s", parts[0]);
-                keys.Parameters.AddWithValue("n", parts[1]);
-                await using var reader = await keys.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    parents.Add((reader.GetString(0), reader.GetString(1)));
-                }
-            }
-        }
-
-        foreach (var (column, parent) in parents.Where(p => !given.ContainsKey(p.Column) && required.Any(r => r.Name == p.Column)))
-        {
-            given[column] = await Insert(tenant, parent);
-        }
-
-        foreach (var (name, type, length) in required.Where(c => !given.ContainsKey(c.Name)))
-        {
-            given[name] = type switch
-            {
-                "uuid" => Guid.CreateVersion7(),
-                "date" => LaterDay.AddYears(-30),
-                "timestamp with time zone" => Later.AddYears(-30),
-                "boolean" => false,
-                "integer" or "smallint" => 1,
-                "bigint" => 1L,
-                "numeric" => 1m,
-                "character" when length == 3 => "ZAR",
-                _ => ("T" + Guid.NewGuid().ToString("N"))[..Math.Min(length ?? 12, 12)],
-            };
-        }
-
-        await using var insertConnection = new NpgsqlConnection(fixture.Database.OwnerConnectionString);
-        await insertConnection.OpenAsync();
-        await using var insert = new NpgsqlCommand(
-            $"INSERT INTO {table} ({string.Join(", ", given.Keys)}) VALUES ({string.Join(", ", given.Keys.Select((_, i) => $"@p{i}"))})", insertConnection);
-        foreach (var (value, i) in given.Values.Select((v, i) => (v, i)))
-        {
-            insert.Parameters.AddWithValue($"p{i}", value);
-        }
-
-        await insert.ExecuteNonQueryAsync();
-        return id;
-    }
+    /// <summary>Inserts a row as the owner, the rest filled (<see cref="RowFiller"/>), dated around the later day.</summary>
+    private Task<Guid> Insert(Guid tenant, string table, params (string Column, object Value)[] values) =>
+        new RowFiller(fixture.Database, Later, RowFiller.CommonDefaults(LaterDay)).Insert(tenant, table, values);
 }

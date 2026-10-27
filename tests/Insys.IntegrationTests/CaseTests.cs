@@ -423,6 +423,26 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.service_case WHERE id = @id", ("id", held))).ShouldBe(0);
     }
 
+    /// <summary>A legal hold on the case itself (D-34, document.record_hold) keeps it past its retention too, until the hold is released.</summary>
+    [Fact]
+    public async Task ARecordHoldOnTheCase_KeepsItPastItsRetention_UntilReleased_D34()
+    {
+        var held = await ClosedComplaint();
+        var hold = Guid.CreateVersion7();
+        await fixture.Database.ExecuteAsOwner("""
+            UPDATE workflow.service_case SET retain_until = current_date - 30 WHERE id = @c;
+            INSERT INTO document.record_hold (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, scope_type, scope_id, reason_code, placed_by, placed_at)
+            VALUES (@t, @h, 1, now(), 'test', now(), 'test', 'CASE', @c, 'LITIGATION', gen_random_uuid(), now());
+            """, ("t", T), ("c", held), ("h", hold));
+
+        await _factory.Services.GetRequiredService<CaseTimelineJobs>().RunForTenant(T, CancellationToken.None);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.service_case WHERE id = @id", ("id", held))).ShouldBe(1, "the case is held");
+
+        await fixture.Database.ExecuteAsOwner("UPDATE document.record_hold SET released_at = now() WHERE id = @h", ("h", hold));
+        await _factory.Services.GetRequiredService<CaseTimelineJobs>().RunForTenant(T, CancellationToken.None);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.service_case WHERE id = @id", ("id", held))).ShouldBe(0, "the hold was released");
+    }
+
     [Fact]
     public async Task AnOverdueStep_IsToldToTheComplainantOnce_Cases7()
     {

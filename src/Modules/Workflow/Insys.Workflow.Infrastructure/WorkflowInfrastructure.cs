@@ -30,6 +30,7 @@ using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Workflow.Application;
 using Insys.Workflow.Infrastructure.Persistence;
 using Insys.Workflow.Infrastructure.StaticData;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Workflow.Infrastructure;
@@ -40,6 +41,11 @@ public static class WorkflowInfrastructure
     {
         const string schema = WorkflowDbContext.SchemaName;
         services.AddModuleDbContext<WorkflowDbContext>(schema, "Workflow");
+        // D-34: a legal hold on a case itself, placed only within the caller's scope (F103).
+        services.AddLegalHoldTargets(schema, new Dictionary<string, string>
+        {
+            ["CASE"] = "SELECT product_code, org_node_code FROM workflow.service_case WHERE id = @id",
+        });
         services.AddStaticData<WorkflowDbContext>(schema, WorkflowStaticData.Descriptors);
         services.AddModuleHandlers<WorkflowDbContext>(typeof(StartProcess).Assembly);
         services.AddDomainEventMapper<WorkflowEventMapper>(schema);

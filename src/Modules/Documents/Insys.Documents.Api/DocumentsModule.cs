@@ -53,6 +53,14 @@ public sealed record DeliverDocumentRequest(string Channel, string Recipient);
 public sealed record LegalHoldRequest(string ReasonCode);
 
 /// <param name="Reason">Why the hold may be released (at most 200 characters); the checker sees it.</param>
+/// <summary>A legal hold on a record itself (D-34).</summary>
+/// <param name="ScopeType">The record's kind: PARTY, LIFE_POLICY, GENERAL_POLICY, HEALTH_MEMBERSHIP, LIFE_CLAIM, GENERAL_CLAIM, HEALTH_CLAIM or CASE. A payment is held through its policy or claim.</param>
+/// <param name="ScopeId">The record's ID.</param>
+/// <param name="ReasonCode">A legal hold reason in force (documents/static/legal-hold-reason-codes).</param>
+public sealed record RecordHoldRequest(
+    [property: Insys.BuildingBlocks.Domain.OneOf("PARTY", "LIFE_POLICY", "GENERAL_POLICY", "HEALTH_MEMBERSHIP", "LIFE_CLAIM", "GENERAL_CLAIM", "HEALTH_CLAIM", "CASE")]
+    string ScopeType, Guid ScopeId, string ReasonCode);
+
 public sealed record LegalHoldReleaseRequest([property: System.ComponentModel.DataAnnotations.MinLength(1), System.ComponentModel.DataAnnotations.MaxLength(200)] string Reason);
 
 /// <summary>The Documents module: generation, storage, delivery, retention and audited access (DOC-001 to DOC-004).</summary>
@@ -176,6 +184,74 @@ public sealed class DocumentsModule : IModule
         // The portals (external-user access §2): documents of a record in the caller's relationship, in categories whose
         // allowed roles include the caller's.
         string[] everyone = [ExternalSubject.Party, ExternalSubject.Intermediary, ExternalSubject.Provider];
+        // D-34: legal holds on a record itself. They keep its documents (and a held case) from disposal and block the
+        // anonymisation of the party they are on or whose record they are on; releasing one needs a second person (OQ-111).
+        var holds = api.MapGroup("/documents/legal-holds").WithTags(Name);
+        holds.MapPost("/", async (RecordHoldRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Send(new PlaceRecordHold(r.ScopeType, r.ScopeId, r.ReasonCode), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Created($"/api/v1/documents/legal-holds/{view.Id}", view);
+                }))
+            .Produces<RecordHoldView>(StatusCodes.Status201Created)
+            .WithName("DocumentsPlaceRecordHold")
+            .WithSummary("Place a legal hold on a party, policy, membership, claim or case")
+            .WithDescription("The record must exist (404) and be in the caller's scope (403 OUT_OF_SCOPE, F103); the reason must be in force. While the hold is "
+                + "in force, the record's documents are not disposed of (409 DOCUMENT_ON_LEGAL_HOLD), a held case is not disposed of, and the party it is on, or whose "
+                + "policy, membership or claim it is on, is not anonymised (409 PARTY_ANONYMISATION_BLOCKED, reason LEGAL_HOLD). A payment is held through its "
+                + "policy or claim.")
+            .RequirePermission(DocumentPermissions.LegalHoldManage)
+            .RequireIdempotencyKey();
+
+        holds.MapGet("/", async (string? scopeType, Guid? scopeId, bool? inForce, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var afterId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListRecordHolds(scopeType, scopeId, inForce, afterId, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<RecordHoldView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<RecordHoldView>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("DocumentsListRecordHolds")
+            .WithSummary("The legal holds on records, oldest first")
+            .WithDescription("Filter by the record (scopeType, scopeId) and whether the hold is in force. Holds on records outside the caller's scope are left out.")
+            .RequirePermission(DocumentPermissions.LegalHoldManage);
+
+        holds.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetRecordHold(id), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                }))
+            .Produces<RecordHoldView>(StatusCodes.Status200OK)
+            .WithName("DocumentsGetRecordHold")
+            .WithSummary("Get a legal hold on a record")
+            .RequirePermission(DocumentPermissions.LegalHoldManage);
+
+        holds.MapPost("/{id:guid}/release", async (Guid id, LegalHoldReleaseRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                return expected.IsFailure
+                    ? Problems.For(expected.Error)
+                    : (await dispatcher.Send(new RequestRecordHoldRelease(id, r.Reason, expected.Value), ct)).ToHttp(view =>
+                    {
+                        Concurrency.SetETag(http, view.RowVersion);
+                        return Results.Accepted(null, view);
+                    });
+            })
+            .Produces<RecordHoldView>(StatusCodes.Status202Accepted)
+            .RequireIfMatch()
+            .WithName("DocumentsReleaseRecordHold")
+            .WithSummary("Ask for a record's legal hold to be released; a second person approves it (LEGAL_HOLD_RELEASE)")
+            .WithDescription("As for a document's hold (OQ-111): the request waits for a LEGAL_HOLD_RELEASE approval, and the hold stays in force until it is "
+                + "approved. A rejected, expired or withdrawn approval clears the request (latestRejection says how it ended). 409 INVALID_STATE_TRANSITION when "
+                + "a release already waits or the hold is released.")
+            .RequirePermission(DocumentPermissions.LegalHoldManage);
+
         var portal = api.MapGroup("/portal/documents").WithTags(Name);
         portal.MapGet("/", async (string businessRefType, Guid businessRefId, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListPortalDocuments(businessRefType, businessRefId), ct)).ToHttp(Results.Ok))

@@ -44,10 +44,14 @@ internal sealed class RecordHolds([FromKeyedServices(DocumentsDbContext.SchemaNa
         }
 
         await Read("""
-            SELECT h.id, d.id, coalesce(d.business_ref_type, h.scope_type), coalesce(d.business_ref_id, h.scope_id), h.reason_code
+            SELECT h.id, d.id, d.business_ref_type, d.business_ref_id, h.reason_code
             FROM document.legal_hold h
-            LEFT JOIN document.document d ON h.scope_type = 'DOCUMENT' AND d.tenant_id = h.tenant_id AND d.id = h.scope_id
-            WHERE h.tenant_id = @t AND h.released_at IS NULL AND (d.business_ref_id = ANY(@ids) OR (d.id IS NULL AND h.scope_id = ANY(@ids)))
+            JOIN document.document d ON d.tenant_id = h.tenant_id AND d.id = h.scope_id
+            WHERE h.tenant_id = @t AND h.scope_type = 'DOCUMENT' AND h.released_at IS NULL AND d.business_ref_id = ANY(@ids)
+            UNION ALL
+            SELECT r.id, NULL, r.scope_type, r.scope_id, r.reason_code
+            FROM document.record_hold r
+            WHERE r.tenant_id = @t AND r.released_at IS NULL AND r.scope_id = ANY(@ids)
             UNION ALL
             SELECT NULL, d.id, d.business_ref_type, d.business_ref_id, NULL
             FROM document.document d

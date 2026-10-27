@@ -37,6 +37,7 @@ using Insys.Life.Infrastructure.StaticData;
 using Insys.Rating.Contracts;
 using Insys.Rules.Contracts;
 using Insys.Workflow.Contracts;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -55,6 +56,12 @@ public static class LifeInfrastructure
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.LifeDbContext.SchemaName, "LIFE_EVENT_PROCESSING");
         const string schema = LifeDbContext.SchemaName;
         services.AddModuleDbContext<LifeDbContext>(schema, "Life");
+        // D-34: a legal hold on a Life policy or claim itself, placed only within the caller's scope (F103).
+        services.AddLegalHoldTargets(schema, new Dictionary<string, string>
+        {
+            ["LIFE_POLICY"] = "SELECT product_code, org_node_code FROM life.policy WHERE id = @id",
+            ["LIFE_CLAIM"] = "SELECT product_code, org_node_code FROM life.claim WHERE id = @id",
+        });
         services.AddStaticData<LifeDbContext>(schema, LifeStaticData.Descriptors);
         services.AddModuleHandlers<LifeDbContext>(typeof(CaptureProposal).Assembly);
         services.AddDomainEventMapper<LifeEventMapper>(schema);

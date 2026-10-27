@@ -405,7 +405,8 @@ public sealed class LegalHoldReleasePolicy(IDocumentRepository documents, IClock
     }
 }
 
-internal sealed class DisposeDocumentHandler(IDocumentRepository documents, IDocumentStorage storage, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
+internal sealed class DisposeDocumentHandler(IDocumentRepository documents, IRecordHoldRepository recordHolds, IDocumentStorage storage, ITenantContext tenant,
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<DisposeDocument, long>
 {
     public async Task<Result<long>> Handle(DisposeDocument command, CancellationToken cancellationToken)
@@ -419,6 +420,12 @@ internal sealed class DisposeDocumentHandler(IDocumentRepository documents, IDoc
         if (document.Value.RowVersion != command.ExpectedVersion)
         {
             return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The document has changed since it was read.");
+        }
+
+        // D-34: a hold on the record the document is filed under (a party, policy, membership, claim or case) keeps it too.
+        if (await recordHolds.AnyInForce([document.Value.BusinessRefId], cancellationToken))
+        {
+            return Error.Conflict(DocumentErrorCodes.OnLegalHold, $"The document's {document.Value.BusinessRefType} record is on legal hold.");
         }
 
         audit.Record(new AuditEntry("DOCUMENT", "DisposeDocument", nameof(Document), command.DocumentId.ToString()));

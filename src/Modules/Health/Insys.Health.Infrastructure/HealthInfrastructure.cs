@@ -34,6 +34,7 @@ using Insys.Health.Infrastructure.Persistence;
 using Insys.Health.Infrastructure.StaticData;
 using Insys.Payments.Contracts;
 using Insys.Workflow.Contracts;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -51,6 +52,14 @@ public static class HealthInfrastructure
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.HealthDbContext.SchemaName, "HEALTH_EVENT_PROCESSING");
         const string schema = HealthDbContext.SchemaName;
         services.AddModuleDbContext<HealthDbContext>(schema, "Health");
+        // D-34: a legal hold on a Health membership or claim itself, placed only within the caller's scope (F103).
+        services.AddLegalHoldTargets(schema, new Dictionary<string, string>
+        {
+            ["HEALTH_MEMBERSHIP"] = "SELECT product_code, org_node_code FROM health.membership WHERE id = @id",
+            ["HEALTH_CLAIM"] = """
+                SELECT m.product_code, m.org_node_code FROM health.medical_claim c JOIN health.membership m ON m.tenant_id = c.tenant_id AND m.id = c.membership_id WHERE c.id = @id
+                """,
+        });
         services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator, Persistence.HealthFraudIndicatorValidator>();
         services.AddStaticData<HealthDbContext>(schema, HealthStaticData.Descriptors);
         services.AddModuleHandlers<HealthDbContext>(typeof(EnrolHealthMember).Assembly);

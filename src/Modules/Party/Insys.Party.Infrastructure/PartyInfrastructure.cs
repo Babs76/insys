@@ -30,6 +30,7 @@ using Insys.Party.Application;
 using Insys.Party.Contracts;
 using Insys.Party.Infrastructure.Persistence;
 using Insys.Party.Infrastructure.StaticData;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Party.Infrastructure;
@@ -43,6 +44,11 @@ public static class PartyInfrastructure
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.MatchBusinessRefType, "PARTIES", Insys.Party.Contracts.PartyApprovals.MatchResolutionType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.SearchLogHoldBusinessRefType, "PARTY_SEARCH_LOG", Insys.Party.Contracts.PartyApprovals.LegalHoldReleaseType);
         services.AddModuleDbContext<PartyDbContext>(PartyDbContext.SchemaName, "Party");
+        // D-34: a legal hold on a party itself; a party has no product or node.
+        services.AddLegalHoldTargets(PartyDbContext.SchemaName, new Dictionary<string, string>
+        {
+            ["PARTY"] = "SELECT NULL::text, NULL::text FROM party.party WHERE id = @id",
+        });
         services.AddStaticData<PartyDbContext>(PartyDbContext.SchemaName, PartyStaticData.Descriptors);
         services.AddModuleHandlers<PartyDbContext>(typeof(RegisterParty).Assembly);
         services.AddDomainEventMapper<PartyEventMapper>(PartyDbContext.SchemaName);

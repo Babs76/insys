@@ -401,6 +401,10 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
             [DocumentPermissions.DocumentCreate, DocumentPermissions.DocumentRead, DocumentPermissions.LegalHoldManage, .. Approving],
             [DocumentApprovals.LegalHoldReleaseType], DocumentLegalHold, "held|release pending", ["released"], "held", Refuse: RefuseLegalHoldRelease,
             WhenRefused: "held", ApprovalType: DocumentApprovals.LegalHoldReleaseType),
+        [$"{DocumentApprovals.LegalHoldReleaseType}/{DocumentApprovals.RecordHoldBusinessRefType}"] = new(
+            [DocumentPermissions.LegalHoldManage, .. Approving],
+            [DocumentApprovals.LegalHoldReleaseType], RecordLegalHold, "held|release pending", ["released"], "held", Refuse: RefuseLegalHoldRelease,
+            WhenRefused: "held", ApprovalType: DocumentApprovals.LegalHoldReleaseType),
         [$"{PartyApprovals.LegalHoldReleaseType}/{PartyApprovals.SearchLogHoldBusinessRefType}"] = new(
             [PartyPermissions.SearchLogHold, Insys.Audit.Contracts.AuditPermissions.Read, .. Approving],
             [PartyApprovals.LegalHoldReleaseType], SearchLogHold, "held|release pending", ["released"], "held", Refuse: RefuseLegalHoldRelease,
@@ -664,6 +668,23 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         return new(DocumentApprovals.LegalHoldBusinessRefType, hold, State, Hold);
     }
 
+    /// <summary>A hold on a party itself (D-34), whose release waits.</summary>
+    private static async Task<Waiting> RecordLegalHold(World w)
+    {
+        await w.Seed("document.ref_legal_hold_reason_codes", "ACTIVE", "LITIGATION", ("label", "Pending litigation"), ("authority_role", "COMPLIANCE_OFFICER"));
+        var party = await new RowFiller(w.Db, DateTimeOffset.UtcNow).Insert(w.Tenant, "party.party", ("status_code", "ACTIVE"), ("party_kind", "INDIVIDUAL"));
+        var placed = await w.Maker.Send(HttpMethod.Post, "/api/v1/documents/legal-holds", new { scopeType = "PARTY", scopeId = party, reasonCode = "LITIGATION" },
+            idempotent: true);
+        await w.Ok(placed, HttpStatusCode.Created);
+        var hold = (await placed.Json()).GetProperty("id").GetGuid();
+        await w.Ok(await w.Maker.Send(HttpMethod.Post, $"/api/v1/documents/legal-holds/{hold}/release", new { reason = "Litigation settled" }, ifMatch: placed.ETag()),
+            HttpStatusCode.Accepted);
+
+        async Task<JsonElement> Hold() => await w.Get($"/api/v1/documents/legal-holds/{hold}");
+
+        return new(DocumentApprovals.RecordHoldBusinessRefType, hold, async () => HoldState(await Hold()), Hold);
+    }
+
     private static async Task<Waiting> SearchLogHold(World w)
     {
         var placed = await w.Maker.Send(HttpMethod.Post, "/api/v1/party/search-log/holds", new { searchedBy = $"clerk-{w.Suffix}", reason = "Investigation 42" },
@@ -685,7 +706,12 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
     /// </summary>
     private static Task RefuseLegalHoldRelease(World w, Waiting waiting) =>
         w.Db.ExecuteAsOwner($"""
-            UPDATE {(waiting.BusinessRefType == DocumentApprovals.LegalHoldBusinessRefType ? "document.legal_hold" : "party.search_log_hold")}
+            UPDATE {waiting.BusinessRefType switch
+            {
+                DocumentApprovals.LegalHoldBusinessRefType => "document.legal_hold",
+                DocumentApprovals.RecordHoldBusinessRefType => "document.record_hold",
+                _ => "party.search_log_hold",
+            }}
             SET release_requested_by = NULL, release_requested_at = NULL, release_reason = NULL WHERE tenant_id = @t AND id = @id
             """, ("t", w.Tenant), ("id", waiting.BusinessRefId));
 

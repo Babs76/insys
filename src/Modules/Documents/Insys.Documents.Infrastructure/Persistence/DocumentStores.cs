@@ -62,6 +62,42 @@ internal sealed class DocumentRepository(DocumentsDbContext db) : IDocumentRepos
     public void Add(AccessRecord record) => db.Set<AccessRecord>().Add(record);
 }
 
+internal sealed class RecordHoldRepository(DocumentsDbContext db) : IRecordHoldRepository
+{
+    public Task<RecordHold?> Get(Guid id, CancellationToken cancellationToken) => db.Set<RecordHold>().SingleOrDefaultAsync(h => h.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<RecordHold>> List(string? scopeType, Guid? scopeId, bool? inForce, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var holds = db.Set<RecordHold>().AsNoTracking();
+        if (scopeType is not null)
+        {
+            holds = holds.Where(h => h.ScopeType == scopeType);
+        }
+
+        if (scopeId is { } id)
+        {
+            holds = holds.Where(h => h.ScopeId == id);
+        }
+
+        if (inForce is { } active)
+        {
+            holds = active ? holds.Where(h => h.ReleasedAt == null) : holds.Where(h => h.ReleasedAt != null);
+        }
+
+        if (afterId is { } after)
+        {
+            holds = holds.Where(h => h.Id.CompareTo(after) > 0);
+        }
+
+        return await holds.OrderBy(h => h.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public Task<bool> AnyInForce(IReadOnlyCollection<Guid> recordIds, CancellationToken cancellationToken) =>
+        db.Set<RecordHold>().AnyAsync(h => recordIds.Contains(h.ScopeId) && h.ReleasedAt == null, cancellationToken);
+
+    public void Add(RecordHold hold) => db.Set<RecordHold>().Add(hold);
+}
+
 internal sealed class DocumentCatalogue(DocumentsDbContext db) : IDocumentCatalogue
 {
     public async Task<(string Classification, IReadOnlyList<string> AllowedRoles)?> Category(string categoryCode, DateOnly day, CancellationToken cancellationToken)
@@ -219,6 +255,8 @@ internal sealed class DocumentsEventMapper : IDomainEventMapper
         DocumentDisposed e => new Contracts.DocumentDisposed(e.DocumentId),
         LegalHoldReleaseRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.DocumentApprovals.LegalHoldBusinessRefType, e.HoldId,
             Contracts.DocumentApprovals.LegalHoldReleaseType, e.RequestedBy, null, null, $"Release legal hold ({e.ReasonCode}) on document {e.DocumentId}: {e.Reason}"),
+        RecordHoldReleaseRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.DocumentApprovals.RecordHoldBusinessRefType, e.HoldId,
+            Contracts.DocumentApprovals.LegalHoldReleaseType, e.RequestedBy, null, null, $"Release legal hold ({e.ReasonCode}) on {e.ScopeType} {e.ScopeId}: {e.Reason}"),
         _ => null,
     };
 }

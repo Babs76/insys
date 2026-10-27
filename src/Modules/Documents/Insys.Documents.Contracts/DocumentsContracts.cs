@@ -43,6 +43,9 @@ public static class DocumentApprovals
     /// <summary>A document's legal hold; the business reference is the hold.</summary>
     public const string LegalHoldBusinessRefType = "DOCUMENT_LEGAL_HOLD";
 
+    /// <summary>A legal hold on a record itself (D-34): a party, policy, membership, claim or case; the business reference is the hold.</summary>
+    public const string RecordHoldBusinessRefType = "RECORD_LEGAL_HOLD";
+
     /// <summary>Releasing a legal hold needs a second person (OQ-111, 25 October 2026); the compliance officer is the checker.</summary>
     public const string LegalHoldReleaseType = "LEGAL_HOLD_RELEASE";
 }
@@ -54,7 +57,7 @@ public sealed record RecordHold(Guid? HoldId, Guid? DocumentId, string RecordTyp
 
 /// <summary>
 /// Public query interface (D-34): the legal holds in force on records, read on the Documents module's own role, for the
-/// party anonymisation check. Holds are placed on documents today; a hold whose scope is the record itself counts too.
+/// party anonymisation check: holds on the records' documents, and holds on the records themselves (document.record_hold).
 /// </summary>
 public interface IRecordHolds
 {

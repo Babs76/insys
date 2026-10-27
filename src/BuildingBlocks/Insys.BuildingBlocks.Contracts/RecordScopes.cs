@@ -39,3 +39,16 @@ public interface IBusinessRecordScopes
     /// <summary>The record's products and nodes, or null when it is not found.</summary>
     Task<IReadOnlyList<(string? ProductCode, string? OrgNodeCode)>?> ScopesOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// A module whose records can carry a legal hold of their own (D-34: a party, a policy, a membership, a claim, a case) says
+/// whether the record exists and which products and organisation nodes it covers, so Documents places a hold only on a
+/// record that exists (404 otherwise) and is in the caller's scope (F103; 403 otherwise).
+/// </summary>
+public interface ILegalHoldTargets
+{
+    bool Covers(string scopeType);
+
+    /// <summary>The record's products and nodes (an empty list for a record with no scope, such as a party), or null when it is not found.</summary>
+    Task<IReadOnlyList<(string? ProductCode, string? OrgNodeCode)>?> ScopesOf(Guid tenantId, string scopeType, Guid recordId, CancellationToken cancellationToken);
+}

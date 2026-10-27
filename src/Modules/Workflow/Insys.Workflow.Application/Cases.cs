@@ -847,7 +847,7 @@ internal sealed class CaseQueryHandlers(ICaseQueries queries, ICaseRepository ca
 }
 
 /// <summary>The CASE_TIMELINES job's work on one case (a service identity, one case per transaction).</summary>
-internal sealed class CaseJobHandlers(ICaseRepository cases, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
+internal sealed class CaseJobHandlers(ICaseRepository cases, Documents.Contracts.IRecordHolds holds, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
     ICommandHandler<MarkCaseOverdue, bool>,
     ICommandHandler<DisposeCase, bool>
 {
@@ -859,6 +859,12 @@ internal sealed class CaseJobHandlers(ICaseRepository cases, IBusinessDate busin
     public async Task<Result<bool>> Handle(DisposeCase command, CancellationToken cancellationToken)
     {
         if (await cases.Get(command.CaseId, cancellationToken) is not { IsOpen: false, LegalHold: false, RetainUntil: { } until } c || until >= businessDate.Today)
+        {
+            return false;
+        }
+
+        // D-34: a legal hold on the case itself, or on one of its documents, keeps it past its retention too.
+        if ((await holds.Holds([c.Id], cancellationToken)).Count > 0)
         {
             return false;
         }

@@ -118,6 +118,78 @@ public sealed class LegalHoldReleaseTests(DatabaseFixture fixture) : IClassFixtu
         (await Exists(entry)).ShouldBeFalse("the release was approved, so retention deletes the entry");
     }
 
+    /// <summary>
+    /// D-34 (27 October 2026): a legal hold on a record itself. It is placed only on a record that exists (404) and is in
+    /// the caller's scope (403 OUT_OF_SCOPE); it keeps the record's documents from disposal; and it is released only when
+    /// a second person approves (LEGAL_HOLD_RELEASE), the release request taking If-Match.
+    /// </summary>
+    [Fact]
+    public async Task ARecordsHold_IsPlacedOnARecordThatExistsInScope_KeepsItsDocuments_AndIsReleasedByASecondPerson_D34()
+    {
+        var (factory, tenant, maker, checker) = await World(DocumentApprovals.LegalHoldReleaseType, DocumentPermissions.DocumentCreate, DocumentPermissions.DocumentRead,
+            DocumentPermissions.DocumentDispose, DocumentPermissions.LegalHoldManage);
+        await fixture.Database.SeedStatic(tenant, "document.ref_document_categories", "ACTIVE", "NOTE", TestClock.Today.AddDays(-1), ("category_code", "NOTE"),
+            ("label", "Note"), ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+        await fixture.Database.SeedStatic(tenant, "document.ref_legal_hold_reason_codes", "ACTIVE", "LITIGATION", TestClock.Today.AddDays(-1),
+            ("label", "Pending litigation"), ("authority_role", "COMPLIANCE_OFFICER"));
+        var policy = await new RowFiller(fixture.Database, DateTimeOffset.UtcNow).Insert(tenant, "general.policy", ("product_code", "GEN-MOTOR"),
+            ("org_node_code", "BR-A"));
+        var scopedName = $"home-only-{Guid.NewGuid():N}"[..20];
+        var scopedId = await fixture.Database.UserWithPermissions(tenant, scopedName, DocumentPermissions.LegalHoldManage);
+        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = ARRAY['GEN-HOME'] WHERE user_id = @u", ("u", scopedId));
+        var scoped = factory.ClientFor(tenant, scopedName);
+
+        foreach (var scope in new[] { "PARTY", "LIFE_POLICY", "GENERAL_POLICY", "HEALTH_MEMBERSHIP", "LIFE_CLAIM", "GENERAL_CLAIM", "HEALTH_CLAIM", "CASE" })
+        {
+            var missing = await maker.Send(HttpMethod.Post, "/api/v1/documents/legal-holds", new { scopeType = scope, scopeId = Guid.CreateVersion7(), reasonCode = "LITIGATION" },
+                idempotent: true);
+            missing.StatusCode.ShouldBe(HttpStatusCode.NotFound, $"{scope}: {await missing.Content.ReadAsStringAsync()}");
+        }
+
+        var outside = await scoped.Send(HttpMethod.Post, "/api/v1/documents/legal-holds", new { scopeType = "GENERAL_POLICY", scopeId = policy, reasonCode = "LITIGATION" },
+            idempotent: true);
+        outside.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await outside.Code()).ShouldBe("OUT_OF_SCOPE");
+
+        var placed = await maker.Send(HttpMethod.Post, "/api/v1/documents/legal-holds", new { scopeType = "GENERAL_POLICY", scopeId = policy, reasonCode = "LITIGATION" },
+            idempotent: true);
+        placed.StatusCode.ShouldBe(HttpStatusCode.Created, await placed.Content.ReadAsStringAsync());
+        var hold = (await placed.Json()).GetProperty("id").GetGuid();
+        (await (await scoped.GetAsync($"/api/v1/documents/legal-holds?scopeId={policy}")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0,
+            "a hold on a record outside the caller's scope is not listed");
+        (await (await maker.GetAsync($"/api/v1/documents/legal-holds?scopeId={policy}&inForce=true")).Json()).GetProperty("items").GetArrayLength().ShouldBe(1);
+
+        // The policy's document is kept by the hold on the policy, though its own retention has ended and it has no hold of its own.
+        var stored = await maker.Send(HttpMethod.Post, "/api/v1/documents/documents", new
+        {
+            categoryCode = "NOTE", businessRefType = "GENERAL_POLICY", businessRefId = policy, mimeType = "text/plain",
+            contentBase64 = Convert.ToBase64String("schedule"u8.ToArray()),
+        }, idempotent: true);
+        stored.StatusCode.ShouldBe(HttpStatusCode.Created, await stored.Content.ReadAsStringAsync());
+        var document = (await stored.Json()).GetProperty("id").GetGuid();
+        await fixture.Database.ExecuteAsOwner("UPDATE document.document SET retention_until = current_date - 10 WHERE tenant_id = @t AND id = @id", ("t", tenant),
+            ("id", document));
+        (await Dispose(maker, document)).ShouldBe("DOCUMENT_ON_LEGAL_HOLD");
+
+        // The release takes If-Match, waits for a second person, and the requester cannot approve it.
+        (await maker.Send(HttpMethod.Post, $"/api/v1/documents/legal-holds/{hold}/release", new { reason = "Litigation settled" })).StatusCode
+            .ShouldBe(HttpStatusCode.PreconditionRequired);
+        var read = await maker.GetAsync($"/api/v1/documents/legal-holds/{hold}");
+        var requested = await maker.Send(HttpMethod.Post, $"/api/v1/documents/legal-holds/{hold}/release", new { reason = "Litigation settled" }, ifMatch: read.ETag());
+        requested.StatusCode.ShouldBe(HttpStatusCode.Accepted, await requested.Content.ReadAsStringAsync());
+        await factory.DrainOutbox();
+        (await Dispose(maker, document)).ShouldBe("DOCUMENT_ON_LEGAL_HOLD", "the hold is in force while its release waits");
+
+        var approval = await Waiting(tenant, DocumentApprovals.RecordHoldBusinessRefType, hold);
+        (await maker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldNotBe(HttpStatusCode.NoContent);
+        (await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await factory.DrainOutbox();
+
+        (await (await maker.GetAsync($"/api/v1/documents/legal-holds/{hold}")).Json()).GetProperty("releasedAt").ValueKind
+            .ShouldNotBe(System.Text.Json.JsonValueKind.Null);
+        (await Dispose(maker, document)).ShouldBeNull("the release was approved and the retention has ended");
+    }
+
     /// <summary>A tenant of its own with a maker and a checker holding authority for the approval type (the compliance officer's role).</summary>
     private async Task<(InsysApiFactory Factory, Guid Tenant, HttpClient Maker, HttpClient Checker)> World(string approvalType, params string[] permissions)
     {

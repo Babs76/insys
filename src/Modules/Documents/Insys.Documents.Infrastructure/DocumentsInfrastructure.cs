@@ -41,6 +41,8 @@ public static class DocumentsInfrastructure
         // Its approval kind and the screen that opens its record (BR-005): releasing a legal hold needs a second person (OQ-111).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Contracts.DocumentApprovals.LegalHoldBusinessRefType, "DOCUMENTS",
             Contracts.DocumentApprovals.LegalHoldReleaseType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Contracts.DocumentApprovals.RecordHoldBusinessRefType, "DOCUMENTS",
+            Contracts.DocumentApprovals.LegalHoldReleaseType);
         services.AddModuleDbContext<DocumentsDbContext>(DocumentsDbContext.SchemaName, "Documents");
         services.AddStaticData<DocumentsDbContext>(DocumentsDbContext.SchemaName, DocumentsStaticData.Descriptors);
         services.AddModuleHandlers<DocumentsDbContext>(typeof(GenerateDocument).Assembly);
@@ -49,6 +51,8 @@ public static class DocumentsInfrastructure
         services.AddScoped<PortalDocuments>();
         services.AddScoped<IDocumentCatalogue, DocumentCatalogue>();
         services.AddScoped<Contracts.IRecordHolds, RecordHolds>(); // D-34: the party anonymisation check
+        services.AddScoped<IRecordHoldRepository, RecordHoldRepository>();
+        services.AddScoped<RecordHoldTargets>();
         services.AddOptions<DocumentStorageOptions>().BindConfiguration("Documents:Storage");
         if (string.Equals(configuration["Documents:Storage:Provider"], "object-store", StringComparison.OrdinalIgnoreCase))
         {
@@ -64,6 +68,8 @@ public static class DocumentsInfrastructure
         services.AddScoped<DocumentLanguages>();
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, LegalHoldReleasePolicy, DocumentsDbContext>(DocumentsDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, LegalHoldReleasePolicy, DocumentsDbContext>(DocumentsDbContext.SchemaName, "ApprovalRejected");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, RecordHoldReleasePolicy, DocumentsDbContext>(DocumentsDbContext.SchemaName, "ApprovalGranted");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, RecordHoldReleasePolicy, DocumentsDbContext>(DocumentsDbContext.SchemaName, "ApprovalRejected");
         services.AddIntegrationEventHandler<GeneralPolicyIssued,GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralPolicyIssued");
         services.AddIntegrationEventHandler<GeneralPolicyEndorsed, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralPolicyEndorsed");
         services.AddIntegrationEventHandler<GeneralRenewalInvited, GeneralDocumentPolicies, DocumentsDbContext>(DocumentsDbContext.SchemaName, "GeneralRenewalInvited");

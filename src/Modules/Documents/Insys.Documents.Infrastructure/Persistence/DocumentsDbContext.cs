@@ -90,6 +90,20 @@ public sealed class DocumentsDbContext(DbContextOptions<DocumentsDbContext> opti
             hold.Property(h => h.ReasonCode).HasMaxLength(15);
         });
 
+        modelBuilder.Entity<RecordHold>(hold =>
+        {
+            hold.ToTable("record_hold");
+            hold.HasKey(h => new { h.TenantId, h.Id });
+            hold.HasAuditColumns();
+            hold.Ignore(h => h.DomainEvents);
+            hold.Ignore(h => h.HasChanges);
+            hold.Ignore(h => h.IsActive);
+            hold.Ignore(h => h.ReleasePending);
+            hold.Property(h => h.ScopeType).HasMaxLength(30);
+            hold.Property(h => h.ReasonCode).HasMaxLength(15);
+            hold.Property(h => h.ReleaseReason).HasMaxLength(200);
+        });
+
         // document_access_log is partitioned by accessed_at, which is part of its key; rows are never updated.
         modelBuilder.Entity<AccessRecord>(access =>
         {
