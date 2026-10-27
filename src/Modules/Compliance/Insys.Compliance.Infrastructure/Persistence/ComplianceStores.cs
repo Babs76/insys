@@ -45,7 +45,7 @@ internal sealed class ComplianceRepository(ComplianceDbContext db) : ICompliance
 
     public async Task<IReadOnlyList<(string ReturnCode, string PeriodCode, ReturnStatus Status)>> ReturnStatuses(string fromPeriod, string toPeriod,
         CancellationToken cancellationToken) =>
-        (await db.Returns.AsNoTracking().Where(r => r.PeriodCode.CompareTo(fromPeriod) >= 0 && r.PeriodCode.CompareTo(toPeriod) <= 0)
+        (await db.Returns.AsNoTracking().Where(r => EF.Functions.Collate(r.PeriodCode, "C").CompareTo(fromPeriod) >= 0 && EF.Functions.Collate(r.PeriodCode, "C").CompareTo(toPeriod) <= 0)
             .Select(r => new { r.ReturnCode, r.PeriodCode, r.Status }).ToListAsync(cancellationToken))
         .Select(r => (r.ReturnCode, r.PeriodCode, r.Status)).ToList();
 

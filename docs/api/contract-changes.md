@@ -2,7 +2,14 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 2 batch 3 (branch `wave2-3`, not merged)
+## BR-087 (branch `br-087`, shipped on its own ahead of batch 4)
+
+### Fixed: static data and product lists no longer skip a row at a page boundary (BR-087)
+- **Every static data list** (`GET /api/v1/{module}/static/{entity}`) and **the product list** (`GET /api/v1/product-factory/products`) now compare their cursor and order their codes bytewise (PostgreSQL `COLLATE "C"`). Before, the database ordered codes by its own collation (en_US, which ignores underscores) while the service re-sorted them ordinally, so a code that fell on a page boundary was never returned; in the 687-function catalogue at 200 a page, `SD_BENEFIT_MANAGEMENT_MAINTAIN` was one.
+- **Static data and product lists now come back in byte order** (`PGB` before `PG_A`): digits and upper-case letters sort before `_`, as an ordinal comparison sorts them. Before, the order followed the server's collation (`PG_A` before `PGB`). A client that shows the list in the order returned will see codes with underscores move after their neighbours without one. Cursors issued before the change still decode and continue from the code they name.
+- No other list was affected: every other cursor-paged list pages on its record's UUID, compared and ordered in SQL.
+
+## Wave 2 batch 3 (branch `wave2-3`, merged at `1416683`)
 
 ### Breaking: a tenant's administrators (BR-013, BR-018)
 - **`POST /identity/tenant-administrators`** body is now `{tenantId, administrators: [two people], functions}`, each person `{username, displayName, idpCode, externalSubject | email, mfaEnrolled}`. A new tenant gets exactly two administrators (422 `VALIDATION_FAILED` on `administrators` otherwise; the usernames must differ).

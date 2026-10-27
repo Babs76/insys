@@ -91,19 +91,26 @@ public sealed class StaticDataService<TDbContext>(
     IEnumerable<IStaticRecordValidator> validators)
     where TDbContext : ModuleDbContext
 {
+    /// <summary>PostgreSQL's bytewise collation, under which codes sort as <see cref="StringComparer.Ordinal"/> sorts them.</summary>
+    public const string BytewiseCollation = "C";
+
     public async Task<IReadOnlyList<TEntity>> ListInForce<TEntity>(StaticDataDescriptor descriptor, DateOnly asAt, string? afterCode, int limit,
         CancellationToken cancellationToken)
         where TEntity : StaticRecord
     {
         await using var transaction = await ReadOnly(tenantDb, cancellationToken);
         var query = InForce(tenantDb.Set<TEntity>(), descriptor, asAt);
+        // The cursor, the database's order and the overlay's ordinal sort must agree, or a code on a page boundary is
+        // skipped (BR-087): the database's own collation (en_US) ignores underscores, so codes are compared and ordered
+        // bytewise ("C"), which is the ordinal order for the ASCII codes static data uses.
         if (afterCode is not null)
         {
-            query = query.Where(r => string.Compare(r.Code, afterCode) > 0);
+            query = query.Where(r => string.Compare(EF.Functions.Collate(r.Code, BytewiseCollation), afterCode) > 0);
         }
 
         // Fetch both global and tenant rows for each code, then let the tenant row override the baseline.
-        var rows = await query.OrderBy(r => r.Code).ThenBy(r => r.TenantId == null).Take(limit * 2).ToListAsync(cancellationToken);
+        var rows = await query.OrderBy(r => EF.Functions.Collate(r.Code, BytewiseCollation)).ThenBy(r => r.TenantId == null).Take(limit * 2)
+            .ToListAsync(cancellationToken);
         return Overlay(rows).Take(limit).ToList();
     }
 
