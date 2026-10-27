@@ -38,8 +38,11 @@ public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot, ITenantS
     /// <summary>Set by the infrastructure on insert; an aggregate that is itself a tenant (the Tenant register) sets it to its own ID.</summary>
     public Guid TenantId { get; protected set; }
 
-    /// <summary>Optimistic concurrency token mapped to <c>row_version</c> (DBA-011).</summary>
-    public long RowVersion { get; private set; }
+    /// <summary>
+    /// Optimistic concurrency token mapped to <c>row_version</c> (DBA-011). A new aggregate starts at 1, the version its
+    /// insert writes, so a create's view and ETag, made before the save, carry the version a later If-Match must quote.
+    /// </summary>
+    public long RowVersion { get; private set; } = 1;
 
     public bool HasChanges { get; private set; }
 

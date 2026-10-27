@@ -192,7 +192,7 @@ public sealed class CaseConsumersTests(DatabaseFixture fixture) : IClassFixture<
         await fixture.Database.SeedStatic(Tenant, "claims.ref_claim_decision_reason_codes", "ACTIVE", "PAID_IN_FULL", From, ("decision_type", "APPROVE"),
             ("customer_wording", "Paid."));
         await fixture.Database.UserWithPermissions(Tenant, "case-health-approver", HealthPermissions.ClaimApprove, HealthPermissions.ClaimRead);
-        var approver = _host.CreateClient();
+        var approver = _host.CreateDefaultClient(new TestPreconditionsHandler());
         approver.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", TestTokens.For(Tenant, "case-health-approver", DateTime.UtcNow));
         var claim = await HealthClaim("ADJUDICATED", 1_000m, 600m);
         var url = $"/api/v1/health/claims/{claim}/approve";
@@ -236,7 +236,7 @@ public sealed class CaseConsumersTests(DatabaseFixture fixture) : IClassFixture<
         payment.ShouldBe($"OUT {CaseApprovals.RedressPaymentPurpose} {CaseApprovals.RedressBusinessRefType} {redress} 750.25 {payee} {account} 1");
 
         await fixture.Database.UserWithPermissions(Tenant, "case-payout-builder", Payments.Contracts.PaymentPermissions.PayoutCreate, Payments.Contracts.PaymentPermissions.PayoutRead);
-        var builder = _host.CreateClient();
+        var builder = _host.CreateDefaultClient(new TestPreconditionsHandler());
         builder.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", TestTokens.For(Tenant, "case-payout-builder", DateTime.UtcNow));
         var batch = await builder.Send(HttpMethod.Post, "/api/v1/payments/payout-batches", new { purpose = "CASE_REDRESS", currency = "ZAR" }, idempotent: true);
         batch.StatusCode.ShouldBe(HttpStatusCode.Created, await batch.Content.ReadAsStringAsync());

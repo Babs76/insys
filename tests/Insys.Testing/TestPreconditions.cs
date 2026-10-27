@@ -33,8 +33,10 @@ namespace Insys.Testing;
 /// Test clients only (BR-031, BR-057, BR-064, BR-071). Flow tests written before General, claims, billing, distribution,
 /// Life and Health took If-Match send their changes without it. When such a change is answered 428, it is sent again once
 /// with the ETag of the record it changes (read at /api/v1/{module}/{collection}/{id}), and one answered 422
-/// IDEMPOTENCY_KEY_REQUIRED again with a new key. Every retried change so proves its record's read gives an ETag. A request
-/// marked <see cref="Raw"/> is sent as it is: the sweep that holds the requirements uses that.
+/// IDEMPOTENCY_KEY_REQUIRED again with a new key. Every retried change so proves its record's read gives an ETag. When
+/// the record cannot be read (another tenant's, or none), the change is sent again with a version no record has, so the
+/// change itself answers (404). A request marked <see cref="Raw"/> is sent as it is: the sweep that holds the
+/// requirements uses that.
 /// </summary>
 public sealed class TestPreconditionsHandler : DelegatingHandler
 {
@@ -42,24 +44,27 @@ public sealed class TestPreconditionsHandler : DelegatingHandler
 
     private static readonly HashSet<string> Modules = ["general", "claims", "billing", "distribution", "life", "health"];
 
+    /// <summary>A version no record has: rows start at 1.</summary>
+    private const string NoVersion = "\"0\"";
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (request.Method == HttpMethod.Get || (request.Options.TryGetValue(Raw, out var raw) && raw) || ReadUrl(request.RequestUri) is not { } read)
+        if (request.Method == HttpMethod.Get || (request.Options.TryGetValue(Raw, out var raw) && raw) || !InModule(request.RequestUri))
         {
             return await base.SendAsync(request, cancellationToken);
         }
 
         var body = request.Content is null ? null : await request.Content.ReadAsByteArrayAsync(cancellationToken);
         var response = await base.SendAsync(request, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.PreconditionRequired && !request.Headers.Contains("If-Match"))
+        if (response.StatusCode == HttpStatusCode.PreconditionRequired && !request.Headers.Contains("If-Match") && ReadUrl(request.RequestUri) is { } read)
         {
             using var get = new HttpRequestMessage(HttpMethod.Get, read);
             Copy(request, get);
             using var current = await base.SendAsync(get, cancellationToken);
-            if (current.Headers.ETag is { } etag)
+            if ((current.Headers.ETag?.Tag ?? (current.StatusCode == HttpStatusCode.NotFound ? NoVersion : null)) is { } etag)
             {
                 var retry = Clone(request, body);
-                retry.Headers.TryAddWithoutValidation("If-Match", etag.Tag);
+                retry.Headers.TryAddWithoutValidation("If-Match", etag);
                 response.Dispose();
                 return await base.SendAsync(retry, cancellationToken);
             }
@@ -75,6 +80,9 @@ public sealed class TestPreconditionsHandler : DelegatingHandler
 
         return response;
     }
+
+    private static bool InModule(Uri? uri) =>
+        uri?.AbsolutePath.Trim('/').Split('/') is [ "api", "v1", var module, .. ] && Modules.Contains(module);
 
     /// <summary>The record a change is on: the first three segments after /api/v1 in the modules that take If-Match.</summary>
     private static Uri? ReadUrl(Uri? uri)
