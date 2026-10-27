@@ -28275,6 +28275,115 @@
         ]
       }
     },
+    "/api/v1/identity/role-templates": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "List the default role templates (OQ-111)",
+        "description": "Starting points for a tenant\u0027s own roles, never seeded: copying one creates the tenant\u0027s role and its function grants, approved like any Tier 1 change. Every template passes the segregation-of-duties rules. Platform templates (actorType PLATFORM) are for the operator tenant.",
+        "operationId": "IdentityListRoleTemplates",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentityRoleTemplateSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "user.read",
+        "x-function": [
+          "IDENTITY_ROLE_TEMPLATES"
+        ]
+      }
+    },
+    "/api/v1/identity/role-templates/{code}": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Get a default role template with its functions, their audiences and privileged flags (OQ-111)",
+        "description": "The template\u0027s functions are expanded from the function catalogue as built: the screens and actions of its sub-domains for its actor type, less JOB, privileged and excluded functions, then the functions it names. An action brings its screen. Privileged says whether assigning a role holding the function is a PRIVILEGED_ROLE approval. With tenantId (the caller\u0027s own tenant, or any tenant for the platform operator), each function says whether that tenant can hold it now: not disabled by the tenant and its feature entitled. Prefill a request for the tenant, such as its first administrators\u0027 TENANT_ADMIN functions, with the available ones only.",
+        "operationId": "IdentityGetRoleTemplate",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tenantId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityRoleTemplateView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "user.read",
+        "x-function": [
+          "IDENTITY_ROLE_TEMPLATES"
+        ]
+      }
+    },
     "/api/v1/identity/users": {
       "post": {
         "tags": [
@@ -42370,6 +42479,197 @@
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
             ]
+          }
+        }
+      },
+      "IdentityRoleTemplateFunction": {
+        "required": [
+          "code",
+          "kind",
+          "subDomain",
+          "parent",
+          "audiences",
+          "privileged",
+          "feature",
+          "available",
+          "unavailableReason"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "SCREEN",
+              "ACTION"
+            ],
+            "type": "string"
+          },
+          "subDomain": {
+            "type": "string"
+          },
+          "parent": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "audiences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "privileged": {
+            "type": "boolean"
+          },
+          "feature": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH",
+              "REINSURANCE",
+              "BROKER_PORTAL",
+              "PROVIDER_PORTAL",
+              "CUSTOMER_PORTAL",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "available": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "unavailableReason": {
+            "enum": [
+              "FUNCTION_DISABLED",
+              "FEATURE_NOT_ENTITLED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "IdentityRoleTemplateSummary": {
+        "required": [
+          "code",
+          "name",
+          "actorType",
+          "for",
+          "screens",
+          "actions"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "actorType": {
+            "enum": [
+              "STAFF",
+              "PLATFORM",
+              "BROKER",
+              "CUSTOMER",
+              "PROVIDER"
+            ],
+            "type": "string"
+          },
+          "for": {
+            "type": "string"
+          },
+          "screens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "actions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "IdentityRoleTemplateView": {
+        "required": [
+          "code",
+          "name",
+          "actorType",
+          "for",
+          "subDomains",
+          "privilegedGrants",
+          "approves",
+          "tenantId",
+          "functions"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "actorType": {
+            "enum": [
+              "STAFF",
+              "PLATFORM",
+              "BROKER",
+              "CUSTOMER",
+              "PROVIDER"
+            ],
+            "type": "string"
+          },
+          "for": {
+            "type": "string"
+          },
+          "subDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "privilegedGrants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "approves": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "functions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityRoleTemplateFunction"
+            }
           }
         }
       },
