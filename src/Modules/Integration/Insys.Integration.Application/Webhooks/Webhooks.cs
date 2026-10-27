@@ -150,7 +150,7 @@ internal sealed class WebhookHandlers(IWebhookRepository deliveries, IWebhookCod
             outcome = await transport.Send(subscription.EndpointUrl, delivery.Payload, headers, cancellationToken);
         }
 
-        var recorded = delivery.RecordAttempt(outcome.Status, outcome.Error ?? (outcome.Status is >= 200 and < 300 ? null : $"HTTP {outcome.Status}"), policy, now);
+        var recorded = delivery.RecordAttempt(outcome.Status, outcome.Error ?? (outcome.Status is >= 200 and < 300 ? null : DeadLetterErrors.Status(outcome.Status ?? 0)), policy, now);
         if (recorded.IsFailure)
         {
             return recorded.Error;

@@ -106,6 +106,23 @@ public sealed class LocalisationTests(DatabaseFixture fixture) : IClassFixture<D
         record.GetProperty("labels").GetProperty("af").GetString().ShouldBe("Maandeliks");
     }
 
+    /// <summary>
+    /// BR-022: /identity/me gives the signed-in user the locale to format dates, numbers and money with: the request's
+    /// language and the tenant's country as a tag, the country, and the tenant's base currency, from its locale defaults in force.
+    /// </summary>
+    [Fact]
+    public async Task Me_GivesTheLocale_TheRequestsLanguageWithTheTenantsCountry_AndItsBaseCurrency_BR022()
+    {
+        var zulu = await (await Get(A, "lang-a", "/api/v1/identity/me", "zu-ZA, en;q=0.5")).Json();
+        DocumentedSchema.ResponseProblems(zulu, "core", "GetMe").ShouldBeEmpty();
+        var locale = zulu.GetProperty("locale");
+        (locale.GetProperty("tag").GetString(), locale.GetProperty("country").GetString(), locale.GetProperty("baseCurrency").GetString()).ShouldBe(("zu-ZA", "ZA", "ZAR"));
+
+        // No language asked for: the tenant's default (Afrikaans for tenant B); a language the tenant does not support falls back to it too.
+        (await (await Client(B, "lang-b", null).GetAsync("/api/v1/identity/me")).Json()).GetProperty("locale").GetProperty("tag").GetString().ShouldBe("af-ZA");
+        (await (await Get(B, "lang-b", "/api/v1/identity/me", "zu")).Json()).GetProperty("locale").GetProperty("tag").GetString().ShouldBe("af-ZA");
+    }
+
     [Fact]
     public async Task UnsupportedLanguage_FallsBackToTheTenantDefault()
     {

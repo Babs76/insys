@@ -70,6 +70,28 @@ public interface IDomainEventMapper
     IIntegrationEvent? Map(IDomainEvent domainEvent);
 }
 
+/// <summary>
+/// The only texts a dead letter's error is made from (BR-017, D-28): an exception's type names, an HTTP status, or a fixed
+/// sentence. Never an exception's message, which can quote the payload and with it personal data (POPIA).
+/// </summary>
+public static class DeadLetterErrors
+{
+    /// <summary>The parking ledger's error, when a consumer failed a delivery more times than its limit.</summary>
+    public const string AttemptLimitReached = "Delivery failed after the attempt limit; see the consumer's logs.";
+
+    /// <summary>The exception's full type name, or every inner exception's for an aggregate; never a message.</summary>
+    public static string Of(Exception exception) =>
+        exception is AggregateException aggregate
+            ? string.Join("; ", aggregate.Flatten().InnerExceptions.Select(e => e.GetType().FullName))
+            : exception.GetType().FullName ?? exception.GetType().Name;
+
+    /// <summary>A webhook attempt with no response: the exception's short type name (a timeout or a connection failure).</summary>
+    public static string NoResponse(Exception exception) => exception.GetType().Name;
+
+    /// <summary>A webhook attempt answered with a status other than 2xx.</summary>
+    public static string Status(int status) => $"HTTP {status}";
+}
+
 /// <summary>Records messages that failed delivery after all retries (INT-006). Implemented by the Integration module.</summary>
 public interface IDeadLetterSink
 {

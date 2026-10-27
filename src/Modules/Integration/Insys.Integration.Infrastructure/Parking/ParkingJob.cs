@@ -227,7 +227,7 @@ public sealed class ParkingJob(
         scope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(envelope.TenantId, ServiceName, envelope.CorrelationId, envelope.EventId);
         var source = $"ledger:{consumer}";
         await scope.ServiceProvider.GetRequiredService<IDeadLetterSink>().DeadLetter(envelope, source.Length <= 60 ? source : source[..60],
-            "Delivery failed after the attempt limit; see the consumer's logs.", (short)Math.Min(attempts, short.MaxValue), clock.UtcNow, cancellationToken);
+            DeadLetterErrors.AttemptLimitReached, (short)Math.Min(attempts, short.MaxValue), clock.UtcNow, cancellationToken);
         logger.LogError("Delivery of event {EventId} to {Consumer} is dead-lettered after {Attempts} failures", envelope.EventId, consumer, attempts);
         return true;
     }

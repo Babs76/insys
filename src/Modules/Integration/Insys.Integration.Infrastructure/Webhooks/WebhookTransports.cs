@@ -68,7 +68,7 @@ internal sealed class HttpWebhookTransport(IHttpClientFactory clients, IOptions<
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
-            return (null, ex.GetType().Name);
+            return (null, BuildingBlocks.Application.Messaging.DeadLetterErrors.NoResponse(ex));
         }
     }
 }

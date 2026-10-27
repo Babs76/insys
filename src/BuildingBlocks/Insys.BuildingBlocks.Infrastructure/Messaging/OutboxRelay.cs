@@ -214,13 +214,8 @@ public sealed class OutboxProcessor(
         }
 
         // The error text is the exception type only; messages can carry sensitive values.
-        await sink.DeadLetter(envelope, $"outbox:{schema}", Describe(ex), attempts, firstFailedAt, cancellationToken);
+        await sink.DeadLetter(envelope, $"outbox:{schema}", DeadLetterErrors.Of(ex), attempts, firstFailedAt, cancellationToken);
     }
-
-    private static string Describe(Exception ex) =>
-        ex is AggregateException aggregate
-            ? string.Join("; ", aggregate.Flatten().InnerExceptions.Select(e => e.GetType().FullName))
-            : ex.GetType().FullName ?? ex.GetType().Name;
 
     private static string ValidateSchema(string name) =>
         name.All(c => char.IsAsciiLetterLower(c) || c == '_') ? name : throw new ArgumentException($"Invalid schema name '{name}'.");
