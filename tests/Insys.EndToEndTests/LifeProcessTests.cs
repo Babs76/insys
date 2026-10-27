@@ -52,7 +52,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
 {
     private const string Product = "E2E-LTERM";
     private static readonly Guid Tenant = TestTenants.A;
-    private static readonly DateOnly Today = TestClock.Today;
+    private static readonly DateOnly Today = WindowClock.Today;
 
     private static readonly string[] Permissions =
     [
@@ -183,7 +183,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
                 ("end_date", period.AddMonths(1).AddDays(-1)));
         }
 
-        _factory = new InsysApiFactory(_db, new Dictionary<string, string?> { ["Outbox:MaxAttempts"] = "3", ["Outbox:BaseBackoff"] = "00:00:00" });
+        _factory = new InsysApiFactory(_db, new Dictionary<string, string?> { ["Outbox:MaxAttempts"] = "3", ["Outbox:BaseBackoff"] = "00:00:00" }, time: WindowClock.Time);
         _maker = _factory.ClientFor(Tenant, "life-underwriter");
         _checker = _factory.ClientFor(Tenant, "senior-life-underwriter");
         foreach (var period in Enumerable.Range(-4, 5).Select(m => month.AddMonths(m)))

@@ -59,7 +59,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
     private const string Product = "E2E-EMOT";
     private const string Broker = "BRK-1";
     private static readonly Guid Tenant = TestTenants.A;
-    private static readonly DateOnly Today = TestClock.Today;
+    private static readonly DateOnly Today = WindowClock.Today;
     private static readonly string Month = Today.ToString("yyyy-MM");
     private static readonly Guid Assessor = Guid.CreateVersion7();
 
@@ -235,7 +235,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         {
             ["Outbox:MaxAttempts"] = "3", ["Outbox:BaseBackoff"] = "00:00:00", ["Integration:Webhooks:Transport"] = "stub", ["Integration:Webhooks:JobEnabled"] = "false",
             ["Integration:Secrets:vault-wh1"] = "whsec-test", ["General:Jobs:Enabled"] = "false",
-        });
+        }, time: WindowClock.Time);
         _maker = _factory.ClientFor(Tenant, "underwriter");
         _checker = _factory.ClientFor(Tenant, "senior-underwriter");
         (await _maker.PostAsync($"/api/v1/finance/periods/{Month}/open", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -484,7 +484,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         var policy = await IssuedPolicy(await Vehicle());
         var holder = await _maker.RegisterPerson("Renewing");
         await _db.AddContact(Tenant, holder, "EMAIL", "renewal@example.com");
-        var periodEnd = TestClock.Today.AddDays(30);
+        var periodEnd = Today.AddDays(30);
         await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @d, policyholder_party_id = @h WHERE id = @p", ("d", periodEnd), ("h", holder),
             ("p", policy));
         var jobs = _factory.Services.GetRequiredService<GeneralJobs>();

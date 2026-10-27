@@ -83,7 +83,7 @@ public sealed class ProductPublicationTests(PostgresServer server) : IAsyncLifet
         await Static("rating.cfg_rating_test_case_library", "E2E-TC-1", "case_id, product_version, inputs, expected_premium, tolerance",
             $$"""'E2E-TC-1', '{{Product}} v1', '{"currency":"ZAR","frequency":"MONTHLY","sum_insured":100000,"vehicle_group":"G3"}', 3000, 0.01""");
 
-        _factory = new InsysApiFactory(_db);
+        _factory = new InsysApiFactory(_db, time: WindowClock.Time);
     }
 
     public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
@@ -93,7 +93,7 @@ public sealed class ProductPublicationTests(PostgresServer server) : IAsyncLifet
     {
         var maker = _factory.ClientFor(Tenant, "product-manager");
         var checker = _factory.ClientFor(Tenant, "senior-actuary");
-        var today = TestClock.Today;
+        var today = WindowClock.Today;
         var v1 = $"{Versions}/1";
 
         // CreateDraftVersion (RegisterProduct for a new code) and EditConfiguration.

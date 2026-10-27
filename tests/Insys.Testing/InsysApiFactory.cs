@@ -42,6 +42,9 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
 {
     public TestDatabase Database { get; } = database;
 
+    /// <summary>The host's clock: the fixed or shifted one it was given, else the system's.</summary>
+    public TimeProvider Clock => time ?? TimeProvider.System;
+
     /// <summary>
     /// Starts the host and waits for its endpoint warm-up before any client is made, as readiness makes production wait:
     /// otherwise the warm-up and the first request build the same endpoints at the same time.

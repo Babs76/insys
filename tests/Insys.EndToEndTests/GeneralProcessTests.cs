@@ -52,7 +52,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 {
     private const string Product = "E2E-GMOT";
     private static readonly Guid Tenant = TestTenants.A;
-    private static readonly DateOnly Today = TestClock.Today;
+    private static readonly DateOnly Today = WindowClock.Today;
     private static readonly Guid Assessor = Guid.CreateVersion7();
     private static readonly Guid Repairer = Guid.CreateVersion7();
 
@@ -195,7 +195,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             ("end_date", month.AddMonths(1).AddDays(-1)));
 
         // Fast retries, so a failing consumer is dead-lettered within one drain of the outbox.
-        _factory = new InsysApiFactory(_db, new Dictionary<string, string?> { ["Outbox:MaxAttempts"] = "3", ["Outbox:BaseBackoff"] = "00:00:00" });
+        _factory = new InsysApiFactory(_db, new Dictionary<string, string?> { ["Outbox:MaxAttempts"] = "3", ["Outbox:BaseBackoff"] = "00:00:00" }, time: WindowClock.Time);
         _maker = _factory.ClientFor(Tenant, "underwriter");
         _checker = _factory.ClientFor(Tenant, "senior-underwriter");
         (await _maker.PostAsync($"/api/v1/finance/periods/{month:yyyy-MM}/open", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -433,7 +433,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<string>("""
             SELECT status || ':' || channel || ':' || body FROM communication.notification
             WHERE recipient_party_id = @h AND type_code = 'CLAIM_STATUS' AND source_type = 'GENERAL_CLAIM' AND source_id = @c
-            """, ("h", holder), ("c", claim))).ShouldBe($"SENT:EMAIL:Your claim {number} is REGISTERED ({TestClock.Today:yyyy-MM-dd}).");
+            """, ("h", holder), ("c", claim))).ShouldBe($"SENT:EMAIL:Your claim {number} is REGISTERED ({Today:yyyy-MM-dd}).");
         (await _db.ScalarAsOwner<string>("SELECT direction || ':' || channel FROM claims.claim_communication WHERE claim_number = @n", ("n", number)))
             .ShouldBe("OUT:EMAIL", "the claim's correspondence log records the notice");
     }
@@ -664,7 +664,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     [Fact]
     public async Task AtOneThirtyInJohannesburg_CoverStartingThatDayIsInForce_ItsDebitOrderIsDue_AndAFirstDayClaimIsAccepted_GAP044()
     {
-        var utcDay = TestClock.Today;
+        var utcDay = DateOnly.FromDateTime(WindowClock.Start.UtcDateTime);
         var localDay = utcDay.AddDays(1);
         await using var boundary = new InsysApiFactory(_db, new Dictionary<string, string?> { ["Identity:PermissionCache:AllowMultipleInstances"] = "true" },
             time: new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(utcDay.ToDateTime(new TimeOnly(23, 30)), TimeSpan.Zero)));

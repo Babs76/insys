@@ -27,6 +27,8 @@
 
 Usage: integration-shards.py SHARD COUNT   prints the --filter-class arguments of shard SHARD (1-based) of COUNT.
        integration-shards.py --check COUNT  lists each shard and fails unless every class is in exactly one.
+       integration-shards.py --check-listed COUNT  reads the compiled classes (the test assembly's "-list classes"
+                                                    output) on stdin and fails unless each one is in a shard or excluded.
 
 Every test class in tests/Insys.IntegrationTests is assigned, so a new class always runs. The endpoint sweeps run in
 their own job and are left out. A class weighs a fixed start-up cost (its database and host) plus one per test, and
@@ -72,6 +74,18 @@ def main(args):
             print(f"shard {i}: weight {weight}, {len(names)} classes")
         if sorted(assigned) != sorted(classes()) or len(assigned) != len(set(assigned)):
             print("a class is in no shard or in two")
+            return 1
+        return 0
+
+    if args[:1] == ["--check-listed"]:
+        # The source scan above finds classes by name; this compares it with what the build actually contains, so a
+        # test class the scan misses (another name, another folder) fails CI instead of silently never running.
+        assigned = {name for _, names in shards(int(args[1])) for name in names} | EXCLUDED
+        listed = {line.strip().rsplit(".", 1)[-1] for line in sys.stdin if line.strip().startswith("Insys.IntegrationTests.")}
+        missing = sorted(listed - assigned)
+        print(f"{len(listed)} compiled classes, {len(listed) - len(missing)} assigned")
+        if missing:
+            print("not in any shard: " + ", ".join(missing))
             return 1
         return 0
 

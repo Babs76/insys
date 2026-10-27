@@ -49,7 +49,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
 {
     private static readonly Guid Tenant = TestTenants.A;
     private static readonly Guid SponsorParty = Guid.CreateVersion7();
-    private static readonly DateOnly Today = TestClock.Today;
+    private static readonly DateOnly Today = WindowClock.Today;
 
     private static readonly string[] Permissions =
     [
@@ -178,7 +178,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
                 ("end_date", period.AddMonths(1).AddDays(-1)));
         }
 
-        _factory = new InsysApiFactory(_db, new Dictionary<string, string?> { ["Outbox:MaxAttempts"] = "3", ["Outbox:BaseBackoff"] = "00:00:00" });
+        _factory = new InsysApiFactory(_db, new Dictionary<string, string?> { ["Outbox:MaxAttempts"] = "3", ["Outbox:BaseBackoff"] = "00:00:00" }, time: WindowClock.Time);
         _maker = _factory.ClientFor(Tenant, "health-administrator");
         _checker = _factory.ClientFor(Tenant, "health-manager");
         foreach (var period in Enumerable.Range(-6, 7).Select(m => month.AddMonths(m)))

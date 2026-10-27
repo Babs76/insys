@@ -57,16 +57,36 @@ public sealed class PermissionCacheOptions
 }
 
 /// <summary>Resolved principals, keyed by tenant and subject. All entries of a tenant are evicted together (TEN-004: caches are tenant-scoped).</summary>
-public sealed class PermissionCache(IMemoryCache cache, IOptions<PermissionCacheOptions> options) : IPermissionCache
+public sealed class PermissionCache(IMemoryCache cache, IOptions<PermissionCacheOptions> options, IClock clock) : IPermissionCache
 {
     private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _tenantTokens = new();
 
-    public bool TryGet(Guid tenantId, string subject, out ResolvedPrincipal? principal) => cache.TryGetValue(Key(tenantId, subject), out principal);
+    public bool TryGet(Guid tenantId, string subject, out ResolvedPrincipal? principal)
+    {
+        principal = null;
+        if (!cache.TryGetValue(Key(tenantId, subject), out Entry? entry) || entry is null)
+        {
+            return false;
+        }
 
-    public void Set(Guid tenantId, string subject, ResolvedPrincipal? principal)
+        if (entry.Until is { } until && clock.UtcNow >= until)
+        {
+            cache.Remove(Key(tenantId, subject));
+            return false;
+        }
+
+        principal = entry.Principal;
+        return true;
+    }
+
+    /// <param name="until">
+    /// When the principal stops being true whatever changes: the start of the tenant's next business date, since it was
+    /// resolved by what was in force today (BR-040). Judged by <see cref="IClock"/>, so it holds under a test clock too.
+    /// </param>
+    public void Set(Guid tenantId, string subject, ResolvedPrincipal? principal, DateTimeOffset? until = null)
     {
         var token = _tenantTokens.GetOrAdd(tenantId, _ => new CancellationTokenSource());
-        cache.Set(Key(tenantId, subject), principal, new MemoryCacheEntryOptions
+        cache.Set(Key(tenantId, subject), new Entry(principal, until), new MemoryCacheEntryOptions
         {
             AbsoluteExpirationRelativeToNow = options.Value.Duration,
             ExpirationTokens = { new CancellationChangeToken(token.Token) },
@@ -95,6 +115,8 @@ public sealed class PermissionCache(IMemoryCache cache, IOptions<PermissionCache
     public void Evict(Guid tenantId, string subject) => cache.Remove(Key(tenantId, subject));
 
     private static string Key(Guid tenantId, string subject) => $"principal:{tenantId:N}:{subject}";
+
+    private sealed record Entry(ResolvedPrincipal? Principal, DateTimeOffset? Until);
 }
 
 /// <summary>
@@ -124,13 +146,16 @@ public sealed class PrincipalResolver(
             return cached;
         }
 
+        // One business date for the whole principal, read once; it is cached no later than the start of the next one, so a
+        // role ending today stops at the tenant's midnight, not up to a cache duration after it (BR-040).
+        var day = dates.TodayFor(tenantId);
         var access = await tenants.UserAccess(tenantId, cancellationToken);
-        var principal = access == TenantUserAccess.None ? null : await Load(tenantId, subject, access == TenantUserAccess.ConfigurationOnly, cancellationToken);
+        var principal = access == TenantUserAccess.None ? null : await Load(tenantId, subject, access == TenantUserAccess.ConfigurationOnly, day, cancellationToken);
         // BR-018: a refusal is not cached. An unknown subject may be a user whose identity is being linked this moment;
         // its next request must find it.
         if (principal is not null)
         {
-            cache.Set(tenantId, subject, principal);
+            cache.Set(tenantId, subject, principal, dates.StartOf(tenantId, day.AddDays(1)));
         }
 
         return principal;
@@ -162,7 +187,7 @@ public sealed class PrincipalResolver(
         return awaits;
     }
 
-    private async Task<ResolvedPrincipal?> Load(Guid tenantId, string subject, bool configurationOnly, CancellationToken cancellationToken)
+    private async Task<ResolvedPrincipal?> Load(Guid tenantId, string subject, bool configurationOnly, DateOnly day, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -228,7 +253,7 @@ public sealed class PrincipalResolver(
         {
             load.Parameters.AddWithValue("statuses", RoleStatuses);
             load.Parameters.AddWithValue("grants", GrantStatuses);
-            load.Parameters.AddWithValue("today", dates.TodayFor(tenantId));
+            load.Parameters.AddWithValue("today", day);
             load.Parameters.AddWithValue("t", tenantId);
             load.Parameters.AddWithValue("id", userId);
             await using var reader = await load.ExecuteReaderAsync(cancellationToken);
@@ -258,15 +283,15 @@ public sealed class PrincipalResolver(
         await transaction.CommitAsync(cancellationToken);
         var external = link is { } l
             ? new ExternalSubject(l.Kind, l.Party, l.Intermediary,
-                l.Intermediary is { } code ? await intermediaries.WithSubBrokers(tenantId, code, dates.TodayFor(tenantId), cancellationToken) : new HashSet<string>(), l.Provider)
+                l.Intermediary is { } code ? await intermediaries.WithSubBrokers(tenantId, code, day, cancellationToken) : new HashSet<string>(), l.Provider)
             : null;
         // The functions the tenant allows now, and the permissions they require: the user's permissions (ADR-026 §2).
-        var refusals = await Refusals(tenantId, configurationOnly, cancellationToken);
+        var refusals = await Refusals(tenantId, configurationOnly, day, cancellationToken);
         var usable = granted.Where(g => refusals.TryGetValue(g.Function, out var refusal) && refusal == ErrorCodes.FunctionNotGranted).ToList();
-        var functions = await catalogue.Functions(dates.TodayFor(tenantId), cancellationToken);
+        var functions = await catalogue.Functions(day, cancellationToken);
         var scoped = usable.SelectMany(g => functions[g.Function].Permissions.Select(p => (Permission: p, g.Products, g.Branches))).ToList();
         var permissions = scoped.Select(s => s.Permission).ToHashSet(StringComparer.Ordinal);
-        return new ResolvedPrincipal(userId, permissions, await Grants(tenantId, scoped, cancellationToken), roles, external, configurationOnly,
+        return new ResolvedPrincipal(userId, permissions, await Grants(tenantId, scoped, day, cancellationToken), roles, external, configurationOnly,
             new FunctionAccess(usable.Select(g => g.Function).ToHashSet(StringComparer.Ordinal), refusals));
     }
 
@@ -275,9 +300,8 @@ public sealed class PrincipalResolver(
     /// disabled, not entitled; FUNCTION_NOT_GRANTED for one the tenant allows. The operator tenant keeps platform data for
     /// every feature, so it needs no entitlement.
     /// </summary>
-    private async Task<IReadOnlyDictionary<string, string>> Refusals(Guid tenantId, bool configurationOnly, CancellationToken cancellationToken)
+    private async Task<IReadOnlyDictionary<string, string>> Refusals(Guid tenantId, bool configurationOnly, DateOnly day, CancellationToken cancellationToken)
     {
-        var day = dates.TodayFor(tenantId);
         var settings = await functionSettings.For(tenantId, day, cancellationToken);
         var isOperator = tenantId == platform.Value.OperatorTenantId;
         return (await catalogue.Functions(day, cancellationToken)).Values.ToDictionary(f => f.Code, f =>
@@ -292,7 +316,7 @@ public sealed class PrincipalResolver(
     /// gives without scope is left out: it is unrestricted. A branch scope covers the nodes below it (§3).
     /// </summary>
     private async Task<IReadOnlyDictionary<string, IReadOnlyList<PermissionGrant>>?> Grants(Guid tenantId,
-        IReadOnlyList<(string Permission, string[]? Products, string[]? Branches)> scoped, CancellationToken cancellationToken)
+        IReadOnlyList<(string Permission, string[]? Products, string[]? Branches)> scoped, DateOnly day, CancellationToken cancellationToken)
     {
         static bool Empty(string[]? values) => values is null || values.Length == 0;
         if (scoped.All(s => Empty(s.Products) && Empty(s.Branches)))
@@ -300,7 +324,7 @@ public sealed class PrincipalResolver(
             return null;
         }
 
-        var nodes = scoped.Any(s => !Empty(s.Branches)) ? await organisation.Nodes(tenantId, dates.TodayFor(tenantId), cancellationToken) : [];
+        var nodes = scoped.Any(s => !Empty(s.Branches)) ? await organisation.Nodes(tenantId, day, cancellationToken) : [];
         var grants = new Dictionary<string, IReadOnlyList<PermissionGrant>>(StringComparer.Ordinal);
         foreach (var permission in scoped.GroupBy(s => s.Permission))
         {

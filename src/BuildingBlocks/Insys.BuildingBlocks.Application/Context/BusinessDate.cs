@@ -148,6 +148,28 @@ public sealed class TenantBusinessDates(TenantTimeZones zones, IClock clock)
 {
     public DateOnly TodayFor(Guid tenantId) =>
         BusinessDateOverride.Day ?? zones.TestDate ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.UtcNow, zones.For(tenantId)).DateTime);
+
+    /// <summary>
+    /// The instant a business date starts in the tenant's time zone, so a cache of what was in force on one day ends with
+    /// it (BR-040). Null when a test date fixes the business date, which then never changes with the clock.
+    /// </summary>
+    public DateTimeOffset? StartOf(Guid tenantId, DateOnly day)
+    {
+        if (BusinessDateOverride.Day is not null || zones.TestDate is not null)
+        {
+            return null;
+        }
+
+        var zone = zones.For(tenantId);
+        var midnight = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        // A zone that skips midnight for daylight saving starts the day at its first valid time.
+        while (zone.IsInvalidTime(midnight))
+        {
+            midnight = midnight.AddMinutes(15);
+        }
+
+        return new DateTimeOffset(midnight, zone.GetUtcOffset(midnight));
+    }
 }
 
 /// <summary>The business date in the current scope's tenant.</summary>

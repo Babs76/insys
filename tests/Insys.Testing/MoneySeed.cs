@@ -86,7 +86,7 @@ public static class MoneySeed
         var (path, secret) = await Endpoints.GetValue(client, IssueSimulatorEndpoint);
         var externalRef = await database.ScalarAsOwner<string>("SELECT external_ref FROM payment.payment WHERE id = @p", ("p", payment));
         var body = JsonSerializer.Serialize(new { externalRef, status }, JsonSerializerOptions.Web);
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        var timestamp = factory.Clock.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
         var callbackId = Guid.CreateVersion7().ToString();
         var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         request.Headers.Add("X-Callback-Timestamp", timestamp);

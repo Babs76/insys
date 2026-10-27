@@ -107,6 +107,27 @@ public sealed class AssignRoleBusinessDateTests(DatabaseFixture fixture) : IClas
         (await Assign(host, DatabaseFixture.TenantA, a, beforeMidnight)).ShouldBe("204");
     }
 
+    /// <summary>
+    /// A role ending on 1 November gives its screen at 23:59:50 in Johannesburg and not ten seconds later, past the tenant's
+    /// midnight: the permissions cached before midnight end with the business date they were resolved on, not up to the
+    /// cache duration after it.
+    /// </summary>
+    [Fact]
+    public async Task APrincipalCachedBeforeTheTenantsMidnight_LosesARoleEndingThatDay_AtMidnight_BR040()
+    {
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 31, 21, 59, 50, TimeSpan.Zero));
+        await using var host = new InsysApiFactory(fixture.Database, time: time);
+        var ending = await DatedRole(DatabaseFixture.TenantA, From, November1);
+        var user = await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "dated-user-midnight");
+        (await Assign(host, DatabaseFixture.TenantA, user, ending)).ShouldBe("204");
+
+        var client = host.ClientFor(DatabaseFixture.TenantA, "dated-user-midnight");
+        (await client.GetAsync("/api/v1/integration/dead-letters")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        time.Advance(TimeSpan.FromSeconds(20));
+        var after = await client.GetAsync("/api/v1/integration/dead-letters");
+        after.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await after.Content.ReadAsStringAsync());
+    }
+
     private InsysApiFactory Host(DateTimeOffset instant) => new(fixture.Database, time: new FakeTimeProvider(instant));
 
     /// <summary>A role granting the dead letters screen, its one version in force from <paramref name="from"/> until <paramref name="to"/>.</summary>

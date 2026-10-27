@@ -65,6 +65,15 @@ jobs:
       - name: Build
         run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
 
+      # Every test project in the solution runs in exactly one job: here (tests/Insys.*Tests) or, for the two that need
+      # PostgreSQL, in the integration and sweeps-and-end-to-end jobs. A test project outside that pattern fails here.
+      - name: Every test project runs in a job
+        run: |
+          strays=$(grep -oE 'tests/[^"]+\.csproj' Insys.slnx | grep -vE '^tests/Insys\.[A-Za-z.]*Tests/' | grep -v '^tests/Insys.Testing/' || true)
+          if [ -n "$strays" ]; then
+            echo "Test projects no job runs:"; echo "$strays"; exit 1
+          fi
+
       # Every test project except the two that need PostgreSQL.
       - name: Unit and architecture tests
         run: |
@@ -103,6 +112,9 @@ jobs:
 
       - name: Build
         run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
+
+      - name: Every compiled integration class runs in a shard or the sweeps job
+        run: tests/Insys.IntegrationTests/bin/Release/net10.0/Insys.IntegrationTests -list classes | python3 tools/integration-shards.py --check-listed 2
 
       # Testcontainers starts postgres:18 (Docker is available on ubuntu-latest). The endpoint sweeps run in their own job.
       - name: Integration tests
