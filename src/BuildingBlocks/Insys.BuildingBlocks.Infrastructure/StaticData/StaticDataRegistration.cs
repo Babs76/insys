@@ -102,6 +102,8 @@ public static class StaticDataRegistration
         services.AddScoped<StaticDataService<TDbContext>>();
         services.AddIntegrationEventHandler<StaticDataChangeApproved, StaticDataApprovalHandler<TDbContext>, TDbContext>(schema);
         services.AddIntegrationEventHandler<StaticDataChangeRejected, StaticDataRejectionHandler<TDbContext>, TDbContext>(schema);
+        services.AddIntegrationEventHandler<StaticDataImportApproved, StaticDataImportDecisions<TDbContext>, TDbContext>(schema, "Approved");
+        services.AddIntegrationEventHandler<StaticDataImportNotApproved, StaticDataImportDecisions<TDbContext>, TDbContext>(schema, "NotApproved");
         return services;
     }
 }
@@ -132,5 +134,24 @@ public sealed class StaticDataRejectionHandler<TDbContext>(StaticDataCatalogue<T
     public Task Handle(StaticDataChangeRejected integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken) =>
         catalogue.Find(integrationEvent.Record) is { } descriptor
             ? (Task)Apply.MakeGenericMethod(descriptor.EntityType).Invoke(service, [descriptor, integrationEvent, cancellationToken])!
+            : Task.CompletedTask;
+}
+
+/// <summary>Applies the Static Data module's decision on an import submitted as one change (BR-016) to the lines this module owns.</summary>
+public sealed class StaticDataImportDecisions<TDbContext>(StaticDataCatalogue<TDbContext> catalogue, StaticDataService<TDbContext> service)
+    : IIntegrationEventHandler<StaticDataImportApproved>, IIntegrationEventHandler<StaticDataImportNotApproved>
+    where TDbContext : ModuleDbContext
+{
+    private static readonly MethodInfo Approve = typeof(StaticDataService<TDbContext>).GetMethod(nameof(StaticDataService<TDbContext>.ApplyImportApproval))!;
+    private static readonly MethodInfo Reject = typeof(StaticDataService<TDbContext>).GetMethod(nameof(StaticDataService<TDbContext>.ApplyImportRejection))!;
+
+    public Task Handle(StaticDataImportApproved integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        catalogue.Find(integrationEvent.Record) is { } descriptor
+            ? (Task)Approve.MakeGenericMethod(descriptor.EntityType).Invoke(service, [descriptor, integrationEvent, cancellationToken])!
+            : Task.CompletedTask;
+
+    public Task Handle(StaticDataImportNotApproved integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        catalogue.Find(integrationEvent.Record) is { } descriptor
+            ? (Task)Reject.MakeGenericMethod(descriptor.EntityType).Invoke(service, [descriptor, integrationEvent, cancellationToken])!
             : Task.CompletedTask;
 }

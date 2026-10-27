@@ -52,6 +52,7 @@ public static class StaticDataInfrastructure
         services.AddSingleton<Contracts.ILanguageRegister, LanguageRegister>();
         var schema = StaticDataDbContext.SchemaName;
         services.AddIntegrationEventHandler<StaticDataChangeSubmitted, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "Submitted");
+        services.AddIntegrationEventHandler<StaticDataImportSubmitted, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ImportSubmitted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<StaticDataVersionActivated, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "Activated");

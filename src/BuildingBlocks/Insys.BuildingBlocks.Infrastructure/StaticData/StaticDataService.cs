@@ -60,6 +60,9 @@ public static class StaticDataErrorCodes
     public const string UserRequired = "STATIC_USER_REQUIRED";
 }
 
+/// <summary>An import submitted as one change (BR-016): its change request and the hash its approval is bound to.</summary>
+public sealed record StaticImportSubmission(Guid BatchId, Guid ChangeRequestId, int Lines, string Hash);
+
 /// <summary>Creates a module context on the platform administrator's connection, for global rows only.</summary>
 public sealed class StaticDataContextFactory<TDbContext>(IServiceProvider services)
     where TDbContext : ModuleDbContext
@@ -230,50 +233,14 @@ public sealed class StaticDataService<TDbContext>(
                 return Error.Forbidden(StaticDataErrorCodes.MakerOnly, "Only the maker who created the draft submits it (SDM-003).");
             }
 
-            // SDM-013 again on submit: the new period must start after the version it supersedes, and Tier 1 data that is
-            // already in force must not change retroactively (SDM-005).
-            var current = entity.SupersedesId is { } supersedes
-                ? await db.Set<TEntity>().SingleOrDefaultAsync(r => r.Id == supersedes, cancellationToken)
-                : null;
-            if (current is not null && entity.EffectiveFrom <= current.EffectiveFrom)
+            if (entity.ImportBatchId is { } batch)
             {
-                return Error.Validation(StaticDataErrorCodes.RetroactiveChange, "effectiveFrom must be after the start of the version in force.");
+                return InvalidTransition($"This draft is a line of import {batch}; the import is submitted as a whole (BR-016).");
             }
 
-            if (current is not null && descriptor.Tier == 1 && entity.EffectiveFrom < businessDate.Today)
+            if (await CheckSubmission(db, descriptor, entity, cancellationToken) is { } refused)
             {
-                return Error.Validation(StaticDataErrorCodes.RetroactiveChange,
-                    "Tier 1 data in force cannot change retroactively; use the correction workflow (SDM-005).");
-            }
-
-            // A module's own rules for a change to one of its tables (an intermediary's lifecycle, say).
-            foreach (var guard in guards.Where(g => g.Schema == descriptor.Schema && g.Table == descriptor.Table))
-            {
-                var allowed = guard.Check(entity, current);
-                if (allowed.IsFailure)
-                {
-                    return allowed.Error;
-                }
-            }
-
-            // A module's rules across the table: the other codes in force (or on their way) from this version's start.
-            var applicable = setGuards.Where(g => g.Schema == descriptor.Schema && g.Table == descriptor.Table).ToList();
-            if (applicable.Count > 0)
-            {
-                string[] closed = ["DRAFT", "VALIDATED", "WITHDRAWN", "RETIRED"];
-                var others = (await db.Set<TEntity>().AsNoTracking()
-                        .Where(r => r.Code != entity.Code && !closed.Contains(r.RecordStatus) && r.EffectiveFrom <= entity.EffectiveFrom
-                                    && (r.EffectiveTo == null || r.EffectiveTo > entity.EffectiveFrom))
-                        .ToListAsync(cancellationToken))
-                    .GroupBy(r => r.Code).Select(g => (StaticRecord)g.OrderByDescending(r => r.Version).First()).ToList();
-                foreach (var guard in applicable)
-                {
-                    var allowed = guard.Check(entity, others);
-                    if (allowed.IsFailure)
-                    {
-                        return allowed.Error;
-                    }
-                }
+                return refused;
             }
 
             entity.RecordStatus = descriptor.Lifecycle.PendingApproval;
@@ -284,6 +251,59 @@ public sealed class StaticDataService<TDbContext>(
             audit(entity, null);
             return entity;
         }, cancellationToken);
+
+    /// <summary>The checks a draft passes to be submitted: alone, or as a line of its import (BR-016).</summary>
+    private async Task<Error?> CheckSubmission<TEntity>(TDbContext db, StaticDataDescriptor descriptor, TEntity entity, CancellationToken cancellationToken)
+        where TEntity : StaticRecord
+    {
+        // SDM-013 again on submit: the new period must start after the version it supersedes, and Tier 1 data that is
+        // already in force must not change retroactively (SDM-005).
+        var current = entity.SupersedesId is { } supersedes
+            ? await db.Set<TEntity>().SingleOrDefaultAsync(r => r.Id == supersedes, cancellationToken)
+            : null;
+        if (current is not null && entity.EffectiveFrom <= current.EffectiveFrom)
+        {
+            return Error.Validation(StaticDataErrorCodes.RetroactiveChange, "effectiveFrom must be after the start of the version in force.");
+        }
+
+        if (current is not null && descriptor.Tier == 1 && entity.EffectiveFrom < businessDate.Today)
+        {
+            return Error.Validation(StaticDataErrorCodes.RetroactiveChange,
+                "Tier 1 data in force cannot change retroactively; use the correction workflow (SDM-005).");
+        }
+
+        // A module's own rules for a change to one of its tables (an intermediary's lifecycle, say).
+        foreach (var guard in guards.Where(g => g.Schema == descriptor.Schema && g.Table == descriptor.Table))
+        {
+            var allowed = guard.Check(entity, current);
+            if (allowed.IsFailure)
+            {
+                return allowed.Error;
+            }
+        }
+
+        // A module's rules across the table: the other codes in force (or on their way) from this version's start.
+        var applicable = setGuards.Where(g => g.Schema == descriptor.Schema && g.Table == descriptor.Table).ToList();
+        if (applicable.Count > 0)
+        {
+            string[] closed = ["DRAFT", "VALIDATED", "WITHDRAWN", "RETIRED"];
+            var others = (await db.Set<TEntity>().AsNoTracking()
+                    .Where(r => r.Code != entity.Code && !closed.Contains(r.RecordStatus) && r.EffectiveFrom <= entity.EffectiveFrom
+                                && (r.EffectiveTo == null || r.EffectiveTo > entity.EffectiveFrom))
+                    .ToListAsync(cancellationToken))
+                .GroupBy(r => r.Code).Select(g => (StaticRecord)g.OrderByDescending(r => r.Version).First()).ToList();
+            foreach (var guard in applicable)
+            {
+                var allowed = guard.Check(entity, others);
+                if (allowed.IsFailure)
+                {
+                    return allowed.Error;
+                }
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>Approved → active (reference) or published (configuration). Raises StaticDataVersionActivated (SDM-009).</summary>
     public Task<Result<TEntity>> Activate<TEntity>(StaticDataDescriptor descriptor, string code, int version, long expectedRowVersion, bool global,
@@ -354,7 +374,7 @@ public sealed class StaticDataService<TDbContext>(
     /// Creates drafts for every line, all or nothing (SDM-012). Each line is validated, then inserted under a savepoint
     /// so every rejected line is reported, not just the first.
     /// </summary>
-    public async Task<Result<int>> Import<TEntity, TInput>(StaticDataDescriptor descriptor, IReadOnlyList<TInput> lines, string fileRef, bool global,
+    public async Task<Result<(int Count, Guid BatchId)>> Import<TEntity, TInput>(StaticDataDescriptor descriptor, IReadOnlyList<TInput> lines, string fileRef, bool global,
         CancellationToken cancellationToken)
         where TEntity : StaticRecord<TInput>, new()
         where TInput : StaticRecordInput
@@ -402,6 +422,7 @@ public sealed class StaticDataService<TDbContext>(
                     Version = 1,
                     EffectiveFrom = lines[i].EffectiveFrom ?? businessDate.Today,
                     RecordStatus = descriptor.Lifecycle.Draft,
+                    ImportBatchId = batchId,
                 };
                 entity.ApplyCommon(lines[i]);
                 entity.ApplyFields(lines[i], protector);
@@ -440,7 +461,193 @@ public sealed class StaticDataService<TDbContext>(
             AuditOutcome.Success);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return (lines.Count, batchId);
+    }
+
+    /// <summary>BR-016: an import's lines (its drafts, or the versions they became), in code order, for the maker and the checker.</summary>
+    public async Task<Result<IReadOnlyList<TEntity>>> ImportLines<TEntity>(Guid batchId, bool global, CancellationToken cancellationToken)
+        where TEntity : StaticRecord
+    {
+        await using var lease = Lease(global);
+        await using var transaction = await ReadOnly(lease.Context, cancellationToken);
+        var lines = await Scoped(lease.Context.Set<TEntity>().AsNoTracking(), global).Where(r => r.ImportBatchId == batchId)
+            .OrderBy(r => r.Code).ThenBy(r => r.Version).ToListAsync(cancellationToken);
+        return lines.Count == 0 ? Error.NotFound(ErrorCodes.NotFound, "The import was not found.") : lines;
+    }
+
+    /// <summary>
+    /// BR-016 (signed off 27 October 2026): the maker submits an import as one change. Every line must still be a draft of
+    /// theirs and pass the checks a draft passes alone; then all go to pending approval under one change request, whose
+    /// approval is bound to the hash of the complete import. Raises StaticDataImportSubmitted; the Static Data module
+    /// records the change request and asks Workflow for one approval of the table's tier.
+    /// </summary>
+    public async Task<Result<StaticImportSubmission>> SubmitImport<TEntity>(StaticDataDescriptor descriptor, Guid batchId, bool global, CancellationToken cancellationToken)
+        where TEntity : StaticRecord
+    {
+        if (RequireUser() is { } userError)
+        {
+            return userError;
+        }
+
+        if (CheckScope(descriptor, global) is { } scopeError)
+        {
+            return scopeError;
+        }
+
+        await using var lease = Lease(global);
+        var context = lease.Context;
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var lines = await Scoped(context.Set<TEntity>(), global).Where(r => r.ImportBatchId == batchId).OrderBy(r => r.Code).ThenBy(r => r.Version)
+            .ToListAsync(cancellationToken);
+        if (lines.Count == 0)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The import was not found.");
+        }
+
+        if (lines.FirstOrDefault(l => l.RecordStatus != descriptor.Lifecycle.Draft) is { } notDraft)
+        {
+            return InvalidTransition($"Line {notDraft.Code} is {notDraft.RecordStatus}: an import is submitted while every line is a draft.");
+        }
+
+        if (lines.Any(l => l.CreatedBy != execution.ActorId))
+        {
+            return Error.Forbidden(StaticDataErrorCodes.MakerOnly, "Only the maker who imported the lines submits the import (SDM-003).");
+        }
+
+        foreach (var line in lines)
+        {
+            if (await CheckSubmission(context, descriptor, line, cancellationToken) is { } refused)
+            {
+                return refused with { Message = $"Line {line.Code}: {refused.Message}" };
+            }
+        }
+
+        var changeRequestId = Guid.CreateVersion7();
+        foreach (var line in lines)
+        {
+            line.RecordStatus = descriptor.Lifecycle.PendingApproval;
+            line.ChangeRequestId = changeRequestId;
+        }
+
+        var hash = ImportHash(lines);
+        var maker = Guid.Parse(execution.ActorId);
+        context.Publish(new StaticDataImportSubmitted(changeRequestId, batchId, Ref(descriptor, lines[0]), lines.Count, hash, maker, descriptor.Tier,
+            descriptor.Scope.ToString(), lines.Min(l => l.EffectiveFrom), lines[0].ChangeReason ?? ""), "ImportBatch", batchId, clock.UtcNow);
+        context.PublishAudit([new AuditEntry("STATIC_DATA", "SubmitImport", descriptor.EntityCode, batchId.ToString(),
+            new Dictionary<string, string?> { ["changeRequest"] = changeRequestId.ToString(), ["lines"] = lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["hash"] = hash, ["global"] = global.ToString() })], AuditOutcome.Success);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Error.Conflict(ErrorCodes.ConcurrencyConflict, "A line was changed by another request. Read the import again and retry.");
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return new StaticImportSubmission(batchId, changeRequestId, lines.Count, hash);
+    }
+
+    /// <summary>
+    /// BR-016: the import's approval, from the Static Data module. Every line is approved in one transaction, and only if the
+    /// lines still hash as they did when submitted; otherwise nothing is applied and the delivery parks (D-5). Idempotent.
+    /// </summary>
+    public async Task ApplyImportApproval<TEntity>(StaticDataDescriptor descriptor, StaticDataImportApproved approved, CancellationToken cancellationToken)
+        where TEntity : StaticRecord =>
+        await ApplyDecision<TEntity>(approved.Record, async db =>
+        {
+            var lines = await db.Set<TEntity>().Where(r => r.ChangeRequestId == approved.ChangeRequestId).OrderBy(r => r.Code).ThenBy(r => r.Version)
+                .ToListAsync(cancellationToken);
+            if (lines.Count > 0 && lines.All(l => l.RecordStatus == descriptor.Lifecycle.Approved))
+            {
+                return;
+            }
+
+            if (lines.Count != approved.LineCount || lines.Any(l => l.RecordStatus != descriptor.Lifecycle.PendingApproval) || ImportHash(lines) != approved.Hash)
+            {
+                throw new Application.Messaging.PrerequisiteMissingException(Application.Messaging.PrerequisiteCodes.ApprovalNotApplied,
+                    $"STATIC_DATA_IMPORT:{approved.ChangeRequestId}");
+            }
+
+            foreach (var line in lines)
+            {
+                line.RecordStatus = descriptor.Lifecycle.Approved;
+                line.ApprovedAt = approved.ApprovedAt;
+                line.ApprovedBy = approved.CheckerId.ToString();
+            }
+        }, cancellationToken);
+
+    /// <summary>BR-016: an import not approved (rejected, expired, withdrawn) returns every line to draft, as a whole. Idempotent.</summary>
+    public async Task ApplyImportRejection<TEntity>(StaticDataDescriptor descriptor, StaticDataImportNotApproved rejected, CancellationToken cancellationToken)
+        where TEntity : StaticRecord =>
+        await ApplyDecision<TEntity>(rejected.Record, async db =>
+        {
+            foreach (var line in await db.Set<TEntity>().Where(r => r.ChangeRequestId == rejected.ChangeRequestId && r.RecordStatus == descriptor.Lifecycle.PendingApproval)
+                         .ToListAsync(cancellationToken))
+            {
+                line.RecordStatus = descriptor.Lifecycle.Draft;
+            }
+        }, cancellationToken);
+
+    /// <summary>BR-016: an approved import is put in force as a whole, every line in one transaction (SDM-009 for each).</summary>
+    public async Task<Result<int>> ActivateImport<TEntity>(StaticDataDescriptor descriptor, Guid batchId, bool global, CancellationToken cancellationToken)
+        where TEntity : StaticRecord
+    {
+        if (RequireUser() is { } userError)
+        {
+            return userError;
+        }
+
+        await using var lease = Lease(global);
+        var context = lease.Context;
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var lines = await Scoped(context.Set<TEntity>(), global).Where(r => r.ImportBatchId == batchId).ToListAsync(cancellationToken);
+        if (lines.Count == 0)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The import was not found.");
+        }
+
+        if (lines.FirstOrDefault(l => l.RecordStatus != descriptor.Lifecycle.Approved) is { } waiting)
+        {
+            return InvalidTransition($"Line {waiting.Code} is {waiting.RecordStatus}: an import is activated once every line is approved.");
+        }
+
+        foreach (var line in lines)
+        {
+            line.RecordStatus = descriptor.Lifecycle.Active;
+            context.Publish(new StaticDataVersionActivated(line.ChangeRequestId, Ref(descriptor, line), line.EffectiveFrom, line.EffectiveTo), descriptor.EntityName,
+                line.Id, clock.UtcNow);
+        }
+
+        context.PublishAudit([new AuditEntry("STATIC_DATA", "ActivateImport", descriptor.EntityCode, batchId.ToString(),
+            new Dictionary<string, string?> { ["lines"] = lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), ["global"] = global.ToString() })],
+            AuditOutcome.Success);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return lines.Count;
+    }
+
+    /// <summary>
+    /// The hash an import's approval is bound to: SHA-256 over every line in code order, each its full record without the
+    /// fields its approval itself changes (status, change request, approver, row version).
+    /// </summary>
+    public static string ImportHash(IEnumerable<StaticRecord> lines)
+    {
+        string[] volatileFields = ["recordStatus", "changeRequestId", "approvedAt", "approvedBy", "rowVersion", "displayLabel", "displayLabelLanguage"];
+        var text = new System.Text.StringBuilder();
+        foreach (var line in lines.OrderBy(l => l.Code, StringComparer.Ordinal).ThenBy(l => l.Version))
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(Snapshot(line))!.AsObject();
+            foreach (var field in volatileFields)
+            {
+                node.Remove(field);
+            }
+
+            text.Append(node.ToJsonString()).Append('\n');
+        }
+
+        return Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text.ToString())));
     }
 
     public static StaticRecordRef Ref(StaticDataDescriptor descriptor, StaticRecord entity) =>

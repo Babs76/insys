@@ -104,6 +104,14 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
 
     public string Reason { get; private set; } = "";
 
+    /// <summary>For an IMPORT change (BR-016): the import approved as one change.</summary>
+    public Guid? ImportBatchId { get; private set; }
+
+    /// <summary>For an IMPORT change: the hash of the import's lines when submitted, which the approval is bound to.</summary>
+    public string? ImportHash { get; private set; }
+
+    public const string ImportAction = "IMPORT";
+
     public static string KeyFor(string code, int version, bool global) => $"{(global ? "G:" : "")}{code}@{version}";
 
     /// <summary>Command SubmitChange, from the owning module's StaticDataChangeSubmitted.</summary>
@@ -137,6 +145,20 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
         }
 
         change.MarkChanged();
+        return change;
+    }
+
+    /// <summary>
+    /// Command SubmitImport (BR-016, signed off 27 October 2026): an import submitted as one change, from the owning module's
+    /// StaticDataImportSubmitted. One approval of the table's tier decides every line, bound to the hash of the lines.
+    /// </summary>
+    public static StaticDataChange SubmitImport(Guid id, string entityCode, Guid batchId, string hash, string after, Guid makerId, DateOnly effectiveFrom,
+        string reason, bool requiresChecker, string approvalType, DateTimeOffset now)
+    {
+        var change = SubmitChange(id, entityCode, "IB-" + batchId.ToString("N")[..16].ToUpperInvariant(), ImportAction, after, makerId, effectiveFrom, reason,
+            requiresChecker, approvalType, now);
+        change.ImportBatchId = batchId;
+        change.ImportHash = Guard.MaxLength(Guard.NotNullOrWhiteSpace(hash), 64);
         return change;
     }
 

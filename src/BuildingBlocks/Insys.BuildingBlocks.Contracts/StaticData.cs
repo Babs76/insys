@@ -65,3 +65,21 @@ public sealed record StaticDataImportCompleted(Guid BatchId, string EntityCode, 
 [IntegrationEvent("sdm.StaticDataImportRejected")]
 public sealed record StaticDataImportRejected(
     Guid BatchId, string EntityCode, string FileRef, int RowCount, Guid SubmittedBy, IReadOnlyList<ImportLineError> Errors) : IIntegrationEvent;
+
+/// <summary>
+/// BR-016: an import submitted as one change. Record is its first line, which names the table (and whether the rows are
+/// global); LineCount and Hash bind the approval to the complete import.
+/// </summary>
+[IntegrationEvent("sdm.StaticDataImportSubmitted")]
+public sealed record StaticDataImportSubmitted(
+    Guid ChangeRequestId, Guid BatchId, StaticRecordRef Record, int LineCount, string Hash, Guid MakerId, int Tier, string Scope, DateOnly EffectiveFrom, string Reason)
+    : IIntegrationEvent;
+
+/// <summary>BR-016: the import's one approval; the owning module approves every line, only if they still hash the same.</summary>
+[IntegrationEvent("sdm.StaticDataImportApproved")]
+public sealed record StaticDataImportApproved(Guid ChangeRequestId, Guid BatchId, StaticRecordRef Record, int LineCount, string Hash, Guid CheckerId, DateTimeOffset ApprovedAt)
+    : IIntegrationEvent;
+
+/// <summary>BR-016: the import was not approved (rejected, expired or withdrawn); every line returns to draft.</summary>
+[IntegrationEvent("sdm.StaticDataImportNotApproved")]
+public sealed record StaticDataImportNotApproved(Guid ChangeRequestId, Guid BatchId, StaticRecordRef Record, Guid CheckerId, string Reason) : IIntegrationEvent;

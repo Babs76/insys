@@ -58,7 +58,7 @@ internal static partial class Schema
     [
         "id", "tenant_id", "code", "version", "effective_from", "effective_to", "record_status", "supersedes_id", "labels", "description",
         "record_source", "record_source_version", "external_mappings", "record_class", "sort_order", "display_flags", "change_request_id",
-        "created_at", "created_by", "approved_at", "approved_by", "change_reason", "row_version",
+        "created_at", "created_by", "approved_at", "approved_by", "change_reason", "row_version", "import_batch_id",
     ];
 
     [GeneratedRegex(@"^CREATE TABLE (?<schema>[a-z_]+)\.(?<table>[a-z0-9_]+) \($")]

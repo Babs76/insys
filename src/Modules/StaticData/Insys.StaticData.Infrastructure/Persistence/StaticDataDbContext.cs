@@ -66,6 +66,7 @@ public sealed class StaticDataDbContext(DbContextOptions<StaticDataDbContext> op
             change.Property(c => c.Before).HasColumnType("jsonb");
             change.Property(c => c.After).HasColumnType("jsonb");
             change.Property(c => c.Status).HasConversion(new UpperCaseEnumConverter<ChangeStatus>()).HasMaxLength(15);
+            change.Property(c => c.ImportHash).HasColumnType("char(64)");
         });
 
         modelBuilder.Entity<ImportBatch>(batch =>

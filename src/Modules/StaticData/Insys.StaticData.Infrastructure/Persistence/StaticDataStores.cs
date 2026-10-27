@@ -110,6 +110,9 @@ internal sealed class StaticDataEventMapper : IDomainEventMapper
 {
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
     {
+        Domain.Changes.StaticDataChangeApproved approved when Import(approved.RecordRef) is { } import =>
+            new BuildingBlocks.Contracts.StaticData.StaticDataImportApproved(approved.ChangeRequestId, import.BatchId, Record(approved.RecordRef), import.LineCount,
+                import.Hash, approved.CheckerId, approved.OccurredAt),
         Domain.Changes.StaticDataChangeApproved approved =>
             new BuildingBlocks.Contracts.StaticData.StaticDataChangeApproved(approved.ChangeRequestId, Record(approved.RecordRef), approved.CheckerId, approved.OccurredAt),
         Domain.Changes.StaticDataApprovalNeeded needed =>
@@ -118,10 +121,23 @@ internal sealed class StaticDataEventMapper : IDomainEventMapper
         Domain.Changes.GovernanceChangeRequested requested =>
             new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.StaticDataApprovals.GovernanceBusinessRefType, requested.SettingsId, requested.ApprovalType,
                 requested.RequestedBy, null, null, "Switch Tier 2 maker-checker off"),
+        Domain.Changes.StaticDataChangeRejected rejected when Import(rejected.RecordRef) is { } import =>
+            new BuildingBlocks.Contracts.StaticData.StaticDataImportNotApproved(rejected.ChangeRequestId, import.BatchId, Record(rejected.RecordRef), rejected.CheckerId,
+                rejected.Reason),
         Domain.Changes.StaticDataChangeRejected rejected =>
             new BuildingBlocks.Contracts.StaticData.StaticDataChangeRejected(rejected.ChangeRequestId, Record(rejected.RecordRef), rejected.CheckerId, rejected.Reason),
         _ => null,
     };
+
+    /// <summary>An IMPORT change's after (BR-016): its import, line count and hash; null for a change of one version.</summary>
+    private static (Guid BatchId, int LineCount, string Hash)? Import(string json)
+    {
+        using var after = JsonDocument.Parse(json);
+        var root = after.RootElement;
+        return root.TryGetProperty("batchId", out var batch) && root.TryGetProperty("lineCount", out var count) && root.TryGetProperty("hash", out var hash)
+            ? (batch.GetGuid(), count.GetInt32(), hash.GetString()!)
+            : null;
+    }
 
     private static StaticRecordRef Record(string json) =>
         JsonSerializer.Deserialize<StaticRecordRef>(json, StaticDataGovernancePolicies.Json) ?? throw new InvalidOperationException("Change request without a record reference.");

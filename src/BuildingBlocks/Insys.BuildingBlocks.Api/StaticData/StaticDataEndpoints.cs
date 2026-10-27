@@ -49,7 +49,11 @@ public static class StaticDataPermissions
 /// <summary>A bulk load of drafts (SDM-012).</summary>
 public sealed record StaticDataImport<TInput>(string FileRef, IReadOnlyList<TInput> Lines);
 
-public sealed record StaticDataImportResult(int Imported);
+/// <param name="BatchId">The import (BR-016): its lines are read, submitted as one change and activated together under /imports/{batchId}.</param>
+public sealed record StaticDataImportResult(int Imported, Guid BatchId);
+
+/// <summary>An import submitted as one change (BR-016): its change request, and the hash of its lines its approval is bound to.</summary>
+public sealed record StaticDataImportSubmissionResult(Guid BatchId, Guid ChangeRequestId, int Lines, string Hash);
 
 /// <summary>
 /// The generated endpoints for one static data table, under /api/v1/{module}/static/{entity}. The version segment is
@@ -208,13 +212,38 @@ public static class StaticDataEndpoints
                 .Secure(global, StaticDataPermissions.Update);
 
             scope.MapPost("/imports", async (StaticDataImport<TInput> import, StaticDataService<TDbContext> service, CancellationToken ct) =>
-                    (await service.Import<TEntity, TInput>(d, import.Lines, import.FileRef, global, ct)).ToHttp(count => Results.Ok(new StaticDataImportResult(count))))
+                    (await service.Import<TEntity, TInput>(d, import.Lines, import.FileRef, global, ct))
+                    .ToHttp(imported => Results.Ok(new StaticDataImportResult(imported.Count, imported.BatchId))))
                 .Produces<StaticDataImportResult>(StatusCodes.Status200OK)
                 .WithName($"Import{Pascal(d)}{suffix}")
                 .WithSummary($"Import {owner} {entityName} drafts, all or nothing")
-                .WithDescription("Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012).")
+                .WithDescription("Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the "
+                    + "import's lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.")
                 .Secure(global, StaticDataPermissions.Create)
                 .RequireIdempotencyKey();
+
+            scope.MapGet("/imports/{batchId:guid}", async (Guid batchId, StaticDataService<TDbContext> service, HttpContext http, CancellationToken ct) =>
+                    (await service.ImportLines<TEntity>(batchId, global, ct)).ToHttp(lines => Results.Ok(lines.Select(l => StaticLabels.Localise(l, Chain(http))).ToList())))
+                .Produces<IReadOnlyList<TEntity>>(StatusCodes.Status200OK)
+                .WithName($"Get{Pascal(d)}Import{suffix}")
+                .WithSummary($"Every line of a {owner} {entityName} import, in code order")
+                .WithDescription("What the checker approves as one change (BR-016): each line's proposed record, its status, and its change request once submitted.")
+                .Secure(global, StaticDataPermissions.Read);
+
+            scope.MapPost("/imports/{batchId:guid}/{action:regex(^(submit|activate)$)}", async (Guid batchId, string action, StaticDataService<TDbContext> service,
+                    CancellationToken ct) => action == "submit"
+                    ? (await service.SubmitImport<TEntity>(d, batchId, global, ct))
+                        .ToHttp(s => Results.Ok(new StaticDataImportSubmissionResult(s.BatchId, s.ChangeRequestId, s.Lines, s.Hash)))
+                    : (await service.ActivateImport<TEntity>(d, batchId, global, ct)).ToHttp(count => Results.Ok(new StaticDataImportResult(count, batchId))))
+                .Produces<StaticDataImportSubmissionResult>(StatusCodes.Status200OK)
+                .WithName($"Change{Pascal(d)}Import{suffix}")
+                .WithSummary($"Submit a {owner} {entityName} import as one change, or put an approved one in force")
+                .WithDescription("submit (BR-016) returns the submission: every line must be a draft of the caller's; all go to one change request and one "
+                    + "approval of the table's tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is "
+                    + "approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once "
+                    + "approved, every line is put in force together.")
+                .WithEventualEffects("after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.")
+                .Secure(global, StaticDataPermissions.Update);
         }
     }
 

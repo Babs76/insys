@@ -218,6 +218,7 @@ internal sealed class ListImportBatchesHandler(IChangeRequestQueries queries) : 
 /// </summary>
 public sealed class StaticDataGovernancePolicies(IChangeRequestRepository changes, IClock clock) :
     IIntegrationEventHandler<StaticDataChangeSubmitted>,
+    IIntegrationEventHandler<StaticDataImportSubmitted>,
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<StaticDataVersionActivated>,
@@ -234,6 +235,28 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
         changes.Add(StaticDataChange.SubmitChange(submitted.ChangeRequestId, record.EntityCode, StaticDataChange.KeyFor(record.Code, record.Version, record.Global),
             submitted.Action, JsonSerializer.Serialize(record, Json), submitted.MakerId, submitted.EffectiveFrom, submitted.Reason,
             MakerCheckerPolicy.RequiresChecker(submitted.Tier, tier2MakerChecker), StaticDataApprovals.ApprovalType(submitted.Tier), clock.UtcNow));
+    }
+
+    /// <summary>
+    /// BR-016: an import submitted as one change. Its change request's after names the import, its line count and hash, and
+    /// the table (the first line's reference), so the decision goes back to the owning module as an import decision.
+    /// </summary>
+    public async Task Handle(StaticDataImportSubmitted submitted, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await changes.Get(submitted.ChangeRequestId, cancellationToken) is not null)
+        {
+            return;
+        }
+
+        var record = submitted.Record;
+        var after = JsonSerializer.SerializeToNode(record, Json)!.AsObject();
+        after["batchId"] = submitted.BatchId;
+        after["lineCount"] = submitted.LineCount;
+        after["hash"] = submitted.Hash;
+        var tier2MakerChecker = (await changes.Settings(cancellationToken))?.Tier2MakerChecker ?? true;
+        changes.Add(StaticDataChange.SubmitImport(submitted.ChangeRequestId, record.EntityCode, submitted.BatchId, submitted.Hash, after.ToJsonString(Json),
+            submitted.MakerId, submitted.EffectiveFrom, submitted.Reason, MakerCheckerPolicy.RequiresChecker(submitted.Tier, tier2MakerChecker),
+            StaticDataApprovals.ApprovalType(submitted.Tier), clock.UtcNow));
     }
 
     /// <summary>
