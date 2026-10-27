@@ -256,14 +256,14 @@ public sealed class LifeClaim : AggregateRoot<Guid>
 
     /// <summary>Command NotifyClaim: the event, on an insured life of the policy, by a claimant. Checked in full at registration.</summary>
     public static Result<LifeClaim> NotifyClaim(Guid id, LifePolicy policy, string claimType, DateOnly eventDate, string? causeCode, Guid claimantPartyId, Guid insuredLifeId,
-        DateTimeOffset now)
+        DateOnly today, DateTimeOffset now)
     {
         if (policy.Lives.All(l => l.Id != insuredLifeId))
         {
             return Error.Validation(LifeErrorCodes.NotCovered, "The insured life is not on the policy.");
         }
 
-        if (eventDate > DateOnly.FromDateTime(now.UtcDateTime))
+        if (eventDate > today)
         {
             return Error.Validation(ErrorCodes.ValidationFailed, "The event date is not in the future.");
         }

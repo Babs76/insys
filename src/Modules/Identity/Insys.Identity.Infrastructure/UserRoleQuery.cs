@@ -35,7 +35,7 @@ using Npgsql;
 namespace Insys.Identity.Infrastructure;
 
 /// <summary>The roles an active user holds today, read on Identity's own connection and role (ADR-001).</summary>
-internal sealed class UserRoleQuery([FromKeyedServices(IdentityDbContext.SchemaName)] NpgsqlDataSource dataSource, IClock clock) : IUserRoleQuery
+internal sealed class UserRoleQuery([FromKeyedServices(IdentityDbContext.SchemaName)] NpgsqlDataSource dataSource, TenantBusinessDates dates) : IUserRoleQuery
 {
     public async Task<IReadOnlyList<string>> EffectiveRoles(Guid tenantId, Guid userId, CancellationToken cancellationToken)
     {
@@ -52,7 +52,7 @@ internal sealed class UserRoleQuery([FromKeyedServices(IdentityDbContext.SchemaN
         command.Parameters.AddWithValue("active", UpperCaseEnumConverter<UserStatus>.ToCode(UserStatus.Active));
         command.Parameters.AddWithValue("t", tenantId);
         command.Parameters.AddWithValue("id", userId);
-        command.Parameters.AddWithValue("today", clock.UtcToday);
+        command.Parameters.AddWithValue("today", dates.TodayFor(tenantId));
         var roles = new List<string>();
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {

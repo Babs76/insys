@@ -87,7 +87,7 @@ public sealed class PaymentTests
         var payment = New();
         payment.Sent(ProviderOutcome.Pending, "EXT-1", null, Today, Now);
 
-        payment.MarkUnknown(Now.AddDays(1)).IsSuccess.ShouldBeTrue();
+        payment.MarkUnknown(Today.AddDays(1), Now.AddDays(1)).IsSuccess.ShouldBeTrue();
 
         payment.Status.ShouldBe(PaymentStatus.Unknown);
         payment.DomainEvents.OfType<PaymentConfirmed>().ShouldBeEmpty();

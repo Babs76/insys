@@ -228,7 +228,7 @@ internal sealed class NotifyLossHandler(IGeneralRepository general, IGeneralCode
     }
 }
 
-internal sealed class RegisterClaimHandler(IGeneralRepository general, IClaimRegistry registry, IClock clock, IAuditTrail audit) : ICommandHandler<RegisterClaim, ClaimView>
+internal sealed class RegisterClaimHandler(IGeneralRepository general, IClaimRegistry registry, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<RegisterClaim, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(RegisterClaim command, CancellationToken cancellationToken)
     {
@@ -254,7 +254,7 @@ internal sealed class RegisterClaimHandler(IGeneralRepository general, IClaimReg
         var facts = JsonSerializer.SerializeToElement(new Dictionary<string, object?>
         {
             ["days_since_inception"] = claim.LossDate.DayNumber - policy.PeriodStart.DayNumber,
-            ["days_to_notification"] = DateOnly.FromDateTime(claim.NotifiedAt.UtcDateTime).DayNumber - claim.LossDate.DayNumber,
+            ["days_to_notification"] = businessDate.DateOf(claim.NotifiedAt).DayNumber - claim.LossDate.DayNumber,
             ["peril_code"] = claim.PerilCode,
             ["cause_code"] = claim.CauseCode,
             ["catastrophe"] = claim.CatEventCode is not null,

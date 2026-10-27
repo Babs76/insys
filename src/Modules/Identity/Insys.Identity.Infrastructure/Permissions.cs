@@ -111,7 +111,8 @@ public sealed class PrincipalResolver(
     FunctionCatalogueReader catalogue,
     ITenantFunctionSettings functionSettings,
     IOptions<PlatformOptions> platform,
-    IClock clock) : IPrincipalResolver
+    IClock clock,
+    TenantBusinessDates dates) : IPrincipalResolver
 {
     private static readonly string[] RoleStatuses = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RolesAndPermissionSets)).Lifecycle.InForce;
     private static readonly string[] GrantStatuses = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RoleFunctionAssignments)).Lifecycle.InForce;
@@ -227,7 +228,7 @@ public sealed class PrincipalResolver(
         {
             load.Parameters.AddWithValue("statuses", RoleStatuses);
             load.Parameters.AddWithValue("grants", GrantStatuses);
-            load.Parameters.AddWithValue("today", clock.UtcToday);
+            load.Parameters.AddWithValue("today", dates.TodayFor(tenantId));
             load.Parameters.AddWithValue("t", tenantId);
             load.Parameters.AddWithValue("id", userId);
             await using var reader = await load.ExecuteReaderAsync(cancellationToken);
@@ -257,12 +258,12 @@ public sealed class PrincipalResolver(
         await transaction.CommitAsync(cancellationToken);
         var external = link is { } l
             ? new ExternalSubject(l.Kind, l.Party, l.Intermediary,
-                l.Intermediary is { } code ? await intermediaries.WithSubBrokers(tenantId, code, clock.UtcToday, cancellationToken) : new HashSet<string>(), l.Provider)
+                l.Intermediary is { } code ? await intermediaries.WithSubBrokers(tenantId, code, dates.TodayFor(tenantId), cancellationToken) : new HashSet<string>(), l.Provider)
             : null;
         // The functions the tenant allows now, and the permissions they require: the user's permissions (ADR-026 §2).
         var refusals = await Refusals(tenantId, configurationOnly, cancellationToken);
         var usable = granted.Where(g => refusals.TryGetValue(g.Function, out var refusal) && refusal == ErrorCodes.FunctionNotGranted).ToList();
-        var functions = await catalogue.Functions(clock.UtcToday, cancellationToken);
+        var functions = await catalogue.Functions(dates.TodayFor(tenantId), cancellationToken);
         var scoped = usable.SelectMany(g => functions[g.Function].Permissions.Select(p => (Permission: p, g.Products, g.Branches))).ToList();
         var permissions = scoped.Select(s => s.Permission).ToHashSet(StringComparer.Ordinal);
         return new ResolvedPrincipal(userId, permissions, await Grants(tenantId, scoped, cancellationToken), roles, external, configurationOnly,
@@ -276,7 +277,7 @@ public sealed class PrincipalResolver(
     /// </summary>
     private async Task<IReadOnlyDictionary<string, string>> Refusals(Guid tenantId, bool configurationOnly, CancellationToken cancellationToken)
     {
-        var day = clock.UtcToday;
+        var day = dates.TodayFor(tenantId);
         var settings = await functionSettings.For(tenantId, day, cancellationToken);
         var isOperator = tenantId == platform.Value.OperatorTenantId;
         return (await catalogue.Functions(day, cancellationToken)).Values.ToDictionary(f => f.Code, f =>
@@ -299,7 +300,7 @@ public sealed class PrincipalResolver(
             return null;
         }
 
-        var nodes = scoped.Any(s => !Empty(s.Branches)) ? await organisation.Nodes(tenantId, clock.UtcToday, cancellationToken) : [];
+        var nodes = scoped.Any(s => !Empty(s.Branches)) ? await organisation.Nodes(tenantId, dates.TodayFor(tenantId), cancellationToken) : [];
         var grants = new Dictionary<string, IReadOnlyList<PermissionGrant>>(StringComparer.Ordinal);
         foreach (var permission in scoped.GroupBy(s => s.Permission))
         {

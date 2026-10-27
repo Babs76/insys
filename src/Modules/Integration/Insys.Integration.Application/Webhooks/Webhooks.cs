@@ -105,7 +105,7 @@ public static class WebhookSignatures
 }
 
 internal sealed class WebhookHandlers(IWebhookRepository deliveries, IWebhookCodes codes, IWebhookTransport transport, ISecretStore secrets,
-    IDeadLetterRepository deadLetters, IClock clock, IAuditTrail audit) :
+    IDeadLetterRepository deadLetters, IClock clock, IBusinessDate businessDate, IAuditTrail audit) :
     ICommandHandler<AttemptDelivery, WebhookDeliveryView>,
     ICommandHandler<RetryDelivery, WebhookDeliveryView>,
     IQueryHandler<ListDeliveries, IReadOnlyList<WebhookDeliveryView>>,
@@ -128,8 +128,8 @@ internal sealed class WebhookHandlers(IWebhookRepository deliveries, IWebhookCod
             return WebhookDeliveryView.From(delivery);
         }
 
-        var subscription = await codes.Subscription(delivery.SubscriptionId, clock.UtcToday, cancellationToken);
-        var policy = subscription?.RetryPolicy is { } code ? await codes.RetryPolicy(code, clock.UtcToday, cancellationToken) ?? RetryPolicy.Default : RetryPolicy.Default;
+        var subscription = await codes.Subscription(delivery.SubscriptionId, businessDate.Today, cancellationToken);
+        var policy = subscription?.RetryPolicy is { } code ? await codes.RetryPolicy(code, businessDate.Today, cancellationToken) ?? RetryPolicy.Default : RetryPolicy.Default;
         (int? Status, string? Error) outcome;
         if (subscription is null)
         {
@@ -189,11 +189,11 @@ internal sealed class WebhookHandlers(IWebhookRepository deliveries, IWebhookCod
 /// DeliverEvent): one delivery per partner subscription in force that lists the event's type. The delivery sends the
 /// event's identity and its payload, which carries no medical or identity data (INT-007).
 /// </summary>
-public sealed class WebhookPolicy(IWebhookRepository deliveries, IWebhookCodes codes, IClock clock) : IIntegrationEventHandler<AnyIntegrationEvent>
+public sealed class WebhookPolicy(IWebhookRepository deliveries, IWebhookCodes codes, IClock clock, IBusinessDate businessDate) : IIntegrationEventHandler<AnyIntegrationEvent>
 {
     public async Task Handle(AnyIntegrationEvent integrationEvent, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        var subscriptions = await codes.SubscriptionsFor(envelope.EventType, clock.UtcToday, cancellationToken);
+        var subscriptions = await codes.SubscriptionsFor(envelope.EventType, businessDate.Today, cancellationToken);
         if (subscriptions.Count == 0)
         {
             return;

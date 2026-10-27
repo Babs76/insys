@@ -121,7 +121,7 @@ public sealed class PartitionHorizonHealthCheck(PartitionMaintainer maintainer, 
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         var horizon = await maintainer.Horizon(cancellationToken);
-        var limit = clock.UtcToday.AddMonths(options.Value.WarnBelowMonths);
+        var limit = clock.UtcToday.AddMonths(options.Value.WarnBelowMonths); // technical UTC date: audit partitions are by UTC month
         var short_ = horizon.Where(h => h.Value is null || h.Value < limit).Select(h => $"{h.Key} until {h.Value?.ToString("yyyy-MM-dd") ?? "none"}").ToList();
         return short_.Count == 0
             ? HealthCheckResult.Healthy()

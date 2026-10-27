@@ -182,14 +182,15 @@ internal sealed class MenuBuilder(FunctionCatalogueReader catalogue) : Applicati
 /// for the permission cache's time; an activated availability or entitlement evicts it.
 /// </summary>
 public sealed class FunctionAvailability(FunctionCatalogueReader catalogue, Tenancy.Contracts.ITenantFunctionSettings settings,
-    Microsoft.Extensions.Options.IOptions<BuildingBlocks.Application.Context.PlatformOptions> platform, BuildingBlocks.Application.Context.IClock clock)
+    Microsoft.Extensions.Options.IOptions<BuildingBlocks.Application.Context.PlatformOptions> platform, BuildingBlocks.Application.Context.IClock clock,
+    BuildingBlocks.Application.Context.TenantBusinessDates dates)
     : BuildingBlocks.Application.Context.IFunctionAvailability
 {
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (DateTimeOffset At, Tenancy.Contracts.TenantFunctionSettings Settings)> _tenants = new();
 
     public async Task<bool> IsEnabled(Guid tenantId, string functionCode, CancellationToken cancellationToken)
     {
-        var day = clock.UtcToday;
+        var day = dates.TodayFor(tenantId);
         if (!(await catalogue.Functions(day, cancellationToken)).TryGetValue(functionCode, out var function))
         {
             return false;
@@ -208,8 +209,9 @@ public sealed class FunctionAvailability(FunctionCatalogueReader catalogue, Tena
 
     public async Task<IReadOnlyList<string>> JobsSwitchedOff(Guid tenantId, CancellationToken cancellationToken)
     {
-        var jobs = (await catalogue.Functions(clock.UtcToday, cancellationToken)).Values.Where(f => f.Kind == "JOB").Select(f => f.Code).ToHashSet(StringComparer.Ordinal);
-        return (await settings.For(tenantId, clock.UtcToday, cancellationToken)).DisabledFunctions.Where(jobs.Contains).Order(StringComparer.Ordinal).ToList();
+        var day = dates.TodayFor(tenantId);
+        var jobs = (await catalogue.Functions(day, cancellationToken)).Values.Where(f => f.Kind == "JOB").Select(f => f.Code).ToHashSet(StringComparer.Ordinal);
+        return (await settings.For(tenantId, day, cancellationToken)).DisabledFunctions.Where(jobs.Contains).Order(StringComparer.Ordinal).ToList();
     }
 
     public void Evict(Guid? tenantId)

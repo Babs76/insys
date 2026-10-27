@@ -42,7 +42,7 @@ namespace Insys.Integration.Infrastructure.Persistence;
 /// rows for every channel (channel_code empty), whose label_key is an error code's message_key ("title") or its
 /// message_key plus ".detail". A tenant's own rows replace the global ones. Cached for a minute per tenant and language.
 /// </summary>
-public sealed class MessageCatalogue([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IMemoryCache cache, IClock clock)
+public sealed class MessageCatalogue([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IMemoryCache cache, TenantBusinessDates dates)
     : IMessageCatalogue
 {
     private const string DetailSuffix = ".detail";
@@ -76,7 +76,8 @@ public sealed class MessageCatalogue([FromKeyedServices(IntegrationDbContext.Sch
             ORDER BY b.tenant_id NULLS FIRST, b.version
             """, connection, transaction);
         command.Parameters.AddWithValue("statuses", StaticLifecycle.Reference.InForce);
-        command.Parameters.AddWithValue("day", clock.UtcToday);
+        // A request with no tenant reads the global texts on the default zone's date.
+        command.Parameters.AddWithValue("day", dates.TodayFor(tenantId ?? Guid.Empty));
         command.Parameters.AddWithValue("language", language);
         var titles = new Dictionary<string, string>(StringComparer.Ordinal);
         var details = new Dictionary<string, string>(StringComparer.Ordinal);

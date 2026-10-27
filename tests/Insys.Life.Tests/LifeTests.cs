@@ -341,7 +341,7 @@ public sealed class LifeTests
     public void ApprovalBelowTheAmountClaimed_IsAPartialApproval_WithAPartialReason_AndARightsNotice_OQ102()
     {
         var policy = Policy(Today.AddMonths(-3));
-        var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Now).Value;
+        var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Today, Now).Value;
         claim.RegisterClaim("CLM-LIFE-P", Now);
         var death = policy.Benefits.Single(b => b.BenefitCode == "DEATH");
         claim.AssessClaim([new BenefitLineRequest(death.Id, death.SumAssured - 250_000m)], new Dictionary<Guid, decimal> { [death.Id] = death.SumAssured }).IsSuccess.ShouldBeTrue();
@@ -366,7 +366,7 @@ public sealed class LifeTests
     public void UpheldDispute_ReopensADeclinedClaimForAssessment_OQ103()
     {
         var policy = Policy(Today.AddMonths(-3));
-        var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Now).Value;
+        var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Today, Now).Value;
         claim.RegisterClaim("CLM-LIFE-R", Now);
         claim.ReopenForCase("CASE-1").ShouldBeFalse("a registered claim is open");
         var death = policy.Benefits.Single(b => b.BenefitCode == "DEATH");
@@ -389,7 +389,7 @@ public sealed class LifeTests
     public void ClaimApproval_SplitsTheNetAmountBySharesAfterTheLoan_AndIsBoundToItsSubject_CLM003()
     {
         var policy = Policy(Today.AddMonths(-3));
-        var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Now).Value;
+        var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Today, Now).Value;
         claim.RegisterClaim("CLM-LIFE-1", Now);
         var death = policy.Benefits.Single(b => b.BenefitCode == "DEATH");
         claim.AssessClaim([new BenefitLineRequest(death.Id, 1_000_001m)], new Dictionary<Guid, decimal> { [death.Id] = death.SumAssured }).IsFailure.ShouldBeTrue();
@@ -525,7 +525,7 @@ public sealed class LifeTests
     public void ClaimApproval_EveryEndingOtherThanApproval_KeepsTheClaimInAssessment_AndARedeliveryIsAlreadyApplied(bool withChecker)
     {
         var policy = Policy(Today.AddMonths(-3));
-        var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Now).Value;
+        var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Today, Now).Value;
         claim.RegisterClaim("CLM-LIFE-2", Now);
         var death = policy.Benefits.Single(b => b.BenefitCode == "DEATH");
         claim.AssessClaim([new BenefitLineRequest(death.Id, 1_000_000m)], new Dictionary<Guid, decimal> { [death.Id] = death.SumAssured }).IsSuccess.ShouldBeTrue();

@@ -232,7 +232,7 @@ internal sealed class ProvisionUserHandler(IUserRepository users, IExecutionCont
     }
 }
 
-internal sealed class AssignRoleHandler(IUserRepository users, IRolePolicyReader policy, IExecutionContext execution, ITenantContext tenant, IClock clock,
+internal sealed class AssignRoleHandler(IUserRepository users, IRolePolicyReader policy, IExecutionContext execution, ITenantContext tenant, IClock clock, IBusinessDate businessDate,
     IAuditTrail audit, IAfterCommit afterCommit, IPermissionCache cache) : ICommandHandler<AssignRole, long>
 {
     public async Task<Result<long>> Handle(AssignRole command, CancellationToken cancellationToken)
@@ -249,7 +249,7 @@ internal sealed class AssignRoleHandler(IUserRepository users, IRolePolicyReader
             return user.Error;
         }
 
-        var today = clock.UtcToday;
+        var today = businessDate.Today;
         var held = user.Value.EffectiveAssignments(today).Select(a => a.RoleCode).ToList();
         var roles = await policy.Roles([command.RoleCode, .. held], today, cancellationToken);
         var role = roles.FirstOrDefault(r => r.RoleCode == command.RoleCode) ?? new RoleFacts(command.RoleCode, false, new HashSet<string>(), false);
@@ -271,7 +271,7 @@ internal sealed class AssignRoleHandler(IUserRepository users, IRolePolicyReader
     }
 }
 
-internal sealed class RevokeRoleHandler(IUserRepository users, IExecutionContext execution, ITenantContext tenant, IClock clock, IAuditTrail audit,
+internal sealed class RevokeRoleHandler(IUserRepository users, IExecutionContext execution, ITenantContext tenant, IClock clock, IBusinessDate businessDate, IAuditTrail audit,
     IAfterCommit afterCommit, IPermissionCache cache) : ICommandHandler<RevokeRole, long>
 {
     public async Task<Result<long>> Handle(RevokeRole command, CancellationToken cancellationToken)
@@ -290,7 +290,7 @@ internal sealed class RevokeRoleHandler(IUserRepository users, IExecutionContext
 
         audit.Record(new AuditEntry("IDENTITY", "RevokeRole", nameof(UserAccount), command.UserId.ToString(),
             new Dictionary<string, string?> { ["role"] = command.RoleCode }));
-        var result = user.Value.RevokeRole(command.RoleCode, administrator.Value, clock.UtcToday, clock.UtcNow);
+        var result = user.Value.RevokeRole(command.RoleCode, administrator.Value, businessDate.Today, clock.UtcNow);
         if (result.IsFailure)
         {
             return result.Error;
@@ -350,10 +350,10 @@ internal sealed class ListScopedAssignmentsHandler(IUserQueries queries) : IQuer
         Result.Success(await queries.ScopedAssignments(cancellationToken));
 }
 
-internal sealed class ListRolesHandler(IRolePolicyReader roles, IClock clock) : IQueryHandler<ListRoles, IReadOnlyList<RoleView>>
+internal sealed class ListRolesHandler(IRolePolicyReader roles, IBusinessDate businessDate) : IQueryHandler<ListRoles, IReadOnlyList<RoleView>>
 {
     public async Task<Result<IReadOnlyList<RoleView>>> Handle(ListRoles query, CancellationToken cancellationToken) =>
-        Result.Success<IReadOnlyList<RoleView>>((await roles.AllRoles(clock.UtcToday, cancellationToken))
+        Result.Success<IReadOnlyList<RoleView>>((await roles.AllRoles(businessDate.Today, cancellationToken))
             .Select(r => new RoleView(r.RoleCode, r.Privileged, r.RequiresMfa, r.Privileged, [.. r.Permissions.Order(StringComparer.Ordinal)], r.ScopeProducts,
                 r.ScopeBranches))
             .ToList());

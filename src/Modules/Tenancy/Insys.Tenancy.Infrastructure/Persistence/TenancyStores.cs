@@ -170,7 +170,8 @@ internal sealed class TenantLocaleDefaults([FromKeyedServices(TenancyDbContext.S
             """, connection, transaction);
         command.Parameters.AddWithValue("t", tenantId);
         command.Parameters.AddWithValue("statuses", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce);
-        command.Parameters.AddWithValue("day", DateOnly.FromDateTime(DateTime.UtcNow));
+        // The zone is what makes a business date, so finding it can only use the UTC date.
+        command.Parameters.AddWithValue("day", DateOnly.FromDateTime(DateTime.UtcNow)); // technical UTC date: the tenant's time zone itself is being read
         var value = command.ExecuteScalar() as string;
         transaction.Commit();
         return value;
@@ -199,7 +200,7 @@ internal sealed class TenantLocaleDefaults([FromKeyedServices(TenancyDbContext.S
 /// A tenant's languages and default language from its locale defaults in force (docs/specs/addenda/localisation.md §1,
 /// OQ-068). English only when none is in force. Cached for a minute, like the other per-request lookups.
 /// </summary>
-public sealed class TenantLanguageSettings([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource, IMemoryCache cache, IClock clock)
+public sealed class TenantLanguageSettings([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource, IMemoryCache cache, TenantBusinessDates dates)
     : ILanguageSettings
 {
     private static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(1);
@@ -221,7 +222,7 @@ public sealed class TenantLanguageSettings([FromKeyedServices(TenancyDbContext.S
             """, connection, transaction);
         command.Parameters.AddWithValue("t", tenantId);
         command.Parameters.AddWithValue("statuses", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce);
-        command.Parameters.AddWithValue("day", clock.UtcToday);
+        command.Parameters.AddWithValue("day", dates.TodayFor(tenantId));
         var result = TenantLanguages.EnglishOnly;
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {

@@ -73,7 +73,7 @@ internal sealed class PlanProductsGuard : IStaticSetGuard
 /// (addenda/health-plan-products.md §1, §4). Until fixed, its memberships are outside product scopes or wrongly scoped.
 /// </summary>
 internal sealed class PlanProductsHealthCheck([FromKeyedServices(HealthDbContext.SchemaName)] NpgsqlDataSource dataSource, ITenantDirectory tenants,
-    ProductFactory.Contracts.IProductDomains products) : IHealthCheck
+    ProductFactory.Contracts.IProductDomains products, TenantBusinessDates dates) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
@@ -88,11 +88,12 @@ internal sealed class PlanProductsHealthCheck([FromKeyedServices(HealthDbContext
                 await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
                 await using var command = new NpgsqlCommand("""
                     SELECT DISTINCT ON (plan_code, option_code) plan_code, option_code, product_code FROM health.cfg_plans_and_options
-                    WHERE tenant_id = @t AND record_status = ANY(@s) AND effective_from <= CURRENT_DATE AND (effective_to IS NULL OR effective_to > CURRENT_DATE)
+                    WHERE tenant_id = @t AND record_status = ANY(@s) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
                     ORDER BY plan_code, option_code, version DESC
                     """, connection, transaction);
                 command.Parameters.AddWithValue("t", tenantId);
                 command.Parameters.AddWithValue("s", statuses);
+                command.Parameters.AddWithValue("day", dates.TodayFor(tenantId));
                 await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
                 {
                     while (await reader.ReadAsync(cancellationToken))

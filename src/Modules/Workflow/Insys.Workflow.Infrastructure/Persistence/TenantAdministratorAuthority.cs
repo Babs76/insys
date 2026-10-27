@@ -43,7 +43,7 @@ namespace Insys.Workflow.Infrastructure.Persistence;
 /// the role gets them, so an additional administrator, or a tenant that has changed its own, is left as it is.
 /// The event is published in the administrator's own tenant, so the rows are written there as any consumer's are.
 /// </summary>
-public sealed class TenantAdministratorAuthority(WorkflowDbContext db, ITenantContext tenant, IClock clock) : IIntegrationEventHandler<AdministratorGranted>
+public sealed class TenantAdministratorAuthority(WorkflowDbContext db, ITenantContext tenant, IClock clock, IBusinessDate businessDate) : IIntegrationEventHandler<AdministratorGranted>
 {
     public static readonly IReadOnlyList<string> ApprovalTypes =
         [IdentityApprovals.ApprovalType, IdentityApprovals.SubjectLinkApprovalType, StaticDataApprovals.ApprovalType(1), StaticDataApprovals.ApprovalType(2)];
@@ -66,7 +66,7 @@ public sealed class TenantAdministratorAuthority(WorkflowDbContext db, ITenantCo
                 TenantId = tenantId,
                 Code = $"{granted.RoleCode}:{type}",
                 Version = 1,
-                EffectiveFrom = clock.UtcToday,
+                EffectiveFrom = businessDate.Today,
                 RecordStatus = lifecycle.Active,
                 ApprovedAt = clock.UtcNow,
                 ApprovedBy = "first-administrators",

@@ -226,7 +226,7 @@ internal sealed class ExpireAccessHandler(IAccessRepository access, IClock clock
     }
 }
 
-internal sealed class StartReviewHandler(IAccessRepository access, IUserRepository users, IRolePolicyReader policy, IExecutionContext execution, IClock clock,
+internal sealed class StartReviewHandler(IAccessRepository access, IUserRepository users, IRolePolicyReader policy, IExecutionContext execution, IBusinessDate businessDate,
     IAuditTrail audit) : ICommandHandler<StartReview, Guid>
 {
     public async Task<Result<Guid>> Handle(StartReview command, CancellationToken cancellationToken)
@@ -248,7 +248,7 @@ internal sealed class StartReviewHandler(IAccessRepository access, IUserReposito
             return Error.NotFound(ErrorCodes.NotFound, "The reviewer was not found.");
         }
 
-        var today = clock.UtcToday;
+        var today = businessDate.Today;
         var holdings = await access.EffectiveAssignments(today, cancellationToken);
         if (command.Scope == ReviewScope.Privileged)
         {
@@ -337,7 +337,7 @@ internal sealed class GetReviewHandler(IAccessQueries queries) : IQueryHandler<G
 /// Identity's policy for its own AccessReviewCompleted: every role the reviewer revoked ends today (IAM-005). The
 /// revocations of one review are applied together, in the inbox transaction, so a review is never half applied.
 /// </summary>
-public sealed class RevokeReviewedAccess(IUserRepository users, IAccessRepository access, IClock clock, IPermissionCache cache)
+public sealed class RevokeReviewedAccess(IUserRepository users, IAccessRepository access, IClock clock, IBusinessDate businessDate, IPermissionCache cache)
     : IIntegrationEventHandler<Contracts.AccessReviewCompleted>
 {
     public async Task Handle(Contracts.AccessReviewCompleted completed, EventEnvelope envelope, CancellationToken cancellationToken)
@@ -350,7 +350,7 @@ public sealed class RevokeReviewedAccess(IUserRepository users, IAccessRepositor
             if (await users.Get(revoked.UserId, cancellationToken) is { } user)
             {
                 // The role may already have been revoked elsewhere; that is fine.
-                user.RevokeRole(revoked.RoleCode, reviewer, clock.UtcToday, clock.UtcNow);
+                user.RevokeRole(revoked.RoleCode, reviewer, businessDate.Today, clock.UtcNow);
             }
         }
 

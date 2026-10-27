@@ -92,7 +92,7 @@ public sealed class ChangeMyPreferredLanguageValidator : AbstractValidator<Chang
 }
 
 internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader roles, ITenantProfiles tenants, ILanguageSettings languages, RequestLanguage request,
-    IExecutionContext execution, ITenantContext tenant, IOptions<PlatformOptions> platform, IClock clock, IBusinessDate businessDate, ITenantFormatting formatting)
+    IExecutionContext execution, ITenantContext tenant, IOptions<PlatformOptions> platform, IBusinessDate businessDate, ITenantFormatting formatting)
     : IQueryHandler<GetMe, MeView>
 {
     public async Task<Result<MeView>> Handle(GetMe query, CancellationToken cancellationToken)
@@ -103,7 +103,7 @@ internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader role
         }
 
         var tenantId = tenant.RequireTenantId();
-        var today = clock.UtcToday;
+        var today = businessDate.Today;
         var facts = (await roles.Roles(user.RoleAssignments.Select(a => a.RoleCode), today, cancellationToken)).ToDictionary(r => r.RoleCode, StringComparer.Ordinal);
         var assignments = user.RoleAssignments.OrderBy(a => a.ValidFrom).ThenBy(a => a.RoleCode, StringComparer.Ordinal).Select(a =>
         {
@@ -134,7 +134,7 @@ internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader role
     }
 }
 
-internal sealed class ChangeMyPreferredLanguageHandler(IUserRepository users, ILanguageRegister register, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class ChangeMyPreferredLanguageHandler(IUserRepository users, ILanguageRegister register, IExecutionContext execution, IBusinessDate businessDate, IAuditTrail audit)
     : ICommandHandler<ChangeMyPreferredLanguage, long>
 {
     public async Task<Result<long>> Handle(ChangeMyPreferredLanguage command, CancellationToken cancellationToken)
@@ -144,7 +144,7 @@ internal sealed class ChangeMyPreferredLanguageHandler(IUserRepository users, IL
             return Error.Forbidden(ErrorCodes.Forbidden, "Only a user of this tenant has a profile here.");
         }
 
-        if (command.Language is { } language && !await register.Exists(language, clock.UtcToday, cancellationToken))
+        if (command.Language is { } language && !await register.Exists(language, businessDate.Today, cancellationToken))
         {
             return Error.Validation(ErrorCodes.ValidationFailed, $"{language} is not a language in the register.");
         }

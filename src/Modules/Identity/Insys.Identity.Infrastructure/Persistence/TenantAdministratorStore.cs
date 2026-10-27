@@ -39,7 +39,7 @@ namespace Insys.Identity.Infrastructure.Persistence;
 /// rows are written through <see cref="BuildingBlocks.Infrastructure.Persistence.ModuleDbContext.WithinTenant"/>: in
 /// the caller's transaction, with row-level security set to the new tenant for that block only.
 /// </summary>
-internal sealed class TenantAdministratorStore(IdentityDbContext db, IClock clock) : ITenantAdministrators
+internal sealed class TenantAdministratorStore(IdentityDbContext db, IClock clock, TenantBusinessDates dates) : ITenantAdministrators
 {
     public Task<TenantAdministratorRequest?> Get(Guid requestId, CancellationToken cancellationToken) =>
         db.TenantAdministratorRequests.Include(r => r.People).SingleOrDefaultAsync(r => r.Id == requestId, cancellationToken);
@@ -64,7 +64,7 @@ internal sealed class TenantAdministratorStore(IdentityDbContext db, IClock cloc
     public async Task<bool> TenantHasAdministratorRole(Guid targetTenantId, CancellationToken cancellationToken)
     {
         var inForce = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RolesAndPermissionSets)).Lifecycle.InForce;
-        var today = clock.UtcToday;
+        var today = dates.TodayFor(targetTenantId);
         var any = false;
         await db.WithinTenant(targetTenantId, async () => any = await db.Set<RolesAndPermissionSets>().AnyAsync(r => r.RoleCode == TenantAdministratorRequest.RoleCode
             && inForce.Contains(r.RecordStatus) && r.EffectiveFrom <= today && (r.EffectiveTo == null || r.EffectiveTo > today), cancellationToken), cancellationToken);
@@ -91,7 +91,7 @@ internal sealed class TenantAdministratorStore(IdentityDbContext db, IClock cloc
     public async Task<IReadOnlyList<Guid>> Provision(TenantAdministratorRequest request, Guid checkerId, CancellationToken cancellationToken)
     {
         var now = clock.UtcNow;
-        var today = clock.UtcToday;
+        var today = dates.TodayFor(request.TargetTenantId);
         // INSYS's own realm: each user waits for its Keycloak user, which Identity's consumer creates (keycloak-user-provisioning §1).
         var users = request.People.OrderBy(p => p.Position).Select(p => p.IdpCode == UserAccount.OwnRealm
             ? UserAccount.ProvisionUserInOwnRealm(Guid.CreateVersion7(), p.Username, p.DisplayName, p.Email!, p.MfaEnrolled, now)

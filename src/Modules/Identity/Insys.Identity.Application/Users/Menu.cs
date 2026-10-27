@@ -60,11 +60,11 @@ public interface IMenuBuilder
 /// Onboarding), for their audience; a screen appears with its sub-domain and domain, an action only under a screen they hold.
 /// </summary>
 internal sealed class GetMyMenuHandler(ExecutionScope scope, ITenantContext tenant, IOptions<PlatformOptions> platform, RequestLanguage language, IMenuBuilder menu,
-    IClock clock) : IQueryHandler<GetMyMenu, MenuView>
+    IBusinessDate businessDate) : IQueryHandler<GetMyMenu, MenuView>
 {
     public async Task<Result<MenuView>> Handle(GetMyMenu query, CancellationToken cancellationToken)
     {
         var audience = scope.External?.ChannelAudience ?? (tenant.TenantId == platform.Value.OperatorTenantId ? "PLATFORM" : "STAFF");
-        return await menu.Build(scope.Functions?.Usable ?? new HashSet<string>(), audience, language.Chain, clock.UtcToday, cancellationToken);
+        return await menu.Build(scope.Functions?.Usable ?? new HashSet<string>(), audience, language.Chain, businessDate.Today, cancellationToken);
     }
 }

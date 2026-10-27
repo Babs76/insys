@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using Insys.Billing.Contracts;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.ClaimsFramework.Contracts;
@@ -42,7 +43,7 @@ namespace Insys.Finance.Application;
 /// event (DBA-007). Unknown payment outcomes are never posted: Payments raises no received or succeeded event for
 /// them (PAY-005).
 /// </summary>
-public sealed class PostingPolicies(EventPoster poster) :
+public sealed class PostingPolicies(EventPoster poster, IBusinessDate businessDate) :
     IIntegrationEventHandler<InvoiceIssued>,
     IIntegrationEventHandler<CreditNoteIssued>,
     IIntegrationEventHandler<PaymentReceived>,
@@ -65,7 +66,7 @@ public sealed class PostingPolicies(EventPoster poster) :
     public Task Handle(Reinsurance.Contracts.CessionCalculated e, EventEnvelope envelope, CancellationToken cancellationToken) =>
         e.PremiumChange <= 0
             ? Task.CompletedTask
-            : Post(envelope, e.SourceDomain, TransactionTypes.PremiumCeded, DateOnly.FromDateTime(envelope.OccurredAt.UtcDateTime), e.PremiumChange, e.Currency, "CESSION",
+            : Post(envelope, e.SourceDomain, TransactionTypes.PremiumCeded, businessDate.DateOf(envelope.OccurredAt), e.PremiumChange, e.Currency, "CESSION",
                 e.CessionId, new() { ["domain"] = e.SourceDomain, ["treaty"] = e.TreatyCode, ["rule"] = e.RuleCode }, cancellationToken);
 
     /// <summary>A recovery billed to the reinsurer is recoverable (REI-003).</summary>
@@ -148,7 +149,7 @@ public sealed class PostingPolicies(EventPoster poster) :
         variables["currency"] = currency;
         variables["source_domain"] = sourceDomain;
         return poster.Post(new BusinessEvent(envelope.EventId, sourceDomain.Length <= 10 ? sourceDomain : sourceDomain[..10], transactionType, accountingDate,
-            DateOnly.FromDateTime(envelope.OccurredAt.UtcDateTime), amount, currency, businessRefType, businessRefId, variables), envelope.EventType, cancellationToken);
+            businessDate.DateOf(envelope.OccurredAt), amount, currency, businessRefType, businessRefId, variables), envelope.EventType, cancellationToken);
     }
 }
 

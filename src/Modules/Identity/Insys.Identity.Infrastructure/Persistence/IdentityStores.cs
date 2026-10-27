@@ -53,7 +53,7 @@ internal sealed class UserRepository(IdentityDbContext db) : IUserRepository
     public void Add(UserAccount user) => db.Users.Add(user);
 }
 
-internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles, IClock clock, Workflow.Contracts.IApprovalHistory approvals) : IUserQueries
+internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles, IBusinessDate businessDate, Workflow.Contracts.IApprovalHistory approvals) : IUserQueries
 {
     public async Task<IReadOnlyList<UserView>> List(Guid? afterId, int limit, CancellationToken cancellationToken)
     {
@@ -81,7 +81,7 @@ internal sealed class UserQueries(IdentityDbContext db, IRolePolicyReader roles,
     /// <summary>Each assignment says whether its role is privileged, needs MFA and needs approval to assign (GAP-021, OQ-038).</summary>
     private async Task<IReadOnlyList<UserView>> Views(IReadOnlyList<UserAccount> users, CancellationToken cancellationToken)
     {
-        var facts = (await roles.Roles(users.SelectMany(u => u.RoleAssignments).Select(a => a.RoleCode), clock.UtcToday, cancellationToken))
+        var facts = (await roles.Roles(users.SelectMany(u => u.RoleAssignments).Select(a => a.RoleCode), businessDate.Today, cancellationToken))
             .ToDictionary(r => r.RoleCode, StringComparer.Ordinal);
         var links = new Dictionary<Guid, ExternalSubjectLinkView>();
         foreach (var user in users)

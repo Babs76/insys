@@ -297,7 +297,7 @@ public sealed class Payment : AggregateRoot<Guid>
     }
 
     /// <summary>Command MarkUnknown: no answer within the time allowed.</summary>
-    public Result MarkUnknown(DateTimeOffset now) => Outcome(ProviderOutcome.Unknown, "TIMEOUT", "No answer from the provider", DateOnly.FromDateTime(now.UtcDateTime), now);
+    public Result MarkUnknown(DateOnly today, DateTimeOffset now) => Outcome(ProviderOutcome.Unknown, "TIMEOUT", "No answer from the provider", today, now);
 
     /// <summary>Command ResolveUnknown: a person decides from the evidence (a bank statement, the provider's report) (PAY-005).</summary>
     public Result ResolveUnknown(bool succeeded, string evidence, DateOnly today, DateTimeOffset now)

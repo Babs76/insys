@@ -242,7 +242,7 @@ public static class AdministratorIdentity
 }
 
 internal sealed class ProvisionTenantAdministratorsHandler(ITenantAdministrators administrators, ITenantProfiles tenants, IExecutionContext execution,
-    ITenantContext tenant, IOptions<PlatformOptions> platform, IClock clock, IAuditTrail audit, Users.IFunctionCatalogueQuery catalogue)
+    ITenantContext tenant, IOptions<PlatformOptions> platform, IClock clock, IBusinessDate businessDate, IAuditTrail audit, Users.IFunctionCatalogueQuery catalogue)
     : ICommandHandler<ProvisionTenantAdministrators, Guid>,
       ICommandHandler<RequestAdditionalAdministrator, Guid>
 {
@@ -267,7 +267,7 @@ internal sealed class ProvisionTenantAdministratorsHandler(ITenantAdministrators
         }
 
         // ADR-026: each function must be in force in the catalogue and one staff use (OQ-099).
-        if (await catalogue.NotForStaff(command.Functions, clock.UtcToday, cancellationToken) is { Count: > 0 } unknown)
+        if (await catalogue.NotForStaff(command.Functions, businessDate.Today, cancellationToken) is { Count: > 0 } unknown)
         {
             return Error.Validation(ErrorCodes.ValidationFailed, "Every function must be in force in the catalogue and for staff (ADR-026).",
                 new Dictionary<string, string[]> { ["functions"] = [$"Not a staff function in force: {string.Join(", ", unknown)}."] });

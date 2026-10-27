@@ -324,7 +324,7 @@ internal sealed class InitiatePaymentHandler(PaymentStarter starter, IAuditTrail
     }
 }
 
-internal sealed class MarkUnknownHandler(IPaymentRepository payments, IClock clock) : ICommandHandler<MarkUnknown, PaymentView>
+internal sealed class MarkUnknownHandler(IPaymentRepository payments, IBusinessDate businessDate, IClock clock) : ICommandHandler<MarkUnknown, PaymentView>
 {
     public async Task<Result<PaymentView>> Handle(MarkUnknown command, CancellationToken cancellationToken)
     {
@@ -333,7 +333,7 @@ internal sealed class MarkUnknownHandler(IPaymentRepository payments, IClock clo
             return Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
         }
 
-        var result = payment.MarkUnknown(clock.UtcNow);
+        var result = payment.MarkUnknown(businessDate.Today, clock.UtcNow);
         return result.IsFailure ? result.Error : PaymentView.From(payment);
     }
 }

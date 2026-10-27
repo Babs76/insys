@@ -125,7 +125,7 @@ internal sealed class NotifyLifeClaimHandler(ILifeRepository life, ILifeCodes co
         }
 
         var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy.Value, command.ClaimType, command.EventDate, command.CauseCode, command.ClaimantPartyId,
-            command.InsuredLifeId, clock.UtcNow);
+            command.InsuredLifeId, businessDate.Today, clock.UtcNow);
         if (claim.IsFailure)
         {
             return claim.Error;
@@ -191,7 +191,7 @@ internal sealed class RegisterLifeClaimHandler(ILifeRepository life, ILifeCodes 
         var facts = JsonSerializer.SerializeToElement(new Dictionary<string, object?>
         {
             ["days_since_inception"] = claim.EventDate.DayNumber - policy.InceptionDate.DayNumber,
-            ["days_to_notification"] = DateOnly.FromDateTime(claim.NotifiedAt.UtcDateTime).DayNumber - claim.EventDate.DayNumber,
+            ["days_to_notification"] = businessDate.DateOf(claim.NotifiedAt).DayNumber - claim.EventDate.DayNumber,
             ["claim_type"] = claim.ClaimType,
             ["cause_code"] = claim.CauseCode,
             ["sum_assured"] = benefit.Value.SumAssured,
