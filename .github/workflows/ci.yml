@@ -33,8 +33,9 @@ on:
 permissions:
   contents: read
 
-# Three test jobs run in parallel, each well inside 30 minutes (checkpoint A): unit and architecture tests; integration
-# tests; and the endpoint security sweeps with the end-to-end processes. Each builds with warnings as errors.
+# The test jobs run in parallel (checkpoint A): unit and architecture tests; integration tests in three shards balanced
+# from measured class times; and the endpoint security sweeps with the end-to-end processes. Each builds with warnings
+# as errors.
 jobs:
   unit-and-architecture:
     runs-on: ubuntu-latest
@@ -87,21 +88,59 @@ jobs:
       - name: OpenAPI documents are committed and current
         run: git diff --exit-code docs/api/
 
-  integration:
+  # The integration split for this run, made once so every shard runs the same split: from the class times the latest
+  # successful run on main measured (its integration-timings artifact), else the committed timings file. A class never
+  # measured is estimated from its tests (tools/integration-shards.py).
+  integration-plan:
     runs-on: ubuntu-latest
-    # 30 minutes in one job on Wave 1 batch 3 (limit 45), so the classes are split into two shards that run in parallel,
-    # each with its own PostgreSQL container (tools/integration-shards.py; every class is in exactly one shard).
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Latest measured class times from main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$run" ] && gh run download "$run" --repo "$GITHUB_REPOSITORY" --name integration-timings --dir /tmp/main-timings; then
+            cp /tmp/main-timings/class-timings.json tests/Insys.IntegrationTests/class-timings.json
+            echo "Balanced from the class times of main's run $run."
+          else
+            echo "No measured times from main; balanced from the committed tests/Insys.IntegrationTests/class-timings.json."
+          fi
+
+      - name: Every integration class is in exactly one shard
+        run: python3 tools/integration-shards.py --check 3
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: integration-plan
+          path: tests/Insys.IntegrationTests/class-timings.json
+
+  integration:
+    needs: integration-plan
+    runs-on: ubuntu-latest
+    # 30 minutes in one job on Wave 1 batch 3, two shards from then, three from Wave 2 batch 4 (two passed 42 minutes),
+    # each with its own PostgreSQL container. The 45-minute limit is the alarm: the timings job warns past 35.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
-    name: integration (${{ matrix.shard }} of 2)
+        shard: [1, 2, 3]
+    name: integration (${{ matrix.shard }} of 3)
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: integration-plan
+          path: tests/Insys.IntegrationTests
+
       - name: Every integration class is in exactly one shard
-        run: python3 tools/integration-shards.py --check 2
+        run: python3 tools/integration-shards.py --check 3
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -114,11 +153,69 @@ jobs:
         run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
 
       - name: Every compiled integration class runs in a shard or the sweeps job
-        run: tests/Insys.IntegrationTests/bin/Release/net10.0/Insys.IntegrationTests -list classes | python3 tools/integration-shards.py --check-listed 2
+        run: tests/Insys.IntegrationTests/bin/Release/net10.0/Insys.IntegrationTests -list classes | python3 tools/integration-shards.py --check-listed 3
 
       # Testcontainers starts postgres:18 (Docker is available on ubuntu-latest). The endpoint sweeps run in their own job.
+      # The xUnit report gives each class's measured time to the timings job.
       - name: Integration tests
-        run: eval dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release -- $(python3 tools/integration-shards.py ${{ matrix.shard }} 2)
+        run: >-
+          eval dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release --results-directory "$RUNNER_TEMP/results"
+          -- --report-xunit-xml --report-xunit-xml-filename shard-${{ matrix.shard }}.xml $(python3 tools/integration-shards.py ${{ matrix.shard }} 3)
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-report-${{ matrix.shard }}
+          path: ${{ runner.temp }}/results/shard-${{ matrix.shard }}.xml
+          if-no-files-found: warn
+
+  # Measures every class from the shards' reports into the integration-timings artifact the next run balances from (a
+  # class whose shard wrote no report keeps its last time), and reports each shard's time, warning past 35 minutes.
+  integration-timings:
+    needs: [integration-plan, integration]
+    if: always() && needs.integration-plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: integration-plan
+          path: tests/Insys.IntegrationTests
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: integration-report-*
+          path: reports
+          merge-multiple: true
+
+      - name: Measure each class
+        env:
+          INSYS_SHARD_SOURCE: CI run ${{ github.run_id }} (${{ github.ref_name }}, ${{ github.sha }})
+        run: python3 tools/integration-shards.py --measure reports/*.xml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: integration-timings
+          path: tests/Insys.IntegrationTests/class-timings.json
+
+      - name: Shard times
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A shard that has only just finished may not show its completion time yet: it is measured to now.
+          gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs \
+            --jq '.jobs[] | select(.name | startswith("integration (")) | [.name, .startedAt, (.completedAt // ""), (.conclusion // "")] | @tsv' | sort |
+          while IFS=$'\t' read -r name started completed conclusion; do
+            case "$completed" in ""|0001-*) end=$(date +%s) ;; *) end=$(date -d "$completed" +%s) ;; esac
+            minutes=$(( (end - $(date -d "$started" +%s)) / 60 ))
+            echo "$name: $minutes min (${conclusion:-finishing})" | tee -a "$GITHUB_STEP_SUMMARY"
+            if [ "$minutes" -gt 35 ]; then echo "::warning title=Integration shard over 35 minutes::$name took $minutes minutes (limit 45)."; fi
+          done
 
   sweeps-and-end-to-end:
     runs-on: ubuntu-latest
