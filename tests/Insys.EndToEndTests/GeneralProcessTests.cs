@@ -827,7 +827,15 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // AppointAssessor; the loss assessment is reported and accepted. The excess is the greater of 5 000 and 5 %.
         (await (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/assessor", new { assessorPartyId = Guid.CreateVersion7() })).Code())
             .ShouldBe("ASSESSOR_NOT_ON_PANEL");
-        (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/assessor", new { assessorPartyId = Assessor })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        // BR-031: two people working one claim. The version one read before the other's change is refused (412), never applied unseen.
+        var read = await _maker.GetAsync($"/api/v1/general/claims/{claim}");
+        var stale = read.Headers.ETag!.Tag;
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/general/claims/{claim}/assessor", new { assessorPartyId = Assessor }, ifMatch: stale)).StatusCode
+            .ShouldBe(HttpStatusCode.OK);
+        var lost = await _maker.Send(HttpMethod.Post, $"/api/v1/general/claims/{claim}/parties", new { partyId = Guid.CreateVersion7(), role = "WITNESS" }, ifMatch: stale);
+        lost.StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed, await lost.Content.ReadAsStringAsync());
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/general/claims/{claim}/parties", new { partyId = Guid.CreateVersion7(), role = "WITNESS" }, raw: true)).StatusCode
+            .ShouldBe(HttpStatusCode.PreconditionRequired);
         await _factory.DrainOutbox();
         var assessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{claim}/assessments")).Json()).EnumerateArray().Single().GetProperty("id").GetGuid();
         (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/start", null)).StatusCode.ShouldBe(HttpStatusCode.OK);

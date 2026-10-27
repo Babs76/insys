@@ -95,7 +95,7 @@ public sealed class GeneralModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         GeneralStaticDataEndpoints.MapStaticData(api);
-        var general = api.MapGroup("/general").WithTags(Name);
+        var general = api.MapGroup("/general").WithTags(Name).ETagsFromRowVersion();
         MapUnderwriting(general);
         MapPolicies(general);
         MapClaims(general);
@@ -116,15 +116,18 @@ public sealed class GeneralModule : IModule
         general.MapPut("/risk-objects/{id:guid}/attributes", async (Guid id, AttributesRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new UpdateRiskAttributes(id, r.Attributes), ct)).ToHttp(Results.Ok))
             .Produces<RiskObjectView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralUpdateRiskAttributes").WithSummary("Update a risk object's attributes, against the schema version in force")
             .RequirePermission(GeneralPermissions.RiskUpdate);
         general.MapPost("/risk-objects/{id:guid}/revalue", async (Guid id, RevalueRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RevalueRiskObject(id, r.Valuation, r.ValuationBasis), ct)).ToHttp(Results.Ok))
             .Produces<RiskObjectView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralRevalueRiskObject").WithSummary("Revalue a risk object, with a valuation basis").RequirePermission(GeneralPermissions.RiskUpdate);
         general.MapPost("/risk-objects/{id:guid}/deactivate", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DeactivateRiskObject(id), ct)).ToHttp(Results.Ok))
             .Produces<RiskObjectView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralDeactivateRiskObject").WithSummary("Mark a risk object no longer insured").RequirePermission(GeneralPermissions.RiskUpdate);
 
         general.MapPost("/quotes", async (CreateQuote r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/general/quotes/{v.Id}", v)))
@@ -149,16 +152,19 @@ public sealed class GeneralModule : IModule
         {
             general.MapPost($"/quotes/{{id:guid}}/{route}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new ChangeQuote(id, action), ct)).ToHttp(Results.Ok))
                 .Produces<QuoteView>(StatusCodes.Status200OK)
+                .TakesIfMatch()
                 .WithName($"GeneralQuote{action}").WithSummary(summary).RequirePermission(GeneralPermissions.QuoteUpdate);
         }
 
         general.MapPost("/quotes/{id:guid}/refer", async (Guid id, ReferRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReferQuote(id, r.ReasonCode), ct)).ToHttp(Results.Ok))
             .Produces<QuoteView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralReferQuote").WithSummary("Refer a rated quote to an underwriter").RequirePermission(GeneralPermissions.QuoteUpdate);
         general.MapPost("/quotes/{id:guid}/referral-decision", async (Guid id, ReferralDecisionRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DecideReferral(id, r.Approved, r.DecisionCode, r.SpecialConditions ?? [], r.DeclineReason), ct)).ToHttp(Results.Ok))
             .Produces<QuoteView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralDecideReferral").WithSummary("An underwriter's decision on a referred quote").RequirePermission(GeneralPermissions.QuoteUnderwrite);
 
         general.MapPost("/proposals", async (SubmitProposal r, IDispatcher d, CancellationToken ct) =>
@@ -171,6 +177,7 @@ public sealed class GeneralModule : IModule
             .WithName("GeneralGetProposal").WithSummary("Get a proposal").RequirePermission(GeneralPermissions.QuoteRead);
         general.MapPost("/proposals/{id:guid}/accept", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new AcceptProposal(id), ct)).ToHttp(Results.Ok))
             .Produces<ProposalView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralAcceptProposal").WithSummary("Accept a proposal").RequirePermission(GeneralPermissions.QuoteUnderwrite);
     }
 
@@ -199,11 +206,13 @@ public sealed class GeneralModule : IModule
         general.MapPost("/policies/{id:guid}/cancel", async (Guid id, CancelRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new CancelPolicy(id, r.ReasonCode, r.EffectiveDate), ct)).ToHttp(Results.Ok))
             .Produces<PolicyView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralCancelPolicy").WithSummary("Cancel a policy; the refund follows the reason's refund rule (GEN-004)")
             .RequirePermission(GeneralPermissions.PolicyCancel);
         general.MapPost("/policies/{id:guid}/reinstate", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReinstatePolicy(id), ct)).ToHttp(Results.Ok))
             .Produces<PolicyView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralReinstatePolicy").WithSummary("Reinstate a cancelled policy where permitted").RequirePermission(GeneralPermissions.PolicyCancel);
 
         general.MapPost("/policies/{id:guid}/endorsements", async (Guid id, EndorsementRequest r, IDispatcher d, CancellationToken ct) =>
@@ -219,6 +228,7 @@ public sealed class GeneralModule : IModule
         general.MapPost("/endorsements/{id:guid}/submit", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new SubmitEndorsement(id), ct)).ToHttp(Results.Ok))
             .Produces<EndorsementView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralSubmitEndorsement").WithSummary("Submit a rated endorsement for a second person's approval in Workflow (SRS-002)")
             .RequirePermission(GeneralPermissions.EndorsementCreate).HasApprovalFlow();
     }
@@ -237,29 +247,35 @@ public sealed class GeneralModule : IModule
             .WithName("GeneralGetClaim").WithSummary("Get a claim").RequirePermission(GeneralPermissions.ClaimRead);
         general.MapPost("/claims/{id:guid}/register", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new RegisterClaim(id), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralRegisterClaim").WithSummary("Register a claim: the cover is validated (GEN-006) and a claim number allocated (CLM-005)")
             .RequirePermission(GeneralPermissions.ClaimCreate);
         general.MapPost("/claims/{id:guid}/parties", async (Guid id, PartyRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new AddClaimParty(id, r.PartyId, r.Role, r.InsurerRef), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralAddClaimParty").WithSummary("Add a party to a claim").RequirePermission(GeneralPermissions.ClaimUpdate);
         general.MapPost("/claims/{id:guid}/assessor", async (Guid id, AssessorRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new AppointAssessor(id, r.AssessorPartyId), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralAppointAssessor").WithSummary("Appoint an assessor on an approved panel (GEN-007)").RequirePermission(GeneralPermissions.ClaimUpdate);
         general.MapPost("/claims/{id:guid}/settlement", async (Guid id, SettlementRequestBody r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RequestSettlement(id, r.PayeePartyId, r.BankAccountId, r.ReserveType, r.DecisionCode, r.Rationale), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralRequestSettlement").WithSummary("Approve a settlement: excess and limits are applied (GEN-008); a second person approves it in Workflow (SRS-002)")
             .RequirePermission(GeneralPermissions.ClaimDecide).HasApprovalFlow();
         general.MapPost("/claims/{id:guid}/decline", async (Guid id, DeclineRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DeclineClaim(id, r.DecisionCode, r.Rationale), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralDeclineClaim").WithSummary("Decline a claim, with the decision's rationale (CLM-003)").RequirePermission(GeneralPermissions.ClaimDecide);
         foreach (var (action, route) in new[] { (ClaimAction.Close, "close"), (ClaimAction.Reopen, "reopen") })
         {
             general.MapPost($"/claims/{{id:guid}}/{route}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new ChangeClaim(id, action), ct)).ToHttp(Results.Ok))
                 .Produces<ClaimView>(StatusCodes.Status200OK)
+                .TakesIfMatch()
                 .WithName($"GeneralClaim{action}").WithSummary($"{action} a claim").RequirePermission(GeneralPermissions.ClaimUpdate);
         }
 
@@ -274,16 +290,19 @@ public sealed class GeneralModule : IModule
             general.MapPost($"/assessments/{{id:guid}}/{route}", async (Guid id, IDispatcher d, CancellationToken ct) =>
                     (await d.Send(new ChangeAssessment(id, action), ct)).ToHttp(Results.Ok))
                 .Produces<AssessmentView>(StatusCodes.Status200OK)
+                .TakesIfMatch()
                 .WithName($"GeneralAssessment{action}").WithSummary($"{action} a loss assessment").RequirePermission(GeneralPermissions.AssessmentUpdate);
         }
 
         general.MapPost("/assessments/{id:guid}/estimates", async (Guid id, EstimateRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RecordEstimate(id, r.RepairerPartyId, r.Amount), ct)).ToHttp(Results.Ok))
             .Produces<AssessmentView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralRecordEstimate").WithSummary("Record a panel repairer's estimate").RequirePermission(GeneralPermissions.AssessmentUpdate);
         general.MapPost("/assessments/{id:guid}/report", async (Guid id, ReportRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new SubmitReport(id, r.AssessedAmount, r.ReportDocumentId), ct)).ToHttp(Results.Ok))
             .Produces<AssessmentView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralSubmitReport").WithSummary("Submit the assessment report; the coverage's excess is applied (GEN-008)")
             .RequirePermission(GeneralPermissions.AssessmentUpdate);
 
@@ -314,16 +333,19 @@ public sealed class GeneralModule : IModule
             general.MapPost($"/recoveries/{{id:guid}}/{route}", async (Guid id, IDispatcher d, CancellationToken ct) =>
                     (await d.Send(new ChangeRecovery(id, action), ct)).ToHttp(Results.Ok))
                 .Produces<RecoveryView>(StatusCodes.Status200OK)
+                .TakesIfMatch()
                 .WithName($"GeneralRecovery{action}").WithSummary($"{action} on a recovery").RequirePermission(GeneralPermissions.RecoveryUpdate);
         }
 
         general.MapPost("/recoveries/{id:guid}/salvage", async (Guid id, SalvageRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new AddSalvageItem(id, r.Description), ct)).ToHttp(Results.Ok))
             .Produces<RecoveryView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralAddSalvage").WithSummary("Add a salvage item").RequirePermission(GeneralPermissions.RecoveryUpdate);
         general.MapPost("/recoveries/{id:guid}/salvage/{itemId:guid}/dispose", async (Guid id, Guid itemId, DisposalRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DisposeSalvage(id, itemId, r.DisposalMethod, r.Proceeds), ct)).ToHttp(Results.Ok))
             .Produces<RecoveryView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralDisposeSalvage").WithSummary("Record a salvage item's disposal and proceeds").RequirePermission(GeneralPermissions.RecoveryUpdate);
         general.MapPost("/recoveries/{id:guid}/recovered", async (Guid id, RecoveredRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RecordRecovery(id, r.Amount, r.ReserveType), ct)).ToHttp(Results.Ok))

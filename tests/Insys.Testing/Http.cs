@@ -32,10 +32,16 @@ namespace Insys.Testing;
 /// <summary>Request helpers for API tests.</summary>
 public static class Http
 {
+    /// <param name="raw">Sent as it is, never retried with If-Match or an Idempotency-Key (<see cref="TestPreconditionsHandler"/>).</param>
     public static async Task<HttpResponseMessage> Send(this HttpClient client, HttpMethod method, string url, object? body = null, string? ifMatch = null,
-        bool idempotent = false)
+        bool idempotent = false, bool raw = false)
     {
         var request = new HttpRequestMessage(method, url);
+        if (raw)
+        {
+            request.Options.Set(TestPreconditionsHandler.Raw, true);
+        }
+
         if (body is not null)
         {
             request.Content = JsonContent.Create(body);

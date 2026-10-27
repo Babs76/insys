@@ -50,6 +50,7 @@ public sealed class TransactionalCommandHandler<TCommand, TResult, TDbContext>(
     TDbContext db,
     AuditTrail auditTrail,
     AfterCommitActions afterCommit,
+    RequestPreconditions preconditions,
     IOptions<ConflictRetryOptions> retry,
     ILogger<TransactionalCommandHandler<TCommand, TResult, TDbContext>> logger) : ICommandHandler<TCommand, TResult>
     where TCommand : ICommand<TResult>
@@ -62,10 +63,11 @@ public sealed class TransactionalCommandHandler<TCommand, TResult, TDbContext>(
             db.ActAsTenant(target.TargetTenantId);
         }
 
-        var attempts = command is IRetryOnConflict ? Math.Max(1, retry.Value.MaxAttempts) : 1;
+        var expected = preconditions.Take();
+        var attempts = command is IRetryOnConflict && expected is null ? Math.Max(1, retry.Value.MaxAttempts) : 1;
         for (var attempt = 1; ; attempt++)
         {
-            var (result, conflicted) = await Attempt(command, retryable: attempt < attempts, cancellationToken);
+            var (result, conflicted) = await Attempt(command, expected, retryable: attempt < attempts, cancellationToken);
             if (!conflicted || attempt >= attempts)
             {
                 return await Finish(result, cancellationToken);
@@ -79,7 +81,7 @@ public sealed class TransactionalCommandHandler<TCommand, TResult, TDbContext>(
         }
     }
 
-    private async Task<(Result<TResult> Result, bool Conflicted)> Attempt(TCommand command, bool retryable, CancellationToken cancellationToken)
+    private async Task<(Result<TResult> Result, bool Conflicted)> Attempt(TCommand command, long? expected, bool retryable, CancellationToken cancellationToken)
     {
         Result<TResult> result;
         await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
@@ -87,6 +89,12 @@ public sealed class TransactionalCommandHandler<TCommand, TResult, TDbContext>(
             try
             {
                 result = await inner.Handle(command, cancellationToken);
+                // A stale If-Match is answered first, as HTTP evaluates preconditions before the request, even when the change was refused.
+                if (expected is { } version && Stale(version) is { } stale)
+                {
+                    result = stale;
+                }
+
                 if (result.IsFailure)
                 {
                     await transaction.RollbackAsync(cancellationToken);
@@ -132,6 +140,29 @@ public sealed class TransactionalCommandHandler<TCommand, TResult, TDbContext>(
 
         afterCommit.RunAll();
         return result;
+    }
+
+    /// <summary>
+    /// If-Match taken by the endpoint (<see cref="RequestPreconditions"/>): the aggregate the command changed must be at the
+    /// version the caller read, as it was loaded. A command changes one aggregate (the modified one, or else the only one it
+    /// loaded); a stale version is 412 and nothing is written. The update itself still checks row_version, so a change
+    /// committed meanwhile is a conflict too.
+    /// </summary>
+    private Error? Stale(long expected)
+    {
+        var roots = db.ChangeTracker.Entries().Where(e => e.Entity is BuildingBlocks.Domain.IAggregateRoot && e.Metadata.FindProperty("RowVersion") is not null).ToList();
+        var changed = roots.Where(e => e.State == EntityState.Modified).ToList();
+        var target = changed.Count == 1 ? changed[0] : changed.Count == 0 && roots.Count(e => e.State == EntityState.Unchanged) == 1
+            ? roots.Single(e => e.State == EntityState.Unchanged) : null;
+        if (target is null)
+        {
+            logger.LogWarning("{Command} took If-Match but changed {Count} aggregates; the version is not compared", typeof(TCommand).Name, changed.Count);
+            return null;
+        }
+
+        return target.Property("RowVersion").OriginalValue is long loaded && loaded != expected
+            ? Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The record has changed since it was read. Read it again and retry.")
+            : null;
     }
 
     /// <summary>A duplicate key (two requests opening the same row), a serialization failure or a deadlock.</summary>

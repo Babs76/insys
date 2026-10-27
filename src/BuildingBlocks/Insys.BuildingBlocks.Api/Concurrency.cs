@@ -28,6 +28,7 @@ using System.Globalization;
 using Insys.BuildingBlocks.Domain;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Net.Http.Headers;
 
 namespace Insys.BuildingBlocks.Api;
@@ -90,9 +91,60 @@ public static class ConcurrencyEndpointExtensions
             new ProducesResponseTypeMetadata(StatusCodes.Status412PreconditionFailed, typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), ProblemContentTypes),
             new ProducesResponseTypeMetadata(StatusCodes.Status428PreconditionRequired, typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), ProblemContentTypes));
 
+    /// <summary>
+    /// The endpoint requires If-Match for the aggregate its command changes, and the unit of work compares it (BR-031, BR-057,
+    /// BR-064, BR-071): 428 without it, 412 when it cannot be read or is stale. For commands that do not carry the version.
+    /// </summary>
+    public static TBuilder TakesIfMatch<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.RequireIfMatch().AddEndpointFilter<TBuilder, IfMatchFilter>();
+
+    /// <summary>
+    /// Every read in the group that returns a record with a rowVersion gives it as the ETag, and so does every change that
+    /// returns one, so a client always has the If-Match for its next change (BR-031, BR-057, BR-064, BR-071).
+    /// </summary>
+    public static TBuilder ETagsFromRowVersion<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.AddEndpointFilter<TBuilder, RowVersionETagFilter>();
+
     /// <summary>Declares that the endpoint honours If-Match when given: 412 when it is stale; without it the replacement applies.</summary>
     public static TBuilder AllowIfMatch<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder =>
         builder.WithMetadata(new IfMatchOptionalMetadata(),
             new ProducesResponseTypeMetadata(StatusCodes.Status412PreconditionFailed, typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), ProblemContentTypes));
+}
+
+/// <summary>Reads If-Match into the request's preconditions, which the unit of work compares with the changed aggregate.</summary>
+public sealed class IfMatchFilter : IEndpointFilter
+{
+    public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    {
+        var expected = Concurrency.ExpectedVersion(context.HttpContext.Request);
+        if (expected.IsFailure)
+        {
+            return Problems.For(expected.Error);
+        }
+
+        context.HttpContext.RequestServices.GetRequiredService<Application.Messaging.RequestPreconditions>().Expect(expected.Value);
+        return await next(context);
+    }
+}
+
+/// <summary>Sets the ETag from the rowVersion of the record a response returns, when it returns one and set none itself.</summary>
+public sealed class RowVersionETagFilter : IEndpointFilter
+{
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, System.Reflection.PropertyInfo?> RowVersions = new();
+
+    public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    {
+        var result = await next(context);
+        var response = context.HttpContext.Response;
+        if (result is IValueHttpResult { Value: { } value } && result is IStatusCodeHttpResult { StatusCode: >= 200 and < 300 } && !response.Headers.ContainsKey("ETag")
+            && RowVersions.GetOrAdd(value.GetType(), type => type.GetProperty("RowVersion") is { PropertyType: var t } property && t == typeof(long) ? property : null) is { } rowVersion)
+        {
+            Concurrency.SetETag(context.HttpContext, (long)rowVersion.GetValue(value)!);
+        }
+
+        return result;
+    }
 }

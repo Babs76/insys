@@ -43,6 +43,26 @@ public interface IVersionedCommand
     long ExpectedVersion { get; }
 }
 
+/// <summary>
+/// The If-Match a request carries for the aggregate its command changes (DBA-011; BR-031, BR-057, BR-064, BR-071), when its
+/// endpoint takes it through <c>TakesIfMatch</c> rather than in the command. The unit of work compares it with the version
+/// of the aggregate the command changed, as loaded, and refuses with 412 when they differ. Taken once, by the request's command.
+/// </summary>
+public sealed class RequestPreconditions
+{
+    private long? _expected;
+
+    public void Expect(long version) => _expected = version;
+
+    /// <summary>The expected version, cleared so a command the handler sends in turn is not held to it.</summary>
+    public long? Take()
+    {
+        var expected = _expected;
+        _expected = null;
+        return expected;
+    }
+}
+
 /// <summary>A request to read. Runs in a read-only transaction so row-level security applies.</summary>
 public interface IQuery<TResult>;
 

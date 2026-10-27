@@ -267,9 +267,9 @@ public sealed record QuoteView(Guid Id, string QuoteNumber, int QuoteVersion, st
         q.RowVersion);
 }
 
-public sealed record ProposalView(Guid Id, Guid QuoteId, ProposalStatus Status, DateTimeOffset SubmittedAt, JsonElement Declarations)
+public sealed record ProposalView(Guid Id, Guid QuoteId, ProposalStatus Status, DateTimeOffset SubmittedAt, JsonElement Declarations, long RowVersion)
 {
-    public static ProposalView From(GeneralProposal p) => new(p.Id, p.QuoteId, p.Status, p.SubmittedAt, JsonDocument.Parse(p.Declarations).RootElement.Clone());
+    public static ProposalView From(GeneralProposal p) => new(p.Id, p.QuoteId, p.Status, p.SubmittedAt, JsonDocument.Parse(p.Declarations).RootElement.Clone(), p.RowVersion);
 }
 
 public sealed record CancellationView(string ReasonCode, DateOnly EffectiveDate, decimal RefundAmount, string RefundBasis, decimal Fee, DateTimeOffset? CancelledAt,

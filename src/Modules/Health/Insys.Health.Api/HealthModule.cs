@@ -87,7 +87,7 @@ public sealed class HealthModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         HealthStaticDataEndpoints.MapStaticData(api);
-        var health = api.MapGroup("/health").WithTags(Name);
+        var health = api.MapGroup("/health").WithTags(Name).ETagsFromRowVersion();
         MapLists(health);
         MapMembers(health);
         MapCare(health);
@@ -110,6 +110,7 @@ public sealed class HealthModule : IModule
             health.MapPost($"/schemes/{{id:guid}}/{route}", async (Guid id, IDispatcher d, CancellationToken ct) =>
                     (await d.Send(new ChangeHealthScheme(id, action), ct)).ToHttp(Results.Ok))
                 .Produces<SchemeView>(StatusCodes.Status200OK)
+                .TakesIfMatch()
                 .WithName($"HealthScheme{action}").WithSummary($"{action} the scheme").RequirePermission(HealthPermissions.SchemeUpdate);
         }
 
@@ -133,16 +134,19 @@ public sealed class HealthModule : IModule
         health.MapPost("/memberships/{id:guid}/dependants/{dependantId:guid}/remove", async (Guid id, Guid dependantId, DependantRemovalRequest r, IDispatcher d,
                 CancellationToken ct) => (await d.Send(new RemoveHealthDependant(id, dependantId, r.LastDay), ct)).ToHttp(Results.Ok))
             .Produces<MembershipView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthRemoveDependant").WithSummary("Remove a dependant from a date").RequirePermission(HealthPermissions.MembershipUpdate);
         health.MapPost("/memberships/{id:guid}/plan", async (Guid id, PlanChangeRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ChangeHealthPlan(id, r.PlanCode, r.OptionCode, r.EffectiveDate, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<MembershipView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthChangePlan").WithSummary("Change the plan option from a date").RequirePermission(HealthPermissions.MembershipUpdate);
         foreach (var (route, action) in new[] { ("suspend", MembershipAction.Suspend), ("reinstate", MembershipAction.Reinstate), ("terminate", MembershipAction.Terminate) })
         {
             health.MapPost($"/memberships/{{id:guid}}/{route}", async (Guid id, MembershipStatusRequest r, IDispatcher d, CancellationToken ct) =>
                     (await d.Send(new ChangeMembershipStatus(id, action, r.EffectiveDate, r.Reason), ct)).ToHttp(Results.Ok))
                 .Produces<MembershipView>(StatusCodes.Status200OK)
+                .TakesIfMatch()
                 .WithName($"HealthMembership{action}").WithSummary($"{action} the membership").RequirePermission(HealthPermissions.MembershipUpdate);
         }
 
@@ -165,27 +169,33 @@ public sealed class HealthModule : IModule
         health.MapPost("/preauthorisations/{id:guid}/review", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReviewAuthorisation(id), ct)).ToHttp(Results.Ok))
             .Produces<PreauthorisationView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthReviewAuthorisation").WithSummary("Start clinical review (HLT-008)").RequirePermission(HealthPermissions.PreauthReview);
         health.MapPost("/preauthorisations/{id:guid}/approve", async (Guid id, AuthorisationDecisionRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ApproveAuthorisation(id, r.Lines, r.ValidFrom, r.Conditions), ct)).ToHttp(Results.Ok))
             .Produces<PreauthorisationView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthApproveAuthorisation").WithSummary("Approve within the available benefit; the amount is reserved (ADR-012, h)")
             .RequirePermission(HealthPermissions.PreauthReview);
         health.MapPost("/preauthorisations/{id:guid}/reject", async (Guid id, AuthorisationRejectionRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RejectAuthorisation(id, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<PreauthorisationView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthRejectAuthorisation").WithSummary("Reject the authorisation").RequirePermission(HealthPermissions.PreauthReview);
         health.MapPost("/preauthorisations/{id:guid}/modify", async (Guid id, AuthorisationChangeRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ModifyAuthorisation(id, r.LineId, r.AuthorisedAmount), ct)).ToHttp(Results.Ok))
             .Produces<PreauthorisationView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthModifyAuthorisation").WithSummary("Change an approved line's amount and its reservation").RequirePermission(HealthPermissions.PreauthReview);
         health.MapPost("/preauthorisations/{id:guid}/conditions-met", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ConfirmConditionsMet(id), ct)).ToHttp(Results.Ok))
             .Produces<PreauthorisationView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthConfirmConditionsMet").WithSummary("A conditional approval's conditions are met; it becomes Approved").RequirePermission(HealthPermissions.PreauthReview);
         health.MapPost("/preauthorisations/{id:guid}/cancel", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new CancelAuthorisation(id), ct)).ToHttp(Results.Ok))
             .Produces<PreauthorisationView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthCancelAuthorisation").WithSummary("Cancel; the reservation is released").RequirePermission(HealthPermissions.PreauthReview);
 
         health.MapPost("/claims", async (SubmitMedicalClaim r, IDispatcher d, CancellationToken ct) =>
@@ -197,18 +207,22 @@ public sealed class HealthModule : IModule
             .WithName("HealthGetClaim").WithSummary("Get a claim").RequirePermission(HealthPermissions.ClaimRead);
         health.MapPost("/claims/{id:guid}/validate", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new ValidateMedicalClaim(id), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthValidateClaim").WithSummary("Validate membership, cover and codes (HLT-007)").RequirePermission(HealthPermissions.ClaimUpdate);
         health.MapPost("/claims/{id:guid}/adjudicate", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new AdjudicateMedicalClaim(id), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthAdjudicateClaim").WithSummary("Adjudicate the lines (ADR-012); safe to repeat after CONCURRENCY_CONFLICT").RequirePermission(HealthPermissions.ClaimUpdate);
         health.MapPost("/claims/{id:guid}/review", async (Guid id, PendReviewRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReviewPendedClaim(id, r.Reviews), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthReviewPendedClaim").WithSummary("Accept or reject pended lines, and adjudicate again").RequirePermission(HealthPermissions.ClaimApprove);
         health.MapPost("/claims/{id:guid}/approve", async (Guid id, ApproveClaimRequest? r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ApproveMedicalClaim(id, r?.ReasonCode), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthApproveClaim").WithSummary("Approve the adjudicated claim for payment")
             .WithDescription("The body is optional. A claim adjudicated with some lines rejected while the rest are paid is a partial approval (OQ-102): it needs "
                 + "reasonCode, a decision reason of type PARTIAL (claims/static/claim-decision-reason-codes), else 422 HEALTH_RATIONALE_REQUIRED; the claim's "
@@ -218,10 +232,12 @@ public sealed class HealthModule : IModule
         health.MapPost("/claims/{id:guid}/reject", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RejectMedicalClaim(id, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthRejectClaim").WithSummary("Reject a validated claim").RequirePermission(HealthPermissions.ClaimApprove);
         health.MapPost("/claims/{id:guid}/reverse", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReverseMedicalClaim(id, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthReverseClaim").WithSummary("Reverse a paid claim; its benefit use is given back").RequirePermission(HealthPermissions.ClaimApprove);
 
         health.MapPost("/utilisation-cases", async (OpenUtilisationCase r, IDispatcher d, CancellationToken ct) =>
@@ -235,10 +251,12 @@ public sealed class HealthModule : IModule
         health.MapPost("/utilisation-cases/{id:guid}/review", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReviewUtilisationCase(id), ct)).ToHttp(Results.Ok))
             .Produces<UtilisationCaseView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthReviewUtilisationCase").WithSummary("Start reviewing").RequirePermission(HealthPermissions.CaseUpdate);
         health.MapPost("/utilisation-cases/{id:guid}/conclude", async (Guid id, CaseOutcomeRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ConcludeUtilisationCase(id, r.Outcome), ct)).ToHttp(Results.Ok))
             .Produces<UtilisationCaseView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthConcludeUtilisationCase").WithSummary("Conclude, by the reviewer").RequirePermission(HealthPermissions.CaseUpdate);
         health.MapGet("/fraud-cases/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetFraudCase(id), ct)).ToHttp(Results.Ok))
             .Produces<FraudCaseView>(StatusCodes.Status200OK)
@@ -246,10 +264,12 @@ public sealed class HealthModule : IModule
         health.MapPost("/fraud-cases/{id:guid}/investigate", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new InvestigateFraudCase(id), ct)).ToHttp(Results.Ok))
             .Produces<FraudCaseView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthInvestigateFraudCase").WithSummary("Start investigating").RequirePermission(HealthPermissions.CaseUpdate);
         health.MapPost("/fraud-cases/{id:guid}/conclude", async (Guid id, CaseOutcomeRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ConcludeFraudCase(id, r.Outcome), ct)).ToHttp(Results.Ok))
             .Produces<FraudCaseView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthConcludeFraudCase").WithSummary("Conclude, by the investigator").RequirePermission(HealthPermissions.CaseUpdate);
     }
 
@@ -265,14 +285,17 @@ public sealed class HealthModule : IModule
         health.MapPost("/payment-runs/{id:guid}/cut-off", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new CutOffPaymentRun(id), ct)).ToHttp(Results.Ok))
             .Produces<PaymentRunView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthCutOffRun").WithSummary("Cut off the run").RequirePermission(HealthPermissions.RunUpdate);
         health.MapPost("/payment-runs/{id:guid}/calculate", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new CalculatePaymentRun(id), ct)).ToHttp(Results.Ok))
             .Produces<PaymentRunView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthCalculateRun").WithSummary("Calculate remittances; approval is requested in Workflow (HLT-009)").RequirePermission(HealthPermissions.RunUpdate);
         health.MapPost("/payment-runs/{id:guid}/release", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReleasePaymentRun(id), ct)).ToHttp(Results.Ok))
             .Produces<PaymentRunView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("HealthReleaseRun").WithSummary("Release the approved run to Payments").RequirePermission(HealthPermissions.RunUpdate);
     }
 

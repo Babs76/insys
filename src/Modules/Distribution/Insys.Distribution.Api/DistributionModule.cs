@@ -60,7 +60,7 @@ public sealed class DistributionModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         DistributionStaticDataEndpoints.MapStaticData(api);
-        var distribution = api.MapGroup("/distribution").WithTags(Name);
+        var distribution = api.MapGroup("/distribution").WithTags(Name).ETagsFromRowVersion();
 
         distribution.MapGet("/intermediaries/{code}/permissions/{productCode}", async (string code, string productCode, IDispatcher d, CancellationToken ct) =>
                 (await d.Query(new CheckIntermediary(code, productCode), ct)).ToHttp(Results.Ok))
@@ -87,6 +87,7 @@ public sealed class DistributionModule : IModule
         distribution.MapPost("/entitlements/{id:guid}/claw-back", async (Guid id, ClawBackRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ClawBackCommission(id, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<EntitlementView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("DistributionClawBack")
             .WithSummary("Claw back an accrued or payable entitlement in full; one already on a statement is recovered on the next")
             .RequirePermission(DistributionPermissions.CommissionUpdate);
@@ -94,6 +95,7 @@ public sealed class DistributionModule : IModule
         distribution.MapPost("/statements", async (PrepareStatement r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(r, ct)).ToHttp(view => Results.Created($"/api/v1/distribution/statements/{view.Id}", view)))
             .Produces<StatementView>(StatusCodes.Status201Created)
+            .RequireIdempotencyKey()
             .WithName("DistributionPrepareStatement")
             .WithSummary("Prepare an intermediary's statement for a month, or prepare a draft again; a second person approves it in Workflow (DST-004)")
             .RequirePermission(DistributionPermissions.StatementCreate);

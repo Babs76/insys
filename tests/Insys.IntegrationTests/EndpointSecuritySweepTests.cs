@@ -157,7 +157,7 @@ public sealed partial class EndpointSecuritySweepTests(DatabaseFixture fixture) 
     }
 
     /// <summary>One concrete call per endpoint and method, with route values that satisfy its constraints.</summary>
-    private static List<(string Method, string Url, RouteEndpoint Endpoint)> Calls(IEnumerable<RouteEndpoint> endpoints)
+    internal static List<(string Method, string Url, RouteEndpoint Endpoint)> Calls(IEnumerable<RouteEndpoint> endpoints)
     {
         var calls = new List<(string, string, RouteEndpoint)>();
         foreach (var endpoint in endpoints)

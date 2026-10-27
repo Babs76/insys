@@ -67,7 +67,7 @@ public sealed class BillingModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         BillingStaticDataEndpoints.MapStaticData(api);
-        var accounts = api.MapGroup("/billing/accounts").WithTags(Name);
+        var accounts = api.MapGroup("/billing/accounts").WithTags(Name).ETagsFromRowVersion();
 
         accounts.MapPost("/", async (OpenAccountRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new OpenAccount(r.PayerPartyId, r.Currency, r.CollectionMethod, r.MandateRef), ct))
@@ -97,6 +97,7 @@ public sealed class BillingModule : IModule
         accounts.MapPut("/{id:guid}/schedules/{scheduleId:guid}", async (Guid id, Guid scheduleId, AmendScheduleRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new AmendSchedule(id, scheduleId, r.InstalmentAmount, r.EffectiveFrom), ct)).ToHttp(Results.Ok))
             .Produces<AccountView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("BillingAmendSchedule")
             .WithSummary("Amend a schedule's instalment amount from a date; instalments already invoiced are not changed")
             .RequirePermission(BillingPermissions.AccountUpdate);
@@ -119,6 +120,7 @@ public sealed class BillingModule : IModule
         accounts.MapPost("/{id:guid}/age", async (Guid id, IDispatcher dispatcher, IBusinessDate businessDate, CancellationToken ct) =>
                 (await dispatcher.Send(new AgeAccount(id, businessDate.Today), ct)).ToHttp(Results.Ok))
             .Produces<AccountView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("BillingAgeAccount")
             .WithSummary("Mark overdue invoices and detect arrears by the ageing buckets (the billing job does this daily)")
             .RequirePermission(BillingPermissions.AccountUpdate);
@@ -126,6 +128,7 @@ public sealed class BillingModule : IModule
         accounts.MapPost("/{id:guid}/close", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new CloseAccount(id), ct)).ToHttp(Results.Ok))
             .Produces<AccountView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("BillingCloseAccount")
             .WithSummary("Close an account with nothing outstanding")
             .RequirePermission(BillingPermissions.AccountUpdate);
@@ -138,7 +141,7 @@ public sealed class BillingModule : IModule
             .RequirePermission(BillingPermissions.RefundCreate)
             .RequireIdempotencyKey();
 
-        var billing = api.MapGroup("/billing").WithTags(Name);
+        var billing = api.MapGroup("/billing").WithTags(Name).ETagsFromRowVersion();
         billing.MapGet("/invoices/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetInvoice(id), ct)).ToHttp(Results.Ok))
             .Produces<InvoiceView>(StatusCodes.Status200OK)
             .WithName("BillingGetInvoice")

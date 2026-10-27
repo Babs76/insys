@@ -99,7 +99,7 @@ public sealed class LifeModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         LifeStaticDataEndpoints.MapStaticData(api);
-        var life = api.MapGroup("/life").WithTags(Name);
+        var life = api.MapGroup("/life").WithTags(Name).ETagsFromRowVersion();
         MapLists(life);
         MapProposals(life);
         MapPolicies(life);
@@ -140,10 +140,12 @@ public sealed class LifeModule : IModule
             .WithName("LifeGetProposal").WithSummary("Get a proposal").RequirePermission(LifePermissions.ProposalRead);
         life.MapPost("/proposals/{id:guid}/submit", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new SubmitLifeProposal(id), ct)).ToHttp(Results.Ok))
             .Produces<ProposalView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeSubmitProposal").WithSummary("Submit a quoted, eligible proposal; its content is frozen from then (LIF-001)")
             .RequirePermission(LifePermissions.ProposalUpdate);
         life.MapPost("/proposals/{id:guid}/withdraw", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new WithdrawLifeProposal(id), ct)).ToHttp(Results.Ok))
             .Produces<ProposalView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeWithdrawProposal").WithSummary("Withdraw a quoted or submitted proposal").RequirePermission(LifePermissions.ProposalUpdate);
         life.MapGet("/proposals/{id:guid}/underwriting-case", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Query(new GetProposalCase(id), ct)).ToHttp(Results.Ok))
@@ -157,20 +159,24 @@ public sealed class LifeModule : IModule
         life.MapPost("/underwriting-cases/{id:guid}/evidence", async (Guid id, EvidenceRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RequestEvidence(id, r.EvidenceType, r.Mandatory), ct)).ToHttp(Results.Ok))
             .Produces<CaseView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeRequestEvidence").WithSummary("Request evidence; the case waits for it").RequirePermission(LifePermissions.UnderwritingUpdate);
         life.MapPost("/underwriting-cases/{id:guid}/evidence/{requirementId:guid}/received", async (Guid id, Guid requirementId, EvidenceReceivedRequest r, IDispatcher d,
                 CancellationToken ct) => (await d.Send(new RecordEvidence(id, requirementId, r.DocumentId), ct)).ToHttp(Results.Ok))
             .Produces<CaseView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeRecordEvidence").WithSummary("Record evidence received").RequirePermission(LifePermissions.UnderwritingUpdate);
         life.MapPost("/underwriting-cases/{id:guid}/evidence/{requirementId:guid}/waive", async (Guid id, Guid requirementId, WaiverRequest r, IDispatcher d,
                 CancellationToken ct) => (await d.Send(new WaiveEvidence(id, requirementId, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<CaseView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeWaiveEvidence").WithSummary("Waive evidence, by someone with that authority").RequirePermission(LifePermissions.UnderwritingWaive);
         foreach (var (route, action) in new[] { ("start-assessment", CaseAction.StartAssessment), ("answer-referral", CaseAction.AnswerReferral) })
         {
             life.MapPost($"/underwriting-cases/{{id:guid}}/{route}", async (Guid id, IDispatcher d, CancellationToken ct) =>
                     (await d.Send(new ChangeCase(id, action), ct)).ToHttp(Results.Ok))
                 .Produces<CaseView>(StatusCodes.Status200OK)
+                .TakesIfMatch()
                 .WithName($"LifeCase{action}").WithSummary(action == CaseAction.StartAssessment ? "Start assessment when no evidence is needed" : "Return a referred case to assessment")
                 .RequirePermission(LifePermissions.UnderwritingUpdate);
         }
@@ -178,10 +184,12 @@ public sealed class LifeModule : IModule
         life.MapPost("/underwriting-cases/{id:guid}/refer", async (Guid id, CaseReferralRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReferUnderwritingCase(id, r.ToRole), ct)).ToHttp(Results.Ok))
             .Produces<CaseView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeReferCase").WithSummary("Refer the case").RequirePermission(LifePermissions.UnderwritingUpdate);
         life.MapPost("/underwriting-cases/{id:guid}/decision", async (Guid id, CaseDecisionRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DecideUnderwritingCase(id, r.Outcome, r.DecisionCode, r.Reason, r.Items), ct)).ToHttp(Results.Ok))
             .Produces<CaseView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeDecideCase").WithSummary("Propose the decision and terms; a second person approves them in Workflow within authority (SRS-002)")
             .RequirePermission(LifePermissions.UnderwritingDecide);
     }
@@ -199,14 +207,17 @@ public sealed class LifeModule : IModule
         life.MapPost("/policies/{id:guid}/beneficiaries", async (Guid id, BeneficiariesRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ChangeBeneficiaries(id, r.EffectiveDate, r.Nominations), ct)).ToHttp(Results.Ok))
             .Produces<PolicyView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeChangeBeneficiaries").WithSummary("Change beneficiaries from a date; shares total 100%").RequirePermission(LifePermissions.PolicyUpdate);
         life.MapPost("/policies/{id:guid}/alterations", async (Guid id, AlterationRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new AlterLifePolicy(id, r.AlterationCode, r.EffectiveDate, r.IntermediaryCode), ct)).ToHttp(Results.Ok))
             .Produces<PolicyView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeAlterPolicy").WithSummary("Alter the policy, checked against its state and the alteration type (LIF-004)").RequirePermission(LifePermissions.PolicyUpdate);
         life.MapPost("/policies/{id:guid}/reinstate", async (Guid id, ReinstatementRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReinstateLifePolicy(id, r.EvidenceRef), ct)).ToHttp(Results.Ok))
             .Produces<PolicyView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeReinstatePolicy").WithSummary("Reinstate a lapsed policy within the product's window, with evidence where required (LIF-005)")
             .RequirePermission(LifePermissions.PolicyUpdate);
         foreach (var (route, action) in new[] { ("surrender", PolicyValueAction.Surrender), ("paid-up", PolicyValueAction.MakePaidUp), ("mature", PolicyValueAction.Mature) })
@@ -214,6 +225,7 @@ public sealed class LifeModule : IModule
             life.MapPost($"/policies/{{id:guid}}/{route}", async (Guid id, IDispatcher d, CancellationToken ct) =>
                     (await d.Send(new RequestPolicyValue(id, action), ct)).ToHttp(Results.Ok))
                 .Produces<PolicyView>(StatusCodes.Status200OK)
+                .TakesIfMatch()
                 .WithName($"LifePolicy{action}").WithSummary($"{action}: refused until actuarial defines the value calculation (OQ-052)")
                 .RequirePermission(LifePermissions.PolicyUpdate);
         }
@@ -243,23 +255,28 @@ public sealed class LifeModule : IModule
             .WithName("LifeGetClaim").WithSummary("Get a claim").RequirePermission(LifePermissions.ClaimRead);
         life.MapPost("/claims/{id:guid}/register", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new RegisterLifeClaim(id), ct)).ToHttp(Results.Ok))
             .Produces<LifeClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeRegisterClaim").WithSummary("Register the claim: policy status, insured life, benefit, exclusions and claimant are checked (LIF-008)")
             .RequirePermission(LifePermissions.ClaimUpdate);
         life.MapPost("/claims/{id:guid}/assessment", async (Guid id, AssessmentRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new AssessLifeClaim(id, r.Lines), ct)).ToHttp(Results.Ok))
             .Produces<LifeClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeAssessClaim").WithSummary("Assess the benefits claimed").RequirePermission(LifePermissions.ClaimUpdate);
         life.MapPost("/claims/{id:guid}/approval", async (Guid id, ClaimApprovalRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ApproveLifeClaim(id, r.Payees, r.ReserveType, r.DecisionReason, r.Rationale), ct)).ToHttp(Results.Ok))
             .Produces<LifeClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeApproveClaim").WithSummary("Propose approval and payees; a second person approves in Workflow within authority (SRS-002, CLM-003)")
             .RequirePermission(LifePermissions.ClaimDecide);
         life.MapPost("/claims/{id:guid}/decline", async (Guid id, ClaimDeclineRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DeclineLifeClaim(id, r.DecisionReason, r.Rationale), ct)).ToHttp(Results.Ok))
             .Produces<LifeClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeDeclineClaim").WithSummary("Decline the claim with its reason and rationale (CLM-003)").RequirePermission(LifePermissions.ClaimDecide);
         life.MapPost("/claims/{id:guid}/close", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new CloseLifeClaim(id), ct)).ToHttp(Results.Ok))
             .Produces<LifeClaimView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeCloseClaim").WithSummary("Close a settled or declined claim").RequirePermission(LifePermissions.ClaimUpdate);
     }
 
@@ -280,21 +297,26 @@ public sealed class LifeModule : IModule
         life.MapPut("/group-schemes/{id:guid}/members/{memberId:guid}", async (Guid id, Guid memberId, MemberChangeRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ChangeGroupMember(id, memberId, r.CategoryCode, r.AnnualSalary, r.Facts), ct)).ToHttp(Results.Ok))
             .Produces<SchemeView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeChangeMember").WithSummary("Change a member's category or salary").RequirePermission(LifePermissions.SchemeUpdate);
         life.MapPost("/group-schemes/{id:guid}/members/{memberId:guid}/evidence-accepted", async (Guid id, Guid memberId, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new AcceptMemberEvidence(id, memberId), ct)).ToHttp(Results.Ok))
             .Produces<SchemeView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeAcceptMemberEvidence").WithSummary("Accept a member's underwriting evidence").RequirePermission(LifePermissions.UnderwritingDecide);
         life.MapPost("/group-schemes/{id:guid}/members/{memberId:guid}/leave", async (Guid id, Guid memberId, MemberLeaveRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RemoveGroupMember(id, memberId, r.LeftOn), ct)).ToHttp(Results.Ok))
             .Produces<SchemeView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeRemoveMember").WithSummary("Remove a member from a date").RequirePermission(LifePermissions.SchemeUpdate);
         life.MapPost("/group-schemes/{id:guid}/renew", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new RenewGroupScheme(id), ct)).ToHttp(Results.Ok))
             .Produces<SchemeView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeRenewScheme").WithSummary("Renew the scheme").RequirePermission(LifePermissions.SchemeUpdate);
         life.MapPost("/group-schemes/{id:guid}/terminate", async (Guid id, SchemeTerminationRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new TerminateGroupScheme(id, r.On), ct)).ToHttp(Results.Ok))
             .Produces<SchemeView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("LifeTerminateScheme").WithSummary("Terminate the scheme; its members leave").RequirePermission(LifePermissions.SchemeUpdate);
     }
 
