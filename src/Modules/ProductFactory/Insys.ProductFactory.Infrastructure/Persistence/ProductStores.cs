@@ -238,12 +238,13 @@ internal sealed class ProductList(ProductFactoryDbContext db) : IProductList
             latest = latest.Where(r => r.RecordStatus == code);
         }
 
+        // Compared and ordered bytewise, as the static data lists are (BR-087): the same order whatever the database's collation.
         if (afterCode is not null)
         {
-            latest = latest.Where(r => string.Compare(r.Code, afterCode) > 0);
+            latest = latest.Where(r => string.Compare(EF.Functions.Collate(r.Code, "C"), afterCode) > 0);
         }
 
-        var page = await latest.OrderBy(r => r.Code).Take(limit)
+        var page = await latest.OrderBy(r => EF.Functions.Collate(r.Code, "C")).Take(limit)
             .Select(r => new
             {
                 r.Code, r.Name, r.Domain, r.FamilyCode, r.ClassCode, r.Version, r.RecordStatus, r.EffectiveFrom, r.EffectiveTo,
