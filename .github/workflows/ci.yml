@@ -207,10 +207,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs --jq '.jobs[] | select(.name | startswith("integration (")) | [.name, .startedAt, .completedAt, .conclusion] | @tsv' |
+          # A shard that has only just finished may not show its completion time yet: it is measured to now.
+          gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs \
+            --jq '.jobs[] | select(.name | startswith("integration (")) | [.name, .startedAt, (.completedAt // ""), (.conclusion // "")] | @tsv' | sort |
           while IFS=$'\t' read -r name started completed conclusion; do
-            minutes=$(( ( $(date -d "$completed" +%s) - $(date -d "$started" +%s) ) / 60 ))
-            echo "$name: $minutes min ($conclusion)" | tee -a "$GITHUB_STEP_SUMMARY"
+            case "$completed" in ""|0001-*) end=$(date +%s) ;; *) end=$(date -d "$completed" +%s) ;; esac
+            minutes=$(( (end - $(date -d "$started" +%s)) / 60 ))
+            echo "$name: $minutes min (${conclusion:-finishing})" | tee -a "$GITHUB_STEP_SUMMARY"
             if [ "$minutes" -gt 35 ]; then echo "::warning title=Integration shard over 35 minutes::$name took $minutes minutes (limit 45)."; fi
           done
 
