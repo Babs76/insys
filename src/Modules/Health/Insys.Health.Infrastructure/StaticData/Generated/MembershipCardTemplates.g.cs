@@ -53,8 +53,10 @@ public sealed class MembershipCardTemplates : StaticRecord<MembershipCardTemplat
 /// <summary>The fields a client sends for Membership card templates.</summary>
 public sealed record MembershipCardTemplatesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Plan { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Template { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

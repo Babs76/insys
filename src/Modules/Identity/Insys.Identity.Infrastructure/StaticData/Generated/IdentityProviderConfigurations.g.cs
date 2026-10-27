@@ -60,13 +60,17 @@ public sealed class IdentityProviderConfigurations : StaticRecord<IdentityProvid
 /// <summary>The fields a client sends for Identity provider configurations.</summary>
 public sealed record IdentityProviderConfigurationsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? IdpCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("OIDC", "SAML")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Protocol { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? MetadataUrl { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? ClaimMappings { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

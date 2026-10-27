@@ -59,11 +59,14 @@ public sealed class AccessReviewSchedules : StaticRecord<AccessReviewSchedulesIn
 public sealed record AccessReviewSchedulesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("PRIVILEGED", "ALL_USERS", "SERVICE_ACCOUNTS")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Scope { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReviewerRole { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

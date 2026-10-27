@@ -65,15 +65,19 @@ public sealed class DiscountAndLoadingSchedules : StaticRecord<DiscountAndLoadin
 public sealed record DiscountAndLoadingSchedulesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("DISCOUNT", "LOADING")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PERCENT", "AMOUNT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Basis { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Value { get; init; }
 
     public decimal? Cap { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? StackingOrder { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

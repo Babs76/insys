@@ -61,12 +61,15 @@ public sealed class CancellationReasonsAndRefundRules : StaticRecord<Cancellatio
 /// <summary>The fields a client sends for Cancellation reasons and refund rules.</summary>
 public sealed record CancellationReasonsAndRefundRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReasonCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("INSURED", "INSURER", "INTERMEDIARY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Initiator { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PRO_RATA", "SHORT_PERIOD", "NONE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RefundBasis { get; init; }
 
     public decimal? Fee { get; init; }

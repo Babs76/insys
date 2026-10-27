@@ -56,8 +56,10 @@ public sealed class RiskObjectTypesAndAttributeSchemas : StaticRecord<RiskObject
 /// <summary>The fields a client sends for Risk object types and attribute schemas.</summary>
 public sealed record RiskObjectTypesAndAttributeSchemasInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ObjectType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? Attributes { get; init; }
 
     public JsonElement? Validation { get; init; }

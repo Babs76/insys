@@ -68,19 +68,24 @@ public sealed class RetryAndDeadLetterPolicies : StaticRecord<RetryAndDeadLetter
 /// <summary>The fields a client sends for Retry and dead-letter policies.</summary>
 public sealed record RetryAndDeadLetterPoliciesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PolicyCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? MaxAttempts { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("FIXED", "EXPONENTIAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Backoff { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? InitialDelay { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string? MaxDelay { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DeadLetterTarget { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

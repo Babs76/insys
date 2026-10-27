@@ -59,10 +59,13 @@ public sealed class FinancialUnderwritingLimits : StaticRecord<FinancialUnderwri
 /// <summary>The fields a client sends for Financial underwriting limits.</summary>
 public sealed record FinancialUnderwritingLimitsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AgeBand { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? IncomeMultiple { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? MaxSumAssured { get; init; }
 
     public decimal? EvidenceAbove { get; init; }

@@ -63,15 +63,20 @@ public sealed class ValidationRuleSets : StaticRecord<ValidationRuleSetsInput>
 /// <summary>The fields a client sends for Validation rule sets.</summary>
 public sealed record ValidationRuleSetsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EntityCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Expression { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ERROR", "WARNING")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Severity { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? MessageKey { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

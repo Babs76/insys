@@ -59,12 +59,16 @@ public sealed class SpecialConditionsAndClauseLibrary : StaticRecord<SpecialCond
 /// <summary>The fields a client sends for Special conditions and clause library.</summary>
 public sealed record SpecialConditionsAndClauseLibraryInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ClauseCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Title { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? WordingRef { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Products { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

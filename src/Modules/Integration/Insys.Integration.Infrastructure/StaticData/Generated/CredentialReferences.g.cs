@@ -62,14 +62,19 @@ public sealed class CredentialReferences : StaticRecord<CredentialReferencesInpu
 /// <summary>The fields a client sends for Credential references.</summary>
 public sealed record CredentialReferencesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CredentialId { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PartnerCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SecretRef { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Scopes { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? RotationDue { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

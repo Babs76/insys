@@ -70,6 +70,7 @@ public sealed record BenefitCategoryMappingsInput : StaticRecordInput
 
     public string? ProviderType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? BenefitCategory { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

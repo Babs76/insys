@@ -71,6 +71,9 @@ public abstract class StaticRecord
 
     public Guid? ChangeRequestId { get; set; }
 
+    /// <summary>The import that created this draft (BR-016): it is submitted, approved and activated with the rest of its import.</summary>
+    public Guid? ImportBatchId { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     /// <summary>The maker: the user who created the draft.</summary>
@@ -123,6 +126,7 @@ public abstract record StaticRecordInput
     private static readonly string[] RecordClasses = ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "PERSONAL", "HIGHLY_SENSITIVE"];
 
     /// <summary>The business key. TODO(spec): composite natural keys are composed by the service, but the key fields are not identified.</summary>
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string Code { get; init; } = "";
 
     public DateOnly? EffectiveFrom { get; init; }
@@ -146,6 +150,7 @@ public abstract record StaticRecordInput
     public JsonElement? DisplayFlags { get; init; }
 
     /// <summary>Why the change is made; required for the change request and the audit trail (SDM-014).</summary>
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string ChangeReason { get; init; } = "";
 
     /// <summary>Checks the common fields and then the table's own fields (SDM-013, on save).</summary>

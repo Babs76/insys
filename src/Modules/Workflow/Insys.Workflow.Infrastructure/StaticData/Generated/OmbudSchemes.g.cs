@@ -63,15 +63,19 @@ public sealed class OmbudSchemes : StaticRecord<OmbudSchemesInput>
 /// <summary>The fields a client sends for Ombud schemes.</summary>
 public sealed record OmbudSchemesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SchemeCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
     public string? Contact { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReferralInformation { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ENQUIRY", "COMPLAINT", "DISPUTE", "APPEAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Families { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

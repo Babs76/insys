@@ -57,9 +57,11 @@ public sealed class UnitsOfMeasure : StaticRecord<UnitsOfMeasureInput>
 /// <summary>The fields a client sends for Units of measure.</summary>
 public sealed record UnitsOfMeasureInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? UnitCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("MASS", "LENGTH", "VOLUME", "AREA", "TIME")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Dimension { get; init; }
 
     public decimal? ConversionToBase { get; init; }

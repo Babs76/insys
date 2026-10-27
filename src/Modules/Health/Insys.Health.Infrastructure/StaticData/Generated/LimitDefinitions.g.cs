@@ -64,14 +64,18 @@ public sealed class LimitDefinitions : StaticRecord<LimitDefinitionsInput>
 /// <summary>The fields a client sends for Limit definitions.</summary>
 public sealed record LimitDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Benefit { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ANNUAL", "LIFETIME", "PER_EVENT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Period { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Amount { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PER_MEMBER", "PER_FAMILY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Basis { get; init; }
 
     public string? PlanCode { get; init; }

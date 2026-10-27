@@ -59,12 +59,16 @@ public sealed class NaturalCatastropheZones : StaticRecord<NaturalCatastropheZon
 /// <summary>The fields a client sends for Natural catastrophe zones.</summary>
 public sealed record NaturalCatastropheZonesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ZoneCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Peril { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Source { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Edition { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

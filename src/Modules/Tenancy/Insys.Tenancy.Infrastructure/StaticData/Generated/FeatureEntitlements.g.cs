@@ -60,11 +60,14 @@ public sealed class FeatureEntitlements : StaticRecord<FeatureEntitlementsInput>
 /// <summary>The fields a client sends for Feature entitlements.</summary>
 public sealed record FeatureEntitlementsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Tenant { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Feature { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Enabled { get; init; }
 
     public int? LimitValue { get; init; }

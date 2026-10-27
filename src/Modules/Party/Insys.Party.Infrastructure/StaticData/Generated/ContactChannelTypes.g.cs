@@ -53,6 +53,7 @@ public sealed class ContactChannelTypes : StaticRecord<ContactChannelTypesInput>
 /// <summary>The fields a client sends for Contact channel types.</summary>
 public sealed record ContactChannelTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     public string? ValidationPattern { get; init; }

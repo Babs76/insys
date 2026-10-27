@@ -59,12 +59,16 @@ public sealed class ServiceAccountScopes : StaticRecord<ServiceAccountScopesInpu
 /// <summary>The fields a client sends for Service account scopes.</summary>
 public sealed record ServiceAccountScopesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AccountCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Scopes { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CredentialRef { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? Expiry { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

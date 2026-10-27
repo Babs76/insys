@@ -62,10 +62,13 @@ public sealed class DeliveryChannelSettings : StaticRecord<DeliveryChannelSettin
 public sealed record DeliveryChannelSettingsInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "POST", "PORTAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Channel { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Provider { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SenderIdentity { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "POST", "PORTAL")]

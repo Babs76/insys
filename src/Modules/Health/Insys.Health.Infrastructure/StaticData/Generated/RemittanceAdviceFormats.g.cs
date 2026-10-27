@@ -57,11 +57,14 @@ public sealed class RemittanceAdviceFormats : StaticRecord<RemittanceAdviceForma
 /// <summary>The fields a client sends for Remittance advice formats.</summary>
 public sealed record RemittanceAdviceFormatsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FormatCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "PORTAL", "FILE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Channel { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Template { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

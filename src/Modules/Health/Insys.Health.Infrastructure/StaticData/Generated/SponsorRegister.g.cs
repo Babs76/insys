@@ -59,10 +59,13 @@ public sealed class SponsorRegister : StaticRecord<SponsorRegisterInput>
 /// <summary>The fields a client sends for Sponsor register.</summary>
 public sealed record SponsorRegisterInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SponsorCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Party { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Schemes { get; init; }
 
     public string? BillingContact { get; init; }

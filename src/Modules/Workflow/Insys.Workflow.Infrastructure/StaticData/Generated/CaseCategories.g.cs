@@ -61,14 +61,18 @@ public sealed class CaseCategories : StaticRecord<CaseCategoriesInput>
 /// <summary>The fields a client sends for Case categories.</summary>
 public sealed record CaseCategoriesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CategoryCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ENQUIRY", "COMPLAINT", "DISPUTE", "APPEAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Family { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("POLICY_DESIGN", "INFORMATION_PROVIDED", "ADVICE", "POLICY_PERFORMANCE", "SERVICE", "ACCESSIBILITY_CHANGES", "COMPLAINTS_HANDLING", "CLAIMS", "OTHER")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PprCategory { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

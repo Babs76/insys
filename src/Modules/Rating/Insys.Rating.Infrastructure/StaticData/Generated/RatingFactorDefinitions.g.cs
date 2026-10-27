@@ -60,11 +60,14 @@ public sealed class RatingFactorDefinitions : StaticRecord<RatingFactorDefinitio
 /// <summary>The fields a client sends for Rating factor definitions.</summary>
 public sealed record RatingFactorDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FactorCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("INTEGER", "DECIMAL", "CODE", "BOOLEAN", "DATE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DataType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SourceAttribute { get; init; }
 
     public JsonElement? Banding { get; init; }

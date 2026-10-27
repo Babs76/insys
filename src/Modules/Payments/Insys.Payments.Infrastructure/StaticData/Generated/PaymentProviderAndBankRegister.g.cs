@@ -63,15 +63,19 @@ public sealed class PaymentProviderAndBankRegister : StaticRecord<PaymentProvide
 /// <summary>The fields a client sends for Payment provider and bank register.</summary>
 public sealed record PaymentProviderAndBankRegisterInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProviderCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("BANK", "PAYMENT_GATEWAY", "MOBILE_MONEY", "CLEARING_HOUSE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
     public string? Bic { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? SupportedMethods { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CredentialRef { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

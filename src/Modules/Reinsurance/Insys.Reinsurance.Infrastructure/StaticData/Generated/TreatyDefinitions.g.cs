@@ -69,19 +69,26 @@ public sealed class TreatyDefinitions : StaticRecord<TreatyDefinitionsInput>
 /// <summary>The fields a client sends for Treaty definitions.</summary>
 public sealed record TreatyDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TreatyCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("QUOTA_SHARE", "SURPLUS", "EXCESS_OF_LOSS", "STOP_LOSS")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Retention { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Capacity { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? PeriodFrom { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? PeriodTo { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? Participants { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

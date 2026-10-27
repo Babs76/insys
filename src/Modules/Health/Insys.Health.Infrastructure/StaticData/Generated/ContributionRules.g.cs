@@ -59,12 +59,16 @@ public sealed class ContributionRules : StaticRecord<ContributionRulesInput>
 /// <summary>The fields a client sends for Contribution rules.</summary>
 public sealed record ContributionRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Scheme { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? MemberCategory { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Rate { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? EmployerShare { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

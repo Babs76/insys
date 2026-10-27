@@ -59,12 +59,16 @@ public sealed class MatchingRulesAndThresholds : StaticRecord<MatchingRulesAndTh
 /// <summary>The fields a client sends for Matching rules and thresholds.</summary>
 public sealed record MatchingRulesAndThresholdsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? ComparedAttributes { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? ReviewThreshold { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? AutoMergeThreshold { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

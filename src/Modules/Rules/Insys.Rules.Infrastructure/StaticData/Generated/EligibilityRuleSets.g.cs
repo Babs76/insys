@@ -57,11 +57,14 @@ public sealed class EligibilityRuleSets : StaticRecord<EligibilityRuleSetsInput>
 /// <summary>The fields a client sends for Eligibility rule sets.</summary>
 public sealed record EligibilityRuleSetsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RulesetCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Conditions { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ELIGIBLE", "INELIGIBLE", "REFER")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Outcome { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

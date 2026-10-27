@@ -67,12 +67,15 @@ public sealed class HealthWaitingPeriodRules : StaticRecord<HealthWaitingPeriodR
 /// <summary>The fields a client sends for Health waiting period rules.</summary>
 public sealed record HealthWaitingPeriodRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("GENERAL", "CONDITION_SPECIFIC")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Duration { get; init; }
 
     public string[]? Exceptions { get; init; }

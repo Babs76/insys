@@ -59,12 +59,16 @@ public sealed class TaxCodesOnFinancialTransactions : StaticRecord<TaxCodesOnFin
 /// <summary>The fields a client sends for Tax codes on financial transactions.</summary>
 public sealed record TaxCodesOnFinancialTransactionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TaxCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Rate { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Account { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Jurisdiction { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

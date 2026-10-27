@@ -59,12 +59,15 @@ public sealed class Countries : StaticRecord<CountriesInput>
 /// <summary>The fields a client sends for Countries.</summary>
 public sealed record CountriesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Alpha3 { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
     public string? DiallingCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Active { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

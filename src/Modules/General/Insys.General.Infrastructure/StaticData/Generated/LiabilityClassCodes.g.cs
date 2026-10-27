@@ -57,11 +57,14 @@ public sealed class LiabilityClassCodes : StaticRecord<LiabilityClassCodesInput>
 /// <summary>The fields a client sends for Liability class codes.</summary>
 public sealed record LiabilityClassCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ClassCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("TURNOVER", "WAGEROLL", "FIXED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RatingBasis { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

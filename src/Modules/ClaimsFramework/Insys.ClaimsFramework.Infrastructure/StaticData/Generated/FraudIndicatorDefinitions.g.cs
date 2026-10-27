@@ -62,14 +62,19 @@ public sealed class FraudIndicatorDefinitions : StaticRecord<FraudIndicatorDefin
 /// <summary>The fields a client sends for Fraud indicator definitions.</summary>
 public sealed record FraudIndicatorDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? IndicatorCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Logic { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? Score { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? ReferralThreshold { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReferralQueue { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

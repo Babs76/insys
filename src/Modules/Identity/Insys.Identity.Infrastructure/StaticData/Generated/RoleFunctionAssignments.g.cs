@@ -53,8 +53,10 @@ public sealed class RoleFunctionAssignments : StaticRecord<RoleFunctionAssignmen
 /// <summary>The fields a client sends for Role function assignments.</summary>
 public sealed record RoleFunctionAssignmentsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RoleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FunctionCode { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

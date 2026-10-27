@@ -62,14 +62,19 @@ public sealed class ReconciliationMatchingRules : StaticRecord<ReconciliationMat
 /// <summary>The fields a client sends for Reconciliation matching rules.</summary>
 public sealed record ReconciliationMatchingRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? MatchKeys { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Tolerance { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? AutoMatch { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ExceptionQueue { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

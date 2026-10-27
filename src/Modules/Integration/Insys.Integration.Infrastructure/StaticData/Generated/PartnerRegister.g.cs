@@ -70,11 +70,14 @@ public sealed class PartnerRegister : StaticRecord<PartnerRegisterInput>
 /// <summary>The fields a client sends for Partner register.</summary>
 public sealed record PartnerRegisterInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PartnerCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("BROKER_SYSTEM", "BANK", "PAYMENT_PROVIDER", "PROVIDER_SYSTEM", "REINSURER", "GL", "OTHER")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PartnerType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LegalName { get; init; }
 
     public string[]? AllowedApiGroups { get; init; }
@@ -84,6 +87,7 @@ public sealed record PartnerRegisterInput : StaticRecordInput
     public string? CertRef { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Status { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

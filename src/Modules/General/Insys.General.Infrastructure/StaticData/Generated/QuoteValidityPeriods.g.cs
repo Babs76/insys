@@ -56,10 +56,13 @@ public sealed class QuoteValidityPeriods : StaticRecord<QuoteValidityPeriodsInpu
 /// <summary>The fields a client sends for Quote validity periods.</summary>
 public sealed record QuoteValidityPeriodsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? DaysValid { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? ReRateOnExpiry { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -66,13 +66,17 @@ public sealed class AuthenticationAndSessionPolicies : StaticRecord<Authenticati
 /// <summary>The fields a client sends for Authentication and session policies.</summary>
 public sealed record AuthenticationAndSessionPoliciesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PolicyCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? MfaRequiredRoles { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SessionTimeout { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? LockoutAttempts { get; init; }
 
     public string[]? ClientIds { get; init; }

@@ -53,8 +53,10 @@ public sealed class ClinicalReviewCriteriaReferences : StaticRecord<ClinicalRevi
 /// <summary>The fields a client sends for Clinical review criteria references.</summary>
 public sealed record ClinicalReviewCriteriaReferencesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CriteriaSet { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Source { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

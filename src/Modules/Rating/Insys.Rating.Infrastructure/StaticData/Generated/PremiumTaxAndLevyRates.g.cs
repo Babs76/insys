@@ -63,15 +63,20 @@ public sealed class PremiumTaxAndLevyRates : StaticRecord<PremiumTaxAndLevyRates
 /// <summary>The fields a client sends for Premium tax and levy rates.</summary>
 public sealed record PremiumTaxAndLevyRatesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TaxCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Jurisdiction { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Rate { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("GROSS_PREMIUM", "NET_PREMIUM", "COMMISSION")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Base { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Rounding { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

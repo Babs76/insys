@@ -54,9 +54,11 @@ public sealed class ConstructionTypes : StaticRecord<ConstructionTypesInput>
 /// <summary>The fields a client sends for Construction types.</summary>
 public sealed record ConstructionTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NON_COMBUSTIBLE", "MIXED", "COMBUSTIBLE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Combustibility { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

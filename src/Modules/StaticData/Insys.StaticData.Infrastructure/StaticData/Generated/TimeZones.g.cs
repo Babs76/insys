@@ -53,8 +53,10 @@ public sealed class TimeZones : StaticRecord<TimeZonesInput>
 /// <summary>The fields a client sends for Time zones.</summary>
 public sealed record TimeZonesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Zone { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Country { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -59,6 +59,7 @@ public sealed class RolesAndPermissionSets : StaticRecord<RolesAndPermissionSets
 /// <summary>The fields a client sends for Roles and permission sets.</summary>
 public sealed record RolesAndPermissionSetsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RoleCode { get; init; }
 
     public string[]? Permissions { get; init; }

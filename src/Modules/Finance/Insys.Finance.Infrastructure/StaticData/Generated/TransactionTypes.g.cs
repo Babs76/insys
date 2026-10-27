@@ -61,14 +61,18 @@ public sealed class TransactionTypes : StaticRecord<TransactionTypesInput>
 /// <summary>The fields a client sends for Transaction types.</summary>
 public sealed record TransactionTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TypeCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "SHARED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SourceDomain { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("DEBIT", "CREDIT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Sign { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

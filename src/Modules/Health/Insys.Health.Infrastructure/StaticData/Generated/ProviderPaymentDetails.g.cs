@@ -65,12 +65,16 @@ public sealed class ProviderPaymentDetails : StaticRecord<ProviderPaymentDetails
 /// <summary>The fields a client sends for Provider payment details.</summary>
 public sealed record ProviderPaymentDetailsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Provider { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? BankAccount { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RemittanceEmail { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? VerifiedOn { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

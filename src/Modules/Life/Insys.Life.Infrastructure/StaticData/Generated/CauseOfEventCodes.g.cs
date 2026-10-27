@@ -53,8 +53,10 @@ public sealed class CauseOfEventCodes : StaticRecord<CauseOfEventCodesInput>
 /// <summary>The fields a client sends for Cause of event codes.</summary>
 public sealed record CauseOfEventCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CodeSystem { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Accidental { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

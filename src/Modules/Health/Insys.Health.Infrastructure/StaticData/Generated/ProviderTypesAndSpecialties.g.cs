@@ -59,10 +59,13 @@ public sealed class ProviderTypesAndSpecialties : StaticRecord<ProviderTypesAndS
 /// <summary>The fields a client sends for Provider types and specialties.</summary>
 public sealed record ProviderTypesAndSpecialtiesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TypeCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SpecialtyCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     public string? RegulatorCode { get; init; }

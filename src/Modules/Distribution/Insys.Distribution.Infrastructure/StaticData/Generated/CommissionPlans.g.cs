@@ -61,11 +61,14 @@ public sealed class CommissionPlans : StaticRecord<CommissionPlansInput>
 /// <summary>The fields a client sends for Commission plans.</summary>
 public sealed record CommissionPlansInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PlanCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PREMIUM", "POLICY_COUNT", "FIXED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Basis { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Rate { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NONE", "UNEARNED")]

@@ -53,8 +53,10 @@ public sealed class ProcedureAndServiceCodes : StaticRecord<ProcedureAndServiceC
 /// <summary>The fields a client sends for Procedure and service codes.</summary>
 public sealed record ProcedureAndServiceCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CodeSystem { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Active { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

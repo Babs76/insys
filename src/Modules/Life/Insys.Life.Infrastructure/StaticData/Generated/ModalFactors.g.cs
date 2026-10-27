@@ -56,10 +56,13 @@ public sealed class ModalFactors : StaticRecord<ModalFactorsInput>
 /// <summary>The fields a client sends for Modal factors.</summary>
 public sealed record ModalFactorsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductVersion { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Factor { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

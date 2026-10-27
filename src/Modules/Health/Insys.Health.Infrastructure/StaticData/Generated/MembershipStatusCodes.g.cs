@@ -56,10 +56,13 @@ public sealed class MembershipStatusCodes : StaticRecord<MembershipStatusCodesIn
 /// <summary>The fields a client sends for Membership status codes.</summary>
 public sealed record MembershipStatusCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? ClaimsAllowed { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? AllowedNext { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

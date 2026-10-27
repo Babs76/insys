@@ -60,13 +60,17 @@ public sealed class ValuationExtractLayouts : StaticRecord<ValuationExtractLayou
 /// <summary>The fields a client sends for Valuation extract layouts.</summary>
 public sealed record ValuationExtractLayoutsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LayoutCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Fields { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY", "ANNUAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Target { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -59,10 +59,13 @@ public sealed class MemberNumberingSchemes : StaticRecord<MemberNumberingSchemes
 /// <summary>The fields a client sends for Member numbering schemes.</summary>
 public sealed record MemberNumberingSchemesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Prefix { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? SequenceLength { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DependantSuffix { get; init; }
 
     public string? ExampleOutput { get; init; }

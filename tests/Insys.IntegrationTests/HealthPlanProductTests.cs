@@ -49,13 +49,16 @@ public sealed class HealthPlanProductTests(DatabaseFixture fixture) : IClassFixt
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "plan-maker", StaticDataPermissions.Read, StaticDataPermissions.Create, StaticDataPermissions.Update);
         var maker = _factory.ClientFor(DatabaseFixture.TenantA, "plan-maker");
 
-        (await Submit(maker, "PP-A", "PLAN-P", "A", null)).ShouldBe("HEALTH_PLAN_PRODUCT_INVALID");
+        // BR-084: the product is mandatory, so a draft without one is refused when it is saved, with the field named.
+        (await Submit(maker, "PP-A", "PLAN-P", "A", null)).ShouldBe("VALIDATION_FAILED productCode");
         (await Submit(maker, "PP-B", "PLAN-P", "B", "HLT-ONE")).ShouldBe("SUBMITTED");
         (await Submit(maker, "PP-C", "PLAN-P", "C", "HLT-TWO")).ShouldBe("HEALTH_PLAN_PRODUCT_INVALID");
         (await Submit(maker, "PP-D", "PLAN-P", "D", "HLT-ONE")).ShouldBe("SUBMITTED");
+        (await Submit(maker, "PP-E", "PLAN-P", "E", "HLT-ONE", dropProductBeforeSubmit: true)).ShouldBe("HEALTH_PLAN_PRODUCT_INVALID",
+            "a draft saved without a product before BR-084 is still refused when submitted");
     }
 
-    private static async Task<string?> Submit(HttpClient maker, string code, string plan, string option, string? product)
+    private async Task<string?> Submit(HttpClient maker, string code, string plan, string option, string? product, bool dropProductBeforeSubmit = false)
     {
         const string url = "/api/v1/health/static/plans-and-options";
         var created = await maker.Send(HttpMethod.Post, url, new
@@ -63,8 +66,20 @@ public sealed class HealthPlanProductTests(DatabaseFixture fixture) : IClassFixt
             code, planCode = plan, optionCode = option, benefitSchedule = "BS-1", network = "NET-1", benefitYear = "CALENDAR", memberClaimBasis = "REFERENCE_TARIFF", productCode = product,
             effectiveFrom = Today.AddDays(1), changeReason = "Plans",
         }, idempotent: true);
+        if (created.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var refused = await created.Json();
+            return $"{refused.GetProperty("code").GetString()} {string.Join(",", refused.GetProperty("errors").EnumerateObject().Select(e => e.Name))}";
+        }
+
         created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
         var version = (await created.Json()).GetProperty("version").GetInt32();
+        if (dropProductBeforeSubmit)
+        {
+            await fixture.Database.ExecuteAsOwner("UPDATE health.cfg_plans_and_options SET product_code = NULL WHERE tenant_id = @t AND code = @c",
+                ("t", DatabaseFixture.TenantA), ("c", code));
+        }
+
         var submitted = await maker.Send(HttpMethod.Post, $"{url}/{code}/versions/{version}/submit", ifMatch: created.ETag());
         var body = await submitted.Json();
         return submitted.IsSuccessStatusCode ? body.GetProperty("recordStatus").GetString() : body.GetProperty("code").GetString();

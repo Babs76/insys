@@ -63,11 +63,14 @@ public sealed class WaitingPeriodRules : StaticRecord<WaitingPeriodRulesInput>
 /// <summary>The fields a client sends for Waiting period rules.</summary>
 public sealed record WaitingPeriodRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Benefit { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Duration { get; init; }
 
     public bool? AccidentExempt { get; init; }

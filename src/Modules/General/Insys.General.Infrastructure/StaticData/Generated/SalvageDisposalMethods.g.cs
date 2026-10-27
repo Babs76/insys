@@ -50,6 +50,7 @@ public sealed class SalvageDisposalMethods : StaticRecord<SalvageDisposalMethods
 /// <summary>The fields a client sends for Salvage disposal methods.</summary>
 public sealed record SalvageDisposalMethodsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -60,13 +60,17 @@ public sealed class AllocationRules : StaticRecord<AllocationRulesInput>
 /// <summary>The fields a client sends for Allocation rules.</summary>
 public sealed record AllocationRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? PriorityOrder { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Tolerance { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("HOLD_AS_CREDIT", "REFUND", "ALLOCATE_TO_NEXT_DUE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? OverpaymentHandling { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

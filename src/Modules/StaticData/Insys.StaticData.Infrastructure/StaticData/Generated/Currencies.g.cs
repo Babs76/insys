@@ -59,12 +59,15 @@ public sealed class Currencies : StaticRecord<CurrenciesInput>
 /// <summary>The fields a client sends for Currencies.</summary>
 public sealed record CurrenciesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? MinorUnits { get; init; }
 
     public string? Symbol { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Active { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

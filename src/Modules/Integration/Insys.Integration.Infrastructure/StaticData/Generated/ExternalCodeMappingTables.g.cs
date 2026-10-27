@@ -63,15 +63,20 @@ public sealed class ExternalCodeMappingTables : StaticRecord<ExternalCodeMapping
 /// <summary>The fields a client sends for External code mapping tables.</summary>
 public sealed record ExternalCodeMappingTablesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PartnerCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CodeList { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PlatformCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PartnerValue { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("INBOUND", "OUTBOUND", "BOTH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Direction { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

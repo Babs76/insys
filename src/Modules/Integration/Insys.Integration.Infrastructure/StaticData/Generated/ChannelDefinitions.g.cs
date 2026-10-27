@@ -69,11 +69,14 @@ public sealed class ChannelDefinitions : StaticRecord<ChannelDefinitionsInput>
 /// <summary>The fields a client sends for Channel definitions.</summary>
 public sealed record ChannelDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ChannelCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("STAFF", "BROKER", "CUSTOMER", "PROVIDER", "PARTNER")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Audience { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
     public string[]? EnabledProducts { get; init; }

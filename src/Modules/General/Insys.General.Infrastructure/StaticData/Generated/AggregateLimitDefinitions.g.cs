@@ -61,11 +61,14 @@ public sealed class AggregateLimitDefinitions : StaticRecord<AggregateLimitDefin
 /// <summary>The fields a client sends for Aggregate limit definitions.</summary>
 public sealed record AggregateLimitDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Coverage { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("POLICY_PERIOD", "ANNUAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Period { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? AggregateAmount { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NONE", "AUTOMATIC", "ON_REQUEST")]

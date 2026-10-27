@@ -67,15 +67,20 @@ public sealed class ConsentPurposes : StaticRecord<ConsentPurposesInput>
 /// <summary>The fields a client sends for Consent purposes.</summary>
 public sealed record ConsentPurposesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PurposeCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("CONSENT", "CONTRACT", "LEGAL_OBLIGATION", "LEGITIMATE_INTEREST")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LegalBasis { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Jurisdiction { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? DefaultValue { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]

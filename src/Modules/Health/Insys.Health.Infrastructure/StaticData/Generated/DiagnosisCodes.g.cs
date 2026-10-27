@@ -53,8 +53,10 @@ public sealed class DiagnosisCodes : StaticRecord<DiagnosisCodesInput>
 /// <summary>The fields a client sends for Diagnosis codes.</summary>
 public sealed record DiagnosisCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CodeSystem { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Active { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

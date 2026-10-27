@@ -56,10 +56,13 @@ public sealed class AdjustmentAndReversalReasonCodes : StaticRecord<AdjustmentAn
 /// <summary>The fields a client sends for Adjustment and reversal reason codes.</summary>
 public sealed record AdjustmentAndReversalReasonCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? RequiresApproval { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AccountingImpact { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

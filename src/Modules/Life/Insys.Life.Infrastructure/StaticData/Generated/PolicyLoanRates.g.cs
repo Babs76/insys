@@ -57,11 +57,14 @@ public sealed class PolicyLoanRates : StaticRecord<PolicyLoanRatesInput>
 /// <summary>The fields a client sends for Policy loan rates.</summary>
 public sealed record PolicyLoanRatesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RateCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Rate { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "ANNUAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Compounding { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

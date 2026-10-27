@@ -57,11 +57,14 @@ public sealed class SchemeRenewalRules : StaticRecord<SchemeRenewalRulesInput>
 /// <summary>The fields a client sends for Scheme renewal rules.</summary>
 public sealed record SchemeRenewalRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Scheme { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? NoticeDays { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("EXPERIENCE", "COMMUNITY", "BLENDED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReRatingBasis { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -57,11 +57,14 @@ public sealed class SettlementAuthorityLimits : StaticRecord<SettlementAuthority
 /// <summary>The fields a client sends for Settlement authority limits.</summary>
 public sealed record SettlementAuthorityLimitsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Role { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("MOTOR", "PROPERTY", "MARINE", "COMMERCIAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Line { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? LimitValue { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

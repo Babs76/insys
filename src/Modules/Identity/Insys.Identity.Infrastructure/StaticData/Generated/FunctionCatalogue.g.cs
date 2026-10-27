@@ -87,32 +87,41 @@ public sealed class FunctionCatalogue : StaticRecord<FunctionCatalogueInput>
 /// <summary>The fields a client sends for Function catalogue.</summary>
 public sealed record FunctionCatalogueInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FunctionCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SubDomainCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProcessArea { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("HUMAN", "SYSTEM")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? InteractionType { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("SCREEN", "ACTION", "JOB")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FunctionKind { get; init; }
 
     public string? ParentFunctionCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PLATFORM", "STAFF", "BROKER", "PROVIDER", "CUSTOMER")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Audiences { get; init; }
 
     public string? RouteKey { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? RequiredPermissions { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL")]
     public string? RequiredFeature { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Privileged { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? AllowedWhileOnboarding { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

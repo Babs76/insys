@@ -65,16 +65,21 @@ public sealed class ComplianceRegisterEntries : StaticRecord<ComplianceRegisterE
 /// <summary>The fields a client sends for Compliance register entries.</summary>
 public sealed record ComplianceRegisterEntriesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EntryCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Jurisdiction { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Topic { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Obligation { get; init; }
 
     public string[]? Evidence { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? ReviewDate { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

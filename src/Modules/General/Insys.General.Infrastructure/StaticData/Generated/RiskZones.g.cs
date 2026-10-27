@@ -59,10 +59,13 @@ public sealed class RiskZones : StaticRecord<RiskZonesInput>
 /// <summary>The fields a client sends for Risk zones.</summary>
 public sealed record RiskZonesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ZoneCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? Geography { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Peril { get; init; }
 
     public string? RatingFactor { get; init; }

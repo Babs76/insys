@@ -64,13 +64,17 @@ public sealed class ProductEligibilityCriteria : StaticRecord<ProductEligibility
 /// <summary>The fields a client sends for Product eligibility criteria.</summary>
 public sealed record ProductEligibilityCriteriaInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CriteriaCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Attribute { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("EQ", "NE", "LT", "LE", "GT", "GE", "IN", "BETWEEN")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Operator { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Value { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LAST_BIRTHDAY", "NEXT_BIRTHDAY", "NEAREST_BIRTHDAY")]

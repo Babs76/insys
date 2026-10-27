@@ -59,12 +59,16 @@ public sealed class PolicyStatusModel : StaticRecord<PolicyStatusModelInput>
 /// <summary>The fields a client sends for Policy status model.</summary>
 public sealed record PolicyStatusModelInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? StatusCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? AllowedNext { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? PermittedServicing { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

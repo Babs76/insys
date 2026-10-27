@@ -65,10 +65,13 @@ public sealed class ClaimNumberingSchemes : StaticRecord<ClaimNumberingSchemesIn
 public sealed record ClaimNumberingSchemesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Domain { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Prefix { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? SequenceLength { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NONE", "LUHN", "MOD11")]

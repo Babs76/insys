@@ -56,10 +56,13 @@ public sealed class HighCostThresholds : StaticRecord<HighCostThresholdsInput>
 /// <summary>The fields a client sends for High-cost thresholds.</summary>
 public sealed record HighCostThresholdsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Service { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Amount { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReviewQueue { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

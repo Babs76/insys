@@ -65,14 +65,19 @@ public sealed class WebhookSubscriptions : StaticRecord<WebhookSubscriptionsInpu
 /// <summary>The fields a client sends for Webhook subscriptions.</summary>
 public sealed record WebhookSubscriptionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SubscriptionId { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PartnerCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? EventTypes { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EndpointUrl { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SigningKeyRef { get; init; }
 
     public string? RetryPolicy { get; init; }

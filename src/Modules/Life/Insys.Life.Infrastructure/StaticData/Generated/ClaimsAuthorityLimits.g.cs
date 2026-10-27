@@ -56,10 +56,13 @@ public sealed class ClaimsAuthorityLimits : StaticRecord<ClaimsAuthorityLimitsIn
 /// <summary>The fields a client sends for Claims authority limits.</summary>
 public sealed record ClaimsAuthorityLimitsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Role { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ClaimType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? LimitValue { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

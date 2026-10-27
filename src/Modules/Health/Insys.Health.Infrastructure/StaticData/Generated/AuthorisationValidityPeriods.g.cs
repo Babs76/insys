@@ -55,8 +55,10 @@ public sealed class AuthorisationValidityPeriods : StaticRecord<AuthorisationVal
 public sealed record AuthorisationValidityPeriodsInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("ADMISSION", "PROCEDURE", "SCAN", "MEDICATION")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ServiceType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? DaysValid { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

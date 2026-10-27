@@ -71,12 +71,15 @@ public sealed record SegregationOfDutiesConflictRulesInput : StaticRecordInput
     public string? PermissionB { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("BLOCK", "WARN")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Conflict { get; init; }
 
     public string? OverrideRole { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FunctionA { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FunctionB { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
@@ -87,7 +90,9 @@ public sealed record SegregationOfDutiesConflictRulesInput : StaticRecordInput
         errors.MaxLength("conflict", Conflict, 40);
         errors.OneOf("conflict", Conflict, ["BLOCK", "WARN"]);
         errors.MaxLength("overrideRole", OverrideRole, 80);
+        errors.Required("functionA", FunctionA);
         errors.MaxLength("functionA", FunctionA, 80);
+        errors.Required("functionB", FunctionB);
         errors.MaxLength("functionB", FunctionB, 80);
     }
 }

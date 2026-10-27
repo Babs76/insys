@@ -56,10 +56,13 @@ public sealed class RefundAndReversalReasonCodes : StaticRecord<RefundAndReversa
 /// <summary>The fields a client sends for Refund and reversal reason codes.</summary>
 public sealed record RefundAndReversalReasonCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? ApprovalNeeded { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AccountingImpact { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

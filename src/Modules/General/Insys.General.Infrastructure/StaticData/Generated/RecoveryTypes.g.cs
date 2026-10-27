@@ -50,6 +50,7 @@ public sealed class RecoveryTypes : StaticRecord<RecoveryTypesInput>
 /// <summary>The fields a client sends for Recovery types.</summary>
 public sealed record RecoveryTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -56,10 +56,13 @@ public sealed class VehicleValuationGuideReference : StaticRecord<VehicleValuati
 /// <summary>The fields a client sends for Vehicle valuation guide reference.</summary>
 public sealed record VehicleValuationGuideReferenceInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Source { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Edition { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LookupKey { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

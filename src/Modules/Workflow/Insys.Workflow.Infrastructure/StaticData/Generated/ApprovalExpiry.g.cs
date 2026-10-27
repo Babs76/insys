@@ -53,8 +53,10 @@ public sealed class ApprovalExpiry : StaticRecord<ApprovalExpiryInput>
 /// <summary>The fields a client sends for Approval expiry.</summary>
 public sealed record ApprovalExpiryInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ApprovalType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ExpiresAfter { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -56,10 +56,13 @@ public sealed class DashboardDefinitions : StaticRecord<DashboardDefinitionsInpu
 /// <summary>The fields a client sends for Dashboard definitions.</summary>
 public sealed record DashboardDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DashboardCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Panels { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? TenantSafe { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

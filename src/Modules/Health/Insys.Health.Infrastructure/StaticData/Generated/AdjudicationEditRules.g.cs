@@ -63,13 +63,17 @@ public sealed class AdjudicationEditRules : StaticRecord<AdjudicationEditRulesIn
 /// <summary>The fields a client sends for Adjudication edit rules.</summary>
 public sealed record AdjudicationEditRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EditCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Condition { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PEND", "REJECT", "ADJUST", "PAY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Outcome { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReasonCode { get; init; }
 
     public int? WindowDays { get; init; }

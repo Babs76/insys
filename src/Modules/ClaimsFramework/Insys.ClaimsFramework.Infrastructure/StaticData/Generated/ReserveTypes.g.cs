@@ -55,8 +55,10 @@ public sealed class ReserveTypes : StaticRecord<ReserveTypesInput>
 public sealed record ReserveTypesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("INDEMNITY", "EXPENSE", "RECOVERY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Category { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PostingRule { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

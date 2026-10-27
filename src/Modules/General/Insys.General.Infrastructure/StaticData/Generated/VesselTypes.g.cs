@@ -54,9 +54,11 @@ public sealed class VesselTypes : StaticRecord<VesselTypesInput>
 /// <summary>The fields a client sends for Vessel types.</summary>
 public sealed record VesselTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("GT", "DWT", "LENGTH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SizeMeasure { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

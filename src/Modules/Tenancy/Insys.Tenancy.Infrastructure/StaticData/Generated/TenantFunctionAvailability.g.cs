@@ -53,8 +53,10 @@ public sealed class TenantFunctionAvailability : StaticRecord<TenantFunctionAvai
 /// <summary>The fields a client sends for Tenant function availability.</summary>
 public sealed record TenantFunctionAvailabilityInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FunctionCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Enabled { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

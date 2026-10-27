@@ -37,6 +37,13 @@ public sealed class OneOfAttribute(params string[] values) : Attribute
     public IReadOnlyList<string> Values { get; } = values;
 }
 
+/// <summary>
+/// A request field the API refuses to go without (a static data input's mandatory field): the OpenAPI documents list it
+/// as required. It describes the contract only; the input's own validation refuses its absence.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class RequiredFieldAttribute : Attribute;
+
 /// <summary>A month as yyyy-MM (a string field or parameter): the OpenAPI documents give it that pattern.</summary>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter)]
 public sealed class YearMonthAttribute : Attribute

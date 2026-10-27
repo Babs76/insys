@@ -65,16 +65,22 @@ public sealed class LocaleDefaults : StaticRecord<LocaleDefaultsInput>
 /// <summary>The fields a client sends for Locale defaults.</summary>
 public sealed record LocaleDefaultsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Tenant { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? BaseCurrency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Languages { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TimeZone { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Country { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DefaultLanguage { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

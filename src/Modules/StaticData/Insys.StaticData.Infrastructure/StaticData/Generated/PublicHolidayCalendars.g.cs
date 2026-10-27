@@ -63,12 +63,16 @@ public sealed class PublicHolidayCalendars : StaticRecord<PublicHolidayCalendars
 /// <summary>The fields a client sends for Public holiday calendars.</summary>
 public sealed record PublicHolidayCalendarsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CalendarCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Country { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? Date { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NONE", "NEXT_MONDAY_IF_SUNDAY")]

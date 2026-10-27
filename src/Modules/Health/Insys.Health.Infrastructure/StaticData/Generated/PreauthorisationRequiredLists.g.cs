@@ -56,10 +56,13 @@ public sealed class PreauthorisationRequiredLists : StaticRecord<Preauthorisatio
 /// <summary>The fields a client sends for Preauthorisation-required lists.</summary>
 public sealed record PreauthorisationRequiredListsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Plan { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Service { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Threshold { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -50,6 +50,7 @@ public sealed class IndustryClassificationCodes : StaticRecord<IndustryClassific
 /// <summary>The fields a client sends for Industry classification codes.</summary>
 public sealed record IndustryClassificationCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CodeSystem { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -59,12 +59,16 @@ public sealed class WorkflowDefinitions : StaticRecord<WorkflowDefinitionsInput>
 /// <summary>The fields a client sends for Workflow definitions.</summary>
 public sealed record WorkflowDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProcessCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? States { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? Transitions { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DomainValidation { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -59,10 +59,13 @@ public sealed class DeclineConditions : StaticRecord<DeclineConditionsInput>
 /// <summary>The fields a client sends for Decline conditions.</summary>
 public sealed record DeclineConditionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ConditionCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Expression { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReasonCode { get; init; }
 
     public string? ProductCode { get; init; }

@@ -60,11 +60,14 @@ public sealed class TariffModifiers : StaticRecord<TariffModifiersInput>
 /// <summary>The fields a client sends for Tariff modifiers.</summary>
 public sealed record TariffModifiersInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ModifierCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PERCENT_UPLIFT", "FIXED_ADD", "MULTIPLIER")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Value { get; init; }
 
     public string[]? AppliesTo { get; init; }

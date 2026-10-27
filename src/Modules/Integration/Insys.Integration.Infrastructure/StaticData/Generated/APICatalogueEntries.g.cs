@@ -59,10 +59,12 @@ public sealed class APICatalogueEntries : StaticRecord<APICatalogueEntriesInput>
 /// <summary>The fields a client sends for API catalogue entries.</summary>
 public sealed record APICatalogueEntriesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ApiGroup { get; init; }
 
     public DateOnly? DeprecationDate { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Sensitivity { get; init; }
 
     public string? SpecRef { get; init; }

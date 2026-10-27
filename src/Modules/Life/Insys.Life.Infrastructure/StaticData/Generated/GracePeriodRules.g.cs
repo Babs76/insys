@@ -56,10 +56,13 @@ public sealed class GracePeriodRules : StaticRecord<GracePeriodRulesInput>
 /// <summary>The fields a client sends for Grace period rules.</summary>
 public sealed record GracePeriodRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? GraceDays { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? CoverDuringGrace { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

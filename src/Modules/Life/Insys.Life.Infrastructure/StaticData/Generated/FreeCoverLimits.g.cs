@@ -56,10 +56,13 @@ public sealed class FreeCoverLimits : StaticRecord<FreeCoverLimitsInput>
 /// <summary>The fields a client sends for Free cover limits.</summary>
 public sealed record FreeCoverLimitsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SizeBand { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? FreeCoverLimit { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EvidenceAbove { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

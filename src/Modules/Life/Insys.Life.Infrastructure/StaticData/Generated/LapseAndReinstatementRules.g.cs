@@ -61,14 +61,18 @@ public sealed class LapseAndReinstatementRules : StaticRecord<LapseAndReinstatem
 /// <summary>The fields a client sends for Lapse and reinstatement rules.</summary>
 public sealed record LapseAndReinstatementRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? MissedPaymentsToLapse { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReinstatementWindow { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NONE", "DECLARATION", "FULL_UNDERWRITING")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EvidenceRequired { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

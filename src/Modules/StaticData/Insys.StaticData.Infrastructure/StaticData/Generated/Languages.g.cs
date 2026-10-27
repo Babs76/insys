@@ -53,6 +53,7 @@ public sealed class Languages : StaticRecord<LanguagesInput>
 /// <summary>The fields a client sends for Languages.</summary>
 public sealed record LanguagesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
     public string? Script { get; init; }

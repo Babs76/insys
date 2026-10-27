@@ -57,11 +57,14 @@ public sealed class EventSchemaVersions : StaticRecord<EventSchemaVersionsInput>
 /// <summary>The fields a client sends for Event schema versions.</summary>
 public sealed record EventSchemaVersionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EventType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? Schema { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("BACKWARD", "FORWARD", "FULL", "NONE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Compatibility { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

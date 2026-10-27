@@ -57,11 +57,14 @@ public sealed class GroupSchemeTypes : StaticRecord<GroupSchemeTypesInput>
 /// <summary>The fields a client sends for Group scheme types.</summary>
 public sealed record GroupSchemeTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("COMPULSORY", "VOLUNTARY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Participation { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? MinMembers { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

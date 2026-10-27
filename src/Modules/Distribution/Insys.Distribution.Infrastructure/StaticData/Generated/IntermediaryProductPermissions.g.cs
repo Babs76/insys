@@ -59,10 +59,13 @@ public sealed class IntermediaryProductPermissions : StaticRecord<IntermediaryPr
 /// <summary>The fields a client sends for Intermediary product permissions.</summary>
 public sealed record IntermediaryProductPermissionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Intermediary { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Product { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? TransactionsAllowed { get; init; }
 
     public string? PlanCode { get; init; }

@@ -58,8 +58,10 @@ public sealed class EndorsementTypes : StaticRecord<EndorsementTypesInput>
 public sealed record EndorsementTypesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("PRO_RATA", "SHORT_PERIOD", "FLAT", "NONE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PremiumMethod { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Documents { get; init; }
 
     public bool? RequiresUnderwriting { get; init; }

@@ -59,12 +59,15 @@ public sealed class AuthorityMatrices : StaticRecord<AuthorityMatricesInput>
 /// <summary>The fields a client sends for Authority matrices.</summary>
 public sealed record AuthorityMatricesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RoleCode { get; init; }
 
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? MaxSumAssured { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? DecisionTypes { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

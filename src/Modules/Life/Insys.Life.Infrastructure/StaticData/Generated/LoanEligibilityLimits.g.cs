@@ -57,11 +57,14 @@ public sealed class LoanEligibilityLimits : StaticRecord<LoanEligibilityLimitsIn
 /// <summary>The fields a client sends for Loan eligibility limits.</summary>
 public sealed record LoanEligibilityLimitsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? MaxPctCashValue { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? MinPolicyDuration { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

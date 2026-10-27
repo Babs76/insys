@@ -62,14 +62,18 @@ public sealed class BankAndBranchDirectory : StaticRecord<BankAndBranchDirectory
 /// <summary>The fields a client sends for Bank and branch directory.</summary>
 public sealed record BankAndBranchDirectoryInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? BankCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? BranchCode { get; init; }
 
     public string? Bic { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Country { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

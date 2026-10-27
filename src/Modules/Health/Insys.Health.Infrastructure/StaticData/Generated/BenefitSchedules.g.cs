@@ -63,13 +63,17 @@ public sealed class BenefitSchedules : StaticRecord<BenefitSchedulesInput>
 /// <summary>The fields a client sends for Benefit schedules.</summary>
 public sealed record BenefitSchedulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ScheduleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Benefit { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? LimitValue { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PER_EVENT", "PER_YEAR", "LIFETIME")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
 
     public string? CoPayment { get; init; }

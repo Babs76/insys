@@ -87,8 +87,9 @@
     {
      "name": "transaction_type",
      "logicalType": "Code(30)",
-     "mandatory": true,
-     "sample": "POLICY_ENDORSE"
+     "mandatory": false,
+     "sample": "POLICY_ENDORSE",
+     "note": "Retired by V0052 (ADR-026 §5): name the function in function_code; must be empty."
     },
     {
      "name": "product_code",
@@ -107,6 +108,13 @@
      "logicalType": "Boolean",
      "mandatory": false,
      "sample": "false"
+    },
+    {
+     "name": "function_code",
+     "logicalType": "Ref Function",
+     "mandatory": true,
+     "sample": "GENERAL_POLICY_ENDORSE",
+     "note": "Added by V0052 (ADR-026 §5): the ACTION function the row allows; replaces transaction_type."
     }
    ]
   },
@@ -1364,6 +1372,41 @@
      "logicalType": "Date",
      "mandatory": false,
      "sample": "(empty)"
+    },
+    {
+     "name": "family_code",
+     "logicalType": "Ref ProductFamily",
+     "mandatory": false,
+     "sample": "MOTOR",
+     "note": "Added by V0018."
+    },
+    {
+     "name": "class_code",
+     "logicalType": "Ref ProductClass",
+     "mandatory": false,
+     "sample": "PRIVATE_MOTOR",
+     "note": "Added by V0018."
+    },
+    {
+     "name": "cover_starts_on",
+     "logicalType": "Enum{Issue,Proposal date,First premium}",
+     "mandatory": true,
+     "sample": "ISSUE",
+     "note": "Added by V0018. The database defaults it to ISSUE; the API requires it."
+    },
+    {
+     "name": "eligibility_ruleset_code",
+     "logicalType": "Ref EligibilityRuleSet",
+     "mandatory": false,
+     "sample": "LIFE_STD_ELIG",
+     "note": "Added by V0020: the eligibility rule set a proposal on this version must pass; empty means any."
+    },
+    {
+     "name": "reinstatement_arrears",
+     "logicalType": "Enum{None,Required}",
+     "mandatory": true,
+     "sample": "NONE",
+     "note": "Added by V0020 (OQ-061): whether overdue instalments are paid before reinstatement."
     }
    ]
   },
@@ -1574,6 +1617,24 @@
      "logicalType": "Ref Country (empty = all)",
      "mandatory": false,
      "sample": "(empty)"
+    },
+    {
+     "name": "diagnosis_codes",
+     "logicalType": "List<Code>",
+     "mandatory": false,
+     "sample": [
+      "A00-A09"
+     ],
+     "note": "Added by V0019 (ADR-012): diagnosis codes or ranges the rule applies to."
+    },
+    {
+     "name": "procedure_codes",
+     "logicalType": "List<Code>",
+     "mandatory": false,
+     "sample": [
+      "0190"
+     ],
+     "note": "Added by V0019 (ADR-012): procedure codes or ranges the rule applies to."
     }
    ]
   },
@@ -2702,6 +2763,13 @@
      "logicalType": "Boolean",
      "mandatory": true,
      "sample": "false"
+    },
+    {
+     "name": "currency",
+     "logicalType": "Ref Currency",
+     "mandatory": false,
+     "sample": "ZAR",
+     "note": "Added by V0056 (OQ-112): the currency of limit_value; the tenant's base currency when empty."
     }
    ]
   },
@@ -5538,6 +5606,13 @@
      "mandatory": false,
      "sample": "80.00",
      "note": "Added by addenda/aggregation-limits.md §1 (F062): the share of max_exposure at which AggregationLimitApproached is raised; empty uses the platform default (80%)."
+    },
+    {
+     "name": "alert_role",
+     "logicalType": "Ref Role",
+     "mandatory": false,
+     "sample": "UNDERWRITING_MANAGER",
+     "note": "Added by V0051 (OQ-085): the role whose queue reviews the limit's alerts."
     }
    ]
   },
@@ -5706,6 +5781,16 @@
      "logicalType": "Ref TemplateVersion",
      "mandatory": true,
      "sample": "TPL-REN-INV v4"
+    },
+    {
+     "name": "reminder_days",
+     "logicalType": "List<Integer>",
+     "mandatory": false,
+     "sample": [
+      30,
+      7
+     ],
+     "note": "Added by V0051 (OQ-089): days before the period ends on which a renewal reminder is sent."
     }
    ]
   },
@@ -6679,7 +6764,7 @@
     {
      "name": "product_code",
      "logicalType": "Ref Product",
-     "mandatory": false,
+     "mandatory": true,
      "sample": "HLT-COMPREHENSIVE",
      "note": "Added by addenda/health-plan-products.md §1: the Product Factory product (domain HEALTH) the plan is sold as; every option of a plan names the same one. Required for new versions."
     },
@@ -6712,6 +6797,27 @@
      "logicalType": "Integer",
      "mandatory": true,
      "sample": "2"
+    },
+    {
+     "name": "reference_tariff_schedule_code",
+     "logicalType": "Ref TariffSchedule",
+     "mandatory": false,
+     "sample": "REF-2027",
+     "note": "Added by V0019 (ADR-012): the tariff member claims are priced at."
+    },
+    {
+     "name": "benefit_year",
+     "logicalType": "Enum{Calendar,Membership year}",
+     "mandatory": true,
+     "sample": "CALENDAR",
+     "note": "Added by V0019 (ADR-012): the year annual limits and deductibles run over."
+    },
+    {
+     "name": "member_claim_basis",
+     "logicalType": "Enum{Reference tariff,Pend}",
+     "mandatory": true,
+     "sample": "REFERENCE_TARIFF",
+     "note": "Added by V0020: how member reimbursement claims are decided."
     }
    ]
   },
@@ -6808,6 +6914,27 @@
      "logicalType": "Money",
      "mandatory": false,
      "sample": "2 000.00"
+    },
+    {
+     "name": "rule_kind",
+     "logicalType": "Enum{Co-payment,Deductible}",
+     "mandatory": true,
+     "sample": "CO_PAYMENT",
+     "note": "Added by V0019 (ADR-012)."
+    },
+    {
+     "name": "cap_basis",
+     "logicalType": "Enum{Per line,Per claim,Per member year}",
+     "mandatory": true,
+     "sample": "PER_LINE",
+     "note": "Added by V0019 (ADR-012): what the cap limits."
+    },
+    {
+     "name": "plan_code",
+     "logicalType": "Ref Plan",
+     "mandatory": false,
+     "sample": "HLT-COMP",
+     "note": "Added by V0019 (ADR-012): the plan the row applies to; empty for every plan."
     }
    ]
   },
@@ -6847,6 +6974,24 @@
      "logicalType": "List<Ref BenefitCategory>",
      "mandatory": false,
      "sample": "EMERGENCY"
+    },
+    {
+     "name": "diagnosis_codes",
+     "logicalType": "List<Code>",
+     "mandatory": false,
+     "sample": [
+      "A00-A09"
+     ],
+     "note": "Added by V0019 (ADR-012): diagnosis codes or ranges the rule applies to."
+    },
+    {
+     "name": "procedure_codes",
+     "logicalType": "List<Code>",
+     "mandatory": false,
+     "sample": [
+      "0190"
+     ],
+     "note": "Added by V0019 (ADR-012): procedure codes or ranges the rule applies to."
     }
    ]
   },
@@ -7201,6 +7346,13 @@
      "logicalType": "String(100)",
      "mandatory": true,
      "sample": "Request preauthorisation or bill the member"
+    },
+    {
+     "name": "outcome",
+     "logicalType": "Enum{Eligible,Not eligible,Pending}",
+     "mandatory": false,
+     "sample": "ELIGIBLE",
+     "note": "Added by V0020: the internal eligibility outcome this response code answers."
     }
    ]
   },
@@ -7273,6 +7425,13 @@
      "logicalType": "Enum{Per member,Per family}",
      "mandatory": true,
      "sample": "Per member"
+    },
+    {
+     "name": "plan_code",
+     "logicalType": "Ref Plan",
+     "mandatory": false,
+     "sample": "HLT-COMP",
+     "note": "Added by V0019 (ADR-012): the plan the row applies to; empty for every plan."
     }
    ]
   },
@@ -7435,6 +7594,19 @@
      "logicalType": "Enum{Active,Suspended,Terminated}",
      "mandatory": true,
      "sample": "Active"
+    },
+    {
+     "name": "provider_type",
+     "logicalType": "Ref ProviderType",
+     "mandatory": false,
+     "sample": "GP",
+     "note": "Added by V0019 (ADR-012)."
+    },
+    {
+     "name": "party_id",
+     "logicalType": "Ref Party",
+     "mandatory": false,
+     "note": "Added by V0019 (ADR-013): the provider as a party, whose verified bank account is paid."
     }
    ]
   },
@@ -7486,6 +7658,13 @@
      "logicalType": "Date",
      "mandatory": false,
      "sample": "2027-12-31"
+    },
+    {
+     "name": "tariff_schedule_code",
+     "logicalType": "Ref TariffSchedule",
+     "mandatory": false,
+     "sample": "NET-2027",
+     "note": "Added by V0019 (ADR-012): the tariff schedule claims are priced at."
     }
    ]
   },
@@ -7531,6 +7710,13 @@
      "logicalType": "Date",
      "mandatory": true,
      "sample": "2027-01-01"
+    },
+    {
+     "name": "schedule_code",
+     "logicalType": "Code(15)",
+     "mandatory": false,
+     "sample": "NET-2027",
+     "note": "Added by V0019 (ADR-012): the schedule this price belongs to."
     }
    ]
   },
@@ -7570,6 +7756,13 @@
      "logicalType": "List<Ref Plan>",
      "mandatory": true,
      "sample": "HLT-CORE"
+    },
+    {
+     "name": "tariff_schedule_code",
+     "logicalType": "Ref TariffSchedule",
+     "mandatory": false,
+     "sample": "NET-2027",
+     "note": "Added by V0019 (ADR-012): the tariff schedule claims are priced at."
     }
    ]
   },
@@ -7858,6 +8051,13 @@
      "logicalType": "Ref AdjustmentReason",
      "mandatory": true,
      "sample": "DUPLICATE"
+    },
+    {
+     "name": "window_days",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": 365,
+     "note": "Added by V0020 (ADR-012): days of claim history before the service date the rule may read; empty reads none."
     }
    ]
   },
@@ -8551,6 +8751,12 @@
      "logicalType": "Ref Hierarchy",
      "mandatory": true,
      "sample": "GP-NORTH-BRK"
+    },
+    {
+     "name": "party_id",
+     "logicalType": "Ref Party",
+     "mandatory": false,
+     "note": "Added by V0021 (OQ-062): the intermediary's party, paid through its verified bank account."
     }
    ]
   },
@@ -8650,6 +8856,13 @@
      "logicalType": "List<Code>",
      "mandatory": true,
      "sample": "QUOTE, ISSUE, ENDORSE"
+    },
+    {
+     "name": "plan_code",
+     "logicalType": "Ref Plan",
+     "mandatory": false,
+     "sample": "HLT-COMP",
+     "note": "Added by V0021: the Health plan the permission covers; empty for every plan of the product."
     }
    ]
   },
@@ -9049,6 +9262,13 @@
      "logicalType": "Enum{Monthly,Quarterly,Annual}",
      "mandatory": true,
      "sample": "Quarterly"
+    },
+    {
+     "name": "submission_days",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": 30,
+     "note": "Added by V0047 (OQ-083): days after the period end by which the return is due."
     }
    ]
   },
@@ -9721,6 +9941,13 @@
      "logicalType": "Ref Country",
      "mandatory": true,
      "sample": "ZA"
+    },
+    {
+     "name": "default_language",
+     "logicalType": "Ref Language",
+     "mandatory": true,
+     "sample": "en",
+     "note": "Added by V0022: the tenant's default language."
     }
    ]
   },
@@ -9746,8 +9973,9 @@
     {
      "name": "permissions",
      "logicalType": "List<Ref Permission>",
-     "mandatory": true,
-     "sample": "claim.read, claim.assess, reserve.set"
+     "mandatory": false,
+     "sample": "claim.read, claim.assess, reserve.set",
+     "note": "Retired (ADR-026): a role is granted functions through role-function assignments; must be empty."
     },
     {
      "name": "scope_products",
@@ -9812,14 +10040,16 @@
     {
      "name": "permission_a",
      "logicalType": "Ref Permission",
-     "mandatory": true,
-     "sample": "payment.initiate"
+     "mandatory": false,
+     "sample": "payment.initiate",
+     "note": "Retired by V0052 (ADR-026 §4): name the function in function_a; must be empty."
     },
     {
      "name": "permission_b",
      "logicalType": "Ref Permission",
-     "mandatory": true,
-     "sample": "payment.release"
+     "mandatory": false,
+     "sample": "payment.release",
+     "note": "Retired by V0052 (ADR-026 §4): name the function in function_b; must be empty."
     },
     {
      "name": "conflict",
@@ -9832,6 +10062,20 @@
      "logicalType": "Ref Role",
      "mandatory": false,
      "sample": "(empty)"
+    },
+    {
+     "name": "function_a",
+     "logicalType": "Ref Function",
+     "mandatory": true,
+     "sample": "PAYMENTS_APPROVE",
+     "note": "Added by V0052 (ADR-026 §4): one of the two functions one person may not hold together; replaces permission_a."
+    },
+    {
+     "name": "function_b",
+     "logicalType": "Ref Function",
+     "mandatory": true,
+     "sample": "PAYMENTS_RELEASE",
+     "note": "Added by V0052 (ADR-026 §4): the other function; replaces permission_b."
     }
    ]
   },
@@ -9910,6 +10154,22 @@
      "logicalType": "Integer",
      "mandatory": true,
      "sample": "5"
+    },
+    {
+     "name": "client_ids",
+     "logicalType": "List<Code>",
+     "mandatory": false,
+     "sample": [
+      "member-portal"
+     ],
+     "note": "Added by V0045: the Keycloak clients the policy applies to."
+    },
+    {
+     "name": "mfa_required",
+     "logicalType": "Boolean",
+     "mandatory": false,
+     "sample": true,
+     "note": "Added by V0045 (BR-008): whether those clients require a one-time code."
     }
    ]
   },

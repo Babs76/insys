@@ -60,11 +60,14 @@ public sealed class RelationshipTypes : StaticRecord<RelationshipTypesInput>
 /// <summary>The fields a client sends for Relationship types.</summary>
 public sealed record RelationshipTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? InverseCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("IND_IND", "IND_ORG", "ORG_ORG")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PartyKinds { get; init; }
 
     public string[]? Domains { get; init; }

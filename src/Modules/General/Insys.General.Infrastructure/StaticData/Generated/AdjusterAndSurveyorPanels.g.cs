@@ -63,15 +63,19 @@ public sealed class AdjusterAndSurveyorPanels : StaticRecord<AdjusterAndSurveyor
 /// <summary>The fields a client sends for Adjuster and surveyor panels.</summary>
 public sealed record AdjusterAndSurveyorPanelsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Party { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Regions { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Lines { get; init; }
 
     public string? FeeScale { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Status { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

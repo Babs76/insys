@@ -59,10 +59,13 @@ public sealed class AccountingCalendarAndPeriods : StaticRecord<AccountingCalend
 /// <summary>The fields a client sends for Accounting calendar and periods.</summary>
 public sealed record AccountingCalendarAndPeriodsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PeriodCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? StartDate { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? EndDate { get; init; }
 
     public DateOnly? CloseDate { get; init; }

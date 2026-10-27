@@ -54,9 +54,11 @@ public sealed class InvestigationOutcomeCodes : StaticRecord<InvestigationOutcom
 /// <summary>The fields a client sends for Investigation outcome codes.</summary>
 public sealed record InvestigationOutcomeCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("RECOVER", "SUSPEND_PROVIDER", "REFER_TO_AUTHORITY", "NONE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FollowUp { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

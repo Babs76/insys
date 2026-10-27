@@ -59,12 +59,16 @@ public sealed class NominationRules : StaticRecord<NominationRulesInput>
 /// <summary>The fields a client sends for Nomination rules.</summary>
 public sealed record NominationRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? MaxBeneficiaries { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? MinShare { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? AllowedRelationships { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

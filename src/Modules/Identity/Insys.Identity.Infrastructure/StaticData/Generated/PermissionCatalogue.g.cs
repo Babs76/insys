@@ -57,11 +57,14 @@ public sealed class PermissionCatalogue : StaticRecord<PermissionCatalogueInput>
 /// <summary>The fields a client sends for Permission catalogue.</summary>
 public sealed record PermissionCatalogueInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PermissionCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Resource { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("READ", "CREATE", "UPDATE", "APPROVE", "DELETE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Operation { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

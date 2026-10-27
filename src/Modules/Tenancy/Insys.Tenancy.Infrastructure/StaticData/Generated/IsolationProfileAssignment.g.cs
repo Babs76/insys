@@ -57,11 +57,14 @@ public sealed class IsolationProfileAssignment : StaticRecord<IsolationProfileAs
 /// <summary>The fields a client sends for Isolation profile assignment.</summary>
 public sealed record IsolationProfileAssignmentInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Tenant { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("A", "B", "C")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Profile { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DataRegion { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -59,10 +59,13 @@ public sealed class ChronicConditionList : StaticRecord<ChronicConditionListInpu
 /// <summary>The fields a client sends for Chronic condition list.</summary>
 public sealed record ChronicConditionListInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ConditionCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? DiagnosisCodes { get; init; }
 
     public string? TreatmentBasket { get; init; }

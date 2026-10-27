@@ -59,10 +59,13 @@ public sealed class UILabelAndTranslationBundles : StaticRecord<UILabelAndTransl
 /// <summary>The fields a client sends for UI label and translation bundles.</summary>
 public sealed record UILabelAndTranslationBundlesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LabelKey { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Language { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Text { get; init; }
 
     public string? ChannelCode { get; init; }

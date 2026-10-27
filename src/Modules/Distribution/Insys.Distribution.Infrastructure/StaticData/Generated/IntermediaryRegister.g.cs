@@ -70,18 +70,24 @@ public sealed class IntermediaryRegister : StaticRecord<IntermediaryRegisterInpu
 /// <summary>The fields a client sends for Intermediary register.</summary>
 public sealed record IntermediaryRegisterInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? IntermediaryCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("BROKER", "AGENT", "BANCASSURANCE", "AGGREGATOR", "EMPLOYER")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LegalName { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? LicenceNumbers { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED", "TERMINATED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Status { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? HierarchyNode { get; init; }
 
     public Guid? PartyId { get; init; }

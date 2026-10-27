@@ -64,16 +64,20 @@ public sealed class NotificationTypes : StaticRecord<NotificationTypesInput>
 /// <summary>The fields a client sends for Notification types.</summary>
 public sealed record NotificationTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TypeCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("SERVICE", "MARKETING")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Category { get; init; }
 
     public string? ConsentPurpose { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "PUSH", "WHATSAPP")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Channels { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? PortalVisible { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

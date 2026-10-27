@@ -59,12 +59,16 @@ public sealed class MetricDefinitions : StaticRecord<MetricDefinitionsInput>
 /// <summary>The fields a client sends for Metric definitions.</summary>
 public sealed record MetricDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? MetricCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Formula { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Source { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Owner { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -53,8 +53,10 @@ public sealed class QuoteStatusCodes : StaticRecord<QuoteStatusCodesInput>
 /// <summary>The fields a client sends for Quote status codes.</summary>
 public sealed record QuoteStatusCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? AllowedNext { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

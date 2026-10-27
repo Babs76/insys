@@ -70,11 +70,14 @@ public sealed class LimitAndDeductibleSchedules : StaticRecord<LimitAndDeductibl
 /// <summary>The fields a client sends for Limit and deductible schedules.</summary>
 public sealed record LimitAndDeductibleSchedulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ScheduleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Coverage { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LIMIT", "SUBLIMIT", "DEDUCTIBLE", "EXCESS", "AGGREGATE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LimitType { get; init; }
 
     public decimal? Amount { get; init; }
@@ -82,8 +85,10 @@ public sealed record LimitAndDeductibleSchedulesInput : StaticRecordInput
     public decimal? Percentage { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("FIXED", "PERCENT_OF_CLAIM", "GREATER_OF", "LESSER_OF")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Rule { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Currency { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

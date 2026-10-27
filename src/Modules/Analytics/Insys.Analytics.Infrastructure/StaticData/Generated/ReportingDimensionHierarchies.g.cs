@@ -56,8 +56,10 @@ public sealed class ReportingDimensionHierarchies : StaticRecord<ReportingDimens
 /// <summary>The fields a client sends for Reporting dimension hierarchies.</summary>
 public sealed record ReportingDimensionHierarchiesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Dimension { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Levels { get; init; }
 
     public string? MappingSource { get; init; }

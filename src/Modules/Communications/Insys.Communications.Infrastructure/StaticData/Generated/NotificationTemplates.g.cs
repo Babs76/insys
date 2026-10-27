@@ -63,15 +63,19 @@ public sealed class NotificationTemplates : StaticRecord<NotificationTemplatesIn
 /// <summary>The fields a client sends for Notification templates.</summary>
 public sealed record NotificationTemplatesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TypeCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "PUSH", "WHATSAPP")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Channel { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Language { get; init; }
 
     public string? Subject { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Body { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

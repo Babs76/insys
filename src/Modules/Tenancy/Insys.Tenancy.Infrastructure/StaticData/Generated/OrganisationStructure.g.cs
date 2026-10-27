@@ -63,13 +63,16 @@ public sealed class OrganisationStructure : StaticRecord<OrganisationStructureIn
 /// <summary>The fields a client sends for Organisation structure.</summary>
 public sealed record OrganisationStructureInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? NodeCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LEGAL_ENTITY", "REGION", "BRANCH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
     public string? Parent { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
     public string[]? Licences { get; init; }

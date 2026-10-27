@@ -63,13 +63,17 @@ public sealed class AcceptanceAndReferralRules : StaticRecord<AcceptanceAndRefer
 /// <summary>The fields a client sends for Acceptance and referral rules.</summary>
 public sealed record AcceptanceAndReferralRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Condition { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Threshold { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ACCEPT", "REFER", "DECLINE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Outcome { get; init; }
 
     public string? ReferralQueue { get; init; }

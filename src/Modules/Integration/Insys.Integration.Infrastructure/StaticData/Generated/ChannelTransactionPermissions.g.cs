@@ -68,18 +68,22 @@ public sealed class ChannelTransactionPermissions : StaticRecord<ChannelTransact
 /// <summary>The fields a client sends for Channel transaction permissions.</summary>
 public sealed record ChannelTransactionPermissionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ChannelCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RoleCode { get; init; }
 
     public string? TransactionType { get; init; }
 
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Allowed { get; init; }
 
     public bool? RequiresApproval { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FunctionCode { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
@@ -91,6 +95,7 @@ public sealed record ChannelTransactionPermissionsInput : StaticRecordInput
         errors.MaxLength("transactionType", TransactionType, 30);
         errors.MaxLength("productCode", ProductCode, 80);
         errors.Required("allowed", Allowed);
+        errors.Required("functionCode", FunctionCode);
         errors.MaxLength("functionCode", FunctionCode, 80);
     }
 }

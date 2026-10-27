@@ -50,6 +50,7 @@ public sealed class MaturitySettlementOptions : StaticRecord<MaturitySettlementO
 /// <summary>The fields a client sends for Maturity settlement options.</summary>
 public sealed record MaturitySettlementOptionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

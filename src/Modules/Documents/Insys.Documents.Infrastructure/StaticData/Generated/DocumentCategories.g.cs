@@ -63,15 +63,20 @@ public sealed class DocumentCategories : StaticRecord<DocumentCategoriesInput>
 /// <summary>The fields a client sends for Document categories.</summary>
 public sealed record DocumentCategoriesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CategoryCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Classification { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ALL", "LIFE", "GENERAL", "HEALTH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Domain { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? AllowedRoles { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

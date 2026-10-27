@@ -59,12 +59,16 @@ public sealed class ReportCatalogueAndAccessRules : StaticRecord<ReportCatalogue
 /// <summary>The fields a client sends for Report catalogue and access rules.</summary>
 public sealed record ReportCatalogueAndAccessRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReportCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Roles { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? ExportAllowed { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

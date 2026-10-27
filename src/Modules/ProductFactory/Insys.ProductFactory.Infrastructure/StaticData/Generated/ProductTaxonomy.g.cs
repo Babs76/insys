@@ -64,10 +64,13 @@ public sealed class ProductTaxonomy : StaticRecord<ProductTaxonomyInput>
 public sealed record ProductTaxonomyInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Line { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FamilyCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FamilyName { get; init; }
 
     public string? ClassCode { get; init; }

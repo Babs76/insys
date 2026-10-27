@@ -53,8 +53,10 @@ public sealed class UnderwritingDecisionCodes : StaticRecord<UnderwritingDecisio
 /// <summary>The fields a client sends for Underwriting decision codes.</summary>
 public sealed record UnderwritingDecisionCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? RequiresTerms { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

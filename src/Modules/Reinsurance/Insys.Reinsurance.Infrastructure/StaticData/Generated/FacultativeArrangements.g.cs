@@ -62,14 +62,19 @@ public sealed class FacultativeArrangements : StaticRecord<FacultativeArrangemen
 /// <summary>The fields a client sends for Facultative arrangements.</summary>
 public sealed record FacultativeArrangementsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ArrangementCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RiskReference { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Reinsurer { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Share { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TermsRef { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

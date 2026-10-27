@@ -53,8 +53,10 @@ public sealed class ProposalStatusCodes : StaticRecord<ProposalStatusCodesInput>
 /// <summary>The fields a client sends for Proposal status codes.</summary>
 public sealed record ProposalStatusCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? AllowedNext { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

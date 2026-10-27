@@ -56,10 +56,13 @@ public sealed class LicenceAndAppointmentTypes : StaticRecord<LicenceAndAppointm
 /// <summary>The fields a client sends for Licence and appointment types.</summary>
 public sealed record LicenceAndAppointmentTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TypeCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Regulator { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? ExpiryTracked { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

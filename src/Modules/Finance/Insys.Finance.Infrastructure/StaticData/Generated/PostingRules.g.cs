@@ -62,14 +62,18 @@ public sealed class PostingRules : StaticRecord<PostingRulesInput>
 /// <summary>The fields a client sends for Posting rules.</summary>
 public sealed record PostingRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TransactionType { get; init; }
 
     public string? Conditions { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DebitAccount { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CreditAccount { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

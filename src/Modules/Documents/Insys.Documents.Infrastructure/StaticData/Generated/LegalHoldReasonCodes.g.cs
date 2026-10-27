@@ -53,8 +53,10 @@ public sealed class LegalHoldReasonCodes : StaticRecord<LegalHoldReasonCodesInpu
 /// <summary>The fields a client sends for Legal hold reason codes.</summary>
 public sealed record LegalHoldReasonCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AuthorityRole { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

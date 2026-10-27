@@ -59,8 +59,10 @@ public sealed class TariffSchedules : StaticRecord<TariffSchedulesInput>
 /// <summary>The fields a client sends for Tariff schedules.</summary>
 public sealed record TariffSchedulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TariffCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Price { get; init; }
 
     public string[]? Modifiers { get; init; }

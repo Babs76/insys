@@ -65,6 +65,7 @@ public sealed class PortalBrandingThemes : StaticRecord<PortalBrandingThemesInpu
 /// <summary>The fields a client sends for Portal branding themes.</summary>
 public sealed record PortalBrandingThemesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ThemeCode { get; init; }
 
     public string? LogoRef { get; init; }

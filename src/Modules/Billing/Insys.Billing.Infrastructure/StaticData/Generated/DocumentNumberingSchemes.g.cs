@@ -65,13 +65,17 @@ public sealed class DocumentNumberingSchemes : StaticRecord<DocumentNumberingSch
 public sealed record DocumentNumberingSchemesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("INVOICE", "DEBIT_NOTE", "CREDIT_NOTE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DocumentType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Prefix { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? SequenceLength { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NEVER", "YEARLY", "MONTHLY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ResetRule { get; init; }
 
     public string? ExampleOutput { get; init; }

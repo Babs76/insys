@@ -56,10 +56,12 @@ public sealed class DistributionHierarchy : StaticRecord<DistributionHierarchyIn
 /// <summary>The fields a client sends for Distribution hierarchy.</summary>
 public sealed record DistributionHierarchyInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? NodeCode { get; init; }
 
     public string? Parent { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? OverridingCommission { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

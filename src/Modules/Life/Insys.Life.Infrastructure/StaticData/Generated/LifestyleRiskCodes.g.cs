@@ -61,8 +61,10 @@ public sealed class LifestyleRiskCodes : StaticRecord<LifestyleRiskCodesInput>
 public sealed record LifestyleRiskCodesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("TOBACCO", "PURSUIT", "RESIDENCE", "TRAVEL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Category { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     public decimal? Loading { get; init; }

@@ -66,18 +66,23 @@ public sealed class BackupAndRecoveryPolicies : StaticRecord<BackupAndRecoveryPo
 /// <summary>The fields a client sends for Backup and recovery policies.</summary>
 public sealed record BackupAndRecoveryPoliciesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DataClass { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? BackupFrequency { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Retention { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RpoTarget { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RtoTarget { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

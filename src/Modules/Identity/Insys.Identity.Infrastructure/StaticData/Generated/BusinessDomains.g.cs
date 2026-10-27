@@ -53,6 +53,7 @@ public sealed class BusinessDomains : StaticRecord<BusinessDomainsInput>
 /// <summary>The fields a client sends for Business domains.</summary>
 public sealed record BusinessDomainsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DomainCode { get; init; }
 
     public string? Icon { get; init; }

@@ -65,17 +65,22 @@ public sealed class RetentionSchedules : StaticRecord<RetentionSchedulesInput>
 /// <summary>The fields a client sends for Retention schedules.</summary>
 public sealed record RetentionSchedulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Category { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Jurisdiction { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Period { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("CREATION", "POLICY_END", "CLAIM_CLOSURE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TriggerEvent { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("DELETE", "ANONYMISE", "ARCHIVE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DisposalMethod { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

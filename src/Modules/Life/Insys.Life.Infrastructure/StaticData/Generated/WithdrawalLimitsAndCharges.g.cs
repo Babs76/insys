@@ -62,14 +62,18 @@ public sealed class WithdrawalLimitsAndCharges : StaticRecord<WithdrawalLimitsAn
 /// <summary>The fields a client sends for Withdrawal limits and charges.</summary>
 public sealed record WithdrawalLimitsAndChargesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? MinAmount { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? MaxPct { get; init; }
 
     public decimal? Charge { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? MaxPerYear { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

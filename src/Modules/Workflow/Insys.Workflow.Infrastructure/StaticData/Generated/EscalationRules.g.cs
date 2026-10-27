@@ -63,13 +63,17 @@ public sealed class EscalationRules : StaticRecord<EscalationRulesInput>
 /// <summary>The fields a client sends for Escalation rules.</summary>
 public sealed record EscalationRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("SLA_BREACH", "AMOUNT_ABOVE", "MANUAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Trigger { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? Level { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TargetRole { get; init; }
 
     public string? NotifyTemplate { get; init; }

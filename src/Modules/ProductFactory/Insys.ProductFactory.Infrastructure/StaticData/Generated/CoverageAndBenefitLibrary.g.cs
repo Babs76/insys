@@ -67,17 +67,22 @@ public sealed class CoverageAndBenefitLibrary : StaticRecord<CoverageAndBenefitL
 public sealed record CoverageAndBenefitLibraryInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("COVERAGE", "BENEFIT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("INDEMNITY", "FIXED_BENEFIT", "REIMBURSEMENT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Basis { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("SUM_INSURED", "SUM_ASSURED", "LIMIT", "UNITS")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Measure { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Domain { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -56,10 +56,13 @@ public sealed class OperationalLimits : StaticRecord<OperationalLimitsInput>
 /// <summary>The fields a client sends for Operational limits.</summary>
 public sealed record OperationalLimitsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Tenant { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LimitType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? Value { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

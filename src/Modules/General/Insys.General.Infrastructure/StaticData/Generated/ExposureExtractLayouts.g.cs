@@ -57,11 +57,14 @@ public sealed class ExposureExtractLayouts : StaticRecord<ExposureExtractLayouts
 /// <summary>The fields a client sends for Exposure extract layouts.</summary>
 public sealed record ExposureExtractLayoutsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LayoutCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Fields { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

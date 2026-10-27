@@ -62,12 +62,16 @@ public sealed class DelegationAndApprovalAuthority : StaticRecord<DelegationAndA
 /// <summary>The fields a client sends for Delegation and approval authority.</summary>
 public sealed record DelegationAndApprovalAuthorityInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RoleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TransactionType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? LimitValue { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? DelegationAllowed { get; init; }
 
     public string? Currency { get; init; }

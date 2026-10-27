@@ -57,8 +57,10 @@ public sealed class EligibilityResponseCodes : StaticRecord<EligibilityResponseC
 /// <summary>The fields a client sends for Eligibility response codes.</summary>
 public sealed record EligibilityResponseCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Meaning { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProviderAction { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ELIGIBLE", "NOT_ELIGIBLE", "NOT_FOUND", "WAITING_PERIOD")]

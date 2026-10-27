@@ -60,11 +60,14 @@ public sealed class DecisionReasonCodes : StaticRecord<DecisionReasonCodesInput>
 /// <summary>The fields a client sends for Decision reason codes.</summary>
 public sealed record DecisionReasonCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReasonCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ACCEPT", "LOAD", "EXCLUDE", "POSTPONE", "DECLINE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DecisionType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CustomerWording { get; init; }
 
     public string? InternalNote { get; init; }

@@ -61,14 +61,18 @@ public sealed class AllocationRules : StaticRecord<AllocationRulesInput>
 /// <summary>The fields a client sends for Allocation rules.</summary>
 public sealed record AllocationRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PERCENTAGE", "EQUAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ShareBasis { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? TotalMustEqual { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("REDISTRIBUTE", "ESTATE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PredeceasedDefault { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -64,16 +64,21 @@ public sealed class RoundingAndCurrencyPrecisionRules : StaticRecord<RoundingAnd
 /// <summary>The fields a client sends for Rounding and currency precision rules.</summary>
 public sealed record RoundingAndCurrencyPrecisionRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Currency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Step { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("HALF_UP", "HALF_EVEN", "UP", "DOWN")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Method { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("EACH_FACTOR", "FINAL_PREMIUM", "INSTALMENT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Stage { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

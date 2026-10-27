@@ -56,10 +56,13 @@ public sealed class TenantProductAvailability : StaticRecord<TenantProductAvaila
 /// <summary>The fields a client sends for Tenant product availability.</summary>
 public sealed record TenantProductAvailabilityInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Tenant { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductFamily { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Enabled { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -60,13 +60,17 @@ public sealed class PaymentStatusMappings : StaticRecord<PaymentStatusMappingsIn
 /// <summary>The fields a client sends for Payment status mappings.</summary>
 public sealed record PaymentStatusMappingsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProviderCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProviderStatus { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("INITIATED", "PENDING", "SUCCEEDED", "FAILED", "REVERSED", "UNKNOWN")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PlatformStatus { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Final { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

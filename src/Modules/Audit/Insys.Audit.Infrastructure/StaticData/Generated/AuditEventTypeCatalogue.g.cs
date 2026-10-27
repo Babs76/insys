@@ -56,10 +56,13 @@ public sealed class AuditEventTypeCatalogue : StaticRecord<AuditEventTypeCatalog
 /// <summary>The fields a client sends for Audit event type catalogue.</summary>
 public sealed record AuditEventTypeCatalogueInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EventType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Fields { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Sensitivity { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -66,17 +66,23 @@ public sealed class DisclosureAndNoticeTexts : StaticRecord<DisclosureAndNoticeT
 /// <summary>The fields a client sends for Disclosure and notice texts.</summary>
 public sealed record DisclosureAndNoticeTextsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? NoticeType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Jurisdiction { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Language { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Text { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? TextVersion { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("QUOTE", "PROPOSAL", "ISSUE", "CLAIM")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DisplayPoint { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

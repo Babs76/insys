@@ -62,14 +62,19 @@ public sealed class BusinessCalendars : StaticRecord<BusinessCalendarsInput>
 /// <summary>The fields a client sends for Business calendars.</summary>
 public sealed record BusinessCalendarsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CalendarCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? WorkingDays { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Hours { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? HolidayCalendar { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TimeZone { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

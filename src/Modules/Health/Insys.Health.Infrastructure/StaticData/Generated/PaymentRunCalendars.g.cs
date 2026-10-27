@@ -60,13 +60,17 @@ public sealed class PaymentRunCalendars : StaticRecord<PaymentRunCalendarsInput>
 /// <summary>The fields a client sends for Payment run calendars.</summary>
 public sealed record PaymentRunCalendarsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RunCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("DAILY", "WEEKLY", "FORTNIGHTLY", "MONTHLY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CutOff { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Calendar { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

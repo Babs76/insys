@@ -55,8 +55,10 @@ public sealed class ClaimDecisionReasonCodes : StaticRecord<ClaimDecisionReasonC
 public sealed record ClaimDecisionReasonCodesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("APPROVE", "PARTIAL", "DECLINE", "WITHDRAW")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DecisionType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CustomerWording { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

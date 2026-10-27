@@ -60,13 +60,17 @@ public sealed class PerilCodes : StaticRecord<PerilCodesInput>
 /// <summary>The fields a client sends for Peril codes.</summary>
 public sealed record PerilCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PerilCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("MOTOR", "PROPERTY", "MARINE", "COMMERCIAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Line { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Catastrophe { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

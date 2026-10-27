@@ -62,12 +62,16 @@ public sealed class SurrenderValueScales : StaticRecord<SurrenderValueScalesInpu
 /// <summary>The fields a client sends for Surrender value scales.</summary>
 public sealed record SurrenderValueScalesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ScaleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductVersion { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? PolicyYear { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Factor { get; init; }
 
     public string? FormulaRef { get; init; }

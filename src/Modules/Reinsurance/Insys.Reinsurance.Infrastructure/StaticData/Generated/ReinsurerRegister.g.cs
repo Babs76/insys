@@ -63,15 +63,19 @@ public sealed class ReinsurerRegister : StaticRecord<ReinsurerRegisterInput>
 /// <summary>The fields a client sends for Reinsurer register.</summary>
 public sealed record ReinsurerRegisterInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReinsurerCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LegalName { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Country { get; init; }
 
     public string? SecurityRating { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("APPROVED", "RESTRICTED", "NOT_APPROVED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Status { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

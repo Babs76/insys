@@ -66,12 +66,16 @@ public sealed class IdentityDocumentTypes : StaticRecord<IdentityDocumentTypesIn
 /// <summary>The fields a client sends for Identity document types.</summary>
 public sealed record IdentityDocumentTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Country { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DocType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FormatPattern { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NONE", "LUHN", "MOD11", "CUSTOM")]

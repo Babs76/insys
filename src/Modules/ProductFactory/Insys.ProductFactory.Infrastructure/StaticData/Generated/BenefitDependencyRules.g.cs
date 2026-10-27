@@ -60,11 +60,14 @@ public sealed class BenefitDependencyRules : StaticRecord<BenefitDependencyRules
 /// <summary>The fields a client sends for Benefit dependency rules.</summary>
 public sealed record BenefitDependencyRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Benefit { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("REQUIRES", "EXCLUDES")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Relation { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TargetBenefit { get; init; }
 
     public int? MaxCombined { get; init; }

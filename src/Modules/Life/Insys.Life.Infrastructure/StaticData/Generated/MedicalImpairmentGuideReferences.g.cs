@@ -62,12 +62,16 @@ public sealed class MedicalImpairmentGuideReferences : StaticRecord<MedicalImpai
 /// <summary>The fields a client sends for Medical impairment guide references.</summary>
 public sealed record MedicalImpairmentGuideReferencesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ImpairmentCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? GuideSource { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? GuideEdition { get; init; }
 
     public string? OutcomeHint { get; init; }

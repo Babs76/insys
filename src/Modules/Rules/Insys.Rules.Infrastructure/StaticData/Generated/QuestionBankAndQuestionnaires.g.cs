@@ -63,11 +63,14 @@ public sealed class QuestionBankAndQuestionnaires : StaticRecord<QuestionBankAnd
 /// <summary>The fields a client sends for Question bank and questionnaires.</summary>
 public sealed record QuestionBankAndQuestionnairesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? QuestionCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Text { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("YES_NO", "SINGLE_CHOICE", "MULTI_CHOICE", "NUMBER", "DATE", "TEXT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AnswerType { get; init; }
 
     public string[]? Options { get; init; }

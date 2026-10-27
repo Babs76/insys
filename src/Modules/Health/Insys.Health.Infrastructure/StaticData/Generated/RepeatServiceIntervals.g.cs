@@ -57,9 +57,11 @@ public sealed class RepeatServiceIntervals : StaticRecord<RepeatServiceIntervals
 /// <summary>The fields a client sends for Repeat-service intervals.</summary>
 public sealed record RepeatServiceIntervalsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Service { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? MinInterval { get; init; }
 
     public string? OverrideRole { get; init; }

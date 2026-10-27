@@ -53,8 +53,10 @@ public sealed class EvidenceTypes : StaticRecord<EvidenceTypesInput>
 /// <summary>The fields a client sends for Evidence types.</summary>
 public sealed record EvidenceTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DocumentCategory { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? MandatoryFor { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

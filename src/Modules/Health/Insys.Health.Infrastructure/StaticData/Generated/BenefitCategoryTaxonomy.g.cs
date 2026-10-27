@@ -56,8 +56,10 @@ public sealed class BenefitCategoryTaxonomy : StaticRecord<BenefitCategoryTaxono
 /// <summary>The fields a client sends for Benefit category taxonomy.</summary>
 public sealed record BenefitCategoryTaxonomyInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CategoryCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     public string? Parent { get; init; }

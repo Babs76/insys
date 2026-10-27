@@ -55,9 +55,20 @@ foreach (var item in catalogue.RootElement.GetProperty("entities").EnumerateArra
 
     var module = Modules.BySchema[table.Schema];
     var name = item.GetProperty("entity").GetString()!;
+    var catalogueFields = item.TryGetProperty("fields", out var declared)
+        ? declared.EnumerateArray().ToDictionary(f => f.GetProperty("name").GetString()!, f => f.GetProperty("mandatory").GetBoolean(), StringComparer.Ordinal)
+        : new Dictionary<string, bool>(StringComparer.Ordinal);
     entities.Add(new Entity(table, module, name, Names.Pascal(name), Names.Kebab(name), EntityCode(table.Name),
         item.GetProperty("scope").GetString()!, item.GetProperty("tier").GetInt32(), table.Statuses.Contains("PUBLISHED") ? "Configuration" : "Reference",
-        item.GetProperty("module").GetString()!));
+        item.GetProperty("module").GetString()!, catalogueFields));
+}
+
+// The catalogue's mandatory flag is the contract (BR-084, BR-085): every field of a table is in its catalogue entry, and a
+// column the database requires is mandatory there. The generated input then requires exactly the mandatory fields.
+var disagreements = entities.SelectMany(Emit.CatalogueDisagreements).ToList();
+if (disagreements.Count > 0)
+{
+    throw new InvalidOperationException("The static data catalogue disagrees with the migrations:\n  " + string.Join("\n  ", disagreements));
 }
 
 var unmatched = tables.Keys.Except(entities.Select(e => e.Table.FullName)).ToList();
@@ -125,7 +136,7 @@ static string FindRoot()
 }
 
 internal sealed record Entity(Table Table, ModuleInfo Module, string Name, string ClassName, string Route, string EntityCode, string Scope, int Tier, string Lifecycle,
-    string CatalogueModule);
+    string CatalogueModule, IReadOnlyDictionary<string, bool> CatalogueFields);
 
 internal static class Names
 {
@@ -269,6 +280,11 @@ internal static class Emit
                 s.AppendLine($"    [System.ComponentModel.Description({Names.Literal(DurationDescription)})]");
             }
 
+            if (field.Checks.Any(c => c.StartsWith("errors.Required(", StringComparison.Ordinal)))
+            {
+                s.AppendLine("    [Insys.BuildingBlocks.Domain.RequiredField]");
+            }
+
             s.AppendLine($"    public {field.InputType} {InputName(field)} {{ get; init; }}");
             s.AppendLine();
         }
@@ -372,6 +388,51 @@ internal static class Emit
         ? Names.Pascal(field.Column.Name[..^4])
         : field.Property;
 
+    /// <summary>Catalogue field names the migrations store under another column name (reserved words, V0002's header).</summary>
+    private static readonly Dictionary<string, string> RenamedFields = new(StringComparer.Ordinal)
+    {
+        ["end"] = "end_date", ["limit"] = "limit_value", ["window"] = "window_duration", ["start"] = "start_date",
+    };
+
+    /// <summary>The column a catalogue field is stored in: renamed, or encrypted as name_enc (DBA-014).</summary>
+    private static string ColumnOf(Table table, string field)
+    {
+        var name = RenamedFields.GetValueOrDefault(field, field);
+        return table.Columns.Any(c => c.Name == name + "_enc") ? name + "_enc" : name;
+    }
+
+    /// <summary>The table's own columns a client sends: not common, not deprecated, and not a masked field's hash or last four.</summary>
+    private static IEnumerable<Column> OwnColumns(Entity entity) => entity.Table.Columns.Where(c => !Schema.CommonColumns.Contains(c.Name)
+        && !DeprecatedColumns.Contains($"{entity.Table.FullName}.{c.Name}")
+        && !entity.Table.Columns.Any(e => e.Name.EndsWith("_enc", StringComparison.Ordinal) && (c.Name == e.Name[..^4] + "_hash" || c.Name == e.Name[..^4] + "_last4")));
+
+    private static bool Mandatory(Entity entity, string column) =>
+        entity.CatalogueFields.Any(f => f.Value && ColumnOf(entity.Table, f.Key) == column);
+
+    /// <summary>Where the catalogue entry and the table disagree: a field with no column, a column with no field, or a column the database requires that the catalogue calls optional.</summary>
+    public static IEnumerable<string> CatalogueDisagreements(Entity entity)
+    {
+        var table = entity.Table.FullName;
+        var columns = entity.Table.Columns.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+        foreach (var field in entity.CatalogueFields.Keys.Where(f => !Schema.CommonColumns.Contains(f) && !columns.Contains(ColumnOf(entity.Table, f))))
+        {
+            yield return $"{table}: the catalogue's field {field} has no column";
+        }
+
+        foreach (var column in OwnColumns(entity))
+        {
+            var declared = entity.CatalogueFields.Where(f => ColumnOf(entity.Table, f.Key) == column.Name).ToList();
+            if (declared.Count == 0)
+            {
+                yield return $"{table}.{column.Name}: not in the catalogue entry's fields";
+            }
+            else if (column.NotNull && !declared.Any(f => f.Value))
+            {
+                yield return $"{table}.{column.Name}: NOT NULL, but the catalogue marks it optional";
+            }
+        }
+    }
+
     private static List<Field> Fields(Entity entity)
     {
         var fields = new List<Field>();
@@ -385,7 +446,8 @@ internal static class Emit
             }
 
             var json = Names.Camel(property);
-            var required = column.NotNull;
+            var notNull = column.NotNull;
+            var required = notNull || Mandatory(entity, column.Name);
             var config = new List<string>();
             var checks = new List<string>();
             string entityType, inputType, apply;
@@ -397,9 +459,9 @@ internal static class Emit
                 var baseName = column.Name[..^4];
                 var plain = Names.Pascal(baseName);
                 var hasLast4 = columns.Any(c => c.Name == baseName + "_last4");
-                entityType = required ? "byte[]" : "byte[]?";
+                entityType = notNull ? "byte[]" : "byte[]?";
                 inputType = "string?";
-                apply = required
+                apply = notNull
                     ? $"var {Names.Camel(plain)} = protector.Protect(input.{plain}!); {property} = {Names.Camel(plain)}.Encrypted; {plain}Hash = {Names.Camel(plain)}.Hash;"
                       + (hasLast4 ? $" {plain}Last4 = {Names.Camel(plain)}.Last4;" : "")
                     : $"var {Names.Camel(plain)} = input.{plain} is null ? null : protector.Protect(input.{plain}); {property} = {Names.Camel(plain)}?.Encrypted; {plain}Hash = {Names.Camel(plain)}?.Hash;"
@@ -418,7 +480,7 @@ internal static class Emit
                     && (column.Name == c.Name[..^4] + "_hash" || column.Name == c.Name[..^4] + "_last4")))
             {
                 var maskedType = column.MaxLength is { } n ? $".HasMaxLength({n})" : "";
-                fields.Add(new Field(column, property, required ? "string" : "string?", "", "", [maskedType], [], column.Name.EndsWith("_hash", StringComparison.Ordinal)));
+                fields.Add(new Field(column, property, notNull ? "string" : "string?", "", "", [maskedType], [], column.Name.EndsWith("_hash", StringComparison.Ordinal)));
                 continue;
             }
 
@@ -446,12 +508,12 @@ internal static class Emit
             };
 
             var valueType = entityType is "Guid" or "int" or "long" or "short" or "decimal" or "bool" or "DateOnly" or "DateTimeOffset" or "JsonElement";
-            if (!required)
+            if (!notNull)
             {
                 entityType += "?";
             }
 
-            apply = required
+            apply = notNull
                 ? $"{property} = input.{property}{(valueType ? ".GetValueOrDefault()" : "!")};"
                 : $"{property} = input.{property};";
 
@@ -473,19 +535,19 @@ internal static class Emit
                     config.Add(".HasColumnType(\"jsonb\")");
                     break;
                 case "interval":
-                    config.Add($".HasConversion(StaticConverters.{(required ? "" : "Optional")}Duration).HasColumnType(\"interval\")");
+                    config.Add($".HasConversion(StaticConverters.{(notNull ? "" : "Optional")}Duration).HasColumnType(\"interval\")");
                     checks.Add($"errors.Valid(\"{json}\", {property}, StaticConverters.IsDuration, \"an ISO 8601 duration such as P3M\");");
                     break;
                 case "int4range":
-                    config.Add($".HasConversion(StaticConverters.{(required ? "" : "Optional")}IntRange).HasColumnType(\"int4range\")");
+                    config.Add($".HasConversion(StaticConverters.{(notNull ? "" : "Optional")}IntRange).HasColumnType(\"int4range\")");
                     checks.Add($"errors.Valid(\"{json}\", {property}, StaticConverters.IsIntRange, \"a range such as [18,30)\");");
                     break;
                 case "numrange":
-                    config.Add($".HasConversion(StaticConverters.{(required ? "" : "Optional")}DecimalRange).HasColumnType(\"numrange\")");
+                    config.Add($".HasConversion(StaticConverters.{(notNull ? "" : "Optional")}DecimalRange).HasColumnType(\"numrange\")");
                     checks.Add($"errors.Valid(\"{json}\", {property}, StaticConverters.IsDecimalRange, \"a range such as [0,1000.50)\");");
                     break;
                 case "cidr[]":
-                    config.Add($".HasConversion(StaticConverters.{(required ? "" : "Optional")}CidrArray).HasColumnType(\"cidr[]\")");
+                    config.Add($".HasConversion(StaticConverters.{(notNull ? "" : "Optional")}CidrArray).HasColumnType(\"cidr[]\")");
                     checks.Add($"if ({property} is not null) {{ foreach (var item in {property}) {{ errors.Valid(\"{json}\", item, StaticConverters.IsCidr, \"CIDR notation such as 10.0.0.0/8\"); }} }}");
                     break;
             }

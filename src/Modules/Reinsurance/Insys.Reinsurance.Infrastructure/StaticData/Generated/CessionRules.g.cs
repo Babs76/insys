@@ -60,13 +60,17 @@ public sealed class CessionRules : StaticRecord<CessionRulesInput>
 /// <summary>The fields a client sends for Cession rules.</summary>
 public sealed record CessionRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Treaty { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Products { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("SUM_INSURED", "PREMIUM", "PROBABLE_MAXIMUM_LOSS")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AllocationBasis { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

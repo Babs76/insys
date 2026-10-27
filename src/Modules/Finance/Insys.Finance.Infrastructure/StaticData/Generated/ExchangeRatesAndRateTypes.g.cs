@@ -67,16 +67,22 @@ public sealed class ExchangeRatesAndRateTypes : StaticRecord<ExchangeRatesAndRat
 public sealed record ExchangeRatesAndRateTypesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("SPOT", "MONTH_END", "BUDGET")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RateType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FromCurrency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ToCurrency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Rate { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? RateDate { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Source { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

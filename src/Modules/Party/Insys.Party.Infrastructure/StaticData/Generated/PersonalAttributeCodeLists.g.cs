@@ -59,10 +59,13 @@ public sealed class PersonalAttributeCodeLists : StaticRecord<PersonalAttributeC
 /// <summary>The fields a client sends for Personal attribute code lists.</summary>
 public sealed record PersonalAttributeCodeListsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ListCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ValueCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     public string? Country { get; init; }

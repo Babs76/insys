@@ -71,21 +71,28 @@ public sealed class StaticDataEntityRegister : StaticRecord<StaticDataEntityRegi
 /// <summary>The fields a client sends for Static data entity register.</summary>
 public sealed record StaticDataEntityRegisterInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EntityCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("REF", "CFG", "MST")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Class { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("G", "GT", "T")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Scope { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("1", "2", "3")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Tier { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? OwnerRole { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Classification { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? SchemaVersion { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

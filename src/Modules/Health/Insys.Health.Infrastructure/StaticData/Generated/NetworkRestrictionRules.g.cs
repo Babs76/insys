@@ -57,11 +57,14 @@ public sealed class NetworkRestrictionRules : StaticRecord<NetworkRestrictionRul
 /// <summary>The fields a client sends for Network restriction rules.</summary>
 public sealed record NetworkRestrictionRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Plan { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Network { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NOT_COVERED", "CO_PAYMENT", "COVERED_AT_TARIFF")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? OutOfNetworkTreatment { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

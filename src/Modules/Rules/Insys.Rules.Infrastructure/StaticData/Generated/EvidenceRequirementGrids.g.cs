@@ -59,12 +59,16 @@ public sealed class EvidenceRequirementGrids : StaticRecord<EvidenceRequirementG
 /// <summary>The fields a client sends for Evidence requirement grids.</summary>
 public sealed record EvidenceRequirementGridsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AgeBand { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SumBand { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? EvidenceTypes { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

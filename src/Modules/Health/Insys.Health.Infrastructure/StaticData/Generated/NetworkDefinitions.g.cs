@@ -62,12 +62,16 @@ public sealed class NetworkDefinitions : StaticRecord<NetworkDefinitionsInput>
 /// <summary>The fields a client sends for Network definitions.</summary>
 public sealed record NetworkDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? NetworkCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Providers { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Plans { get; init; }
 
     public string? TariffScheduleCode { get; init; }

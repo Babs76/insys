@@ -61,14 +61,18 @@ public sealed class PartyRoleTypes : StaticRecord<PartyRoleTypesInput>
 /// <summary>The fields a client sends for Party role types.</summary>
 public sealed record PartyRoleTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RoleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("INDIVIDUAL", "ORGANISATION")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? AllowedPartyKinds { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Domains { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

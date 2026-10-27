@@ -59,12 +59,16 @@ public sealed class PackageSectionDefinitions : StaticRecord<PackageSectionDefin
 /// <summary>The fields a client sends for Package section definitions.</summary>
 public sealed record PackageSectionDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SectionCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Coverages { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Mandatory { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

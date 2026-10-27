@@ -62,12 +62,16 @@ public sealed class PremiumBounds : StaticRecord<PremiumBoundsInput>
 /// <summary>The fields a client sends for Premium bounds.</summary>
 public sealed record PremiumBoundsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Currency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Minimum { get; init; }
 
     public decimal? Maximum { get; init; }

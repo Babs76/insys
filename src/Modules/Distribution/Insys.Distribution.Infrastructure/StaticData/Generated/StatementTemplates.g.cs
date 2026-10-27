@@ -54,9 +54,11 @@ public sealed class StatementTemplates : StaticRecord<StatementTemplatesInput>
 /// <summary>The fields a client sends for Statement templates.</summary>
 public sealed record StatementTemplatesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Template { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "WEEKLY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

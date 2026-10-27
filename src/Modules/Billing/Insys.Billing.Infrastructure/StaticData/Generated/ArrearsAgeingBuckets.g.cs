@@ -60,13 +60,17 @@ public sealed class ArrearsAgeingBuckets : StaticRecord<ArrearsAgeingBucketsInpu
 /// <summary>The fields a client sends for Arrears ageing buckets.</summary>
 public sealed record ArrearsAgeingBucketsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? BucketCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? DaysFrom { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? DaysTo { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NONE", "REMINDER", "FINAL_NOTICE", "LAPSE", "CANCEL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Action { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

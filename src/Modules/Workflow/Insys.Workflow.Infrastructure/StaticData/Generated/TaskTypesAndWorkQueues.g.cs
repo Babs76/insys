@@ -60,13 +60,16 @@ public sealed class TaskTypesAndWorkQueues : StaticRecord<TaskTypesAndWorkQueues
 /// <summary>The fields a client sends for Task types and work queues.</summary>
 public sealed record TaskTypesAndWorkQueuesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? QueueCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? TaskTypes { get; init; }
 
     public string[]? Skills { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ROUND_ROBIN", "LEAST_LOADED", "MANUAL_PULL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AssignmentRule { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

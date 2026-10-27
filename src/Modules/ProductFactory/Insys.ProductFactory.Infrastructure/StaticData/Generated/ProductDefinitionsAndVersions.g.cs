@@ -77,13 +77,17 @@ public sealed class ProductDefinitionsAndVersions : StaticRecord<ProductDefiniti
 /// <summary>The fields a client sends for Product definitions and versions.</summary>
 public sealed record ProductDefinitionsAndVersionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Domain { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Coverages { get; init; }
 
     public string? FamilyCode { get; init; }
@@ -91,11 +95,13 @@ public sealed record ProductDefinitionsAndVersionsInput : StaticRecordInput
     public string? ClassCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ISSUE", "FIRST_PAYMENT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CoverStartsOn { get; init; }
 
     public string? EligibilityRulesetCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NONE", "REQUIRED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReinstatementArrears { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

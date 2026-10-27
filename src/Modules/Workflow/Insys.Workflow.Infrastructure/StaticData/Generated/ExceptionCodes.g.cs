@@ -55,6 +55,7 @@ public sealed class ExceptionCodes : StaticRecord<ExceptionCodesInput>
 public sealed record ExceptionCodesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("DATA", "INTEGRATION", "BUSINESS_RULE", "PAYMENT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Category { get; init; }
 
     public string? DefaultQueue { get; init; }

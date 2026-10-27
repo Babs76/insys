@@ -53,6 +53,7 @@ public sealed class VehicleUseClasses : StaticRecord<VehicleUseClassesInput>
 /// <summary>The fields a client sends for Vehicle use classes.</summary>
 public sealed record VehicleUseClassesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     public string? RatingFactor { get; init; }

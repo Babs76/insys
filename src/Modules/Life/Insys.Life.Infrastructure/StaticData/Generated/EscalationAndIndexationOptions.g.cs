@@ -63,15 +63,18 @@ public sealed class EscalationAndIndexationOptions : StaticRecord<EscalationAndI
 /// <summary>The fields a client sends for Escalation and indexation options.</summary>
 public sealed record EscalationAndIndexationOptionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? OptionCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("FIXED", "INDEX_LINKED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
     public decimal? Rate { get; init; }
 
     public string? IndexSource { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Cap { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

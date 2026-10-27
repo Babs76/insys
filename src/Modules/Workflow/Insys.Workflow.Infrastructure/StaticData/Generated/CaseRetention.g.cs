@@ -55,8 +55,10 @@ public sealed class CaseRetention : StaticRecord<CaseRetentionInput>
 public sealed record CaseRetentionInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("ENQUIRY", "COMPLAINT", "DISPUTE", "APPEAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Family { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RetainFor { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

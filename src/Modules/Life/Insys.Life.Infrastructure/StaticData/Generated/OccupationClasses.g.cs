@@ -62,10 +62,13 @@ public sealed class OccupationClasses : StaticRecord<OccupationClassesInput>
 /// <summary>The fields a client sends for Occupation classes.</summary>
 public sealed record OccupationClassesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? OccupationCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Class { get; init; }
 
     public decimal? Loading { get; init; }

@@ -56,10 +56,13 @@ public sealed class SchemeMemberCategories : StaticRecord<SchemeMemberCategories
 /// <summary>The fields a client sends for Scheme member categories.</summary>
 public sealed record SchemeMemberCategoriesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CategoryCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EligibilityRule { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Plan { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

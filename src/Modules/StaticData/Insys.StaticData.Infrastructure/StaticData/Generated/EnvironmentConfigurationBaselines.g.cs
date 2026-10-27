@@ -55,8 +55,10 @@ public sealed class EnvironmentConfigurationBaselines : StaticRecord<Environment
 public sealed record EnvironmentConfigurationBaselinesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("DEVELOPMENT", "TEST", "STAGING", "PRODUCTION")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Environment { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SettingsPackage { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

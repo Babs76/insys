@@ -59,12 +59,15 @@ public sealed class DependantTypesAndAgeLimits : StaticRecord<DependantTypesAndA
 /// <summary>The fields a client sends for Dependant types and age limits.</summary>
 public sealed record DependantTypesAndAgeLimitsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TypeCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? MaxAge { get; init; }
 
     public int? StudentExtensionAge { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Evidence { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

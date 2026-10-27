@@ -62,12 +62,16 @@ public sealed class ProviderContracts : StaticRecord<ProviderContractsInput>
 /// <summary>The fields a client sends for Provider contracts.</summary>
 public sealed record ProviderContractsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ContractId { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Provider { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Network { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TermsRef { get; init; }
 
     public string? TariffScheduleCode { get; init; }

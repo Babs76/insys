@@ -57,8 +57,10 @@ public sealed class CargoCommodityClasses : StaticRecord<CargoCommodityClassesIn
 /// <summary>The fields a client sends for Cargo commodity classes.</summary>
 public sealed record CargoCommodityClassesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? Hazard { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("CONTAINERISED", "BULK", "BREAKBULK")]

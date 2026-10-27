@@ -61,10 +61,13 @@ public sealed class ExtensionAndConditionLibrary : StaticRecord<ExtensionAndCond
 public sealed record ExtensionAndConditionLibraryInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("EXTENSION", "CONDITION")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? WordingRef { get; init; }
 
     public decimal? PremiumImpact { get; init; }

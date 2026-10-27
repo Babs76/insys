@@ -54,9 +54,11 @@ public sealed class LifeBenefitTypes : StaticRecord<LifeBenefitTypesInput>
 /// <summary>The fields a client sends for Life benefit types.</summary>
 public sealed record LifeBenefitTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LUMP_SUM", "INCOME")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PayoutType { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

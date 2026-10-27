@@ -62,11 +62,14 @@ public sealed class RecordRetentionPolicies : StaticRecord<RecordRetentionPolici
 public sealed record RecordRetentionPoliciesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("POLICY", "CLAIM", "PAYMENT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RecordKind { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Jurisdiction { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Period { get; init; }
 
     public string? Basis { get; init; }

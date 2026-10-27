@@ -56,8 +56,10 @@ public sealed class CustomerStatusCodes : StaticRecord<CustomerStatusCodesInput>
 /// <summary>The fields a client sends for Customer status codes.</summary>
 public sealed record CustomerStatusCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? AllowedFrom { get; init; }
 
     public bool? BlocksNewBusiness { get; init; }

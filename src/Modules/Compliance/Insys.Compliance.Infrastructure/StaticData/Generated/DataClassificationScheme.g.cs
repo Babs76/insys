@@ -56,10 +56,13 @@ public sealed class DataClassificationScheme : StaticRecord<DataClassificationSc
 /// <summary>The fields a client sends for Data classification scheme.</summary>
 public sealed record DataClassificationSchemeInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ClassCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? HandlingRules { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

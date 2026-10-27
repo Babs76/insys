@@ -56,10 +56,13 @@ public sealed class DisclosureQuestionnaireSets : StaticRecord<DisclosureQuestio
 /// <summary>The fields a client sends for Disclosure questionnaire sets.</summary>
 public sealed record DisclosureQuestionnaireSetsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SetCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductVersion { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Questions { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -62,14 +62,19 @@ public sealed class CatastropheEventRegister : StaticRecord<CatastropheEventRegi
 /// <summary>The fields a client sends for Catastrophe event register.</summary>
 public sealed record CatastropheEventRegisterInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EventCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Peril { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? DateFrom { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? DateTo { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Area { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

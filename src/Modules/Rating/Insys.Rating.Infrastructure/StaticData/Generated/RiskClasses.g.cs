@@ -57,9 +57,11 @@ public sealed class RiskClasses : StaticRecord<RiskClassesInput>
 /// <summary>The fields a client sends for Risk classes.</summary>
 public sealed record RiskClassesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ClassCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Domain { get; init; }
 
     public string? RatingFactor { get; init; }

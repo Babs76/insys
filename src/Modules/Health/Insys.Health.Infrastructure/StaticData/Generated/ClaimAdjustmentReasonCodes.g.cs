@@ -53,8 +53,10 @@ public sealed class ClaimAdjustmentReasonCodes : StaticRecord<ClaimAdjustmentRea
 /// <summary>The fields a client sends for Claim adjustment reason codes.</summary>
 public sealed record ClaimAdjustmentReasonCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProviderWording { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? MemberWording { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

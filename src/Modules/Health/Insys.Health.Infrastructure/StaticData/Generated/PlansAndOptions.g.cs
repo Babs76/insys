@@ -73,22 +73,29 @@ public sealed class PlansAndOptions : StaticRecord<PlansAndOptionsInput>
 /// <summary>The fields a client sends for Plans and options.</summary>
 public sealed record PlansAndOptionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PlanCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? OptionCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? BenefitSchedule { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Network { get; init; }
 
     public string? ReferenceTariffScheduleCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("CALENDAR", "MEMBERSHIP_YEAR")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? BenefitYear { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("REFERENCE_TARIFF", "PEND")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? MemberClaimBasis { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
@@ -108,6 +115,7 @@ public sealed record PlansAndOptionsInput : StaticRecordInput
         errors.Required("memberClaimBasis", MemberClaimBasis);
         errors.MaxLength("memberClaimBasis", MemberClaimBasis, 20);
         errors.OneOf("memberClaimBasis", MemberClaimBasis, ["REFERENCE_TARIFF", "PEND"]);
+        errors.Required("productCode", ProductCode);
         errors.MaxLength("productCode", ProductCode, 15);
     }
 }

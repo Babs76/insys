@@ -65,14 +65,19 @@ public sealed class RenewalRules : StaticRecord<RenewalRulesInput>
 /// <summary>The fields a client sends for Renewal rules.</summary>
 public sealed record RenewalRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? NoticeDays { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? AutoRenew { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? ReRating { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? InvitationTemplate { get; init; }
 
     public int[]? ReminderDays { get; init; }

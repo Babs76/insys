@@ -61,16 +61,8 @@ internal sealed class DutyConflictRuleValidator : IStaticRecordValidator
             return errors;
         }
 
-        if (string.IsNullOrEmpty(rule.FunctionA))
-        {
-            errors["functionA"] = ["Required: a rule pairs two functions (ADR-026 §4)."];
-        }
-
-        if (string.IsNullOrEmpty(rule.FunctionB))
-        {
-            errors["functionB"] = ["Required: a rule pairs two functions (ADR-026 §4)."];
-        }
-        else if (rule.FunctionA == rule.FunctionB)
+        // functionA and functionB are mandatory in the catalogue, so the generated input requires them.
+        if (!string.IsNullOrEmpty(rule.FunctionB) && rule.FunctionA == rule.FunctionB)
         {
             errors["functionB"] = ["Must differ from functionA."];
         }

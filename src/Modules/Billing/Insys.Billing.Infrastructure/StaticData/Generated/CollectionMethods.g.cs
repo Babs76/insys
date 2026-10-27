@@ -60,11 +60,14 @@ public sealed class CollectionMethods : StaticRecord<CollectionMethodsInput>
 /// <summary>The fields a client sends for Collection methods.</summary>
 public sealed record CollectionMethodsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? MethodCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PaymentMethod { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LeadTime { get; init; }
 
     public string? Label { get; init; }

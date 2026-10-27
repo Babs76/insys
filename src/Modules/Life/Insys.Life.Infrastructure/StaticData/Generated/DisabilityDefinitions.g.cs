@@ -61,12 +61,15 @@ public sealed class DisabilityDefinitions : StaticRecord<DisabilityDefinitionsIn
 /// <summary>The fields a client sends for Disability definitions.</summary>
 public sealed record DisabilityDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DefinitionCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("OWN_OCCUPATION", "SUITED_OCCUPATION", "ANY_OCCUPATION", "ACTIVITIES_OF_DAILY_LIVING")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Basis { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DeferredPeriod { get; init; }
 
     public string? CriteriaRef { get; init; }

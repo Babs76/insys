@@ -53,8 +53,10 @@ public sealed class OccupancyClasses : StaticRecord<OccupancyClassesInput>
 /// <summary>The fields a client sends for Occupancy classes.</summary>
 public sealed record OccupancyClassesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? HazardGrade { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

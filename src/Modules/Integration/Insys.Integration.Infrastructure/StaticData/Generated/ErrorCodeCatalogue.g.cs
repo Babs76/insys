@@ -59,12 +59,16 @@ public sealed class ErrorCodeCatalogue : StaticRecord<ErrorCodeCatalogueInput>
 /// <summary>The fields a client sends for Error code catalogue.</summary>
 public sealed record ErrorCodeCatalogueInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ErrorCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? HttpStatus { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? MessageKey { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Retryable { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

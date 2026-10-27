@@ -72,17 +72,23 @@ public sealed class TenantBankAccounts : StaticRecord<TenantBankAccountsInput>
 /// <summary>The fields a client sends for Tenant bank accounts.</summary>
 public sealed record TenantBankAccountsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AccountRef { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Bank { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AccountNumber { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Currency { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("COLLECTIONS", "CLAIMS_PAYOUT", "COMMISSION", "GENERAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Purpose { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? GlAccount { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

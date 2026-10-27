@@ -63,13 +63,17 @@ public sealed class RegulatoryReturnDefinitions : StaticRecord<RegulatoryReturnD
 /// <summary>The fields a client sends for Regulatory return definitions.</summary>
 public sealed record RegulatoryReturnDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReturnCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Regulator { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? FieldMapping { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY", "ANNUAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
 
     public int? SubmissionDays { get; init; }

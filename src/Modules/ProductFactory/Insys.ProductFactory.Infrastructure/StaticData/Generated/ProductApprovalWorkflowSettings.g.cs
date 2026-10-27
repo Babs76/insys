@@ -62,12 +62,16 @@ public sealed class ProductApprovalWorkflowSettings : StaticRecord<ProductApprov
 /// <summary>The fields a client sends for Product approval workflow settings.</summary>
 public sealed record ProductApprovalWorkflowSettingsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Tenant { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? StatesUsed { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? ApproverRoles { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? SimulationRequired { get; init; }
 
     public int? MinApprovers { get; init; }

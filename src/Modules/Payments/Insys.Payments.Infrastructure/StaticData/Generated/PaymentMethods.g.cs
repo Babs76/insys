@@ -63,13 +63,17 @@ public sealed class PaymentMethods : StaticRecord<PaymentMethodsInput>
 /// <summary>The fields a client sends for Payment methods.</summary>
 public sealed record PaymentMethodsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? MethodCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("COLLECT", "PAY", "BOTH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Direction { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Currencies { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Countries { get; init; }
 
     public string? Label { get; init; }

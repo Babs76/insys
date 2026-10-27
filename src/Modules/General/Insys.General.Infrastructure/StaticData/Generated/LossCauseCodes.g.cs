@@ -59,10 +59,13 @@ public sealed class LossCauseCodes : StaticRecord<LossCauseCodesInput>
 /// <summary>The fields a client sends for Loss cause codes.</summary>
 public sealed record LossCauseCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CauseCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Peril { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     public bool? CatEventFlag { get; init; }

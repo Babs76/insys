@@ -60,13 +60,17 @@ public sealed class RatingTables : StaticRecord<RatingTablesInput>
 /// <summary>The fields a client sends for Rating tables.</summary>
 public sealed record RatingTablesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TableCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Dimensions { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? Values { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("NONE", "LINEAR")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Interpolation { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -65,12 +65,16 @@ public sealed class AggregationZonesAndLimits : StaticRecord<AggregationZonesAnd
 /// <summary>The fields a client sends for Aggregation zones and limits.</summary>
 public sealed record AggregationZonesAndLimitsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Zone { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Peril { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? MaxExposure { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Currency { get; init; }
 
     public decimal? AlertAtPct { get; init; }

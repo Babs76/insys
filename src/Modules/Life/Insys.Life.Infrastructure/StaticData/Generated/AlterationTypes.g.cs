@@ -62,14 +62,19 @@ public sealed class AlterationTypes : StaticRecord<AlterationTypesInput>
 /// <summary>The fields a client sends for Alteration types.</summary>
 public sealed record AlterationTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AlterationCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? AllowedStates { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? ReUnderwriting { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AuthorityRole { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DocumentType { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

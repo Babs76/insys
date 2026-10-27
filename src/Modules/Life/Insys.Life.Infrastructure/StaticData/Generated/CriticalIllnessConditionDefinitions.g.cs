@@ -63,15 +63,20 @@ public sealed class CriticalIllnessConditionDefinitions : StaticRecord<CriticalI
 /// <summary>The fields a client sends for Critical illness condition definitions.</summary>
 public sealed record CriticalIllnessConditionDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ConditionCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? WordingRef { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("A", "B", "C", "D")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Severity { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? PayoutPct { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

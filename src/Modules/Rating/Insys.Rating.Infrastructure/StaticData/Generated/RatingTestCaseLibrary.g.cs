@@ -62,12 +62,16 @@ public sealed class RatingTestCaseLibrary : StaticRecord<RatingTestCaseLibraryIn
 /// <summary>The fields a client sends for Rating test case library.</summary>
 public sealed record RatingTestCaseLibraryInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CaseId { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductVersion { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? Inputs { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? ExpectedPremium { get; init; }
 
     public decimal? Tolerance { get; init; }

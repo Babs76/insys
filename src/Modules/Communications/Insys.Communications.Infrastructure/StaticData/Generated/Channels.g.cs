@@ -52,6 +52,7 @@ public sealed class Channels : StaticRecord<ChannelsInput>
 public sealed record ChannelsInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "PUSH", "WHATSAPP")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ChannelCode { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

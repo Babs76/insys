@@ -53,8 +53,10 @@ public sealed class CountrySubdivisions : StaticRecord<CountrySubdivisionsInput>
 /// <summary>The fields a client sends for Country subdivisions.</summary>
 public sealed record CountrySubdivisionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Country { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

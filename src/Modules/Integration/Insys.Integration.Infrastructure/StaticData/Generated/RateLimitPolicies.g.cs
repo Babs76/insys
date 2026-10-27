@@ -67,16 +67,20 @@ public sealed class RateLimitPolicies : StaticRecord<RateLimitPoliciesInput>
 /// <summary>The fields a client sends for Rate limit policies.</summary>
 public sealed record RateLimitPoliciesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PolicyCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PARTNER", "PORTAL", "INTERNAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ClientClass { get; init; }
 
     public string? ApiGroup { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? LimitValue { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? WindowDuration { get; init; }
 
     public int? Burst { get; init; }

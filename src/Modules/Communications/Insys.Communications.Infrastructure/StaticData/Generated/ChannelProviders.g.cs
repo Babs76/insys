@@ -61,12 +61,16 @@ public sealed class ChannelProviders : StaticRecord<ChannelProvidersInput>
 public sealed record ChannelProvidersInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "PUSH", "WHATSAPP")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Channel { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProviderCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SenderIdentity { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? Enabled { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

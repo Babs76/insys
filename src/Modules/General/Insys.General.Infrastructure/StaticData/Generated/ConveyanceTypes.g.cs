@@ -50,6 +50,7 @@ public sealed class ConveyanceTypes : StaticRecord<ConveyanceTypesInput>
 /// <summary>The fields a client sends for Conveyance types.</summary>
 public sealed record ConveyanceTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

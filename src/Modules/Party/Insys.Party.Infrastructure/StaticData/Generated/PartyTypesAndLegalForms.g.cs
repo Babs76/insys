@@ -58,8 +58,10 @@ public sealed class PartyTypesAndLegalForms : StaticRecord<PartyTypesAndLegalFor
 public sealed record PartyTypesAndLegalFormsInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("INDIVIDUAL", "ORGANISATION")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PartyKind { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     public string[]? CountryApplicability { get; init; }

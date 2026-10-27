@@ -66,11 +66,14 @@ public sealed class ExclusionLibrary : StaticRecord<ExclusionLibraryInput>
 /// <summary>The fields a client sends for Exclusion library.</summary>
 public sealed record ExclusionLibraryInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? WordingRef { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PRODUCT", "COVERAGE", "BENEFIT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Scope { get; init; }
 
     public string? Jurisdiction { get; init; }

@@ -59,12 +59,16 @@ public sealed class ReconciliationRules : StaticRecord<ReconciliationRulesInput>
 /// <summary>The fields a client sends for Reconciliation rules.</summary>
 public sealed record ReconciliationRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SourcePair { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? MatchKeys { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Tolerance { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

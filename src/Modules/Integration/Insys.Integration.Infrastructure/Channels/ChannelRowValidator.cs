@@ -43,11 +43,7 @@ internal sealed class ChannelRowValidator : IStaticRecordValidator
         var errors = new Dictionary<string, string[]>();
         if (record is ChannelTransactionPermissions row)
         {
-            if (string.IsNullOrEmpty(row.FunctionCode))
-            {
-                errors["functionCode"] = ["Required: the function the row allows (ADR-026 §5)."];
-            }
-
+            // functionCode is mandatory in the catalogue, so the generated input requires it.
             if (!string.IsNullOrEmpty(row.TransactionType))
             {
                 errors["transactionType"] = ["Retired: name the function (ADR-026 §5)."];

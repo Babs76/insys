@@ -60,13 +60,17 @@ public sealed class GLExportLayouts : StaticRecord<GLExportLayoutsInput>
 /// <summary>The fields a client sends for GL export layouts.</summary>
 public sealed record GLExportLayoutsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LayoutCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TargetSystem { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("CSV", "API", "FIXED_WIDTH")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Format { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Schedule { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

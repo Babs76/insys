@@ -78,24 +78,31 @@ public sealed class CoPaymentAndDeductibleRules : StaticRecord<CoPaymentAndDeduc
 /// <summary>The fields a client sends for Co-payment and deductible rules.</summary>
 public sealed record CoPaymentAndDeductibleRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Benefit { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PERCENT", "AMOUNT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Value { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("IN_NETWORK", "OUT_OF_NETWORK")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? NetworkStatus { get; init; }
 
     public decimal? Cap { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("CO_PAYMENT", "DEDUCTIBLE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleKind { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PER_LINE", "PER_CLAIM", "PER_YEAR")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CapBasis { get; init; }
 
     public string? PlanCode { get; init; }

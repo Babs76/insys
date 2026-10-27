@@ -60,13 +60,17 @@ public sealed class PortsAndPlaces : StaticRecord<PortsAndPlacesInput>
 /// <summary>The fields a client sends for Ports and places.</summary>
 public sealed record PortsAndPlacesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LocationCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Country { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PORT", "RAIL", "ROAD", "AIRPORT")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Functions { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

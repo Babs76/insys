@@ -60,13 +60,17 @@ public sealed class UtilisationRules : StaticRecord<UtilisationRulesInput>
 /// <summary>The fields a client sends for Utilisation rules.</summary>
 public sealed record UtilisationRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RuleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Measure { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? Threshold { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ALERT", "REVIEW", "PEND")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Action { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

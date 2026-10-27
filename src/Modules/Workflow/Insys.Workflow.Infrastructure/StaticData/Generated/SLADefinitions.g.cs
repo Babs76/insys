@@ -64,16 +64,21 @@ public sealed class SLADefinitions : StaticRecord<SLADefinitionsInput>
 /// <summary>The fields a client sends for SLA definitions.</summary>
 public sealed record SLADefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SlaCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TaskType { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Duration { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Calendar { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ESCALATE", "NOTIFY", "REASSIGN")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? BreachAction { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

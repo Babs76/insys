@@ -62,14 +62,19 @@ public sealed class DocumentTemplates : StaticRecord<DocumentTemplatesInput>
 /// <summary>The fields a client sends for Document templates.</summary>
 public sealed record DocumentTemplatesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? TemplateCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Language { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DocumentType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? BodyRef { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? MergeFields { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

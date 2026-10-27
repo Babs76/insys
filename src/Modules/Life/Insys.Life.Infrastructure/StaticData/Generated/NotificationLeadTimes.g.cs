@@ -60,13 +60,17 @@ public sealed class NotificationLeadTimes : StaticRecord<NotificationLeadTimesIn
 /// <summary>The fields a client sends for Notification lead times.</summary>
 public sealed record NotificationLeadTimesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? DaysBefore { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("EMAIL", "SMS", "POST")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Channel { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Template { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -54,6 +54,7 @@ internal sealed class PlanProductsGuard : IStaticSetGuard
             return Result.Success();
         }
 
+        // productCode is mandatory in the catalogue (BR-084), so the input refuses a draft without it; this covers drafts saved before.
         if (string.IsNullOrWhiteSpace(option.ProductCode))
         {
             return Error.Validation(HealthErrorCodes.PlanProductInvalid, $"Plan option {option.PlanCode}/{option.OptionCode} names no product; a new version must name the Health product it is sold as.");

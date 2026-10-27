@@ -59,12 +59,16 @@ public sealed class MergeFieldDictionary : StaticRecord<MergeFieldDictionaryInpu
 /// <summary>The fields a client sends for Merge field dictionary.</summary>
 public sealed record MergeFieldDictionaryInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FieldKey { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SourceEntity { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Format { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Sensitivity { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

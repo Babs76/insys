@@ -50,6 +50,7 @@ public sealed class ValuationBases : StaticRecord<ValuationBasesInput>
 /// <summary>The fields a client sends for Valuation bases.</summary>
 public sealed record ValuationBasesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

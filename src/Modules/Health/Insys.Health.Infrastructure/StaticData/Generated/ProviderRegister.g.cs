@@ -69,15 +69,20 @@ public sealed class ProviderRegister : StaticRecord<ProviderRegisterInput>
 /// <summary>The fields a client sends for Provider register.</summary>
 public sealed record ProviderRegisterInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProviderId { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? RegistrationNumbers { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? Locations { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED", "TERMINATED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Status { get; init; }
 
     public string? ProviderType { get; init; }

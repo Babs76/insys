@@ -69,10 +69,13 @@ public sealed class VehicleMakeModelAndVariantDirectory : StaticRecord<VehicleMa
 /// <summary>The fields a client sends for Vehicle make, model and variant directory.</summary>
 public sealed record VehicleMakeModelAndVariantDirectoryInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? VehicleCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Make { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Model { get; init; }
 
     public string? Variant { get; init; }
@@ -80,6 +83,7 @@ public sealed record VehicleMakeModelAndVariantDirectoryInput : StaticRecordInpu
     [Insys.BuildingBlocks.Domain.OneOf("SEDAN", "HATCH", "SUV", "LCV", "TRUCK", "MOTORCYCLE")]
     public string? BodyType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? YearFrom { get; init; }
 
     public int? YearTo { get; init; }

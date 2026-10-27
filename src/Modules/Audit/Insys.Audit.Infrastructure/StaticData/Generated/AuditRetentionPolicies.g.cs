@@ -59,11 +59,14 @@ public sealed class AuditRetentionPolicies : StaticRecord<AuditRetentionPolicies
 public sealed record AuditRetentionPoliciesInput : StaticRecordInput
 {
     [Insys.BuildingBlocks.Domain.OneOf("SECURITY", "FINANCIAL", "OPERATIONAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EventClass { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Jurisdiction { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Period { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

@@ -63,15 +63,20 @@ public sealed class AlertRulesAndThresholds : StaticRecord<AlertRulesAndThreshol
 /// <summary>The fields a client sends for Alert rules and thresholds.</summary>
 public sealed record AlertRulesAndThresholdsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AlertCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Metric { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Threshold { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("INFO", "WARNING", "CRITICAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Severity { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Route { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

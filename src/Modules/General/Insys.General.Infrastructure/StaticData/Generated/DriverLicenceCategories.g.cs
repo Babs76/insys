@@ -53,8 +53,10 @@ public sealed class DriverLicenceCategories : StaticRecord<DriverLicenceCategori
 /// <summary>The fields a client sends for Driver licence categories.</summary>
 public sealed record DriverLicenceCategoriesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Country { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Category { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

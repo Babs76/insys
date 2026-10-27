@@ -59,12 +59,16 @@ public sealed class HealthFraudIndicatorDefinitions : StaticRecord<HealthFraudIn
 /// <summary>The fields a client sends for Health fraud indicator definitions.</summary>
 public sealed record HealthFraudIndicatorDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? IndicatorCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Logic { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? Score { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? Threshold { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

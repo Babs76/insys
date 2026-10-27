@@ -56,10 +56,13 @@ public sealed class ClaimRequirementChecklists : StaticRecord<ClaimRequirementCh
 /// <summary>The fields a client sends for Claim requirement checklists.</summary>
 public sealed record ClaimRequirementChecklistsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ClaimType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Evidence { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool[]? Mandatory { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

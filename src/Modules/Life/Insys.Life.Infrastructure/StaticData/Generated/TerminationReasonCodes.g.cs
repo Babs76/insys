@@ -53,6 +53,7 @@ public sealed class TerminationReasonCodes : StaticRecord<TerminationReasonCodes
 /// <summary>The fields a client sends for Termination reason codes.</summary>
 public sealed record TerminationReasonCodesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     public string? RefundRule { get; init; }

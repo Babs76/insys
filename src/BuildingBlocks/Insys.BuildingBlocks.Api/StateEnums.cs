@@ -118,6 +118,18 @@ public static class StateEnums
             }
         }
 
+        // Request fields the API requires (a static data input's mandatory fields): listed as required.
+        var mandatory = context.JsonTypeInfo.Properties.Where(prop => prop.AttributeProvider is MemberInfo m && m.GetCustomAttribute<RequiredFieldAttribute>() is not null)
+            .Select(prop => prop.Name).ToList();
+        if (mandatory.Count > 0 && schema.Properties is not null)
+        {
+            schema.Required = new HashSet<string>(schema.Required ?? new HashSet<string>(), StringComparer.Ordinal);
+            foreach (var name in mandatory.Where(schema.Properties.ContainsKey))
+            {
+                schema.Required.Add(name);
+            }
+        }
+
         // A record's latest rejection (OQ-113) is always present: null when its approvals never ended without being granted.
         if (schema.Properties?.ContainsKey("latestRejection") == true)
         {

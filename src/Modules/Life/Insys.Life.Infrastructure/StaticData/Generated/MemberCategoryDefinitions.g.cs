@@ -59,12 +59,16 @@ public sealed class MemberCategoryDefinitions : StaticRecord<MemberCategoryDefin
 /// <summary>The fields a client sends for Member category definitions.</summary>
 public sealed record MemberCategoryDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Scheme { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CategoryCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? EligibilityRule { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? BenefitMultiple { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

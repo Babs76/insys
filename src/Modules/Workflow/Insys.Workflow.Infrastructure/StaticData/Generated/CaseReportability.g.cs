@@ -53,8 +53,10 @@ public sealed class CaseReportability : StaticRecord<CaseReportabilityInput>
 /// <summary>The fields a client sends for Case reportability.</summary>
 public sealed record CaseReportabilityInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CaseTypeCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? QueryWindow { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

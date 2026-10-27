@@ -84,16 +84,20 @@ public sealed class CaseTypes : StaticRecord<CaseTypesInput>
 /// <summary>The fields a client sends for Case types.</summary>
 public sealed record CaseTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CaseTypeCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ENQUIRY", "COMPLAINT", "DISPUTE", "APPEAL")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Family { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProcessCode { get; init; }
 
     public string? DefaultQueueCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("POLICY", "CLAIM", "MEMBERSHIP", "PAYMENT", "INVOICE", "BILLING_ACCOUNT", "PARTY", "PROVIDER", "REMITTANCE", "PAYMENT_RUN", "INTERMEDIARY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? LinkTypes { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("CUSTOMER", "BROKER", "PROVIDER")]
@@ -101,11 +105,13 @@ public sealed record CaseTypesInput : StaticRecordInput
 
     public string[]? NotificationTypes { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? RequiresCategory { get; init; }
 
     public string? ReviewCaseTypeCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("PPR_NFO", "CMS")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AppealRoute { get; init; }
 
     public string[]? OmbudSchemeCodes { get; init; }

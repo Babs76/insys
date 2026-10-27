@@ -53,8 +53,10 @@ public sealed class IndemnityPeriodOptions : StaticRecord<IndemnityPeriodOptions
 /// <summary>The fields a client sends for Indemnity period options.</summary>
 public sealed record IndemnityPeriodOptionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? Months { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

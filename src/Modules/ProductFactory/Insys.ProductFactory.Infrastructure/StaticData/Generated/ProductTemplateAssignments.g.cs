@@ -59,12 +59,16 @@ public sealed class ProductTemplateAssignments : StaticRecord<ProductTemplateAss
 /// <summary>The fields a client sends for Product template assignments.</summary>
 public sealed record ProductTemplateAssignmentsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DocumentType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Template { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Language { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

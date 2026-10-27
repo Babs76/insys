@@ -66,15 +66,19 @@ public sealed class ExternalSourceRegister : StaticRecord<ExternalSourceRegister
 /// <summary>The fields a client sends for External source register.</summary>
 public sealed record ExternalSourceRegisterInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SourceCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Standard { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Edition { get; init; }
 
     public string? LicenceRef { get; init; }
 
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RefreshCadence { get; init; }
 
     public DateTimeOffset? LastLoad { get; init; }

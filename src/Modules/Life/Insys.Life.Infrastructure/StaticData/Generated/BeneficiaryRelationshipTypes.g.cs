@@ -53,6 +53,7 @@ public sealed class BeneficiaryRelationshipTypes : StaticRecord<BeneficiaryRelat
 /// <summary>The fields a client sends for Beneficiary relationship types.</summary>
 public sealed record BeneficiaryRelationshipTypesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
     public string? EvidenceRequired { get; init; }

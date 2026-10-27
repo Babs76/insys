@@ -57,8 +57,10 @@ public sealed class ClaimFormatDefinitions : StaticRecord<ClaimFormatDefinitions
 /// <summary>The fields a client sends for Claim format definitions.</summary>
 public sealed record ClaimFormatDefinitionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? FormatCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? FieldMapping { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("API", "FILE", "CLEARING_HOUSE")]

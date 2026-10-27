@@ -60,13 +60,17 @@ public sealed class BordereauxLayouts : StaticRecord<BordereauxLayoutsInput>
 /// <summary>The fields a client sends for Bordereaux layouts.</summary>
 public sealed record BordereauxLayoutsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? LayoutCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Treaty { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Fields { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("MONTHLY", "QUARTERLY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

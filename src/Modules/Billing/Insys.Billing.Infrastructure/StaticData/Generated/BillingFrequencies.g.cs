@@ -56,8 +56,10 @@ public sealed class BillingFrequencies : StaticRecord<BillingFrequenciesInput>
 /// <summary>The fields a client sends for Billing frequencies.</summary>
 public sealed record BillingFrequenciesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public int? PeriodsPerYear { get; init; }
 
     public string? ModalFactor { get; init; }

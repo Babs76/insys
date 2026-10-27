@@ -67,18 +67,23 @@ public sealed class ChartOfAccountsSubledger : StaticRecord<ChartOfAccountsSuble
 /// <summary>The fields a client sends for Chart of accounts (subledger).</summary>
 public sealed record ChartOfAccountsSubledgerInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AccountCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Name { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Type { get; init; }
 
     public string? Currency { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? GlAccount { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "BLOCKED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Status { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

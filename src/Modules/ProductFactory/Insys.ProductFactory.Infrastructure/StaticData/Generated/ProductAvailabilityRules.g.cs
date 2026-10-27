@@ -65,14 +65,18 @@ public sealed class ProductAvailabilityRules : StaticRecord<ProductAvailabilityR
 /// <summary>The fields a client sends for Product availability rules.</summary>
 public sealed record ProductAvailabilityRulesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Countries { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? Channels { get; init; }
 
     public string[]? Intermediaries { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? SaleFrom { get; init; }
 
     public DateOnly? SaleTo { get; init; }

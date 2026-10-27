@@ -60,13 +60,17 @@ public sealed class PremiumParameters : StaticRecord<PremiumParametersInput>
 /// <summary>The fields a client sends for Premium parameters.</summary>
 public sealed record PremiumParametersInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ParameterCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductVersion { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public decimal? Value { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("AMOUNT", "PERCENT", "FACTOR")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Unit { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

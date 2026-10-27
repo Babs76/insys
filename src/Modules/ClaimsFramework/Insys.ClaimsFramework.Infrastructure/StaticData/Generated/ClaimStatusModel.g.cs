@@ -60,10 +60,13 @@ public sealed class ClaimStatusModel : StaticRecord<ClaimStatusModelInput>
 /// <summary>The fields a client sends for Claim status model.</summary>
 public sealed record ClaimStatusModelInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? StatusCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Label { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? AllowedNext { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]

@@ -67,18 +67,23 @@ public sealed class RepairerAndAssessorPanels : StaticRecord<RepairerAndAssessor
 /// <summary>The fields a client sends for Repairer and assessor panels.</summary>
 public sealed record RepairerAndAssessorPanelsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Party { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("REPAIRER", "ASSESSOR")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PanelType { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Location { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? ApprovedLines { get; init; }
 
     public decimal? LabourRate { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ACTIVE", "SUSPENDED")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Status { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)

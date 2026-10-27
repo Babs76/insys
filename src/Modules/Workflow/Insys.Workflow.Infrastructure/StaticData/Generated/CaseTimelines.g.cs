@@ -70,18 +70,23 @@ public sealed class CaseTimelines : StaticRecord<CaseTimelinesInput>
 /// <summary>The fields a client sends for Case timelines.</summary>
 public sealed record CaseTimelinesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CaseTypeCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("ACKNOWLEDGE", "RESOLVE", "DECIDE_REPRESENTATIONS", "NOTIFY_DECISION", "REVIEW", "REDRESS")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Step { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Duration { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("BUSINESS", "CALENDAR")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Basis { get; init; }
 
     public string? CalendarCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public bool? ExtensionAllowed { get; init; }
 
     public string? MaxExtension { get; init; }

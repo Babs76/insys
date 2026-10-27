@@ -62,10 +62,13 @@ public sealed class AddressFormatsAndAdministrativeRegions : StaticRecord<Addres
 /// <summary>The fields a client sends for Address formats and administrative regions.</summary>
 public sealed record AddressFormatsAndAdministrativeRegionsInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Country { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? FieldOrder { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? MandatoryFields { get; init; }
 
     public string? PostalCodePattern { get; init; }

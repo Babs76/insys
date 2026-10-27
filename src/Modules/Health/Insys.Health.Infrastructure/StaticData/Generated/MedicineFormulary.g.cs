@@ -60,11 +60,14 @@ public sealed class MedicineFormulary : StaticRecord<MedicineFormularyInput>
 /// <summary>The fields a client sends for Medicine formulary.</summary>
 public sealed record MedicineFormularyInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ProductCode { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ActiveIngredient { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("1", "2", "3", "NON_FORMULARY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Tier { get; init; }
 
     public decimal? ReferencePrice { get; init; }

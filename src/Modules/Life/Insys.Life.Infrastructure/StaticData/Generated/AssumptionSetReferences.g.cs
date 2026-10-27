@@ -57,9 +57,11 @@ public sealed class AssumptionSetReferences : StaticRecord<AssumptionSetReferenc
 /// <summary>The fields a client sends for Assumption set references.</summary>
 public sealed record AssumptionSetReferencesInput : StaticRecordInput
 {
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? SetCode { get; init; }
 
     [Insys.BuildingBlocks.Domain.OneOf("BEST_ESTIMATE", "PRUDENTIAL", "STATUTORY")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Basis { get; init; }
 
     public string? ExternalEngineRef { get; init; }
