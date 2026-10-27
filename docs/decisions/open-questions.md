@@ -370,6 +370,7 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
   - levies on commission, which are refused.
 - **Preloading:** the rating cache is not preloaded on publication, because a product version does not list its currencies. It is dropped, and the next calculation loads it.
 - **Premium allocation to coverages (from OQ-059, Phase 4 review):** rating gives one premium per policy. General spreads it over the coverages in proportion to their sums insured, with any rounding difference on the largest. This stays until the rating algorithm gives a premium per coverage.
+- **Policy values (decided 27 October 2026, Ade):** an actuary defines the basis per Life product for cash, surrender, paid-up and maturity values, and with them loan limits and loan interest. Until it is delivered, surrender, paid-up, maturity and loans keep refusing; nothing is approximated. The actuary's brief and the proposed extension point are in `addenda/life-policy-values.md` (for review).
 
 ### OQ-053 Product versions kept in a static data table
 - **Resolved (Phase 2 review, item 3d):** ADR-010. `record_status` is the single lifecycle; V0012 makes the duplicate `status` columns nullable and deprecated, and nothing writes them.
