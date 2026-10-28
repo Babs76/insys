@@ -34,7 +34,8 @@ namespace Insys.Life.Infrastructure.Persistence;
 
 /// <summary>
 /// Life's records in an external user's relationship (external-user access §2), for other modules' portal reads: a
-/// policy is the member's when they hold it or are an insured life, and the broker's when it carries one of its codes.
+/// policy is the member's when they hold it, and the broker's when it carries one of its codes. An insured life who is not
+/// the policyholder does not reach its documents, which show the whole policy (privacy check, 28 October 2026).
 /// A broker's clients are the holders of its policies and the applicants of its proposals.
 /// </summary>
 internal sealed class LifePortalRelations([FromKeyedServices(LifeDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPortalRecordRelations, IBrokeredPolicies,
@@ -45,8 +46,7 @@ internal sealed class LifePortalRelations([FromKeyedServices(LifeDbContext.Schem
     public Task<bool> Related(Guid tenantId, ExternalSubject who, string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
         Covers(businessRefType)
             ? PortalRelationReader.Exists(dataSource, tenantId, """
-                SELECT 1 FROM life.policy p WHERE p.id = @id AND (p.policyholder_party_id = @party OR p.intermediary_code = ANY(@codes)
-                  OR EXISTS (SELECT 1 FROM life.policy_insured_life l WHERE l.tenant_id = p.tenant_id AND l.policy_id = p.id AND l.party_id = @party))
+                SELECT 1 FROM life.policy p WHERE p.id = @id AND (p.policyholder_party_id = @party OR p.intermediary_code = ANY(@codes))
                 """, businessRefId, who, cancellationToken)
             : Task.FromResult(false);
 
