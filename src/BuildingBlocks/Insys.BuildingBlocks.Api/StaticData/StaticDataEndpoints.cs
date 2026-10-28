@@ -74,7 +74,7 @@ public static class StaticDataEndpoints
         StateEnums.Register(descriptor);
         StaticDataFunctions.Declare(descriptor);
         var group = api.MapGroup($"/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}").WithTags(tag)
-            .WithMetadata(new StaticDataEndpointMetadata());
+            .WithMetadata(new StaticDataEndpointMetadata(), new ETagResponseMetadata()); // BR-041: a version read or change gives its rowVersion as the ETag
 
         // ADR-026: reads are the catalogue module's view function, every other operation its maintain function.
         ((IEndpointConventionBuilder)group).Finally(endpoint =>

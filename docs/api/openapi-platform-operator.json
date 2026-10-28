@@ -99,6 +99,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -188,6 +196,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -285,6 +301,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -634,6 +658,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -723,6 +755,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -820,6 +860,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1169,6 +1217,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1258,6 +1314,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1355,6 +1419,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1704,6 +1776,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1793,6 +1873,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1890,6 +1978,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2239,6 +2335,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2328,6 +2432,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2425,6 +2537,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2774,6 +2894,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2863,6 +2991,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2960,6 +3096,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3353,6 +3497,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3442,6 +3594,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3539,6 +3699,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3888,6 +4056,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3977,6 +4153,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4074,6 +4258,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4423,6 +4615,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4512,6 +4712,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4609,6 +4817,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4958,6 +5174,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5047,6 +5271,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5144,6 +5376,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5493,6 +5733,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5582,6 +5830,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5679,6 +5935,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -6028,6 +6292,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -6117,6 +6389,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -6214,6 +6494,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -6563,6 +6851,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -6652,6 +6948,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -6749,6 +7053,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -7098,6 +7410,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -7187,6 +7507,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -7284,6 +7612,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -7633,6 +7969,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -7722,6 +8066,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -7819,6 +8171,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -8168,6 +8528,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -8257,6 +8625,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -8354,6 +8730,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -8703,6 +9087,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -8792,6 +9184,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -8889,6 +9289,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -9238,6 +9646,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -9327,6 +9743,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -9424,6 +9848,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -9773,6 +10205,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -9862,6 +10302,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -9959,6 +10407,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -10308,6 +10764,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -10397,6 +10861,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -10494,6 +10966,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -10843,6 +11323,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -10932,6 +11420,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -11029,6 +11525,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -11378,6 +11882,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -11467,6 +11979,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -11564,6 +12084,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -11913,6 +12441,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -12002,6 +12538,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -12099,6 +12643,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -12448,6 +13000,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -12537,6 +13097,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -12634,6 +13202,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -12983,6 +13559,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -13072,6 +13656,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -13169,6 +13761,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -13518,6 +14118,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -13607,6 +14215,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -13704,6 +14320,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -14053,6 +14677,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -14142,6 +14774,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -14239,6 +14879,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -14588,6 +15236,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -14677,6 +15333,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -14774,6 +15438,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -15123,6 +15795,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -15212,6 +15892,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -15309,6 +15997,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -15658,6 +16354,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -15747,6 +16451,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -15844,6 +16556,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -16193,6 +16913,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -16282,6 +17010,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -16379,6 +17115,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -16728,6 +17472,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -16817,6 +17569,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -16914,6 +17674,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -17263,6 +18031,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -17352,6 +18128,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -17449,6 +18233,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -17798,6 +18590,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -17887,6 +18687,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -17984,6 +18792,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -18521,6 +19337,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -18610,6 +19434,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -18707,6 +19539,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -19056,6 +19896,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -19145,6 +19993,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -19242,6 +20098,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -19591,6 +20455,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -19680,6 +20552,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -19777,6 +20657,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -20126,6 +21014,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -20215,6 +21111,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -20312,6 +21216,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -20661,6 +21573,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -20750,6 +21670,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -20847,6 +21775,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -21196,6 +22132,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -21285,6 +22229,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -21382,6 +22334,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -21731,6 +22691,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -21820,6 +22788,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -21917,6 +22893,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -22266,6 +23250,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -22355,6 +23347,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -22452,6 +23452,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -22801,6 +23809,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -22890,6 +23906,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -22987,6 +24011,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -23336,6 +24368,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -23425,6 +24465,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -23522,6 +24570,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -23871,6 +24927,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -23960,6 +25024,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -24057,6 +25129,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -24406,6 +25486,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -24495,6 +25583,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -24592,6 +25688,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -24941,6 +26045,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -25030,6 +26142,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -25127,6 +26247,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -25476,6 +26604,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -25565,6 +26701,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -25662,6 +26806,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -26011,6 +27163,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -26100,6 +27260,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -26197,6 +27365,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -26546,6 +27722,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -26635,6 +27819,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -26732,6 +27924,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -27081,6 +28281,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -27170,6 +28378,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -27267,6 +28483,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -27616,6 +28840,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -27705,6 +28937,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -27802,6 +29042,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -28151,6 +29399,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -28240,6 +29496,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -28337,6 +29601,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -28686,6 +29958,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -28775,6 +30055,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -28872,6 +30160,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29221,6 +30517,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29310,6 +30614,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29407,6 +30719,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29756,6 +31076,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29845,6 +31173,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29942,6 +31278,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -30291,6 +31635,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -30380,6 +31732,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -30477,6 +31837,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -30826,6 +32194,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -30915,6 +32291,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -31012,6 +32396,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -31361,6 +32753,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -31450,6 +32850,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -31547,6 +32955,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -31896,6 +33312,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -31985,6 +33409,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -32082,6 +33514,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -32431,6 +33871,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -32520,6 +33968,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -32617,6 +34073,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -32966,6 +34430,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -33055,6 +34527,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -33152,6 +34632,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -33501,6 +34989,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -33590,6 +35086,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -33687,6 +35191,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -34036,6 +35548,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -34125,6 +35645,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -34222,6 +35750,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -34571,6 +36107,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -34660,6 +36204,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -34757,6 +36309,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -35106,6 +36666,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -35195,6 +36763,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -35292,6 +36868,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -35641,6 +37225,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -35730,6 +37322,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -35827,6 +37427,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -36176,6 +37784,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -36265,6 +37881,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -36362,6 +37986,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -36711,6 +38343,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -36800,6 +38440,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -36897,6 +38545,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -37246,6 +38902,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -37335,6 +38999,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -37432,6 +39104,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -37781,6 +39461,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -37870,6 +39558,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -37967,6 +39663,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -39213,6 +40917,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -39302,6 +41014,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -39399,6 +41119,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -39748,6 +41476,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -39837,6 +41573,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -39934,6 +41678,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -40283,6 +42035,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -40372,6 +42132,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -40469,6 +42237,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -40818,6 +42594,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -40907,6 +42691,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -41004,6 +42796,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -41353,6 +43153,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -41442,6 +43250,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -41539,6 +43355,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -42207,6 +44031,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -42296,6 +44128,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -42393,6 +44233,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -42742,6 +44590,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -42831,6 +44687,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -42928,6 +44792,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -43277,6 +45149,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -43366,6 +45246,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -43463,6 +45351,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
