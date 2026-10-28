@@ -4,6 +4,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 6 (branch `wave2-6`, not merged)
 
+### New: a quote is priced in the frequency chosen, when its product allows it (follow-up to BR-095, Ade)
+- **New static data table `general.cfg_product_billing_frequencies`** (CFG, tenant scope, Tier 2; `product_code`, `frequency`), maintained under `/api/v1/general/static/product-billing-frequencies`. It lists the billing frequencies (`billing.ref_billing_frequencies`) each General product allows.
+- **`PortalGeneralCreateQuote` and `GeneralCreateQuote`** take an optional `frequency` (`x-code-list: billing.ref_billing_frequencies`). A code that is not a billing frequency in force is 422 `GENERAL_CODE_NOT_IN_FORCE`. One the product does not allow is accepted, and the quote is shown as annual.
+- **`GeneralQuoteView` and `GeneralPortalQuoteView`** gain two fields beside `premium`, which stays the annual premium:
+  - `premiumFrequency`: the frequency chosen when the product allows it, otherwise `ANNUAL`;
+  - `instalmentPremium`: each instalment in that frequency, as Billing will charge it (the annual premium over the frequency's periods per year, to the cent), or the premium itself when annual. It is null until rated, and hidden with the premium on the portal while the quote is Referred or Declined.
+- Rating still gives one annual premium; the frequency changes nothing in it. The policy's billing frequency is still chosen when the policy is issued.
+
 ### Breaking: a referral is decided under the tenant's underwriting authority (follow-up to BR-095, Ade)
 - **`GeneralDecideReferral`** now checks the decider's roles against the tenant's underwriting authority (`rules.cfg_authority_matrices`, as Life's underwriting decisions do). An authority row must be for the quote's product (or all products), cover the quote's total sum insured, and list the decision code among its `decision_types`. Otherwise the decision is refused with 403 `GENERAL_UW_AUTHORITY_EXCEEDED` (new), and the quote stays Referred.
 - It applies to every General referral: one a broker's portal quote got from the rules, one the rules raised at issue, and one staff raised by hand. Until now any user holding `general_quote.underwrite` could decide one. **A tenant needs authority rows for its General underwriters before they can decide referrals.**

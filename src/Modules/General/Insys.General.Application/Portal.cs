@@ -54,13 +54,20 @@ public sealed record PortalPolicyView(Guid Id, string PolicyNumber, string Produ
 
 /// <param name="Premium">The annual premium Rating gave (BR-095): none while Draft, and none while Referred or once Declined, whatever was rated.</param>
 /// <param name="RatingIssue">Why the quote could not be priced, while it stays Draft (BR-095); null otherwise.</param>
+/// <param name="PremiumFrequency">The frequency the quote is priced in: the one the broker chose when the product allows it, otherwise <c>ANNUAL</c>.</param>
+/// <param name="InstalmentPremium">Each instalment in <paramref name="PremiumFrequency"/>, as Billing will charge it; the premium itself when annual. Hidden with the premium.</param>
 public sealed record PortalQuoteView(Guid Id, string QuoteNumber, int QuoteVersion, string ProductCode, Guid ProposerPartyId, string? IntermediaryCode, QuoteStatus Status,
-    DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Premium, string Currency, DateOnly ValidUntil, IReadOnlyList<PortalRiskView> Risks, RatingIssueView? RatingIssue = null)
+    DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Premium, string Currency, DateOnly ValidUntil, IReadOnlyList<PortalRiskView> Risks, RatingIssueView? RatingIssue = null,
+    string PremiumFrequency = QuotePricing.Annual, decimal? InstalmentPremium = null)
 {
-    public static PortalQuoteView From(GeneralQuote q) => new(q.Id, q.QuoteNumber, q.QuoteVersion, q.ProductCode, q.ProposerPartyId, q.IntermediaryCode, q.Status,
-        q.PeriodStart, q.PeriodEnd, q.Status is QuoteStatus.Referred or QuoteStatus.Declined ? null : q.Premium, q.Currency, q.ValidUntil,
-        q.Risks.Select(r => new PortalRiskView(r.RiskObjectId, r.SumInsured, r.Coverages.Select(c => new PortalCoverageView(c.CoverageCode, c.SumInsured, null)).ToList())).ToList(),
-        RatingIssueView.Of(q));
+    public static PortalQuoteView From(GeneralQuote q)
+    {
+        var shown = q.Status is not (QuoteStatus.Referred or QuoteStatus.Declined);
+        return new(q.Id, q.QuoteNumber, q.QuoteVersion, q.ProductCode, q.ProposerPartyId, q.IntermediaryCode, q.Status, q.PeriodStart, q.PeriodEnd,
+            shown ? q.Premium : null, q.Currency, q.ValidUntil,
+            q.Risks.Select(r => new PortalRiskView(r.RiskObjectId, r.SumInsured, r.Coverages.Select(c => new PortalCoverageView(c.CoverageCode, c.SumInsured, null)).ToList())).ToList(),
+            RatingIssueView.Of(q), q.PremiumFrequency ?? QuotePricing.Annual, shown ? q.InstalmentPremium ?? q.Premium : null);
+    }
 }
 
 /// <summary>A broker's view of an insured item (BR-092): what it registered or may quote on, without the schema version or row version.</summary>

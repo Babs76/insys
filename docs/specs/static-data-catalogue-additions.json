@@ -804,6 +804,33 @@
           "sample": "Claimant"
         }
       ]
+    },
+    {
+      "layer": "Insurance Domains · General",
+      "module": "A · Quotation and Proposal",
+      "subModule": "Premium frequency",
+      "entity": "Product billing frequencies",
+      "table": "general.cfg_product_billing_frequencies",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 2,
+      "proposedOwner": "Product Manager",
+      "provenance": "Ade, 28 October 2026 (BR-095 follow-up): a quote is priced in the frequency chosen when the product allows it",
+      "basis": "BR-095; general.quote.premium_frequency",
+      "fields": [
+        {
+          "name": "product_code",
+          "logicalType": "Ref Product",
+          "mandatory": true,
+          "sample": "GEN-MOTOR-PV"
+        },
+        {
+          "name": "frequency",
+          "logicalType": "Ref BillingFrequency",
+          "mandatory": true,
+          "sample": "MONTHLY"
+        }
+      ]
     }
   ]
 }

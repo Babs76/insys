@@ -439,7 +439,7 @@ public sealed class GeneralModule : IModule
                     }
 
                     var created = await d.Send(new CreateQuote(r.ProductCode, null, allowed.Value.ProposerPartyId, allowed.Value.IntermediaryCode, r.Currency, r.PeriodStart,
-                        r.PeriodEnd, r.Risks, null), ct);
+                        r.PeriodEnd, r.Risks, null, Frequency: r.Frequency), ct);
                     return created.IsFailure
                         ? created.ToHttp(_ => Results.Ok())
                         : (await d.Query(new GetPortalQuote(created.Value.Id), ct)).ToHttp(v => Results.Created($"/api/v1/portal/general/quotes/{v.Id}", v));
@@ -530,7 +530,12 @@ public sealed record PortalRiskObjectRequest(Guid ClientPartyId, [property: Buil
     JsonElement Attributes, decimal? Valuation, [property: BuildingBlocks.Domain.CodeList(CodeLists.ValuationBases)] string? ValuationBasis, string? ValuationCurrency,
     string? Subdivision, string? PostalCode, [property: BuildingBlocks.Domain.CodeList(CodeLists.RiskZones)] string? RiskZone);
 
-public sealed record PortalQuoteRequest(string ProductCode, Guid ProposerPartyId, string Currency, DateOnly PeriodStart, DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks);
+/// <param name="Frequency">
+/// The billing frequency the client wants to pay in: when the product allows it, the quote shows each instalment beside the
+/// annual premium; otherwise it shows the annual premium, labelled ANNUAL.
+/// </param>
+public sealed record PortalQuoteRequest(string ProductCode, Guid ProposerPartyId, string Currency, DateOnly PeriodStart, DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks,
+    [property: BuildingBlocks.Domain.CodeList(CodeLists.BillingFrequencies)] string? Frequency = null);
 
 public sealed record PortalClaimRequest(Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate,
     [property: BuildingBlocks.Domain.CodeList(CodeLists.LossCauses)] string CauseCode, [property: BuildingBlocks.Domain.CodeList(CodeLists.Perils)] string PerilCode,

@@ -163,6 +163,9 @@ public interface IGeneralCodes
 
     Task<int?> QuoteValidityDays(string productCode, DateOnly day, CancellationToken cancellationToken);
 
+    /// <summary>Whether the product allows the billing frequency on the day (general.cfg_product_billing_frequencies).</summary>
+    Task<bool> AllowsFrequency(string productCode, string frequency, DateOnly day, CancellationToken cancellationToken);
+
     /// <summary>The policy number prefix (general.cfg_policy_numbering_schemes, product line General).</summary>
     Task<string?> PolicyNumberPrefix(DateOnly day, CancellationToken cancellationToken);
 
@@ -274,19 +277,23 @@ public sealed record RatingIssueView(string Code, string Reason)
     public static RatingIssueView? Of(GeneralQuote q) => q.RatingIssueCode is { } code ? new RatingIssueView(code, q.RatingIssue!) : null;
 }
 
+/// <param name="Premium">The annual premium Rating gave.</param>
+/// <param name="PremiumFrequency">The frequency the quote is priced in: the one chosen when the product allows it, otherwise <c>ANNUAL</c>.</param>
+/// <param name="InstalmentPremium">Each instalment in <paramref name="PremiumFrequency"/>, as Billing will charge it (the annual premium over the periods per year); the premium itself when annual. Null until rated.</param>
 /// <param name="PricedOnCreation">Priced as it is made (a broker's portal quote and its later versions, BR-095): nobody requests its calculation.</param>
 /// <param name="RatingIssue">Why it could not be priced, while it stays Draft (BR-095); null otherwise.</param>
 public sealed record QuoteView(Guid Id, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, Guid ProposerPartyId, string? IntermediaryCode,
     QuoteStatus Status, DateOnly ValidUntil, DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Premium, string Currency, Guid? RatingRequestId, int? RatingVersion,
     IReadOnlyList<RiskView> Risks, IReadOnlyList<ReferralView> Referrals, long RowVersion, string? OrgNodeCode = null, Guid? ProposalId = null,
-    bool PricedOnCreation = false, RatingIssueView? RatingIssue = null)
+    bool PricedOnCreation = false, RatingIssueView? RatingIssue = null, string PremiumFrequency = QuotePricing.Annual, decimal? InstalmentPremium = null)
 {
     public static QuoteView From(GeneralQuote q) => new(q.Id, q.QuoteNumber, q.QuoteVersion, q.ProductCode, q.ProductVersion, q.ProposerPartyId, q.IntermediaryCode,
         q.Status, q.ValidUntil, q.PeriodStart, q.PeriodEnd, q.Premium, q.Currency, q.RatingRequestId, q.RatingVersion,
         q.Risks.Select(r => new RiskView(r.RiskObjectId, r.SumInsured, null, null,
             r.Coverages.Select(c => new CoverageView(c.CoverageCode, c.SumInsured, c.ExcessScheduleCode, null)).ToList())).ToList(),
         q.Referrals.Select(r => new ReferralView(r.Id, r.ReasonCode, r.Status, r.ReferredBy, r.DecidedBy, r.DecisionCode, r.SpecialConditions ?? [], r.DeclineReason)).ToList(),
-        q.RowVersion, q.OrgNodeCode, PricedOnCreation: q.PricedOnCreation, RatingIssue: RatingIssueView.Of(q));
+        q.RowVersion, q.OrgNodeCode, PricedOnCreation: q.PricedOnCreation, RatingIssue: RatingIssueView.Of(q), PremiumFrequency: q.PremiumFrequency ?? QuotePricing.Annual,
+        InstalmentPremium: q.InstalmentPremium ?? q.Premium);
 }
 
 /// <param name="PolicyId">The policy issued from the proposal's quote (BR-035), on the read; null until it is issued, and on lists.</param>

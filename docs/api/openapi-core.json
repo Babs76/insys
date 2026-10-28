@@ -31313,6 +31313,7 @@
                 "cfg_premium_tax_and_levy_rates",
                 "cfg_product_approval_workflow_",
                 "cfg_product_availability_rules",
+                "cfg_product_billing_frequencie",
                 "cfg_product_definitions_and_ve",
                 "cfg_product_eligibility_criter",
                 "cfg_product_template_assignmen",
@@ -31744,6 +31745,7 @@
                 "cfg_premium_tax_and_levy_rates",
                 "cfg_product_approval_workflow_",
                 "cfg_product_availability_rules",
+                "cfg_product_billing_frequencie",
                 "cfg_product_definitions_and_ve",
                 "cfg_product_eligibility_criter",
                 "cfg_product_template_assignmen",
@@ -38900,6 +38902,13 @@
               "null",
               "string"
             ]
+          },
+          "frequency": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "x-code-list": "billing.ref_billing_frequencies"
           }
         }
       },
@@ -39793,6 +39802,13 @@
             "items": {
               "$ref": "#/components/schemas/GeneralRiskRequest"
             }
+          },
+          "frequency": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "x-code-list": "billing.ref_billing_frequencies"
           }
         }
       },
@@ -39884,6 +39900,19 @@
                 "$ref": "#/components/schemas/GeneralRatingIssueView"
               }
             ]
+          },
+          "premiumFrequency": {
+            "type": "string",
+            "default": "ANNUAL"
+          },
+          "instalmentPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -40340,6 +40369,19 @@
                 "$ref": "#/components/schemas/GeneralRatingIssueView"
               }
             ]
+          },
+          "premiumFrequency": {
+            "type": "string",
+            "default": "ANNUAL"
+          },
+          "instalmentPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },

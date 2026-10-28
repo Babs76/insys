@@ -290,6 +290,20 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
     /// </summary>
     public bool PricedOnCreation { get; private set; }
 
+    /// <summary>
+    /// The billing frequency the quote is priced in, when its product allows the one chosen (general.cfg_product_billing_frequencies;
+    /// Ade, 28 October 2026); null means annual. The premium stays annual; the instalment is shown beside it.
+    /// </summary>
+    public string? PremiumFrequency { get; private set; }
+
+    /// <summary>The frequency's periods per year when the quote was made (billing.ref_billing_frequencies).</summary>
+    public int? PremiumPeriods { get; private set; }
+
+    /// <summary>What each instalment in <see cref="PremiumFrequency"/> comes to, as Billing charges it: the annual premium over the periods, to the cent.</summary>
+    public decimal? InstalmentPremium => Premium is { } annual && PremiumPeriods is { } periods
+        ? Math.Round(annual / periods, 2, MidpointRounding.AwayFromZero)
+        : null;
+
     /// <summary>Why a quote priced as it is made could not be rated (a Rating error code), while it stays Draft; null once rated.</summary>
     public string? RatingIssueCode { get; private set; }
 
@@ -381,6 +395,20 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
         }
 
         return result;
+    }
+
+    /// <summary>Prices a draft in a billing frequency its product allows: the premium stays annual, and the instalment is shown beside it.</summary>
+    public Result PriceIn(string frequency, int periodsPerYear)
+    {
+        if (Status != QuoteStatus.Draft || periodsPerYear <= 0)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Quote {QuoteNumber} v{QuoteVersion} is priced in a frequency while it is a draft, with a positive number of periods.");
+        }
+
+        PremiumFrequency = Guard.MaxLength(frequency, 20);
+        PremiumPeriods = periodsPerYear;
+        MarkChanged();
+        return Result.Success();
     }
 
     /// <summary>

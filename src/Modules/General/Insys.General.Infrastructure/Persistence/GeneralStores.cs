@@ -275,6 +275,9 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
         return row is null ? null : new RiskObjectTypeDefinition(row.ObjectType, row.Version, Strings(row.Attributes), row.Validation is { } v ? Strings(v) : []);
     }
 
+    public async Task<bool> AllowsFrequency(string productCode, string frequency, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<ProductBillingFrequencies>(day).AnyAsync(f => f.ProductCode == productCode && f.Frequency == frequency, cancellationToken);
+
     public async Task<int?> QuoteValidityDays(string productCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<QuoteValidityPeriods>(day).Where(q => q.ProductCode == productCode).Select(q => (int?)q.DaysValid).FirstOrDefaultAsync(cancellationToken);
 

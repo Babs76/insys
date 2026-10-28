@@ -675,15 +675,20 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var client = await _maker.RegisterPerson("Client");
         await IssuedPolicy(proposer: client, intermediaryCode: "BRK-A");
 
-        async Task<JsonElement> PortalQuote(Guid riskObject)
+        async Task<HttpResponseMessage> Quote(Guid riskObject, string? frequency)
         {
             // The item is the client's (BR-092).
             await _db.ExecuteAsOwner("UPDATE general.risk_object SET owner_party_id = @o WHERE id = @r", ("o", client), ("r", riskObject));
-            var quoted = await broker.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", new
+            return await broker.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", new
             {
-                productCode = Product, proposerPartyId = client, currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1),
+                productCode = Product, proposerPartyId = client, currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1), frequency,
                 risks = new[] { new { riskObjectId = riskObject, sumInsured = 100_000m, coverages = new[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 100_000m } } } },
             }, idempotent: true);
+        }
+
+        async Task<JsonElement> PortalQuote(Guid riskObject, string? frequency = null)
+        {
+            var quoted = await Quote(riskObject, frequency);
             quoted.StatusCode.ShouldBe(HttpStatusCode.Created, await quoted.Content.ReadAsStringAsync());
             var made = await quoted.Json();
             (made.GetProperty("status").GetString(), made.GetProperty("premium").ValueKind).ShouldBe(("Draft", JsonValueKind.Null), "the price arrives after the quote");
@@ -709,6 +714,19 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (calculation.GetProperty("subjectId").GetGuid(), calculation.GetProperty("requestRef").GetString(), calculation.GetProperty("premium").GetDecimal())
             .ShouldBe((quoteId, $"{priced.GetProperty("quoteNumber").GetString()}-V1", 3_050m));
         calculation.GetProperty("inputs").GetProperty("values").GetProperty("vehicle_group").GetString().ShouldBe("G3");
+
+        // Priced in the frequency the broker chose when the product allows it: monthly here, shown beside the annual premium,
+        // as Billing will charge it (3 050 / 12). A frequency the product does not allow is shown as annual; an unknown one is refused.
+        await Seed("billing.ref_billing_frequencies", "ACTIVE", "QUARTERLY", ("label", "Quarterly"), ("periods_per_year", 4));
+        await Seed("general.cfg_product_billing_frequencies", "EFFECTIVE", $"{Product}-MONTHLY", ("product_code", Product), ("frequency", "MONTHLY"));
+        var monthly = await PortalQuote(await Vehicle(), "MONTHLY");
+        (monthly.GetProperty("premium").GetDecimal(), monthly.GetProperty("premiumFrequency").GetString(), monthly.GetProperty("instalmentPremium").GetDecimal())
+            .ShouldBe((3_050m, "MONTHLY", 254.17m));
+        var quarterly = await PortalQuote(await Vehicle(), "QUARTERLY");
+        (quarterly.GetProperty("premium").GetDecimal(), quarterly.GetProperty("premiumFrequency").GetString(), quarterly.GetProperty("instalmentPremium").GetDecimal())
+            .ShouldBe((3_050m, "ANNUAL", 3_050m));
+        (priced.GetProperty("premiumFrequency").GetString(), priced.GetProperty("instalmentPremium").GetDecimal()).ShouldBe(("ANNUAL", 3_050m), "none chosen");
+        (await (await Quote(await Vehicle(), "WEEKLY")).Code()).ShouldBe("GENERAL_CODE_NOT_IN_FORCE");
 
         // The broker has no way to price a quote: Rating's calculation and the staff quote operations are not open to it.
         (await broker.Send(HttpMethod.Post, "/api/v1/rating/calculations", new

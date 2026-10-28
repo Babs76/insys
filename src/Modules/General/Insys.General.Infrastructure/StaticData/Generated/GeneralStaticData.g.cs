@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.General.Infrastructure.StaticData;
 
-/// <summary>The 40 static data tables owned by the General module.</summary>
+/// <summary>The 41 static data tables owned by the General module.</summary>
 public static class GeneralStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -49,6 +49,7 @@ public static class GeneralStaticData
         new("general", "cfg_indemnity_period_options", "cfg_indemnity_period_options", "Indemnity period options", "general", "indemnity-period-options", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(IndemnityPeriodOptions), typeof(IndemnityPeriodOptionsInput), "G · Property Insurance"),
         new("general", "cfg_package_section_definitions", "cfg_package_section_definitions", "Package section definitions", "general", "package-section-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(PackageSectionDefinitions), typeof(PackageSectionDefinitionsInput), "I · Commercial Insurance"),
         new("general", "cfg_policy_numbering_schemes", "cfg_policy_numbering_schemes", "Policy numbering schemes", "general", "policy-numbering-schemes", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(PolicyNumberingSchemes), typeof(PolicyNumberingSchemesInput), "D · General Policy Administration"),
+        new("general", "cfg_product_billing_frequencies", "cfg_product_billing_frequencies", "Product billing frequencies", "general", "product-billing-frequencies", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ProductBillingFrequencies), typeof(ProductBillingFrequenciesInput), "A · Quotation and Proposal"),
         new("general", "cfg_quote_validity_periods", "cfg_quote_validity_periods", "Quote validity periods", "general", "quote-validity-periods", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(QuoteValidityPeriods), typeof(QuoteValidityPeriodsInput), "A · Quotation and Proposal"),
         new("general", "cfg_renewal_rules", "cfg_renewal_rules", "Renewal rules", "general", "renewal-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RenewalRules), typeof(RenewalRulesInput), "D · General Policy Administration"),
         new("general", "cfg_risk_object_types_and_attribute_schemas", "cfg_risk_object_types_and_attri_e6795ca1", "Risk object types and attribute schemas", "general", "risk-object-types-and-attribute-schemas", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RiskObjectTypesAndAttributeSchemas), typeof(RiskObjectTypesAndAttributeSchemasInput), "C · Risk Object Management"),
@@ -168,6 +169,13 @@ public static class GeneralStaticData
             entity.Property(x => x.SequenceLength).HasColumnName("sequence_length");
             entity.Property(x => x.CheckDigit).HasColumnName("check_digit").HasMaxLength(40);
             entity.Property(x => x.ExampleOutput).HasColumnName("example_output").HasMaxLength(200);
+        });
+        modelBuilder.Entity<ProductBillingFrequencies>(entity =>
+        {
+            entity.ToTable("cfg_product_billing_frequencies", "general");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.ProductCode).HasColumnName("product_code").HasMaxLength(80);
+            entity.Property(x => x.Frequency).HasColumnName("frequency").HasMaxLength(80);
         });
         modelBuilder.Entity<QuoteValidityPeriods>(entity =>
         {

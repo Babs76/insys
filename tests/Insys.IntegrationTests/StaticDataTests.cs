@@ -295,10 +295,10 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
     public async Task AllStaticDataTables_AreReachableThroughTheGeneratedEndpoints()
     {
         // V0002's 252 tables, V0019's two Health tables (ADR-012), V0051's four Communications tables, V0052's five function catalogue tables and V0056's approval expiry,
-        // less the payment release limits V0059 retired (OQ-112), V0060's six case tables, V0064's record retention policies (D-34) and V0075's claim party roles (OQ-122).
+        // less the payment release limits V0059 retired (OQ-112), V0060's six case tables, V0064's record retention policies (D-34), V0075's claim party roles (OQ-122) and V0078's product billing frequencies.
         var descriptors = _factory.Services.GetServices<ModuleStaticDataTables>().SelectMany(m => m.Descriptors).ToList();
-        descriptors.Count.ShouldBe(252 + 2 + 4 + 5 + 1 - 1 + 6 + 1 + 1);
-        descriptors.Select(d => $"{d.Schema}.{d.Table}").Distinct().Count().ShouldBe(252 + 2 + 4 + 5 + 1 - 1 + 6 + 1 + 1);
+        descriptors.Count.ShouldBe(252 + 2 + 4 + 5 + 1 - 1 + 6 + 1 + 1 + 1);
+        descriptors.Select(d => $"{d.Schema}.{d.Table}").Distinct().Count().ShouldBe(252 + 2 + 4 + 5 + 1 - 1 + 6 + 1 + 1 + 1);
 
         var reader = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
         var failures = new List<string>();

@@ -62,8 +62,13 @@ public sealed record GetRiskObject(Guid RiskObjectId) : IQuery<RiskObjectView>;
 /// The organisation node (normally a branch) that owns the quote, and the policy and claims that follow from it (F103).
 /// When omitted: the caller's one node, else the tenant's root legal entity. A later version keeps the first one's node.
 /// </param>
+/// <param name="Frequency">
+/// The billing frequency to price in: when the product allows it (general.cfg_product_billing_frequencies) the quote shows
+/// each instalment beside the annual premium; otherwise it shows the annual premium, labelled ANNUAL.
+/// </param>
 public sealed record CreateQuote(string ProductCode, int? ProductVersion, Guid ProposerPartyId, string? IntermediaryCode, string Currency, DateOnly PeriodStart,
-    DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks, Guid? FromQuoteId, string? OrgNodeCode = null) : ICommand<QuoteView>;
+    DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks, Guid? FromQuoteId, string? OrgNodeCode = null,
+    [property: CodeList(CodeLists.BillingFrequencies)] string? Frequency = null) : ICommand<QuoteView>;
 
 public enum QuoteAction
 {
@@ -109,6 +114,7 @@ public sealed class CreateQuoteValidator : AbstractValidator<CreateQuote>
         RuleFor(c => c.ProposerPartyId).NotEmpty();
         RuleFor(c => c.IntermediaryCode).MaximumLength(15);
         RuleFor(c => c.Currency).Length(3);
+        RuleFor(c => c.Frequency).MaximumLength(20);
         RuleFor(c => c.Risks).NotEmpty();
         RuleForEach(c => c.Risks).ChildRules(r =>
         {
@@ -277,6 +283,9 @@ public static class QuotePricing
     /// <summary>A General quote's premium is annual (the policy's annual premium; its billing frequency is chosen at issue).</summary>
     public const string Frequency = "ANNUAL";
 
+    /// <summary>The label of a premium that is annual: no frequency was chosen, or the product does not allow the one chosen.</summary>
+    public const string Annual = "ANNUAL";
+
     public static Result<string> Values(IReadOnlyList<RiskObject> objects, decimal sumInsured)
     {
         var values = new System.Text.Json.Nodes.JsonObject();
@@ -310,7 +319,8 @@ public static class QuotePricing
 }
 
 internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellableProducts products, IIntermediaries intermediaries, ITenantContext tenant, IBusinessDate businessDate,
-    IAuditTrail audit, IExecutionContext execution, Tenancy.Contracts.IOrganisationStructure organisation, IClock clock)
+    IAuditTrail audit, IExecutionContext execution, Tenancy.Contracts.IOrganisationStructure organisation, IClock clock, IGeneralCodes codes,
+    Billing.Contracts.IPolicyArrears billing)
     : ICommandHandler<CreateQuote, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(CreateQuote command, CancellationToken cancellationToken)
@@ -372,6 +382,21 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
 
             quote.Value.PlaceAt(node.Value);
             quote.Value.RecordChannel(execution.ChannelCode);
+        }
+
+        // Priced in the frequency chosen when the product allows it (Ade); otherwise the annual premium, labelled annual.
+        if (command.Frequency is { Length: > 0 } frequency)
+        {
+            if (await billing.PeriodsPerYear(tenant.RequireTenantId(), frequency, businessDate.Today, cancellationToken) is not { } periods)
+            {
+                return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{frequency} is not a billing frequency in force.");
+            }
+
+            if (await codes.AllowsFrequency(product.Value.ProductCode, frequency, businessDate.Today, cancellationToken)
+                && quote.Value.PriceIn(frequency, periods) is { IsFailure: true } refused)
+            {
+                return refused.Error;
+            }
         }
 
         // BR-095 (decided by Ade): a broker's portal quote, and every later version of it, is priced as it is made.
