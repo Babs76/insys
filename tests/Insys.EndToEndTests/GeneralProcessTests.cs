@@ -779,6 +779,16 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await AssignTemplate("CERTIFICATE");
         await _factory.DrainOutbox();
 
+        // BR-038: the policy read lists what its issue set off in other modules, each as it arrived.
+        var effects = (await Policy(policy)).GetProperty("effects");
+        async Task<List<Guid>> Ids(string sql) =>
+            [.. (await _db.ScalarAsOwner<Guid[]>($"SELECT coalesce(array_agg(id ORDER BY id), '{{}}') FROM {sql}", ("p", policy)))!];
+        List<Guid> Listed(string property) => [.. effects.GetProperty(property).EnumerateArray().Select(e => e.GetGuid()).Order()];
+        Listed("documentIds").ShouldBe(await Ids("document.document WHERE business_ref_type = 'GENERAL_POLICY' AND business_ref_id = @p"));
+        Listed("documentIds").ShouldNotBeEmpty("the schedule and certificate");
+        Listed("invoiceIds").ShouldBe(await Ids("billing.invoice WHERE policy_ref = @p"));
+        Listed("cessionIds").ShouldBe(await Ids("reinsurance.cession WHERE source_id = @p"));
+
         // NotifyLoss, then RegisterClaim: the cover is validated and the Claims Framework allocates the number.
         var uncovered = await Created("/api/v1/general/claims", new
         {

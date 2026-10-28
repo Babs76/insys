@@ -16650,7 +16650,7 @@
           "General"
         ],
         "summary": "Create a quote, or (fromQuoteId) the next version of one",
-        "description": "Rate it through Rating (POST /api/v1/rating/calculations with subjectType GENERAL_QUOTE and the quote\u0027s id); the recorded calculation is attached to the quote (PRD-008). A General product\u0027s line is its class code, or its family code when it has no class; panels, perils and approved lines are matched on it.",
+        "description": "Rate it through Rating (POST /api/v1/rating/calculations with subjectType GENERAL_QUOTE and the quote\u0027s id); the recorded calculation is attached to the quote (PRD-008). A General product\u0027s line is its class code, or its family code when it has no class; panels, perils and approved lines are matched on it. Completes asynchronously (GAP-027): The quote reads Rated (with its premium) once General handles Rating\u0027s PremiumCalculated for it, after the calculation is requested (POST /rating/calculations); read the quote again (BR-038).",
         "operationId": "GeneralCreateQuote",
         "parameters": [
           {
@@ -16713,7 +16713,8 @@
         "x-permission": "general_quote.create",
         "x-function": [
           "GENERAL_CREATE_QUOTE"
-        ]
+        ],
+        "x-eventual-effects": "The quote reads Rated (with its premium) once General handles Rating\u0027s PremiumCalculated for it, after the calculation is requested (POST /rating/calculations); read the quote again (BR-038)."
       },
       "get": {
         "tags": [
@@ -17175,6 +17176,7 @@
           "General"
         ],
         "summary": "An underwriter\u0027s decision on a referred quote",
+        "description": "The underwriter who referred the quote cannot decide it (403 MAKER_CHECKER_SAME_PERSON, BR-037); a referral raised by rules may be decided by any underwriter.",
         "operationId": "GeneralDecideReferral",
         "parameters": [
           {
@@ -17543,7 +17545,7 @@
           "General"
         ],
         "summary": "Issue a policy from an accepted quote version",
-        "description": "Billing opens the account (if new) and the premium schedule; Documents generates the schedule and certificate. Completes asynchronously (GAP-027): Billing (account, premium schedule, first invoice), Documents (policy schedule, certificate), Reinsurance (cession) and Analytics follow; each needs its tenant configuration (docs/runbooks/dead-letters-and-webhooks.md).",
+        "description": "Billing opens the account (if new) and the premium schedule; Documents generates the schedule and certificate. Completes asynchronously (GAP-027): Billing (account, premium schedule, first invoice), Documents (policy schedule, certificate), Reinsurance (cession) and Analytics follow; each needs its tenant configuration (docs/runbooks/dead-letters-and-webhooks.md). The policy read lists the invoices, documents and cessions as they arrive (effects, BR-038).",
         "operationId": "GeneralIssuePolicy",
         "parameters": [
           {
@@ -17607,7 +17609,7 @@
         "x-function": [
           "GENERAL_ISSUE_POLICY"
         ],
-        "x-eventual-effects": "Billing (account, premium schedule, first invoice), Documents (policy schedule, certificate), Reinsurance (cession) and Analytics follow; each needs its tenant configuration (docs/runbooks/dead-letters-and-webhooks.md)."
+        "x-eventual-effects": "Billing (account, premium schedule, first invoice), Documents (policy schedule, certificate), Reinsurance (cession) and Analytics follow; each needs its tenant configuration (docs/runbooks/dead-letters-and-webhooks.md). The policy read lists the invoices, documents and cessions as they arrive (effects, BR-038)."
       },
       "get": {
         "tags": [
@@ -17747,6 +17749,7 @@
           "General"
         ],
         "summary": "Renew a policy whose product does not re-rate at renewal (GEN-004)",
+        "description": "Only an In force policy is renewed; an Issued one, not yet in force, never is (BR-037).",
         "operationId": "GeneralRenewPolicy",
         "parameters": [
           {
@@ -17820,6 +17823,7 @@
           "General"
         ],
         "summary": "Cancel a policy; the refund follows the reason\u0027s refund rule (GEN-004)",
+        "description": "An In force policy is cancelled from any date in its period. An Issued policy, not yet in force, is cancelled only from inception: effectiveDate is its period start, otherwise 422 OUTSIDE_POLICY_PERIOD (BR-037).",
         "operationId": "GeneralCancelPolicy",
         "parameters": [
           {
@@ -17908,6 +17912,7 @@
           "General"
         ],
         "summary": "Reinstate a cancelled policy where permitted",
+        "description": "Reinstated before its period starts (a policy cancelled from inception), it is Issued again; otherwise In force (BR-037).",
         "operationId": "GeneralReinstatePolicy",
         "parameters": [
           {
@@ -17986,7 +17991,7 @@
           "General"
         ],
         "summary": "Draft an endorsement effective within the policy period (GEN-003)",
-        "description": "Rate it through Rating (subjectType GENERAL_ENDORSEMENT) with the endorsed policy\u0027s inputs; the premium is the new annual premium.",
+        "description": "Rate it through Rating (subjectType GENERAL_ENDORSEMENT) with the endorsed policy\u0027s inputs; the premium is the new annual premium. Completes asynchronously (GAP-027): The endorsement reads Rated (with its new annual premium) once General handles Rating\u0027s PremiumCalculated for it; read it again (BR-038).",
         "operationId": "GeneralDraftEndorsement",
         "parameters": [
           {
@@ -18061,7 +18066,8 @@
         "x-permission": "general_endorsement.create",
         "x-function": [
           "GENERAL_DRAFT_ENDORSEMENT"
-        ]
+        ],
+        "x-eventual-effects": "The endorsement reads Rated (with its new annual premium) once General handles Rating\u0027s PremiumCalculated for it; read it again (BR-038)."
       },
       "get": {
         "tags": [
@@ -18647,6 +18653,7 @@
           "General"
         ],
         "summary": "Appoint an assessor on an approved panel (GEN-007)",
+        "description": "Completes asynchronously (GAP-027): The loss assessment is created from the AssessorAppointed event; it appears in GET /general/claims/{id}/assessments (BR-038).",
         "operationId": "GeneralAppointAssessor",
         "parameters": [
           {
@@ -18726,7 +18733,8 @@
         "x-permission": "general_claim.update",
         "x-function": [
           "GENERAL_APPOINT_ASSESSOR"
-        ]
+        ],
+        "x-eventual-effects": "The loss assessment is created from the AssessorAppointed event; it appears in GET /general/claims/{id}/assessments (BR-038)."
       }
     },
     "/api/v1/general/claims/{id}/settlement": {
@@ -32769,6 +32777,10 @@
             "type": "string"
           },
           "actorType": {
+            "enum": [
+              "USER",
+              "SERVICE"
+            ],
             "type": "string"
           },
           "actorId": {
@@ -38906,6 +38918,42 @@
           }
         }
       },
+      "GeneralPolicyEffectsView": {
+        "required": [
+          "billingAccountRef",
+          "invoiceIds",
+          "documentIds",
+          "cessionIds"
+        ],
+        "type": "object",
+        "properties": {
+          "billingAccountRef": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "documentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "cessionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
       "GeneralPolicyStatus": {
         "enum": [
           "Issued",
@@ -39116,6 +39164,16 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "effects": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GeneralPolicyEffectsView"
+              }
+            ]
           }
         }
       },

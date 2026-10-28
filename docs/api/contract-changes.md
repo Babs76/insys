@@ -4,6 +4,18 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### Riders: audit actors, the policy lifecycle and referrals, and asynchronous effects (BR-023, BR-037, BR-038)
+- **BR-023:** `AuditEventView.actorType` is an enum: `USER` (a person: staff, a platform operator or a portal user; `actorId` is their user ID) or `SERVICE` (INSYS itself: a job, an event consumer or an integration).
+- **BR-037 (decided by Ade):**
+  - **An Issued policy not yet in force** can be cancelled, from inception only: `GeneralCancelPolicy` with `effectiveDate` its period start, otherwise 422 `OUTSIDE_POLICY_PERIOD`. It is never renewed (`GeneralRenewPolicy` 409, as before). Reinstated before its period starts, it is `Issued` again, otherwise `InForce`.
+  - **The referrer** of a quote cannot decide its referral: `GeneralDecideReferral` 403 `MAKER_CHECKER_SAME_PERSON`. A referral raised by rules may be decided by any underwriter.
+  - **Names:** the domain model's state names are words ("Pending approval"); the contract's are the same words capitalised and joined (`PendingApproval`).
+  - **Instruction redirect and hold:** neither changes an instruction's state. A redirect waits as a pending payee, and a hold keeps it `Approved` with `heldReason`. Both are now noted in the model.
+  - The operations' descriptions say all this.
+- **BR-038:**
+  - **`x-eventual-effects`** on `GeneralAppointAssessor` (the loss assessment), `GeneralCreateQuote` and `GeneralDraftEndorsement` (Rated after Rating's `PremiumCalculated`).
+  - **`GeneralPolicyView.effects`** (on the policy read): `billingAccountRef`, and the `invoiceIds`, `documentIds` and `cessionIds` made for the policy, each listed as its module's event arrives.
+
 ### Breaking: evidence and fraud schemas (BR-039)
 - **Recording evidence** (`ClaimsRecordEvidence`) has its own schema, `ClaimsRecordEvidenceRequest`: `evidenceType` and `documentId`, both required (the stored document that is the evidence). Without `documentId` it is 422 `VALIDATION_FAILED` (it was a bare 400).
 - **Requesting evidence** (`ClaimsRequestEvidence`) takes `evidenceType` only; its schema no longer has `documentId`, which was ignored.

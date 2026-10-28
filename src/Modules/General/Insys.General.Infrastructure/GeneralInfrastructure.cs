@@ -89,6 +89,10 @@ public static class GeneralInfrastructure
         services.AddIntegrationEventHandler<ApprovalRejected, GeneralPolicies, GeneralDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<ClaimPaymentCompleted, GeneralPolicies, GeneralDbContext>(schema, "ClaimPaymentCompleted");
         services.AddIntegrationEventHandler<DocumentGenerated, GeneralPolicies, GeneralDbContext>(schema, "DocumentGenerated");
+        // BR-038: a policy's invoices, documents and cessions, as they arrive.
+        services.AddIntegrationEventHandler<Billing.Contracts.InvoiceIssued, PolicyEffectsRecorder, GeneralDbContext>(schema, "PolicyEffect.InvoiceIssued");
+        services.AddIntegrationEventHandler<DocumentGenerated, PolicyEffectsRecorder, GeneralDbContext>(schema, "PolicyEffect.DocumentGenerated");
+        services.AddIntegrationEventHandler<Reinsurance.Contracts.CessionCalculated, PolicyEffectsRecorder, GeneralDbContext>(schema, "PolicyEffect.CessionCalculated");
         services.AddIntegrationEventHandler<GeneralEndorsementApproved, GeneralPolicies, GeneralDbContext>(schema, "GeneralEndorsementApproved");
         services.AddIntegrationEventHandler<GeneralPolicyEndorsed, GeneralPolicies, GeneralDbContext>(schema, "GeneralPolicyEndorsed");
         services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralPolicies, GeneralDbContext>(schema, "GeneralPolicyIssued");

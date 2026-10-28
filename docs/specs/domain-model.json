@@ -680,6 +680,10 @@
       {
        "rule": "Premium always matches a recorded rating request",
        "requirements": "PRD-008"
+      },
+      {
+       "rule": "Whoever referred a quote does not decide its referral (BR-037, Ade, 28 October 2026); a referral raised by rules may be decided by any underwriter",
+       "requirements": "SRS-002"
       }
      ],
      "commands": [
@@ -922,6 +926,18 @@
        "from": "In force",
        "to": "Renewed",
        "trigger": "RenewPolicy"
+      },
+      {
+       "from": "Issued",
+       "to": "Cancelled",
+       "trigger": "CancelFromInception",
+       "note": "BR-037 (Ade, 28 October 2026): a policy not yet in force is cancelled only from inception (effective on its period start); it is never renewed."
+      },
+      {
+       "from": "Cancelled",
+       "to": "Issued",
+       "trigger": "ReinstateBeforeStart",
+       "note": "BR-037: a policy cancelled from inception and reinstated before its period starts is Issued again; the period start puts it in force."
       }
      ],
      "tables": [
@@ -1258,6 +1274,18 @@
     {
      "event": "InvoiceSettled",
      "reaction": "Confirm cover where payment is a condition"
+    },
+    {
+     "event": "InvoiceIssued",
+     "reaction": "Record the policy's effect, listed on the policy read (BR-038)"
+    },
+    {
+     "event": "DocumentGenerated",
+     "reaction": "Record the policy's effect, listed on the policy read (BR-038)"
+    },
+    {
+     "event": "CessionCalculated",
+     "reaction": "Record the policy's effect, listed on the policy read (BR-038)"
     }
    ]
   },
@@ -2530,7 +2558,7 @@
      "tables": [
       "claims.claim_payment_instruction"
      ],
-     "note": null
+     "note": "BR-037: state names here are words (\"Pending approval\"); the contract's are the same words capitalised and joined (PendingApproval). Redirecting an Approved instruction to another payee or account, and holding one whose automatic release was refused (heldReason), change no state: the redirect waits as a pending payee for a second person's approval (and is released once approved), and a hold keeps it Approved until released. A failed payment retried to new details waits, Failed, for that approval, then takes the transition Retried with new details."
     }
    ],
    "consumes": [

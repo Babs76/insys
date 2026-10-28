@@ -246,6 +246,24 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
         undeclared.ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// Riders BR-023 and BR-038: an audit event's actorType is an enum (USER, SERVICE); appointing an assessor, creating a
+    /// quote and drafting an endorsement declare what follows them asynchronously.
+    /// </summary>
+    [Fact]
+    public async Task AuditActorsAndAsynchronousEffects_AreDeclared_BR023_BR038()
+    {
+        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        core.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("AuditEventView").GetProperty("properties").GetProperty("actorType")
+            .GetProperty("enum").EnumerateArray().Select(v => v.GetString()).ShouldBe(["USER", "SERVICE"]);
+        var operations = core.RootElement.GetProperty("paths").EnumerateObject().SelectMany(p => p.Value.EnumerateObject())
+            .Where(o => o.Value.TryGetProperty("operationId", out _)).ToDictionary(o => o.Value.GetProperty("operationId").GetString()!, o => o.Value);
+        foreach (var operation in new[] { "GeneralAppointAssessor", "GeneralCreateQuote", "GeneralDraftEndorsement", "GeneralIssuePolicy" })
+        {
+            operations[operation].GetProperty("x-eventual-effects").GetString().ShouldNotBeNullOrWhiteSpace(operation);
+        }
+    }
+
     /// <summary>GAP-033: the business reference types INSYS files documents under are declared on the documents list.</summary>
     [Fact]
     public async Task DocumentsList_DeclaresTheKnownBusinessReferenceTypes_GAP033()

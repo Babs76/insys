@@ -46,6 +46,8 @@ public enum PolicyTrigger
     ReinstatePolicy,
     PeriodEndsWithoutRenewal,
     RenewPolicy,
+    CancelFromInception,
+    ReinstateBeforeStart,
 }
 
 /// <summary>How the policy is billed: the account, payer, frequency and collection method.</summary>
@@ -156,6 +158,31 @@ public sealed class PolicyRisk : Entity<Guid>, ITenantScoped
 }
 
 /// <summary>Entity Cancellation (general.cancellation): kept as history when the policy is reinstated.</summary>
+/// <summary>A record another module made for a policy (BR-038): an invoice, a document or a reinsurance cession, from its event.</summary>
+public sealed class PolicyEffect : Entity<Guid>, ITenantScoped
+{
+    public const string Invoice = "INVOICE";
+
+    public const string Document = "DOCUMENT";
+
+    public const string Cession = "CESSION";
+
+    private PolicyEffect()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid PolicyId { get; private set; }
+
+    public string EffectType { get; private set; } = "";
+
+    public Guid RecordId { get; private set; }
+
+    public static PolicyEffect Record(Guid policyId, string effectType, Guid recordId) =>
+        new() { Id = Guid.CreateVersion7(), PolicyId = Guard.NotEmpty(policyId), EffectType = effectType, RecordId = Guard.NotEmpty(recordId) };
+}
+
 public sealed class Cancellation : Entity<Guid>, ITenantScoped
 {
     private Cancellation()
@@ -211,7 +238,11 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         .Allow(PolicyStatus.InForce, PolicyTrigger.CancelPolicy, PolicyStatus.Cancelled)
         .Allow(PolicyStatus.Cancelled, PolicyTrigger.ReinstatePolicy, PolicyStatus.InForce)
         .Allow(PolicyStatus.InForce, PolicyTrigger.PeriodEndsWithoutRenewal, PolicyStatus.Expired)
-        .Allow(PolicyStatus.InForce, PolicyTrigger.RenewPolicy, PolicyStatus.Renewed);
+        .Allow(PolicyStatus.InForce, PolicyTrigger.RenewPolicy, PolicyStatus.Renewed)
+        // BR-037 (decided by Ade, 28 October 2026): an Issued policy not yet in force is cancelled only from inception, and
+        // never renewed; reinstated before its period starts, it is Issued again.
+        .Allow(PolicyStatus.Issued, PolicyTrigger.CancelFromInception, PolicyStatus.Cancelled)
+        .Allow(PolicyStatus.Cancelled, PolicyTrigger.ReinstateBeforeStart, PolicyStatus.Issued);
 
     private readonly List<PolicyRisk> _risks = [];
     private readonly List<Cancellation> _cancellations = [];
@@ -429,6 +460,13 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
             return Error.Validation(GeneralErrorCodes.OutsidePolicyPeriod, $"{effectiveDate:yyyy-MM-dd} is outside the policy period.");
         }
 
+        // BR-037: a policy not yet in force has given no cover, so it is cancelled from inception or not at all.
+        if (Status == PolicyStatus.Issued && effectiveDate != PeriodStart)
+        {
+            return Error.Validation(GeneralErrorCodes.OutsidePolicyPeriod,
+                $"Policy {PolicyNumber} is not yet in force: it is cancelled from inception ({PeriodStart:yyyy-MM-dd}) or not at all.");
+        }
+
         decimal refund;
         switch (rule.RefundBasis)
         {
@@ -443,7 +481,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
                 return Error.Validation(GeneralErrorCodes.RuleNotSpecified, $"The {rule.RefundBasis} refund basis has no scale configured.");
         }
 
-        var result = Fire(PolicyTrigger.CancelPolicy);
+        var result = Fire(Status == PolicyStatus.Issued ? PolicyTrigger.CancelFromInception : PolicyTrigger.CancelPolicy);
         if (result.IsSuccess)
         {
             _cancellations.Add(Cancellation.Create(Id, rule, effectiveDate, refund, cancelledBy, now));
@@ -464,7 +502,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
             return Error.Conflict(GeneralErrorCodes.ReinstatementNotPermitted, $"Policy {PolicyNumber}'s period has ended.");
         }
 
-        var result = Fire(PolicyTrigger.ReinstatePolicy);
+        var result = Fire(today < PeriodStart ? PolicyTrigger.ReinstateBeforeStart : PolicyTrigger.ReinstatePolicy); // BR-037
         if (result.IsSuccess)
         {
             CancellationInEffect!.Reinstate(reinstatedBy, now);

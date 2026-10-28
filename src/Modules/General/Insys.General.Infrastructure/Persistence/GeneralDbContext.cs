@@ -188,6 +188,14 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
         });
 
         // V0001 gives cancellations no row_version or updated_* columns.
+        modelBuilder.Entity<PolicyEffect>(effect =>
+        {
+            effect.ToTable("policy_effect"); // BR-038
+            effect.HasKey(e => new { e.TenantId, e.Id });
+            effect.HasAuditColumns(updatable: false);
+            effect.Property(e => e.EffectType).HasMaxLength(20);
+        });
+
         modelBuilder.Entity<Cancellation>(cancellation =>
         {
             cancellation.ToTable("cancellation");

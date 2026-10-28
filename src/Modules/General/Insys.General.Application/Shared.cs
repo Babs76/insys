@@ -114,6 +114,11 @@ public interface IGeneralRepository
 
     void Add(GeneralPolicy policy);
 
+    /// <summary>Records a policy's effect once (BR-038); a second record of the same one changes nothing.</summary>
+    Task AddEffect(PolicyEffect effect, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<PolicyEffect>> Effects(Guid policyId, CancellationToken cancellationToken);
+
     void Add(GeneralEndorsement endorsement);
 
     void Add(GeneralClaim claim);
@@ -283,12 +288,25 @@ public sealed record CancellationView([property: CodeList(CodeLists.Cancellation
     [property: OneOf("PRO_RATA", "SHORT_PERIOD", "NONE")] string RefundBasis, decimal Fee, DateTimeOffset? CancelledAt,
     DateTimeOffset? ReinstatedAt);
 
+/// <summary>
+/// What the policy's issue set off in other modules, as it arrives (BR-038): its billing account, and the invoices,
+/// documents and reinsurance cessions made for it, each recorded from its event. On the policy read only.
+/// </summary>
+public sealed record PolicyEffectsView(Guid BillingAccountRef, IReadOnlyList<Guid> InvoiceIds, IReadOnlyList<Guid> DocumentIds, IReadOnlyList<Guid> CessionIds)
+{
+    public static PolicyEffectsView From(GeneralPolicy policy, IReadOnlyList<PolicyEffect> effects)
+    {
+        IReadOnlyList<Guid> Of(string type) => [.. effects.Where(e => e.EffectType == type).OrderBy(e => e.Id).Select(e => e.RecordId)];
+        return new(policy.BillingAccountRef, Of(PolicyEffect.Invoice), Of(PolicyEffect.Document), Of(PolicyEffect.Cession));
+    }
+}
+
 public sealed record PolicyView(Guid Id, string PolicyNumber, string ProductCode, int ProductVersion, int RatingVersion, Guid PolicyholderPartyId, PolicyStatus Status,
     DateOnly PeriodStart, DateOnly PeriodEnd, string Currency, decimal AnnualPremium, Guid BillingAccountRef,
     [property: CodeList(CodeLists.BillingFrequencies)] string? BillingFrequency, [property: CodeList(CodeLists.CollectionMethods)] string? CollectionMethod,
     Guid? RenewalOfId, [property: OneOf("ISSUE", "FIRST_PAYMENT")] string CoverStartsOn, DateOnly? FirstPaidOn, IReadOnlyList<RiskView> Risks,
     IReadOnlyList<CancellationView> Cancellations, long RowVersion,
-    Guid? QuoteId = null, Guid? ProposalId = null)
+    Guid? QuoteId = null, Guid? ProposalId = null, PolicyEffectsView? Effects = null)
 {
     public static PolicyView From(GeneralPolicy p) => new(p.Id, p.PolicyNumber, p.ProductCode, p.ProductVersion, p.RatingVersion, p.PolicyholderPartyId, p.Status,
         p.PeriodStart, p.PeriodEnd, p.Currency, p.AnnualPremium, p.BillingAccountRef, p.BillingFrequency, p.CollectionMethod, p.RenewalOfId, p.CoverStartsOn, p.FirstPaidOn,

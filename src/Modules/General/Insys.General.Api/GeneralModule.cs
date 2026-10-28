@@ -145,6 +145,8 @@ public sealed class GeneralModule : IModule
         general.MapPost("/quotes", async (CreateQuote r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/general/quotes/{v.Id}", v)))
             .Produces<QuoteView>(StatusCodes.Status201Created)
             .WithName("GeneralCreateQuote").WithSummary("Create a quote, or (fromQuoteId) the next version of one")
+            .WithEventualEffects("The quote reads Rated (with its premium) once General handles Rating's PremiumCalculated for it, after the calculation is "
+                + "requested (POST /rating/calculations); read the quote again (BR-038).")
             .WithDescription("Rate it through Rating (POST /api/v1/rating/calculations with subjectType GENERAL_QUOTE and the quote's id); the recorded calculation is attached to the quote (PRD-008). "
                 + "A General product's line is its class code, or its family code when it has no class; panels, perils and approved lines are matched on it.")
             .RequirePermission(GeneralPermissions.QuoteCreate).RequireIdempotencyKey();
@@ -177,7 +179,8 @@ public sealed class GeneralModule : IModule
                 (await d.Send(new DecideReferral(id, r.Approved, r.DecisionCode, r.SpecialConditions ?? [], r.DeclineReason), ct)).ToHttp(Results.Ok))
             .Produces<QuoteView>(StatusCodes.Status200OK)
             .TakesIfMatch()
-            .WithName("GeneralDecideReferral").WithSummary("An underwriter's decision on a referred quote").RequirePermission(GeneralPermissions.QuoteUnderwrite);
+            .WithName("GeneralDecideReferral").WithSummary("An underwriter's decision on a referred quote")
+            .WithDescription("The underwriter who referred the quote cannot decide it (403 MAKER_CHECKER_SAME_PERSON, BR-037); a referral raised by rules may be decided by any underwriter.").RequirePermission(GeneralPermissions.QuoteUnderwrite);
 
         general.MapPost("/proposals", async (SubmitProposal r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/general/proposals/{v.Id}", v)))
@@ -206,7 +209,8 @@ public sealed class GeneralModule : IModule
             .WithName("GeneralIssuePolicy").WithSummary("Issue a policy from an accepted quote version")
             .WithDescription("Billing opens the account (if new) and the premium schedule; Documents generates the schedule and certificate.")
             .WithEventualEffects("Billing (account, premium schedule, first invoice), Documents (policy schedule, certificate), Reinsurance (cession) "
-                + "and Analytics follow; each needs its tenant configuration (docs/runbooks/dead-letters-and-webhooks.md).")
+                + "and Analytics follow; each needs its tenant configuration (docs/runbooks/dead-letters-and-webhooks.md). The policy read lists the "
+                + "invoices, documents and cessions as they arrive (effects, BR-038).")
             .RequirePermission(GeneralPermissions.PolicyCreate).RequireIdempotencyKey();
         general.MapGet("/policies", async (Guid? policyholderPartyId, string? policyNumber, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPolicies(policyholderPartyId, policyNumber, after, size), ct), p => p.Id))
@@ -219,24 +223,30 @@ public sealed class GeneralModule : IModule
                 (await d.Send(new RenewPolicy(id), ct)).ToHttp(v => Results.Created($"/api/v1/general/policies/{v.Id}", v)))
             .Produces<PolicyView>(StatusCodes.Status201Created)
             .WithName("GeneralRenewPolicy").WithSummary("Renew a policy whose product does not re-rate at renewal (GEN-004)")
+            .WithDescription("Only an In force policy is renewed; an Issued one, not yet in force, never is (BR-037).")
             .RequirePermission(GeneralPermissions.PolicyCreate).RequireIdempotencyKey();
         general.MapPost("/policies/{id:guid}/cancel", async (Guid id, CancelRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new CancelPolicy(id, r.ReasonCode, r.EffectiveDate), ct)).ToHttp(Results.Ok))
             .Produces<PolicyView>(StatusCodes.Status200OK)
             .TakesIfMatch()
             .WithName("GeneralCancelPolicy").WithSummary("Cancel a policy; the refund follows the reason's refund rule (GEN-004)")
+            .WithDescription("An In force policy is cancelled from any date in its period. An Issued policy, not yet in force, is cancelled only from inception: "
+                + "effectiveDate is its period start, otherwise 422 OUTSIDE_POLICY_PERIOD (BR-037).")
             .RequirePermission(GeneralPermissions.PolicyCancel);
         general.MapPost("/policies/{id:guid}/reinstate", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReinstatePolicy(id), ct)).ToHttp(Results.Ok))
             .Produces<PolicyView>(StatusCodes.Status200OK)
             .TakesIfMatch()
-            .WithName("GeneralReinstatePolicy").WithSummary("Reinstate a cancelled policy where permitted").RequirePermission(GeneralPermissions.PolicyCancel);
+            .WithName("GeneralReinstatePolicy").WithSummary("Reinstate a cancelled policy where permitted")
+            .WithDescription("Reinstated before its period starts (a policy cancelled from inception), it is Issued again; otherwise In force (BR-037).").RequirePermission(GeneralPermissions.PolicyCancel);
 
         general.MapPost("/policies/{id:guid}/endorsements", async (Guid id, EndorsementRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DraftEndorsement(id, r.EndorsementType, r.EffectiveDate, r.Changes), ct))
                 .ToHttp(v => Results.Created($"/api/v1/general/endorsements/{v.Id}", v)))
             .Produces<EndorsementView>(StatusCodes.Status201Created)
             .WithName("GeneralDraftEndorsement").WithSummary("Draft an endorsement effective within the policy period (GEN-003)")
+            .WithEventualEffects("The endorsement reads Rated (with its new annual premium) once General handles Rating's PremiumCalculated for it; read it "
+                + "again (BR-038).")
             .WithDescription("Rate it through Rating (subjectType GENERAL_ENDORSEMENT) with the endorsed policy's inputs; the premium is the new annual premium.")
             .RequirePermission(GeneralPermissions.EndorsementCreate).RequireIdempotencyKey();
         general.MapGet("/policies/{id:guid}/endorsements", async (Guid id, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
@@ -281,7 +291,8 @@ public sealed class GeneralModule : IModule
                 (await d.Send(new AppointAssessor(id, r.AssessorPartyId), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)
             .TakesIfMatch()
-            .WithName("GeneralAppointAssessor").WithSummary("Appoint an assessor on an approved panel (GEN-007)").RequirePermission(GeneralPermissions.ClaimUpdate);
+            .WithName("GeneralAppointAssessor").WithSummary("Appoint an assessor on an approved panel (GEN-007)")
+            .WithEventualEffects("The loss assessment is created from the AssessorAppointed event; it appears in GET /general/claims/{id}/assessments (BR-038).").RequirePermission(GeneralPermissions.ClaimUpdate);
         general.MapPost("/claims/{id:guid}/settlement", async (Guid id, SettlementRequestBody r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RequestSettlement(id, r.PayeePartyId, r.BankAccountId, r.ReserveType, r.DecisionCode, r.Rationale), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)

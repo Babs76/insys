@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\Billing\Insys.Billing.Contracts\Insys.Billing.Contracts.csproj" />
     <ProjectReference Include="..\..\ClaimsFramework\Insys.ClaimsFramework.Contracts\Insys.ClaimsFramework.Contracts.csproj" />
     <ProjectReference Include="..\..\Documents\Insys.Documents.Contracts\Insys.Documents.Contracts.csproj" />
+    <ProjectReference Include="..\..\Reinsurance\Insys.Reinsurance.Contracts\Insys.Reinsurance.Contracts.csproj" />
     <ProjectReference Include="..\..\Party\Insys.Party.Contracts\Insys.Party.Contracts.csproj" />
     <ProjectReference Include="..\..\ProductFactory\Insys.ProductFactory.Contracts\Insys.ProductFactory.Contracts.csproj" />
     <ProjectReference Include="..\..\Rating\Insys.Rating.Contracts\Insys.Rating.Contracts.csproj" />

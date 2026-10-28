@@ -32,7 +32,7 @@ using Insys.BuildingBlocks.Domain;
 namespace Insys.Audit.Application;
 
 public sealed record AuditEventView(
-    Guid Id, string EventType, string ActorType, string ActorId, string Operation, string TargetType, string TargetId, string Outcome,
+    Guid Id, string EventType, [property: OneOf(AuditActorTypes.User, AuditActorTypes.Service)] string ActorType, string ActorId, string Operation, string TargetType, string TargetId, string Outcome,
     DateTimeOffset OccurredAt, Guid CorrelationId, JsonElement? Details);
 
 public interface IAuditEventQueries
@@ -58,4 +58,15 @@ internal sealed class ListAuditEventsHandler(IAuditEventQueries queries) : IQuer
 {
     public async Task<Result<IReadOnlyList<AuditEventView>>> Handle(ListAuditEvents query, CancellationToken cancellationToken) =>
         Result.Success(await queries.List(query.TargetType, query.TargetId, query.ActorId, query.AfterId, query.Limit, cancellationToken));
+}
+
+/// <summary>
+/// Who acted (BR-023): a person (USER, staff, platform operator or portal user, whose ActorId is their user ID) or INSYS
+/// itself (SERVICE: a job, an event consumer or an integration, whose ActorId names it).
+/// </summary>
+public static class AuditActorTypes
+{
+    public const string User = "USER";
+
+    public const string Service = "SERVICE";
 }

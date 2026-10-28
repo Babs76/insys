@@ -222,6 +222,44 @@ public sealed class GeneralTests
         policy.CancellationInEffect.ShouldBeNull();
     }
 
+    /// <summary>
+    /// BR-037 (decided by Ade, 28 October 2026): a policy issued but not yet in force is cancelled only from inception (a
+    /// full pro rata refund, as it gave no cover), is never renewed, and reinstated before its period starts is Issued again.
+    /// </summary>
+    [Fact]
+    public void AnIssuedPolicyNotYetInForce_IsCancelledOnlyFromInception_NeverRenewed_BR037()
+    {
+        GeneralPolicy Issued() => GeneralPolicy.IssuePolicy(Guid.CreateVersion7(), "GP3", Accepted(36_500m), Billing, null, Start.AddDays(-1), Now).Value;
+        var rule = new CancellationRule("INS_REQUEST", "INSURED", "PRO_RATA", 0m);
+        var policy = Issued();
+        policy.Status.ShouldBe(PolicyStatus.Issued);
+
+        policy.CancelPolicy(rule, Start.AddDays(10), Guid.CreateVersion7(), Now).Error!.Code.ShouldBe(GeneralErrorCodes.OutsidePolicyPeriod);
+        policy.CancelPolicy(rule, Start, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        policy.Status.ShouldBe(PolicyStatus.Cancelled);
+        policy.DomainEvents.OfType<GeneralPolicyCancelled>().Single().RefundAmount.ShouldBe(36_500m, "no cover was given");
+
+        policy.ReinstatePolicy(Guid.CreateVersion7(), Start.AddDays(-1), Now).IsSuccess.ShouldBeTrue();
+        policy.Status.ShouldBe(PolicyStatus.Issued, "its period has not started");
+        policy.StartPeriod(Start).IsSuccess.ShouldBeTrue();
+
+        GeneralPolicy.RenewPolicy(Guid.CreateVersion7(), "GP4", Issued(), Start.AddDays(-1), Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+    }
+
+    /// <summary>BR-037 (decided): whoever referred a quote does not decide its referral; another underwriter does.</summary>
+    [Fact]
+    public void TheReferrer_DoesNotDecideTheReferral_BR037()
+    {
+        var quote = Quote();
+        quote.RateQuote(Guid.CreateVersion7(), "MOTOR", 1, 3, 12_000m, "ZAR").IsSuccess.ShouldBeTrue();
+        var referrer = Guid.CreateVersion7();
+        quote.ReferQuote("HIGH_VALUE", referrer).IsSuccess.ShouldBeTrue();
+
+        quote.DecideReferral(true, "ACCEPT", [], null, referrer, Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        quote.Status.ShouldBe(QuoteStatus.Referred);
+        quote.DecideReferral(true, "ACCEPT", [], null, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+    }
+
     [Fact]
     public void Cancellation_WithAnUnspecifiedScale_IsRefused() =>
         Policy().CancelPolicy(new CancellationRule("X", "INSURER", "SHORT_PERIOD", 0), Today, Guid.CreateVersion7(), Now).Error!.Code.ShouldBe(GeneralErrorCodes.RuleNotSpecified);

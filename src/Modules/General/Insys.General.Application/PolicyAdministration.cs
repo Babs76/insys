@@ -250,6 +250,7 @@ internal sealed class GetPolicyHandler(IGeneralRepository general) : IQueryHandl
             ? PolicyView.From(policy) with
             {
                 ProposalId = policy.QuoteId is { } quote ? (await general.ProposalForQuote(quote, cancellationToken))?.Id : null, // BR-035
+                Effects = PolicyEffectsView.From(policy, await general.Effects(policy.Id, cancellationToken)), // BR-038
             }
             : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
 }

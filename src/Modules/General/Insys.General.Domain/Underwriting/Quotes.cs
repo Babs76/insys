@@ -389,6 +389,12 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
             return Error.Validation(GeneralErrorCodes.RationaleRequired, "A declined referral records why.");
         }
 
+        // BR-037 (decided by Ade, 28 October 2026): whoever referred a quote does not decide its referral (SRS-002).
+        if (referral.ReferredBy == decidedBy)
+        {
+            return Error.Forbidden(ErrorCodes.MakerCheckerSamePerson, "You referred this quote, so another underwriter decides its referral.");
+        }
+
         referral.Decide(approved, decisionCode, specialConditions, declineReason, decidedBy, now);
         var result = Fire(approved ? QuoteTrigger.ReferralApproved : QuoteTrigger.ReferralDeclined);
         if (result.IsSuccess && !approved)

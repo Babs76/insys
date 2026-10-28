@@ -228,6 +228,17 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
 
     public void Add(RiskObject riskObject) => db.RiskObjects.Add(riskObject);
 
+    public async Task AddEffect(PolicyEffect effect, CancellationToken cancellationToken)
+    {
+        if (!await db.Set<PolicyEffect>().AnyAsync(e => e.EffectType == effect.EffectType && e.RecordId == effect.RecordId, cancellationToken))
+        {
+            db.Set<PolicyEffect>().Add(effect);
+        }
+    }
+
+    public async Task<IReadOnlyList<PolicyEffect>> Effects(Guid policyId, CancellationToken cancellationToken) =>
+        await db.Set<PolicyEffect>().AsNoTracking().Where(e => e.PolicyId == policyId).ToListAsync(cancellationToken);
+
     public void Add(GeneralQuote quote) => db.Quotes.Add(quote);
 
     public void Add(GeneralProposal proposal) => db.Proposals.Add(proposal);
