@@ -1,6 +1,6 @@
 # Wave 2 batch 5: plan, for Ade's approval
 
-28 October 2026. Branch `wave2-5`, from `main` at `ef5a85c` (batch 4). Nothing is built until this plan is approved; BR-021 waits for its own sign-off on `wave2-3-proposals.md` §3.
+28 October 2026. Branch `wave2-5`, from `main` at `ef5a85c` (batch 4). **Approved by Ade on 28 October 2026**, with the decisions below; BR-021's proposal (`wave2-3-proposals.md` §3) is signed off.
 
 ## Scope, in build order
 
@@ -26,10 +26,11 @@
 
 Every new write takes If-Match or Idempotency-Key as batch 4 made the rule (the concurrency sweep holds it). Every new read or function runs through `OperatorTenantTests` and `FunctionAccessTests`.
 
-## To decide with this plan
-1. **BR-030:** proposed that a Published version not yet Effective can be **withdrawn** (it was never in force, so nothing depends on it) but not retired (retiring ends a version that was in force). The transition is added to the domain model.
-2. **BR-037:** proposed that an Issued policy not yet in force **can be cancelled** (from inception, no premium earned) but **not renewed** (renewal starts from a policy in force); and that the person who referred a quote **may not decide its referral** (maker-checker, SRS-002).
-3. **BR-029:** the party number format, proposed `P` + 8 digits per tenant (`P00012345`), never reused.
+## Decided (Ade, 28 October 2026)
+1. **BR-030:** a Published version not yet Effective can be **withdrawn**, not retired. The withdrawal is refused while any quote, proposal or policy references the version, naming each.
+2. **BR-037:** an Issued policy not yet in force can be **cancelled from inception**, not renewed. Whoever referred a quote may not decide its referral.
+3. **BR-029:** the party number is `P` + 8 digits + 1 check digit (Luhn mod 10 over the 8 digits), per tenant, never reused, with no personal data in it, and searchable through the party search.
+4. **BR-021 (§3 signed off):** the display-name lookup as proposed; portal users cannot resolve staff names (their views show a role or team); a disabled user's name is still returned; **no function grant**: any signed-in staff user may call it, for their own tenant only, up to 100 IDs a call; the ID of a platform operator who acted in the tenant resolves to the label "Platform operator", never a personal name.
 
 ## How the batch runs
 - Items in the order above: the CI split first, then the two decided items, then phases 1 to 3. Each item has its own commit and tracker row; `contract-changes.md` is updated for every contract change.

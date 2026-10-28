@@ -71,7 +71,13 @@
 - **Platform operators:** the operator's own views already show platform users; an operator acting as a tenant resolves that tenant's names through the same lookup, audited as any cross-tenant read.
 - **Not personal data in logs:** names are returned, never logged or put in events; the audit entry records the count of IDs only.
 
-### To decide
+### Decided (Ade, 28 October 2026)
+- The lookup as proposed, **with no function grant**: any signed-in staff user may call it, for their own tenant only, up to 100 IDs a call.
+- Portal users cannot resolve staff names; their views show a role or team.
+- A disabled user's name is still returned.
+- The ID of a platform operator who acted in the tenant resolves to the label "Platform operator", never a personal name.
+
+### As first proposed
 1. The lookup as proposed, with a new function every staff template holds.
 2. Portal users may not resolve staff names (proposed), or they may for named views.
 3. Whether a removed (disabled) user's name is still returned (proposed yes, since history shows who did what).
