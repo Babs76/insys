@@ -914,6 +914,41 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await brokerB.GetAsync($"/api/v1/portal/general/risk-objects/{carId}")).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    /// <summary>
+    /// BR-093: a member reads the perils and loss causes in force for their policy's product line, with labels, to choose
+    /// from when notifying a loss. Another line's codes and a retired cause are not listed; another member's policy is 404.
+    /// </summary>
+    [Fact]
+    public async Task AMember_ReadsTheLossCodesOfTheirPolicysLine_BR093()
+    {
+        var holder = await _maker.RegisterPerson("Holder");
+        var (policy, _) = await IssuedPolicy(proposer: holder);
+        var (others, _) = await IssuedPolicy();
+        await Seed("general.ref_peril_codes", "ACTIVE", "THEFT_P", ("peril_code", "THEFT_P"), ("label", "Theft"), ("line", "MOTOR"), ("catastrophe", false));
+        await Seed("general.ref_loss_cause_codes", "ACTIVE", "HIJACK", ("cause_code", "HIJACK"), ("peril", "THEFT_P"), ("label", "Hijacking"));
+        await Seed("general.ref_loss_cause_codes", "ACTIVE", "BREAK_IN", ("cause_code", "BREAK_IN"), ("peril", "THEFT_P"), ("label", "Break-in"));
+        await Seed("general.ref_peril_codes", "ACTIVE", "FLOOD", ("peril_code", "FLOOD"), ("label", "Flood"), ("line", "PROPERTY"), ("catastrophe", true));
+        await Seed("general.ref_loss_cause_codes", "ACTIVE", "RIVER", ("cause_code", "RIVER"), ("peril", "FLOOD"), ("label", "River flooding"));
+        await _db.ExecuteAsOwner("UPDATE general.ref_loss_cause_codes SET record_status = 'RETIRED' WHERE tenant_id = @t AND code = 'BREAK_IN'", ("t", Tenant));
+
+        await PortalUser("member-h", "PARTY", holder, null, GeneralPermissions.PolicyRead, GeneralPermissions.ClaimRead, GeneralPermissions.ClaimCreate);
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-MEM", ("channel_code", "MEM"), ("audience", "CUSTOMER"), ("name", "Member portal"),
+            ("client_ids", new[] { "member-portal" }));
+        await _db.AdoptFunctionCatalogue();
+        var member = _factory.ClientFor(Tenant, "member-h", "member-portal");
+
+        var read = await member.GetAsync($"/api/v1/portal/general/policies/{policy}/loss-codes");
+        read.StatusCode.ShouldBe(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+        var codes = await read.Json();
+        codes.GetProperty("perils").EnumerateArray().Select(p => (p.GetProperty("code").GetString(), p.GetProperty("label").GetString()))
+            .ShouldBe([("ACC", "Accident"), ("THEFT_P", "Theft")]);
+        codes.GetProperty("causes").EnumerateArray().Select(c => (c.GetProperty("code").GetString(), c.GetProperty("perilCode").GetString(), c.GetProperty("label").GetString()))
+            .ShouldBe([("COLLISION", "ACC", "Collision"), ("HIJACK", "THEFT_P", "Hijacking")]);
+
+        (await member.GetAsync($"/api/v1/portal/general/policies/{others}/loss-codes")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await member.GetAsync($"/api/v1/portal/general/policies/{Guid.CreateVersion7()}/loss-codes")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
     /// <summary>A portal user linked to a party (a member) or an intermediary code (a broker), holding the permissions; gives its role.</summary>
     private async Task<string> PortalUser(string subject, string kind, Guid? party, string? broker, params string[] permissions)
     {

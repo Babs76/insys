@@ -79,6 +79,15 @@ public sealed record PortalRiskObjectView(Guid Id, [property: CodeList(CodeLists
         r.ValuationBasis, r.ValuationCurrency, r.Subdivision, r.PostalCode, r.RiskZone, r.Status, r.OwnerPartyId!.Value);
 }
 
+/// <summary>A peril a member can report a loss under (BR-093).</summary>
+public sealed record PortalPerilView([property: CodeList(CodeLists.Perils)] string Code, string Label);
+
+/// <summary>A loss cause a member can report, with the peril it falls under (BR-093).</summary>
+public sealed record PortalLossCauseView([property: CodeList(CodeLists.LossCauses)] string Code, [property: CodeList(CodeLists.Perils)] string PerilCode, string Label);
+
+/// <summary>The perils and loss causes in force for a policy's product (its line), for the member to choose from when notifying a loss (BR-093).</summary>
+public sealed record PortalLossCodesView(IReadOnlyList<PortalPerilView> Perils, IReadOnlyList<PortalLossCauseView> Causes);
+
 /// <param name="SettlementAmount">What is to be paid, once a settlement is approved; nothing before.</param>
 public sealed record PortalClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt, ClaimStatus Status,
     decimal? SettlementAmount, string? Currency)
@@ -124,6 +133,9 @@ public sealed record GetPortalClaim(Guid ClaimId) : IQuery<PortalClaimView>;
 
 public sealed record ListPortalClaims(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PortalClaimView>>;
 
+/// <summary>The loss codes for a policy of the member's (BR-093); any other policy is not found.</summary>
+public sealed record GetPortalLossCodes(Guid PolicyId) : IQuery<PortalLossCodesView>;
+
 /// <summary>A client's risk objects (BR-092), for a broker that services the client now; a client it does not is not found.</summary>
 public sealed record ListPortalRiskObjects(Guid ClientPartyId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PortalRiskObjectView>>;
 
@@ -163,7 +175,7 @@ internal static class Related
 }
 
 internal sealed class GeneralPortalHandlers(IGeneralRepository general, IGeneralPortalQueries queries, IExecutionContext execution, IPartyDirectory parties,
-    ITenantContext tenant) :
+    ITenantContext tenant, IGeneralCodes codes, ProductFactory.Contracts.ISellableProducts products, IBusinessDate businessDate) :
     IQueryHandler<ListPortalPolicies, IReadOnlyList<PortalPolicyView>>,
     IQueryHandler<GetPortalPolicy, PortalPolicyView>,
     IQueryHandler<ListPortalQuotes, IReadOnlyList<PortalQuoteView>>,
@@ -174,7 +186,8 @@ internal sealed class GeneralPortalHandlers(IGeneralRepository general, IGeneral
     IQueryHandler<PortalClaimAllowed, bool>,
     IQueryHandler<ListPortalRiskObjects, IReadOnlyList<PortalRiskObjectView>>,
     IQueryHandler<GetPortalRiskObject, PortalRiskObjectView>,
-    IQueryHandler<PortalClientAllowed, Guid>
+    IQueryHandler<PortalClientAllowed, Guid>,
+    IQueryHandler<GetPortalLossCodes, PortalLossCodesView>
 {
     private static readonly Error RiskObjectNotFound = Error.NotFound(ErrorCodes.NotFound, "The risk object was not found.");
 
@@ -249,6 +262,27 @@ internal sealed class GeneralPortalHandlers(IGeneralRepository general, IGeneral
         && await CurrentlyServices(Related.Require(execution), owner, cancellationToken)
             ? PortalRiskObjectView.From(risk)
             : RiskObjectNotFound;
+
+    /// <summary>
+    /// BR-093: the perils of the policy's product line in force today (its class, or its family when it has no class) and
+    /// their loss causes. A code retired, or of another line, is not listed.
+    /// </summary>
+    public async Task<Result<PortalLossCodesView>> Handle(GetPortalLossCodes query, CancellationToken cancellationToken)
+    {
+        if (await general.Policy(query.PolicyId, cancellationToken) is not { } policy || !Related.Policy(Related.Require(execution), policy))
+        {
+            return PolicyNotFound;
+        }
+
+        if (await products.Version(tenant.RequireTenantId(), policy.ProductCode, policy.ProductVersion, businessDate.Today, cancellationToken) is not { } product)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The policy's product version was not found.");
+        }
+
+        var (perils, causes) = await codes.LossCodes(product.Line, businessDate.Today, cancellationToken);
+        return new PortalLossCodesView(perils.Select(p => new PortalPerilView(p.Code, p.Label)).ToList(),
+            causes.Select(c => new PortalLossCauseView(c.Code, c.Peril, c.Label)).ToList());
+    }
 
     public async Task<Result<Guid>> Handle(PortalClientAllowed query, CancellationToken cancellationToken)
     {

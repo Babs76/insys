@@ -20781,6 +20781,64 @@
         ]
       }
     },
+    "/api/v1/portal/general/policies/{id}/loss-codes": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "The perils and loss causes a member can report a loss under on a policy of theirs (BR-093)",
+        "description": "The perils of the policy\u0027s product line in force today (general.ref_peril_codes), and the loss causes of those perils (general.ref_loss_cause_codes), each with its label: the codes PortalGeneralNotifyLoss takes as perilCode and causeCode. Another\u0027s policy is 404.",
+        "operationId": "PortalGeneralListLossCodes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralPortalLossCodesView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "general_claim.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_GENERAL_CLAIMS"
+        ]
+      }
+    },
     "/api/v1/portal/general/quotes": {
       "get": {
         "tags": [
@@ -39699,6 +39757,64 @@
               "string"
             ],
             "format": "double"
+          }
+        }
+      },
+      "GeneralPortalLossCauseView": {
+        "required": [
+          "code",
+          "perilCode",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "x-code-list": "general.ref_loss_cause_codes"
+          },
+          "perilCode": {
+            "type": "string",
+            "x-code-list": "general.ref_peril_codes"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "GeneralPortalLossCodesView": {
+        "required": [
+          "perils",
+          "causes"
+        ],
+        "type": "object",
+        "properties": {
+          "perils": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralPortalPerilView"
+            }
+          },
+          "causes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralPortalLossCauseView"
+            }
+          }
+        }
+      },
+      "GeneralPortalPerilView": {
+        "required": [
+          "code",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "x-code-list": "general.ref_peril_codes"
+          },
+          "label": {
+            "type": "string"
           }
         }
       },

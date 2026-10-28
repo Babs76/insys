@@ -4,6 +4,13 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 6 (branch `wave2-6`, not merged)
 
+### New: the perils and loss causes a member can report a loss under (BR-093)
+- **`GET /api/v1/portal/general/policies/{id}/loss-codes`** (`PortalGeneralListLossCodes`, member portal; a read of the `CUSTOMER_PORTAL_GENERAL_CLAIMS` screen). It returns `{ perils: [{ code, label }], causes: [{ code, perilCode, label }] }`:
+  - the perils in force today of the policy's product line (its class, or its family when it has no class; `general.ref_peril_codes.line`);
+  - the loss causes in force of those perils (`general.ref_loss_cause_codes.peril`).
+
+  These are the codes `PortalGeneralNotifyLoss` takes as `perilCode` and `causeCode`. Another member's policy is 404.
+
 ### New: a referral reaches someone with the authority to decide it (Ade)
 - **A Workflow task for every General referral:** when a quote is referred (by hand, at issue over a zone limit, or by the rules on a broker's portal quote), General publishes `general.GeneralQuoteReferred`. Workflow opens a one-step task (process `GENERAL_REFERRAL`, task type `DECIDE_REFERRAL`, business reference `GENERAL_QUOTE` and the quote's ID), due in one business day. The task is in the queue of the role whose underwriting authority covers the quote's product and total sum insured: the smallest such authority. It is listed by `GET /workflow/tasks?queueCode=` like any task.
 - **Decided:** `general.GeneralQuoteReferralDecided` completes the task (state `DECIDED`). Any role whose authority covers the decision may still decide it, from the queue or not.

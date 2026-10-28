@@ -423,6 +423,13 @@ public sealed class GeneralModule : IModule
         portal.MapGet("/policies/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalPolicy(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalPolicyView>(StatusCodes.Status200OK)
             .WithName("PortalGeneralGetPolicy").WithSummary("A policy of the member or broker").RequirePermission(GeneralPermissions.PolicyRead).ForPortal(party, broker);
+        portal.MapGet("/policies/{id:guid}/loss-codes", async (Guid id, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new GetPortalLossCodes(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalLossCodesView>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralListLossCodes").WithSummary("The perils and loss causes a member can report a loss under on a policy of theirs (BR-093)")
+            .WithDescription("The perils of the policy's product line in force today (general.ref_peril_codes), and the loss causes of those perils "
+                + "(general.ref_loss_cause_codes), each with its label: the codes PortalGeneralNotifyLoss takes as perilCode and causeCode. Another's policy is 404.")
+            .RequirePermission(GeneralPermissions.ClaimRead).ForPortal(party);
         portal.MapGet("/quotes", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPortalQuotes(after, size), ct), q => q.Id))
             .Produces<CursorPage<PortalQuoteView>>(StatusCodes.Status200OK)

@@ -275,6 +275,18 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
         return row is null ? null : new RiskObjectTypeDefinition(row.ObjectType, row.Version, Strings(row.Attributes), row.Validation is { } v ? Strings(v) : []);
     }
 
+    public async Task<(IReadOnlyList<(string Code, string Label)> Perils, IReadOnlyList<(string Code, string Peril, string Label)> Causes)> LossCodes(string line,
+        DateOnly day, CancellationToken cancellationToken)
+    {
+        var perils = (await InForce<PerilCodes>(day).Where(p => p.Line == line).Select(p => new { p.PerilCode, p.Label }).ToListAsync(cancellationToken))
+            .OrderBy(p => p.PerilCode, StringComparer.Ordinal).Select(p => (p.PerilCode, p.Label)).ToList();
+        var codes = perils.Select(p => p.PerilCode).ToList();
+        var causes = (await InForce<LossCauseCodes>(day).Where(c => codes.Contains(c.Peril)).Select(c => new { c.CauseCode, c.Peril, c.Label })
+                .ToListAsync(cancellationToken))
+            .OrderBy(c => c.CauseCode, StringComparer.Ordinal).Select(c => (c.CauseCode, c.Peril, c.Label)).ToList();
+        return (perils, causes);
+    }
+
     public async Task<decimal?> FrequencyLoading(string productCode, string frequency, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<ProductBillingFrequencies>(day).Where(f => f.ProductCode == productCode && f.Frequency == frequency)
             .Select(f => (decimal?)(f.InstalmentLoadingPct ?? 0m)).FirstOrDefaultAsync(cancellationToken);

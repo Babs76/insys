@@ -169,6 +169,13 @@ public interface IGeneralCodes
     /// </summary>
     Task<decimal?> FrequencyLoading(string productCode, string frequency, DateOnly day, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The loss codes in force for a line of business (BR-093): the perils of the line (general.ref_peril_codes.line), and
+    /// the loss causes of those perils (general.ref_loss_cause_codes.peril), each with its label, in code order.
+    /// </summary>
+    Task<(IReadOnlyList<(string Code, string Label)> Perils, IReadOnlyList<(string Code, string Peril, string Label)> Causes)> LossCodes(string line, DateOnly day,
+        CancellationToken cancellationToken);
+
     /// <summary>The policy number prefix (general.cfg_policy_numbering_schemes, product line General).</summary>
     Task<string?> PolicyNumberPrefix(DateOnly day, CancellationToken cancellationToken);
 

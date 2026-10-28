@@ -91,7 +91,8 @@ internal static class GeneralFunctions
             .Functions,
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
         .Screen("CUSTOMER_PORTAL_GENERAL_POLICIES", "CUSTOMER_PORTAL", "Policies", "portal/general/policies", "PortalGeneralListPolicies", "PortalGeneralGetPolicy")
-        .Screen("CUSTOMER_PORTAL_GENERAL_CLAIMS", "CUSTOMER_PORTAL", "Claims", "portal/general/claims", "PortalGeneralListClaims", "PortalGeneralGetClaim")
+        .Screen("CUSTOMER_PORTAL_GENERAL_CLAIMS", "CUSTOMER_PORTAL", "Claims", "portal/general/claims", "PortalGeneralListClaims", "PortalGeneralGetClaim",
+            "PortalGeneralListLossCodes")
         .Action("CUSTOMER_PORTAL_GENERAL_NOTIFY_LOSS", "CUSTOMER_PORTAL_GENERAL_CLAIMS", "PortalGeneralNotifyLoss")
             .Functions,
         .. new FunctionMap([Audiences.Broker], Features.BrokerPortal)
