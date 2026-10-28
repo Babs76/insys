@@ -4,6 +4,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### New: staff display names for user IDs (BR-021, decided)
+- **`POST /api/v1/identity/users/display-names`** (`IdentityLookupDisplayNames`) with `{ "ids": [...] }`, 1 to 100 IDs (422 otherwise), returns `[{ "id", "displayName" }]`:
+  - each ID that is a user of the caller's own tenant, active or not, with its display name;
+  - a platform operator's ID with the label `Platform operator`, never a personal name;
+  - any other ID left out, never an error.
+- **No function or permission:** any signed-in staff user may call it. Portal users are refused (403 `EXTERNAL_USER_NOT_ALLOWED`); their views show a role or team.
+- It changes nothing and takes no `Idempotency-Key`. Use it to show the people behind `requestedBy`, `decidedBy`, `approvedBy`, `makerId`, `checkerId`, `assigneeId` and the like.
+
 ### Riders: audit actors, the policy lifecycle and referrals, and asynchronous effects (BR-023, BR-037, BR-038)
 - **BR-023:** `AuditEventView.actorType` is an enum: `USER` (a person: staff, a platform operator or a portal user; `actorId` is their user ID) or `SERVICE` (INSYS itself: a job, an event consumer or an integration).
 - **BR-037 (decided by Ade):**

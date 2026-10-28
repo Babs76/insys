@@ -28940,6 +28940,66 @@
         "x-permission": "signed-in user"
       }
     },
+    "/api/v1/identity/users/display-names": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Display names for up to 100 user IDs, for showing who did what (BR-021)",
+        "description": "For any signed-in staff user, for their own tenant: each ID that is a user of the tenant (active or not) comes back with its display name, a platform operator\u0027s ID with \u0022Platform operator\u0022, and any other ID is left out. Changes nothing (no Idempotency-Key). Portal users cannot call it; their views show a role or team instead.",
+        "operationId": "IdentityLookupDisplayNames",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityDisplayNamesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentityDisplayNameView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "signed-in user"
+      }
+    },
     "/api/v1/identity/roles": {
       "get": {
         "tags": [
@@ -43004,6 +43064,40 @@
           "Rejected",
           "Revoked"
         ]
+      },
+      "IdentityDisplayNameView": {
+        "required": [
+          "id",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
+      "IdentityDisplayNamesRequest": {
+        "required": [
+          "ids"
+        ],
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
       },
       "IdentityExternalSubjectLinkView": {
         "required": [

@@ -67,6 +67,7 @@ public static class IdentityInfrastructure
         services.AddHealthChecks().AddCheck<JobFunctionsHealthCheck>("job-functions");
         services.AddSingleton<IPrincipalResolver, PrincipalResolver>();
         services.AddSingleton<Contracts.IUserRoleQuery, UserRoleQuery>();
+        services.AddSingleton<Application.Users.IDisplayNames, DisplayNames>(); // BR-021
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {
             // Registered first among Identity's hosted services, so a refused instance stops before any background work starts.

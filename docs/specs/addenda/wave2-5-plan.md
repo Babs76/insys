@@ -23,7 +23,7 @@
 | 14 | **BR-036** code lists for General and claims | Each listed free-string code gets an enum or `x-known-values`, or names its static data table. | A contract test: every General and claims code field declares its values or its table. | Small |
 | 15 | **BR-039** evidence and fraud schemas | Recording evidence gets its own schema (whether a document is required); `ClaimsEvaluateFraud` documents the facts each indicator reads. | The schema in the contract; evidence without a required document refused. | Small |
 | 16 | **Riders (group C):** BR-023, BR-030, BR-037, BR-038 | BR-023: `actorType` an enum. BR-030 and BR-037: the answers below, put into the domain model and the operations' descriptions. BR-038: `x-eventual-effects` on the assessor's appointment and on quote and endorsement rating; the policy view reports its Billing, Documents and Reinsurance effects' record IDs as they arrive. | Contract declarations; the transitions decided below. | Small |
-| 17 | **BR-021** staff display names | Only after sign-off of `wave2-3-proposals.md` §3 (sent separately). | As §3 decides. | Medium |
+| 17 | **BR-021** staff display names | `POST /identity/users/display-names`, as `wave2-3-proposals.md` §3 decided (signed off 28 October 2026). | A tenant's users named (disabled ones too), an operator labelled, others left out, portal users refused. | Medium |
 
 Every new write takes If-Match or Idempotency-Key as batch 4 made the rule (the concurrency sweep holds it). Every new read or function runs through `OperatorTenantTests` and `FunctionAccessTests`.
 

@@ -131,6 +131,17 @@ public sealed class IdentityModule : IModule
             .WithSummary("Set or clear the signed-in user's preferred language (a language in the register)")
             .RequireSignedInUser();
 
+        api.MapPost("/identity/users/display-names", async (DisplayNamesRequest request, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new LookupDisplayNames(request.Ids ?? []), ct)).ToHttp(names => Results.Ok(names)))
+            .Produces<IReadOnlyList<DisplayNameView>>(StatusCodes.Status200OK)
+            .WithTags(Name)
+            .WithName("IdentityLookupDisplayNames")
+            .WithSummary("Display names for up to 100 user IDs, for showing who did what (BR-021)")
+            .WithDescription("For any signed-in staff user, for their own tenant: each ID that is a user of the tenant (active or not) comes back with its "
+                + "display name, a platform operator's ID with \"Platform operator\", and any other ID is left out. Changes nothing (no Idempotency-Key). "
+                + "Portal users cannot call it; their views show a role or team instead.")
+            .RequireSignedInUser();
+
         api.MapGet("/identity/roles", async (IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new ListRoles(), ct)).ToHttp(roles => Results.Ok(roles)))
             .WithTags(Name)
@@ -544,3 +555,6 @@ public sealed class IdentityModule : IModule
 
 /// <param name="Retried">How many parked or failed identity creations were put back to be tried again.</param>
 public sealed record IdentityRetryView(int Retried);
+
+/// <param name="Ids">The user IDs to name: 1 to 100.</param>
+public sealed record DisplayNamesRequest(IReadOnlyList<Guid>? Ids);
