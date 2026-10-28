@@ -4,6 +4,13 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### New: forward links and missing fields on General and claims (BR-035)
+- **Links:** `GeneralQuoteView.proposalId` and `orgNodeCode`; `GeneralProposalView.policyId`; `GeneralPolicyView.quoteId` and `proposalId`. The reverse links (a quote's proposal, a proposal's policy, a policy's proposal) are filled on the read by ID and are null on lists and command responses; `orgNodeCode` and the policy's `quoteId` are always there.
+- **The claim:** `GeneralClaimView.lossDescription`, `decidedBy` and `decidedAt`; its `settlement` gains `requestedBy` and `bankAccountId` (beside `currency`).
+- **A payment instruction:** `ClaimsInstructionView.payeeName` (the payee party's name) and `maskedAccount` (`•••• 2345`, the account's last four; never the number), on its read and on the claim's instruction list.
+- **An aggregation alert:** `status`, `EXCEEDED` when the exposure was over the zone's maximum that day, else `ALERT`.
+- **Claim financials:** `currency` (BR-033) is null for a claim with no movement yet.
+
 ### New and breaking: lists for General and a claim register search (BR-034)
 Each is a `CursorPage` (`cursor`, `limit`), by ID, within the caller's product and branch scope (F103).
 - **`GET /api/v1/general/risk-objects`** (`GeneralListRiskObjects`): by `objectType`, `riskZone` and `policyId` (the risk objects a policy insures; only a policy in scope).

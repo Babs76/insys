@@ -244,7 +244,12 @@ internal sealed class ReinstatePolicyHandler(IGeneralRepository general, IExecut
 internal sealed class GetPolicyHandler(IGeneralRepository general) : IQueryHandler<GetPolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(GetPolicy query, CancellationToken cancellationToken) =>
-        await general.Policy(query.PolicyId, cancellationToken) is { } policy ? PolicyView.From(policy) : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
+        await general.Policy(query.PolicyId, cancellationToken) is { } policy
+            ? PolicyView.From(policy) with
+            {
+                ProposalId = policy.QuoteId is { } quote ? (await general.ProposalForQuote(quote, cancellationToken))?.Id : null, // BR-035
+            }
+            : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
 }
 
 internal sealed class DraftEndorsementHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate, IAuditTrail audit)

@@ -389,6 +389,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         alert.GetProperty("maxExposure").GetDecimal().ShouldBe(150_000m);
         alert.GetProperty("alertAtPct").GetDecimal().ShouldBe(80m);
         alert.GetProperty("percentUsed").GetDecimal().ShouldBe(133.33m);
+        alert.GetProperty("status").GetString().ShouldBe("EXCEEDED", "BR-035: over its maximum that day");
         alert.GetProperty("asAt").GetString().ShouldBe(Today.ToString("yyyy-MM-dd"));
         var zoneReference = alert.GetProperty("zoneReference").GetGuid();
         (await _maker.GetAsync($"/api/v1/general/aggregation-alerts/{alert.GetProperty("id").GetGuid()}")).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -865,11 +866,24 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/settlement", settlement)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         await Decide(GeneralApprovals.SettlementBusinessRefType, claim, approve: true);
-        (await Claim(claim)).GetProperty("status").GetString().ShouldBe("Approved");
+        var approvedClaim = await Claim(claim);
+        approvedClaim.GetProperty("status").GetString().ShouldBe("Approved");
+        // BR-035: the claim's loss description, who decided it and when, and the settlement's requester, account and currency.
+        approvedClaim.GetProperty("lossDescription").GetString().ShouldBe("Rear-ended at a robot");
+        approvedClaim.GetProperty("decidedBy").ValueKind.ShouldBe(JsonValueKind.String);
+        approvedClaim.GetProperty("decidedAt").ValueKind.ShouldBe(JsonValueKind.String);
+        var settled = approvedClaim.GetProperty("settlement");
+        settled.GetProperty("requestedBy").ValueKind.ShouldBe(JsonValueKind.String);
+        settled.GetProperty("bankAccountId").GetGuid().ShouldBe(firstAccount);
+        settled.GetProperty("currency").GetString().ShouldBe("ZAR");
         var instruction = await _db.ScalarAsOwner<Guid>("SELECT id FROM claims.claim_payment_instruction WHERE claim_number = @n", ("n", number));
         var instructed = await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).Json();
         instructed.GetProperty("status").GetString().ShouldBe("Released");
         instructed.GetProperty("amount").GetDecimal().ShouldBe(35_000m);
+        // BR-035: the payee by name and the account by its last four, masked; never the number.
+        instructed.GetProperty("payeeName").GetString()!.ShouldContain("Repairs");
+        instructed.GetProperty("maskedAccount").GetString().ShouldBe("•••• 2345");
+        instructed.ToString().ShouldNotContain("62 0001");
 
         // F062 §2: 35 000 of the coverage's 40 000 aggregate is used. A second loss on it settling 10 000 is refused.
         var secondClaim = await Created("/api/v1/general/claims", new
@@ -1093,6 +1107,14 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsync($"/api/v1/general/proposals/{proposal}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var policy = await Created("/api/v1/general/policies", new { quoteId = quote, billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER" });
+
+        // BR-035: the forward and back links from quote to proposal to policy, and the quote's node.
+        var quoted = await (await _maker.GetAsync($"/api/v1/general/quotes/{quote}")).Json();
+        quoted.GetProperty("proposalId").GetGuid().ShouldBe(proposal);
+        (quoted.GetProperty("orgNodeCode").ValueKind == JsonValueKind.Null ? null : quoted.GetProperty("orgNodeCode").GetString()).ShouldBe(orgNodeCode);
+        (await (await _maker.GetAsync($"/api/v1/general/proposals/{proposal}")).Json()).GetProperty("policyId").GetGuid().ShouldBe(policy);
+        var linked = await Policy(policy);
+        (linked.GetProperty("quoteId").GetGuid(), linked.GetProperty("proposalId").GetGuid()).ShouldBe((quote, proposal));
         if (product != Product)
         {
             return (policy, vehicle);

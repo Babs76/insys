@@ -33774,7 +33774,10 @@
             }
           },
           "currency": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -34016,6 +34019,18 @@
             ],
             "format": "int64",
             "default": 0
+          },
+          "maskedAccount": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "payeeName": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -37825,6 +37840,17 @@
           "zoneReference": {
             "type": "string",
             "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "ALERT",
+              "EXCEEDED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -38215,6 +38241,26 @@
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
             ]
+          },
+          "lossDescription": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -38926,6 +38972,20 @@
               "string"
             ],
             "format": "int64"
+          },
+          "quoteId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "proposalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -39317,6 +39377,13 @@
               "string"
             ],
             "format": "int64"
+          },
+          "policyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -39520,6 +39587,19 @@
               "string"
             ],
             "format": "int64"
+          },
+          "orgNodeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "proposalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -40161,6 +40241,20 @@
               "string"
             ],
             "format": "double"
+          },
+          "requestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "bankAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

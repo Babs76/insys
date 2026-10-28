@@ -151,6 +151,9 @@ public interface IPartyDirectory
 
     /// <summary>The party a merged party was merged into (PTY-004), for example a portal registration linked after review (§6); null if it was not merged.</summary>
     Task<Guid?> MergedInto(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
+
+    /// <summary>The party's display name, for naming a payee to staff (BR-035); null for an unknown party.</summary>
+    Task<string?> DisplayName(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
 }
 
 public interface IPersonFacts

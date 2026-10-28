@@ -400,7 +400,9 @@ internal sealed class DecideReferralHandler(IGeneralRepository general, IGeneral
 internal sealed class GetQuoteHandler(IGeneralRepository general) : IQueryHandler<GetQuote, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(GetQuote query, CancellationToken cancellationToken) =>
-        await general.Quote(query.QuoteId, cancellationToken) is { } quote ? QuoteView.From(quote) : Error.NotFound(ErrorCodes.NotFound, "The quote was not found.");
+        await general.Quote(query.QuoteId, cancellationToken) is { } quote
+            ? QuoteView.From(quote) with { ProposalId = (await general.ProposalForQuote(quote.Id, cancellationToken))?.Id } // BR-035
+            : Error.NotFound(ErrorCodes.NotFound, "The quote was not found.");
 }
 
 internal sealed class SubmitProposalHandler(IGeneralRepository general, IClock clock) : ICommandHandler<SubmitProposal, ProposalView>
@@ -450,5 +452,7 @@ internal sealed class AcceptProposalHandler(IGeneralRepository general) : IComma
 internal sealed class GetProposalHandler(IGeneralRepository general) : IQueryHandler<GetProposal, ProposalView>
 {
     public async Task<Result<ProposalView>> Handle(GetProposal query, CancellationToken cancellationToken) =>
-        await general.Proposal(query.ProposalId, cancellationToken) is { } proposal ? ProposalView.From(proposal) : Error.NotFound(ErrorCodes.NotFound, "The proposal was not found.");
+        await general.Proposal(query.ProposalId, cancellationToken) is { } proposal
+            ? ProposalView.From(proposal) with { PolicyId = (await general.PolicyFromQuote(proposal.QuoteId, cancellationToken))?.Id } // BR-035
+            : Error.NotFound(ErrorCodes.NotFound, "The proposal was not found.");
 }

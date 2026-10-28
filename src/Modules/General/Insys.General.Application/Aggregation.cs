@@ -71,6 +71,17 @@ public sealed class AggregationOptions
 public sealed record AggregationAlertView(Guid Id, string Zone, string Peril, string Currency, decimal Exposure, decimal MaxExposure, decimal AlertAtPct,
     decimal PercentUsed, DateOnly AsAt, DateTimeOffset RaisedAt, Guid ZoneReference)
 {
+    public const string Alert = "ALERT";
+
+    public const string Exceeded = "EXCEEDED";
+
+    /// <summary>
+    /// BR-035: EXCEEDED when the exposure was over the zone's maximum that day, else ALERT (at or above its alert level). An
+    /// alert is the record of one day, so its status is what it was on that day.
+    /// </summary>
+    [OneOf(Alert, Exceeded)]
+    public string Status => Exposure > MaxExposure ? Exceeded : Alert;
+
     public static AggregationAlertView Raise(Guid id, string zone, string peril, string currency, decimal exposure, decimal maxExposure, decimal alertAt,
         DateOnly asAt, DateTimeOffset now) =>
         new(id, zone, peril, currency, exposure, maxExposure, Math.Round(alertAt * 100m, 2), Math.Round(exposure / maxExposure * 100m, 2), asAt, now,

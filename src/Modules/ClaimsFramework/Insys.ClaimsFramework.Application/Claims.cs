@@ -100,23 +100,37 @@ public sealed record ClaimView(Guid Id, string ClaimNumber, string Domain, Guid 
 public sealed record MovementView(Guid Id, string MovementType, string ReserveType, decimal Amount, string Currency, DateTimeOffset MovementAt);
 
 /// <param name="OutstandingReserves">Each reserve type's outstanding amount, in <paramref name="Currency"/>.</param>
-/// <param name="Currency">The claim's currency (BR-033): of every movement and every outstanding reserve.</param>
-public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementView> Movements, IReadOnlyDictionary<string, decimal> OutstandingReserves, string Currency)
+/// <param name="Currency">The claim's currency (BR-033): of every movement and every outstanding reserve; null until the first movement.</param>
+public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementView> Movements, IReadOnlyDictionary<string, decimal> OutstandingReserves, string? Currency)
 {
     public static FinancialsView From(ClaimFinancials f) => new(f.ClaimNumber,
         f.Movements.OrderBy(m => m.MovementAt).ThenBy(m => m.Id).Select(m => new MovementView(m.Id, m.MovementType.ToString(), m.ReserveType, m.Amount, m.Currency, m.MovementAt)).ToList(),
-        f.Movements.Select(m => m.ReserveType).Distinct().ToDictionary(t => t, f.Outstanding), f.Currency);
+        f.Movements.Select(m => m.ReserveType).Distinct().ToDictionary(t => t, f.Outstanding), f.Currency is { Length: > 0 } currency ? currency : null);
 }
 
 public sealed record InstructionView(Guid Id, string ClaimNumber, string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency,
     string ReserveType, InstructionStatus Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId, string? PayeeBankHash, Guid? PendingPayeePartyId,
     Guid? PendingBankAccountId,
     [property: OneOf("RESERVE_BELOW_ZERO", "PAYEE_ACCOUNT_CHANGED")] string? HeldReason = null, string? HeldDetail = null, DateTimeOffset? HeldAt = null,
-    LatestRejection? LatestRejection = null, long RowVersion = 0)
+    LatestRejection? LatestRejection = null, long RowVersion = 0, string? MaskedAccount = null, string? PayeeName = null)
 {
     public static InstructionView From(ClaimPaymentInstruction i) => new(i.Id, i.ClaimNumber, i.InstructionRef, i.PayeePartyId, i.Amount, i.ApprovedAmount, i.Currency,
         i.ReserveType, i.Status, i.ApprovalId, i.PaymentId, i.Attempt, i.BankAccountId, i.PayeeBankHash, i.PendingPayeePartyId, i.PendingBankAccountId, i.HeldReason,
         i.HeldDetail, i.HeldAt, null, i.RowVersion);
+
+    /// <summary>
+    /// The view with the payee's name and the account's last four, masked ("•••• 1234"), read from Party on the instruction's
+    /// reads (BR-035); never the number.
+    /// </summary>
+    public static async Task<InstructionView> WithPayee(InstructionView view, Guid tenantId, IBankAccounts accounts, IPartyDirectory parties,
+        CancellationToken cancellationToken) =>
+        view with
+        {
+            PayeeName = await parties.DisplayName(tenantId, view.PayeePartyId, cancellationToken),
+            MaskedAccount = view.BankAccountId is { } account && await accounts.Get(tenantId, account, cancellationToken) is { Last4: { Length: > 0 } last4 }
+                ? $"•••• {last4}"
+                : null,
+        };
 }
 
 /// <summary>Command AllocateClaimNumber; a repeat for the same domain claim returns the same number (CLM-005).</summary>
@@ -611,20 +625,35 @@ internal sealed class GetFinancialsHandler(IClaimsRepository claims) : IQueryHan
     }
 }
 
-internal sealed class ListInstructionsHandler(IClaimsRepository claims) : IQueryHandler<ListInstructions, IReadOnlyList<InstructionView>>
+internal sealed class ListInstructionsHandler(IClaimsRepository claims, IBankAccounts accounts, IPartyDirectory parties, ITenantContext tenant)
+    : IQueryHandler<ListInstructions, IReadOnlyList<InstructionView>>
 {
-    public async Task<Result<IReadOnlyList<InstructionView>>> Handle(ListInstructions query, CancellationToken cancellationToken) =>
-        await claims.ByNumber(query.ClaimNumber, cancellationToken) is null
-            ? Error.NotFound(ErrorCodes.NotFound, "The claim was not found.")
-            : Result.Success<IReadOnlyList<InstructionView>>((await claims.Instructions(query.ClaimNumber, cancellationToken)).Select(InstructionView.From).ToList());
+    public async Task<Result<IReadOnlyList<InstructionView>>> Handle(ListInstructions query, CancellationToken cancellationToken)
+    {
+        if (await claims.ByNumber(query.ClaimNumber, cancellationToken) is null)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
+        }
+
+        var views = new List<InstructionView>();
+        foreach (var instruction in await claims.Instructions(query.ClaimNumber, cancellationToken))
+        {
+            views.Add(await InstructionView.WithPayee(InstructionView.From(instruction), tenant.RequireTenantId(), accounts, parties, cancellationToken));
+        }
+
+        return views;
+    }
 }
 
-internal sealed class GetInstructionHandler(IClaimsRepository claims, IApprovalHistory approvals) : IQueryHandler<GetInstruction, InstructionView>
+internal sealed class GetInstructionHandler(IClaimsRepository claims, IApprovalHistory approvals, IBankAccounts accounts, IPartyDirectory parties, ITenantContext tenant)
+    : IQueryHandler<GetInstruction, InstructionView>
 {
     /// <summary>The instruction, with how its latest approval (of it or of new payee details) ended without being granted, if one did (OQ-113).</summary>
     public async Task<Result<InstructionView>> Handle(GetInstruction query, CancellationToken cancellationToken) =>
         await claims.Instruction(query.InstructionId, cancellationToken) is { } i
-            ? InstructionView.From(i) with { LatestRejection = await approvals.Latest(ClaimsApprovals.InstructionBusinessRefType, i.Id, cancellationToken) }
+            ? await InstructionView.WithPayee(
+                InstructionView.From(i) with { LatestRejection = await approvals.Latest(ClaimsApprovals.InstructionBusinessRefType, i.Id, cancellationToken) },
+                tenant.RequireTenantId(), accounts, parties, cancellationToken)
             : Error.NotFound(ErrorCodes.NotFound, "The payment instruction was not found.");
 }
 
