@@ -29189,24 +29189,62 @@
         "tags": [
           "Reinsurance"
         ],
-        "summary": "A policy\u0027s cessions, superseded ones included, with the treaty, rule and gross amounts they were calculated from (REI-001, REI-002)",
+        "summary": "Cessions, superseded ones included, with the treaty, rule and gross amounts they were calculated from (REI-001, REI-002), oldest first",
+        "description": "A policy\u0027s (sourceDomain and policyRef together), a treaty\u0027s, or those calculated in a month (periodCode yyyy-MM), as a cursor page (BR-048; was a policy\u0027s array).",
         "operationId": "ReinsuranceListCessions",
         "parameters": [
           {
             "name": "sourceDomain",
             "in": "query",
-            "required": true,
+            "description": "The policy\u0027s domain.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "GENERAL",
+              "LIFE",
+              "HEALTH"
+            ]
+          },
+          {
+            "name": "policyRef",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "treatyCode",
+            "in": "query",
             "schema": {
               "type": "string"
             }
           },
           {
-            "name": "policyRef",
+            "name": "periodCode",
             "in": "query",
-            "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
             }
           }
         ],
@@ -29216,10 +29254,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ReinsuranceCessionView"
-                  }
+                  "$ref": "#/components/schemas/CursorPageOfReinsuranceCessionView"
                 }
               }
             }
@@ -29251,7 +29286,7 @@
         "tags": [
           "Reinsurance"
         ],
-        "summary": "Recoveries, by claim or status, with cursor pagination",
+        "summary": "Recoveries, by claim or status, oldest first, as a cursor page (BR-049; was an array with \u0060after\u0060)",
         "operationId": "ReinsuranceListRecoveries",
         "parameters": [
           {
@@ -29269,11 +29304,10 @@
             }
           },
           {
-            "name": "after",
+            "name": "cursor",
             "in": "query",
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             }
           },
           {
@@ -29295,10 +29329,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ReinsuranceRecoveryView"
-                  }
+                  "$ref": "#/components/schemas/CursorPageOfReinsuranceRecoveryView"
                 }
               }
             }
@@ -29346,6 +29377,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29403,6 +29442,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29476,6 +29523,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29538,6 +29593,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29575,6 +29638,143 @@
         "x-function": [
           "REINSURANCE_PREPARE_BORDEREAU"
         ]
+      },
+      "get": {
+        "tags": [
+          "Reinsurance"
+        ],
+        "summary": "Bordereaux by treaty, period and status, oldest first (BR-047)",
+        "operationId": "ReinsuranceListBordereaux",
+        "parameters": [
+          {
+            "name": "treatyCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "periodCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ReinsuranceBordereauStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfReinsuranceBordereauView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "bordereau.read",
+        "x-function": [
+          "REINSURANCE_BORDEREAUX"
+        ]
+      }
+    },
+    "/api/v1/reinsurance/bordereaux/{id}/content": {
+      "get": {
+        "tags": [
+          "Reinsurance"
+        ],
+        "summary": "The bordereau as a CSV file, named bordereau-{treaty}-{period}.csv (BR-047)",
+        "operationId": "ReinsuranceGetBordereauContent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "bordereau.read",
+        "x-function": [
+          "REINSURANCE_BORDEREAUX"
+        ]
       }
     },
     "/api/v1/reinsurance/bordereaux/{id}": {
@@ -29598,6 +29798,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29655,6 +29863,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -29718,6 +29934,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -38769,6 +38993,69 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RatingCalculationView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfReinsuranceBordereauView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReinsuranceBordereauView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfReinsuranceCessionView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReinsuranceCessionView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfReinsuranceRecoveryView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReinsuranceRecoveryView"
             }
           },
           "nextCursor": {
@@ -53670,6 +53957,10 @@
               "string"
             ],
             "format": "int64"
+          },
+          "fileName": {
+            "type": "string",
+            "default": ""
           }
         }
       },
@@ -53720,6 +54011,11 @@
             ]
           },
           "sourceType": {
+            "enum": [
+              "GENERAL_POLICY",
+              "LIFE_POLICY",
+              "HEALTH_POLICY"
+            ],
             "type": "string"
           },
           "policyRef": {
@@ -53859,6 +54155,11 @@
             "format": "uuid"
           },
           "sourceDomain": {
+            "enum": [
+              "GENERAL",
+              "LIFE",
+              "HEALTH"
+            ],
             "type": "string"
           },
           "policyRef": {
@@ -53936,6 +54237,20 @@
               "string"
             ],
             "format": "int64"
+          },
+          "billedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "settledBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

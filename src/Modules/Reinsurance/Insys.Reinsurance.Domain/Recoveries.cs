@@ -92,6 +92,11 @@ public sealed class ReinsuranceRecovery : AggregateRoot<Guid>
 
     public DateOnly? SettledOn { get; private set; }
 
+    /// <summary>Who billed the recovery, and who recorded its settlement (BR-049); null when a job did, or before V0087.</summary>
+    public Guid? BilledBy { get; private set; }
+
+    public Guid? SettledBy { get; private set; }
+
     /// <summary>What the reinsurer settled less what was recoverable; zero when reconciled, null until settled.</summary>
     public decimal? Difference => SettledAmount - Recoverable;
 
@@ -124,12 +129,13 @@ public sealed class ReinsuranceRecovery : AggregateRoot<Guid>
     }
 
     /// <summary>Command BillRecovery: sent to the reinsurer; Finance posts the recoverable.</summary>
-    public Result BillRecovery(DateOnly on, DateTimeOffset now)
+    public Result BillRecovery(DateOnly on, DateTimeOffset now, Guid? by = null)
     {
         var result = Fire(RecoveryTrigger.BillRecovery);
         if (result.IsSuccess)
         {
             BilledOn = on;
+            BilledBy = by;
             Raise(new RecoveryBilled(Id, ClaimNumber, TreatyCode, SourceDomain, Recoverable, Currency, on, now));
         }
 
@@ -137,7 +143,7 @@ public sealed class ReinsuranceRecovery : AggregateRoot<Guid>
     }
 
     /// <summary>Command SettleRecovery: what the reinsurer paid, which may differ from the recoverable (kept for reconciliation).</summary>
-    public Result SettleRecovery(decimal amount, DateOnly on, DateTimeOffset now)
+    public Result SettleRecovery(decimal amount, DateOnly on, DateTimeOffset now, Guid? by = null)
     {
         if (amount < 0 || decimal.Round(amount, 2) != amount)
         {
@@ -149,6 +155,7 @@ public sealed class ReinsuranceRecovery : AggregateRoot<Guid>
         {
             SettledAmount = amount;
             SettledOn = on;
+            SettledBy = by;
             Raise(new RecoverySettled(Id, ClaimNumber, TreatyCode, SourceDomain, Recoverable, amount, Currency, on, now));
         }
 

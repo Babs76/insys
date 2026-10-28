@@ -38,7 +38,8 @@ internal static class ReinsuranceFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], Features.Reinsurance)
-        .Screen("REINSURANCE_BORDEREAUX", "REINSURANCE", "Bordereaux", "reinsurance/bordereaux", "ReinsuranceGetBordereau")
+        .Screen("REINSURANCE_BORDEREAUX", "REINSURANCE", "Bordereaux", "reinsurance/bordereaux", "ReinsuranceListBordereaux", "ReinsuranceGetBordereau",
+            "ReinsuranceGetBordereauContent")
         .Action("REINSURANCE_PREPARE_BORDEREAU", "REINSURANCE_BORDEREAUX", "ReinsurancePrepareBordereau")
         .Action("REINSURANCE_SEND_BORDEREAU", "REINSURANCE_BORDEREAUX", "ReinsuranceSendBordereau")
         .Action("REINSURANCE_AGREE_BORDEREAU", "REINSURANCE_BORDEREAUX", "ReinsuranceAgreeBordereau")

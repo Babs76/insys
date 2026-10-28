@@ -69,6 +69,62 @@ internal sealed class ReinsuranceRepository(ReinsuranceDbContext db) : IReinsura
         db.ChangeTracker.Entries<ReinsuranceRecovery>().Select(e => e.Entity).FirstOrDefault(r => r.ClaimNumber == claimNumber && r.TreatyCode == treatyCode)
         ?? await db.Recoveries.SingleOrDefaultAsync(r => r.ClaimNumber == claimNumber && r.TreatyCode == treatyCode, cancellationToken);
 
+    public async Task<IReadOnlyList<Cession>> Cessions(CessionSearch search, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var query = db.Cessions.AsNoTracking();
+        if (search.SourceDomain is { } domain && search.PolicyRef is { } policy)
+        {
+            var sourceType = Cession.SourceTypeOf(domain);
+            query = query.Where(c => c.SourceType == sourceType && c.SourceId == policy);
+        }
+
+        if (search.TreatyCode is { } treaty)
+        {
+            query = query.Where(c => c.TreatyCode == treaty);
+        }
+
+        if (search.PeriodCode is { } period && DateOnly.TryParseExact(period + "-01", "yyyy-MM-dd", out var first))
+        {
+            var start = new DateTimeOffset(first.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            var end = start.AddMonths(1);
+            query = query.Where(c => c.CalculatedAt >= start && c.CalculatedAt < end);
+        }
+
+        if (afterId is { } after)
+        {
+            query = query.Where(c => c.Id.CompareTo(after) > 0);
+        }
+
+        return await query.OrderBy(c => c.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Bordereau>> Bordereaux(string? treatyCode, string? periodCode, BordereauStatus? status, Guid? afterId, int limit,
+        CancellationToken cancellationToken)
+    {
+        var query = db.Bordereaux.AsNoTracking();
+        if (treatyCode is not null)
+        {
+            query = query.Where(b => b.TreatyCode == treatyCode);
+        }
+
+        if (periodCode is not null)
+        {
+            query = query.Where(b => b.PeriodCode == periodCode);
+        }
+
+        if (status is { } s)
+        {
+            query = query.Where(b => b.Status == s);
+        }
+
+        if (afterId is { } after)
+        {
+            query = query.Where(b => b.Id.CompareTo(after) > 0);
+        }
+
+        return await query.OrderBy(b => b.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ReinsuranceRecovery>> Recoveries(string? claimNumber, RecoveryStatus? status, Guid? afterId, int limit,
         CancellationToken cancellationToken)
     {

@@ -266,7 +266,15 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         var policy = await IssuedPolicy(vehicle);
 
         // CalculateCession (REI-001, REI-002): 70 % of the 100 000 sum insured and of the 3 050 premium, with the versions it came from.
-        var cession = (await (await _maker.GetAsync($"/api/v1/reinsurance/cessions?sourceDomain=GENERAL&policyRef={policy}")).Json()).EnumerateArray().Single();
+        var cession = (await (await _maker.GetAsync($"/api/v1/reinsurance/cessions?sourceDomain=GENERAL&policyRef={policy}")).Json()).GetProperty("items").EnumerateArray().Single();
+        cession.GetProperty("sourceType").GetString().ShouldBe("GENERAL_POLICY");
+
+        // BR-048: the cession is found by treaty and by the month it was calculated in.
+        (await Get($"/api/v1/reinsurance/cessions?treatyCode=QS-1&limit=200")).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid())
+            .ShouldContain(cession.GetProperty("id").GetGuid());
+        (await Get($"/api/v1/reinsurance/cessions?periodCode={Month}&limit=200")).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid())
+            .ShouldContain(cession.GetProperty("id").GetGuid());
+        (await (await _maker.GetAsync($"/api/v1/reinsurance/cessions?sourceDomain=GENERAL")).Code()).ShouldBe("VALIDATION_FAILED");
         (cession.GetProperty("cededSumInsured").GetDecimal(), cession.GetProperty("cededPremium").GetDecimal(), cession.GetProperty("ruleCode").GetString(),
             cession.GetProperty("treatyVersion").GetInt32()).ShouldBe((70_000m, 2_135m, "CR-1", 1));
         (await Journals("CESSION", cession.GetProperty("id").GetGuid())).Count.ShouldBe(1);
@@ -369,6 +377,14 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         (prepared.GetProperty("rowCount").GetInt32(), prepared.GetProperty("content").GetString()).ShouldBe((1, $"policy_ref,ceded_sum_insured,ceded_premium\n{policy},70000.00,2135.00\n"));
         (await (await _maker.Send(HttpMethod.Post, "/api/v1/reinsurance/bordereaux", new { layoutCode = "BX-QS1", periodCode = Month }, idempotent: true)).Code())
             .ShouldBe("RI_BORDEREAU_EXISTS");
+
+        // BR-047: listed by treaty, period and status, and downloaded as a named CSV file.
+        var fileName = $"bordereau-qs-1-{Month}.csv";
+        var listedBordereau = (await Get($"/api/v1/reinsurance/bordereaux?treatyCode=QS-1&periodCode={Month}&status=Prepared")).GetProperty("items").EnumerateArray().Single();
+        (listedBordereau.GetProperty("id").GetGuid(), listedBordereau.GetProperty("fileName").GetString()).ShouldBe((bordereau, fileName));
+        var file = await _maker.GetAsync($"/api/v1/reinsurance/bordereaux/{bordereau}/content");
+        (file.Content.Headers.ContentType!.MediaType, file.Content.Headers.ContentDisposition!.FileName?.Trim('"')).ShouldBe(("text/csv", fileName));
+        (await file.Content.ReadAsStringAsync()).ShouldBe(prepared.GetProperty("content").GetString());
         (await (await _maker.PostAsync($"/api/v1/reinsurance/bordereaux/{bordereau}/send", null)).Json()).GetProperty("status").GetString().ShouldBe("Sent");
         (await (await _maker.PostAsync($"/api/v1/reinsurance/bordereaux/{bordereau}/agree", null)).Json()).GetProperty("status").GetString().ShouldBe("Agreed");
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.external_call_log WHERE operation = 'reinsurance.SendBordereau' AND partner_code = 'RE-1'"))
@@ -434,7 +450,8 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         await PayOut(PaymentPurposes.ClaimPayout, instruction);
         (await Get($"/api/v1/general/claims/{claim}")).GetProperty("status").GetString().ShouldBe("Settled");
 
-        var recovery = (await (await _maker.GetAsync($"/api/v1/reinsurance/recoveries?claimNumber={number}")).Json()).EnumerateArray().Single();
+        var recovery = (await (await _maker.GetAsync($"/api/v1/reinsurance/recoveries?claimNumber={number}")).Json()).GetProperty("items").EnumerateArray().Single();
+        recovery.GetProperty("billedBy").ValueKind.ShouldBe(JsonValueKind.Null, "billed automatically when identified");
         (recovery.GetProperty("treatyCode").GetString(), recovery.GetProperty("paidAmount").GetDecimal(), recovery.GetProperty("recoverable").GetDecimal(),
             recovery.GetProperty("status").GetString(), recovery.GetProperty("policyRef").GetGuid()).ShouldBe(("QS-1", 35_000m, 24_500m, "Billed", policy));
 
@@ -442,6 +459,9 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         var recoveryId = recovery.GetProperty("id").GetGuid();
         var settled = await (await _maker.PostAsJsonAsync($"/api/v1/reinsurance/recoveries/{recoveryId}/settle", new { amount = 24_000m, settledOn = Today })).Json();
         (settled.GetProperty("status").GetString(), settled.GetProperty("difference").GetDecimal()).ShouldBe(("Settled", -500m));
+        // BR-049: who recorded the settlement.
+        settled.GetProperty("settledBy").GetGuid()
+            .ShouldBe(await _db.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = 'underwriter'", ("t", Tenant)));
         await _factory.DrainOutbox();
         (await Journals("RI_RECOVERY", recoveryId)).Count.ShouldBe(2);
     }

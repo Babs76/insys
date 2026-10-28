@@ -56,6 +56,12 @@ public interface IReinsuranceRepository
 
     Task<IReadOnlyList<ReinsuranceRecovery>> Recoveries(string? claimNumber, RecoveryStatus? status, Guid? afterId, int limit, CancellationToken cancellationToken);
 
+    /// <summary>BR-048: cessions by policy, treaty or the month they were calculated in, by ID after <paramref name="afterId"/>.</summary>
+    Task<IReadOnlyList<Cession>> Cessions(CessionSearch search, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>BR-047: bordereaux by treaty, period and status, by ID after <paramref name="afterId"/>.</summary>
+    Task<IReadOnlyList<Bordereau>> Bordereaux(string? treatyCode, string? periodCode, BordereauStatus? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
     Task<Bordereau?> Bordereau(Guid id, CancellationToken cancellationToken);
 
     Task<Bordereau?> Bordereau(string treatyCode, string periodCode, CancellationToken cancellationToken);
@@ -81,7 +87,12 @@ public interface IReinsuranceCodes
     Task<BordereauLayout?> Layout(string layoutCode, DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record CessionView(Guid Id, string TreatyCode, int? TreatyVersion, string? ArrangementCode, string SourceType, Guid PolicyRef, string ProductCode,
+/// <summary>A search of cessions (BR-048): a policy's (sourceDomain and policyRef together), a treaty's, or those calculated in a month; each optional.</summary>
+public sealed record CessionSearch(string? SourceDomain, Guid? PolicyRef, string? TreatyCode, string? PeriodCode);
+
+/// <param name="SourceType">The kind of record ceded: a policy of the domain (BR-048).</param>
+public sealed record CessionView(Guid Id, string TreatyCode, int? TreatyVersion, string? ArrangementCode,
+    [property: OneOf("GENERAL_POLICY", "LIFE_POLICY", "HEALTH_POLICY")] string SourceType, Guid PolicyRef, string ProductCode,
     DateOnly PeriodStart, DateOnly PeriodEnd, decimal GrossSumInsured, decimal GrossPremium, decimal CededShare, decimal CededSumInsured, decimal CededPremium,
     string Currency, string RuleCode, int RuleVersion, DateTimeOffset CalculatedAt, Guid? SupersedesId)
 {
@@ -90,21 +101,40 @@ public sealed record CessionView(Guid Id, string TreatyCode, int? TreatyVersion,
         c.SupersedesId);
 }
 
-public sealed record RecoveryView(Guid Id, string ClaimNumber, Guid ClaimId, string SourceDomain, Guid PolicyRef, string TreatyCode, Guid? CessionId, decimal PaidAmount,
-    decimal Recoverable, string Currency, RecoveryStatus Status, DateOnly? BilledOn, decimal? SettledAmount, DateOnly? SettledOn, decimal? Difference, long RowVersion)
+/// <param name="BilledBy">The user who billed it (BR-049); null when billed automatically when identified.</param>
+/// <param name="SettledBy">The user who recorded the reinsurer's settlement (BR-049).</param>
+public sealed record RecoveryView(Guid Id, string ClaimNumber, Guid ClaimId, [property: OneOf("GENERAL", "LIFE", "HEALTH")] string SourceDomain, Guid PolicyRef,
+    string TreatyCode, Guid? CessionId, decimal PaidAmount, decimal Recoverable, string Currency, RecoveryStatus Status, DateOnly? BilledOn, decimal? SettledAmount,
+    DateOnly? SettledOn, decimal? Difference, long RowVersion, Guid? BilledBy = null, Guid? SettledBy = null)
 {
     public static RecoveryView From(ReinsuranceRecovery r) => new(r.Id, r.ClaimNumber, r.ClaimId, r.SourceDomain, r.PolicyRef, r.TreatyCode, r.CessionId, r.PaidAmount,
-        r.Recoverable, r.Currency, r.Status, r.BilledOn, r.SettledAmount, r.SettledOn, r.Difference, r.RowVersion);
+        r.Recoverable, r.Currency, r.Status, r.BilledOn, r.SettledAmount, r.SettledOn, r.Difference, r.RowVersion, r.BilledBy, r.SettledBy);
 }
 
+/// <param name="FileName">The name the content is downloaded under (BR-047): bordereau-{treaty}-{period}.csv.</param>
 public sealed record BordereauView(Guid Id, string TreatyCode, string PeriodCode, string LayoutCode, int RowCount, BordereauStatus Status, string Content, string? PartnerRef,
-    long RowVersion)
+    long RowVersion, string FileName = "")
 {
     public static BordereauView From(Bordereau b) => new(b.Id, b.TreatyCode, b.PeriodCode, b.LayoutCode, b.RowCount, b.Status, b.Content, b.PartnerRef,
-        b.RowVersion);
+        b.RowVersion, FileNameOf(b));
+
+    public static string FileNameOf(Bordereau b) => $"bordereau-{b.TreatyCode}-{b.PeriodCode}.csv".ToLowerInvariant();
 }
 
-public sealed record ListCessions(Guid PolicyRef, string SourceDomain) : IQuery<IReadOnlyList<CessionView>>;
+public sealed record ListCessions(CessionSearch Search, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<CessionView>>;
+
+/// <summary>BR-047: bordereaux by treaty, period and status, oldest first.</summary>
+public sealed record ListBordereaux(string? TreatyCode, string? PeriodCode, BordereauStatus? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<BordereauView>>;
+
+public sealed class ListCessionsValidator : AbstractValidator<ListCessions>
+{
+    public ListCessionsValidator()
+    {
+        RuleFor(q => q.Search).Must(s => (s.SourceDomain is null) == (s.PolicyRef is null)).WithMessage("sourceDomain and policyRef are given together, or neither.");
+        RuleFor(q => q.Search.SourceDomain).Must(d => d is null or "GENERAL" or "LIFE" or "HEALTH").WithMessage("sourceDomain is GENERAL, LIFE or HEALTH.");
+        RuleFor(q => q.Search.PeriodCode).Matches(@"^\d{4}-\d{2}$").When(q => q.Search.PeriodCode is not null).WithMessage("periodCode is yyyy-MM.");
+    }
+}
 
 public sealed record GetRecovery(Guid RecoveryId) : IQuery<RecoveryView>;
 
@@ -143,10 +173,14 @@ internal sealed class ReinsuranceQueries(IReinsuranceRepository repository) :
     IQueryHandler<ListCessions, IReadOnlyList<CessionView>>,
     IQueryHandler<GetRecovery, RecoveryView>,
     IQueryHandler<ListRecoveries, IReadOnlyList<RecoveryView>>,
-    IQueryHandler<GetBordereau, BordereauView>
+    IQueryHandler<GetBordereau, BordereauView>,
+    IQueryHandler<ListBordereaux, IReadOnlyList<BordereauView>>
 {
     public async Task<Result<IReadOnlyList<CessionView>>> Handle(ListCessions query, CancellationToken cancellationToken) =>
-        (await repository.CessionsFor(Cession.SourceTypeOf(query.SourceDomain), query.PolicyRef, cancellationToken)).Select(CessionView.From).ToList();
+        (await repository.Cessions(query.Search, query.AfterId, query.Limit, cancellationToken)).Select(CessionView.From).ToList();
+
+    public async Task<Result<IReadOnlyList<BordereauView>>> Handle(ListBordereaux query, CancellationToken cancellationToken) =>
+        (await repository.Bordereaux(query.TreatyCode, query.PeriodCode, query.Status, query.AfterId, query.Limit, cancellationToken)).Select(BordereauView.From).ToList();
 
     public async Task<Result<RecoveryView>> Handle(GetRecovery query, CancellationToken cancellationToken) =>
         await repository.Recovery(query.RecoveryId, cancellationToken) is { } r ? RecoveryView.From(r) : Error.NotFound(ErrorCodes.NotFound, "The recovery was not found.");
@@ -159,7 +193,7 @@ internal sealed class ReinsuranceQueries(IReinsuranceRepository repository) :
 }
 
 internal sealed class RecoveryHandlers(IReinsuranceRepository repository, IReinsuranceCodes codes, IReinsurerAdapter reinsurers, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
-    IAuditTrail audit) :
+    IAuditTrail audit, IExecutionContext execution) :
     ICommandHandler<BillRecovery, RecoveryView>,
     ICommandHandler<SettleRecovery, RecoveryView>
 {
@@ -171,7 +205,7 @@ internal sealed class RecoveryHandlers(IReinsuranceRepository repository, IReins
         }
 
         audit.Record(new AuditEntry("REINSURANCE", "BillRecovery", nameof(ReinsuranceRecovery), recovery.Id.ToString()));
-        var billed = await Recoveries.Bill(recovery, codes, reinsurers, tenant, clock, businessDate, cancellationToken);
+        var billed = await Recoveries.Bill(recovery, codes, reinsurers, tenant, clock, businessDate, cancellationToken, UserId());
         return billed.IsFailure ? billed.Error : RecoveryView.From(recovery);
     }
 
@@ -184,9 +218,12 @@ internal sealed class RecoveryHandlers(IReinsuranceRepository repository, IReins
 
         audit.Record(new AuditEntry("REINSURANCE", "SettleRecovery", nameof(ReinsuranceRecovery), recovery.Id.ToString(),
             new Dictionary<string, string?> { ["amount"] = command.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture) }));
-        var settled = recovery.SettleRecovery(command.Amount, command.SettledOn, clock.UtcNow);
+        var settled = recovery.SettleRecovery(command.Amount, command.SettledOn, clock.UtcNow, UserId());
         return settled.IsFailure ? settled.Error : RecoveryView.From(recovery);
     }
+
+    /// <summary>The user acting, for who billed or settled (BR-049); null for a service.</summary>
+    private Guid? UserId() => execution.ActorType == ActorType.User && Guid.TryParse(execution.ActorId, out var id) ? id : null;
 }
 
 internal sealed class BordereauHandlers(IReinsuranceRepository repository, IReinsuranceCodes codes, IReinsurerAdapter reinsurers, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
@@ -256,7 +293,7 @@ internal static class Recoveries
 {
     /// <summary>BillRecovery through the reinsurer adapter (the treaty's lead reinsurer); only an accepted bill is billed.</summary>
     public static async Task<Result> Bill(ReinsuranceRecovery recovery, IReinsuranceCodes codes, IReinsurerAdapter reinsurers, ITenantContext tenant, IClock clock,
-        IBusinessDate businessDate, CancellationToken cancellationToken)
+        IBusinessDate businessDate, CancellationToken cancellationToken, Guid? by = null)
     {
         if (recovery.Status != RecoveryStatus.Identified)
         {
@@ -267,7 +304,7 @@ internal static class Recoveries
         var billed = await reinsurers.BillRecovery(tenant.RequireTenantId(), treaty?.LeadReinsurer ?? recovery.TreatyCode, recovery.TreatyCode, recovery.ClaimNumber,
             recovery.Recoverable, recovery.Currency, cancellationToken);
         return billed.Accepted
-            ? recovery.BillRecovery(businessDate.Today, clock.UtcNow)
+            ? recovery.BillRecovery(businessDate.Today, clock.UtcNow, by)
             : Error.Conflict(ErrorCodes.InvalidStateTransition, $"The reinsurer did not accept the recovery bill: {billed.Error}");
     }
 }

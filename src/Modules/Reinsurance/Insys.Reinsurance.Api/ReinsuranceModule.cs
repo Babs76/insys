@@ -60,20 +60,24 @@ public sealed class ReinsuranceModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         ReinsuranceStaticDataEndpoints.MapStaticData(api);
-        var reinsurance = api.MapGroup("/reinsurance").WithTags(Name);
+        var reinsurance = api.MapGroup("/reinsurance").WithTags(Name).ETagsFromRowVersion();
 
-        reinsurance.MapGet("/cessions", async (string sourceDomain, Guid policyRef, IDispatcher d, CancellationToken ct) =>
-                (await d.Query(new ListCessions(policyRef, sourceDomain), ct)).ToHttp(Results.Ok))
-            .Produces<IReadOnlyList<CessionView>>(StatusCodes.Status200OK)
+        reinsurance.MapGet("/cessions", async (string? sourceDomain, Guid? policyRef, string? treatyCode, string? periodCode, string? cursor, int? limit, IDispatcher d,
+                CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListCessions(new CessionSearch(sourceDomain, policyRef, treatyCode, periodCode), after, size), ct), c => c.Id))
+            .Produces<CursorPage<CessionView>>(StatusCodes.Status200OK)
             .WithName("ReinsuranceListCessions")
-            .WithSummary("A policy's cessions, superseded ones included, with the treaty, rule and gross amounts they were calculated from (REI-001, REI-002)")
+            .WithSummary("Cessions, superseded ones included, with the treaty, rule and gross amounts they were calculated from (REI-001, REI-002), oldest first")
+            .WithDescription("A policy's (sourceDomain and policyRef together), a treaty's, or those calculated in a month (periodCode yyyy-MM), as a cursor page "
+                + "(BR-048; was a policy's array).")
+            .WithKnownValues("sourceDomain", ["GENERAL", "LIFE", "HEALTH"], "The policy's domain.")
             .RequirePermission(ReinsurancePermissions.CessionRead);
 
-        reinsurance.MapGet("/recoveries", async (string? claimNumber, RecoveryStatus? status, Guid? after, int? limit, IDispatcher d, CancellationToken ct) =>
-                (await d.Query(new ListRecoveries(claimNumber, status, after, limit ?? 50), ct)).ToHttp(Results.Ok))
-            .Produces<IReadOnlyList<RecoveryView>>(StatusCodes.Status200OK)
+        reinsurance.MapGet("/recoveries", async (string? claimNumber, RecoveryStatus? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListRecoveries(claimNumber, status, after, size), ct), r => r.Id))
+            .Produces<CursorPage<RecoveryView>>(StatusCodes.Status200OK)
             .WithName("ReinsuranceListRecoveries")
-            .WithSummary("Recoveries, by claim or status, with cursor pagination")
+            .WithSummary("Recoveries, by claim or status, oldest first, as a cursor page (BR-049; was an array with `after`)")
             .RequirePermission(ReinsurancePermissions.RecoveryRead);
 
         reinsurance.MapGet("/recoveries/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetRecovery(id), ct)).ToHttp(Results.Ok))
@@ -103,6 +107,21 @@ public sealed class ReinsuranceModule : IModule
             .WithSummary("Prepare a treaty's bordereau for a period from its layout; one per treaty and period")
             .RequirePermission(ReinsurancePermissions.BordereauCreate);
 
+        reinsurance.MapGet("/bordereaux", async (string? treatyCode, string? periodCode, BordereauStatus? status, string? cursor, int? limit, IDispatcher d,
+                CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListBordereaux(treatyCode, periodCode, status, after, size), ct), b => b.Id))
+            .Produces<CursorPage<BordereauView>>(StatusCodes.Status200OK)
+            .WithName("ReinsuranceListBordereaux")
+            .WithSummary("Bordereaux by treaty, period and status, oldest first (BR-047)")
+            .RequirePermission(ReinsurancePermissions.BordereauRead);
+
+        reinsurance.MapGet("/bordereaux/{id:guid}/content", async (Guid id, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new GetBordereau(id), ct)).ToHttp(b => Results.File(System.Text.Encoding.UTF8.GetBytes(b.Content), "text/csv", b.FileName)))
+            .Produces<string>(StatusCodes.Status200OK, "text/csv")
+            .WithName("ReinsuranceGetBordereauContent")
+            .WithSummary("The bordereau as a CSV file, named bordereau-{treaty}-{period}.csv (BR-047)")
+            .RequirePermission(ReinsurancePermissions.BordereauRead);
+
         reinsurance.MapGet("/bordereaux/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetBordereau(id), ct)).ToHttp(Results.Ok))
             .Produces<BordereauView>(StatusCodes.Status200OK)
             .WithName("ReinsuranceGetBordereau")
@@ -122,5 +141,17 @@ public sealed class ReinsuranceModule : IModule
             .WithName("ReinsuranceAgreeBordereau")
             .WithSummary("Record that the reinsurer agreed a sent bordereau")
             .RequirePermission(ReinsurancePermissions.BordereauUpdate);
+    }
+
+    /// <summary>A cursor page of a list query (GAP-032).</summary>
+    private static async Task<IResult> Page<T>(string? cursor, int? limit, Func<Guid?, int, Task<BuildingBlocks.Domain.Result<IReadOnlyList<T>>>> query, Func<T, Guid> id)
+    {
+        if (!Cursor.TryDecode(cursor, out var after))
+        {
+            return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+        }
+
+        var size = Cursor.ClampLimit(limit);
+        return (await query(after, size)).ToHttp(items => Results.Ok(new CursorPage<T>(items, items.Count == size ? Cursor.Encode(id(items[^1])) : null)));
     }
 }
