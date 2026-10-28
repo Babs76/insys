@@ -4,6 +4,10 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### New: a claim's recoveries (BR-032)
+- **`GET /api/v1/general/claims/{id}/recoveries`** (`GeneralListClaimRecoveries`, the recoveries screen): a `CursorPage` of `RecoveryView`, with their salvage, by ID. A claim that does not exist or is outside the caller's product and branch scope is 404.
+- **Fixed:** `GeneralGetRecovery` now reads a recovery through its claim's scope (F103): a recovery on a claim outside the caller's scope is 404. It was returned.
+
 ### New: the party number (BR-029, decided)
 - **`partyNumber`** on `PartyView` and `PartySummary`: `P`, 8 digits and a Luhn (mod 10) check digit over those 8 (for example `P000000018`). INSYS assigns it when a party is registered, in any way (staff, portal or import); it is per tenant, never changed or reused, and holds no personal data. Existing parties are numbered in registration order.
 - **Search:** `PartySearchParties` takes `partyNumber`, an exact match (`^P[0-9]{9}$`); a number whose check digit is wrong is 422. It may be the only filter. The search log's entries gain `partyNumberFilter`.

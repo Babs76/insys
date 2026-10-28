@@ -325,6 +325,11 @@ public sealed class GeneralModule : IModule
         general.MapGet("/aggregation-alerts/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetAggregationAlert(id), ct)).ToHttp(Results.Ok))
             .Produces<AggregationAlertView>(StatusCodes.Status200OK)
             .WithName("GeneralGetAggregationAlert").WithSummary("Get an aggregation alert (GAP-051)").RequirePermission(GeneralPermissions.AggregationAlertRead);
+        general.MapGet("/claims/{id:guid}/recoveries", async (Guid id, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListClaimRecoveries(id, after, size), ct), r => r.Id))
+            .Produces<CursorPage<RecoveryView>>(StatusCodes.Status200OK)
+            .WithName("GeneralListClaimRecoveries").WithSummary("A claim's recoveries, with their salvage (BR-032); 404 for a claim outside the caller's scope")
+            .RequirePermission(GeneralPermissions.ClaimRead);
         general.MapGet("/recoveries/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetRecovery(id), ct)).ToHttp(Results.Ok))
             .Produces<RecoveryView>(StatusCodes.Status200OK)
             .WithName("GeneralGetRecovery").WithSummary("Get a recovery").RequirePermission(GeneralPermissions.ClaimRead);

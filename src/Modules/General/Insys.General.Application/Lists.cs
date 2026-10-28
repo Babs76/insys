@@ -59,6 +59,9 @@ public interface IGeneralLists
     Task<IReadOnlyList<PolicySummary>> Policies(ListPolicies query, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ClaimSummary>> Claims(ListClaims query, CancellationToken cancellationToken);
+
+    /// <summary>A claim's recoveries with their salvage, by ID after <paramref name="afterId"/> (BR-032); the caller checks the claim's scope.</summary>
+    Task<IReadOnlyList<Domain.Claims.RecoveryCase>> Recoveries(Guid claimId, Guid? afterId, int limit, CancellationToken cancellationToken);
 }
 
 internal sealed class GeneralListHandlers(IGeneralLists lists) :

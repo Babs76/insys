@@ -73,7 +73,7 @@ internal static class GeneralFunctions
         .Action("GENERAL_QUOTE_REJECT", "GENERAL_QUOTES", "GeneralQuoteReject")
         .Action("GENERAL_REFER_QUOTE", "GENERAL_QUOTES", "GeneralReferQuote")
         .Action("GENERAL_DECIDE_REFERRAL", "GENERAL_QUOTES", "GeneralDecideReferral")
-        .Screen("GENERAL_RECOVERIES", "GENERAL_RECOVERIES", "Third-party recovery", "general/recoveries", "GeneralGetRecovery")
+        .Screen("GENERAL_RECOVERIES", "GENERAL_RECOVERIES", "Third-party recovery", "general/recoveries", "GeneralListClaimRecoveries", "GeneralGetRecovery")
         .Action("GENERAL_RECOVERY_SEND_DEMAND", "GENERAL_RECOVERIES", "GeneralRecoverySendDemand")
         .Action("GENERAL_RECOVERY_WRITE_OFF", "GENERAL_RECOVERIES", "GeneralRecoveryWriteOff")
         .Action("GENERAL_RECOVERY_CLOSE", "GENERAL_RECOVERIES", "GeneralRecoveryClose")

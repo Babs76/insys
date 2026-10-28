@@ -19296,6 +19296,80 @@
         "x-function": [
           "GENERAL_OPEN_RECOVERY"
         ]
+      },
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "A claim\u0027s recoveries, with their salvage (BR-032); 404 for a claim outside the caller\u0027s scope",
+        "operationId": "GeneralListClaimRecoveries",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralRecoveryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "general_claim.read",
+        "x-function": [
+          "GENERAL_RECOVERIES"
+        ]
       }
     },
     "/api/v1/general/aggregation-alerts": {
@@ -34795,6 +34869,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GeneralQuoteSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfGeneralRecoveryView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralRecoveryView"
             }
           },
           "nextCursor": {

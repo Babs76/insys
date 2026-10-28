@@ -106,6 +106,17 @@ internal sealed class GeneralLists(GeneralDbContext db, IExecutionContext execut
             .Select(c => new ClaimSummary(c.Id, c.ClaimNumber, c.PolicyId, c.CoverageCode, c.LossDate, c.NotifiedAt, c.Status))
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Domain.Claims.RecoveryCase>> Recoveries(Guid claimId, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var recoveries = db.Recoveries.AsNoTracking().Include(r => r.Salvage).Where(r => r.ClaimId == claimId);
+        if (afterId is { } after)
+        {
+            recoveries = recoveries.Where(r => r.Id.CompareTo(after) > 0);
+        }
+
+        return await recoveries.OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+    }
 }
 
 /// <summary>The portals' lists (external-user access §2): a member's policies and claims, a broker's quotes, policies and claims, in the caller's F103 scope too.</summary>

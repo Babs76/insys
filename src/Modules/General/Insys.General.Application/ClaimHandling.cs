@@ -107,6 +107,9 @@ public sealed record RecordRecovery(Guid RecoveryId, decimal Amount, string? Res
 
 public sealed record GetRecovery(Guid RecoveryId) : IQuery<RecoveryView>;
 
+/// <summary>A claim's recoveries (BR-032), by ID for cursor paging; the claim must be in the caller's scope (F103).</summary>
+public sealed record ListClaimRecoveries(Guid ClaimId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<RecoveryView>>;
+
 public sealed class NotifyLossValidator : AbstractValidator<NotifyLoss>
 {
     public NotifyLossValidator()
@@ -608,8 +611,19 @@ internal sealed class RecordRecoveryHandler(IGeneralRepository general, IClock c
     }
 }
 
-internal sealed class GetRecoveryHandler(IGeneralRepository general) : IQueryHandler<GetRecovery, RecoveryView>
+/// <summary>A recovery is read through its claim, so one on a claim outside the caller's scope is not found (F103).</summary>
+internal sealed class GetRecoveryHandler(IGeneralRepository general, IGeneralLists lists) :
+    IQueryHandler<GetRecovery, RecoveryView>,
+    IQueryHandler<ListClaimRecoveries, IReadOnlyList<RecoveryView>>
 {
     public async Task<Result<RecoveryView>> Handle(GetRecovery query, CancellationToken cancellationToken) =>
-        await general.Recovery(query.RecoveryId, cancellationToken) is { } recovery ? RecoveryView.From(recovery) : Error.NotFound(ErrorCodes.NotFound, "The recovery was not found.");
+        await general.Recovery(query.RecoveryId, cancellationToken) is { } recovery && await general.Claim(recovery.ClaimId, cancellationToken) is not null
+            ? RecoveryView.From(recovery)
+            : Error.NotFound(ErrorCodes.NotFound, "The recovery was not found.");
+
+    public async Task<Result<IReadOnlyList<RecoveryView>>> Handle(ListClaimRecoveries query, CancellationToken cancellationToken) =>
+        await general.Claim(query.ClaimId, cancellationToken) is null
+            ? Error.NotFound(ErrorCodes.NotFound, "The claim was not found.")
+            : Result.Success<IReadOnlyList<RecoveryView>>(
+                (await lists.Recoveries(query.ClaimId, query.AfterId, query.Limit, cancellationToken)).Select(RecoveryView.From).ToList());
 }
