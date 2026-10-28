@@ -20,16 +20,6 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`PortalMembershipView`** (`PortalHealthGetMembership`, `PortalHealthListMemberships`) gains `viewedAs` (`PRINCIPAL`, `DEPENDANT`). For a `DEPENDANT`, `principalPartyId` is null (now nullable) and `dependants` holds only their own entry; the plan and option are shown. The principal sees the membership as before.
 - **Unchanged, confirmed:** a dependant's Health claims (list and read) are only those where they are the patient; the principal's and other dependants' claims are 404.
 
-### New: portal lists for members and brokers (BR-091, group A, portal launch)
-Every list is scoped only by the caller's link (its party, or its intermediary with its sub-brokers for a firm principal), never by a request parameter; each takes `cursor` and `limit` and returns a `CursorPage` (`items`, `nextCursor`) of portal views. A record outside the link is never listed, and by ID is 404 as one that does not exist.
-- **`GET /api/v1/portal/life/policies`** (`PortalLifeListPolicies`; member and broker): `PortalLifePolicyView`. A member's: as policyholder or insured life (beneficiaries shown to the policyholder only, as on the read). A broker's: under its codes.
-- **`GET /api/v1/portal/health/memberships`** (`PortalHealthListMemberships`; member): `PortalMembershipView`, as principal or dependant.
-- **`GET /api/v1/portal/general/claims`** (`PortalGeneralListClaims`; member and broker): `PortalClaimView`, the claims on the member's policies (as policyholder) or the broker's.
-- **`GET /api/v1/portal/party/parties`** (`PortalPartyListClients`) and **`GET /api/v1/portal/party/parties/{id}`** (`PortalPartyGetClient`; broker): `PortalClientView` (`id`, `kind`, `displayName`, `status`; no identifiers, contacts, bank accounts or review status). A client is a party the broker (or a sub-broker) registered, or one that holds, or is quoted or proposed for, a General or Life policy under its codes. A registration staff linked to an existing party after review is shown as that party (its registration ID is then 404); anonymised parties are not shown. The registration's `Location` now resolves.
-- **Already there:** `GET /portal/general/policies` (member and broker) and `GET /portal/health/claims` (member and provider).
-- **Breaking: `GET /api/v1/portal/life/claims`** (`PortalLifeListClaims`) returns a `CursorPage` (`items`, `nextCursor`) instead of a plain array, and takes `cursor` (with `limit`) instead of `afterId`.
-- **Functions:** the operations join their portal screens (`CUSTOMER_PORTAL_LIFE_POLICIES`, `BROKER_PORTAL_LIFE_POLICIES`, `CUSTOMER_PORTAL_HEALTH_MEMBERSHIPS`, `CUSTOMER_PORTAL_GENERAL_CLAIMS`, `BROKER_PORTAL_GENERAL_CLAIMS`, `BROKER_PORTAL_PARTY_PARTIES`); no new functions.
-
 ### New: product versions say who submitted them, and a product reads as a whole (BR-024)
 - **`ProductVersionView`** gains `submittedBy` and `submittedAt`: who last submitted the version for approval and when (the maker, as `approvedBy` is the checker); null if it was never submitted. On the version read, the versions list and the product read.
 - **`GET /api/v1/product-factory/products/{productCode}`** (`ProductGetProduct`, the products screen): `ProductView` with the code, the name, domain, family and class of its latest version, and every version, newest first. An unknown code is 404.
@@ -52,6 +42,21 @@ Every list is scoped only by the caller's link (its party, or its intermediary w
 
 ### New: readiness item CASE_TYPE_PROCESS_NOT_IN_FORCE (decided, Ade)
 - The `SHARED_OPERATIONAL_SETUP` step gains the check `CASE_TYPE_PROCESS_NOT_IN_FORCE`: every case type in force must name a process in force. `missing` lists each that does not as `caseType:process`. Until now such a case type opened its cases without a process, with only a logged warning. Like every readiness check, it must be ready for the step to complete.
+
+## BR-091 (branch `br-091`, shipped alone, merged at `41e237d`)
+
+### Breaking: `GET /api/v1/portal/life/claims` is a cursor page
+- **`PortalLifeListClaims`** returns a `CursorPage` (`items`, `nextCursor`) instead of a plain array, and takes `cursor` (with `limit`) instead of `afterId`. The claims and their order (by ID) are unchanged.
+
+### New: portal lists for members and brokers (BR-091, group A, portal launch)
+Every list is scoped only by the caller's link (its party, or its intermediary with its sub-brokers for a firm principal), never by a request parameter; each takes `cursor` and `limit` and returns a `CursorPage` (`items`, `nextCursor`) of portal views. A record outside the link is never listed, and by ID is 404 as one that does not exist.
+- **`GET /api/v1/portal/life/policies`** (`PortalLifeListPolicies`; member and broker): `PortalLifePolicyView`. A member's: as policyholder or insured life (beneficiaries shown to the policyholder only, as on the read). A broker's: under its codes.
+- **`GET /api/v1/portal/health/memberships`** (`PortalHealthListMemberships`; member): `PortalMembershipView`, as principal or dependant.
+- **`GET /api/v1/portal/general/claims`** (`PortalGeneralListClaims`; member and broker): `PortalClaimView`, the claims on the member's policies (as policyholder) or the broker's.
+- **`GET /api/v1/portal/party/parties`** (`PortalPartyListClients`) and **`GET /api/v1/portal/party/parties/{id}`** (`PortalPartyGetClient`; broker): `PortalClientView` (`id`, `kind`, `displayName`, `status`; no identifiers, contacts, bank accounts or review status). A client is a party the broker (or a sub-broker) registered, or one that holds, or is quoted or proposed for, a General or Life policy under its codes. A registration staff linked to an existing party after review is shown as that party (its registration ID is then 404); anonymised parties are not shown. The registration's `Location` now resolves.
+- **Already there:** `GET /portal/general/policies` (member and broker) and `GET /portal/health/claims` (member and provider).
+- **Life claims** page with a cursor too (above).
+- **Functions:** the operations join their portal screens (`CUSTOMER_PORTAL_LIFE_POLICIES`, `BROKER_PORTAL_LIFE_POLICIES`, `CUSTOMER_PORTAL_HEALTH_MEMBERSHIPS`, `CUSTOMER_PORTAL_GENERAL_CLAIMS`, `BROKER_PORTAL_GENERAL_CLAIMS`, `BROKER_PORTAL_PARTY_PARTIES`); no new functions.
 
 ## Wave 2 batch 4 (branch `wave2-4`, merged at `ef5a85c`)
 
