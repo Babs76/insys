@@ -58,6 +58,14 @@ public interface IPaymentRepository
     /// <summary>The payments for one business record, oldest first (GAP-036).</summary>
     Task<IReadOnlyList<Payment>> ForBusinessRef(string businessRefType, Guid businessRefId, Guid? afterId, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Payments matching the search (BR-050), by ID after <paramref name="afterId"/>, oldest first.</summary>
+    Task<IReadOnlyList<Payment>> Find(PaymentSearch search, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Payout batches by status, purpose and currency (BR-051), by ID after <paramref name="afterId"/>, oldest first.</summary>
+    Task<IReadOnlyList<PayoutBatch>> Batches(BatchStatus? status, string? purpose, string? currency, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    Task<BankStatementLine?> StatementLine(Guid id, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Guid>> PendingSince(DateTimeOffset before, int limit, CancellationToken cancellationToken);
 
     /// <summary>BR-042: a bank statement line matched to the payment, by reference and amount (PAY-003).</summary>
@@ -112,19 +120,30 @@ public interface IPaymentGateway
     Task<(ProviderOutcome Outcome, string? ExternalRef, string? Reason)> Send(Payment payment, PayeeAccountDetails? payee, CancellationToken cancellationToken);
 }
 
-public sealed record StatusChangeView(PaymentStatus From, PaymentStatus To, string Source, DateTimeOffset ChangedAt);
+/// <param name="Source">What changed the status (BR-053): the provider's answer, its callback, the time allowed running out, or an operator.</param>
+public sealed record StatusChangeView(PaymentStatus From, PaymentStatus To, [property: KnownValues("PROVIDER", "CALLBACK", "TIMEOUT", "OPERATOR")] string Source,
+    DateTimeOffset ChangedAt);
 
-public sealed record AllocationView(Guid Id, Guid InvoiceId, decimal Amount, string Currency, DateTimeOffset AllocatedAt, Guid? ReversedById);
+/// <param name="Rule">The allocation rule (BR-053): REVERSAL on the row that reverses another (reversedById names it on the original).</param>
+public sealed record AllocationView(Guid Id, Guid InvoiceId, decimal Amount, string Currency, DateTimeOffset AllocatedAt, Guid? ReversedById, string Rule);
+
+/// <summary>A search of payments without a business record (BR-050); every filter is optional.</summary>
+/// <param name="Reference">The payment's own reference (paymentRef) or the provider's (externalRef), exactly.</param>
+/// <param name="From">Initiated at or after this instant.</param>
+/// <param name="To">Initiated before this instant.</param>
+public sealed record PaymentSearch(string? BusinessRefType, Guid? BusinessRefId, string? Reference, PaymentStatus? Status, DateTimeOffset? From, DateTimeOffset? To);
 
 public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission, PaymentPurposes.CaseRedress)] string Purpose, string MethodCode, string ProviderCode, decimal Amount, string Currency,
     PaymentStatus Status, string? ExternalRef, string IdempotencyKey, DateOnly? ValueDate, string? BusinessRefType, Guid? BusinessRefId, Guid? PayoutBatchId,
-    IReadOnlyList<StatusChangeView> History, IReadOnlyList<AllocationView> Allocations, ResolutionRequestView? ResolutionRequest)
+    IReadOnlyList<StatusChangeView> History, IReadOnlyList<AllocationView> Allocations, ResolutionRequestView? ResolutionRequest, DateTimeOffset InitiatedAt,
+    Guid? CounterpartyPartyId, Guid? BankAccountId, string? FailureReason, long RowVersion)
 {
     public static PaymentView From(Payment p) => new(p.Id, p.PaymentRef, p.Direction.ToString(), p.Purpose, p.MethodCode, p.ProviderCode, p.Amount, p.Currency,
         p.Status, p.ExternalRef, p.IdempotencyKey, p.ValueDate, p.BusinessRefType, p.BusinessRefId, p.PayoutBatchId,
         p.History.OrderBy(h => h.ChangedAt).ThenBy(h => h.Id).Select(h => new StatusChangeView(h.FromStatus, h.ToStatus, h.Source, h.ChangedAt)).ToList(),
-        p.Allocations.Select(a => new AllocationView(a.Id, a.InvoiceId, a.Amount, a.Currency, a.AllocatedAt, a.ReversedById)).ToList(),
-        p.ResolutionRequestedBy is { } by ? new ResolutionRequestView(by, p.ResolutionRequestedAt!.Value, p.ResolutionEvidence!) : null);
+        p.Allocations.Select(a => new AllocationView(a.Id, a.InvoiceId, a.Amount, a.Currency, a.AllocatedAt, a.ReversedById, a.AllocationRule)).ToList(),
+        p.ResolutionRequestedBy is { } by ? new ResolutionRequestView(by, p.ResolutionRequestedAt!.Value, p.ResolutionEvidence!) : null,
+        p.InitiatedAt, p.CounterpartyPartyId, p.BankAccountId, p.FailureReason, p.RowVersion);
 }
 
 /// <summary>
@@ -137,20 +156,39 @@ public sealed record ResolutionRequestView(Guid RequestedBy, DateTimeOffset Requ
 /// True when the batch also pays records outside the caller's scope (F103): the count and total are then of the payments
 /// in scope only, so no other branch's or product's figures show through the batch.
 /// </param>
+/// <param name="BuiltAt">When the batch was built (BR-051); null for batches built before V0083.</param>
+/// <param name="ApprovalId">The Workflow approval that approved its release (BR-051); null until approved, and for batches approved before V0083.</param>
 public sealed record BatchView(Guid Id, string BatchRef, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission, PaymentPurposes.CaseRedress)] string Purpose, int PaymentCount, decimal TotalAmount, string Currency, BatchStatus Status, Guid? BuiltBy,
-    Guid? ApprovedBy, Guid? ReleasedBy, bool PartlyInScope, LatestRejection? LatestRejection = null)
+    Guid? ApprovedBy, Guid? ReleasedBy, bool PartlyInScope, LatestRejection? LatestRejection = null, DateTimeOffset? BuiltAt = null, Guid? ApprovalId = null,
+    long RowVersion = 0)
 {
     public static BatchView From(PayoutBatch b) => new(b.Id, b.BatchRef, b.Purpose, b.PaymentCount, b.TotalAmount, b.Currency, b.Status, b.BuiltBy,
-        b.ApprovedBy, b.ReleasedBy, false);
+        b.ApprovedBy, b.ReleasedBy, false, null, b.BuiltAt, b.ApprovalId, b.RowVersion);
 
     public static BatchView Of(PayoutBatch b, IReadOnlyList<Payment> visible, bool partly, LatestRejection? latestRejection = null) => partly
-        ? new(b.Id, b.BatchRef, b.Purpose, visible.Count, visible.Sum(p => p.Amount), b.Currency, b.Status, b.BuiltBy, b.ApprovedBy, b.ReleasedBy, true, latestRejection)
+        ? From(b) with { PaymentCount = visible.Count, TotalAmount = visible.Sum(p => p.Amount), PartlyInScope = true, LatestRejection = latestRejection }
         : From(b) with { LatestRejection = latestRejection };
 }
 
-public sealed record ExceptionView(Guid Id, string ExceptionType, Guid? PaymentId, Guid? StatementLineId, decimal Amount, ExceptionStatus Status, Guid? AssignedTo)
+/// <summary>The bank statement line an exception is about (BR-052).</summary>
+public sealed record StatementLineView(Guid Id, string AccountRef, DateOnly StatementDate, decimal Amount, string Currency, string Reference,
+    [property: OneOf("UNMATCHED", "MATCHED", "EXCEPTION")] string MatchStatus);
+
+/// <param name="ExceptionType">UNKNOWN_OUTCOME: a payment whose outcome is unknown; UNMATCHED_LINE: a bank statement line no payment matches.</param>
+/// <param name="Currency">The statement line's currency, else the payment's (BR-052).</param>
+/// <param name="StatementLine">The bank statement line, for an unmatched line (BR-052).</param>
+public sealed record ExceptionView(Guid Id, [property: OneOf(ReconciliationException.UnknownOutcome, ReconciliationException.UnmatchedLine)] string ExceptionType,
+    Guid? PaymentId, Guid? StatementLineId, decimal Amount, ExceptionStatus Status, Guid? AssignedTo, string? Currency, StatementLineView? StatementLine,
+    DateTimeOffset RaisedAt, DateTimeOffset? ResolvedAt, long RowVersion)
 {
-    public static ExceptionView From(ReconciliationException e) => new(e.Id, e.ExceptionType, e.PaymentId, e.StatementLineId, e.Amount, e.Status, e.AssignedTo);
+    public static async Task<ExceptionView> Of(ReconciliationException e, IPaymentRepository payments, CancellationToken cancellationToken)
+    {
+        var line = e.StatementLineId is { } lineId ? await payments.StatementLine(lineId, cancellationToken) : null;
+        var currency = line?.Currency ?? (e.PaymentId is { } paymentId ? (await payments.Get(paymentId, cancellationToken))?.Currency : null);
+        return new(e.Id, e.ExceptionType, e.PaymentId, e.StatementLineId, e.Amount, e.Status, e.AssignedTo, currency,
+            line is null ? null : new StatementLineView(line.Id, line.AccountRef, line.StatementDate, line.Amount, line.Currency, line.Reference, line.MatchStatus),
+            e.RaisedAt, e.ResolvedAt, e.RowVersion);
+    }
 }
 
 public sealed record StatementLine(DateOnly Date, decimal Amount, string Currency, string Reference);
@@ -188,8 +226,17 @@ public sealed record GetPayment(Guid PaymentId) : IQuery<PaymentView>;
 
 public sealed record GetBatch(Guid BatchId) : IQuery<BatchView>;
 
-/// <summary>GAP-036: the payments for a business record (a refund, a claim payment instruction, an invoice), oldest first.</summary>
-public sealed record ListPayments(string BusinessRefType, Guid BusinessRefId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PaymentView>>;
+/// <summary>
+/// GAP-036, BR-050: payments, oldest first: those of a business record (a refund, a claim payment instruction, an invoice),
+/// or found by reference, status and initiation time, without one. Only those in the caller's scope are listed.
+/// </summary>
+public sealed record ListPayments(PaymentSearch Search, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PaymentView>>;
+
+/// <summary>BR-051: payout batches by status, purpose and currency, oldest first; a batch with none of its payments in the caller's scope is left out.</summary>
+public sealed record ListBatches(BatchStatus? Status, string? Purpose, string? Currency, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<BatchView>>;
+
+/// <summary>BR-052: one reconciliation exception.</summary>
+public sealed record GetException(Guid ExceptionId) : IQuery<ExceptionView>;
 
 /// <summary>GAP-036: the payments in a payout batch.</summary>
 public sealed record ListBatchPayments(Guid BatchId) : IQuery<IReadOnlyList<PaymentView>>;
@@ -565,11 +612,11 @@ internal sealed class AssignExceptionHandler(IPaymentRepository payments, IExecu
         }
 
         var result = exception.AssignException(user.Value);
-        return result.IsFailure ? result.Error : ExceptionView.From(exception);
+        return result.IsFailure ? result.Error : await ExceptionView.Of(exception, payments, cancellationToken);
     }
 }
 
-internal sealed class ResolveExceptionHandler(IPaymentRepository payments, IExecutionContext execution, IAuditTrail audit) : ICommandHandler<ResolveException, ExceptionView>
+internal sealed class ResolveExceptionHandler(IPaymentRepository payments, IExecutionContext execution, IAuditTrail audit, IClock clock) : ICommandHandler<ResolveException, ExceptionView>
 {
     public async Task<Result<ExceptionView>> Handle(ResolveException command, CancellationToken cancellationToken)
     {
@@ -592,8 +639,8 @@ internal sealed class ResolveExceptionHandler(IPaymentRepository payments, IExec
         }
 
         audit.Record(new AuditEntry("PAYMENT", "ResolveException", nameof(ReconciliationException), exception.Id.ToString()));
-        var result = exception.ResolveException(user.Value);
-        return result.IsFailure ? result.Error : ExceptionView.From(exception);
+        var result = exception.ResolveException(user.Value, clock.UtcNow);
+        return result.IsFailure ? result.Error : await ExceptionView.Of(exception, payments, cancellationToken);
     }
 }
 
@@ -683,9 +730,38 @@ internal sealed class GetPaymentHandler(IPaymentRepository payments, PaymentScop
 internal sealed class ListPaymentsHandler(IPaymentRepository payments, PaymentScopes scopes)
     : IQueryHandler<ListPayments, IReadOnlyList<PaymentView>>, IQueryHandler<ListBatchPayments, IReadOnlyList<PaymentView>>
 {
-    public async Task<Result<IReadOnlyList<PaymentView>>> Handle(ListPayments query, CancellationToken cancellationToken) =>
-        Result.Success<IReadOnlyList<PaymentView>>((await scopes.Of(await payments.ForBusinessRef(query.BusinessRefType, query.BusinessRefId, query.AfterId,
-            query.Limit, cancellationToken), cancellationToken)).Visible.Select(PaymentView.From).ToList());
+    /// <summary>
+    /// A page of the payments in the caller's scope: the search reads on past those out of scope until the page is full, so
+    /// a short page is the last one and the cursor (the last listed) skips nothing in scope.
+    /// </summary>
+    public async Task<Result<IReadOnlyList<PaymentView>>> Handle(ListPayments query, CancellationToken cancellationToken)
+    {
+        var listed = new List<Payment>();
+        var after = query.AfterId;
+        while (listed.Count < query.Limit)
+        {
+            var read = await payments.Find(query.Search, after, query.Limit, cancellationToken);
+            foreach (var payment in read)
+            {
+                after = payment.Id;
+                if (await scopes.Covers(payment, cancellationToken))
+                {
+                    listed.Add(payment);
+                    if (listed.Count == query.Limit)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if (read.Count < query.Limit)
+            {
+                break;
+            }
+        }
+
+        return listed.Select(PaymentView.From).ToList();
+    }
 
     /// <summary>The batch's payments in the caller's scope; a batch with none in scope is not found (F103).</summary>
     public async Task<Result<IReadOnlyList<PaymentView>>> Handle(ListBatchPayments query, CancellationToken cancellationToken)
@@ -707,8 +783,47 @@ public sealed class ListPaymentsValidator : AbstractValidator<ListPayments>
 {
     public ListPaymentsValidator()
     {
-        RuleFor(q => q.BusinessRefType).NotEmpty().MaximumLength(30);
+        RuleFor(q => q.Search.BusinessRefType).MaximumLength(30);
+        RuleFor(q => q.Search).Must(s => (s.BusinessRefType is null) == (s.BusinessRefId is null))
+            .WithMessage("businessRefType and businessRefId are given together, or neither.");
+        RuleFor(q => q.Search).Must(s => s.From is null || s.To is null || s.From < s.To).WithMessage("from is before to.");
+        RuleFor(q => q.Search.Reference).MaximumLength(80);
         RuleFor(q => q.Limit).InclusiveBetween(1, 200);
+    }
+}
+
+/// <summary>BR-051: payout batches, each with the count and total of its payments in the caller's scope; one with none in scope is left out (F103).</summary>
+internal sealed class ListBatchesHandler(IPaymentRepository payments, PaymentScopes scopes) : IQueryHandler<ListBatches, IReadOnlyList<BatchView>>
+{
+    public async Task<Result<IReadOnlyList<BatchView>>> Handle(ListBatches query, CancellationToken cancellationToken)
+    {
+        var listed = new List<BatchView>();
+        var after = query.AfterId;
+        while (listed.Count < query.Limit)
+        {
+            var read = await payments.Batches(query.Status, query.Purpose, query.Currency, after, query.Limit, cancellationToken);
+            foreach (var batch in read)
+            {
+                after = batch.Id;
+                var all = await payments.InBatch(batch.Id, cancellationToken);
+                var (visible, partly) = await scopes.Of(all, cancellationToken);
+                if (visible.Count > 0 || all.Count == 0)
+                {
+                    listed.Add(BatchView.Of(batch, visible, partly));
+                    if (listed.Count == query.Limit)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if (read.Count < query.Limit)
+            {
+                break;
+            }
+        }
+
+        return listed;
     }
 }
 
@@ -733,10 +848,24 @@ internal sealed class GetBatchHandler(IPaymentRepository payments, PaymentScopes
     }
 }
 
-internal sealed class ListExceptionsHandler(IPaymentRepository payments) : IQueryHandler<ListExceptions, IReadOnlyList<ExceptionView>>
+internal sealed class ListExceptionsHandler(IPaymentRepository payments) : IQueryHandler<ListExceptions, IReadOnlyList<ExceptionView>>,
+    IQueryHandler<GetException, ExceptionView>
 {
-    public async Task<Result<IReadOnlyList<ExceptionView>>> Handle(ListExceptions query, CancellationToken cancellationToken) =>
-        (await payments.Exceptions(query.Status, query.Limit, cancellationToken)).Select(ExceptionView.From).ToList();
+    public async Task<Result<IReadOnlyList<ExceptionView>>> Handle(ListExceptions query, CancellationToken cancellationToken)
+    {
+        var views = new List<ExceptionView>();
+        foreach (var exception in await payments.Exceptions(query.Status, query.Limit, cancellationToken))
+        {
+            views.Add(await ExceptionView.Of(exception, payments, cancellationToken));
+        }
+
+        return views;
+    }
+
+    public async Task<Result<ExceptionView>> Handle(GetException query, CancellationToken cancellationToken) =>
+        await payments.Exception(query.ExceptionId, cancellationToken) is { } exception
+            ? await ExceptionView.Of(exception, payments, cancellationToken)
+            : Error.NotFound(ErrorCodes.NotFound, "The reconciliation exception was not found.");
 }
 
 internal sealed class PendingPaymentsHandler(IPaymentRepository payments) : IQueryHandler<PendingPayments, IReadOnlyList<Guid>>
@@ -850,7 +979,7 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
             return;
         }
 
-        if (batch.ApproveBatch(granted.CheckerId, granted.SubjectHash).IsFailure)
+        if (batch.ApproveBatch(granted.CheckerId, granted.SubjectHash, granted.ApprovalId).IsFailure)
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
         }

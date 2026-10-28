@@ -38,7 +38,8 @@ internal static class PaymentsFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("PAYMENT_CALLBACK_ENDPOINTS", "PAYMENTS", "Provider callbacks", "payments/callback-endpoints", "PaymentsListCallbackEndpoints")
+        .Screen("PAYMENT_CALLBACK_ENDPOINTS", "PAYMENTS", "Provider callbacks", "payments/callback-endpoints", "PaymentsListCallbackEndpoints",
+            "PaymentsGetCallbackEndpoint")
         .Action("PAYMENTS_ISSUE_CALLBACK_ENDPOINT", "PAYMENT_CALLBACK_ENDPOINTS", "PaymentsIssueCallbackEndpoint", privileged: true)
         .Action("PAYMENTS_REVOKE_CALLBACK_ENDPOINT", "PAYMENT_CALLBACK_ENDPOINTS", "PaymentsRevokeCallbackEndpoint", privileged: true)
         .Screen("PAYMENTS", "PAYMENTS", "Collections (debit order)", "payments/payments", "PaymentsList", "PaymentsGet")
@@ -46,10 +47,12 @@ internal static class PaymentsFunctions
         .Action("PAYMENTS_RESOLVE_UNKNOWN", "PAYMENTS", "PaymentsResolveUnknown")
         .Action("PAYMENTS_REVERSE", "PAYMENTS", "PaymentsReverse", privileged: true)
         .Action("PAYMENTS_ALLOCATE", "PAYMENTS", "PaymentsAllocate")
-        .Screen("PAYMENT_PAYOUT_BATCHES", "PAYMENTS", "Payout batches (release approval)", "payments/payout-batches", "PaymentsGetBatch", "PaymentsListBatchPayments")
+        .Screen("PAYMENT_PAYOUT_BATCHES", "PAYMENTS", "Payout batches (release approval)", "payments/payout-batches", "PaymentsListBatches", "PaymentsGetBatch",
+            "PaymentsListBatchPayments")
         .Action("PAYMENTS_BUILD_BATCH", "PAYMENT_PAYOUT_BATCHES", "PaymentsBuildBatch")
         .Action("PAYMENTS_RELEASE_BATCH", "PAYMENT_PAYOUT_BATCHES", "PaymentsReleaseBatch")
-        .Screen("PAYMENT_RECONCILIATION", "PAYMENTS", "Bank statement reconciliation", "payments/reconciliation-exceptions", "PaymentsListExceptions")
+        .Screen("PAYMENT_RECONCILIATION", "PAYMENTS", "Bank statement reconciliation", "payments/reconciliation-exceptions", "PaymentsListExceptions",
+            "PaymentsGetException")
         .Action("PAYMENTS_ASSIGN_EXCEPTION", "PAYMENT_RECONCILIATION", "PaymentsAssignException")
         .Action("PAYMENTS_RESOLVE_EXCEPTION", "PAYMENT_RECONCILIATION", "PaymentsResolveException")
         .Screen("PAYMENT_DASHBOARD", "PAYMENTS", "Collections (debit order)", "payments/summary", "PaymentsSummary")

@@ -202,6 +202,9 @@ public sealed class Payment : AggregateRoot<Guid>
     public Guid? BankAccountId { get; private set; }
 
     /// <summary>BR-042: who asked for this Unknown payment to be resolved as succeeded, while a second person's approval is awaited.</summary>
+    /// <summary>Why the payment failed, as the provider, the callback or the operator gave it (BR-053); null unless it failed.</summary>
+    public string? FailureReason { get; private set; }
+
     public Guid? ResolutionRequestedBy { get; private set; }
 
     public DateTimeOffset? ResolutionRequestedAt { get; private set; }
@@ -491,6 +494,11 @@ public sealed class Payment : AggregateRoot<Guid>
 
     private void Announce(bool succeeded, string reason, DateOnly today, DateTimeOffset now)
     {
+        if (!succeeded)
+        {
+            FailureReason = reason.Length > 200 ? reason[..200] : reason;
+        }
+
         if (succeeded)
         {
             ValueDate ??= today;

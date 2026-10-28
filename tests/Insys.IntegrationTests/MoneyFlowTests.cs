@@ -330,6 +330,73 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
     }
 
     /// <summary>A bank statement line matched to the payment, by its reference and amount (PAY-003).</summary>
+    /// <summary>
+    /// BR-050, BR-052, BR-053: payments are found without their business record, by reference, status and initiation time,
+    /// paged; each gives when it started, whom it pays, its bank account and why it failed, with its ETag. An allocation names
+    /// its rule. A reconciliation exception reads alone, with its statement line, currency and raised and resolved times.
+    /// </summary>
+    [Fact]
+    public async Task Payments_AreFoundWithoutTheirRecord_WithTheirDetails_AndAnExceptionReadsAlone_BR050_BR052_BR053()
+    {
+        var payer = await _maker.RegisterPerson("Findable");
+        var (_, firstInvoice) = await IssueInvoice(120m, payer);
+        var (_, secondInvoice) = await IssueInvoice(130m, payer);
+        await _factory.DrainOutbox();
+        var (failed, paid) = (await CollectionFor(firstInvoice), await CollectionFor(secondInvoice));
+        (await Callback(failed, "BOUNCED")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await Callback(paid, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+
+        // By its own reference, alone: with its start, payee, failure reason and ETag.
+        var failedRead = await _maker.GetAsync($"/api/v1/payments/payments/{failed}");
+        var failedView = await failedRead.Json();
+        failedRead.Headers.ETag!.Tag.ShouldBe($"\"{failedView.GetProperty("rowVersion").GetInt64()}\"");
+        var byReference = await (await _maker.GetAsync($"/api/v1/payments/payments?reference={failedView.GetProperty("paymentRef").GetString()}")).Json();
+        ShouldMatchDocumented(byReference, "PaymentsList");
+        var found = byReference.GetProperty("items").EnumerateArray().Single();
+        (found.GetProperty("id").GetGuid(), found.GetProperty("status").GetString(), found.GetProperty("counterpartyPartyId").GetGuid(),
+            found.GetProperty("failureReason").GetString()).ShouldBe((failed, "Failed", payer, "Provider status BOUNCED"));
+        found.GetProperty("initiatedAt").GetDateTimeOffset().ShouldBe(failedView.GetProperty("initiatedAt").GetDateTimeOffset());
+
+        // By status and initiation time, paged one at a time: the failed one, not the paid one.
+        var paidView = await (await _maker.GetAsync($"/api/v1/payments/payments/{paid}")).Json();
+        paidView.GetProperty("failureReason").ValueKind.ShouldBe(JsonValueKind.Null);
+        paidView.GetProperty("allocations").EnumerateArray().Single().GetProperty("rule").GetString().ShouldNotBeNullOrEmpty();
+        var from = Uri.EscapeDataString(failedView.GetProperty("initiatedAt").GetDateTimeOffset().ToString("O"));
+        var to = Uri.EscapeDataString(paidView.GetProperty("initiatedAt").GetDateTimeOffset().AddTicks(1).ToString("O"));
+        var failures = new List<Guid>();
+        string? cursor = null;
+        do
+        {
+            var page = await (await _maker.GetAsync($"/api/v1/payments/payments?status=Failed&from={from}&to={to}&limit=1{(cursor is null ? "" : $"&cursor={cursor}")}")).Json();
+            failures.AddRange(page.GetProperty("items").EnumerateArray().Select(p => p.GetProperty("id").GetGuid()));
+            cursor = page.GetProperty("nextCursor").GetString() is { } next ? Uri.EscapeDataString(next) : null;
+        }
+        while (cursor is not null);
+        failures.ShouldContain(failed);
+        failures.ShouldNotContain(paid);
+        failures.Distinct().Count().ShouldBe(failures.Count);
+        (await (await _maker.GetAsync("/api/v1/payments/payments?businessRefType=INVOICE")).Code()).ShouldBe("VALIDATION_FAILED");
+
+        // An unmatched statement line is an exception that reads alone, with its line and currency, and when it was raised and resolved.
+        var reference = $"NOMATCH-{Guid.NewGuid():N}"[..20];
+        (await _maker.Send(HttpMethod.Post, "/api/v1/payments/bank-statements",
+            new { accountRef = "BANK-1", lines = new[] { new { date = Today, amount = 77.70m, currency = "ZAR", reference } } }, idempotent: true)).StatusCode
+            .ShouldBe(HttpStatusCode.OK);
+        var listed = (await (await _maker.GetAsync("/api/v1/payments/reconciliation-exceptions?status=Open&limit=200")).Json()).EnumerateArray()
+            .Single(e => e.GetProperty("statementLine").ValueKind == JsonValueKind.Object && e.GetProperty("statementLine").GetProperty("reference").GetString() == reference);
+        var exceptionId = listed.GetProperty("id").GetGuid();
+        var exception = await (await _maker.GetAsync($"/api/v1/payments/reconciliation-exceptions/{exceptionId}")).Json();
+        ShouldMatchDocumented(exception, "PaymentsGetException");
+        (exception.GetProperty("exceptionType").GetString(), exception.GetProperty("currency").GetString(), exception.GetProperty("statementLine").GetProperty("amount").GetDecimal(),
+            exception.GetProperty("resolvedAt").ValueKind).ShouldBe(("UNMATCHED_LINE", "ZAR", 77.70m, JsonValueKind.Null));
+        exception.GetProperty("raisedAt").GetDateTimeOffset().ShouldBeGreaterThan(DateTimeOffset.MinValue);
+        (await _maker.PostAsync($"/api/v1/payments/reconciliation-exceptions/{exceptionId}/assign", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var resolved = await (await _maker.PostAsync($"/api/v1/payments/reconciliation-exceptions/{exceptionId}/resolve", null)).Json();
+        resolved.GetProperty("resolvedAt").ValueKind.ShouldBe(JsonValueKind.String);
+        (await _maker.GetAsync($"/api/v1/payments/reconciliation-exceptions/{Guid.CreateVersion7()}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
     private async Task MatchedStatementLine(Guid payment)
     {
         var view = await (await _maker.GetAsync($"/api/v1/payments/payments/{payment}")).Json();
@@ -375,6 +442,16 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldNotBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         await Approve(PaymentApprovals.PayoutBusinessRefType, batch);
+
+        // BR-051: the batch is listed by status, purpose and currency, with when it was built and the approval that approved it.
+        var approval = (await (await _maker.GetAsync($"/api/v1/workflow/approvals?businessRefType={PaymentApprovals.PayoutBusinessRefType}&businessRefId={batch}")).Json())
+            .GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        var batches = await (await _maker.GetAsync($"/api/v1/payments/payout-batches?status=Approved&purpose={PaymentPurposes.Refund}&currency=ZAR&limit=200")).Json();
+        ShouldMatchDocumented(batches, "PaymentsListBatches");
+        var listedBatch = batches.GetProperty("items").EnumerateArray().Single(b => b.GetProperty("id").GetGuid() == batch);
+        (listedBatch.GetProperty("approvalId").GetGuid(), listedBatch.GetProperty("builtAt").ValueKind).ShouldBe((approval, JsonValueKind.String));
+        (await (await _maker.GetAsync("/api/v1/payments/payout-batches?status=Built&limit=200")).Json()).GetProperty("items").EnumerateArray()
+            .ShouldNotContain(b => b.GetProperty("id").GetGuid() == batch);
         (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await (await _maker.GetAsync($"/api/v1/payments/payout-batches/{batch}/payments")).Json()).EnumerateArray().Select(p => p.GetProperty("id").GetGuid())
             .ShouldBe([created]);

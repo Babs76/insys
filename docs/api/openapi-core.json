@@ -9975,15 +9975,14 @@
         "tags": [
           "Payments"
         ],
-        "summary": "The payments for a business record, oldest first (GAP-036)",
-        "description": "A refund (REFUND_REQUEST), claim payment instruction (CLAIM_PAYMENT), invoice (INVOICE), remittance, commission statement or case redress (CASE_REDRESS). A payment is listed from when it is created, before it completes.",
+        "summary": "Payments, oldest first: a business record\u0027s (GAP-036), or found by reference, status and initiation time (BR-050)",
+        "description": "By business record: a refund (REFUND_REQUEST), claim payment instruction (CLAIM_PAYMENT), invoice (INVOICE), remittance, commission statement or case redress (CASE_REDRESS), businessRefType and businessRefId together. Or without one (BR-050): reference (paymentRef or externalRef, exactly), status (Unknown included) and from/to (initiated at or after from, before to, as instants); every filter optional. Only payments in the caller\u0027s scope are listed. A payment is listed from when it is created, before it completes.",
         "operationId": "PaymentsList",
         "parameters": [
           {
             "name": "businessRefType",
             "in": "query",
             "description": "The business record types INSYS itself pays or collects for (GAP-037).",
-            "required": true,
             "schema": {
               "type": "string"
             },
@@ -9999,10 +9998,39 @@
           {
             "name": "businessRefId",
             "in": "query",
-            "required": true,
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "reference",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PaymentsPaymentStatus"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
             }
           },
           {
@@ -10570,6 +10598,104 @@
             "when": "batching commission payouts: without it they are outside the caller\u0027s scope and the batch is refused (OUT_OF_SCOPE)"
           }
         ]
+      },
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Payout batches by status, purpose and currency, oldest first (BR-051)",
+        "operationId": "PaymentsListBatches",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PaymentsBatchStatus"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "description": "The payment purposes.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "PREMIUM",
+              "REFUND",
+              "CLAIM_PAYOUT",
+              "RECOVERY",
+              "COMMISSION",
+              "CASE_REDRESS"
+            ]
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPaymentsBatchView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "payout_batch.read",
+        "x-function": [
+          "PAYMENT_PAYOUT_BATCHES"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "commission_payout.read",
+            "when": "commission batches are listed only to a caller who also holds it"
+          }
+        ]
       }
     },
     "/api/v1/payments/payout-batches/{id}": {
@@ -10905,6 +11031,63 @@
         ]
       }
     },
+    "/api/v1/payments/reconciliation-exceptions/{id}": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "A reconciliation exception, with its statement line and currency (BR-052)",
+        "operationId": "PaymentsGetException",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentsExceptionView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "reconciliation.read",
+        "x-function": [
+          "PAYMENT_RECONCILIATION"
+        ]
+      }
+    },
     "/api/v1/payments/reconciliation-exceptions/{id}/assign": {
       "post": {
         "tags": [
@@ -11144,13 +11327,13 @@
         ]
       }
     },
-    "/api/v1/payments/callback-endpoints/{id}/revoke": {
-      "post": {
+    "/api/v1/payments/callback-endpoints/{id}": {
+      "get": {
         "tags": [
           "Payments"
         ],
-        "summary": "Revoke a callback endpoint at once, for a leaked key or secret. Audited (ADR-023)",
-        "operationId": "PaymentsRevokeCallbackEndpoint",
+        "summary": "A provider callback endpoint, without its key or secret (BR-053)",
+        "operationId": "PaymentsGetCallbackEndpoint",
         "parameters": [
           {
             "name": "id",
@@ -11173,11 +11356,83 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "payment_callback_endpoint.read",
+        "x-function": [
+          "PAYMENT_CALLBACK_ENDPOINTS"
+        ]
+      }
+    },
+    "/api/v1/payments/callback-endpoints/{id}/revoke": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Revoke a callback endpoint at once, for a leaked key or secret. Audited (ADR-023)",
+        "operationId": "PaymentsRevokeCallbackEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentsCallbackEndpointView"
+                }
+              }
+            }
+          },
           "404": {
             "$ref": "#/components/responses/Problem404"
           },
           "409": {
             "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -36530,6 +36785,27 @@
           }
         }
       },
+      "CursorPageOfPaymentsBatchView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentsBatchView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfPaymentsPaymentView": {
         "required": [
           "items",
@@ -49500,7 +49776,8 @@
           "amount",
           "currency",
           "allocatedAt",
-          "reversedById"
+          "reversedById",
+          "rule"
         ],
         "type": "object",
         "properties": {
@@ -49533,6 +49810,9 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "rule": {
+            "type": "string"
           }
         }
       },
@@ -49635,6 +49915,29 @@
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
             ]
+          },
+          "builtAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64",
+            "default": 0
           }
         }
       },
@@ -49745,7 +50048,12 @@
           "statementLineId",
           "amount",
           "status",
-          "assignedTo"
+          "assignedTo",
+          "currency",
+          "statementLine",
+          "raisedAt",
+          "resolvedAt",
+          "rowVersion"
         ],
         "type": "object",
         "properties": {
@@ -49754,6 +50062,10 @@
             "format": "uuid"
           },
           "exceptionType": {
+            "enum": [
+              "UNKNOWN_OUTCOME",
+              "UNMATCHED_LINE"
+            ],
             "type": "string"
           },
           "paymentId": {
@@ -49787,6 +50099,41 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "statementLine": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PaymentsStatementLineView"
+              }
+            ]
+          },
+          "raisedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -49938,7 +50285,12 @@
           "payoutBatchId",
           "history",
           "allocations",
-          "resolutionRequest"
+          "resolutionRequest",
+          "initiatedAt",
+          "counterpartyPartyId",
+          "bankAccountId",
+          "failureReason",
+          "rowVersion"
         ],
         "type": "object",
         "properties": {
@@ -50040,6 +50392,38 @@
                 "$ref": "#/components/schemas/PaymentsResolutionRequestView"
               }
             ]
+          },
+          "initiatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "counterpartyPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "bankAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "failureReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -50134,6 +50518,53 @@
           }
         }
       },
+      "PaymentsStatementLineView": {
+        "required": [
+          "id",
+          "accountRef",
+          "statementDate",
+          "amount",
+          "currency",
+          "reference",
+          "matchStatus"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountRef": {
+            "type": "string"
+          },
+          "statementDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "matchStatus": {
+            "enum": [
+              "UNMATCHED",
+              "MATCHED",
+              "EXCEPTION"
+            ],
+            "type": "string"
+          }
+        }
+      },
       "PaymentsStatementResult": {
         "required": [
           "matched",
@@ -50175,7 +50606,13 @@
             "$ref": "#/components/schemas/PaymentsPaymentStatus"
           },
           "source": {
-            "type": "string"
+            "type": "string",
+            "x-known-values": [
+              "PROVIDER",
+              "CALLBACK",
+              "TIMEOUT",
+              "OPERATOR"
+            ]
           },
           "changedAt": {
             "type": "string",

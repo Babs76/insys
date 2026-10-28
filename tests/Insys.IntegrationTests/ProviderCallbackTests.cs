@@ -137,7 +137,15 @@ public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixtu
         (await Callback(first.CallbackPath, first.SigningSecret, await Body(await PendingPayment(DatabaseFixture.TenantB), "PAID"))).StatusCode
             .ShouldBe(HttpStatusCode.Unauthorized);
 
-        (await Client(DatabaseFixture.TenantB).PostAsync($"/api/v1/payments/callback-endpoints/{second.Endpoint.Id}/revoke", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        // BR-053: the endpoint is read with its ETag, and revoked only with it as If-Match.
+        var client = Client(DatabaseFixture.TenantB);
+        var read = await client.GetAsync($"/api/v1/payments/callback-endpoints/{second.Endpoint.Id}");
+        read.StatusCode.ShouldBe(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+        var etag = read.Headers.ETag!.Tag;
+        (await client.Send(HttpMethod.Post, $"/api/v1/payments/callback-endpoints/{second.Endpoint.Id}/revoke")).StatusCode.ShouldBe(HttpStatusCode.PreconditionRequired);
+        (await client.Send(HttpMethod.Post, $"/api/v1/payments/callback-endpoints/{second.Endpoint.Id}/revoke", ifMatch: "\"999\"")).StatusCode
+            .ShouldBe(HttpStatusCode.PreconditionFailed);
+        (await client.Send(HttpMethod.Post, $"/api/v1/payments/callback-endpoints/{second.Endpoint.Id}/revoke", ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await Callback(second.CallbackPath, second.SigningSecret, await Body(await PendingPayment(DatabaseFixture.TenantB), "PAID"))).StatusCode
             .ShouldBe(HttpStatusCode.Unauthorized);
     }

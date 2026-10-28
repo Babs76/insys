@@ -64,6 +64,72 @@ internal sealed class PaymentRepository(PaymentsDbContext db) : IPaymentReposito
         await Payments().Where(p => p.BusinessRefType == businessRefType && p.BusinessRefId == businessRefId && (afterId == null || p.Id.CompareTo(afterId.Value) > 0))
             .OrderBy(p => p.Id).Take(limit).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Payment>> Find(PaymentSearch search, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var query = Payments();
+        if (search.BusinessRefType is { } type && search.BusinessRefId is { } id)
+        {
+            query = query.Where(p => p.BusinessRefType == type && p.BusinessRefId == id);
+        }
+
+        if (search.Reference is { Length: > 0 } reference)
+        {
+            query = query.Where(p => p.PaymentRef == reference || p.ExternalRef == reference);
+        }
+
+        if (search.Status is { } status)
+        {
+            query = query.Where(p => p.Status == status);
+        }
+
+        if (search.From is { } from)
+        {
+            query = query.Where(p => p.InitiatedAt >= from);
+        }
+
+        if (search.To is { } to)
+        {
+            query = query.Where(p => p.InitiatedAt < to);
+        }
+
+        if (afterId is { } after)
+        {
+            query = query.Where(p => p.Id.CompareTo(after) > 0);
+        }
+
+        return await query.OrderBy(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<PayoutBatch>> Batches(BatchStatus? status, string? purpose, string? currency, Guid? afterId, int limit,
+        CancellationToken cancellationToken)
+    {
+        var query = db.Batches.AsNoTracking();
+        if (status is { } s)
+        {
+            query = query.Where(b => b.Status == s);
+        }
+
+        if (purpose is { } p)
+        {
+            query = query.Where(b => b.Purpose == p);
+        }
+
+        if (currency is { } c)
+        {
+            query = query.Where(b => b.Currency == c);
+        }
+
+        if (afterId is { } after)
+        {
+            query = query.Where(b => b.Id.CompareTo(after) > 0);
+        }
+
+        return await query.OrderBy(b => b.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public Task<BankStatementLine?> StatementLine(Guid id, CancellationToken cancellationToken) =>
+        db.StatementLines.AsNoTracking().SingleOrDefaultAsync(l => l.Id == id, cancellationToken);
+
     public async Task<IReadOnlyList<Payment>> InBatch(Guid batchId, CancellationToken cancellationToken) =>
         await Payments().Where(p => p.PayoutBatchId == batchId).OrderBy(p => p.Id).ToListAsync(cancellationToken);
 

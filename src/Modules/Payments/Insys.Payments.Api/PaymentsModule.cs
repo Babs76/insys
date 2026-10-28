@@ -81,7 +81,7 @@ public sealed class PaymentsModule : IModule
         // ADR-023's endpoint is the building blocks' aggregate, audited by its type name.
         AuditTargetTypes.Register(nameof(BuildingBlocks.Domain.ProviderCallbacks.CallbackEndpoint));
         PaymentsStaticDataEndpoints.MapStaticData(api);
-        var payments = api.MapGroup("/payments").WithTags(Name);
+        var payments = api.MapGroup("/payments").WithTags(Name).ETagsFromRowVersion();
 
         payments.MapPost("/payments", async (InitiatePaymentRequest r, HttpContext http, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new InitiatePayment($"API:{http.Request.Headers["Idempotency-Key"]}", r.Direction, r.Purpose, r.MethodCode, r.Amount, r.Currency,
@@ -100,7 +100,8 @@ public sealed class PaymentsModule : IModule
             .RequirePermission(PaymentPermissions.PaymentRead)
             .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "a commission payout is found only by a caller who also holds it");
 
-        payments.MapGet("/payments", async (string businessRefType, Guid businessRefId, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+        payments.MapGet("/payments", async (string? businessRefType, Guid? businessRefId, string? reference, PaymentStatus? status, DateTimeOffset? from, DateTimeOffset? to,
+                string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
             {
                 if (!Cursor.TryDecode(cursor, out var afterId))
                 {
@@ -108,16 +109,18 @@ public sealed class PaymentsModule : IModule
                 }
 
                 var pageSize = Cursor.ClampLimit(limit);
-                return (await dispatcher.Query(new ListPayments(businessRefType, businessRefId, afterId, pageSize), ct))
+                return (await dispatcher.Query(new ListPayments(new PaymentSearch(businessRefType, businessRefId, reference, status, from, to), afterId, pageSize), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<PaymentView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
             .Produces<CursorPage<PaymentView>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("PaymentsList")
-            .WithSummary("The payments for a business record, oldest first (GAP-036)")
+            .WithSummary("Payments, oldest first: a business record's (GAP-036), or found by reference, status and initiation time (BR-050)")
             .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "commission payouts are listed only to a caller who also holds it")
-            .WithDescription("A refund (REFUND_REQUEST), claim payment instruction (CLAIM_PAYMENT), invoice (INVOICE), remittance, commission statement or case redress (CASE_REDRESS). "
-                + "A payment is listed from when it is created, before it completes.")
+            .WithDescription("By business record: a refund (REFUND_REQUEST), claim payment instruction (CLAIM_PAYMENT), invoice (INVOICE), remittance, commission statement "
+                + "or case redress (CASE_REDRESS), businessRefType and businessRefId together. Or without one (BR-050): reference (paymentRef or externalRef, exactly), "
+                + "status (Unknown included) and from/to (initiated at or after from, before to, as instants); every filter optional. Only payments in the caller's "
+                + "scope are listed. A payment is listed from when it is created, before it completes.")
             .WithKnownValues("businessRefType", PaymentReferenceTypes.Known, "The business record types INSYS itself pays or collects for (GAP-037).")
             .RequirePermission(PaymentPermissions.PaymentRead);
 
@@ -173,6 +176,27 @@ public sealed class PaymentsModule : IModule
             .ChannelScoped() // F005: payments out
             .HasApprovalFlow();
 
+        payments.MapGet("/payout-batches", async (BatchStatus? status, string? purpose, string? currency, string? cursor, int? limit, IDispatcher dispatcher,
+                CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var afterId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListBatches(status, purpose, currency, afterId, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<BatchView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<BatchView>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PaymentsListBatches")
+            .WithSummary("Payout batches by status, purpose and currency, oldest first (BR-051)")
+            .WithKnownValues("purpose", [PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission,
+                PaymentPurposes.CaseRedress], "The payment purposes.")
+            .RequirePermission(PaymentPermissions.PayoutRead)
+            .AlsoChecks(PaymentPermissions.CommissionPayoutRead, "commission batches are listed only to a caller who also holds it");
+
         payments.MapGet("/payout-batches/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetBatch(id), ct)).ToHttp(Results.Ok))
             .Produces<BatchView>(StatusCodes.Status200OK)
             .WithName("PaymentsGetBatch")
@@ -211,6 +235,13 @@ public sealed class PaymentsModule : IModule
             .Produces<IReadOnlyList<ExceptionView>>(StatusCodes.Status200OK)
             .WithName("PaymentsListExceptions")
             .WithSummary("Unmatched and ambiguous items waiting for a person (PAY-005)")
+            .RequirePermission(PaymentPermissions.ReconciliationRead);
+
+        payments.MapGet("/reconciliation-exceptions/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetException(id), ct)).ToHttp(Results.Ok))
+            .Produces<ExceptionView>(StatusCodes.Status200OK)
+            .WithName("PaymentsGetException")
+            .WithSummary("A reconciliation exception, with its statement line and currency (BR-052)")
             .RequirePermission(PaymentPermissions.ReconciliationRead);
 
         payments.MapPost("/reconciliation-exceptions/{id:guid}/assign", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
@@ -292,6 +323,12 @@ public sealed class PaymentsModule : IModule
             .WithSummary("The tenant's provider callback endpoints, without their keys or secrets (ADR-023)")
             .RequirePermission(PaymentPermissions.CallbackEndpointRead);
 
+        endpoints.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetCallbackEndpoint(id), ct)).ToHttp(Results.Ok))
+            .Produces<CallbackEndpointView>(StatusCodes.Status200OK)
+            .WithName("PaymentsGetCallbackEndpoint")
+            .WithSummary("A provider callback endpoint, without its key or secret (BR-053)")
+            .RequirePermission(PaymentPermissions.CallbackEndpointRead);
+
         endpoints.MapPost("/", async (IssueCallbackEndpointRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Send(new IssueCallbackEndpoint(r.ProviderCode, r.RequireClientToken), ct)).ToHttp(issued =>
                 {
@@ -317,6 +354,7 @@ public sealed class PaymentsModule : IModule
             .Produces<CallbackEndpointView>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .TakesIfMatch()
             .OnboardingConfiguration()
             .WithName("PaymentsRevokeCallbackEndpoint")
             .WithSummary("Revoke a callback endpoint at once, for a leaked key or secret. Audited (ADR-023)")

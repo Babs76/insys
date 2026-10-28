@@ -85,6 +85,12 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
 
     public Guid? ReleasedBy { get; private set; }
 
+    /// <summary>When the batch was built (BR-051).</summary>
+    public DateTimeOffset? BuiltAt { get; private set; }
+
+    /// <summary>The Workflow approval that approved the batch's release (BR-051); null until approved, and for batches approved before V0083.</summary>
+    public Guid? ApprovalId { get; private set; }
+
     /// <summary>
     /// What the release approval covers (BuildingBlocks.Domain.ApprovalSubject): the batch and each of its payments' id,
     /// amount, currency, payee and bank account, as built. Null for a batch built before V0065.
@@ -114,6 +120,7 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
             TotalAmount = payments.Sum(p => p.Amount),
             Status = BatchStatus.Built,
             BuiltBy = builtBy,
+            BuiltAt = now,
         };
         foreach (var payment in payments)
         {
@@ -133,7 +140,7 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
     /// Command ApproveBatch, from Workflow's ApprovalGranted; the approver is never the builder, and the approval applies
     /// only to the batch it was requested for (<paramref name="subjectHash"/>, when the grant carries one).
     /// </summary>
-    public Result ApproveBatch(Guid approvedBy, string? subjectHash = null)
+    public Result ApproveBatch(Guid approvedBy, string? subjectHash = null, Guid? approvalId = null)
     {
         if (approvedBy == BuiltBy)
         {
@@ -149,6 +156,7 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
         if (result.IsSuccess)
         {
             ApprovedBy = approvedBy;
+            ApprovalId = approvalId;
         }
 
         return result;
@@ -255,11 +263,17 @@ public sealed class ReconciliationException : AggregateRoot<Guid>
 
     public Guid? AssignedTo { get; private set; }
 
+    /// <summary>When the exception was raised, and when it was resolved (BR-052).</summary>
+    public DateTimeOffset RaisedAt { get; private set; }
+
+    public DateTimeOffset? ResolvedAt { get; private set; }
+
     public static ReconciliationException RaiseException(Guid id, string type, Guid? paymentId, Guid? statementLineId, decimal amount, DateTimeOffset now)
     {
         var exception = new ReconciliationException
         {
             Id = Guard.NotEmpty(id), ExceptionType = type, PaymentId = paymentId, StatementLineId = statementLineId, Amount = amount, Status = ExceptionStatus.Open,
+            RaisedAt = now,
         };
         exception.Raise(new ReconciliationExceptionRaised(id, type, paymentId, statementLineId, amount, now));
         exception.MarkChanged();
@@ -281,7 +295,7 @@ public sealed class ReconciliationException : AggregateRoot<Guid>
     }
 
     /// <summary>Command ResolveException, by the person investigating it.</summary>
-    public Result ResolveException(Guid resolvedBy)
+    public Result ResolveException(Guid resolvedBy, DateTimeOffset now)
     {
         if (AssignedTo != resolvedBy)
         {
@@ -295,6 +309,7 @@ public sealed class ReconciliationException : AggregateRoot<Guid>
         }
 
         Status = next.Value;
+        ResolvedAt = now;
         MarkChanged();
         return Result.Success();
     }

@@ -72,6 +72,9 @@ public sealed record RevokeCallbackEndpoint(Guid EndpointId) : ICommand<Callback
 
 public sealed record ListCallbackEndpoints : IQuery<IReadOnlyList<CallbackEndpointView>>;
 
+/// <summary>BR-053: one callback endpoint, without its key or secret.</summary>
+public sealed record GetCallbackEndpoint(Guid EndpointId) : IQuery<CallbackEndpointView>;
+
 public enum CallbackResult
 {
     Applied,
@@ -99,8 +102,14 @@ internal sealed class CallbackEndpointHandlers(ICallbackEndpoints endpoints, IFi
     IOptions<PaymentCallbackOptions> options, IAuditTrail audit)
     : ICommandHandler<IssueCallbackEndpoint, IssuedCallbackEndpoint>,
       ICommandHandler<RevokeCallbackEndpoint, CallbackEndpointView>,
-      IQueryHandler<ListCallbackEndpoints, IReadOnlyList<CallbackEndpointView>>
+      IQueryHandler<ListCallbackEndpoints, IReadOnlyList<CallbackEndpointView>>,
+      IQueryHandler<GetCallbackEndpoint, CallbackEndpointView>
 {
+    public async Task<Result<CallbackEndpointView>> Handle(GetCallbackEndpoint query, CancellationToken cancellationToken) =>
+        await endpoints.Get(query.EndpointId, cancellationToken) is { } endpoint
+            ? CallbackEndpointView.From(endpoint)
+            : Error.NotFound(ErrorCodes.NotFound, "The callback endpoint was not found.");
+
     public async Task<Result<IssuedCallbackEndpoint>> Handle(IssueCallbackEndpoint command, CancellationToken cancellationToken)
     {
         var issued = await CallbackEndpoints.Issue(endpoints, protector, command.ProviderCode, command.RequireClientToken, execution.ActorId, clock.UtcNow,
