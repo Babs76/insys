@@ -3015,6 +3015,63 @@
         ]
       }
     },
+    "/api/v1/product-factory/products/{productCode}": {
+      "get": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "Get a product with all its versions (BR-024)",
+        "description": "The product\u0027s name, domain, family and class are its latest version\u0027s; each version says who last submitted it and when.",
+        "operationId": "ProductGetProduct",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductFactoryProductView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "product.read",
+        "x-function": [
+          "PRODUCTS"
+        ]
+      }
+    },
     "/api/v1/product-factory/products/{productCode}/versions": {
       "post": {
         "tags": [
@@ -48037,6 +48094,11 @@
             "format": "int32"
           },
           "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH"
+            ],
             "type": "string"
           },
           "name": {
@@ -48075,6 +48137,10 @@
             ]
           },
           "coverStartsOn": {
+            "enum": [
+              "Issue",
+              "FirstPayment"
+            ],
             "type": "string"
           },
           "approvedBy": {
@@ -48105,6 +48171,10 @@
             ]
           },
           "reinstatementArrears": {
+            "enum": [
+              "None",
+              "Required"
+            ],
             "type": "string"
           },
           "latestRejection": {
@@ -48116,6 +48186,65 @@
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
             ]
+          },
+          "submittedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "submittedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ProductFactoryProductView": {
+        "required": [
+          "productCode",
+          "name",
+          "domain",
+          "familyCode",
+          "classCode",
+          "versions"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH"
+            ],
+            "type": "string"
+          },
+          "familyCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "classCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductFactoryProductVersionView"
+            }
           }
         }
       },

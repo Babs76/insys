@@ -124,6 +124,8 @@ public sealed class ProductVersion : AggregateRoot<Guid>
         .Allow(ProductVersionStatus.Approved, ProductVersionTrigger.PublishVersion, ProductVersionStatus.Published)
         .Allow(ProductVersionStatus.Published, ProductVersionTrigger.EffectiveDateReached, ProductVersionStatus.Effective)
         .Allow(ProductVersionStatus.Effective, ProductVersionTrigger.WithdrawVersion, ProductVersionStatus.Withdrawn)
+        // BR-030 (Ade, 28 October 2026): a Published version not yet Effective may be withdrawn (it was never in force); never retired.
+        .Allow(ProductVersionStatus.Published, ProductVersionTrigger.WithdrawVersion, ProductVersionStatus.Withdrawn)
         .Allow(ProductVersionStatus.Effective, ProductVersionTrigger.RetireVersion, ProductVersionStatus.Retired);
 
     private ProductVersion()
@@ -365,9 +367,23 @@ public sealed class ProductVersion : AggregateRoot<Guid>
             ? Error.Conflict(ErrorCodes.InvalidStateTransition, $"Version {Version} of {ProductCode} is effective from {EffectiveFrom:yyyy-MM-dd}.")
             : Fire(ProductVersionTrigger.EffectiveDateReached);
 
-    /// <summary>Command WithdrawVersion: no new business from <paramref name="effectiveTo"/>.</summary>
+    /// <summary>
+    /// Command WithdrawVersion: no new business from <paramref name="effectiveTo"/>. A Published version not yet Effective
+    /// (BR-030) is withdrawn at once: it never comes into force, and its dates stay as they were.
+    /// </summary>
     public Result WithdrawVersion(DateOnly effectiveTo, DateOnly today, DateTimeOffset now)
     {
+        if (Status == ProductVersionStatus.Published)
+        {
+            var withdrawn = Fire(ProductVersionTrigger.WithdrawVersion);
+            if (withdrawn.IsSuccess)
+            {
+                Raise(new ProductVersionWithdrawn(Id, ProductCode, Version, EffectiveFrom, now));
+            }
+
+            return withdrawn;
+        }
+
         if (effectiveTo < today || effectiveTo <= EffectiveFrom)
         {
             return Error.Validation(ErrorCodes.ValidationFailed, "A version is withdrawn from today or a later date, after its effective date.");
@@ -482,6 +498,10 @@ public static class ProductErrorCodes
 
     [ErrorCode(409, "error.product.version_immutable")]
     public const string VersionImmutable = "PRODUCT_VERSION_IMMUTABLE";
+
+    /// <summary>BR-030: a Published version not yet Effective is not withdrawn while a quote, proposal or policy references it.</summary>
+    [ErrorCode(409, "error.product.version_referenced")]
+    public const string VersionReferenced = "PRODUCT_VERSION_REFERENCED";
 
     [ErrorCode(409, "error.product.version_in_progress")]
     public const string VersionInProgress = "PRODUCT_VERSION_IN_PROGRESS";

@@ -124,4 +124,10 @@ public interface IApprovalHistory
 
     /// <summary>For the current tenant: the ID of the record's approval waiting for a decision, or null if none waits (BR-010).</summary>
     Task<Guid?> Waiting(string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
+
+    /// <summary>For the current tenant: who asked for the record's most recent approval and when, whatever its ending, or null (BR-024).</summary>
+    Task<ApprovalRequest?> LatestRequest(string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
 }
+
+/// <summary>Who asked for a record's approval (the maker) and when.</summary>
+public sealed record ApprovalRequest(Guid RequestedBy, DateTimeOffset RequestedAt);

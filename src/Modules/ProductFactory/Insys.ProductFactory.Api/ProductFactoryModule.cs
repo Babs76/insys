@@ -100,6 +100,15 @@ public sealed class ProductFactoryModule : IModule
                 + "is its class code, or its family code when it has no class.")
             .RequirePermission(ProductPermissions.ProductRead);
 
+        products.MapGet("/{productCode}", async (string productCode, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetProduct(productCode), ct)).ToHttp(Results.Ok))
+            .Produces<ProductView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("ProductGetProduct")
+            .WithSummary("Get a product with all its versions (BR-024)")
+            .WithDescription("The product's name, domain, family and class are its latest version's; each version says who last submitted it and when.")
+            .RequirePermission(ProductPermissions.ProductRead);
+
         var versions = products.MapGroup("/{productCode}/versions");
         versions.MapPost("/", async (string productCode, CreateDraftVersionRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Send(new CreateDraftVersion(productCode, r.EffectiveFrom), ct)).ToHttp(view =>

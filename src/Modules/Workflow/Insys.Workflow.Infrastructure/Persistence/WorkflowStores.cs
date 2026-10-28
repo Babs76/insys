@@ -504,4 +504,31 @@ internal sealed class ApprovalHistory([Microsoft.Extensions.DependencyInjection.
         await transaction.CommitAsync(cancellationToken);
         return id;
     }
+
+    public async Task<ApprovalRequest?> LatestRequest(string businessRefType, Guid businessRefId, CancellationToken cancellationToken)
+    {
+        var tenantId = tenant.RequireTenantId();
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await BuildingBlocks.Infrastructure.Persistence.TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new Npgsql.NpgsqlCommand("""
+            SELECT maker_id, requested_at FROM workflow.approval
+            WHERE tenant_id = @t AND business_ref_type = @type AND business_ref_id = @id
+            ORDER BY requested_at DESC LIMIT 1
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("type", businessRefType);
+        command.Parameters.AddWithValue("id", businessRefId);
+        ApprovalRequest? latest = null;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                latest = new ApprovalRequest(reader.GetGuid(0), reader.GetFieldValue<DateTimeOffset>(1));
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return latest;
+    }
 }

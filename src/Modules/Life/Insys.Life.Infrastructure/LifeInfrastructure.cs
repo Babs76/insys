@@ -62,6 +62,13 @@ public static class LifeInfrastructure
             ["LIFE_POLICY"] = "SELECT product_code, org_node_code FROM life.policy WHERE id = @id",
             ["LIFE_CLAIM"] = "SELECT product_code, org_node_code FROM life.claim WHERE id = @id",
         });
+        // BR-030: the proposals and policies on a product version.
+        services.AddProductVersionReferences(schema, """
+            SELECT 'LIFE proposal ' || proposal_number FROM life.proposal WHERE product_code = @code AND product_version = @version
+            UNION ALL
+            SELECT 'LIFE policy ' || policy_number FROM life.policy WHERE product_code = @code AND product_version = @version
+            ORDER BY 1
+            """);
         services.AddStaticData<LifeDbContext>(schema, LifeStaticData.Descriptors);
         services.AddModuleHandlers<LifeDbContext>(typeof(CaptureProposal).Assembly);
         services.AddDomainEventMapper<LifeEventMapper>(schema);

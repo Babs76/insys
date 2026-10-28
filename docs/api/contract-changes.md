@@ -4,6 +4,15 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### New: product versions say who submitted them, and a product reads as a whole (BR-024)
+- **`ProductVersionView`** gains `submittedBy` and `submittedAt`: who last submitted the version for approval and when (the maker, as `approvedBy` is the checker); null if it was never submitted. On the version read, the versions list and the product read.
+- **`GET /api/v1/product-factory/products/{productCode}`** (`ProductGetProduct`, the products screen): `ProductView` with the code, the name, domain, family and class of its latest version, and every version, newest first. An unknown code is 404.
+- **Declared values:** `domain` (`LIFE`, `GENERAL`, `HEALTH`), `coverStartsOn` (`Issue`, `FirstPayment`) and `reinstatementArrears` (`None`, `Required`).
+
+### Changed: a Published version not yet Effective can be withdrawn, not retired (BR-030, decided)
+- **`ProductWithdrawVersion`** now also accepts a Published version whose effective date has not come: it is withdrawn at once, never comes into force, and keeps its dates (`effectiveTo` in the request is not used for it). `ProductRetireVersion` stays Effective-only (409 otherwise).
+- **Refused while referenced:** 409 `PRODUCT_VERSION_REFERENCED` while any quote, proposal or policy references the version, its detail naming each (for example "GENERAL quote Q-000123", "LIFE proposal P-000045", "HEALTH membership M-0001"), at most 50 then "and more".
+
 ### Breaking: the case's own legal hold is retired; a case is held by a record hold (decided, Ade)
 - **Removed:** `POST /workflow/cases/{id}/legal-hold` (`WorkflowPlaceCaseLegalHold`) and `POST /workflow/cases/{id}/legal-hold/release` (`WorkflowReleaseCaseLegalHold`), and their functions `CASE_PLACE_LEGAL_HOLD` and `CASE_RELEASE_LEGAL_HOLD`. One person could place and release them.
 - **Instead:** place a record hold with `scopeType` `CASE` (`POST /documents/legal-holds`, since batch 4); releasing it needs a second person (`LEGAL_HOLD_RELEASE`).

@@ -2009,6 +2009,12 @@
        "trigger": "WithdrawVersion"
       },
       {
+       "from": "Published",
+       "to": "Withdrawn",
+       "trigger": "WithdrawVersion",
+       "note": "BR-030 (Ade, 28 October 2026): a version not yet Effective, never in force, is withdrawn while no quote, proposal or policy references it; it is never retired."
+      },
+      {
        "from": "Effective",
        "to": "Retired",
        "trigger": "RetireVersion"

@@ -50,6 +50,7 @@ public sealed class ProductPublicationTests(PostgresServer server) : IAsyncLifet
     private TestDatabase _db = null!;
     private InsysApiFactory _factory = null!;
     private Guid _checker;
+    private Guid _maker;
 
     public async ValueTask InitializeAsync()
     {
@@ -61,7 +62,7 @@ public sealed class ProductPublicationTests(PostgresServer server) : IAsyncLifet
             WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove, RatingPermissions.CalculationCreate, RatingPermissions.CalculationRead,
             StaticDataPermissions.Read,
         ];
-        await _db.UserWithPermissions(Tenant, "product-manager", permissions);
+        _maker = await _db.UserWithPermissions(Tenant, "product-manager", permissions);
         _checker = await _db.UserWithPermissions(Tenant, "senior-actuary", permissions);
         var approverRole = await _db.RoleWithPermissions(Tenant);
         await _db.AssignRole(Tenant, _checker, approverRole);
@@ -167,6 +168,14 @@ public sealed class ProductPublicationTests(PostgresServer server) : IAsyncLifet
         published.GetProperty("status").GetString().ShouldBe("Published");
         (await ListedProduct(maker, "?status=Published")).GetProperty("inForceVersion").GetInt32().ShouldBe(1);
         published.GetProperty("approvedBy").GetString().ShouldBe(_checker.ToString());
+        // BR-024: who last submitted the version (the maker, against approvedBy's checker), and the product read as a whole.
+        published.GetProperty("submittedBy").GetGuid().ShouldBe(_maker);
+        published.GetProperty("submittedAt").ValueKind.ShouldBe(JsonValueKind.String);
+        var product = await (await maker.GetAsync($"/api/v1/product-factory/products/{Product}")).Json();
+        (product.GetProperty("name").GetString(), product.GetProperty("domain").GetString(), product.GetProperty("familyCode").GetString())
+            .ShouldBe(("Motor comprehensive", "GENERAL", "GEN-MOTOR"));
+        product.GetProperty("versions").EnumerateArray().Select(v => v.GetProperty("submittedBy").GetGuid()).ShouldBe([_maker]);
+        (await maker.GetAsync("/api/v1/product-factory/products/NO-SUCH")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await Events("product", "product.ProductVersionApproved")).ShouldBe(1);
         (await Events("product", "product.ProductVersionPublished")).ShouldBe(1);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM rating.inbox_message WHERE event_type = 'product.ProductVersionPublished'")).ShouldBe(1);

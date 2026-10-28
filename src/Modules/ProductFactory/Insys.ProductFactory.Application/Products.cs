@@ -77,9 +77,14 @@ public interface ISimulationRuns
     void Add(SimulationRun run);
 }
 
-public sealed record ProductVersionView(Guid Id, string ProductCode, int Version, string Domain, string Name, IReadOnlyList<string> Coverages, ProductVersionStatus Status,
-    DateOnly EffectiveFrom, DateOnly? EffectiveTo, string? FamilyCode, string? ClassCode, string CoverStartsOn, string? ApprovedBy, DateTimeOffset? ApprovedAt,
-    long RowVersion, string? EligibilityRulesetCode, string ReinstatementArrears, LatestRejection? LatestRejection = null)
+/// <param name="SubmittedBy">Who last submitted the version for approval (BR-024): the maker, as approvedBy is the checker; null if never submitted.</param>
+/// <param name="SubmittedAt">When it was last submitted for approval.</param>
+public sealed record ProductVersionView(Guid Id, string ProductCode, int Version,
+    [property: System.ComponentModel.DataAnnotations.AllowedValues("LIFE", "GENERAL", "HEALTH")] string Domain, string Name, IReadOnlyList<string> Coverages,
+    ProductVersionStatus Status, DateOnly EffectiveFrom, DateOnly? EffectiveTo, string? FamilyCode, string? ClassCode,
+    [property: System.ComponentModel.DataAnnotations.AllowedValues("Issue", "FirstPayment")] string CoverStartsOn, string? ApprovedBy, DateTimeOffset? ApprovedAt,
+    long RowVersion, string? EligibilityRulesetCode, [property: System.ComponentModel.DataAnnotations.AllowedValues("None", "Required")] string ReinstatementArrears,
+    LatestRejection? LatestRejection = null, Guid? SubmittedBy = null, DateTimeOffset? SubmittedAt = null)
 {
     public static ProductVersionView From(ProductVersion v) => new(v.Id, v.ProductCode, v.Version, v.Domain.ToString().ToUpperInvariant(), v.Name, v.Coverages,
         v.Status, v.EffectiveFrom, v.EffectiveTo, v.FamilyCode, v.ClassCode, v.CoverStartsOn.ToString(), v.ApprovedBy, v.ApprovedAt, v.RowVersion,
@@ -331,7 +336,8 @@ internal sealed class SubmitForApprovalHandler(IProductVersionRepository version
     }
 }
 
-internal sealed class WithdrawVersionHandler(IProductVersionRepository versions, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<WithdrawVersion, long>
+internal sealed class WithdrawVersionHandler(IProductVersionRepository versions, IBusinessDate businessDate, IClock clock, IAuditTrail audit, ITenantContext tenant,
+    IEnumerable<IProductVersionReferences> references) : ICommandHandler<WithdrawVersion, long>
 {
     public async Task<Result<long>> Handle(WithdrawVersion command, CancellationToken cancellationToken)
     {
@@ -339,6 +345,23 @@ internal sealed class WithdrawVersionHandler(IProductVersionRepository versions,
         if (version.IsFailure)
         {
             return version.Error;
+        }
+
+        // BR-030: a Published version not yet Effective is withdrawn only while nothing references it, naming whatever does.
+        if (version.Value.Status == ProductVersionStatus.Published)
+        {
+            var referencing = new List<string>();
+            foreach (var module in references)
+            {
+                referencing.AddRange(await module.Of(tenant.RequireTenantId(), command.ProductCode, command.Version, cancellationToken));
+            }
+
+            if (referencing.Count > 0)
+            {
+                return Error.Conflict(ProductErrorCodes.VersionReferenced,
+                    $"Version {command.Version} of {command.ProductCode} is referenced by {referencing.Count} record(s): {string.Join(", ", referencing.Take(50))}"
+                    + (referencing.Count > 50 ? ", and more." : "."));
+            }
         }
 
         audit.Record(new AuditEntry("PRODUCT", "WithdrawVersion", nameof(ProductVersion), version.Value.Id.ToString()));
@@ -382,15 +405,59 @@ internal sealed class GetProductVersionHandler(IProductVersionRepository version
 {
     public async Task<Result<ProductVersionView>> Handle(GetProductVersion query, CancellationToken cancellationToken) =>
         await versions.Get(query.ProductCode, query.Version, cancellationToken) is { } version
-            ? ProductVersionView.From(version) with { LatestRejection = await history.Latest(ProductApprovals.BusinessRefType, version.Id, cancellationToken) }
+            ? await ProductViews.Of(version, history, cancellationToken) with
+            {
+                LatestRejection = await history.Latest(ProductApprovals.BusinessRefType, version.Id, cancellationToken),
+            }
             : Error.NotFound(ErrorCodes.NotFound, $"Product {query.ProductCode} has no version {query.Version}.");
 }
 
-internal sealed class ListProductVersionsHandler(IProductVersionRepository versions) : IQueryHandler<ListProductVersions, IReadOnlyList<ProductVersionView>>
+internal sealed class ListProductVersionsHandler(IProductVersionRepository versions, IApprovalHistory history)
+    : IQueryHandler<ListProductVersions, IReadOnlyList<ProductVersionView>>,
+      IQueryHandler<GetProduct, ProductView>
 {
     public async Task<Result<IReadOnlyList<ProductVersionView>>> Handle(ListProductVersions query, CancellationToken cancellationToken) =>
-        (await versions.Versions(query.ProductCode, cancellationToken)).Select(ProductVersionView.From).ToList();
+        await Views(query.ProductCode, cancellationToken);
+
+    public async Task<Result<ProductView>> Handle(GetProduct query, CancellationToken cancellationToken)
+    {
+        var all = await Views(query.ProductCode, cancellationToken);
+        if (all.Count == 0)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, $"There is no product {query.ProductCode}.");
+        }
+
+        var latest = all.MaxBy(v => v.Version)!;
+        return new ProductView(latest.ProductCode, latest.Name, latest.Domain, latest.FamilyCode, latest.ClassCode, all);
+    }
+
+    private async Task<List<ProductVersionView>> Views(string productCode, CancellationToken cancellationToken)
+    {
+        var views = new List<ProductVersionView>();
+        foreach (var version in await versions.Versions(productCode, cancellationToken))
+        {
+            views.Add(await ProductViews.Of(version, history, cancellationToken));
+        }
+
+        return views;
+    }
 }
+
+internal static class ProductViews
+{
+    /// <summary>A version's view with its latest submission for approval (BR-024).</summary>
+    public static async Task<ProductVersionView> Of(ProductVersion version, IApprovalHistory history, CancellationToken cancellationToken) =>
+        await history.LatestRequest(ProductApprovals.BusinessRefType, version.Id, cancellationToken) is { } request
+            ? ProductVersionView.From(version) with { SubmittedBy = request.RequestedBy, SubmittedAt = request.RequestedAt }
+            : ProductVersionView.From(version);
+}
+
+/// <summary>Query GetProduct (BR-024): a product as a whole, its name, domain, family and class from its latest version, and every version.</summary>
+public sealed record GetProduct(string ProductCode) : IQuery<ProductView>;
+
+/// <summary>A product (BR-024): its code, and the name, domain, family and class of its latest version, with all its versions, newest first.</summary>
+public sealed record ProductView(string ProductCode, string Name, [property: System.ComponentModel.DataAnnotations.AllowedValues("LIFE", "GENERAL", "HEALTH")] string Domain,
+    string? FamilyCode, string? ClassCode, IReadOnlyList<ProductVersionView> Versions);
 
 internal sealed class ListProductsHandler(IProductList products) : IQueryHandler<ListProducts, IReadOnlyList<ProductSummary>>
 {

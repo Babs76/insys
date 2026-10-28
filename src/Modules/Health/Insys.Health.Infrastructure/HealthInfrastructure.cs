@@ -60,6 +60,10 @@ public static class HealthInfrastructure
                 SELECT m.product_code, m.org_node_code FROM health.medical_claim c JOIN health.membership m ON m.tenant_id = c.tenant_id AND m.id = c.membership_id WHERE c.id = @id
                 """,
         });
+        // BR-030: the memberships (a Health policy) on a product version.
+        services.AddProductVersionReferences(schema, """
+            SELECT 'HEALTH membership ' || member_number FROM health.membership WHERE product_code = @code AND product_version = @version ORDER BY 1
+            """);
         services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator, Persistence.HealthFraudIndicatorValidator>();
         services.AddStaticData<HealthDbContext>(schema, HealthStaticData.Descriptors);
         services.AddModuleHandlers<HealthDbContext>(typeof(EnrolHealthMember).Assembly);

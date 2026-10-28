@@ -62,6 +62,16 @@ public static class GeneralInfrastructure
             ["GENERAL_POLICY"] = "SELECT product_code, org_node_code FROM general.policy WHERE id = @id",
             ["GENERAL_CLAIM"] = "SELECT product_code, org_node_code FROM general.claim WHERE id = @id",
         });
+        // BR-030: the quotes, proposals (through their quote) and policies on a product version.
+        services.AddProductVersionReferences(schema, """
+            SELECT 'GENERAL quote ' || quote_number FROM general.quote WHERE product_code = @code AND product_version = @version
+            UNION ALL
+            SELECT 'GENERAL proposal on quote ' || q.quote_number FROM general.proposal p JOIN general.quote q ON q.tenant_id = p.tenant_id AND q.id = p.quote_id
+            WHERE q.product_code = @code AND q.product_version = @version
+            UNION ALL
+            SELECT 'GENERAL policy ' || policy_number FROM general.policy WHERE product_code = @code AND product_version = @version
+            ORDER BY 1
+            """);
         services.AddStaticData<GeneralDbContext>(schema, GeneralStaticData.Descriptors);
         services.AddModuleHandlers<GeneralDbContext>(typeof(CreateQuote).Assembly);
         services.AddDomainEventMapper<GeneralEventMapper>(schema);
