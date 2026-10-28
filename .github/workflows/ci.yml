@@ -212,9 +212,11 @@ jobs:
             --jq '.jobs[] | select(.name | startswith("integration (")) | [.name, .startedAt, (.completedAt // ""), (.conclusion // "")] | @tsv' | sort |
           while IFS=$'\t' read -r name started completed conclusion; do
             case "$completed" in ""|0001-*) end=$(date +%s) ;; *) end=$(date -d "$completed" +%s) ;; esac
-            minutes=$(( (end - $(date -d "$started" +%s)) / 60 ))
+            seconds=$(( end - $(date -d "$started" +%s) ))
+            minutes="$(( seconds / 60 )).$(( seconds % 60 * 10 / 60 ))"
             echo "$name: $minutes min (${conclusion:-finishing})" | tee -a "$GITHUB_STEP_SUMMARY"
-            if [ "$minutes" -gt 35 ]; then echo "::warning title=Integration shard over 35 minutes::$name took $minutes minutes (limit 45)."; fi
+            # Past 35 minutes to the second: 35 min 30 s is over the alarm, though it rounds down to 35.
+            if [ "$seconds" -gt 2100 ]; then echo "::warning title=Integration shard over 35 minutes::$name took $minutes minutes (limit 45)."; fi
           done
 
   sweeps-and-end-to-end:
