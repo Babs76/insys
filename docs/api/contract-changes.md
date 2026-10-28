@@ -53,12 +53,6 @@ Each is a `CursorPage` (`cursor`, `limit`), by ID, within the caller's product a
   - Address type, capture channel and industry code have no table to name (OQ-121).
 - **`GET /api/v1/party/search-log`:** `from` and `to` are described as instants (ISO 8601 with an offset): searches at or after `from`, before `to`.
 
-### Breaking: an insured life and a Health dependant see only their own cover (privacy check, Ade)
-- **`PortalLifePolicyView`** (`PortalLifeGetPolicy`, `PortalLifeListPolicies`) gains `viewedAs` (`POLICYHOLDER`, `INSURED_LIFE`, `INTERMEDIARY`). For an `INSURED_LIFE` (an insured life who is not the policyholder), `benefits` lists only the benefits on their own life, each benefit's `premium` is null, `policyholderPartyId` is null and `beneficiaries` null. `premium` and `policyholderPartyId` are now nullable. The policyholder and the broker see the policy as before.
-- **Life policy documents** in the portal (`GET /portal/documents?businessRefType=LIFE_POLICY`) are the policyholder's (and the broker's) only: an insured life who is not the policyholder no longer reaches them, as the schedule shows the whole policy.
-- **`PortalMembershipView`** (`PortalHealthGetMembership`, `PortalHealthListMemberships`) gains `viewedAs` (`PRINCIPAL`, `DEPENDANT`). For a `DEPENDANT`, `principalPartyId` is null (now nullable) and `dependants` holds only their own entry; the plan and option are shown. The principal sees the membership as before.
-- **Unchanged, confirmed:** a dependant's Health claims (list and read) are only those where they are the patient; the principal's and other dependants' claims are 404.
-
 ### New: product versions say who submitted them, and a product reads as a whole (BR-024)
 - **`ProductVersionView`** gains `submittedBy` and `submittedAt`: who last submitted the version for approval and when (the maker, as `approvedBy` is the checker); null if it was never submitted. On the version read, the versions list and the product read.
 - **`GET /api/v1/product-factory/products/{productCode}`** (`ProductGetProduct`, the products screen): `ProductView` with the code, the name, domain, family and class of its latest version, and every version, newest first. An unknown code is 404.
@@ -81,6 +75,14 @@ Each is a `CursorPage` (`cursor`, `limit`), by ID, within the caller's product a
 
 ### New: readiness item CASE_TYPE_PROCESS_NOT_IN_FORCE (decided, Ade)
 - The `SHARED_OPERATIONAL_SETUP` step gains the check `CASE_TYPE_PROCESS_NOT_IN_FORCE`: every case type in force must name a process in force. `missing` lists each that does not as `caseType:process`. Until now such a case type opened its cases without a process, with only a logged warning. Like every readiness check, it must be ready for the step to complete.
+
+## Portal privacy (branch `portal-privacy`, shipped alone, merged at `8cb4981`)
+
+### Breaking: an insured life and a Health dependant see only their own cover (privacy check, Ade)
+- **`PortalLifePolicyView`** (`PortalLifeGetPolicy`, `PortalLifeListPolicies`) gains `viewedAs` (`POLICYHOLDER`, `INSURED_LIFE`, `INTERMEDIARY`). For an `INSURED_LIFE` (an insured life who is not the policyholder), `benefits` lists only the benefits on their own life, each benefit's `premium` is null, `policyholderPartyId` is null and `beneficiaries` null. `premium` and `policyholderPartyId` are now nullable. The policyholder and the broker see the policy as before.
+- **Life policy documents** in the portal (`GET /portal/documents?businessRefType=LIFE_POLICY`) are the policyholder's (and the broker's) only: an insured life who is not the policyholder no longer reaches them, as the schedule shows the whole policy.
+- **`PortalMembershipView`** (`PortalHealthGetMembership`, `PortalHealthListMemberships`) gains `viewedAs` (`PRINCIPAL`, `DEPENDANT`). For a `DEPENDANT`, `principalPartyId` is null (now nullable) and `dependants` holds only their own entry; the plan and option are shown. The principal sees the membership as before.
+- **Unchanged, confirmed:** a dependant's Health claims (list and read) are only those where they are the patient; the principal's and other dependants' claims are 404.
 
 ## BR-091 (branch `br-091`, shipped alone, merged at `41e237d`)
 
