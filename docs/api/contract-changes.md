@@ -4,6 +4,35 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 6 (branch `wave2-6`, not merged)
 
+### Breaking: lists that were arrays are cursor pages (phase 4)
+- **`FinanceListJournals`**, **`FinanceListPostingExceptions`**, **`ReinsuranceListCessions`** and **`ReinsuranceListRecoveries`** now return a `CursorPage` (`items`, `nextCursor`; `cursor` and `limit` parameters). `ReinsuranceListRecoveries` no longer takes `after`. `FinanceListJournals` and `ReinsuranceListCessions` no longer require a business record or policy.
+- **`PaymentsRevokeCallbackEndpoint`** requires If-Match (428 without it, 412 when stale), from the new `PaymentsGetCallbackEndpoint`.
+
+### New: phase 4 lists, reads and fields (BR-041, BR-043 to BR-056, BR-058, BR-059)
+- **Payments.**
+  - `PaymentsList` searches by `reference`, `status` and `from`/`to` without a business record (BR-050).
+  - `PaymentsListBatches` lists by status, purpose and currency; the batch gives `builtAt` and `approvalId` (BR-051).
+  - `PaymentsGetException` reads one exception, with `currency`, `statementLine`, `raisedAt` and `resolvedAt`; `exceptionType` is declared (BR-052).
+  - The payment gives `initiatedAt`, `counterpartyPartyId`, `bankAccountId`, `failureReason` and `rowVersion`, with ETags; the allocation gives `rule`; the history's `source` is declared; `PaymentsGetCallbackEndpoint` is new (BR-053).
+- **Billing.**
+  - `BillingListAccounts` lists by payer, policy and status (BR-054).
+  - `BillingListRefunds` lists by account and status; the account read gives `refunds`, and the refund `approvalId` (BR-055).
+  - Billing's code fields declare their values or table, and `BillingArrearsView.currency` is new (BR-056).
+- **Distribution.**
+  - `DistributionListStatements` lists by intermediary, period and status; the statement gives `approvalId` (BR-058).
+  - `DistributionListEntitlements` takes `statementId`; the entitlement gives `rateBasis` and `rateUnit` (BR-059).
+- **Finance.**
+  - Journals are found by number, period and accounting dates, and give `reversedByJournalId` and `baseCurrency` (BR-043).
+  - `FinanceGetPostingException` is new, and the exception gives the failed event's amount, currency, accounting date, transaction type and business record (BR-044).
+  - `FinanceGetPeriod` is new; calendar periods not yet opened are listed as Future, with a null `id`; the period gives `reopenRequestedAt` and `reopenApprovalId` (BR-045).
+  - The GL export gives `sentAt` and `sentBy` (BR-046).
+- **Reinsurance.**
+  - `ReinsuranceListBordereaux` is new, and `ReinsuranceGetBordereauContent` serves the CSV as `bordereau-{treaty}-{period}.csv`; the bordereau gives `fileName` (BR-047).
+  - Cessions are found by treaty or month, and `sourceType` is declared (BR-048).
+  - The recovery gives `billedBy` and `settledBy` (BR-049).
+- **ETags in the contract (BR-041):** every 2xx response that carries a record's `rowVersion` as its ETag declares the `ETag` header: 161 core operations and every static data version operation.
+- **Migrations V0083 to V0087:** payment failure reason; batch build time and approval; exception raise and resolve times; refund approval; entitlement rate basis; GL export sender; recovery actors. Existing rows take their creation time where it stands for the event, and the plan's basis; anything not recorded before stays null.
+
 ### Breaking: a loss is notified only with a peril and cause of the policy's line (Ade)
 - **`GeneralNotifyLoss` and `PortalGeneralNotifyLoss`** take only a `perilCode` among the perils of the policy's product line, and a `causeCode` that is a cause of that peril: the BR-093 list. Anything else is 422 `GENERAL_LOSS_CODE_NOT_FOR_LINE` (new), naming the code and the line. A code not in force at all is still 422 `GENERAL_CODE_NOT_IN_FORCE`.
 

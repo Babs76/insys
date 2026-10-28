@@ -140,8 +140,8 @@ public sealed class CommissionEntitlement : AggregateRoot<Guid>
 
     public decimal Rate { get; private set; }
 
-    /// <summary>The plan's basis the rate applies on (BR-059): PREMIUM (a percentage of the net premium), FIXED or POLICY_COUNT (an amount).</summary>
-    public string RateBasis { get; private set; } = "";
+    /// <summary>The plan's basis the rate applies on (BR-059): PREMIUM (a percentage of the net premium), FIXED or POLICY_COUNT (an amount); null for one whose plan version is gone.</summary>
+    public string? RateBasis { get; private set; }
 
     public decimal Amount { get; private set; }
 
