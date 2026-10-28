@@ -43,12 +43,13 @@ internal static class FinanceFunctions
         .Action("FINANCE_ACKNOWLEDGE_GL_EXPORT", "FINANCE_GL_EXPORTS", "FinanceAcknowledgeGlExport")
         .Screen("FINANCE_JOURNALS", "FINANCE", "Journals", "finance/journals", "FinanceGetJournal", "FinanceListJournals", "FinanceTrialBalance")
         .Action("FINANCE_REVERSE_JOURNAL", "FINANCE_JOURNALS", "FinanceReverseJournal")
-        .Screen("FINANCE_PERIODS", "FINANCE", "Periods & close", "finance/periods", "FinanceListPeriods")
+        .Screen("FINANCE_PERIODS", "FINANCE", "Periods & close", "finance/periods", "FinanceListPeriods", "FinanceGetPeriod")
         .Action("FINANCE_PERIOD_OPEN", "FINANCE_PERIODS", "FinancePeriodOpen")
         .Action("FINANCE_PERIOD_SOFT_CLOSE", "FINANCE_PERIODS", "FinancePeriodSoftClose")
         .Action("FINANCE_PERIOD_CLOSE", "FINANCE_PERIODS", "FinancePeriodClose")
         .Action("FINANCE_PERIOD_REQUEST_REOPEN", "FINANCE_PERIODS", "FinancePeriodRequestReopen")
-        .Screen("FINANCE_POSTING_EXCEPTIONS", "FINANCE", "Posting exceptions", "finance/posting-exceptions", "FinanceListPostingExceptions")
+        .Screen("FINANCE_POSTING_EXCEPTIONS", "FINANCE", "Posting exceptions", "finance/posting-exceptions", "FinanceListPostingExceptions",
+            "FinanceGetPostingException")
         .Action("FINANCE_RETRY_POSTING", "FINANCE_POSTING_EXCEPTIONS", "FinanceRetryPosting")
             .Functions,
     ];

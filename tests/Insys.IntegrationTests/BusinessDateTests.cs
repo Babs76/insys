@@ -122,7 +122,7 @@ public sealed class BusinessDateTests(DatabaseFixture fixture) : IClassFixture<D
         await _factory.DrainOutbox();
         var invoice = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM billing.invoice WHERE policy_ref = @p", ("p", policy));
         var journals = await (await _clerk.GetAsync($"/api/v1/finance/journals?businessRefType=INVOICE&businessRefId={invoice}")).Json();
-        journals.EnumerateArray().Single().GetProperty("periodCode").GetString().ShouldBe("2026-11");
+        journals.GetProperty("items").EnumerateArray().Single().GetProperty("periodCode").GetString().ShouldBe("2026-11");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM finance.posting_exception WHERE tenant_id = @t", ("t", DatabaseFixture.TenantA))).ShouldBe(0);
 
         // The test-only runner (ADR-025): the daily jobs as of 1 December invoice December's instalment, for this tenant only.

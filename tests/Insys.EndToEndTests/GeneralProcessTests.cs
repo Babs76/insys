@@ -1660,7 +1660,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     private async Task<string?> InvoiceStatus(Guid id) => (await (await _maker.GetAsync($"/api/v1/billing/invoices/{id}")).Json()).GetProperty("status").GetString();
 
     private async Task<List<JsonElement>> Journals(string businessRefType, Guid businessRefId) =>
-        (await (await _maker.GetAsync($"/api/v1/finance/journals?businessRefType={businessRefType}&businessRefId={businessRefId}")).Json()).EnumerateArray().ToList();
+        (await (await _maker.GetAsync($"/api/v1/finance/journals?businessRefType={businessRefType}&businessRefId={businessRefId}")).Json()).GetProperty("items").EnumerateArray().ToList();
 
     private Task<long> Documents(Guid policy, string category) =>
         _db.ScalarAsOwner<long>("SELECT count(*) FROM document.document WHERE business_ref_id = @p AND category_code = @c", ("p", policy), ("c", category));

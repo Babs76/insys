@@ -67,8 +67,14 @@ public sealed class GlExportBatch : AggregateRoot<Guid>
 
     public string? RejectionReason { get; private set; }
 
+    /// <summary>When the batch was sent, and by whom (BR-046); the sender is null for one sent by a job or before V0086.</summary>
+    public DateTimeOffset? SentAt { get; private set; }
+
+    public Guid? SentBy { get; private set; }
+
     /// <summary>A batch that the target system took: Sent, until it acknowledges or rejects it.</summary>
-    public static GlExportBatch Sent(string layoutCode, string periodCode, DateOnly fromDate, DateOnly toDate, int lineCount, string? targetRef)
+    public static GlExportBatch Sent(string layoutCode, string periodCode, DateOnly fromDate, DateOnly toDate, int lineCount, string? targetRef, DateTimeOffset? sentAt = null,
+        Guid? sentBy = null)
     {
         return new GlExportBatch
         {
@@ -80,6 +86,8 @@ public sealed class GlExportBatch : AggregateRoot<Guid>
             LineCount = lineCount,
             Status = GlExportStatus.Sent,
             TargetRef = targetRef is { Length: > 40 } ? targetRef[..40] : targetRef,
+            SentAt = sentAt,
+            SentBy = sentBy,
         };
     }
 

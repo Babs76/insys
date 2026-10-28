@@ -295,6 +295,23 @@ public static class ApiRegistration
                 operation.Description = (operation.Description is { Length: > 0 } d ? d + " " : "") + "Completes asynchronously (GAP-027): " + eventual.Effects;
             }
 
+            // BR-041: a 2xx response whose body has a rowVersion carries it as the ETag, for the next change's If-Match.
+            if (metadata.OfType<ETagResponseMetadata>().Any() && operation.Responses is { } responses)
+            {
+                foreach (var type in context.Description.SupportedResponseTypes.Where(t => t.StatusCode is >= 200 and < 300 && t.Type?.GetProperty("RowVersion") is not null))
+                {
+                    if (responses.TryGetValue(type.StatusCode.ToString(System.Globalization.CultureInfo.InvariantCulture), out var response) && response is OpenApiResponse concrete)
+                    {
+                        concrete.Headers ??= new Dictionary<string, IOpenApiHeader>();
+                        concrete.Headers["ETag"] = new OpenApiHeader
+                        {
+                            Description = "The record's version (rowVersion, quoted): send it as If-Match on its next change.",
+                            Schema = new OpenApiSchema { Type = JsonSchemaType.String },
+                        };
+                    }
+                }
+            }
+
             if (metadata.OfType<IfMatchRequiredMetadata>().Any())
             {
                 operation.Parameters ??= [];

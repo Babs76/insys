@@ -46,6 +46,12 @@ public interface IJournalRepository
 
     Task<IReadOnlyList<Journal>> ForBusinessRef(string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
 
+    /// <summary>BR-043: journals matching the search, by ID after <paramref name="afterId"/>, oldest first.</summary>
+    Task<IReadOnlyList<Journal>> Search(JournalSearch search, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>BR-043: the journal reversing each of the journals, for those reversed.</summary>
+    Task<IReadOnlyDictionary<Guid, Guid>> ReversalsOf(IReadOnlyCollection<Guid> journalIds, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<(string Account, string Currency, decimal Debit, decimal Credit)>> TrialBalance(string periodCode, CancellationToken cancellationToken);
 
     void Add(Journal journal);
@@ -78,13 +84,16 @@ public interface IPostingConfiguration
 
     /// <summary>The calendar's definition of a period: its dates.</summary>
     Task<(DateOnly Start, DateOnly End)?> CalendarPeriod(string periodCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>BR-045: every period of the accounting calendar in force (finance.cfg_accounting_calendar_and_periods).</summary>
+    Task<IReadOnlyList<(string PeriodCode, DateOnly Start, DateOnly End)>> CalendarPeriods(DateOnly day, CancellationToken cancellationToken);
 }
 
 public interface IPostingExceptions
 {
     Task<PostingException?> Get(Guid id, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<PostingException>> List(string? status, int limit, CancellationToken cancellationToken);
+    Task<IReadOnlyList<PostingException>> List(string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
 
     void Add(PostingException exception);
 }
@@ -92,23 +101,39 @@ public interface IPostingExceptions
 public sealed record EntryView(int LineNo, string AccountCode, decimal Debit, decimal Credit, string Currency, decimal BaseAmount, decimal? FxRate,
     DateOnly TransactionDate, string BusinessRefType, Guid BusinessRefId, string PostingRuleCode, int PostingRuleVersion);
 
+/// <param name="ReversedByJournalId">The journal that reverses this one (BR-043); null when it is not reversed.</param>
+/// <param name="BaseCurrency">The tenant's base currency on the accounting date, which each line's baseAmount is in (BR-043).</param>
 public sealed record JournalView(Guid Id, string JournalNumber, DateOnly AccountingDate, string PeriodCode, Guid SourceEventId, string SourceDomain, [property: OneOf("POSTED")] string Status,
-    DateTimeOffset PostedAt, Guid? ReversesJournalId, IReadOnlyList<EntryView> Lines)
+    DateTimeOffset PostedAt, Guid? ReversesJournalId, IReadOnlyList<EntryView> Lines, Guid? ReversedByJournalId = null, string? BaseCurrency = null)
 {
     public static JournalView From(Journal j) => new(j.Id, j.JournalNumber, j.AccountingDate, j.PeriodCode, j.SourceEventId, j.SourceDomain, j.Status, j.PostedAt,
         j.ReversesJournalId, j.Lines.OrderBy(l => l.LineNo).Select(l => new EntryView(l.LineNo, l.AccountCode, l.Debit, l.Credit, l.Currency, l.BaseAmount, l.FxRate,
             l.TransactionDate, l.BusinessRefType, l.BusinessRefId, l.PostingRuleCode, l.PostingRuleVersion)).ToList());
 }
 
-public sealed record PeriodView(Guid Id, string PeriodCode, DateOnly StartDate, DateOnly EndDate, PeriodStatus Status, Guid? ClosedBy, DateTimeOffset? ClosedAt,
-    Guid? ReopenRequestedBy, long RowVersion, Workflow.Contracts.LatestRejection? LatestRejection = null)
+/// <summary>A search of journals (BR-043): by business record (both given), journal number, period, or accounting dates; each optional.</summary>
+public sealed record JournalSearch(string? BusinessRefType, Guid? BusinessRefId, string? JournalNumber, string? PeriodCode, DateOnly? AccountingFrom, DateOnly? AccountingTo);
+
+/// <param name="Id">Null for a period of the calendar not yet acted on (Future, BR-045).</param>
+/// <param name="ReopenRequestedAt">When a reopen of the soft-closed period was asked for (BR-045).</param>
+/// <param name="ReopenApprovalId">The Workflow approval of the reopen while it waits for a decision (BR-045).</param>
+public sealed record PeriodView(Guid? Id, string PeriodCode, DateOnly StartDate, DateOnly EndDate, PeriodStatus Status, Guid? ClosedBy, DateTimeOffset? ClosedAt,
+    Guid? ReopenRequestedBy, long RowVersion, Workflow.Contracts.LatestRejection? LatestRejection = null, DateTimeOffset? ReopenRequestedAt = null,
+    Guid? ReopenApprovalId = null)
 {
     public static PeriodView From(AccountingPeriod p) =>
-        new(p.Id, p.PeriodCode, p.StartDate, p.EndDate, p.Status, p.ClosedBy, p.ClosedAt, p.ReopenRequestedBy, p.RowVersion);
+        new(p.Id, p.PeriodCode, p.StartDate, p.EndDate, p.Status, p.ClosedBy, p.ClosedAt, p.ReopenRequestedBy, p.RowVersion, null, p.ReopenRequestedAt);
+
+    /// <summary>A period of the calendar no one has opened yet.</summary>
+    public static PeriodView Future(string periodCode, DateOnly start, DateOnly end) => new(null, periodCode, start, end, PeriodStatus.Future, null, null, null, 0);
 }
 
+/// <param name="Amount">The failed event's amount, in <paramref name="Currency"/> (BR-044).</param>
+/// <param name="AccountingDate">The accounting date it was to be posted on (BR-044).</param>
+/// <param name="BusinessRefType">The business record it is about (BR-044), with <paramref name="BusinessRefId"/>.</param>
 public sealed record PostingExceptionView(Guid Id, Guid SourceEventId, string EventType, string Error, [property: OneOf("OPEN", "RESOLVED")] string Status, Guid? ResolvedBy, DateTimeOffset? ResolvedAt,
-    Guid? JournalId, long RowVersion);
+    Guid? JournalId, long RowVersion, decimal? Amount = null, string? Currency = null, DateOnly? AccountingDate = null, string? TransactionType = null,
+    string? BusinessRefType = null, Guid? BusinessRefId = null);
 
 public sealed record TrialBalanceLine(string AccountCode, string Currency, decimal Debit, decimal Credit, decimal Balance);
 
@@ -131,11 +156,29 @@ public sealed record RetryPosting(Guid ExceptionId, DateOnly? AccountingDate) : 
 
 public sealed record GetJournal(Guid JournalId) : IQuery<JournalView>;
 
-public sealed record ListJournals(string BusinessRefType, Guid BusinessRefId) : IQuery<IReadOnlyList<JournalView>>;
+public sealed record ListJournals(JournalSearch Search, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<JournalView>>;
 
 public sealed record ListPeriods : IQuery<IReadOnlyList<PeriodView>>;
 
-public sealed record ListPostingExceptions(string? Status, int Limit) : IQuery<IReadOnlyList<PostingExceptionView>>;
+/// <summary>BR-045: one period, acted on or (Future) only in the calendar.</summary>
+public sealed record GetPeriod(string PeriodCode) : IQuery<PeriodView>;
+
+public sealed record ListPostingExceptions(string? Status, int Limit, Guid? AfterId = null) : IQuery<IReadOnlyList<PostingExceptionView>>;
+
+/// <summary>BR-044: one posting exception.</summary>
+public sealed record GetPostingException(Guid ExceptionId) : IQuery<PostingExceptionView>;
+
+public sealed class ListJournalsValidator : AbstractValidator<ListJournals>
+{
+    public ListJournalsValidator()
+    {
+        RuleFor(q => q.Search).Must(s => (s.BusinessRefType is null) == (s.BusinessRefId is null))
+            .WithMessage("businessRefType and businessRefId are given together, or neither.");
+        RuleFor(q => q.Search).Must(s => s.AccountingFrom is null || s.AccountingTo is null || s.AccountingFrom <= s.AccountingTo)
+            .WithMessage("accountingFrom is on or before accountingTo.");
+        RuleFor(q => q.Limit).InclusiveBetween(1, 200);
+    }
+}
 
 public sealed record GetTrialBalance(string PeriodCode) : IQuery<IReadOnlyList<TrialBalanceLine>>;
 
@@ -353,44 +396,105 @@ internal sealed class RetryPostingHandler(IPostingExceptions exceptions, Posting
         return View(exception);
     }
 
-    internal static PostingExceptionView View(PostingException e) =>
-        new(e.Id, e.SourceEventId, e.EventType, e.Error, e.Status, e.ResolvedBy, e.ResolvedAt, e.JournalId, e.RowVersion);
-}
-
-internal sealed class GetJournalHandler(IJournalRepository journals) : IQueryHandler<GetJournal, JournalView>
-{
-    public async Task<Result<JournalView>> Handle(GetJournal query, CancellationToken cancellationToken) =>
-        await journals.Get(query.JournalId, cancellationToken) is { } journal ? JournalView.From(journal) : Error.NotFound(ErrorCodes.NotFound, "The journal was not found.");
-}
-
-internal sealed class ListJournalsHandler(IJournalRepository journals) : IQueryHandler<ListJournals, IReadOnlyList<JournalView>>
-{
-    public async Task<Result<IReadOnlyList<JournalView>>> Handle(ListJournals query, CancellationToken cancellationToken) =>
-        (await journals.ForBusinessRef(query.BusinessRefType, query.BusinessRefId, cancellationToken)).Select(JournalView.From).ToList();
-}
-
-/// <summary>
-/// The periods, each with how its latest reopen request's approval ended without being granted, if one did (OQ-113). A
-/// period has no view of its own, so the list carries it; a tenant has few periods.
-/// </summary>
-internal sealed class ListPeriodsHandler(IAccountingPeriods periods, Workflow.Contracts.IApprovalHistory approvals) : IQueryHandler<ListPeriods, IReadOnlyList<PeriodView>>
-{
-    public async Task<Result<IReadOnlyList<PeriodView>>> Handle(ListPeriods query, CancellationToken cancellationToken)
+    /// <summary>The exception, with the failed event's amount, accounting date and business record (BR-044) from the event it keeps.</summary>
+    internal static PostingExceptionView View(PostingException e)
     {
-        var views = new List<PeriodView>();
-        foreach (var period in await periods.All(cancellationToken))
+        var stored = JsonSerializer.Deserialize<StoredEvent>(e.BusinessEvent, EventPoster.Json);
+        return new(e.Id, e.SourceEventId, e.EventType, e.Error, e.Status, e.ResolvedBy, e.ResolvedAt, e.JournalId, e.RowVersion, stored?.Amount, stored?.Currency,
+            stored?.AccountingDate, stored?.TransactionType, stored?.BusinessRefType, stored?.BusinessRefId);
+    }
+}
+
+/// <summary>Journal views with the journal that reverses each (BR-043) and the base currency on its accounting date.</summary>
+internal sealed class JournalViews(IJournalRepository journals, ITenantBaseCurrency baseCurrency, ITenantContext tenant)
+{
+    public async Task<IReadOnlyList<JournalView>> Of(IReadOnlyList<Journal> found, CancellationToken cancellationToken)
+    {
+        var reversals = await journals.ReversalsOf(found.Select(j => j.Id).ToList(), cancellationToken);
+        var currencies = new Dictionary<DateOnly, string?>();
+        var views = new List<JournalView>();
+        foreach (var journal in found)
         {
-            views.Add(PeriodView.From(period) with { LatestRejection = await approvals.Latest(FinanceApprovals.PeriodBusinessRefType, period.Id, cancellationToken) });
+            if (!currencies.TryGetValue(journal.AccountingDate, out var currency))
+            {
+                currencies[journal.AccountingDate] = currency = await baseCurrency.BaseCurrency(tenant.RequireTenantId(), journal.AccountingDate, cancellationToken);
+            }
+
+            views.Add(JournalView.From(journal) with { ReversedByJournalId = reversals.TryGetValue(journal.Id, out var reversal) ? reversal : null, BaseCurrency = currency });
         }
 
         return views;
     }
 }
 
-internal sealed class ListPostingExceptionsHandler(IPostingExceptions exceptions) : IQueryHandler<ListPostingExceptions, IReadOnlyList<PostingExceptionView>>
+internal sealed class GetJournalHandler(IJournalRepository journals, ITenantBaseCurrency baseCurrency, ITenantContext tenant) : IQueryHandler<GetJournal, JournalView>
+{
+    public async Task<Result<JournalView>> Handle(GetJournal query, CancellationToken cancellationToken) =>
+        await journals.Get(query.JournalId, cancellationToken) is { } journal
+            ? (await new JournalViews(journals, baseCurrency, tenant).Of([journal], cancellationToken))[0]
+            : Error.NotFound(ErrorCodes.NotFound, "The journal was not found.");
+}
+
+/// <summary>Journals of a business record, or found by number, period and accounting dates without one (BR-043), oldest first.</summary>
+internal sealed class ListJournalsHandler(IJournalRepository journals, ITenantBaseCurrency baseCurrency, ITenantContext tenant) : IQueryHandler<ListJournals, IReadOnlyList<JournalView>>
+{
+    public async Task<Result<IReadOnlyList<JournalView>>> Handle(ListJournals query, CancellationToken cancellationToken) =>
+        Result.Success(await new JournalViews(journals, baseCurrency, tenant).Of(await journals.Search(query.Search, query.AfterId, query.Limit, cancellationToken),
+            cancellationToken));
+}
+
+/// <summary>
+/// The periods, each with how its latest reopen request's approval ended without being granted, if one did (OQ-113). A
+/// period has no view of its own, so the list carries it; a tenant has few periods.
+/// </summary>
+internal sealed class ListPeriodsHandler(IAccountingPeriods periods, IPostingConfiguration configuration, Workflow.Contracts.IApprovalHistory approvals,
+    IBusinessDate businessDate) : IQueryHandler<ListPeriods, IReadOnlyList<PeriodView>>, IQueryHandler<GetPeriod, PeriodView>
+{
+    /// <summary>The periods acted on, then the calendar's periods no one has opened yet, as Future (BR-045), in start date order.</summary>
+    public async Task<Result<IReadOnlyList<PeriodView>>> Handle(ListPeriods query, CancellationToken cancellationToken)
+    {
+        var views = new List<PeriodView>();
+        var acted = await periods.All(cancellationToken);
+        foreach (var period in acted)
+        {
+            views.Add(await View(period, cancellationToken));
+        }
+
+        var known = acted.Select(p => p.PeriodCode).ToHashSet(StringComparer.Ordinal);
+        views.AddRange((await configuration.CalendarPeriods(businessDate.Today, cancellationToken)).Where(c => !known.Contains(c.PeriodCode))
+            .Select(c => PeriodView.Future(c.PeriodCode, c.Start, c.End)));
+        return views.OrderBy(v => v.StartDate).ThenBy(v => v.PeriodCode, StringComparer.Ordinal).ToList();
+    }
+
+    public async Task<Result<PeriodView>> Handle(GetPeriod query, CancellationToken cancellationToken)
+    {
+        if (await periods.ByCode(query.PeriodCode, cancellationToken) is { } period)
+        {
+            return await View(period, cancellationToken);
+        }
+
+        return await configuration.CalendarPeriod(query.PeriodCode, businessDate.Today, cancellationToken) is { } calendar
+            ? PeriodView.Future(query.PeriodCode, calendar.Start, calendar.End)
+            : Error.NotFound(ErrorCodes.NotFound, "The accounting period was not found.");
+    }
+
+    private async Task<PeriodView> View(AccountingPeriod period, CancellationToken cancellationToken) => PeriodView.From(period) with
+    {
+        LatestRejection = await approvals.Latest(FinanceApprovals.PeriodBusinessRefType, period.Id, cancellationToken),
+        ReopenApprovalId = period.ReopenRequestedBy is null ? null : await approvals.Waiting(FinanceApprovals.PeriodBusinessRefType, period.Id, cancellationToken),
+    };
+}
+
+internal sealed class ListPostingExceptionsHandler(IPostingExceptions exceptions) : IQueryHandler<ListPostingExceptions, IReadOnlyList<PostingExceptionView>>,
+    IQueryHandler<GetPostingException, PostingExceptionView>
 {
     public async Task<Result<IReadOnlyList<PostingExceptionView>>> Handle(ListPostingExceptions query, CancellationToken cancellationToken) =>
-        (await exceptions.List(query.Status, query.Limit, cancellationToken)).Select(RetryPostingHandler.View).ToList();
+        (await exceptions.List(query.Status, query.AfterId, query.Limit, cancellationToken)).Select(RetryPostingHandler.View).ToList();
+
+    public async Task<Result<PostingExceptionView>> Handle(GetPostingException query, CancellationToken cancellationToken) =>
+        await exceptions.Get(query.ExceptionId, cancellationToken) is { } exception
+            ? RetryPostingHandler.View(exception)
+            : Error.NotFound(ErrorCodes.NotFound, "The posting exception was not found.");
 }
 
 internal sealed class GetTrialBalanceHandler(IJournalRepository journals) : IQueryHandler<GetTrialBalance, IReadOnlyList<TrialBalanceLine>>

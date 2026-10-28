@@ -72,7 +72,8 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackEndpointUpdate,
         PaymentPermissions.CommissionPayoutRead,
         ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate, ClaimsPermissions.InstructionRead,
-        FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate, FinancePermissions.GlExportRead, FinancePermissions.GlExportCreate,
+        FinancePermissions.JournalRead, FinancePermissions.JournalReverse, FinancePermissions.PeriodRead, FinancePermissions.PeriodUpdate,
+        FinancePermissions.PostingExceptionRead, FinancePermissions.GlExportRead, FinancePermissions.GlExportCreate,
         FinancePermissions.GlExportUpdate, WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove,
         IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate, IntegrationPermissions.WebhookRead, IntegrationPermissions.WebhookUpdate, DocumentPermissions.DocumentRead,
         Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.BankAccountCreate, Insys.Party.Contracts.PartyPermissions.BankAccountRead,
@@ -554,6 +555,98 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         (await Get($"/api/v1/finance/gl-exports/{id}")).GetProperty("status").GetString().ShouldBe("Acknowledged");
     }
 
+    /// <summary>
+    /// BR-041, BR-043 to BR-046: journals are found by period, number and accounting dates without a business record, and
+    /// name the journal that reverses them and their base currency; a GL export says when and by whom it was sent, and the
+    /// contract declares its ETag; a period reads alone, the calendar's periods not yet opened read as Future, and a reopen
+    /// gives when it was asked for and its approval; a posting exception reads alone with its event's amount, date and record.
+    /// </summary>
+    [Fact]
+    public async Task TheLedger_IsFoundAndExplained_BR041_BR043_BR044_BR045_BR046()
+    {
+        await IssuedPolicy(await Vehicle());
+        await _factory.DrainOutbox();
+
+        // BR-043: by period, a page at a time; then by number and by accounting dates.
+        var inPeriod = new List<JsonElement>();
+        string? cursor = null;
+        do
+        {
+            var page = await Get($"/api/v1/finance/journals?periodCode={Month}&limit=1{(cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}")}");
+            inPeriod.AddRange(page.GetProperty("items").EnumerateArray());
+            cursor = page.GetProperty("nextCursor").GetString();
+        }
+        while (cursor is not null);
+        inPeriod.ShouldNotBeEmpty();
+        inPeriod.Select(j => j.GetProperty("id").GetGuid()).Distinct().Count().ShouldBe(inPeriod.Count);
+        var journal = inPeriod[0];
+        var number = journal.GetProperty("journalNumber").GetString();
+        (await Get($"/api/v1/finance/journals?journalNumber={number}")).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid()
+            .ShouldBe(journal.GetProperty("id").GetGuid());
+        (await Get($"/api/v1/finance/journals?accountingFrom={Today:yyyy-MM-dd}&accountingTo={Today:yyyy-MM-dd}&limit=200")).GetProperty("items").GetArrayLength()
+            .ShouldBe(inPeriod.Count(j => j.GetProperty("accountingDate").GetString() == $"{Today:yyyy-MM-dd}"));
+        (journal.GetProperty("baseCurrency").GetString(), journal.GetProperty("reversedByJournalId").ValueKind).ShouldBe(("ZAR", JsonValueKind.Null));
+
+        // Reversed, the journal names its reversal.
+        var reversed = await _maker.Send(HttpMethod.Post, $"/api/v1/finance/journals/{journal.GetProperty("id").GetGuid()}/reverse",
+            new { accountingDate = Today, reason = "Posted in error" }, idempotent: true);
+        reversed.StatusCode.ShouldBe(HttpStatusCode.Created, await reversed.Content.ReadAsStringAsync());
+        (await Get($"/api/v1/finance/journals/{journal.GetProperty("id").GetGuid()}")).GetProperty("reversedByJournalId").GetGuid()
+            .ShouldBe((await reversed.Json()).GetProperty("id").GetGuid());
+
+        // BR-046, BR-041: who sent the GL export and when; the contract declares the ETag the read gives.
+        await Seed("finance.cfg_gl_export_layouts", "EFFECTIVE", "GL-EXP-02", ("layout_code", "GL-EXP-02"), ("target_system", "Insurer ERP"), ("format", "CSV"),
+            ("schedule", "DAILY"));
+        var exported = await _maker.Send(HttpMethod.Post, "/api/v1/finance/gl-exports",
+            new { layoutCode = "GL-EXP-02", periodCode = Month, fromDate = Today, toDate = Today }, idempotent: true);
+        exported.StatusCode.ShouldBe(HttpStatusCode.Created, await exported.Content.ReadAsStringAsync());
+        var underwriter = await _db.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = 'underwriter'", ("t", Tenant));
+        var export = await Get($"/api/v1/finance/gl-exports/{(await exported.Json()).GetProperty("id").GetGuid()}");
+        (export.GetProperty("sentBy").GetGuid(), export.GetProperty("sentAt").ValueKind).ShouldBe((underwriter, JsonValueKind.String));
+        using (var contract = JsonDocument.Parse(await (await _maker.GetAsync("/openapi/core.json")).Content.ReadAsStringAsync()))
+        {
+            contract.RootElement.GetProperty("paths").GetProperty("/api/v1/finance/gl-exports/{id}").GetProperty("get").GetProperty("responses").GetProperty("200")
+                .GetProperty("headers").TryGetProperty("ETag", out _).ShouldBeTrue();
+        }
+
+        // BR-045: the period reads alone; next month, only in the calendar, is Future; a reopen says when it was asked for and its approval.
+        var next = new DateOnly(Today.Year, Today.Month, 1).AddMonths(1);
+        await Seed("finance.cfg_accounting_calendar_and_periods", "EFFECTIVE", $"CAL-{next:yyyy-MM}", ("period_code", $"{next:yyyy-MM}"), ("start_date", next),
+            ("end_date", next.AddMonths(1).AddDays(-1)));
+        (await Get($"/api/v1/finance/periods/{Month}")).GetProperty("status").GetString().ShouldBe("Open");
+        var future = await Get($"/api/v1/finance/periods/{next:yyyy-MM}");
+        (future.GetProperty("status").GetString(), future.GetProperty("id").ValueKind).ShouldBe(("Future", JsonValueKind.Null));
+        (await Get("/api/v1/finance/periods")).EnumerateArray().Select(p => (p.GetProperty("periodCode").GetString(), p.GetProperty("status").GetString()))
+            .ShouldContain(($"{next:yyyy-MM}", "Future"));
+        (await _maker.GetAsync("/api/v1/finance/periods/1999-01")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        // BR-044: a posting exception reads alone, with its event's amount, accounting date and business record; the list pages.
+        var failed = Guid.CreateVersion7();
+        var record = Guid.CreateVersion7();
+        await _db.ExecuteAsOwner("""
+            INSERT INTO finance.posting_exception (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, source_event_id, event_type, error, status,
+                                                   business_event)
+            VALUES (@t, @id, 1, now(), 'seed', now(), 'seed', gen_random_uuid(), 'billing.InvoiceIssued', 'POSTING_RULE_NOT_FOUND: none', 'OPEN', @event::jsonb)
+            """, ("t", Tenant), ("id", failed), ("event", JsonSerializer.Serialize(new
+        {
+            sourceEventId = Guid.CreateVersion7(), sourceDomain = "BILLING", transactionType = "PREMIUM_DUE", accountingDate = Today, transactionDate = Today,
+            amount = 254.17m, currency = "ZAR", businessRefType = "INVOICE", businessRefId = record, variables = new { },
+        })));
+        var exception = await Get($"/api/v1/finance/posting-exceptions/{failed}");
+        (exception.GetProperty("amount").GetDecimal(), exception.GetProperty("currency").GetString(), exception.GetProperty("accountingDate").GetString(),
+            exception.GetProperty("businessRefType").GetString(), exception.GetProperty("businessRefId").GetGuid()).ShouldBe((254.17m, "ZAR", $"{Today:yyyy-MM-dd}", "INVOICE", record));
+        (await Get("/api/v1/finance/posting-exceptions?status=OPEN&limit=1")).GetProperty("items").GetArrayLength().ShouldBe(1);
+
+        // The reopen, last: soft-closing the period stops its postings.
+        (await _maker.PostAsync($"/api/v1/finance/periods/{Month}/soft-close", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsync($"/api/v1/finance/periods/{Month}/reopen", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var reopening = await Get($"/api/v1/finance/periods/{Month}");
+        var waiting = (await Get($"/api/v1/workflow/approvals?status=Requested&businessRefType={FinanceApprovals.PeriodBusinessRefType}&businessRefId={reopening.GetProperty("id").GetGuid()}"))
+            .GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        (reopening.GetProperty("reopenRequestedAt").ValueKind, reopening.GetProperty("reopenApprovalId").GetGuid()).ShouldBe((JsonValueKind.String, waiting));
+    }
+
     [Fact]
     public async Task ClosedPeriod_PreparesItsReturn_ApprovedByAnotherOfficerBeforeSubmission_AndReportsFollowTheCatalogue()
     {
@@ -726,7 +819,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
     }
 
     private async Task<List<JsonElement>> Journals(string businessRefType, Guid businessRefId) =>
-        (await (await _maker.GetAsync($"/api/v1/finance/journals?businessRefType={businessRefType}&businessRefId={businessRefId}")).Json()).EnumerateArray().ToList();
+        (await (await _maker.GetAsync($"/api/v1/finance/journals?businessRefType={businessRefType}&businessRefId={businessRefId}")).Json()).GetProperty("items").EnumerateArray().ToList();
 
     private Task Seed(string table, string status, string code, params (string Column, object Value)[] fields) =>
         _db.SeedStatic(Tenant, table, status, code, Today.AddDays(-30), fields);

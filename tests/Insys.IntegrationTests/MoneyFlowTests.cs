@@ -621,7 +621,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
     {
         var response = await _maker.GetAsync($"/api/v1/finance/journals?businessRefType={businessRefType}&businessRefId={businessRefId}");
         response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
-        return (await response.Json()).EnumerateArray().ToList();
+        return (await response.Json()).GetProperty("items").EnumerateArray().ToList();
     }
 
     private static (string, object)[] Rule(string ruleCode, string transactionType, string debit, string credit) =>

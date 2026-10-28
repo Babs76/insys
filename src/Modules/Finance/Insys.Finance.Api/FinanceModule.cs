@@ -70,11 +70,14 @@ public sealed class FinanceModule : IModule
             .WithSummary("Get a journal with its subledger entries and the posting rule versions used")
             .RequirePermission(FinancePermissions.JournalRead);
 
-        finance.MapGet("/journals", async (string businessRefType, Guid businessRefId, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Query(new ListJournals(businessRefType, businessRefId), ct)).ToHttp(Results.Ok))
-            .Produces<IReadOnlyList<JournalView>>(StatusCodes.Status200OK)
+        finance.MapGet("/journals", async (string? businessRefType, Guid? businessRefId, string? journalNumber, string? periodCode, DateOnly? accountingFrom,
+                    DateOnly? accountingTo, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => dispatcher.Query(new ListJournals(new JournalSearch(businessRefType, businessRefId, journalNumber, periodCode,
+                    accountingFrom, accountingTo), after, size), ct), j => j.Id))
+            .Produces<CursorPage<JournalView>>(StatusCodes.Status200OK)
             .WithName("FinanceListJournals")
-            .WithSummary("List the journals of a business record (FIN-001)")
+            .WithSummary("Journals, oldest first: a business record's (FIN-001), or found by journal number, period and accounting dates (BR-043)")
+            .WithDescription("businessRefType and businessRefId together, or neither; accountingFrom and accountingTo are inclusive. A cursor page (BR-043; was an array).")
             .WithKnownValues("businessRefType", JournalReferenceTypes.Known, "The business record types Finance posts journals for (GAP-037).")
             .RequirePermission(FinancePermissions.JournalRead);
 
@@ -91,7 +94,14 @@ public sealed class FinanceModule : IModule
         finance.MapGet("/periods", async (IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new ListPeriods(), ct)).ToHttp(Results.Ok))
             .Produces<IReadOnlyList<PeriodView>>(StatusCodes.Status200OK)
             .WithName("FinanceListPeriods")
-            .WithSummary("List accounting periods and their states")
+            .WithSummary("List accounting periods and their states, with the calendar's periods not yet opened as Future (BR-045)")
+            .RequirePermission(FinancePermissions.PeriodRead);
+
+        finance.MapGet("/periods/{periodCode}", async (string periodCode, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetPeriod(periodCode), ct)).ToHttp(Results.Ok))
+            .Produces<PeriodView>(StatusCodes.Status200OK)
+            .WithName("FinanceGetPeriod")
+            .WithSummary("An accounting period (yyyy-MM), or Future when only the calendar has it (BR-045)")
             .RequirePermission(FinancePermissions.PeriodRead);
 
         foreach (var (action, route) in new[] { (PeriodAction.Open, "open"), (PeriodAction.SoftClose, "soft-close"), (PeriodAction.Close, "close"), (PeriodAction.RequestReopen, "reopen") })
@@ -118,11 +128,19 @@ public sealed class FinanceModule : IModule
             .WithSummary("Debits, credits and balance per account and currency for a period")
             .RequirePermission(FinancePermissions.JournalRead);
 
-        finance.MapGet("/posting-exceptions", async (string? status, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Query(new ListPostingExceptions(status, Cursor.ClampLimit(limit)), ct)).ToHttp(Results.Ok))
-            .Produces<IReadOnlyList<PostingExceptionView>>(StatusCodes.Status200OK)
+        finance.MapGet("/posting-exceptions", async (string? status, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => dispatcher.Query(new ListPostingExceptions(status, size, after), ct), e => e.Id))
+            .Produces<CursorPage<PostingExceptionView>>(StatusCodes.Status200OK)
             .WithName("FinanceListPostingExceptions")
-            .WithSummary("Business events that could not be posted (FIN-007)")
+            .WithSummary("Business events that could not be posted (FIN-007), oldest first, a cursor page (BR-044; was an array)")
+            .WithKnownValues("status", ["OPEN", "RESOLVED"], "OPEN or RESOLVED.")
+            .RequirePermission(FinancePermissions.PostingExceptionRead);
+
+        finance.MapGet("/posting-exceptions/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetPostingException(id), ct)).ToHttp(Results.Ok))
+            .Produces<PostingExceptionView>(StatusCodes.Status200OK)
+            .WithName("FinanceGetPostingException")
+            .WithSummary("A posting exception, with the failed event's amount, accounting date and business record (BR-044)")
             .RequirePermission(FinancePermissions.PostingExceptionRead);
 
         finance.MapPost("/posting-exceptions/{id:guid}/retry", async (Guid id, RetryPostingRequest r, IDispatcher dispatcher, CancellationToken ct) =>
@@ -144,6 +162,7 @@ public sealed class FinanceModule : IModule
                     return Results.Created($"/api/v1/finance/gl-exports/{view.Id}", view);
                 }))
             .Produces<GlExportView>(StatusCodes.Status201Created)
+            .ReturnsETag()
             .WithName("FinanceExportToGeneralLedger")
             .WithSummary("Export a date range's posted entries to the general ledger")
             .WithDescription("The posted subledger entries with an accounting date in the range (within one period), summarised by accounting date, account and "
@@ -175,6 +194,7 @@ public sealed class FinanceModule : IModule
                     return Results.Ok(view);
                 }))
             .Produces<GlExportView>(StatusCodes.Status200OK)
+            .ReturnsETag()
             .WithName("FinanceGetGlExport")
             .WithSummary("Get a GL export batch")
             .RequirePermission(FinancePermissions.GlExportRead);
@@ -208,6 +228,18 @@ public sealed class FinanceModule : IModule
             Concurrency.SetETag(http, version);
             return Results.NoContent();
         });
+    }
+
+    /// <summary>A cursor page of a list query (GAP-032).</summary>
+    private static async Task<IResult> Page<T>(string? cursor, int? limit, Func<Guid?, int, Task<BuildingBlocks.Domain.Result<IReadOnlyList<T>>>> query, Func<T, Guid> id)
+    {
+        if (!Cursor.TryDecode(cursor, out var after))
+        {
+            return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+        }
+
+        var size = Cursor.ClampLimit(limit);
+        return (await query(after, size)).ToHttp(items => Results.Ok(new CursorPage<T>(items, items.Count == size ? Cursor.Encode(id(items[^1])) : null)));
     }
 }
 

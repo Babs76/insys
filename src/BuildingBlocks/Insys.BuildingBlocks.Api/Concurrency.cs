@@ -105,7 +105,12 @@ public static class ConcurrencyEndpointExtensions
     /// </summary>
     public static TBuilder ETagsFromRowVersion<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder =>
-        builder.AddEndpointFilter<TBuilder, RowVersionETagFilter>();
+        builder.AddEndpointFilter<TBuilder, RowVersionETagFilter>().WithMetadata(new ETagResponseMetadata());
+
+    /// <summary>Declares that the endpoint sets the ETag itself (the record's rowVersion), for the contract (BR-041).</summary>
+    public static TBuilder ReturnsETag<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.WithMetadata(new ETagResponseMetadata());
 
     /// <summary>Declares that the endpoint honours If-Match when given: 412 when it is stale; without it the replacement applies.</summary>
     public static TBuilder AllowIfMatch<TBuilder>(this TBuilder builder)
@@ -113,6 +118,12 @@ public static class ConcurrencyEndpointExtensions
         builder.WithMetadata(new IfMatchOptionalMetadata(),
             new ProducesResponseTypeMetadata(StatusCodes.Status412PreconditionFailed, typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), ProblemContentTypes));
 }
+
+/// <summary>
+/// The endpoint's successful responses carry an ETag (the record's rowVersion): the contract declares the header on each
+/// 2xx response whose body has a rowVersion (BR-041).
+/// </summary>
+public sealed record ETagResponseMetadata;
 
 /// <summary>Reads If-Match into the request's preconditions, which the unit of work compares with the changed aggregate.</summary>
 public sealed class IfMatchFilter : IEndpointFilter

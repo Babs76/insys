@@ -42,11 +42,13 @@ public sealed record GlExportLayout(string LayoutCode, string TargetSystem, stri
 /// <summary>One line of a GL export: posted entries summarised by accounting date, account and currency.</summary>
 public sealed record GlExportLine(DateOnly AccountingDate, string AccountCode, string Currency, decimal Debit, decimal Credit, int Entries);
 
+/// <param name="SentAt">When the batch was sent to the general ledger (BR-046).</param>
+/// <param name="SentBy">The user who sent it (BR-046); null for a batch a job sent.</param>
 public sealed record GlExportView(Guid Id, string LayoutCode, string PeriodCode, DateOnly FromDate, DateOnly ToDate, int LineCount, GlExportStatus Status,
-    string? TargetRef, string? RejectionReason, long RowVersion)
+    string? TargetRef, string? RejectionReason, long RowVersion, DateTimeOffset? SentAt = null, Guid? SentBy = null)
 {
     public static GlExportView From(GlExportBatch b) =>
-        new(b.Id, b.LayoutCode, b.PeriodCode, b.FromDate, b.ToDate, b.LineCount, b.Status, b.TargetRef, b.RejectionReason, b.RowVersion);
+        new(b.Id, b.LayoutCode, b.PeriodCode, b.FromDate, b.ToDate, b.LineCount, b.Status, b.TargetRef, b.RejectionReason, b.RowVersion, b.SentAt, b.SentBy);
 }
 
 /// <summary>
@@ -126,7 +128,8 @@ public static class GlExportCsv
     }
 }
 
-internal sealed class GlExportHandlers(IGlExports exports, IGeneralLedgerAdapter ledger, ITenantContext tenant, IBusinessDate businessDate, IAuditTrail audit) :
+internal sealed class GlExportHandlers(IGlExports exports, IGeneralLedgerAdapter ledger, ITenantContext tenant, IBusinessDate businessDate, IAuditTrail audit,
+    IClock clock, IExecutionContext execution) :
     ICommandHandler<ExportToGeneralLedger, GlExportView>,
     ICommandHandler<RecordGlAcknowledgement, long>,
     IQueryHandler<GetGlExport, GlExportView>,
@@ -159,7 +162,9 @@ internal sealed class GlExportHandlers(IGlExports exports, IGeneralLedgerAdapter
             return Error.Conflict(GlExportErrorCodes.Refused, $"The general ledger refused the batch: {sent.Error}");
         }
 
-        var batch = GlExportBatch.Sent(layout.LayoutCode, command.PeriodCode, command.FromDate, command.ToDate, lines.Count, sent.PartnerRef);
+        var sender = Users.Require(execution);
+        var batch = GlExportBatch.Sent(layout.LayoutCode, command.PeriodCode, command.FromDate, command.ToDate, lines.Count, sent.PartnerRef, clock.UtcNow,
+            sender.IsSuccess ? sender.Value : null);
         exports.Add(batch);
         audit.Record(new AuditEntry("FINANCE", "ExportToGeneralLedger", nameof(GlExportBatch), batch.Id.ToString(),
             new Dictionary<string, string?> { ["layout"] = layout.LayoutCode, ["period"] = command.PeriodCode, ["lines"] = lines.Count.ToString(CultureInfo.InvariantCulture) }));

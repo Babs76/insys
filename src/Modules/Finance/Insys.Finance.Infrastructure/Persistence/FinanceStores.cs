@@ -51,6 +51,47 @@ internal sealed class JournalRepository(FinanceDbContext db) : IJournalRepositor
             .Where(j => j.Lines.Any(l => l.BusinessRefType == businessRefType && l.BusinessRefId == businessRefId))
             .OrderBy(j => j.PostedAt).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Journal>> Search(JournalSearch search, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var query = db.Journals.AsNoTracking().Include(j => j.Lines).AsQueryable();
+        if (search.BusinessRefType is { } type && search.BusinessRefId is { } id)
+        {
+            query = query.Where(j => j.Lines.Any(l => l.BusinessRefType == type && l.BusinessRefId == id));
+        }
+
+        if (search.JournalNumber is { Length: > 0 } number)
+        {
+            query = query.Where(j => j.JournalNumber == number);
+        }
+
+        if (search.PeriodCode is { Length: > 0 } period)
+        {
+            query = query.Where(j => j.PeriodCode == period);
+        }
+
+        if (search.AccountingFrom is { } from)
+        {
+            query = query.Where(j => j.AccountingDate >= from);
+        }
+
+        if (search.AccountingTo is { } to)
+        {
+            query = query.Where(j => j.AccountingDate <= to);
+        }
+
+        if (afterId is { } after)
+        {
+            query = query.Where(j => j.Id.CompareTo(after) > 0);
+        }
+
+        return await query.OrderBy(j => j.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, Guid>> ReversalsOf(IReadOnlyCollection<Guid> journalIds, CancellationToken cancellationToken) =>
+        (await db.Journals.AsNoTracking().Where(j => j.ReversesJournalId != null && journalIds.Contains(j.ReversesJournalId.Value))
+            .Select(j => new { Reversed = j.ReversesJournalId!.Value, j.Id }).ToListAsync(cancellationToken))
+        .GroupBy(r => r.Reversed).ToDictionary(g => g.Key, g => g.Min(r => r.Id));
+
     public async Task<IReadOnlyList<(string Account, string Currency, decimal Debit, decimal Credit)>> TrialBalance(string periodCode, CancellationToken cancellationToken) =>
         (await db.Set<SubledgerEntry>().AsNoTracking()
             .Where(e => db.Journals.Any(j => j.Id == e.JournalId && j.PeriodCode == periodCode))
@@ -84,8 +125,9 @@ internal sealed class PostingExceptions(FinanceDbContext db) : IPostingException
 {
     public Task<PostingException?> Get(Guid id, CancellationToken cancellationToken) => db.PostingExceptions.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
 
-    public async Task<IReadOnlyList<PostingException>> List(string? status, int limit, CancellationToken cancellationToken) =>
-        await db.PostingExceptions.AsNoTracking().Where(e => status == null || e.Status == status).OrderBy(e => e.Id).Take(limit).ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<PostingException>> List(string? status, Guid? afterId, int limit, CancellationToken cancellationToken) =>
+        await db.PostingExceptions.AsNoTracking().Where(e => (status == null || e.Status == status) && (afterId == null || e.Id.CompareTo(afterId.Value) > 0))
+            .OrderBy(e => e.Id).Take(limit).ToListAsync(cancellationToken);
 
     public void Add(PostingException exception) => db.PostingExceptions.Add(exception);
 }
@@ -129,6 +171,10 @@ internal sealed class PostingConfiguration(FinanceDbContext db) : IPostingConfig
             .Select(p => new { p.StartDate, p.EndDate }).FirstOrDefaultAsync(cancellationToken) is { } period
             ? (period.StartDate, period.EndDate)
             : null;
+
+    public async Task<IReadOnlyList<(string PeriodCode, DateOnly Start, DateOnly End)>> CalendarPeriods(DateOnly day, CancellationToken cancellationToken) =>
+        (await InForce<AccountingCalendarAndPeriods>(day).Select(p => new { p.PeriodCode, p.StartDate, p.EndDate }).ToListAsync(cancellationToken))
+        .GroupBy(p => p.PeriodCode).Select(g => g.First()).Select(p => (p.PeriodCode, p.StartDate, p.EndDate)).ToList();
 
     private IQueryable<T> InForce<T>(DateOnly day) where T : StaticRecord => db.Set<T>().AsNoTracking().InForce(Lifecycle<T>(), day);
 
