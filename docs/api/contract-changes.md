@@ -2,7 +2,14 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Portal privacy (branch `portal-privacy`, shipped alone ahead of Wave 2 batch 5)
+## BR-094 (branch `br-094`, shipped alone)
+
+### Fixed: broker and provider tokens keep their second factor (realm, no API change)
+- **The realm's method references** `amr-pwd` and `amr-otp` (`deploy/keycloak/insys-realm.json`) now set `default.reference.maxAge` to 36000 seconds, the SSO session's maximum. Without it Keycloak's AMR mapper used 0 seconds: a method counted only in the second it was used, so a broker's or provider's first token sometimes had no `otp`, and every refreshed token or silent sign-in had none, which INSYS refused with 403 `PORTAL_MFA_REQUIRED`.
+- **Environments** take it from the realm export on import. One already imported needs the same two values set (the admin console's authenticator config, or the admin API as the live run and demo did, D-48).
+- The API and its contract are unchanged.
+
+## Portal privacy (branch `portal-privacy`, shipped alone, merged at `8cb4981`)
 
 ### Breaking: an insured life and a Health dependant see only their own cover (privacy check, Ade)
 - **`PortalLifePolicyView`** (`PortalLifeGetPolicy`, `PortalLifeListPolicies`) gains `viewedAs` (`POLICYHOLDER`, `INSURED_LIFE`, `INTERMEDIARY`). For an `INSURED_LIFE` (an insured life who is not the policyholder), `benefits` lists only the benefits on their own life, each benefit's `premium` is null, `policyholderPartyId` is null and `beneficiaries` null. `premium` and `policyholderPartyId` are now nullable. The policyholder and the broker see the policy as before.

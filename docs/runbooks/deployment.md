@@ -81,7 +81,7 @@ Both need PostgreSQL 18.
   - `broker-portal`, `provider-portal` and `member-portal` (external-user access §5, §6) are public clients set up like `insys-web`, with the same local redirect. Each environment replaces it with its portals' real URLs; none is set here.
     - **Broker and provider portals** sign in through the flow `portal-mfa-browser`: password, then a one-time code, always.
     - **The member portal** signs in through `member-browser`: password, then a one-time code when the member has set one up. Whether a member must use MFA is the tenant's setting in INSYS (`iam.cfg_authentication_and_session_policies`, `client_ids` and `mfa_required`), which INSYS checks from `amr`.
-    - Each step of these flows names its `amr` value (`pwd`, `otp`, in the authenticator configs `amr-pwd` and `amr-otp`), and the `amr` mapper puts them in the token. INSYS reads MFA from `amr` (`otp`, `mfa`, `hwk`, `swk`) or an `acr` of 2 or above.
+    - Each step of these flows names its `amr` value (`pwd`, `otp`, in the authenticator configs `amr-pwd` and `amr-otp`), and the `amr` mapper puts them in the token. Each config also sets `default.reference.maxAge` (36000 seconds, the SSO session's length; BR-094). Without it Keycloak uses 0 seconds, and refreshed portal tokens lose `otp`. An environment imported before BR-094 needs both values set by hand. INSYS reads MFA from `amr` (`otp`, `mfa`, `hwk`, `swk`) or an `acr` of 2 or above.
     - **For a tenant to use a portal,** its channel definitions name the client in `client_ids`, with the portal's audience (BROKER, PROVIDER or CUSTOMER), as the tenant onboarding does (onboarding readiness §5).
 - **Client scopes:**
   - `insys-api` adds the `tenant_id` claim (user attribute mapper) and the `insys-core-api` audience.

@@ -63,6 +63,21 @@ public sealed class RealmMfaTests
             .ShouldNotContain("conditional-level-of-authentication", "no step-up condition");
     }
 
+    /// <summary>
+    /// BR-094: each method reference has a maximum age. Without one Keycloak's AMR mapper uses 0 seconds, so a refreshed
+    /// portal token (and sometimes the first) shows no second factor and INSYS refuses it (PORTAL_MFA_REQUIRED).
+    /// </summary>
+    [Fact]
+    public void MethodReferences_HaveAMaximumAgeOfTheSsoSession_BR094()
+    {
+        foreach (var alias in new[] { "amr-pwd", "amr-otp" })
+        {
+            var config = Realm.GetProperty("authenticatorConfig").EnumerateArray().Single(c => c.GetProperty("alias").GetString() == alias).GetProperty("config");
+            config.TryGetProperty("default.reference.maxAge", out var maxAge).ShouldBeTrue(alias);
+            maxAge.GetString().ShouldBe("36000", alias);
+        }
+    }
+
     private static string? BrowserFlowOf(string clientId)
     {
         var client = Realm.GetProperty("clients").EnumerateArray().Single(c => c.GetProperty("clientId").GetString() == clientId);
