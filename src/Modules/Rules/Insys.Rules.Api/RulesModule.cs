@@ -75,9 +75,18 @@ public sealed class RulesModule : IModule
             .WithSummary("Get a recorded rule decision with its inputs")
             .RequirePermission(RulesPermissions.DecisionRead);
 
-        decisions.MapGet("/", async (string subjectType, Guid subjectId, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Query(new ListRuleDecisions(subjectType, subjectId, Cursor.ClampLimit(limit)), ct)).ToHttp(Results.Ok))
-            .Produces<IReadOnlyList<RuleDecisionView>>(StatusCodes.Status200OK)
+        decisions.MapGet("/", async (string subjectType, Guid subjectId, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var before))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListRuleDecisions(subjectType, subjectId, before, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<RuleDecisionView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<RuleDecisionView>>(StatusCodes.Status200OK)
             .WithName("RulesListDecisions")
             .WithSummary("List a subject's rule decisions, newest first")
             .RequirePermission(RulesPermissions.DecisionRead);

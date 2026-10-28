@@ -44,14 +44,19 @@ public interface IRuleDecisionRepository
     void Add(RuleDecision decision);
 }
 
-public sealed record RuleDecisionView(Guid Id, string RulesetCode, int RulesetVersion, string SubjectType, Guid SubjectId, JsonElement Inputs, string Outcome,
+/// <param name="SubjectType">What the rules decided on: the values INSYS's own modules send are listed (BR-025).</param>
+/// <param name="Outcome">The decision: an eligibility rule set's ELIGIBLE, REFER or INELIGIBLE, an underwriting one's ACCEPT, REFER or DECLINE (BR-025).</param>
+public sealed record RuleDecisionView(Guid Id, string RulesetCode, int RulesetVersion,
+    [property: BuildingBlocks.Contracts.KnownValues("LIFE_PROPOSAL", "LIFE_UNDERWRITING_CASE")] string SubjectType, Guid SubjectId, JsonElement Inputs,
+    [property: BuildingBlocks.Contracts.KnownValues("ELIGIBLE", "REFER", "INELIGIBLE", "ACCEPT", "DECLINE")] string Outcome,
     IReadOnlyList<string> FiredRules, DateTimeOffset EvaluatedAt);
 
 public interface IRuleDecisionQueries
 {
     Task<RuleDecisionView?> Get(Guid id, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<RuleDecisionView>> ForSubject(string subjectType, Guid subjectId, int limit, CancellationToken cancellationToken);
+    /// <summary>A subject's decisions, newest first, those before <paramref name="beforeId"/> when it is given (BR-025).</summary>
+    Task<IReadOnlyList<RuleDecisionView>> ForSubject(string subjectType, Guid subjectId, Guid? beforeId, int limit, CancellationToken cancellationToken);
 }
 
 /// <param name="Code">The ruleset_code for eligibility, or the product code for underwriting.</param>
@@ -60,7 +65,7 @@ public sealed record EvaluateRuleSet(RuleSetKind Kind, string Code, string Subje
 
 public sealed record GetRuleDecision(Guid Id) : IQuery<RuleDecisionView>;
 
-public sealed record ListRuleDecisions(string SubjectType, Guid SubjectId, int Limit) : IQuery<IReadOnlyList<RuleDecisionView>>;
+public sealed record ListRuleDecisions(string SubjectType, Guid SubjectId, Guid? BeforeId, int Limit) : IQuery<IReadOnlyList<RuleDecisionView>>;
 
 public sealed class EvaluateRuleSetValidator : AbstractValidator<EvaluateRuleSet>
 {
@@ -105,7 +110,7 @@ internal sealed class GetRuleDecisionHandler(IRuleDecisionQueries queries) : IQu
 internal sealed class ListRuleDecisionsHandler(IRuleDecisionQueries queries) : IQueryHandler<ListRuleDecisions, IReadOnlyList<RuleDecisionView>>
 {
     public async Task<Result<IReadOnlyList<RuleDecisionView>>> Handle(ListRuleDecisions query, CancellationToken cancellationToken) =>
-        Result.Success(await queries.ForSubject(query.SubjectType, query.SubjectId, query.Limit, cancellationToken));
+        Result.Success(await queries.ForSubject(query.SubjectType, query.SubjectId, query.BeforeId, query.Limit, cancellationToken));
 }
 
 public static class RuleDecisionViews

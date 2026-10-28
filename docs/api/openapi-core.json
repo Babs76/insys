@@ -3955,6 +3955,13 @@
             }
           },
           {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "schema": {
@@ -3973,10 +3980,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RatingCalculationView"
-                  }
+                  "$ref": "#/components/schemas/CursorPageOfRatingCalculationView"
                 }
               }
             }
@@ -4215,6 +4219,13 @@
             }
           },
           {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "schema": {
@@ -4233,10 +4244,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RulesRuleDecisionView"
-                  }
+                  "$ref": "#/components/schemas/CursorPageOfRulesRuleDecisionView"
                 }
               }
             }
@@ -34914,6 +34922,48 @@
           }
         }
       },
+      "CursorPageOfRatingCalculationView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RatingCalculationView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfRulesRuleDecisionView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RulesRuleDecisionView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfWorkflowApprovalView": {
         "required": [
           "items",
@@ -48441,10 +48491,21 @@
             "type": "string"
           },
           "sourceDomain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH",
+              "PRODUCT"
+            ],
             "type": "string"
           },
           "subjectType": {
-            "type": "string"
+            "type": "string",
+            "x-known-values": [
+              "GENERAL_QUOTE",
+              "GENERAL_ENDORSEMENT",
+              "LIFE_PROPOSAL"
+            ]
           },
           "subjectId": {
             "type": "string",
@@ -48465,7 +48526,8 @@
             "type": "string"
           },
           "frequency": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_billing_frequencies"
           },
           "ratingDate": {
             "type": [
@@ -48505,10 +48567,21 @@
             "type": "string"
           },
           "sourceDomain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH",
+              "PRODUCT"
+            ],
             "type": "string"
           },
           "subjectType": {
-            "type": "string"
+            "type": "string",
+            "x-known-values": [
+              "GENERAL_QUOTE",
+              "GENERAL_ENDORSEMENT",
+              "LIFE_PROPOSAL"
+            ]
           },
           "subjectId": {
             "type": "string",
@@ -48628,7 +48701,8 @@
             "type": "string"
           },
           "frequency": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_billing_frequencies"
           },
           "ratingDate": {
             "type": [
@@ -49087,7 +49161,11 @@
             "format": "int32"
           },
           "subjectType": {
-            "type": "string"
+            "type": "string",
+            "x-known-values": [
+              "LIFE_PROPOSAL",
+              "LIFE_UNDERWRITING_CASE"
+            ]
           },
           "subjectId": {
             "type": "string",
@@ -49097,7 +49175,14 @@
             "$ref": "#/components/schemas/JsonElement"
           },
           "outcome": {
-            "type": "string"
+            "type": "string",
+            "x-known-values": [
+              "ELIGIBLE",
+              "REFER",
+              "INELIGIBLE",
+              "ACCEPT",
+              "DECLINE"
+            ]
           },
           "firedRules": {
             "type": "array",

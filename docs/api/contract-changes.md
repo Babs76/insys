@@ -13,6 +13,11 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`ProductWithdrawVersion`** now also accepts a Published version whose effective date has not come: it is withdrawn at once, never comes into force, and keeps its dates (`effectiveTo` in the request is not used for it). `ProductRetireVersion` stays Effective-only (409 otherwise).
 - **Refused while referenced:** 409 `PRODUCT_VERSION_REFERENCED` while any quote, proposal or policy references the version, its detail naming each (for example "GENERAL quote Q-000123", "LIFE proposal P-000045", "HEALTH membership M-0001"), at most 50 then "and more".
 
+### Breaking: rating calculations and rule decisions page with a cursor (BR-025)
+- **`GET /api/v1/rating/calculations`** (`RatingListCalculations`) and **`GET /api/v1/rules/decisions`** (`RulesListDecisions`) return a `CursorPage` (`items`, `nextCursor`) instead of a plain array, and take `cursor`. Newest first, as before.
+- **Declared values:** `sourceDomain` is an enum (`LIFE`, `GENERAL`, `HEALTH`, `PRODUCT`). `subjectType` lists `x-known-values` (Rating: `GENERAL_QUOTE`, `GENERAL_ENDORSEMENT`, `LIFE_PROPOSAL`; Rules: `LIFE_PROPOSAL`, `LIFE_UNDERWRITING_CASE`), as does a decision's `outcome` (`ELIGIBLE`, `REFER`, `INELIGIBLE`, `ACCEPT`, `DECLINE`): other values are allowed, these are the ones INSYS itself uses. A request's `frequency` names its code list.
+- **New contract extensions:** `x-known-values` on a schema property (an open field's usual values, as already on parameters), and `x-code-list` (`schema.table`): the static data table a code field takes its codes from.
+
 ### Breaking: the case's own legal hold is retired; a case is held by a record hold (decided, Ade)
 - **Removed:** `POST /workflow/cases/{id}/legal-hold` (`WorkflowPlaceCaseLegalHold`) and `POST /workflow/cases/{id}/legal-hold/release` (`WorkflowReleaseCaseLegalHold`), and their functions `CASE_PLACE_LEGAL_HOLD` and `CASE_RELEASE_LEGAL_HOLD`. One person could place and release them.
 - **Instead:** place a record hold with `scopeType` `CASE` (`POST /documents/legal-holds`, since batch 4); releasing it needs a second person (`LEGAL_HOLD_RELEASE`).

@@ -41,10 +41,17 @@ namespace Insys.Rating.Api;
 
 /// <param name="RequestRef">The caller's reference for the calculation (up to 30 characters).</param>
 /// <param name="SourceDomain">LIFE, GENERAL, HEALTH, or PRODUCT for a simulation.</param>
-public sealed record CalculatePremiumRequest(string RequestRef, string SourceDomain, string SubjectType, Guid SubjectId, string ProductCode, int ProductVersion,
-    string Currency, string Frequency, DateOnly? RatingDate, JsonElement Values);
+/// <param name="SubjectType">What is rated: the values INSYS's own modules send are listed (BR-025).</param>
+/// <param name="Frequency">The premium frequency rated: a code of billing.ref_billing_frequencies (BR-025).</param>
+public sealed record CalculatePremiumRequest(string RequestRef,
+    [property: System.ComponentModel.DataAnnotations.AllowedValues("LIFE", "GENERAL", "HEALTH", "PRODUCT")] string SourceDomain,
+    [property: BuildingBlocks.Contracts.KnownValues("GENERAL_QUOTE", "GENERAL_ENDORSEMENT", "LIFE_PROPOSAL")] string SubjectType, Guid SubjectId, string ProductCode,
+    int ProductVersion, string Currency, [property: BuildingBlocks.Contracts.CodeList("billing.ref_billing_frequencies")] string Frequency, DateOnly? RatingDate,
+    JsonElement Values);
 
-public sealed record SimulatePremiumRequest(string ProductCode, int ProductVersion, string Currency, string Frequency, DateOnly? RatingDate, JsonElement Values);
+/// <param name="Frequency">The premium frequency rated: a code of billing.ref_billing_frequencies (BR-025).</param>
+public sealed record SimulatePremiumRequest(string ProductCode, int ProductVersion, string Currency,
+    [property: BuildingBlocks.Contracts.CodeList("billing.ref_billing_frequencies")] string Frequency, DateOnly? RatingDate, JsonElement Values);
 
 /// <summary>The Rating module: premiums from rating factors, tables and parameters, each calculation recorded with its versions (SRS §7.3).</summary>
 public sealed class RatingModule : IModule
@@ -87,9 +94,18 @@ public sealed class RatingModule : IModule
             .WithSummary("Get a recorded calculation with its breakdown")
             .RequirePermission(RatingPermissions.CalculationRead);
 
-        calculations.MapGet("/", async (string subjectType, Guid subjectId, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Query(new ListCalculations(subjectType, subjectId, Cursor.ClampLimit(limit)), ct)).ToHttp(Results.Ok))
-            .Produces<IReadOnlyList<CalculationView>>(StatusCodes.Status200OK)
+        calculations.MapGet("/", async (string subjectType, Guid subjectId, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var before))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListCalculations(subjectType, subjectId, before, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<CalculationView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<CalculationView>>(StatusCodes.Status200OK)
             .WithName("RatingListCalculations")
             .WithSummary("List a subject's calculations, newest first")
             .RequirePermission(RatingPermissions.CalculationRead);

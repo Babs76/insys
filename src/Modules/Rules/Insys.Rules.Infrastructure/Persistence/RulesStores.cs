@@ -46,9 +46,11 @@ internal sealed class RuleDecisionQueries(RulesDbContext db) : IRuleDecisionQuer
     public async Task<RuleDecisionView?> Get(Guid id, CancellationToken cancellationToken) =>
         await db.Decisions.AsNoTracking().SingleOrDefaultAsync(d => d.Id == id, cancellationToken) is { } decision ? RuleDecisionViews.From(decision) : null;
 
-    public async Task<IReadOnlyList<RuleDecisionView>> ForSubject(string subjectType, Guid subjectId, int limit, CancellationToken cancellationToken) =>
-        (await db.Decisions.AsNoTracking().Where(d => d.SubjectType == subjectType && d.SubjectId == subjectId).OrderByDescending(d => d.EvaluatedAt).Take(limit)
-            .ToListAsync(cancellationToken)).Select(RuleDecisionViews.From).ToList();
+    // Newest first by ID (UUIDv7, which sorts by creation time), so the cursor and the order agree (BR-025).
+    public async Task<IReadOnlyList<RuleDecisionView>> ForSubject(string subjectType, Guid subjectId, Guid? beforeId, int limit, CancellationToken cancellationToken) =>
+        (await db.Decisions.AsNoTracking()
+            .Where(d => d.SubjectType == subjectType && d.SubjectId == subjectId && (beforeId == null || d.Id.CompareTo(beforeId.Value) < 0))
+            .OrderByDescending(d => d.Id).Take(limit).ToListAsync(cancellationToken)).Select(RuleDecisionViews.From).ToList();
 }
 
 /// <summary>Builds rule sets from the rules in force: eligibility rule sets, and acceptance, referral and decline rules.</summary>

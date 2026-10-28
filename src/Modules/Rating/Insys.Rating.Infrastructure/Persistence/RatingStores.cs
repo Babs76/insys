@@ -55,9 +55,11 @@ internal sealed class PremiumCalculationQueries(RatingDbContext db) : IPremiumCa
             ? CalculationViews.From(calculation)
             : null;
 
-    public async Task<IReadOnlyList<CalculationView>> ForSubject(string subjectType, Guid subjectId, int limit, CancellationToken cancellationToken) =>
-        (await db.Calculations.AsNoTracking().Include(c => c.Lines).Where(c => c.SubjectType == subjectType && c.SubjectId == subjectId)
-            .OrderByDescending(c => c.CalculatedAt).Take(limit).ToListAsync(cancellationToken)).Select(CalculationViews.From).ToList();
+    // Newest first by ID (UUIDv7, which sorts by creation time), so the cursor and the order agree (BR-025).
+    public async Task<IReadOnlyList<CalculationView>> ForSubject(string subjectType, Guid subjectId, Guid? beforeId, int limit, CancellationToken cancellationToken) =>
+        (await db.Calculations.AsNoTracking().Include(c => c.Lines)
+            .Where(c => c.SubjectType == subjectType && c.SubjectId == subjectId && (beforeId == null || c.Id.CompareTo(beforeId.Value) < 0))
+            .OrderByDescending(c => c.Id).Take(limit).ToListAsync(cancellationToken)).Select(CalculationViews.From).ToList();
 }
 
 internal sealed class RatingTestCases(RatingDbContext db) : IRatingTestCases

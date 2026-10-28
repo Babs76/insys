@@ -58,7 +58,11 @@ public interface IPremiumCalculationRepository
 
 public sealed record ResultLineView(int LineNo, string Component, string? FactorCode, string? FactorValue, decimal Amount);
 
-public sealed record CalculationView(Guid Id, string RequestRef, string SourceDomain, string SubjectType, Guid SubjectId, string ProductCode, int ProductVersion,
+/// <param name="SourceDomain">The domain that asked for the calculation (BR-025).</param>
+/// <param name="SubjectType">What was rated: the values INSYS's own modules send are listed (BR-025).</param>
+public sealed record CalculationView(Guid Id, string RequestRef,
+    [property: System.ComponentModel.DataAnnotations.AllowedValues("LIFE", "GENERAL", "HEALTH", "PRODUCT")] string SourceDomain,
+    [property: BuildingBlocks.Contracts.KnownValues("GENERAL_QUOTE", "GENERAL_ENDORSEMENT", "LIFE_PROPOSAL")] string SubjectType, Guid SubjectId, string ProductCode, int ProductVersion,
     int RatingVersion, JsonElement Inputs, decimal Premium, string Currency, DateTimeOffset CalculatedAt, IReadOnlyList<ResultLineView> Lines);
 
 public sealed record SimulationView(decimal Premium, string Currency, int RatingVersion, IReadOnlyList<ResultLineView> Lines);
@@ -67,7 +71,8 @@ public interface IPremiumCalculationQueries
 {
     Task<CalculationView?> Get(Guid id, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<CalculationView>> ForSubject(string subjectType, Guid subjectId, int limit, CancellationToken cancellationToken);
+    /// <summary>A subject's calculations, newest first, those before <paramref name="beforeId"/> when it is given (BR-025).</summary>
+    Task<IReadOnlyList<CalculationView>> ForSubject(string subjectType, Guid subjectId, Guid? beforeId, int limit, CancellationToken cancellationToken);
 }
 
 /// <summary>Command CalculatePremium: rates and records the calculation with its breakdown.</summary>
@@ -80,7 +85,7 @@ public sealed record RunRatingTestCases(string ProductCode, int ProductVersion, 
 
 public sealed record GetCalculation(Guid Id) : IQuery<CalculationView>;
 
-public sealed record ListCalculations(string SubjectType, Guid SubjectId, int Limit) : IQuery<IReadOnlyList<CalculationView>>;
+public sealed record ListCalculations(string SubjectType, Guid SubjectId, Guid? BeforeId, int Limit) : IQuery<IReadOnlyList<CalculationView>>;
 
 public sealed class CalculatePremiumValidator : AbstractValidator<CalculatePremium>
 {
@@ -205,7 +210,7 @@ internal sealed class GetCalculationHandler(IPremiumCalculationQueries queries) 
 internal sealed class ListCalculationsHandler(IPremiumCalculationQueries queries) : IQueryHandler<ListCalculations, IReadOnlyList<CalculationView>>
 {
     public async Task<Result<IReadOnlyList<CalculationView>>> Handle(ListCalculations query, CancellationToken cancellationToken) =>
-        Result.Success(await queries.ForSubject(query.SubjectType, query.SubjectId, query.Limit, cancellationToken));
+        Result.Success(await queries.ForSubject(query.SubjectType, query.SubjectId, query.BeforeId, query.Limit, cancellationToken));
 }
 
 public static class CalculationViews
