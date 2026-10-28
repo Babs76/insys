@@ -2,14 +2,18 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## BR-087 (branch `br-087`, merged at `24717de`)
+## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
-### Fixed: static data and product lists no longer skip a row at a page boundary (BR-087)
-- **Every static data list** (`GET /api/v1/{module}/static/{entity}`) and **the product list** (`GET /api/v1/product-factory/products`) now compare their cursor and order their codes bytewise (PostgreSQL `COLLATE "C"`). Before, the database ordered codes by its own collation (en_US, which ignores underscores) while the service re-sorted them ordinally, so a code that fell on a page boundary was never returned; in the 687-function catalogue at 200 a page, `SD_BENEFIT_MANAGEMENT_MAINTAIN` was one.
-- **Static data and product lists now come back in byte order** (`PGB` before `PG_A`): digits and upper-case letters sort before `_`, as an ordinal comparison sorts them. Before, the order followed the server's collation (`PG_A` before `PGB`). A client that shows the list in the order returned will see codes with underscores move after their neighbours without one. Cursors issued before the change still decode and continue from the code they name.
-- No other list was affected: every other cursor-paged list pages on its record's UUID, compared and ordered in SQL.
+### Breaking: the case's own legal hold is retired; a case is held by a record hold (decided, Ade)
+- **Removed:** `POST /workflow/cases/{id}/legal-hold` (`WorkflowPlaceCaseLegalHold`) and `POST /workflow/cases/{id}/legal-hold/release` (`WorkflowReleaseCaseLegalHold`), and their functions `CASE_PLACE_LEGAL_HOLD` and `CASE_RELEASE_LEGAL_HOLD`. One person could place and release them.
+- **Instead:** place a record hold with `scopeType` `CASE` (`POST /documents/legal-holds`, since batch 4); releasing it needs a second person (`LEGAL_HOLD_RELEASE`).
+- **Existing holds are kept:** every case still under its own hold now has a record hold on it, placed by the same person at the same time, with reason code `CASE_HOLD` (migration V0068). Nothing held was released.
+- **`CaseView.legalHold`** now says whether a legal hold keeps the case: a record hold on it or on one of its documents. It was the case's own flag.
 
-## Wave 2 batch 4 (branch `wave2-4`, not merged)
+### New: readiness item CASE_TYPE_PROCESS_NOT_IN_FORCE (decided, Ade)
+- The `SHARED_OPERATIONAL_SETUP` step gains the check `CASE_TYPE_PROCESS_NOT_IN_FORCE`: every case type in force must name a process in force. `missing` lists each that does not as `caseType:process`. Until now such a case type opened its cases without a process, with only a logged warning. Like every readiness check, it must be ready for the step to complete.
+
+## Wave 2 batch 4 (branch `wave2-4`, merged at `ef5a85c`)
 
 ### New: the default role templates, read only (BR-088)
 - **`GET /api/v1/identity/role-templates`** (`IdentityListRoleTemplates`) lists the default role templates (OQ-111): `code`, `name`, `actorType` (`STAFF`, `PLATFORM`, `BROKER`, `CUSTOMER` or `PROVIDER`), `for`, and the number of `screens` and `actions`.
@@ -98,6 +102,13 @@ No contract change:
 - **Approved or rejected as a whole, never partly.** A rejection, expiry or withdrawal returns every line to draft, and the corrected import is submitted again as a new change.
 - **The approval is bound to the SHA-256 of the complete import.** If a line changed after submission, the approval is not applied: it parks (`APPROVAL_NOT_APPLIED`) and no line is approved.
 - **Change requests:** `ChangeRequestView.action` can be `IMPORT`; its `after` names `batchId`, `lineCount` and `hash`, with the table's routes.
+
+## BR-087 (branch `br-087`, merged at `24717de`)
+
+### Fixed: static data and product lists no longer skip a row at a page boundary (BR-087)
+- **Every static data list** (`GET /api/v1/{module}/static/{entity}`) and **the product list** (`GET /api/v1/product-factory/products`) now compare their cursor and order their codes bytewise (PostgreSQL `COLLATE "C"`). Before, the database ordered codes by its own collation (en_US, which ignores underscores) while the service re-sorted them ordinally, so a code that fell on a page boundary was never returned; in the 687-function catalogue at 200 a page, `SD_BENEFIT_MANAGEMENT_MAINTAIN` was one.
+- **Static data and product lists now come back in byte order** (`PGB` before `PG_A`): digits and upper-case letters sort before `_`, as an ordinal comparison sorts them. Before, the order followed the server's collation (`PG_A` before `PGB`). A client that shows the list in the order returned will see codes with underscores move after their neighbours without one. Cursors issued before the change still decode and continue from the code they name.
+- No other list was affected: every other cursor-paged list pages on its record's UUID, compared and ordered in SQL.
 
 ## Wave 2 batch 3 (branch `wave2-3`, merged at `1416683`)
 
