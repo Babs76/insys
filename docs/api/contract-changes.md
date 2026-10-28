@@ -9,7 +9,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **Environments** take it from the realm export on import. One already imported needs the same two values set (the admin console's authenticator config, or the admin API as the live run and demo did, D-48).
 - The API and its contract are unchanged.
 
-## Wave 2 batch 5 (branch `wave2-5`, not merged)
+## Wave 2 batch 5 (branch `wave2-5`, merged at `99ac395`)
 
 ### Breaking: a risk object's valuation requires its currency (BR-033, decided by Ade)
 - **`valuationCurrency`** on `GeneralRegisterRiskObject` and `GeneralRevalueRiskObject` is **required with a valuation**, and allowed only with one: a 3-letter code. A valuation without it, or a currency without a valuation, is 422 `VALUATION_CURRENCY_REQUIRED` (new). A missing or negative valuation basis is still 422 `VALUATION_BASIS_REQUIRED`.
