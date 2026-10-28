@@ -41,7 +41,7 @@ internal static class DistributionFunctions
         .Screen("COMMISSION_ENTITLEMENTS", "COMMISSION", "Entitlements", "distribution/entitlements", "DistributionListEntitlements", "DistributionGetEntitlement")
         .Action("DISTRIBUTION_CLAW_BACK", "COMMISSION_ENTITLEMENTS", "DistributionClawBack")
         .Screen("INTERMEDIARIES", "INTERMEDIARIES", "Brokers", "distribution/intermediaries", "DistributionCheckIntermediary")
-        .Screen("COMMISSION_STATEMENTS", "COMMISSION", "Statements (second person)", "distribution/statements", "DistributionGetStatement")
+        .Screen("COMMISSION_STATEMENTS", "COMMISSION", "Statements (second person)", "distribution/statements", "DistributionListStatements", "DistributionGetStatement")
         .Action("DISTRIBUTION_PREPARE_STATEMENT", "COMMISSION_STATEMENTS", "DistributionPrepareStatement")
         .Job("DISTRIBUTION_EVENT_PROCESSING", "COMMISSION", "Background processing")
             .Functions,

@@ -63,6 +63,10 @@ public interface IDistributionRepository
     Task<IReadOnlyList<CommissionEntitlement>> OnStatement(Guid statementId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CommissionEntitlement>> List(string? intermediaryCode, Guid? policyRef, EntitlementStatus? status, Guid? afterId, int limit,
+        CancellationToken cancellationToken, Guid? statementId = null);
+
+    /// <summary>BR-058: statements by intermediary, period and status, by ID after <paramref name="afterId"/>.</summary>
+    Task<IReadOnlyList<CommissionStatement>> Statements(string? intermediaryCode, string? periodCode, StatementStatus? status, Guid? afterId, int limit,
         CancellationToken cancellationToken);
 
     Task<CommissionStatement?> Statement(Guid id, CancellationToken cancellationToken);
@@ -94,21 +98,29 @@ public interface IDistributionCodes
 
 public sealed record ClawbackView(Guid Id, string Reason, decimal Amount, Guid? StatementId);
 
+/// <param name="Rate">The plan's rate: a percentage of the basis amount when <paramref name="RateUnit"/> is PERCENT, an amount when AMOUNT (BR-059).</param>
+/// <param name="RateBasis">The plan's basis: PREMIUM (a percentage of the invoice's net premium), FIXED (an amount per invoice) or POLICY_COUNT (an amount per policy).</param>
+/// <param name="RateUnit">PERCENT for a PREMIUM basis, AMOUNT otherwise.</param>
 public sealed record EntitlementView(Guid Id, string IntermediaryCode, string SourceType, Guid SourceId, string SourceDomain, Guid PolicyRef, string ProductCode,
     string PlanCode, int PlanVersion, decimal BasisAmount, decimal Rate, decimal Amount, string Currency, DateOnly DueDate, EntitlementStatus Status, Guid? StatementId,
-    ClawbackView? Clawback, long RowVersion)
+    ClawbackView? Clawback, long RowVersion,
+    [property: OneOf(CommissionBases.Premium, CommissionBases.Fixed, CommissionBases.PolicyCount)] string? RateBasis = null,
+    [property: OneOf("PERCENT", "AMOUNT")] string? RateUnit = null)
 {
     public static EntitlementView From(CommissionEntitlement e) => new(e.Id, e.IntermediaryCode, e.SourceType, e.SourceId, e.SourceDomain, e.PolicyRef, e.ProductCode,
         e.PlanCode, e.PlanVersion, e.BasisAmount, e.Rate, e.Amount, e.Currency, e.DueDate, e.Status, e.StatementId,
-        e.Clawback is { } c ? new ClawbackView(c.Id, c.Reason, c.Amount, c.StatementId) : null, e.RowVersion);
+        e.Clawback is { } c ? new ClawbackView(c.Id, c.Reason, c.Amount, c.StatementId) : null, e.RowVersion,
+        e.RateBasis is { Length: > 0 } basis ? basis : null,
+        e.RateBasis is { Length: > 0 } unit ? unit == CommissionBases.Premium ? "PERCENT" : "AMOUNT" : null);
 }
 
+/// <param name="ApprovalId">The Workflow approval the statement was last submitted for (BR-058): the one that approved it once Approved.</param>
 public sealed record StatementView(Guid Id, string IntermediaryCode, string PeriodCode, string Currency, decimal GrossAmount, decimal TaxAmount, decimal NetAmount,
     StatementStatus Status, bool ApprovalPending, Guid? ApprovedBy, Guid? PayeePartyId, Guid? BankAccountId, Guid? PaymentRef, DateOnly? PaidOn, long RowVersion,
-    LatestRejection? LatestRejection = null)
+    LatestRejection? LatestRejection = null, Guid? ApprovalId = null)
 {
     public static StatementView From(CommissionStatement s) => new(s.Id, s.IntermediaryCode, s.PeriodCode, s.Currency, s.GrossAmount, s.TaxAmount, s.NetAmount,
-        s.Status, s.ApprovalPending, s.ApprovedBy, s.PayeePartyId, s.BankAccountId, s.PaymentRef, s.PaidOn, s.RowVersion);
+        s.Status, s.ApprovalPending, s.ApprovedBy, s.PayeePartyId, s.BankAccountId, s.PaymentRef, s.PaidOn, s.RowVersion, null, s.ApprovalId);
 }
 
 /// <summary>Command PrepareStatement for an intermediary, a period (yyyy-MM) and a currency; preparing a draft again recalculates it.</summary>
@@ -119,7 +131,12 @@ public sealed record ClawBackCommission(Guid EntitlementId, string Reason) : ICo
 
 public sealed record GetEntitlement(Guid EntitlementId) : IQuery<EntitlementView>;
 
-public sealed record ListEntitlements(string? IntermediaryCode, Guid? PolicyRef, EntitlementStatus? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<EntitlementView>>;
+/// <param name="StatementId">A statement's entitlements: those on it, and those whose clawback it recovers (BR-059).</param>
+public sealed record ListEntitlements(string? IntermediaryCode, Guid? PolicyRef, EntitlementStatus? Status, Guid? AfterId, int Limit, Guid? StatementId = null)
+    : IQuery<IReadOnlyList<EntitlementView>>;
+
+/// <summary>BR-058: commission statements by intermediary, period and status, oldest first.</summary>
+public sealed record ListStatements(string? IntermediaryCode, string? PeriodCode, StatementStatus? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<StatementView>>;
 
 public sealed record GetStatement(Guid StatementId) : IQuery<StatementView>;
 
@@ -220,6 +237,7 @@ internal sealed class DistributionQueries(IDistributionRepository repository, II
     IApprovalHistory approvals) :
     IQueryHandler<GetEntitlement, EntitlementView>,
     IQueryHandler<ListEntitlements, IReadOnlyList<EntitlementView>>,
+    IQueryHandler<ListStatements, IReadOnlyList<StatementView>>,
     IQueryHandler<GetStatement, StatementView>,
     IQueryHandler<CheckIntermediary, IntermediaryCheckView>
 {
@@ -227,8 +245,11 @@ internal sealed class DistributionQueries(IDistributionRepository repository, II
         await repository.Entitlement(query.EntitlementId, cancellationToken) is { } e ? EntitlementView.From(e) : Error.NotFound(ErrorCodes.NotFound, "The commission entitlement was not found.");
 
     public async Task<Result<IReadOnlyList<EntitlementView>>> Handle(ListEntitlements query, CancellationToken cancellationToken) =>
-        (await repository.List(query.IntermediaryCode, query.PolicyRef, query.Status, query.AfterId, Math.Clamp(query.Limit, 1, 200), cancellationToken))
+        (await repository.List(query.IntermediaryCode, query.PolicyRef, query.Status, query.AfterId, Math.Clamp(query.Limit, 1, 200), cancellationToken, query.StatementId))
         .Select(EntitlementView.From).ToList();
+
+    public async Task<Result<IReadOnlyList<StatementView>>> Handle(ListStatements query, CancellationToken cancellationToken) =>
+        (await repository.Statements(query.IntermediaryCode, query.PeriodCode, query.Status, query.AfterId, query.Limit, cancellationToken)).Select(StatementView.From).ToList();
 
     /// <summary>The statement, with how its latest approval ended without being granted, if one did (OQ-113).</summary>
     public async Task<Result<StatementView>> Handle(GetStatement query, CancellationToken cancellationToken) =>

@@ -27163,7 +27163,8 @@
         "tags": [
           "Distribution"
         ],
-        "summary": "Commission entitlements, by intermediary, policy or status, with cursor pagination",
+        "summary": "Commission entitlements, by intermediary, policy, status or statement (BR-059), by ID after \u0060after\u0060",
+        "description": "statementId lists a statement\u0027s entitlements: those on it, and those whose clawback it recovers.",
         "operationId": "DistributionListEntitlements",
         "parameters": [
           {
@@ -27186,6 +27187,14 @@
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/DistributionEntitlementStatus"
+            }
+          },
+          {
+            "name": "statementId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
             }
           },
           {
@@ -27458,6 +27467,86 @@
         "x-permission": "commission_statement.create",
         "x-function": [
           "DISTRIBUTION_PREPARE_STATEMENT"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "Commission statements by intermediary, period (yyyy-MM) and status, oldest first (BR-058)",
+        "operationId": "DistributionListStatements",
+        "parameters": [
+          {
+            "name": "intermediaryCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "periodCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DistributionStatementStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfDistributionStatementView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "commission_statement.read",
+        "x-function": [
+          "COMMISSION_STATEMENTS"
         ]
       }
     },
@@ -36290,6 +36379,27 @@
           }
         }
       },
+      "CursorPageOfDistributionStatementView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistributionStatementView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfDocumentsRecordHoldView": {
         "required": [
           "items",
@@ -37570,6 +37680,29 @@
               "string"
             ],
             "format": "int64"
+          },
+          "rateBasis": {
+            "enum": [
+              "PREMIUM",
+              "FIXED",
+              "POLICY_COUNT",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rateUnit": {
+            "enum": [
+              "PERCENT",
+              "AMOUNT",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -37811,6 +37944,13 @@
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
             ]
+          },
+          "approvalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

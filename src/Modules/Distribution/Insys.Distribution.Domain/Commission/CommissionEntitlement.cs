@@ -140,6 +140,9 @@ public sealed class CommissionEntitlement : AggregateRoot<Guid>
 
     public decimal Rate { get; private set; }
 
+    /// <summary>The plan's basis the rate applies on (BR-059): PREMIUM (a percentage of the net premium), FIXED or POLICY_COUNT (an amount).</summary>
+    public string RateBasis { get; private set; } = "";
+
     public decimal Amount { get; private set; }
 
     public string Currency { get; private set; } = "";
@@ -184,7 +187,7 @@ public sealed class CommissionEntitlement : AggregateRoot<Guid>
         {
             Id = Guard.NotEmpty(id), IntermediaryCode = Guard.MaxLength(intermediaryCode, 15), SourceType = InvoiceSource, SourceId = source.InvoiceId,
             SourceDomain = Guard.MaxLength(source.SourceDomain, 10), PolicyRef = source.PolicyRef, ProductCode = Guard.MaxLength(source.ProductCode, 15),
-            PlanCode = plan.PlanCode, PlanVersion = plan.Version, BasisAmount = basis, Rate = plan.Rate, Amount = amount, Currency = source.Currency,
+            PlanCode = plan.PlanCode, PlanVersion = plan.Version, BasisAmount = basis, Rate = plan.Rate, RateBasis = Guard.MaxLength(plan.Basis, 15), Amount = amount, Currency = source.Currency,
             DueDate = source.DueDate, Status = EntitlementStatus.Accrued,
         };
         entitlement.Raise(new CommissionAccrued(entitlement.Id, entitlement.IntermediaryCode, entitlement.SourceDomain, entitlement.PolicyRef, source.InvoiceId,

@@ -292,6 +292,19 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         await _factory.DrainOutbox();
         await Decide(DistributionApprovals.StatementBusinessRefType, statement);
         (await Get($"/api/v1/distribution/statements/{statement}")).GetProperty("status").GetString().ShouldBe("Approved");
+
+        // BR-058: the statement is listed by intermediary, period and status, with the approval that approved it.
+        var statementApproval = (await Get($"/api/v1/workflow/approvals?businessRefType={DistributionApprovals.StatementBusinessRefType}&businessRefId={statement}"))
+            .GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        var listedStatement = (await Get($"/api/v1/distribution/statements?intermediaryCode={Broker}&periodCode={Month}&status=Approved")).GetProperty("items")
+            .EnumerateArray().Single();
+        (listedStatement.GetProperty("id").GetGuid(), listedStatement.GetProperty("approvalId").GetGuid()).ShouldBe((statement, statementApproval));
+        (await Get($"/api/v1/distribution/statements?intermediaryCode={Broker}&status=Draft")).GetProperty("items").GetArrayLength().ShouldBe(0);
+
+        // BR-059: the statement's entitlements, each saying its rate is a percentage of the premium.
+        var onStatement = (await Get($"/api/v1/distribution/entitlements?statementId={statement}")).EnumerateArray().Single();
+        (onStatement.GetProperty("rateBasis").GetString(), onStatement.GetProperty("rateUnit").GetString()).ShouldBe(("PREMIUM", "PERCENT"));
+        (await Get($"/api/v1/distribution/entitlements?statementId={Guid.CreateVersion7()}")).GetArrayLength().ShouldBe(0);
         await PayOut(PaymentPurposes.Commission, statement);
         (await Get($"/api/v1/distribution/statements/{statement}")).GetProperty("status").GetString().ShouldBe("Paid");
 

@@ -76,10 +76,42 @@ internal sealed class DistributionRepository(DistributionDbContext db) : IDistri
     public async Task<IReadOnlyList<CommissionEntitlement>> OnStatement(Guid statementId, CancellationToken cancellationToken) =>
         await Entitlements().Where(e => e.StatementId == statementId || e.Clawbacks.Any(c => c.StatementId == statementId)).OrderBy(e => e.Id).ToListAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<CommissionEntitlement>> List(string? intermediaryCode, Guid? policyRef, EntitlementStatus? status, Guid? afterId, int limit,
+    public async Task<IReadOnlyList<CommissionStatement>> Statements(string? intermediaryCode, string? periodCode, StatementStatus? status, Guid? afterId, int limit,
         CancellationToken cancellationToken)
     {
+        var query = db.Statements.AsNoTracking();
+        if (intermediaryCode is not null)
+        {
+            query = query.Where(s => s.IntermediaryCode == intermediaryCode);
+        }
+
+        if (periodCode is not null)
+        {
+            query = query.Where(s => s.PeriodCode == periodCode);
+        }
+
+        if (status is { } st)
+        {
+            query = query.Where(s => s.Status == st);
+        }
+
+        if (afterId is { } after)
+        {
+            query = query.Where(s => s.Id.CompareTo(after) > 0);
+        }
+
+        return await query.OrderBy(s => s.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<CommissionEntitlement>> List(string? intermediaryCode, Guid? policyRef, EntitlementStatus? status, Guid? afterId, int limit,
+        CancellationToken cancellationToken, Guid? statementId = null)
+    {
         var query = Entitlements().AsNoTracking();
+        if (statementId is { } statement)
+        {
+            query = query.Where(e => e.StatementId == statement || e.Clawbacks.Any(c => c.StatementId == statement));
+        }
+
         if (intermediaryCode is not null)
         {
             query = query.Where(e => e.IntermediaryCode == intermediaryCode);
