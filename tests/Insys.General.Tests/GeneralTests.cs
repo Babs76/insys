@@ -114,9 +114,26 @@ public sealed class GeneralTests
         RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema, values, "{}", 150_000m, null, new(null, null, null), Today, Now).Error!.Code
             .ShouldBe(GeneralErrorCodes.ValuationBasisRequired);
 
-        var risk = RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema, values, "{}", 150_000m, "MARKET", new(null, null, "Z1"), Today, Now).Value;
+        var risk = RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema, values, "{}", 150_000m, "MARKET", new(null, null, "Z1"), Today, Now, "ZAR").Value;
         risk.AttributeSchemaVersion.ShouldBe(1);
-        risk.RevalueRiskObject(10m, " ").IsFailure.ShouldBeTrue();
+        risk.RevalueRiskObject(10m, " ", "ZAR").IsFailure.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void RiskObject_ValuationNamesItsCurrency_BR033()
+    {
+        var schema = AttributeSchema.Parse("VEHICLE", 1, ["registration:String(10):Y"], []).Value;
+        var values = new Dictionary<string, object?> { ["registration"] = "CA1" };
+        RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema, values, "{}", 150_000m, "MARKET", new(null, null, null), Today, Now).Error!.Code
+            .ShouldBe(GeneralErrorCodes.ValuationCurrencyRequired);
+        RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema, values, "{}", null, null, new(null, null, null), Today, Now, "ZAR").Error!.Code
+            .ShouldBe(GeneralErrorCodes.ValuationCurrencyRequired);
+
+        var risk = RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema, values, "{}", null, null, new(null, null, null), Today, Now).Value;
+        risk.RevalueRiskObject(10m, "MARKET", "RAND").Error!.Code.ShouldBe(GeneralErrorCodes.ValuationCurrencyRequired);
+        risk.RevalueRiskObject(10m, "MARKET", null).Error!.Code.ShouldBe(GeneralErrorCodes.ValuationCurrencyRequired);
+        risk.RevalueRiskObject(10m, "MARKET", "USD").IsSuccess.ShouldBeTrue();
+        risk.ValuationCurrency.ShouldBe("USD");
     }
 
     [Fact]

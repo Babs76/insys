@@ -208,7 +208,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     /// <summary>
     /// BR-036 (the front end's GAP-034): every General and claims code field the front end listed declares its values (an
     /// enum, or x-known-values for an open field) or names the static data table its codes come from (x-code-list). A
-    /// claim party's role has no list yet (OQ-122).
+    /// claim party's role comes from the tenant's claim party roles (OQ-122).
     /// </summary>
     [Fact]
     public async Task GeneralAndClaimsCodeFields_DeclareTheirValuesOrTable_BR036()
@@ -244,6 +244,11 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
 
         checkedFields.ShouldBeGreaterThan(50);
         undeclared.ShouldBeEmpty();
+        var schemas = core.RootElement.GetProperty("components").GetProperty("schemas");
+        foreach (var name in new[] { "GeneralPartyRequest", "GeneralClaimPartyView" })
+        {
+            schemas.GetProperty(name).GetProperty("properties").GetProperty("role").GetProperty("x-code-list").GetString().ShouldBe("general.cfg_claim_party_roles", name);
+        }
     }
 
     /// <summary>

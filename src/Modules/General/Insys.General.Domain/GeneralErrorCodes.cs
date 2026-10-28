@@ -43,6 +43,9 @@ public static class GeneralErrorCodes
     [ErrorCode(422, "error.general.valuation_basis_required")]
     public const string ValuationBasisRequired = "VALUATION_BASIS_REQUIRED";
 
+    [ErrorCode(422, "error.general.valuation_currency_required")]
+    public const string ValuationCurrencyRequired = "VALUATION_CURRENCY_REQUIRED";
+
     [ErrorCode(422, "error.general.outside_product_limits")]
     public const string OutsideProductLimits = "OUTSIDE_PRODUCT_LIMITS";
 

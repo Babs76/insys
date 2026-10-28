@@ -37,6 +37,7 @@ public static class CodeLists
     public const string EndorsementTypes = "general.cfg_endorsement_types";
     public const string RiskObjectTypes = "general.cfg_risk_object_types_and_attribute_schemas";
     public const string ValuationBases = "general.ref_valuation_bases";
+    public const string ClaimPartyRoles = "general.cfg_claim_party_roles";
     public const string RiskZones = "general.ref_risk_zones";
     public const string LossCauses = "general.ref_loss_cause_codes";
     public const string Perils = "general.ref_peril_codes";

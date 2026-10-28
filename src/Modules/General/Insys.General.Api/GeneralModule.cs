@@ -44,7 +44,7 @@ namespace Insys.General.Api;
 
 public sealed record AttributesRequest(JsonElement Attributes);
 
-/// <param name="ValuationCurrency">The valuation's currency (BR-033), a 3-letter code; only with a valuation.</param>
+/// <param name="ValuationCurrency">The valuation's currency (BR-033), a 3-letter code: required with a valuation, and only with one.</param>
 public sealed record RevalueRequest(decimal? Valuation, [property: BuildingBlocks.Domain.CodeList(CodeLists.ValuationBases)] string? ValuationBasis,
     string? ValuationCurrency = null);
 
@@ -58,7 +58,8 @@ public sealed record CancelRequest([property: BuildingBlocks.Domain.CodeList(Cod
 public sealed record EndorsementRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EndorsementTypes)] string EndorsementType, DateOnly EffectiveDate,
     IReadOnlyList<EndorsementChange> Changes);
 
-public sealed record PartyRequest(Guid PartyId, string Role, string? InsurerRef);
+/// <param name="Role">The party's role on the claim, in force in general.cfg_claim_party_roles (OQ-122).</param>
+public sealed record PartyRequest(Guid PartyId, [property: BuildingBlocks.Domain.CodeList(CodeLists.ClaimPartyRoles)] string Role, string? InsurerRef);
 
 public sealed record AssessorRequest(Guid AssessorPartyId);
 

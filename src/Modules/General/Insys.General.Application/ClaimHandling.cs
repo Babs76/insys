@@ -48,7 +48,8 @@ public sealed record NotifyLoss(Guid PolicyId, Guid? RiskObjectId, string Covera
 /// <summary>Command RegisterClaim: the cover is validated (GEN-006) and the Claims Framework allocates the claim number (CLM-005).</summary>
 public sealed record RegisterClaim(Guid ClaimId) : ICommand<ClaimView>;
 
-public sealed record AddClaimParty(Guid ClaimId, Guid PartyId, string Role, string? InsurerRef) : ICommand<ClaimView>;
+/// <summary>Command AddClaimParty: the role is one in force in the tenant's claim party roles (OQ-122).</summary>
+public sealed record AddClaimParty(Guid ClaimId, Guid PartyId, [property: CodeList(CodeLists.ClaimPartyRoles)] string Role, string? InsurerRef) : ICommand<ClaimView>;
 
 /// <summary>Command AppointAssessor: an assessor on an approved panel for the line (GEN-007).</summary>
 public sealed record AppointAssessor(Guid ClaimId, Guid AssessorPartyId) : ICommand<ClaimView>;
@@ -278,13 +279,18 @@ internal sealed class RegisterClaimHandler(IGeneralRepository general, IClaimReg
     }
 }
 
-internal sealed class AddClaimPartyHandler(IGeneralRepository general) : ICommandHandler<AddClaimParty, ClaimView>
+internal sealed class AddClaimPartyHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate) : ICommandHandler<AddClaimParty, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(AddClaimParty command, CancellationToken cancellationToken)
     {
         if (await general.Claim(command.ClaimId, cancellationToken) is not { } claim)
         {
             return Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
+        }
+
+        if (!await codes.Exists(GeneralCode.ClaimPartyRole, command.Role, businessDate.Today, cancellationToken))
+        {
+            return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{command.Role} is not a claim party role in force.");
         }
 
         claim.AddParty(command.PartyId, command.Role, command.InsurerRef);

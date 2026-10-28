@@ -30939,6 +30939,7 @@
                 "cfg_chronic_condition_list",
                 "cfg_claim_format_definitions",
                 "cfg_claim_numbering_schemes",
+                "cfg_claim_party_roles",
                 "cfg_claim_requirement_checklis",
                 "cfg_claims_authority_limits",
                 "cfg_clinical_review_criteria_r",
@@ -31369,6 +31370,7 @@
                 "cfg_chronic_condition_list",
                 "cfg_claim_format_definitions",
                 "cfg_claim_numbering_schemes",
+                "cfg_claim_party_roles",
                 "cfg_claim_requirement_checklis",
                 "cfg_claims_authority_limits",
                 "cfg_clinical_review_criteria_r",
@@ -38233,7 +38235,8 @@
             "format": "uuid"
           },
           "role": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.cfg_claim_party_roles"
           },
           "insurerRef": {
             "type": [
@@ -38968,7 +38971,8 @@
             "format": "uuid"
           },
           "role": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.cfg_claim_party_roles"
           },
           "insurerRef": {
             "type": [

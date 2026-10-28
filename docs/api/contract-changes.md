@@ -4,6 +4,15 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### Breaking: a risk object's valuation requires its currency (BR-033, decided by Ade)
+- **`valuationCurrency`** on `GeneralRegisterRiskObject` and `GeneralRevalueRiskObject` is **required with a valuation**, and allowed only with one: a 3-letter code. A valuation without it, or a currency without a valuation, is 422 `VALUATION_CURRENCY_REQUIRED` (new). A missing or negative valuation basis is still 422 `VALUATION_BASIS_REQUIRED`.
+- **`GeneralRiskObjectView.valuationCurrency`** is present whenever `valuation` is. Valuations recorded without one took the tenant's base currency (migration V0074).
+
+### Breaking: a claim party's role comes from the tenant's claim party roles (OQ-122, decided by Ade)
+- **New static data table `general.cfg_claim_party_roles`** (CFG, tenant scope, Tier 2; `code` and `label`), maintained like any configuration table under `/api/v1/general/static/claim-party-roles`.
+- **`GeneralAddClaimParty`:** `role` must be a code in force in that table, otherwise 422 `GENERAL_CODE_NOT_IN_FORCE` (it was any text up to 15 characters). `role` on `GeneralPartyRequest` and `GeneralClaimPartyView` declares `x-code-list: general.cfg_claim_party_roles`.
+- **Starter list**, seeded as drafts in each existing tenant for the claims team to confirm (submit and activate) or change: `CLAIMANT`, `INSURED`, `THIRD_PARTY`, `DRIVER`, `WITNESS`, `ASSESSOR`, `REPAIRER`, `LEGAL_REP` (legal representative; a role code is at most 15 characters) and `PAYEE`. Until a tenant has roles in force, adding a claim party is refused.
+
 ### New: staff display names for user IDs (BR-021, decided)
 - **`POST /api/v1/identity/users/display-names`** (`IdentityLookupDisplayNames`) with `{ "ids": [...] }`, 1 to 100 IDs (422 otherwise), returns `[{ "id", "displayName" }]`:
   - each ID that is a user of the caller's own tenant, active or not, with its display name;
@@ -65,7 +74,7 @@ Each is a `CursorPage` (`cursor`, `limit`), by ID, within the caller's product a
 
 ### New: General and claims amounts carry their currency (BR-033)
 - **`currency`** on `GeneralAssessmentView` (with each estimate), `GeneralRecoveryView` (with each salvage item), `GeneralEndorsementView` and the claim's `FinancialsView` (`ClaimsGetFinancials`: the currency of every movement and every outstanding reserve; `outstandingReserves` is unchanged). Assessments, recoveries and endorsements are in their policy's currency.
-- **A risk object's valuation** names its own currency: `valuationCurrency` on `GeneralRegisterRiskObject` and `GeneralRevalueRiskObject` (optional, a 3-letter code, only with a valuation; 422 `VALUATION_BASIS_REQUIRED` otherwise) and on `GeneralRiskObjectView`. Valuations recorded before it are null.
+- **A risk object's valuation** names its own currency: `valuationCurrency` on `GeneralRegisterRiskObject`, `GeneralRevalueRiskObject` and `GeneralRiskObjectView`. It is now required with a valuation (see the breaking change above).
 
 ### New: a claim's recoveries (BR-032)
 - **`GET /api/v1/general/claims/{id}/recoveries`** (`GeneralListClaimRecoveries`, the recoveries screen): a `CursorPage` of `RecoveryView`, with their salvage, by ID. A claim that does not exist or is outside the caller's product and branch scope is 404.

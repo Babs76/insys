@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.General.Infrastructure.StaticData;
 
-/// <summary>The 39 static data tables owned by the General module.</summary>
+/// <summary>The 40 static data tables owned by the General module.</summary>
 public static class GeneralStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -42,6 +42,7 @@ public static class GeneralStaticData
         new("general", "cfg_aggregate_limit_definitions", "cfg_aggregate_limit_definitions", "Aggregate limit definitions", "general", "aggregate-limit-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(AggregateLimitDefinitions), typeof(AggregateLimitDefinitionsInput), "E · Coverage Management"),
         new("general", "cfg_aggregation_zones_and_limits", "cfg_aggregation_zones_and_limits", "Aggregation zones and limits", "general", "aggregation-zones-and-limits", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(AggregationZonesAndLimits), typeof(AggregationZonesAndLimitsInput), "C · Risk Object Management"),
         new("general", "cfg_cancellation_reasons_and_refund_rules", "cfg_cancellation_reasons_and_re_048c3576", "Cancellation reasons and refund rules", "general", "cancellation-reasons-and-refund-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CancellationReasonsAndRefundRules), typeof(CancellationReasonsAndRefundRulesInput), "D · General Policy Administration"),
+        new("general", "cfg_claim_party_roles", "cfg_claim_party_roles", "Claim party roles", "general", "claim-party-roles", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ClaimPartyRoles), typeof(ClaimPartyRolesInput), "J · General Claims"),
         new("general", "cfg_endorsement_types", "cfg_endorsement_types", "Endorsement types", "general", "endorsement-types", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(EndorsementTypes), typeof(EndorsementTypesInput), "D · General Policy Administration"),
         new("general", "cfg_exposure_extract_layouts", "cfg_exposure_extract_layouts", "Exposure extract layouts", "general", "exposure-extract-layouts", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ExposureExtractLayouts), typeof(ExposureExtractLayoutsInput), "K · General Reinsurance and Actuarial Interfaces"),
         new("general", "cfg_extension_and_condition_library", "cfg_extension_and_condition_library", "Extension and condition library", "general", "extension-and-condition-library", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ExtensionAndConditionLibrary), typeof(ExtensionAndConditionLibraryInput), "E · Coverage Management"),
@@ -110,6 +111,12 @@ public static class GeneralStaticData
             entity.Property(x => x.Initiator).HasColumnName("initiator").HasMaxLength(40);
             entity.Property(x => x.RefundBasis).HasColumnName("refund_basis").HasMaxLength(40);
             entity.Property(x => x.Fee).HasColumnName("fee").HasPrecision(18, 2);
+        });
+        modelBuilder.Entity<ClaimPartyRoles>(entity =>
+        {
+            entity.ToTable("cfg_claim_party_roles", "general");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.Label).HasColumnName("label").HasMaxLength(60);
         });
         modelBuilder.Entity<EndorsementTypes>(entity =>
         {

@@ -142,6 +142,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             """, ("t", Tenant), ("from", from));
         await Seed("general.cfg_quote_validity_periods", "EFFECTIVE", "QV-GMOT", ("product_code", Product), ("days_valid", 30), ("re_rate_on_expiry", false));
         await Seed("general.cfg_policy_numbering_schemes", "EFFECTIVE", "GP", ("product_line", "GENERAL"), ("prefix", "GP"), ("sequence_length", 9));
+        await Seed("general.cfg_claim_party_roles", "EFFECTIVE", "WITNESS", ("label", "Witness"));
         await Seed("general.cfg_cancellation_reasons_and_refund_rules", "EFFECTIVE", "INS_REQUEST", ("reason_code", "INS_REQUEST"), ("initiator", "INSURED"),
             ("refund_basis", "PRO_RATA"), ("fee", 0m));
         await Seed("general.cfg_endorsement_types", "EFFECTIVE", "CHANGE_SI", ("premium_method", "PRO_RATA"), ("documents", new[] { "ENDORSEMENT" }), ("requires_underwriting", false));
@@ -847,6 +848,12 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         lost.StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed, await lost.Content.ReadAsStringAsync());
         (await _maker.Send(HttpMethod.Post, $"/api/v1/general/claims/{claim}/parties", new { partyId = Guid.CreateVersion7(), role = "WITNESS" }, raw: true)).StatusCode
             .ShouldBe(HttpStatusCode.PreconditionRequired);
+        // OQ-122: a claim party's role is one in force in the tenant's claim party roles.
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/claims/{claim}/parties", new { partyId = Guid.CreateVersion7(), role = "BYSTANDER" },
+            ifMatch: (await _maker.GetAsync($"/api/v1/general/claims/{claim}")).ETag())).Code()).ShouldBe("GENERAL_CODE_NOT_IN_FORCE");
+        var witnessed = await _maker.Send(HttpMethod.Post, $"/api/v1/general/claims/{claim}/parties", new { partyId = Guid.CreateVersion7(), role = "WITNESS" },
+            ifMatch: (await _maker.GetAsync($"/api/v1/general/claims/{claim}")).ETag());
+        witnessed.StatusCode.ShouldBe(HttpStatusCode.OK, await witnessed.Content.ReadAsStringAsync());
         await _factory.DrainOutbox();
         var assessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{claim}/assessments")).Json()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
         (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/start", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -990,8 +997,12 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         rated.GetProperty("newAnnualPremium").GetDecimal().ShouldBe(4_550m);
         rated.GetProperty("currency").GetString().ShouldBe("ZAR", "BR-033: the policy's currency");
 
-        // A risk object's valuation names its own currency (BR-033), and needs a valuation to name one.
+        // A risk object's valuation names its own currency (BR-033): required with a valuation, and only with one.
         await Seed("general.ref_valuation_bases", "ACTIVE", "MARKET", ("label", "Market value"));
+        var uncurrencied = await _maker.Send(HttpMethod.Post, $"/api/v1/general/risk-objects/{vehicle}/revalue",
+            new { valuation = 160_000m, valuationBasis = "MARKET" }, ifMatch: (await _maker.GetAsync($"/api/v1/general/risk-objects/{vehicle}")).ETag());
+        uncurrencied.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await uncurrencied.Code()).ShouldBe("VALUATION_CURRENCY_REQUIRED");
         var revalued = await _maker.Send(HttpMethod.Post, $"/api/v1/general/risk-objects/{vehicle}/revalue",
             new { valuation = 160_000m, valuationBasis = "MARKET", valuationCurrency = "ZAR" }, ifMatch: (await _maker.GetAsync($"/api/v1/general/risk-objects/{vehicle}")).ETag());
         revalued.StatusCode.ShouldBe(HttpStatusCode.OK, await revalued.Content.ReadAsStringAsync());

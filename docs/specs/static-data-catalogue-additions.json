@@ -777,6 +777,33 @@
           "sample": "FICA s23; Companies Act s24(1)"
         }
       ]
+    },
+    {
+      "layer": "Insurance Domains · General",
+      "module": "J · General Claims",
+      "subModule": "Claim parties",
+      "entity": "Claim party roles",
+      "table": "general.cfg_claim_party_roles",
+      "class": "CFG",
+      "scope": "T",
+      "tier": 2,
+      "proposedOwner": "Claims Manager",
+      "provenance": "OQ-122 (28 October 2026): starter list seeded as drafts for the claims team to confirm",
+      "basis": "BR-036; general.claim_party.role",
+      "fields": [
+        {
+          "name": "code",
+          "logicalType": "Code(15)",
+          "mandatory": true,
+          "sample": "CLAIMANT"
+        },
+        {
+          "name": "label",
+          "logicalType": "String(60)",
+          "mandatory": true,
+          "sample": "Claimant"
+        }
+      ]
     }
   ]
 }

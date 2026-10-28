@@ -147,6 +147,7 @@ public enum GeneralCode
     RecoveryType,
     ValuationBasis,
     SalvageDisposal,
+    ClaimPartyRole,
 }
 
 /// <summary>The General module's static data in force.</summary>
@@ -251,7 +252,7 @@ public sealed record CoverageView(string CoverageCode, decimal SumInsured, strin
 
 public sealed record RiskView(Guid RiskObjectId, decimal SumInsured, DateOnly? AttachedFrom, DateOnly? DetachedOn, IReadOnlyList<CoverageView> Coverages);
 
-/// <param name="ValuationCurrency">The valuation's currency (BR-033); null when none was given (valuations before it was asked for).</param>
+/// <param name="ValuationCurrency">The valuation's currency (BR-033): present whenever there is a valuation.</param>
 public sealed record RiskObjectView(Guid Id, [property: CodeList(CodeLists.RiskObjectTypes)] string ObjectType, JsonElement Attributes, int AttributeSchemaVersion,
     decimal? Valuation, [property: CodeList(CodeLists.ValuationBases)] string? ValuationBasis,
     string? ValuationCurrency, string? Subdivision, string? PostalCode, [property: CodeList(CodeLists.RiskZones)] string? RiskZone, RiskObjectStatus Status,
@@ -325,7 +326,7 @@ public sealed record EndorsementView(Guid Id, string EndorsementNumber, Guid Pol
         e.PremiumDelta, e.NewAnnualPremium, e.Currency, e.RatingRequestId, e.DocumentId, e.Changes, e.RowVersion);
 }
 
-public sealed record ClaimPartyView(Guid PartyId, string Role, string? InsurerRef);
+public sealed record ClaimPartyView(Guid PartyId, [property: CodeList(CodeLists.ClaimPartyRoles)] string Role, string? InsurerRef);
 
 /// <param name="ClaimedAmount">What the settlement is measured against (OQ-102): the accepted assessment less the excess, in the settlement's
 /// currency. A settlement below it is a partial approval.</param>

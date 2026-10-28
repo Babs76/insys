@@ -188,7 +188,7 @@ public sealed class RiskObject : AggregateRoot<Guid>
 
     public RiskObjectStatus Status { get; private set; }
 
-    /// <summary>The valuation's currency, when given (BR-033); a risk object belongs to no single policy, so it names its own.</summary>
+    /// <summary>The valuation's currency, required with a valuation (BR-033); a risk object belongs to no single policy, so it names its own.</summary>
     public string? ValuationCurrency { get; private set; }
 
     public static Result<RiskObject> RegisterRiskObject(Guid id, AttributeSchema schema, IReadOnlyDictionary<string, object?> values, string attributesJson,
@@ -260,9 +260,22 @@ public sealed class RiskObject : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    private static Result CheckValuation(decimal? valuation, string? basis, string? currency) =>
-        (valuation is null && currency is null) || (valuation >= 0 && !string.IsNullOrWhiteSpace(basis) && (currency is null || currency.Length == 3))
+    private static Result CheckValuation(decimal? valuation, string? basis, string? currency)
+    {
+        if (valuation is null)
+        {
+            return currency is null
+                ? Result.Success()
+                : Error.Validation(GeneralErrorCodes.ValuationCurrencyRequired, "A valuation currency needs a valuation.");
+        }
+
+        if (valuation < 0 || string.IsNullOrWhiteSpace(basis))
+        {
+            return Error.Validation(GeneralErrorCodes.ValuationBasisRequired, "A valuation is not negative and has a valuation basis.");
+        }
+
+        return currency is { Length: 3 }
             ? Result.Success()
-            : Error.Validation(GeneralErrorCodes.ValuationBasisRequired,
-                "A valuation is not negative and has a valuation basis; its currency, if given, is a 3-letter code, and needs a valuation.");
+            : Error.Validation(GeneralErrorCodes.ValuationCurrencyRequired, "A valuation names its currency, a 3-letter code.");
+    }
 }

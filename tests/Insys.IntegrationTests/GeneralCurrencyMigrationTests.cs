@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using Insys.DbMigrator;
+using Npgsql;
 
 namespace Insys.IntegrationTests;
 
@@ -73,4 +74,56 @@ public sealed class GeneralCurrencyMigrationTests(DatabaseFixture fixture) : ICl
 
         (await database.ScalarAsOwner<string?>("SELECT valuation_currency FROM general.risk_object WHERE id = @id", ("id", risk))).ShouldBeNull();
     }
+
+    [Fact]
+    public async Task ExistingValuations_TakeTheTenantsBaseCurrency_V0074()
+    {
+        var (connection, directory, database) = await MigratedBefore("V0074");
+        var rows = new RowFiller(database, DateTimeOffset.UtcNow);
+        var tenant = Guid.NewGuid();
+        await database.SeedStaticFilled(tenant, "tenant.cfg_locale_defaults", "EFFECTIVE", "LOCALE", DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1),
+            ("base_currency", "USD"), ("languages", new[] { "en" }), ("default_language", "en"), ("time_zone", "UTC"), ("country", "US"));
+        var valued = await rows.Insert(tenant, "general.risk_object", ("valuation", 100_000m), ("valuation_basis", "MARKET"), ("status", "ACTIVE"),
+            ("attributes", System.Text.Json.JsonDocument.Parse("{}").RootElement));
+        var unvalued = await rows.Insert(tenant, "general.risk_object", ("status", "ACTIVE"), ("attributes", System.Text.Json.JsonDocument.Parse("{}").RootElement));
+        await new MigrationRunner(connection).Migrate(WithMigration(directory, "V0074"));
+
+        (await database.ScalarAsOwner<string?>("SELECT valuation_currency FROM general.risk_object WHERE id = @id", ("id", valued))).ShouldBe("USD");
+        (await database.ScalarAsOwner<string?>("SELECT valuation_currency FROM general.risk_object WHERE id = @id", ("id", unvalued))).ShouldBeNull();
+        await Should.ThrowAsync<PostgresException>(() => database.ExecuteAsOwner(
+            "UPDATE general.risk_object SET valuation_currency = NULL WHERE id = @id", ("id", valued)));
+    }
+
+    [Fact]
+    public async Task AValuationWithNoBaseCurrencyToTake_StopsTheMigration_V0074()
+    {
+        var (connection, directory, database) = await MigratedBefore("V0074");
+        await new RowFiller(database, DateTimeOffset.UtcNow).Insert(Guid.NewGuid(), "general.risk_object", ("valuation", 100_000m), ("valuation_basis", "MARKET"),
+            ("status", "ACTIVE"), ("attributes", System.Text.Json.JsonDocument.Parse("{}").RootElement));
+
+        (await Should.ThrowAsync<Exception>(() => new MigrationRunner(connection).Migrate(WithMigration(directory, "V0074")))).ToString().ShouldContain("no locale defaults");
+    }
+
+    private async Task<(string Connection, string Directory, TestDatabase Database)> MigratedBefore(string version)
+    {
+        var connection = await fixture.Server.CreateEmptyDatabase();
+        var directory = Path.Combine(Path.GetTempPath(), $"insys-{version.ToLowerInvariant()}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        foreach (var file in Directory.GetFiles(Source, "V*.sql").Where(f => string.CompareOrdinal(Path.GetFileName(f), version) < 0))
+        {
+            File.Copy(file, Path.Combine(directory, Path.GetFileName(file)));
+        }
+
+        var migrated = await new MigrationRunner(connection).Migrate(directory);
+        return (connection, directory, new TestDatabase(version.ToLowerInvariant(), connection, connection, migrated));
+    }
+
+    private static string WithMigration(string directory, string version)
+    {
+        var file = Directory.GetFiles(Source, $"{version}__*.sql").Single();
+        File.Copy(file, Path.Combine(directory, Path.GetFileName(file)));
+        return directory;
+    }
+
+    private static string Source => Path.Combine(RepositoryPaths.Root, "db", "migrations");
 }

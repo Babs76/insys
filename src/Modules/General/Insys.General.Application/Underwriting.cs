@@ -38,7 +38,7 @@ using Insys.ProductFactory.Contracts;
 namespace Insys.General.Application;
 
 /// <summary>Command RegisterRiskObject: its attributes conform to the type's schema version (GEN-005).</summary>
-/// <param name="ValuationCurrency">The valuation's currency (BR-033), a 3-letter code; only with a valuation.</param>
+/// <param name="ValuationCurrency">The valuation's currency (BR-033), a 3-letter code: required with a valuation, and only with one.</param>
 public sealed record RegisterRiskObject([property: CodeList(CodeLists.RiskObjectTypes)] string ObjectType, JsonElement Attributes, decimal? Valuation,
     [property: CodeList(CodeLists.ValuationBases)] string? ValuationBasis, string? Subdivision, string? PostalCode,
     [property: CodeList(CodeLists.RiskZones)] string? RiskZone, string? ValuationCurrency = null) : ICommand<RiskObjectView>;

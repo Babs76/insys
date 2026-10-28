@@ -307,6 +307,7 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
         GeneralCode.CatastropheEvent => InForce<CatastropheEventRegister>(day).AnyAsync(r => r.EventCode == code, cancellationToken),
         GeneralCode.RecoveryType => InForce<RecoveryTypes>(day).AnyAsync(r => r.Code == code, cancellationToken),
         GeneralCode.ValuationBasis => InForce<ValuationBases>(day).AnyAsync(r => r.Code == code, cancellationToken),
+        GeneralCode.ClaimPartyRole => InForce<ClaimPartyRoles>(day).AnyAsync(r => r.Code == code, cancellationToken),
         _ => InForce<SalvageDisposalMethods>(day).AnyAsync(r => r.Code == code, cancellationToken),
     };
 
