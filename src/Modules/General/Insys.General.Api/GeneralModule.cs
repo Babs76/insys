@@ -392,6 +392,11 @@ public sealed class GeneralModule : IModule
             .Produces<PortalQuoteView>(StatusCodes.Status201Created)
             .WithName("PortalGeneralCreateQuote").WithSummary("A broker's quote, under its own code, for a client it services or registered")
             .RequirePermission(GeneralPermissions.QuoteCreate).RequireIdempotencyKey().ForPortal(broker);
+        portal.MapGet("/claims", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalClaims(after, size), ct), c => c.Id))
+            .Produces<CursorPage<PortalClaimView>>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralListClaims").WithSummary("The claims on the member's or broker's policies, by the caller's link only (BR-091)")
+            .RequirePermission(GeneralPermissions.ClaimRead).ForPortal(party, broker);
         portal.MapGet("/claims/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalClaim(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalClaimView>(StatusCodes.Status200OK)
             .WithName("PortalGeneralGetClaim").WithSummary("A claim on a policy of the member or broker").RequirePermission(GeneralPermissions.ClaimRead).ForPortal(party, broker);

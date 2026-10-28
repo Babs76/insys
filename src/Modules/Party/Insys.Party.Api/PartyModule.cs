@@ -319,7 +319,33 @@ public sealed class PartyModule : IModule
             .RequirePermission(PartyPermissions.PartyMerge)
             .RequireIdempotencyKey();
 
-        api.MapGroup("/portal/party").WithTags(Name).MapPost("/parties", async (RegisterPartyThroughPortal r, IDispatcher dispatcher, CancellationToken ct) =>
+        var portal = api.MapGroup("/portal/party").WithTags(Name);
+        portal.MapGet("/parties", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+                {
+                    if (!Cursor.TryDecode(cursor, out var after))
+                    {
+                        return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                    }
+
+                    var size = Cursor.ClampLimit(limit);
+                    return (await dispatcher.Query(new ListPortalClients(after, size), ct)).ToHttp(items =>
+                        Results.Ok(new CursorPage<PortalClientView>(items, items.Count == size ? Cursor.Encode(items[^1].Id) : null)));
+                })
+            .Produces<CursorPage<PortalClientView>>(StatusCodes.Status200OK)
+            .WithName("PortalPartyListClients")
+            .WithSummary("The broker's clients, by the caller's link only (BR-091)")
+            .WithDescription("Parties the broker or a sub-broker registered, and those who hold, or are quoted or proposed for, a policy under their codes. "
+                + "A registration linked to an existing party after review is shown as that party; anonymised parties are not shown.")
+            .RequirePermission(PartyPermissions.PartyRead)
+            .ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Intermediary);
+        portal.MapGet("/parties/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetPortalClient(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalClientView>(StatusCodes.Status200OK)
+            .WithName("PortalPartyGetClient")
+            .WithSummary("A client of the broker's (BR-091)")
+            .RequirePermission(PartyPermissions.PartyRead)
+            .ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Intermediary);
+        portal.MapPost("/parties", async (RegisterPartyThroughPortal r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(r, ct)).ToHttp(v => Results.Accepted($"/api/v1/portal/party/parties/{v.Id}", v)))
             .Produces<PortalRegistration>(StatusCodes.Status202Accepted)
             .WithName("PortalPartyRegister")

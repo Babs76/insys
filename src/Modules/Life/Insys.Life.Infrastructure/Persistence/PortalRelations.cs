@@ -35,8 +35,10 @@ namespace Insys.Life.Infrastructure.Persistence;
 /// <summary>
 /// Life's records in an external user's relationship (external-user access §2), for other modules' portal reads: a
 /// policy is the member's when they hold it or are an insured life, and the broker's when it carries one of its codes.
+/// A broker's clients are the holders of its policies and the applicants of its proposals.
 /// </summary>
-internal sealed class LifePortalRelations([FromKeyedServices(LifeDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPortalRecordRelations, IBrokeredPolicies
+internal sealed class LifePortalRelations([FromKeyedServices(LifeDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPortalRecordRelations, IBrokeredPolicies,
+    IBrokeredClients
 {
     public bool Covers(string businessRefType) => businessRefType == LifeDocuments.PolicyRefType;
 
@@ -50,6 +52,12 @@ internal sealed class LifePortalRelations([FromKeyedServices(LifeDbContext.Schem
 
     public Task<IReadOnlyList<Guid>> PolicyIds(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, CancellationToken cancellationToken) =>
         PortalRelationReader.Ids(dataSource, tenantId, "SELECT id FROM life.policy WHERE intermediary_code = ANY(@codes)", intermediaryCodes, null, cancellationToken);
+
+    public Task<IReadOnlyList<Guid>> PartyIds(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, CancellationToken cancellationToken) =>
+        PortalRelationReader.Ids(dataSource, tenantId, """
+            SELECT policyholder_party_id FROM life.policy WHERE intermediary_code = ANY(@codes)
+            UNION SELECT applicant_party_id FROM life.proposal WHERE intermediary_code = ANY(@codes)
+            """, intermediaryCodes, null, cancellationToken);
 
     public async Task<bool> Brokers(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, Guid policyId, CancellationToken cancellationToken) =>
         (await PortalRelationReader.Ids(dataSource, tenantId, "SELECT id FROM life.policy WHERE id = @id AND intermediary_code = ANY(@codes)", intermediaryCodes,

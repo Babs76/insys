@@ -88,6 +88,32 @@ internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
     public void Add(ConsentRecord record) => db.Consents.Add(record);
 }
 
+/// <summary>A broker's clients for its portal (BR-091): merged parties are followed to their survivor before paging, so each client appears once.</summary>
+internal sealed class PartyPortalQueries(PartyDbContext db) : IPartyPortalQueries
+{
+    public async Task<IReadOnlyList<Domain.Parties.Party>> Clients(IReadOnlyCollection<Guid> partyIds, IReadOnlyCollection<string> registeredBy, Guid? only, Guid? afterId,
+        int limit, CancellationToken cancellationToken)
+    {
+        var ids = partyIds.ToList();
+        var registrars = registeredBy.ToList();
+        var rows = await db.Parties.AsNoTracking().Where(p => ids.Contains(p.Id) || (p.RegisteredBy != null && registrars.Contains(p.RegisteredBy)))
+            .Select(p => new { p.Id, p.Status, p.MergedIntoId }).ToListAsync(cancellationToken);
+        var clients = new HashSet<Guid>();
+        var seen = rows.Select(r => r.Id).ToHashSet();
+        while (rows.Count > 0)
+        {
+            clients.UnionWith(rows.Where(r => r.Status is not (PartyStatus.Merged or PartyStatus.Anonymised)).Select(r => r.Id));
+            var survivors = rows.Where(r => r.Status == PartyStatus.Merged && r.MergedIntoId is { } s && seen.Add(s)).Select(r => r.MergedIntoId!.Value).ToList();
+            rows = survivors.Count == 0
+                ? []
+                : await db.Parties.AsNoTracking().Where(p => survivors.Contains(p.Id)).Select(p => new { p.Id, p.Status, p.MergedIntoId }).ToListAsync(cancellationToken);
+        }
+
+        var page = clients.Where(id => (only is null || id == only) && (afterId is null || id.CompareTo(afterId.Value) > 0)).Order().Take(limit).ToList();
+        return page.Count == 0 ? [] : await db.Parties.AsNoTracking().Where(p => page.Contains(p.Id)).OrderBy(p => p.Id).ToListAsync(cancellationToken);
+    }
+}
+
 internal sealed class PartyCodes(PartyDbContext db) : IPartyCodes
 {
     public async Task<(bool Exists, string? FormatPattern)> IdentityDocumentType(string country, string docType, DateOnly day, CancellationToken cancellationToken)

@@ -100,6 +100,7 @@ public static class LifeInfrastructure
         services.AddSingleton<LifePortalRelations>(); // external-user access §2: other modules' portal reads
         services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations>(sp => sp.GetRequiredService<LifePortalRelations>());
         services.AddSingleton<BuildingBlocks.Application.Context.IBrokeredPolicies>(sp => sp.GetRequiredService<LifePortalRelations>());
+        services.AddSingleton<BuildingBlocks.Application.Context.IBrokeredClients>(sp => sp.GetRequiredService<LifePortalRelations>());
         // Onboarding readiness DOMAIN_CODES: once the tenant sets LIFE up (its numbering scheme), its own reference data is in force too.
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.LifeDbContext.SchemaName, ["DOMAIN_REFERENCE_DATA"], async (context, connection, transaction, ct) =>
         {

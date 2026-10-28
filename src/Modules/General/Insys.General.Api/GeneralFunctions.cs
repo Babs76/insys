@@ -90,14 +90,14 @@ internal static class GeneralFunctions
             .Functions,
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
         .Screen("CUSTOMER_PORTAL_GENERAL_POLICIES", "CUSTOMER_PORTAL", "Policies", "portal/general/policies", "PortalGeneralListPolicies", "PortalGeneralGetPolicy")
-        .Screen("CUSTOMER_PORTAL_GENERAL_CLAIMS", "CUSTOMER_PORTAL", "Claims", "portal/general/claims", "PortalGeneralGetClaim")
+        .Screen("CUSTOMER_PORTAL_GENERAL_CLAIMS", "CUSTOMER_PORTAL", "Claims", "portal/general/claims", "PortalGeneralListClaims", "PortalGeneralGetClaim")
         .Action("CUSTOMER_PORTAL_GENERAL_NOTIFY_LOSS", "CUSTOMER_PORTAL_GENERAL_CLAIMS", "PortalGeneralNotifyLoss")
             .Functions,
         .. new FunctionMap([Audiences.Broker], Features.BrokerPortal)
         .Screen("BROKER_PORTAL_GENERAL_POLICIES", "BROKER_PORTAL", "Policies", "portal/general/policies", "PortalGeneralListPolicies", "PortalGeneralGetPolicy")
         .Screen("BROKER_PORTAL_GENERAL_QUOTES", "BROKER_PORTAL", "Quotes", "portal/general/quotes", "PortalGeneralListQuotes", "PortalGeneralGetQuote")
         .Action("BROKER_PORTAL_GENERAL_CREATE_QUOTE", "BROKER_PORTAL_GENERAL_QUOTES", "PortalGeneralCreateQuote")
-        .Screen("BROKER_PORTAL_GENERAL_CLAIMS", "BROKER_PORTAL", "Claims", "portal/general/claims", "PortalGeneralGetClaim")
+        .Screen("BROKER_PORTAL_GENERAL_CLAIMS", "BROKER_PORTAL", "Claims", "portal/general/claims", "PortalGeneralListClaims", "PortalGeneralGetClaim")
             .Functions,
     ];
 }

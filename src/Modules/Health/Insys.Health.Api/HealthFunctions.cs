@@ -84,7 +84,7 @@ internal static class HealthFunctions
         .Job("HEALTH_DAILY_JOBS", "HEALTH_MEMBERSHIP", "Background processing")
             .Functions,
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
-        .Screen("CUSTOMER_PORTAL_HEALTH_MEMBERSHIPS", "CUSTOMER_PORTAL", "Membership", "portal/health/memberships", "PortalHealthGetMembership")
+        .Screen("CUSTOMER_PORTAL_HEALTH_MEMBERSHIPS", "CUSTOMER_PORTAL", "Membership", "portal/health/memberships", "PortalHealthListMemberships", "PortalHealthGetMembership")
         .Screen("CUSTOMER_PORTAL_HEALTH_CLAIMS", "CUSTOMER_PORTAL", "Claims", "portal/health/claims", "PortalHealthListClaims", "PortalHealthGetClaim")
             .Functions,
         .. new FunctionMap([Audiences.Provider], Features.ProviderPortal)

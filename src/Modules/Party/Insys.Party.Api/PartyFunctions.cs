@@ -65,7 +65,7 @@ internal static class PartyFunctions
         .Action("PARTY_WITHDRAW_CONSENT", "PARTY_CONSENTS", "PartyWithdrawConsent")
             .Functions,
         .. new FunctionMap([Audiences.Broker], Features.BrokerPortal)
-        .Screen("BROKER_PORTAL_PARTY_PARTIES", "BROKER_PORTAL", "Clients", "portal/party/parties")
+        .Screen("BROKER_PORTAL_PARTY_PARTIES", "BROKER_PORTAL", "Clients", "portal/party/parties", "PortalPartyListClients", "PortalPartyGetClient")
         .Action("BROKER_PORTAL_PARTY_REGISTER", "BROKER_PORTAL_PARTY_PARTIES", "PortalPartyRegister")
             .Functions,
     ];

@@ -80,11 +80,11 @@ internal static class LifeFunctions
         .Job("LIFE_DAILY_JOBS", "LIFE_POLICY_ADMIN", "Background processing")
             .Functions,
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
-        .Screen("CUSTOMER_PORTAL_LIFE_POLICIES", "CUSTOMER_PORTAL", "Policies", "portal/life/policies", "PortalLifeGetPolicy")
+        .Screen("CUSTOMER_PORTAL_LIFE_POLICIES", "CUSTOMER_PORTAL", "Policies", "portal/life/policies", "PortalLifeListPolicies", "PortalLifeGetPolicy")
         .Screen("CUSTOMER_PORTAL_LIFE_CLAIMS", "CUSTOMER_PORTAL", "Claims", "portal/life/claims", "PortalLifeListClaims", "PortalLifeGetClaim")
             .Functions,
         .. new FunctionMap([Audiences.Broker], Features.BrokerPortal)
-        .Screen("BROKER_PORTAL_LIFE_POLICIES", "BROKER_PORTAL", "Policies", "portal/life/policies", "PortalLifeGetPolicy")
+        .Screen("BROKER_PORTAL_LIFE_POLICIES", "BROKER_PORTAL", "Policies", "portal/life/policies", "PortalLifeListPolicies", "PortalLifeGetPolicy")
         .Screen("BROKER_PORTAL_LIFE_CLAIMS", "BROKER_PORTAL", "Claims", "portal/life/claims", "PortalLifeListClaims", "PortalLifeGetClaim")
             .Functions,
     ];

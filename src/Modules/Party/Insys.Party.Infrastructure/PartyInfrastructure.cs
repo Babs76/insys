@@ -64,6 +64,7 @@ public static class PartyInfrastructure
             services.AddHostedService<SearchLogRetentionService>();
         }
         services.AddScoped<IPartyCodes, PartyCodes>();
+        services.AddScoped<IPartyPortalQueries, PartyPortalQueries>(); // BR-091
         services.AddSingleton<BankAccountQueries>();
         services.AddSingleton<IBankAccounts>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddSingleton<IBankAccountDetails>(sp => sp.GetRequiredService<BankAccountQueries>());

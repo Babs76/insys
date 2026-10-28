@@ -52,7 +52,12 @@ public sealed record PortalLifePolicyView(Guid Id, string PolicyNumber, string P
 
 public sealed record GetPortalLifePolicy(Guid PolicyId) : IQuery<PortalLifePolicyView>;
 
-internal sealed class GetPortalLifePolicyHandler(ILifeRepository life, IExecutionContext execution) : IQueryHandler<GetPortalLifePolicy, PortalLifePolicyView>
+/// <summary>The member's Life policies (policyholder or insured life) or the broker's (its codes and its sub-brokers'), BR-091.</summary>
+public sealed record ListPortalLifePolicies(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PortalLifePolicyView>>;
+
+internal sealed class PortalLifePolicyHandlers(ILifeRepository life, ILifePortalQueries queries, IExecutionContext execution) :
+    IQueryHandler<GetPortalLifePolicy, PortalLifePolicyView>,
+    IQueryHandler<ListPortalLifePolicies, IReadOnlyList<PortalLifePolicyView>>
 {
     public async Task<Result<PortalLifePolicyView>> Handle(GetPortalLifePolicy query, CancellationToken cancellationToken)
     {
@@ -62,10 +67,19 @@ internal sealed class GetPortalLifePolicyHandler(ILifeRepository life, IExecutio
             return Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
         }
 
-        var holder = who.Kind == ExternalSubject.Party && policy.PolicyholderPartyId == who.PartyId;
-        var related = holder || (who.Kind == ExternalSubject.Party && policy.Lives.Any(l => l.PartyId == who.PartyId)) || who.Brokers(policy.IntermediaryCode);
-        return related ? PortalLifePolicyView.From(policy, holder) : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
+        var related = Holder(who, policy) || (who.Kind == ExternalSubject.Party && policy.Lives.Any(l => l.PartyId == who.PartyId)) || who.Brokers(policy.IntermediaryCode);
+        return related ? PortalLifePolicyView.From(policy, Holder(who, policy)) : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
     }
+
+    public async Task<Result<IReadOnlyList<PortalLifePolicyView>>> Handle(ListPortalLifePolicies query, CancellationToken cancellationToken)
+    {
+        var who = execution.External ?? throw new InvalidOperationException("A portal endpoint is used by external users only.");
+        return Result.Success<IReadOnlyList<PortalLifePolicyView>>(
+            (await queries.Policies(who, query.AfterId, query.Limit, cancellationToken)).Select(p => PortalLifePolicyView.From(p, Holder(who, p))).ToList());
+    }
+
+    /// <summary>Beneficiaries are shown to the policyholder only (§4).</summary>
+    private static bool Holder(ExternalSubject who, LifePolicy policy) => who.Kind == ExternalSubject.Party && policy.PolicyholderPartyId == who.PartyId;
 }
 
 /// <param name="ApprovedAmount">What is to be paid, once the claim is approved; nothing before.</param>
@@ -80,9 +94,11 @@ public sealed record ListPortalLifeClaims(Guid? AfterId, int Limit) : IQuery<IRe
 
 public sealed record GetPortalLifeClaim(Guid ClaimId) : IQuery<PortalLifeClaimView>;
 
-/// <summary>The portal's Life claims, in the query so paging stays correct, within the caller's relationship and F103 scope.</summary>
+/// <summary>The portal's Life policies and claims, in the query so paging stays correct, within the caller's relationship and F103 scope.</summary>
 public interface ILifePortalQueries
 {
+    Task<IReadOnlyList<LifePolicy>> Policies(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<LifeClaim>> Claims(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken);
 }
 

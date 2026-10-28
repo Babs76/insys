@@ -144,9 +144,22 @@ internal sealed class HealthLists(HealthDbContext db, IExecutionContext executio
     }
 }
 
-/// <summary>A provider's own claims and remittances, for the provider portal (external-user access §2).</summary>
-internal sealed class HealthPortalQueries(HealthDbContext db) : IHealthPortalQueries
+/// <summary>A member's memberships and claims, and a provider's own claims and remittances, for the portals (external-user access §2).</summary>
+internal sealed class HealthPortalQueries(HealthDbContext db, IExecutionContext execution) : IHealthPortalQueries
 {
+    public async Task<IReadOnlyList<Domain.Members.HealthMembership>> MemberMemberships(Guid partyId, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var memberships = db.Memberships.AsNoTracking().Include(m => m.Dependants).AsSplitQuery()
+            .InScope(execution.CurrentScope, m => m.ProductCode, m => m.OrgNodeCode)
+            .Where(m => m.PrincipalPartyId == partyId || m.Dependants.Any(d => d.PartyId == partyId));
+        if (afterId is { } after)
+        {
+            memberships = memberships.Where(m => m.Id.CompareTo(after) > 0);
+        }
+
+        return await memberships.OrderBy(m => m.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Domain.Care.MedicalClaim>> ProviderClaims(string providerId, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
         var claims = db.Claims.AsNoTracking().Include(c => c.Lines).Where(c => c.ProviderId == providerId);
