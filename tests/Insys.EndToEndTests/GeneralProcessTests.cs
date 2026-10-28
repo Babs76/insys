@@ -917,12 +917,13 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     /// <summary>
     /// BR-093: a member reads the perils and loss causes in force for their policy's product line, with labels, to choose
     /// from when notifying a loss. Another line's codes and a retired cause are not listed; another member's policy is 404.
+    /// A loss notified by staff or on the portal takes only those codes, a cause with its own peril (Ade, 28 October 2026).
     /// </summary>
     [Fact]
-    public async Task AMember_ReadsTheLossCodesOfTheirPolicysLine_BR093()
+    public async Task AMember_ReadsTheLossCodesOfTheirPolicysLine_AndNotificationsTakeOnlyThem_BR093()
     {
         var holder = await _maker.RegisterPerson("Holder");
-        var (policy, _) = await IssuedPolicy(proposer: holder);
+        var (policy, vehicle) = await IssuedPolicy(proposer: holder);
         var (others, _) = await IssuedPolicy();
         await Seed("general.ref_peril_codes", "ACTIVE", "THEFT_P", ("peril_code", "THEFT_P"), ("label", "Theft"), ("line", "MOTOR"), ("catastrophe", false));
         await Seed("general.ref_loss_cause_codes", "ACTIVE", "HIJACK", ("cause_code", "HIJACK"), ("peril", "THEFT_P"), ("label", "Hijacking"));
@@ -931,9 +932,17 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await Seed("general.ref_loss_cause_codes", "ACTIVE", "RIVER", ("cause_code", "RIVER"), ("peril", "FLOOD"), ("label", "River flooding"));
         await _db.ExecuteAsOwner("UPDATE general.ref_loss_cause_codes SET record_status = 'RETIRED' WHERE tenant_id = @t AND code = 'BREAK_IN'", ("t", Tenant));
 
-        await PortalUser("member-h", "PARTY", holder, null, GeneralPermissions.PolicyRead, GeneralPermissions.ClaimRead, GeneralPermissions.ClaimCreate);
+        // Staff: another line's peril, or a cause of another peril, is refused; the line's own pair is taken.
+        object Loss(string cause, string peril) => new { policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = cause, perilCode = peril };
+        await Created("/api/v1/general/claims", Loss("RIVER", "FLOOD"), expectFailureCode: "GENERAL_LOSS_CODE_NOT_FOR_LINE");
+        await Created("/api/v1/general/claims", Loss("HIJACK", "ACC"), expectFailureCode: "GENERAL_LOSS_CODE_NOT_FOR_LINE");
+        await Created("/api/v1/general/claims", Loss("HIJACK", "THEFT_P"));
+
+        var memberRole = await PortalUser("member-h", "PARTY", holder, null, GeneralPermissions.PolicyRead, GeneralPermissions.ClaimRead, GeneralPermissions.ClaimCreate);
         await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-MEM", ("channel_code", "MEM"), ("audience", "CUSTOMER"), ("name", "Member portal"),
             ("client_ids", new[] { "member-portal" }));
+        await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CP-MEM-C", ("channel_code", "MEM"), ("role_code", memberRole),
+            ("transaction_type", GeneralPermissions.ClaimCreate), ("allowed", true));
         await _db.AdoptFunctionCatalogue();
         var member = _factory.ClientFor(Tenant, "member-h", "member-portal");
 
@@ -945,8 +954,59 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         codes.GetProperty("causes").EnumerateArray().Select(c => (c.GetProperty("code").GetString(), c.GetProperty("perilCode").GetString(), c.GetProperty("label").GetString()))
             .ShouldBe([("COLLISION", "ACC", "Collision"), ("HIJACK", "THEFT_P", "Hijacking")]);
 
+        // The portal's notification takes only the listed codes too.
+        (await (await member.Send(HttpMethod.Post, "/api/v1/portal/general/claims", Loss("RIVER", "FLOOD"), idempotent: true)).Code()).ShouldBe("GENERAL_LOSS_CODE_NOT_FOR_LINE");
+        var notified = await member.Send(HttpMethod.Post, "/api/v1/portal/general/claims", Loss("COLLISION", "ACC"), idempotent: true);
+        notified.StatusCode.ShouldBe(HttpStatusCode.Created, await notified.Content.ReadAsStringAsync());
+
         (await member.GetAsync($"/api/v1/portal/general/policies/{others}/loss-codes")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await member.GetAsync($"/api/v1/portal/general/policies/{Guid.CreateVersion7()}/loss-codes")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>
+    /// The instalment loading carries through (Ade, 28 October 2026): a quote priced monthly at a 5% loading shows each
+    /// instalment and the total payable; the policy keeps the frequency and loading (another frequency is refused); and
+    /// Billing's schedule charges the instalments as quoted, the last taking the rounding, so the year totals exactly the
+    /// loaded annual premium: 3 050.00 × 1.05 = 3 202.50, eleven of 266.88 and one of 266.82.
+    /// </summary>
+    [Fact]
+    public async Task ALoadedMonthlyQuote_IsBilledAsQuoted_TheYearTotallingTheLoadedPremium()
+    {
+        await Seed("general.cfg_product_billing_frequencies", "EFFECTIVE", $"{Product}-MONTHLY", ("product_code", Product), ("frequency", "MONTHLY"),
+            ("instalment_loading_pct", 5m));
+        await Seed("billing.ref_billing_frequencies", "ACTIVE", "QUARTERLY", ("label", "Quarterly"), ("periods_per_year", 4));
+        var vehicle = await Vehicle();
+        var quote = await Created("/api/v1/general/quotes", new
+        {
+            productCode = Product, proposerPartyId = Guid.CreateVersion7(), currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1), frequency = "MONTHLY",
+            risks = new[] { new { riskObjectId = vehicle, sumInsured = 100_000m, coverages = new[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 100_000m } } } },
+        });
+        await Rate(GeneralRatingSubjects.Quote, quote, 100_000m);
+        var quoted = await (await _maker.GetAsync($"/api/v1/general/quotes/{quote}")).Json();
+        (quoted.GetProperty("premium").GetDecimal(), quoted.GetProperty("premiumFrequency").GetString(), quoted.GetProperty("instalmentPremium").GetDecimal(),
+            quoted.GetProperty("totalPayable").GetDecimal()).ShouldBe((3_050m, "MONTHLY", 266.88m, 3_202.50m));
+
+        (await _maker.PostAsync($"/api/v1/general/quotes/{quote}/issue", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsync($"/api/v1/general/quotes/{quote}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var proposal = await Created("/api/v1/general/proposals", new { quoteId = quote, declarations = new { claims_last_3_years = 0 } });
+        (await _maker.PostAsync($"/api/v1/general/proposals/{proposal}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await Created("/api/v1/general/policies", new { quoteId = quote, billingFrequency = "QUARTERLY", collectionMethod = "DEBIT_ORDER" },
+            expectFailureCode: "GENERAL_FREQUENCY_NOT_QUOTED");
+        var policy = await Created("/api/v1/general/policies", new { quoteId = quote, billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER" });
+        var issued = await Policy(policy);
+        (issued.GetProperty("annualPremium").GetDecimal(), issued.GetProperty("billingFrequency").GetString(), issued.GetProperty("instalmentLoadingPct").GetDecimal())
+            .ShouldBe((3_050m, "MONTHLY", 5m));
+
+        await _factory.DrainOutbox();
+        var amounts = await _db.ScalarAsOwner<decimal[]>("""
+            SELECT array_agg(i.amount ORDER BY i.due_date) FROM billing.premium_instalment i JOIN billing.premium_schedule s ON s.tenant_id = i.tenant_id AND s.id = i.schedule_id
+            WHERE s.policy_ref = @p AND i.status <> 'CANCELLED'
+            """, ("p", policy));
+        amounts!.Length.ShouldBe(12);
+        amounts.Take(11).ShouldAllBe(a => a == 266.88m);
+        amounts[^1].ShouldBe(266.82m);
+        amounts.Sum().ShouldBe(3_202.50m);
+        (await _db.ScalarAsOwner<decimal>("SELECT total_amount FROM billing.invoice WHERE policy_ref = @p ORDER BY issue_date LIMIT 1", ("p", policy))).ShouldBe(266.88m);
     }
 
     /// <summary>A portal user linked to a party (a member) or an intermediary code (a broker), holding the permissions; gives its role.</summary>

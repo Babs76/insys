@@ -128,6 +128,12 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
     /// </summary>
     public decimal? AnnualPremium { get; private set; }
 
+    /// <summary>The instalment loading in per cent the policy was quoted with, kept for its amendments; AnnualPremium already includes it. Null when none.</summary>
+    public decimal? LoadingPct { get; private set; }
+
+    /// <summary>Keeps the policy's instalment loading for its later amendments.</summary>
+    public void UseLoading(decimal? loadingPct) => LoadingPct = loadingPct is > 0 ? loadingPct : null;
+
     public string Currency { get; private set; } = "";
 
     public long RowVersion { get; private set; }

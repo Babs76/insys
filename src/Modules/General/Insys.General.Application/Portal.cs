@@ -56,9 +56,10 @@ public sealed record PortalPolicyView(Guid Id, string PolicyNumber, string Produ
 /// <param name="RatingIssue">Why the quote could not be priced, while it stays Draft (BR-095); null otherwise.</param>
 /// <param name="PremiumFrequency">The frequency the quote is priced in: the one the broker chose when the product allows it, otherwise <c>ANNUAL</c>.</param>
 /// <param name="InstalmentPremium">Each instalment in <paramref name="PremiumFrequency"/>, as Billing will charge it; the premium itself when annual. Hidden with the premium.</param>
+/// <param name="TotalPayable">When a loading applies: what the instalments come to over the year. Hidden with the premium.</param>
 public sealed record PortalQuoteView(Guid Id, string QuoteNumber, int QuoteVersion, string ProductCode, Guid ProposerPartyId, string? IntermediaryCode, QuoteStatus Status,
     DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Premium, string Currency, DateOnly ValidUntil, IReadOnlyList<PortalRiskView> Risks, RatingIssueView? RatingIssue = null,
-    string PremiumFrequency = QuotePricing.Annual, decimal? InstalmentPremium = null)
+    string PremiumFrequency = QuotePricing.Annual, decimal? InstalmentPremium = null, decimal? TotalPayable = null)
 {
     public static PortalQuoteView From(GeneralQuote q)
     {
@@ -66,7 +67,7 @@ public sealed record PortalQuoteView(Guid Id, string QuoteNumber, int QuoteVersi
         return new(q.Id, q.QuoteNumber, q.QuoteVersion, q.ProductCode, q.ProposerPartyId, q.IntermediaryCode, q.Status, q.PeriodStart, q.PeriodEnd,
             shown ? q.Premium : null, q.Currency, q.ValidUntil,
             q.Risks.Select(r => new PortalRiskView(r.RiskObjectId, r.SumInsured, r.Coverages.Select(c => new PortalCoverageView(c.CoverageCode, c.SumInsured, null)).ToList())).ToList(),
-            RatingIssueView.Of(q), q.PremiumFrequency ?? QuotePricing.Annual, shown ? q.InstalmentPremium ?? q.Premium : null);
+            RatingIssueView.Of(q), q.PremiumFrequency ?? QuotePricing.Annual, shown ? q.InstalmentPremium ?? q.Premium : null, shown ? q.TotalPayable : null);
     }
 }
 

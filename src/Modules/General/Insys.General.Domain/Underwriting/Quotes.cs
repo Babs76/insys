@@ -314,6 +314,14 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
         ? Math.Round(annual / periods * (1 + (PremiumLoadingPct ?? 0m) / 100m), 2, MidpointRounding.AwayFromZero)
         : null;
 
+    /// <summary>
+    /// What the instalments come to over the year when a loading applies: the annual premium with the loading, to the cent.
+    /// Billing charges exactly this, its last instalment taking the rounding. Null when no loading applies.
+    /// </summary>
+    public decimal? TotalPayable => Premium is { } annual && PremiumLoadingPct is > 0 and var loading
+        ? Math.Round(annual * (1 + loading / 100m), 2, MidpointRounding.AwayFromZero)
+        : null;
+
     /// <summary>Why a quote priced as it is made could not be rated (a Rating error code), while it stays Draft; null once rated.</summary>
     public string? RatingIssueCode { get; private set; }
 

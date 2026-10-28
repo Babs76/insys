@@ -202,7 +202,7 @@ internal static class ClaimContext
 }
 
 internal sealed class NotifyLossHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit,
-    IExecutionContext execution) : ICommandHandler<NotifyLoss, ClaimView>
+    IExecutionContext execution, ProductFactory.Contracts.ISellableProducts products, ITenantContext tenant) : ICommandHandler<NotifyLoss, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(NotifyLoss command, CancellationToken cancellationToken)
     {
@@ -218,6 +218,19 @@ internal sealed class NotifyLossHandler(IGeneralRepository general, IGeneralCode
             {
                 return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{code} is not a {kind} code in force.");
             }
+        }
+
+        // Only a peril of the policy's product line, and a cause of that peril (Ade, 28 October 2026; the list BR-093 gives the portal).
+        var line = (await products.Version(tenant.RequireTenantId(), policy.ProductCode, policy.ProductVersion, businessDate.Today, cancellationToken))?.Line;
+        var (perils, causes) = line is null ? ([], []) : await codes.LossCodes(line, businessDate.Today, cancellationToken);
+        if (perils.All(p => p.Code != command.PerilCode))
+        {
+            return Error.Validation(GeneralErrorCodes.LossCodeNotForLine, $"{command.PerilCode} is not a peril of {policy.ProductCode}'s line {line}.");
+        }
+
+        if (causes.All(c => c.Code != command.CauseCode || c.Peril != command.PerilCode))
+        {
+            return Error.Validation(GeneralErrorCodes.LossCodeNotForLine, $"{command.CauseCode} is not a loss cause of peril {command.PerilCode} on {policy.ProductCode}'s line {line}.");
         }
 
         var claim = GeneralClaim.NotifyLoss(Guid.CreateVersion7(), command.PolicyId, command.RiskObjectId, command.CoverageCode, command.LossDate, command.CauseCode,

@@ -59,6 +59,14 @@ public static class GeneralErrorCodes
     [ErrorCode(403, "error.general.underwriting_authority_exceeded")]
     public const string UnderwritingAuthorityExceeded = "GENERAL_UW_AUTHORITY_EXCEEDED";
 
+    /// <summary>A loss notified with a peril or cause not valid for the policy's product line, or a cause of another peril (the BR-093 list).</summary>
+    [ErrorCode(422, "error.general.loss_code_not_for_line")]
+    public const string LossCodeNotForLine = "GENERAL_LOSS_CODE_NOT_FOR_LINE";
+
+    /// <summary>A policy billed in another frequency than the one its quote was priced in (and loaded for).</summary>
+    [ErrorCode(422, "error.general.frequency_not_quoted")]
+    public const string FrequencyNotQuoted = "GENERAL_FREQUENCY_NOT_QUOTED";
+
     /// <summary>A quote priced as it is made (BR-095) whose risk objects give different values for the same rating input; it stays Draft.</summary>
     [ErrorCode(422, "error.general.rating_inputs_differ")]
     public const string RatingInputsDiffer = "RATING_INPUTS_DIFFER";

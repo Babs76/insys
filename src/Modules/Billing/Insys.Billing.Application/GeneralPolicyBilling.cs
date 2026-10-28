@@ -73,14 +73,16 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
 
         var frequency = await Frequency(issued.BillingFrequency, issued.PolicyNumber, cancellationToken);
         // The period end is the last day of cover (OQ-059).
+        // With the loading the policy was quoted with, each instalment and the year are loaded, the last instalment taking the rounding.
         var schedule = account.CreateSchedule(SourceDomain, issued.PolicyId, $"{issued.ProductCode} v{issued.ProductVersion}", frequency, issued.PeriodStart,
-            issued.PeriodEnd, Instalment(issued.AnnualPremium, frequency), issued.AnnualPremium);
+            issued.PeriodEnd, Instalment(issued.AnnualPremium, frequency, issued.InstalmentLoadingPct), Loaded(issued.AnnualPremium, issued.InstalmentLoadingPct));
         if (schedule.IsFailure)
         {
             throw new InvalidOperationException($"Policy {issued.PolicyNumber} cannot be scheduled: {schedule.Error.Message}");
         }
 
         schedule.Value.ScopeTo(issued.ProductCode, issued.OrgNodeCode); // F103
+        schedule.Value.UseLoading(issued.InstalmentLoadingPct);
 
         var invoices = await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken, firstBilling: true);
         if (invoices.IsFailure)
@@ -99,7 +101,8 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
         }
 
         var frequency = await Frequency(schedule.Frequency, endorsed.PolicyNumber, cancellationToken);
-        var amended = account.AmendSchedule(schedule.Id, frequency, Instalment(endorsed.NewAnnualPremium, frequency), endorsed.EffectiveDate, endorsed.NewAnnualPremium);
+        var amended = account.AmendSchedule(schedule.Id, frequency, Instalment(endorsed.NewAnnualPremium, frequency, schedule.LoadingPct), endorsed.EffectiveDate,
+            Loaded(endorsed.NewAnnualPremium, schedule.LoadingPct));
         if (amended.IsFailure)
         {
             throw new InvalidOperationException($"Policy {endorsed.PolicyNumber}'s schedule cannot be amended: {amended.Error.Message}");
@@ -158,7 +161,14 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
         await codes.Frequency(code, businessDate.Today, cancellationToken)
         ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, code);
 
-    /// <summary>The annual premium spread over the year's instalments, each rounded half up; the schedule's last instalment takes the rounding, so they total the annual premium.</summary>
-    private static decimal Instalment(decimal annualPremium, BillingFrequency frequency) =>
-        Math.Round(annualPremium / frequency.PeriodsPerYear, 2, MidpointRounding.AwayFromZero);
+    /// <summary>
+    /// The annual premium spread over the year's instalments, with the instalment loading the policy was quoted with, each
+    /// rounded half up; the schedule's last instalment takes the rounding, so they total the loaded annual premium.
+    /// </summary>
+    private static decimal Instalment(decimal annualPremium, BillingFrequency frequency, decimal? loadingPct = null) =>
+        Math.Round(annualPremium / frequency.PeriodsPerYear * (1 + (loadingPct ?? 0m) / 100m), 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>The annual premium with the instalment loading, to the cent: what the year's instalments total.</summary>
+    private static decimal Loaded(decimal annualPremium, decimal? loadingPct) =>
+        Math.Round(annualPremium * (1 + (loadingPct ?? 0m) / 100m), 2, MidpointRounding.AwayFromZero);
 }

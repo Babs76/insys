@@ -290,12 +290,14 @@ public sealed record RatingIssueView(string Code, string Reason)
 /// <param name="Premium">The annual premium Rating gave.</param>
 /// <param name="PremiumFrequency">The frequency the quote is priced in: the one chosen when the product allows it, otherwise <c>ANNUAL</c>.</param>
 /// <param name="InstalmentPremium">Each instalment in <paramref name="PremiumFrequency"/>: the annual premium over the periods per year, with the product's instalment loading for the frequency; the premium itself when annual. Null until rated.</param>
+/// <param name="TotalPayable">When a loading applies: what the instalments come to over the year (the annual premium with the loading), as Billing charges it. Null otherwise.</param>
 /// <param name="PricedOnCreation">Priced as it is made (a broker's portal quote and its later versions, BR-095): nobody requests its calculation.</param>
 /// <param name="RatingIssue">Why it could not be priced, while it stays Draft (BR-095); null otherwise.</param>
 public sealed record QuoteView(Guid Id, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, Guid ProposerPartyId, string? IntermediaryCode,
     QuoteStatus Status, DateOnly ValidUntil, DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Premium, string Currency, Guid? RatingRequestId, int? RatingVersion,
     IReadOnlyList<RiskView> Risks, IReadOnlyList<ReferralView> Referrals, long RowVersion, string? OrgNodeCode = null, Guid? ProposalId = null,
-    bool PricedOnCreation = false, RatingIssueView? RatingIssue = null, string PremiumFrequency = QuotePricing.Annual, decimal? InstalmentPremium = null)
+    bool PricedOnCreation = false, RatingIssueView? RatingIssue = null, string PremiumFrequency = QuotePricing.Annual, decimal? InstalmentPremium = null,
+    decimal? TotalPayable = null)
 {
     public static QuoteView From(GeneralQuote q) => new(q.Id, q.QuoteNumber, q.QuoteVersion, q.ProductCode, q.ProductVersion, q.ProposerPartyId, q.IntermediaryCode,
         q.Status, q.ValidUntil, q.PeriodStart, q.PeriodEnd, q.Premium, q.Currency, q.RatingRequestId, q.RatingVersion,
@@ -303,7 +305,7 @@ public sealed record QuoteView(Guid Id, string QuoteNumber, int QuoteVersion, st
             r.Coverages.Select(c => new CoverageView(c.CoverageCode, c.SumInsured, c.ExcessScheduleCode, null)).ToList())).ToList(),
         q.Referrals.Select(r => new ReferralView(r.Id, r.ReasonCode, r.Status, r.ReferredBy, r.DecidedBy, r.DecisionCode, r.SpecialConditions ?? [], r.DeclineReason)).ToList(),
         q.RowVersion, q.OrgNodeCode, PricedOnCreation: q.PricedOnCreation, RatingIssue: RatingIssueView.Of(q), PremiumFrequency: q.PremiumFrequency ?? QuotePricing.Annual,
-        InstalmentPremium: q.InstalmentPremium ?? q.Premium);
+        InstalmentPremium: q.InstalmentPremium ?? q.Premium, TotalPayable: q.TotalPayable);
 }
 
 /// <param name="PolicyId">The policy issued from the proposal's quote (BR-035), on the read; null until it is issued, and on lists.</param>
@@ -334,14 +336,14 @@ public sealed record PolicyView(Guid Id, string PolicyNumber, string ProductCode
     [property: CodeList(CodeLists.BillingFrequencies)] string? BillingFrequency, [property: CodeList(CodeLists.CollectionMethods)] string? CollectionMethod,
     Guid? RenewalOfId, [property: OneOf("ISSUE", "FIRST_PAYMENT")] string CoverStartsOn, DateOnly? FirstPaidOn, IReadOnlyList<RiskView> Risks,
     IReadOnlyList<CancellationView> Cancellations, long RowVersion,
-    Guid? QuoteId = null, Guid? ProposalId = null, PolicyEffectsView? Effects = null)
+    Guid? QuoteId = null, Guid? ProposalId = null, PolicyEffectsView? Effects = null, decimal? InstalmentLoadingPct = null)
 {
     public static PolicyView From(GeneralPolicy p) => new(p.Id, p.PolicyNumber, p.ProductCode, p.ProductVersion, p.RatingVersion, p.PolicyholderPartyId, p.Status,
         p.PeriodStart, p.PeriodEnd, p.Currency, p.AnnualPremium, p.BillingAccountRef, p.BillingFrequency, p.CollectionMethod, p.RenewalOfId, p.CoverStartsOn, p.FirstPaidOn,
         p.Risks.Select(r => new RiskView(r.RiskObjectId, r.SumInsured, r.AttachedFrom, r.DetachedOn,
             r.Coverages.Select(c => new CoverageView(c.CoverageCode, c.SumInsured, c.ExcessScheduleCode, c.Premium)).ToList())).ToList(),
         p.Cancellations.Select(c => new CancellationView(c.ReasonCode, c.EffectiveDate, c.RefundAmount, c.RefundBasis, c.Fee, c.CancelledAt, c.ReinstatedAt)).ToList(),
-        p.RowVersion, p.QuoteId);
+        p.RowVersion, p.QuoteId, InstalmentLoadingPct: p.InstalmentLoadingPct);
 }
 
 public sealed record EndorsementView(Guid Id, string EndorsementNumber, Guid PolicyId, [property: CodeList(CodeLists.EndorsementTypes)] string EndorsementType,

@@ -57,8 +57,8 @@ public sealed record BillingArrangement(Guid BillingAccountRef, Guid PayerPartyI
 public sealed record CancellationRule(string ReasonCode, string Initiator, string RefundBasis, decimal Fee);
 
 public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, BillingArrangement Billing,
-    string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd, Guid? RenewalOfId, decimal SumInsured, DateTimeOffset OccurredAt, string? OrgNodeCode = null)
-    : IDomainEvent;
+    string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd, Guid? RenewalOfId, decimal SumInsured, DateTimeOffset OccurredAt, string? OrgNodeCode = null,
+    decimal? InstalmentLoadingPct = null) : IDomainEvent;
 
 public sealed record GeneralPolicyEndorsed(Guid PolicyId, string PolicyNumber, Guid EndorsementId, string EndorsementNumber, DateOnly EffectiveDate,
     decimal NewAnnualPremium, decimal PremiumDelta, string Currency, string ProductCode, int ProductVersion, IReadOnlyList<string> DocumentTypes, decimal NewSumInsured,
@@ -322,6 +322,12 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
     public BillingArrangement Billing => new(BillingAccountRef, PayerPartyId ?? PolicyholderPartyId, BillingFrequency ?? "", CollectionMethod ?? "");
 
+    /// <summary>
+    /// The instalment loading in per cent the policy was quoted with in its billing frequency (Ade, 28 October 2026): Billing
+    /// charges each instalment with it, and the year totals the loaded annual premium. Null when none.
+    /// </summary>
+    public decimal? InstalmentLoadingPct { get; private set; }
+
     /// <summary>Command IssuePolicy from the accepted quote version; in force at once when its period has started.</summary>
     public static Result<GeneralPolicy> IssuePolicy(Guid id, string policyNumber, GeneralQuote quote, BillingArrangement billing, Guid? renewalOfId, DateOnly today,
         DateTimeOffset now, string coverStartsOn = "ISSUE")
@@ -331,6 +337,13 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
             return Error.Conflict(GeneralErrorCodes.QuoteNotAccepted, $"A policy is issued from an accepted quote; quote {quote.QuoteNumber} v{quote.QuoteVersion} is {quote.Status}.");
         }
 
+        // A quote priced in a frequency is paid in it, with its loading (Ade, 28 October 2026).
+        if (quote.PremiumFrequency is { } quoted && quoted != billing.Frequency)
+        {
+            return Error.Validation(GeneralErrorCodes.FrequencyNotQuoted,
+                $"Quote {quote.QuoteNumber} v{quote.QuoteVersion} is priced {quoted}; the policy is billed {quoted}, or the quote is made again in {billing.Frequency}.");
+        }
+
         var policy = New(id, policyNumber, quote.ProductCode, quote.ProductVersion, quote.RatingVersion!.Value, quote.ProposerPartyId, quote.Currency, quote.PeriodStart,
             quote.PeriodEnd, quote.IntermediaryCode, billing, renewalOfId, quote.Id);
         policy.CoverStartsOn = coverStartsOn;
@@ -338,6 +351,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         policy.ChannelCode = quote.ChannelCode;
         policy._risks.AddRange(quote.Risks.Select(r => PolicyRisk.Create(id, r.ToRequest(), quote.PeriodStart)));
         policy.SetPremium(quote.Premium!.Value);
+        policy.InstalmentLoadingPct = quote.PremiumLoadingPct is > 0 ? quote.PremiumLoadingPct : null;
         return policy.Issued(today, now);
     }
 
@@ -362,6 +376,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         }
 
         renewal.SetPremium(expiring.AnnualPremium);
+        renewal.InstalmentLoadingPct = expiring.InstalmentLoadingPct;
         return renewal.Issued(today, now);
     }
 
@@ -677,7 +692,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     private Result<GeneralPolicy> Issued(DateOnly today, DateTimeOffset now)
     {
         Raise(new GeneralPolicyIssued(Id, PolicyNumber, ProductCode, ProductVersion, PolicyholderPartyId, Billing, Currency, AnnualPremium, PeriodStart, PeriodEnd,
-            RenewalOfId, SumInsuredOn(PeriodStart), now, OrgNodeCode));
+            RenewalOfId, SumInsuredOn(PeriodStart), now, OrgNodeCode, InstalmentLoadingPct));
         if (PeriodStart <= today && CoverMayStart)
         {
             Fire(PolicyTrigger.PeriodStarts);

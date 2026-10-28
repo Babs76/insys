@@ -102,6 +102,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             quote.Property(q => q.PremiumPeriods).HasColumnType("smallint");
             quote.Property(q => q.PremiumLoadingPct).HasPrecision(7, 4);
             quote.Ignore(q => q.InstalmentPremium);
+            quote.Ignore(q => q.TotalPayable);
             quote.HasMany(q => q.Risks).WithOne().HasForeignKey(r => new { r.TenantId, r.QuoteId });
             quote.Navigation(q => q.Risks).UsePropertyAccessMode(PropertyAccessMode.Field);
             quote.HasMany(q => q.Referrals).WithOne().HasForeignKey(r => new { r.TenantId, r.QuoteId });
@@ -163,6 +164,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             policy.Property(p => p.AnnualPremium).HasPrecision(18, 2);
             policy.Property(p => p.IntermediaryCode).HasMaxLength(15);
             policy.Property(p => p.BillingFrequency).HasMaxLength(15);
+            policy.Property(p => p.InstalmentLoadingPct).HasPrecision(7, 4);
             policy.Property(p => p.CollectionMethod).HasMaxLength(15);
             policy.Property(p => p.CoverStartsOn).HasMaxLength(15);
             policy.Ignore(p => p.PeriodDays);

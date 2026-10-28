@@ -4,6 +4,15 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 6 (branch `wave2-6`, not merged)
 
+### Breaking: a loss is notified only with a peril and cause of the policy's line (Ade)
+- **`GeneralNotifyLoss` and `PortalGeneralNotifyLoss`** take only a `perilCode` among the perils of the policy's product line, and a `causeCode` that is a cause of that peril: the BR-093 list. Anything else is 422 `GENERAL_LOSS_CODE_NOT_FOR_LINE` (new), naming the code and the line. A code not in force at all is still 422 `GENERAL_CODE_NOT_IN_FORCE`.
+
+### Changed: the instalment loading carries through to the policy and Billing (Ade)
+- **`GeneralIssuePolicy`:** for a quote priced in a frequency, the policy is billed in that frequency; another `billingFrequency` is 422 `GENERAL_FREQUENCY_NOT_QUOTED` (new). The policy keeps the quote's loading: `GeneralPolicyView.instalmentLoadingPct` (null when none). `general.GeneralPolicyIssued` carries `InstalmentLoadingPct`.
+- **Billing** charges each instalment as quoted (the annual premium over the periods, with the loading, to the cent). The year totals exactly the loaded annual premium, the last instalment taking the rounding. An endorsement keeps the loading.
+- **`totalPayable`** on `GeneralQuoteView` and `GeneralPortalQuoteView`, when a loading applies: the annual premium with the loading, to the cent, which the instalments total. Null otherwise; hidden on the portal with the premium.
+- Migration V0082 adds `general.policy.instalment_loading_pct` and `billing.premium_schedule.loading_pct`.
+
 ### New: the perils and loss causes a member can report a loss under (BR-093)
 - **`GET /api/v1/portal/general/policies/{id}/loss-codes`** (`PortalGeneralListLossCodes`, member portal; a read of the `CUSTOMER_PORTAL_GENERAL_CLAIMS` screen). It returns `{ perils: [{ code, label }], causes: [{ code, perilCode, label }] }`:
   - the perils in force today of the policy's product line (its class, or its family when it has no class; `general.ref_peril_codes.line`);
