@@ -57,9 +57,11 @@ namespace Insys.IntegrationTests;
 /// end (approved, rejected, expired, withdrawn) leaves its record in a defined state, never waiting for good. One row per
 /// approval type and ending, each in a tenant of its own, through the real host: the waiting record is made as its module
 /// makes it, the ending is driven through Workflow's endpoints (or its expiry job), the outbox is relayed, and the record is
-/// read back. Expected states are the guide's §1 table.
+/// read back. Expected states are the guide's §1 table. The rows are split by approval family into four classes (below), so
+/// that xUnit runs them in parallel: in one class they held one slot for about 25 minutes on CI. Every approval type is in
+/// exactly one family (tested).
 /// </summary>
-public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
+public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
     private const string Approved = "APPROVED";
     private const string Rejected = "REJECTED";
@@ -77,26 +79,49 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    public static TheoryData<string, string> Rows
+    /// <summary>The families the rows are split into, one test class each.</summary>
+    public enum Family
     {
-        get
-        {
-            var rows = new TheoryData<string, string>();
-            foreach (var type in Cases.Keys)
-            {
-                foreach (var ending in new[] { Approved, Rejected, Expired, Withdrawn })
-                {
-                    rows.Add(type, ending);
-                }
-            }
-
-            return rows;
-        }
+        Money,
+        ClaimsAndUnderwriting,
+        AccessPartiesAndStaticData,
+        LegalHolds,
     }
 
-    [Theory]
-    [MemberData(nameof(Rows))]
-    public async Task EveryEnding_LeavesTheRecordInItsDefinedState_NeverWaitingForGood_OQ113(string approvalType, string ending)
+    /// <summary>Every approval type in the table.</summary>
+    public static IReadOnlyCollection<string> AllTypes => Cases.Keys;
+
+    /// <summary>The family an approval type's rows run in; a type in no family fails the guard test.</summary>
+    public static Family? FamilyOf(string approvalType) => approvalType.Split('/')[0] switch
+    {
+        "CLAIM_PAYMENT" or "REFUND" or "PAYOUT_RELEASE" or "UNKNOWN_PAYMENT_RESOLUTION" or "PROVIDER_PAYMENT_RUN" or "COMMISSION_STATEMENT" or "PERIOD_REOPEN" => Family.Money,
+        "CLAIM_SETTLEMENT" or "LIFE_CLAIM" or "LIFE_UNDERWRITING" or "ENDORSEMENT" or "PRODUCT_PUBLICATION" => Family.ClaimsAndUnderwriting,
+        "PRIVILEGED_ROLE" or "EXTERNAL_SUBJECT_LINK" or "TENANT_ADMINISTRATOR" or "PARTY_MATCH_RESOLUTION" or "BANK_ACCOUNT_VERIFICATION" or "STATIC_DATA_T1"
+            or "STATIC_DATA_T2" => Family.AccessPartiesAndStaticData,
+        "LEGAL_HOLD_RELEASE" => Family.LegalHolds,
+        _ => null,
+    };
+
+    /// <summary>A family's rows: each of its approval types with each ending.</summary>
+    protected static TheoryData<string, string> RowsOf(Family family)
+    {
+        var rows = new TheoryData<string, string>();
+        foreach (var type in TypesIn(family))
+        {
+            foreach (var ending in new[] { Approved, Rejected, Expired, Withdrawn })
+            {
+                rows.Add(type, ending);
+            }
+        }
+
+        return rows;
+    }
+
+    protected static TheoryData<string> TypesOf(Family family) => new(TypesIn(family));
+
+    private static IEnumerable<string> TypesIn(Family family) => Cases.Keys.Where(t => FamilyOf(t) == family);
+
+    protected async Task EveryEnding(string approvalType, string ending)
     {
         var @case = Cases[approvalType];
         var world = await World.Create(fixture, _factory, @case);
@@ -160,16 +185,12 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
         problems.ShouldBeEmpty($"{approvalType} {ending}:{Environment.NewLine}{string.Join(Environment.NewLine, problems)}");
     }
 
-    public static TheoryData<string> Types => new(Cases.Keys);
-
     /// <summary>
     /// D-5, extended (25 October 2026): a granted approval its record will not take, because the record changed after it was
     /// submitted, is never only logged. The module's delivery parks (APPROVAL_NOT_APPLIED, with an alert), the approval is
     /// NOT_APPLIED naming the module, the requester gets a follow-up task, and the record is left as the change left it.
     /// </summary>
-    [Theory]
-    [MemberData(nameof(Types))]
-    public async Task AGrantTheRecordWillNotTake_Parks_IsMarkedNotApplied_AndTellsTheRequester_D5(string approvalType)
+    protected async Task AGrantTheRecordWillNotTake(string approvalType)
     {
         var @case = Cases[approvalType];
         @case.Refuse.ShouldNotBeNull($"{approvalType} has no change that makes its record refuse the approval");
@@ -215,8 +236,7 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
     /// retries the parked delivery, and the refund takes the approval after all: the approval is APPROVED again, no longer
     /// marked not applied, and the delivery is resolved.
     /// </summary>
-    [Fact]
-    public async Task ARefusedGrant_OnceTheRecordIsPutRight_AndTheParkedDeliveryRetried_IsApprovedAgain_D5()
+    protected async Task ARefusedGrantPutRight()
     {
         var @case = Cases[BillingApprovals.RefundApprovalType];
         var world = await World.Create(fixture, _factory, @case);
@@ -1622,4 +1642,79 @@ public sealed class ApprovalEndingsTests(DatabaseFixture fixture) : IClassFixtur
     private static Task RefuseProviderPaymentRun(World w, Waiting waiting) =>
         w.Db.ExecuteAsOwner("UPDATE health.provider_payment_run SET total_amount = total_amount + 1 WHERE tenant_id = @t AND id = @id", ("t", w.Tenant),
             ("id", waiting.BusinessRefId));
+}
+
+/// <summary>Approval endings (OQ-113) and refused grants (D-5) of money movements: payments, refunds, payouts, runs, statements and periods.</summary>
+public sealed class ApprovalEndingsMoneyTests(DatabaseFixture fixture) : ApprovalEndings(fixture)
+{
+    public static TheoryData<string, string> Rows => RowsOf(Family.Money);
+
+    public static TheoryData<string> Types => TypesOf(Family.Money);
+
+    [Theory]
+    [MemberData(nameof(Rows))]
+    public Task EveryEnding_LeavesTheRecordInItsDefinedState_NeverWaitingForGood_OQ113(string approvalType, string ending) => EveryEnding(approvalType, ending);
+
+    [Theory]
+    [MemberData(nameof(Types))]
+    public Task AGrantTheRecordWillNotTake_Parks_IsMarkedNotApplied_AndTellsTheRequester_D5(string approvalType) => AGrantTheRecordWillNotTake(approvalType);
+
+    [Fact]
+    public Task ARefusedGrant_OnceTheRecordIsPutRight_AndTheParkedDeliveryRetried_IsApprovedAgain_D5() => ARefusedGrantPutRight();
+}
+
+/// <summary>Approval endings (OQ-113) and refused grants (D-5) of claims, underwriting, endorsements and product publication.</summary>
+public sealed class ApprovalEndingsClaimsTests(DatabaseFixture fixture) : ApprovalEndings(fixture)
+{
+    public static TheoryData<string, string> Rows => RowsOf(Family.ClaimsAndUnderwriting);
+
+    public static TheoryData<string> Types => TypesOf(Family.ClaimsAndUnderwriting);
+
+    [Theory]
+    [MemberData(nameof(Rows))]
+    public Task EveryEnding_LeavesTheRecordInItsDefinedState_NeverWaitingForGood_OQ113(string approvalType, string ending) => EveryEnding(approvalType, ending);
+
+    [Theory]
+    [MemberData(nameof(Types))]
+    public Task AGrantTheRecordWillNotTake_Parks_IsMarkedNotApplied_AndTellsTheRequester_D5(string approvalType) => AGrantTheRecordWillNotTake(approvalType);
+}
+
+/// <summary>Approval endings (OQ-113) and refused grants (D-5) of access, parties and static data.</summary>
+public sealed class ApprovalEndingsAccessTests(DatabaseFixture fixture) : ApprovalEndings(fixture)
+{
+    public static TheoryData<string, string> Rows => RowsOf(Family.AccessPartiesAndStaticData);
+
+    public static TheoryData<string> Types => TypesOf(Family.AccessPartiesAndStaticData);
+
+    [Theory]
+    [MemberData(nameof(Rows))]
+    public Task EveryEnding_LeavesTheRecordInItsDefinedState_NeverWaitingForGood_OQ113(string approvalType, string ending) => EveryEnding(approvalType, ending);
+
+    [Theory]
+    [MemberData(nameof(Types))]
+    public Task AGrantTheRecordWillNotTake_Parks_IsMarkedNotApplied_AndTellsTheRequester_D5(string approvalType) => AGrantTheRecordWillNotTake(approvalType);
+}
+
+/// <summary>Approval endings (OQ-113) and refused grants (D-5) of legal hold releases; and the guard that splits the table.</summary>
+public sealed class ApprovalEndingsHoldTests(DatabaseFixture fixture) : ApprovalEndings(fixture)
+{
+    public static TheoryData<string, string> Rows => RowsOf(Family.LegalHolds);
+
+    public static TheoryData<string> Types => TypesOf(Family.LegalHolds);
+
+    [Theory]
+    [MemberData(nameof(Rows))]
+    public Task EveryEnding_LeavesTheRecordInItsDefinedState_NeverWaitingForGood_OQ113(string approvalType, string ending) => EveryEnding(approvalType, ending);
+
+    [Theory]
+    [MemberData(nameof(Types))]
+    public Task AGrantTheRecordWillNotTake_Parks_IsMarkedNotApplied_AndTellsTheRequester_D5(string approvalType) => AGrantTheRecordWillNotTake(approvalType);
+
+    /// <summary>Every approval type in the table runs in exactly one family's class, so splitting the table drops no row.</summary>
+    [Fact]
+    public void EveryApprovalType_IsInExactlyOneFamily()
+    {
+        AllTypes.Where(t => FamilyOf(t) is null).ShouldBeEmpty("an approval type in no family runs in no class");
+        Enum.GetValues<Family>().Sum(f => RowsOf(f).Count).ShouldBe(AllTypes.Count * 4);
+    }
 }
