@@ -38,12 +38,13 @@ using Insys.ProductFactory.Contracts;
 namespace Insys.General.Application;
 
 /// <summary>Command RegisterRiskObject: its attributes conform to the type's schema version (GEN-005).</summary>
+/// <param name="ValuationCurrency">The valuation's currency (BR-033), a 3-letter code; only with a valuation.</param>
 public sealed record RegisterRiskObject(string ObjectType, JsonElement Attributes, decimal? Valuation, string? ValuationBasis, string? Subdivision, string? PostalCode,
-    string? RiskZone) : ICommand<RiskObjectView>;
+    string? RiskZone, string? ValuationCurrency = null) : ICommand<RiskObjectView>;
 
 public sealed record UpdateRiskAttributes(Guid RiskObjectId, JsonElement Attributes) : ICommand<RiskObjectView>;
 
-public sealed record RevalueRiskObject(Guid RiskObjectId, decimal? Valuation, string? ValuationBasis) : ICommand<RiskObjectView>;
+public sealed record RevalueRiskObject(Guid RiskObjectId, decimal? Valuation, string? ValuationBasis, string? ValuationCurrency = null) : ICommand<RiskObjectView>;
 
 public sealed record DeactivateRiskObject(Guid RiskObjectId) : ICommand<RiskObjectView>;
 
@@ -143,7 +144,7 @@ internal sealed class RegisterRiskObjectHandler(IGeneralRepository general, IGen
         }
 
         var risk = RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema.Value, values.Value, command.Attributes.GetRawText(), command.Valuation, command.ValuationBasis,
-            new RiskLocation(command.Subdivision, command.PostalCode, command.RiskZone), businessDate.Today, clock.UtcNow);
+            new RiskLocation(command.Subdivision, command.PostalCode, command.RiskZone), businessDate.Today, clock.UtcNow, command.ValuationCurrency?.ToUpperInvariant());
         if (risk.IsFailure)
         {
             return risk.Error;
@@ -190,7 +191,7 @@ internal sealed class RevalueRiskObjectHandler(IGeneralRepository general, IGene
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{basis} is not a valuation basis in force.");
         }
 
-        var result = risk.RevalueRiskObject(command.Valuation, command.ValuationBasis);
+        var result = risk.RevalueRiskObject(command.Valuation, command.ValuationBasis, command.ValuationCurrency?.ToUpperInvariant());
         return result.IsFailure ? result.Error : RiskObjectView.From(risk);
     }
 }

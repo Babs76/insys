@@ -184,7 +184,14 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
             return;
         }
 
-        var assessment = LossAssessment.AssignAssessor(Guid.CreateVersion7(), appointed.ClaimId, appointed.AssessorPartyId, onApprovedPanel: true);
+        // The assessment is in the claim's policy's currency (BR-033).
+        var policy = await general.Claim(appointed.ClaimId, cancellationToken) is { } claim ? await general.Policy(claim.PolicyId, cancellationToken) : null;
+        if (policy is null)
+        {
+            throw new InvalidOperationException($"The claim {appointed.ClaimId} an assessor was appointed to, or its policy, was not found.");
+        }
+
+        var assessment = LossAssessment.AssignAssessor(Guid.CreateVersion7(), appointed.ClaimId, appointed.AssessorPartyId, onApprovedPanel: true, policy.Currency);
         general.Add(assessment.Value);
     }
 

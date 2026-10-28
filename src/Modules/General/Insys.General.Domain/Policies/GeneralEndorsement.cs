@@ -94,6 +94,9 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
 
     public string EndorsementNumber { get; private set; } = "";
 
+    /// <summary>The currency of the premium change and new annual premium: the policy's (BR-033).</summary>
+    public string Currency { get; private set; } = "";
+
     public Guid PolicyId { get; private set; }
 
     public string EndorsementType { get; private set; } = "";
@@ -146,7 +149,7 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
         var endorsement = new GeneralEndorsement
         {
             Id = Guard.NotEmpty(id), EndorsementNumber = Guard.MaxLength(number, 20), PolicyId = policy.Id, EndorsementType = Guard.MaxLength(type.Code, 15),
-            EffectiveDate = effectiveDate, _changes = changes.ToList(), RequestedBy = requestedBy, Status = EndorsementStatus.Draft,
+            EffectiveDate = effectiveDate, _changes = changes.ToList(), RequestedBy = requestedBy, Status = EndorsementStatus.Draft, Currency = policy.Currency,
         };
         endorsement.MarkChanged();
         return endorsement;

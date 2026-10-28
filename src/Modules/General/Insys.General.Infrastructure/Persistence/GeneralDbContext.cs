@@ -72,6 +72,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
         {
             risk.ToTable("risk_object");
             Root(risk);
+            risk.Property(x => x.ValuationCurrency).HasColumnType("char(3)"); // BR-033
             risk.Property(r => r.ObjectType).HasMaxLength(15);
             risk.Property(r => r.Attributes).HasColumnType("jsonb");
             risk.Property(r => r.Valuation).HasPrecision(18, 2);
@@ -203,6 +204,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
         {
             endorsement.ToTable("endorsement");
             Root(endorsement);
+            endorsement.Property(x => x.Currency).HasColumnType("char(3)"); // BR-033
             endorsement.Property(e => e.EndorsementNumber).HasMaxLength(20);
             endorsement.Property(e => e.EndorsementType).HasMaxLength(15);
             endorsement.Property(e => e.PremiumDelta).HasPrecision(18, 2);
@@ -256,6 +258,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
         {
             assessment.ToTable("loss_assessment");
             Root(assessment);
+            assessment.Property(x => x.Currency).HasColumnType("char(3)"); // BR-033
             assessment.Property(a => a.Status).HasConversion(new UpperCaseEnumConverter<AssessmentStatus>()).HasMaxLength(30);
             assessment.Property(a => a.AssessedAmount).HasPrecision(18, 2);
             assessment.Property(a => a.ExcessApplied).HasPrecision(18, 2);
@@ -276,6 +279,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
         {
             recovery.ToTable("recovery_case");
             Root(recovery);
+            recovery.Property(x => x.Currency).HasColumnType("char(3)"); // BR-033
             recovery.Property(r => r.RecoveryType).HasMaxLength(15);
             recovery.Property(r => r.ExpectedAmount).HasPrecision(18, 2);
             recovery.Property(r => r.RecoveredAmount).HasPrecision(18, 2);

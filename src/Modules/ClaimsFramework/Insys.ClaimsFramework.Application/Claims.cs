@@ -99,11 +99,13 @@ public sealed record ClaimView(Guid Id, string ClaimNumber, string Domain, Guid 
 
 public sealed record MovementView(Guid Id, string MovementType, string ReserveType, decimal Amount, string Currency, DateTimeOffset MovementAt);
 
-public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementView> Movements, IReadOnlyDictionary<string, decimal> OutstandingReserves)
+/// <param name="OutstandingReserves">Each reserve type's outstanding amount, in <paramref name="Currency"/>.</param>
+/// <param name="Currency">The claim's currency (BR-033): of every movement and every outstanding reserve.</param>
+public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementView> Movements, IReadOnlyDictionary<string, decimal> OutstandingReserves, string Currency)
 {
     public static FinancialsView From(ClaimFinancials f) => new(f.ClaimNumber,
         f.Movements.OrderBy(m => m.MovementAt).ThenBy(m => m.Id).Select(m => new MovementView(m.Id, m.MovementType.ToString(), m.ReserveType, m.Amount, m.Currency, m.MovementAt)).ToList(),
-        f.Movements.Select(m => m.ReserveType).Distinct().ToDictionary(t => t, f.Outstanding));
+        f.Movements.Select(m => m.ReserveType).Distinct().ToDictionary(t => t, f.Outstanding), f.Currency);
 }
 
 public sealed record InstructionView(Guid Id, string ClaimNumber, string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency,

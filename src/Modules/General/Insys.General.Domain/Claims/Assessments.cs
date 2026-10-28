@@ -109,15 +109,22 @@ public sealed class LossAssessment : AggregateRoot<Guid>
 
     public IReadOnlyList<RepairEstimate> Estimates => _estimates;
 
+    /// <summary>The currency of the assessed amount, the excess and the estimates: the claim's policy's (BR-033).</summary>
+    public string Currency { get; private set; } = "";
+
     /// <summary>Command AssignAssessor: the assessor is on an approved panel for the claim's line (GEN-007).</summary>
-    public static Result<LossAssessment> AssignAssessor(Guid id, Guid claimId, Guid assessorPartyId, bool onApprovedPanel)
+    public static Result<LossAssessment> AssignAssessor(Guid id, Guid claimId, Guid assessorPartyId, bool onApprovedPanel, string currency)
     {
         if (!onApprovedPanel)
         {
             return Error.Validation(GeneralErrorCodes.AssessorNotOnPanel, "The assessor is not on an approved panel for the line (GEN-007).");
         }
 
-        var assessment = new LossAssessment { Id = Guard.NotEmpty(id), ClaimId = Guard.NotEmpty(claimId), AssessorPartyId = Guard.NotEmpty(assessorPartyId), Status = AssessmentStatus.Assigned };
+        var assessment = new LossAssessment
+        {
+            Id = Guard.NotEmpty(id), ClaimId = Guard.NotEmpty(claimId), AssessorPartyId = Guard.NotEmpty(assessorPartyId), Status = AssessmentStatus.Assigned,
+            Currency = Guard.MaxLength(Guard.NotNullOrWhiteSpace(currency), 3),
+        };
         assessment.MarkChanged();
         return assessment;
     }
@@ -270,7 +277,10 @@ public sealed class RecoveryCase : AggregateRoot<Guid>
 
     public IReadOnlyList<SalvageItem> Salvage => _salvage;
 
-    public static Result<RecoveryCase> OpenRecovery(Guid id, Guid claimId, string recoveryType, Guid? counterparty, decimal expectedAmount)
+    /// <summary>The currency of the expected and recovered amounts and of the salvage proceeds: the claim's policy's (BR-033).</summary>
+    public string Currency { get; private set; } = "";
+
+    public static Result<RecoveryCase> OpenRecovery(Guid id, Guid claimId, string recoveryType, Guid? counterparty, decimal expectedAmount, string currency)
     {
         if (expectedAmount < 0)
         {
@@ -280,7 +290,7 @@ public sealed class RecoveryCase : AggregateRoot<Guid>
         var recovery = new RecoveryCase
         {
             Id = Guard.NotEmpty(id), ClaimId = Guard.NotEmpty(claimId), RecoveryType = Guard.MaxLength(recoveryType, 15), CounterpartyPartyId = counterparty,
-            ExpectedAmount = expectedAmount, Status = RecoveryStatus.Open,
+            ExpectedAmount = expectedAmount, Status = RecoveryStatus.Open, Currency = Guard.MaxLength(Guard.NotNullOrWhiteSpace(currency), 3),
         };
         recovery.MarkChanged();
         return recovery;

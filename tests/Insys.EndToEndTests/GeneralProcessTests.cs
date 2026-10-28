@@ -843,6 +843,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             .StatusCode.ShouldBe(HttpStatusCode.OK);
         var reported = await (await _maker.PostAsJsonAsync($"/api/v1/general/assessments/{assessment}/report", new { assessedAmount = 40_000m })).Json();
         reported.GetProperty("excessApplied").GetDecimal().ShouldBe(5_000m);
+        reported.GetProperty("currency").GetString().ShouldBe("ZAR", "BR-033: the claim's policy's currency");
+        reported.GetProperty("estimates").EnumerateArray().ShouldAllBe(e => e.GetProperty("currency").GetString() == "ZAR");
         (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // RequestApproval for the settlement. Compensation: rejected, the claim stays under assessment.
@@ -940,6 +942,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
         financials = await (await _maker.GetAsync($"/api/v1/claims/claims/{number}/financials")).Json();
         financials.GetProperty("movements").EnumerateArray().Count(m => m.GetProperty("movementType").GetString() == "Recovery").ShouldBe(1);
+        financials.GetProperty("currency").GetString().ShouldBe("ZAR", "BR-033: of every movement and outstanding reserve");
+        (await (await _maker.GetAsync($"/api/v1/general/recoveries/{recovery}")).Json()).GetProperty("currency").GetString().ShouldBe("ZAR");
         (await _maker.PostAsync($"/api/v1/general/claims/{claim}/close", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await Claim(claim)).GetProperty("status").GetString().ShouldBe("Closed");
     }
@@ -960,6 +964,14 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var rated = await (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).Json();
         rated.GetProperty("status").GetString().ShouldBe("Rated");
         rated.GetProperty("newAnnualPremium").GetDecimal().ShouldBe(4_550m);
+        rated.GetProperty("currency").GetString().ShouldBe("ZAR", "BR-033: the policy's currency");
+
+        // A risk object's valuation names its own currency (BR-033), and needs a valuation to name one.
+        await Seed("general.ref_valuation_bases", "ACTIVE", "MARKET", ("label", "Market value"));
+        var revalued = await _maker.Send(HttpMethod.Post, $"/api/v1/general/risk-objects/{vehicle}/revalue",
+            new { valuation = 160_000m, valuationBasis = "MARKET", valuationCurrency = "ZAR" }, ifMatch: (await _maker.GetAsync($"/api/v1/general/risk-objects/{vehicle}")).ETag());
+        revalued.StatusCode.ShouldBe(HttpStatusCode.OK, await revalued.Content.ReadAsStringAsync());
+        (await revalued.Json()).GetProperty("valuationCurrency").GetString().ShouldBe("ZAR");
 
         (await _maker.PostAsync($"/api/v1/general/endorsements/{endorsement}/submit", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();

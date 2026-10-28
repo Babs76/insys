@@ -188,11 +188,14 @@ public sealed class RiskObject : AggregateRoot<Guid>
 
     public RiskObjectStatus Status { get; private set; }
 
+    /// <summary>The valuation's currency, when given (BR-033); a risk object belongs to no single policy, so it names its own.</summary>
+    public string? ValuationCurrency { get; private set; }
+
     public static Result<RiskObject> RegisterRiskObject(Guid id, AttributeSchema schema, IReadOnlyDictionary<string, object?> values, string attributesJson,
-        decimal? valuation, string? valuationBasis, RiskLocation location, DateOnly today, DateTimeOffset now)
+        decimal? valuation, string? valuationBasis, RiskLocation location, DateOnly today, DateTimeOffset now, string? valuationCurrency = null)
     {
         var valid = schema.Validate(values, today);
-        var valued = CheckValuation(valuation, valuationBasis);
+        var valued = CheckValuation(valuation, valuationBasis, valuationCurrency);
         if (valid.IsFailure || valued.IsFailure)
         {
             return valid.IsFailure ? valid.Error! : valued.Error!;
@@ -201,7 +204,7 @@ public sealed class RiskObject : AggregateRoot<Guid>
         var risk = new RiskObject
         {
             Id = Guard.NotEmpty(id), ObjectType = Guard.MaxLength(schema.ObjectType, 15), Attributes = attributesJson, AttributeSchemaVersion = schema.Version,
-            Valuation = valuation, ValuationBasis = valuationBasis, Subdivision = location.Subdivision, PostalCode = location.PostalCode, RiskZone = location.RiskZone,
+            Valuation = valuation, ValuationBasis = valuationBasis, ValuationCurrency = valuationCurrency, Subdivision = location.Subdivision, PostalCode = location.PostalCode, RiskZone = location.RiskZone,
             Status = RiskObjectStatus.Active,
         };
         risk.Raise(new GeneralRiskObjectRegistered(id, risk.ObjectType, now));
@@ -229,9 +232,9 @@ public sealed class RiskObject : AggregateRoot<Guid>
     }
 
     /// <summary>Command RevalueRiskObject.</summary>
-    public Result RevalueRiskObject(decimal? valuation, string? valuationBasis)
+    public Result RevalueRiskObject(decimal? valuation, string? valuationBasis, string? valuationCurrency = null)
     {
-        var valued = CheckValuation(valuation, valuationBasis);
+        var valued = CheckValuation(valuation, valuationBasis, valuationCurrency);
         if (valued.IsFailure)
         {
             return valued;
@@ -239,6 +242,7 @@ public sealed class RiskObject : AggregateRoot<Guid>
 
         Valuation = valuation;
         ValuationBasis = valuationBasis;
+        ValuationCurrency = valuationCurrency;
         MarkChanged();
         return Result.Success();
     }
@@ -256,8 +260,9 @@ public sealed class RiskObject : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    private static Result CheckValuation(decimal? valuation, string? basis) =>
-        valuation is null || (valuation >= 0 && !string.IsNullOrWhiteSpace(basis))
+    private static Result CheckValuation(decimal? valuation, string? basis, string? currency) =>
+        (valuation is null && currency is null) || (valuation >= 0 && !string.IsNullOrWhiteSpace(basis) && (currency is null || currency.Length == 3))
             ? Result.Success()
-            : Error.Validation(GeneralErrorCodes.ValuationBasisRequired, "A valuation is not negative and has a valuation basis.");
+            : Error.Validation(GeneralErrorCodes.ValuationBasisRequired,
+                "A valuation is not negative and has a valuation basis; its currency, if given, is a 3-letter code, and needs a valuation.");
 }

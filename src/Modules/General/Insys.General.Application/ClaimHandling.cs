@@ -521,7 +521,12 @@ internal sealed class OpenRecoveryHandler(IGeneralRepository general, IGeneralCo
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{command.RecoveryType} is not a recovery type in force.");
         }
 
-        var recovery = RecoveryCase.OpenRecovery(Guid.CreateVersion7(), claim.Id, command.RecoveryType, command.CounterpartyPartyId, command.ExpectedAmount);
+        if (await general.Policy(claim.PolicyId, cancellationToken) is not { } policy)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "No registered claim was found.");
+        }
+
+        var recovery = RecoveryCase.OpenRecovery(Guid.CreateVersion7(), claim.Id, command.RecoveryType, command.CounterpartyPartyId, command.ExpectedAmount, policy.Currency);
         if (recovery.IsFailure)
         {
             return recovery.Error;

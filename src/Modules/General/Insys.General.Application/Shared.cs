@@ -245,11 +245,12 @@ public sealed record CoverageView(string CoverageCode, decimal SumInsured, strin
 
 public sealed record RiskView(Guid RiskObjectId, decimal SumInsured, DateOnly? AttachedFrom, DateOnly? DetachedOn, IReadOnlyList<CoverageView> Coverages);
 
+/// <param name="ValuationCurrency">The valuation's currency (BR-033); null when none was given (valuations before it was asked for).</param>
 public sealed record RiskObjectView(Guid Id, string ObjectType, JsonElement Attributes, int AttributeSchemaVersion, decimal? Valuation, string? ValuationBasis,
-    string? Subdivision, string? PostalCode, string? RiskZone, RiskObjectStatus Status, long RowVersion)
+    string? ValuationCurrency, string? Subdivision, string? PostalCode, string? RiskZone, RiskObjectStatus Status, long RowVersion)
 {
     public static RiskObjectView From(RiskObject r) => new(r.Id, r.ObjectType, JsonDocument.Parse(r.Attributes).RootElement.Clone(), r.AttributeSchemaVersion, r.Valuation,
-        r.ValuationBasis, r.Subdivision, r.PostalCode, r.RiskZone, r.Status, r.RowVersion);
+        r.ValuationBasis, r.ValuationCurrency, r.Subdivision, r.PostalCode, r.RiskZone, r.Status, r.RowVersion);
 }
 
 public sealed record ReferralView(Guid Id, string ReasonCode, [property: OneOf("OPEN", "APPROVED", "DECLINED")] string Status, Guid? ReferredBy, Guid? DecidedBy, string? DecisionCode, IReadOnlyList<string> SpecialConditions,
@@ -288,11 +289,11 @@ public sealed record PolicyView(Guid Id, string PolicyNumber, string ProductCode
 }
 
 public sealed record EndorsementView(Guid Id, string EndorsementNumber, Guid PolicyId, string EndorsementType, DateOnly EffectiveDate, EndorsementStatus Status,
-    decimal PremiumDelta, decimal? NewAnnualPremium, Guid? RatingRequestId, Guid? DocumentId, IReadOnlyList<EndorsementChange> Changes, long RowVersion,
+    decimal PremiumDelta, decimal? NewAnnualPremium, string Currency, Guid? RatingRequestId, Guid? DocumentId, IReadOnlyList<EndorsementChange> Changes, long RowVersion,
     Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static EndorsementView From(GeneralEndorsement e) => new(e.Id, e.EndorsementNumber, e.PolicyId, e.EndorsementType, e.EffectiveDate, e.Status,
-        e.PremiumDelta, e.NewAnnualPremium, e.RatingRequestId, e.DocumentId, e.Changes, e.RowVersion);
+        e.PremiumDelta, e.NewAnnualPremium, e.Currency, e.RatingRequestId, e.DocumentId, e.Changes, e.RowVersion);
 }
 
 public sealed record ClaimPartyView(Guid PartyId, string Role, string? InsurerRef);
@@ -314,20 +315,22 @@ public sealed record ClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, Guid
         c.Parties.Select(p => new ClaimPartyView(p.PartyId, p.Role, p.InsurerRef)).ToList(), c.RowVersion, c.DecisionOutcome);
 }
 
-public sealed record EstimateView(Guid Id, Guid RepairerPartyId, decimal Amount, [property: OneOf("SUBMITTED", "ACCEPTED", "REJECTED")] string Status);
+public sealed record EstimateView(Guid Id, Guid RepairerPartyId, decimal Amount, string Currency, [property: OneOf("SUBMITTED", "ACCEPTED", "REJECTED")] string Status);
 
-public sealed record AssessmentView(Guid Id, Guid ClaimId, Guid AssessorPartyId, AssessmentStatus Status, decimal? AssessedAmount, decimal? ExcessApplied, Guid? ReportDocumentId,
-    DateTimeOffset? AssessedAt, IReadOnlyList<EstimateView> Estimates, long RowVersion)
+/// <param name="Currency">Of the assessed amount, the excess and every estimate: the claim's policy's (BR-033).</param>
+public sealed record AssessmentView(Guid Id, Guid ClaimId, Guid AssessorPartyId, AssessmentStatus Status, decimal? AssessedAmount, decimal? ExcessApplied, string Currency,
+    Guid? ReportDocumentId, DateTimeOffset? AssessedAt, IReadOnlyList<EstimateView> Estimates, long RowVersion)
 {
-    public static AssessmentView From(LossAssessment a) => new(a.Id, a.ClaimId, a.AssessorPartyId, a.Status, a.AssessedAmount, a.ExcessApplied, a.ReportDocumentId,
-        a.AssessedAt, a.Estimates.Select(e => new EstimateView(e.Id, e.RepairerPartyId, e.Amount, e.Status)).ToList(), a.RowVersion);
+    public static AssessmentView From(LossAssessment a) => new(a.Id, a.ClaimId, a.AssessorPartyId, a.Status, a.AssessedAmount, a.ExcessApplied, a.Currency,
+        a.ReportDocumentId, a.AssessedAt, a.Estimates.Select(e => new EstimateView(e.Id, e.RepairerPartyId, e.Amount, a.Currency, e.Status)).ToList(), a.RowVersion);
 }
 
-public sealed record SalvageView(Guid Id, string Description, string? DisposalMethod, decimal? Proceeds);
+public sealed record SalvageView(Guid Id, string Description, string? DisposalMethod, decimal? Proceeds, string Currency);
 
-public sealed record RecoveryView(Guid Id, Guid ClaimId, string RecoveryType, Guid? CounterpartyPartyId, decimal ExpectedAmount, decimal RecoveredAmount, RecoveryStatus Status,
-    IReadOnlyList<SalvageView> Salvage, long RowVersion)
+/// <param name="Currency">Of the expected and recovered amounts and every salvage item's proceeds: the claim's policy's (BR-033).</param>
+public sealed record RecoveryView(Guid Id, Guid ClaimId, string RecoveryType, Guid? CounterpartyPartyId, decimal ExpectedAmount, decimal RecoveredAmount, string Currency,
+    RecoveryStatus Status, IReadOnlyList<SalvageView> Salvage, long RowVersion)
 {
-    public static RecoveryView From(RecoveryCase r) => new(r.Id, r.ClaimId, r.RecoveryType, r.CounterpartyPartyId, r.ExpectedAmount, r.RecoveredAmount, r.Status,
-        r.Salvage.Select(s => new SalvageView(s.Id, s.Description, s.DisposalMethod, s.Proceeds)).ToList(), r.RowVersion);
+    public static RecoveryView From(RecoveryCase r) => new(r.Id, r.ClaimId, r.RecoveryType, r.CounterpartyPartyId, r.ExpectedAmount, r.RecoveredAmount, r.Currency, r.Status,
+        r.Salvage.Select(s => new SalvageView(s.Id, s.Description, s.DisposalMethod, s.Proceeds, r.Currency)).ToList(), r.RowVersion);
 }

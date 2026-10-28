@@ -4,6 +4,10 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### New: General and claims amounts carry their currency (BR-033)
+- **`currency`** on `GeneralAssessmentView` (with each estimate), `GeneralRecoveryView` (with each salvage item), `GeneralEndorsementView` and the claim's `FinancialsView` (`ClaimsGetFinancials`: the currency of every movement and every outstanding reserve; `outstandingReserves` is unchanged). Assessments, recoveries and endorsements are in their policy's currency.
+- **A risk object's valuation** names its own currency: `valuationCurrency` on `GeneralRegisterRiskObject` and `GeneralRevalueRiskObject` (optional, a 3-letter code, only with a valuation; 422 `VALUATION_BASIS_REQUIRED` otherwise) and on `GeneralRiskObjectView`. Valuations recorded before it are null.
+
 ### New: a claim's recoveries (BR-032)
 - **`GET /api/v1/general/claims/{id}/recoveries`** (`GeneralListClaimRecoveries`, the recoveries screen): a `CursorPage` of `RecoveryView`, with their salvage, by ID. A claim that does not exist or is outside the caller's product and branch scope is 404.
 - **Fixed:** `GeneralGetRecovery` now reads a recovery through its claim's scope (F103): a recovery on a claim outside the caller's scope is 404. It was returned.

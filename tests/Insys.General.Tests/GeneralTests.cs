@@ -473,10 +473,10 @@ public sealed class GeneralTests
     [Fact]
     public void Assessment_NeedsAPanelAssessor_GEN007_AndReportsWithinItsLifecycle()
     {
-        LossAssessment.AssignAssessor(Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(), onApprovedPanel: false).Error!.Code
+        LossAssessment.AssignAssessor(Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(), onApprovedPanel: false, "ZAR").Error!.Code
             .ShouldBe(GeneralErrorCodes.AssessorNotOnPanel);
 
-        var assessment = LossAssessment.AssignAssessor(Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(), onApprovedPanel: true).Value;
+        var assessment = LossAssessment.AssignAssessor(Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(), onApprovedPanel: true, "ZAR").Value;
         assessment.RecordEstimate(Guid.CreateVersion7(), 10m).IsFailure.ShouldBeTrue();
         assessment.Start().IsSuccess.ShouldBeTrue();
         assessment.RecordEstimate(Guid.CreateVersion7(), 38_000m).IsSuccess.ShouldBeTrue();
@@ -491,7 +491,7 @@ public sealed class GeneralTests
     [Fact]
     public void Recovery_IsRecordedForTheClaimsFramework_CLM004()
     {
-        var recovery = RecoveryCase.OpenRecovery(Guid.CreateVersion7(), Guid.CreateVersion7(), "SUBROGATION", Guid.CreateVersion7(), 20_000m).Value;
+        var recovery = RecoveryCase.OpenRecovery(Guid.CreateVersion7(), Guid.CreateVersion7(), "SUBROGATION", Guid.CreateVersion7(), 20_000m, "ZAR").Value;
         recovery.RecordRecovery(15_000m, "GEN-1", "ZAR", "INDEMNITY", Now).IsFailure.ShouldBeTrue();
         recovery.SendDemand().IsSuccess.ShouldBeTrue();
         recovery.AddSalvageItem("Vehicle wreck").IsSuccess.ShouldBeTrue();

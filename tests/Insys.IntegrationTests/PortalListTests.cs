@@ -201,7 +201,7 @@ public sealed class PortalListTests(DatabaseFixture fixture) : IClassFixture<Dat
     {
         var holder = await Party("Policyholder");
         var insured = await Party("Insured spouse");
-        var policy = await LifePolicy(holder, "P91");
+        var policy = await LifePolicy(holder, "X91"); // a code no broker in this class is linked to, so the list test is unaffected
         var holderLife = await _rows.Insert(A, "life.policy_insured_life", ("policy_id", policy), ("party_id", holder), ("life_role", "MAIN"), ("entry_age", (short)45));
         var insuredLife = await _rows.Insert(A, "life.policy_insured_life", ("policy_id", policy), ("party_id", insured), ("life_role", "SPOUSE"), ("entry_age", (short)43));
         await Benefit(policy, holderLife, "DEATH", 1_000_000m, 450m);

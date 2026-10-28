@@ -33280,7 +33280,8 @@
         "required": [
           "claimNumber",
           "movements",
-          "outstandingReserves"
+          "outstandingReserves",
+          "currency"
         ],
         "type": "object",
         "properties": {
@@ -33303,6 +33304,9 @@
               ],
               "format": "double"
             }
+          },
+          "currency": {
+            "type": "string"
           }
         }
       },
@@ -37267,6 +37271,7 @@
           "status",
           "assessedAmount",
           "excessApplied",
+          "currency",
           "reportDocumentId",
           "assessedAt",
           "estimates",
@@ -37306,6 +37311,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "reportDocumentId": {
             "type": [
@@ -37887,6 +37895,7 @@
           "status",
           "premiumDelta",
           "newAnnualPremium",
+          "currency",
           "ratingRequestId",
           "documentId",
           "changes",
@@ -37932,6 +37941,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "ratingRequestId": {
             "type": [
@@ -37999,6 +38011,7 @@
           "id",
           "repairerPartyId",
           "amount",
+          "currency",
           "status"
         ],
         "type": "object",
@@ -38018,6 +38031,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "status": {
             "enum": [
@@ -39002,6 +39018,7 @@
           "counterpartyPartyId",
           "expectedAmount",
           "recoveredAmount",
+          "currency",
           "status",
           "salvage",
           "rowVersion"
@@ -39041,6 +39058,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "status": {
             "$ref": "#/components/schemas/GeneralRecoveryStatus"
@@ -39216,6 +39236,12 @@
               "null",
               "string"
             ]
+          },
+          "valuationCurrency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -39264,6 +39290,12 @@
               "null",
               "string"
             ]
+          },
+          "valuationCurrency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -39281,6 +39313,7 @@
           "attributeSchemaVersion",
           "valuation",
           "valuationBasis",
+          "valuationCurrency",
           "subdivision",
           "postalCode",
           "riskZone",
@@ -39317,6 +39350,12 @@
             "format": "double"
           },
           "valuationBasis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "valuationCurrency": {
             "type": [
               "null",
               "string"
@@ -39441,7 +39480,8 @@
           "id",
           "description",
           "disposalMethod",
-          "proceeds"
+          "proceeds",
+          "currency"
         ],
         "type": "object",
         "properties": {
@@ -39466,6 +39506,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           }
         }
       },

@@ -44,7 +44,8 @@ namespace Insys.General.Api;
 
 public sealed record AttributesRequest(JsonElement Attributes);
 
-public sealed record RevalueRequest(decimal? Valuation, string? ValuationBasis);
+/// <param name="ValuationCurrency">The valuation's currency (BR-033), a 3-letter code; only with a valuation.</param>
+public sealed record RevalueRequest(decimal? Valuation, string? ValuationBasis, string? ValuationCurrency = null);
 
 public sealed record ReferRequest(string ReasonCode);
 
@@ -120,7 +121,7 @@ public sealed class GeneralModule : IModule
             .WithName("GeneralUpdateRiskAttributes").WithSummary("Update a risk object's attributes, against the schema version in force")
             .RequirePermission(GeneralPermissions.RiskUpdate);
         general.MapPost("/risk-objects/{id:guid}/revalue", async (Guid id, RevalueRequest r, IDispatcher d, CancellationToken ct) =>
-                (await d.Send(new RevalueRiskObject(id, r.Valuation, r.ValuationBasis), ct)).ToHttp(Results.Ok))
+                (await d.Send(new RevalueRiskObject(id, r.Valuation, r.ValuationBasis, r.ValuationCurrency), ct)).ToHttp(Results.Ok))
             .Produces<RiskObjectView>(StatusCodes.Status200OK)
             .TakesIfMatch()
             .WithName("GeneralRevalueRiskObject").WithSummary("Revalue a risk object, with a valuation basis").RequirePermission(GeneralPermissions.RiskUpdate);
