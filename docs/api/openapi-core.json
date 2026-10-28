@@ -11687,7 +11687,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ClaimsFrameworkEvidenceRequest"
+                "$ref": "#/components/schemas/ClaimsFrameworkRecordEvidenceRequest"
               }
             }
           },
@@ -11744,6 +11744,7 @@
           "ClaimsFramework"
         ],
         "summary": "Evaluate the fraud indicators in force against the claim\u0027s facts",
+        "description": "The body is an object of facts by name, each a number, string or boolean (for example {\u0022days_since_inception\u0022: 12}). GET /claims/fraud-indicators lists the indicators in force and the facts each reads; an indicator whose facts are not all given is skipped and recorded with the missing ones (F009).",
         "operationId": "ClaimsEvaluateFraud",
         "parameters": [
           {
@@ -11812,6 +11813,49 @@
           },
           "422": {
             "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "claim_register.update",
+        "x-function": [
+          "CLAIMS_EVALUATE_FRAUD"
+        ]
+      }
+    },
+    "/api/v1/claims/fraud-indicators": {
+      "get": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "The fraud indicators in force and the facts each reads, for ClaimsEvaluateFraud (BR-039)",
+        "operationId": "ClaimsListFraudIndicatorFacts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClaimsFrameworkFraudIndicatorFactsView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
           }
         },
         "x-permission": "claim_register.update",
@@ -33701,21 +33745,13 @@
       },
       "ClaimsFrameworkEvidenceRequest": {
         "required": [
-          "evidenceType",
-          "documentId"
+          "evidenceType"
         ],
         "type": "object",
         "properties": {
           "evidenceType": {
             "type": "string",
             "x-code-list": "claims.ref_evidence_types"
-          },
-          "documentId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
           }
         }
       },
@@ -33872,6 +33908,24 @@
           "evaluatedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "ClaimsFrameworkFraudIndicatorFactsView": {
+        "required": [
+          "indicatorCode",
+          "facts"
+        ],
+        "type": "object",
+        "properties": {
+          "indicatorCode": {
+            "type": "string"
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -34144,6 +34198,23 @@
               "null",
               "string"
             ],
+            "format": "uuid"
+          }
+        }
+      },
+      "ClaimsFrameworkRecordEvidenceRequest": {
+        "required": [
+          "evidenceType",
+          "documentId"
+        ],
+        "type": "object",
+        "properties": {
+          "evidenceType": {
+            "type": "string",
+            "x-code-list": "claims.ref_evidence_types"
+          },
+          "documentId": {
+            "type": "string",
             "format": "uuid"
           }
         }

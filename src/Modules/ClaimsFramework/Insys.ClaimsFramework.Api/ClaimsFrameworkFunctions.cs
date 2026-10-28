@@ -43,7 +43,7 @@ internal static class ClaimsFrameworkFunctions
         .Action("CLAIMS_REQUEST_EVIDENCE", "CLAIM_REGISTER", "ClaimsRequestEvidence")
         .Action("CLAIMS_RECORD_EVIDENCE", "CLAIM_REGISTER", "ClaimsRecordEvidence")
         .Action("CLAIMS_RECORD_COMMUNICATION", "CLAIM_REGISTER", "ClaimsRecordCommunication")
-        .Action("CLAIMS_EVALUATE_FRAUD", "CLAIM_REGISTER", "ClaimsEvaluateFraud")
+        .Action("CLAIMS_EVALUATE_FRAUD", "CLAIM_REGISTER", ["ClaimsEvaluateFraud", "ClaimsListFraudIndicatorFacts"])
         .Screen("CLAIM_FINANCIALS", "CLAIM_FINANCIALS", "Reserves", "claims/financials", "ClaimsGetFinancials")
         .Action("CLAIMS_MOVE_RESERVE", "CLAIM_FINANCIALS", "ClaimsMoveReserve")
         .Screen("CLAIM_PAYMENT_INSTRUCTIONS", "CLAIM_FINANCIALS", "Payment instructions", "claims/payment-instructions", "ClaimsGetInstruction", "ClaimsListInstructions")

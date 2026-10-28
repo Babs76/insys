@@ -4,6 +4,11 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### Breaking: evidence and fraud schemas (BR-039)
+- **Recording evidence** (`ClaimsRecordEvidence`) has its own schema, `ClaimsRecordEvidenceRequest`: `evidenceType` and `documentId`, both required (the stored document that is the evidence). Without `documentId` it is 422 `VALIDATION_FAILED` (it was a bare 400).
+- **Requesting evidence** (`ClaimsRequestEvidence`) takes `evidenceType` only; its schema no longer has `documentId`, which was ignored.
+- **Fraud facts:** `GET /api/v1/claims/fraud-indicators` (`ClaimsListFraudIndicatorFacts`, with the fraud evaluation's function) lists each indicator in force with the `facts` it reads, by the names `ClaimsEvaluateFraud` takes. The condition, score and threshold are not shown. `ClaimsEvaluateFraud`'s description says the body is an object of facts by name; an indicator missing a fact is skipped and recorded with the missing ones.
+
 ### Changed: General and claims code fields declare their values or code table (BR-036)
 - **Named code tables (`x-code-list`), on the views and the requests:**
   - billing frequency (`billing.ref_billing_frequencies`) and collection method (`billing.ref_collection_methods`);

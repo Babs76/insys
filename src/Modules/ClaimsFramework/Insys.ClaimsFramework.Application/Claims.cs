@@ -151,6 +151,25 @@ public sealed record RecordCommunication(string ClaimNumber, string Direction, [
 
 public sealed record EvaluateFraudIndicators(string ClaimNumber, JsonElement Facts) : ICommand<ClaimView>;
 
+/// <summary>A fraud indicator in force and the facts its condition reads (BR-039): send them to ClaimsEvaluateFraud, by these names.</summary>
+/// <remarks>The condition itself, its score and threshold are not shown: knowing them would show how to avoid a referral.</remarks>
+public sealed record FraudIndicatorFactsView(string IndicatorCode, IReadOnlyList<string> Facts);
+
+/// <summary>Query ListFraudIndicatorFacts (BR-039): the indicators in force today, each with the facts it reads.</summary>
+public sealed record ListFraudIndicatorFacts : IQuery<IReadOnlyList<FraudIndicatorFactsView>>;
+
+internal sealed class ListFraudIndicatorFactsHandler(IClaimsCodes codes, IBusinessDate businessDate) : IQueryHandler<ListFraudIndicatorFacts, IReadOnlyList<FraudIndicatorFactsView>>
+{
+    public async Task<Result<IReadOnlyList<FraudIndicatorFactsView>>> Handle(ListFraudIndicatorFacts query, CancellationToken cancellationToken)
+    {
+        var indicators = await codes.FraudIndicators(businessDate.Today, cancellationToken);
+        return indicators.IsFailure
+            ? indicators.Error
+            : Result.Success<IReadOnlyList<FraudIndicatorFactsView>>(indicators.Value
+                .Select(i => new FraudIndicatorFactsView(i.IndicatorCode, [.. i.Logic.Variables.Distinct().Order(StringComparer.Ordinal)])).ToList());
+    }
+}
+
 public enum ReserveAction
 {
     Set,
@@ -233,6 +252,16 @@ public sealed record GetInstruction(Guid InstructionId) : IQuery<InstructionView
 
 /// <summary>GAP-036: a claim's payment instructions, oldest first.</summary>
 public sealed record ListInstructions(string ClaimNumber) : IQuery<IReadOnlyList<InstructionView>>;
+
+/// <summary>Recording evidence names the stored document that is the evidence (BR-039); without one it is refused.</summary>
+public sealed class RecordEvidenceValidator : AbstractValidator<RecordEvidence>
+{
+    public RecordEvidenceValidator()
+    {
+        RuleFor(c => c.EvidenceType).NotEmpty().MaximumLength(20);
+        RuleFor(c => c.DocumentId).NotEmpty().WithMessage("documentId is required: evidence is recorded as a stored document.");
+    }
+}
 
 public sealed class AllocateClaimNumberValidator : AbstractValidator<AllocateClaimNumber>
 {

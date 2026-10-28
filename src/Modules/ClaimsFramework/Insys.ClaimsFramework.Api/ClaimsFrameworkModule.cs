@@ -39,7 +39,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.ClaimsFramework.Api;
 
-public sealed record EvidenceRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EvidenceTypes)] string EvidenceType, Guid? DocumentId);
+/// <summary>Asking for evidence of a type (BR-039: its own schema; it takes no document).</summary>
+public sealed record EvidenceRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EvidenceTypes)] string EvidenceType);
+
+/// <summary>Recording evidence received (BR-039): always as a stored document.</summary>
+/// <param name="DocumentId">The stored document that is the evidence (Documents); required.</param>
+public sealed record RecordEvidenceRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EvidenceTypes)] string EvidenceType,
+    [property: BuildingBlocks.Domain.RequiredField] Guid DocumentId);
 
 /// <param name="Reason">Why the reserve moves; required (OQ-079: an assessor adjusts a claim's reserve with a reason).</param>
 public sealed record ReserveRequest(ReserveAction Action, [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes)] string ReserveType, decimal Amount,
@@ -125,10 +131,8 @@ public sealed class ClaimsFrameworkModule : IModule
             .WithSummary("Request evidence of a type")
             .RequirePermission(ClaimsPermissions.ClaimUpdate);
 
-        claims.MapPost("/claims/{claimNumber}/evidence", async (string claimNumber, EvidenceRequest r, IDispatcher dispatcher, CancellationToken ct) =>
-                r.DocumentId is { } document
-                    ? (await dispatcher.Send(new RecordEvidence(claimNumber, r.EvidenceType, document), ct)).ToHttp(Results.Ok)
-                    : Results.Problem(statusCode: 400, title: "documentId is required."))
+        claims.MapPost("/claims/{claimNumber}/evidence", async (string claimNumber, RecordEvidenceRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new RecordEvidence(claimNumber, r.EvidenceType, r.DocumentId), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)
             .RequireIdempotencyKey()
             .WithName("ClaimsRecordEvidence")
@@ -149,6 +153,16 @@ public sealed class ClaimsFrameworkModule : IModule
             .RequireIdempotencyKey()
             .WithName("ClaimsEvaluateFraud")
             .WithSummary("Evaluate the fraud indicators in force against the claim's facts")
+            .WithDescription("The body is an object of facts by name, each a number, string or boolean (for example {\"days_since_inception\": 12}). "
+                + "GET /claims/fraud-indicators lists the indicators in force and the facts each reads; an indicator whose facts are not all given is "
+                + "skipped and recorded with the missing ones (F009).")
+            .RequirePermission(ClaimsPermissions.ClaimUpdate);
+
+        claims.MapGet("/fraud-indicators", async (IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListFraudIndicatorFacts(), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<FraudIndicatorFactsView>>(StatusCodes.Status200OK)
+            .WithName("ClaimsListFraudIndicatorFacts")
+            .WithSummary("The fraud indicators in force and the facts each reads, for ClaimsEvaluateFraud (BR-039)")
             .RequirePermission(ClaimsPermissions.ClaimUpdate);
 
         claims.MapGet("/claims/{claimNumber}/financials", async (string claimNumber, IDispatcher dispatcher, CancellationToken ct) =>
