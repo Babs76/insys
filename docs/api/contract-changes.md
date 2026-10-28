@@ -4,6 +4,23 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### Changed: General and claims code fields declare their values or code table (BR-036)
+- **Named code tables (`x-code-list`), on the views and the requests:**
+  - billing frequency (`billing.ref_billing_frequencies`) and collection method (`billing.ref_collection_methods`);
+  - cancellation reason (`general.cfg_cancellation_reasons_and_refund_rules`) and referral reason (`general.ref_referral_reason_codes`);
+  - decision codes: a referral's (`general.ref_underwriting_decision_codes`) and a claim's (`claims.ref_claim_decision_reason_codes`);
+  - endorsement type (`general.cfg_endorsement_types`) and risk object type (`general.cfg_risk_object_types_and_attribute_schemas`);
+  - valuation basis (`general.ref_valuation_bases`) and risk zone (`general.ref_risk_zones`);
+  - loss cause (`general.ref_loss_cause_codes`), peril (`general.ref_peril_codes`) and catastrophe event (`general.mst_catastrophe_event_register`);
+  - reserve type (`claims.ref_reserve_types`), recovery type (`general.ref_recovery_types`), salvage disposal method (`general.ref_salvage_disposal_methods`) and evidence type (`claims.ref_evidence_types`).
+- **Enums:**
+  - refund basis: `PRO_RATA`, `SHORT_PERIOD`, `NONE`;
+  - cover start: `ISSUE`, `FIRST_PAYMENT`;
+  - a claim's domain: `LIFE`, `GENERAL`, `HEALTH`;
+  - a financial movement's type: `Reserve`, `Payment`, `Recovery`.
+- **`x-known-values`:** a claim communication's `channel` (`EMAIL`, `SMS`, `PUSH`, `WHATSAPP`, the channels INSYS sends by); other channels may be recorded.
+- **Not yet:** a claim party's `role` has no list (OQ-122).
+
 ### New: forward links and missing fields on General and claims (BR-035)
 - **Links:** `GeneralQuoteView.proposalId` and `orgNodeCode`; `GeneralProposalView.policyId`; `GeneralPolicyView.quoteId` and `proposalId`. The reverse links (a quote's proposal, a proposal's policy, a policy's proposal) are filled on the read by ID and are null on lists and command responses; `orgNodeCode` and the policy's `quoteId` are always there.
 - **The claim:** `GeneralClaimView.lossDescription`, `decidedBy` and `decidedAt`; its `settlement` gains `requestedBy` and `bankAccountId` (beside `currency`).

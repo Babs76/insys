@@ -33462,6 +33462,11 @@
         "type": "object",
         "properties": {
           "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH"
+            ],
             "type": "string"
           },
           "domainClaimId": {
@@ -33508,7 +33513,13 @@
             "type": "string"
           },
           "channel": {
-            "type": "string"
+            "type": "string",
+            "x-known-values": [
+              "EMAIL",
+              "SMS",
+              "PUSH",
+              "WHATSAPP"
+            ]
           },
           "documentId": {
             "type": [
@@ -33593,6 +33604,11 @@
             "type": "string"
           },
           "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH"
+            ],
             "type": "string"
           },
           "domainClaimId": {
@@ -33678,7 +33694,8 @@
             "type": "string"
           },
           "reserveType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "claims.ref_reserve_types"
           }
         }
       },
@@ -33690,7 +33707,8 @@
         "type": "object",
         "properties": {
           "evidenceType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "claims.ref_evidence_types"
           },
           "documentId": {
             "type": [
@@ -33712,7 +33730,8 @@
         "type": "object",
         "properties": {
           "evidenceType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "claims.ref_evidence_types"
           },
           "status": {
             "enum": [
@@ -33923,7 +33942,8 @@
             "type": "string"
           },
           "reserveType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "claims.ref_reserve_types"
           },
           "status": {
             "$ref": "#/components/schemas/ClaimsFrameworkInstructionStatus"
@@ -34050,10 +34070,16 @@
             "format": "uuid"
           },
           "movementType": {
+            "enum": [
+              "Reserve",
+              "Payment",
+              "Recovery"
+            ],
             "type": "string"
           },
           "reserveType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "claims.ref_reserve_types"
           },
           "amount": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -34105,7 +34131,13 @@
             "type": "string"
           },
           "channel": {
-            "type": "string"
+            "type": "string",
+            "x-known-values": [
+              "EMAIL",
+              "SMS",
+              "PUSH",
+              "WHATSAPP"
+            ]
           },
           "documentId": {
             "type": [
@@ -34137,7 +34169,8 @@
             "$ref": "#/components/schemas/ClaimsFrameworkReserveAction"
           },
           "reserveType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "claims.ref_reserve_types"
           },
           "amount": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -37975,7 +38008,8 @@
         "type": "object",
         "properties": {
           "reasonCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.cfg_cancellation_reasons_and_refund_rules"
           },
           "effectiveDate": {
             "type": "string",
@@ -37996,7 +38030,8 @@
         "type": "object",
         "properties": {
           "reasonCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.cfg_cancellation_reasons_and_refund_rules"
           },
           "effectiveDate": {
             "type": "string",
@@ -38011,6 +38046,11 @@
             "format": "double"
           },
           "refundBasis": {
+            "enum": [
+              "PRO_RATA",
+              "SHORT_PERIOD",
+              "NONE"
+            ],
             "type": "string"
           },
           "fee": {
@@ -38170,16 +38210,19 @@
             "format": "date-time"
           },
           "causeCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_loss_cause_codes"
           },
           "perilCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_peril_codes"
           },
           "catEventCode": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "general.mst_catastrophe_event_register"
           },
           "status": {
             "$ref": "#/components/schemas/GeneralClaimStatus"
@@ -38188,7 +38231,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "claims.ref_claim_decision_reason_codes"
           },
           "decisionRationale": {
             "type": [
@@ -38404,7 +38448,8 @@
         "type": "object",
         "properties": {
           "decisionCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "claims.ref_claim_decision_reason_codes"
           },
           "rationale": {
             "type": "string"
@@ -38419,7 +38464,8 @@
         "type": "object",
         "properties": {
           "disposalMethod": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_salvage_disposal_methods"
           },
           "proceeds": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -38480,7 +38526,8 @@
         "type": "object",
         "properties": {
           "endorsementType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.cfg_endorsement_types"
           },
           "effectiveDate": {
             "type": "string",
@@ -38535,7 +38582,8 @@
             "format": "uuid"
           },
           "endorsementType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.cfg_endorsement_types"
           },
           "effectiveDate": {
             "type": "string",
@@ -38694,10 +38742,12 @@
             "format": "uuid"
           },
           "billingFrequency": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_billing_frequencies"
           },
           "collectionMethod": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_collection_methods"
           },
           "renewalOfPolicyId": {
             "type": [
@@ -38740,16 +38790,19 @@
             "format": "date"
           },
           "causeCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_loss_cause_codes"
           },
           "perilCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_peril_codes"
           },
           "catEventCode": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "general.mst_catastrophe_event_register"
           },
           "description": {
             "type": [
@@ -38928,13 +38981,15 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "billing.ref_billing_frequencies"
           },
           "collectionMethod": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "billing.ref_collection_methods"
           },
           "renewalOfId": {
             "type": [
@@ -38944,6 +38999,10 @@
             "format": "uuid"
           },
           "coverStartsOn": {
+            "enum": [
+              "ISSUE",
+              "FIRST_PAYMENT"
+            ],
             "type": "string"
           },
           "firstPaidOn": {
@@ -39020,10 +39079,12 @@
             "format": "date"
           },
           "causeCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_loss_cause_codes"
           },
           "perilCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_peril_codes"
           },
           "description": {
             "type": [
@@ -39622,7 +39683,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "claims.ref_reserve_types"
           }
         }
       },
@@ -39635,7 +39697,8 @@
         "type": "object",
         "properties": {
           "recoveryType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_recovery_types"
           },
           "counterpartyPartyId": {
             "type": [
@@ -39687,7 +39750,8 @@
             "format": "uuid"
           },
           "recoveryType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_recovery_types"
           },
           "counterpartyPartyId": {
             "type": [
@@ -39741,7 +39805,8 @@
         "type": "object",
         "properties": {
           "reasonCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_referral_reason_codes"
           }
         }
       },
@@ -39758,7 +39823,8 @@
             "type": "boolean"
           },
           "decisionCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_underwriting_decision_codes"
           },
           "specialConditions": {
             "type": [
@@ -39795,7 +39861,8 @@
             "format": "uuid"
           },
           "reasonCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.ref_referral_reason_codes"
           },
           "status": {
             "enum": [
@@ -39823,7 +39890,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "general.ref_underwriting_decision_codes"
           },
           "specialConditions": {
             "type": "array",
@@ -39852,7 +39920,8 @@
         "type": "object",
         "properties": {
           "objectType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas"
           },
           "attributes": {
             "$ref": "#/components/schemas/JsonElement"
@@ -39870,7 +39939,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "general.ref_valuation_bases"
           },
           "subdivision": {
             "type": [
@@ -39888,7 +39958,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "general.ref_risk_zones"
           },
           "valuationCurrency": {
             "type": [
@@ -39942,7 +40013,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "general.ref_valuation_bases"
           },
           "valuationCurrency": {
             "type": [
@@ -39980,7 +40052,8 @@
             "format": "uuid"
           },
           "objectType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas"
           },
           "attributes": {
             "$ref": "#/components/schemas/JsonElement"
@@ -40006,7 +40079,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "general.ref_valuation_bases"
           },
           "valuationCurrency": {
             "type": [
@@ -40030,7 +40104,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "general.ref_risk_zones"
           },
           "status": {
             "$ref": "#/components/schemas/GeneralRiskObjectStatus"
@@ -40149,7 +40224,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "general.ref_salvage_disposal_methods"
           },
           "proceeds": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -40184,10 +40260,12 @@
             "format": "uuid"
           },
           "reserveType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "claims.ref_reserve_types"
           },
           "decisionCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "claims.ref_claim_decision_reason_codes"
           },
           "rationale": {
             "type": "string"
@@ -40221,7 +40299,8 @@
             "format": "uuid"
           },
           "reserveType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "claims.ref_reserve_types"
           },
           "pending": {
             "type": "boolean"

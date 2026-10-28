@@ -76,7 +76,8 @@ public interface IClaimsCodes
     Task<Result<IReadOnlyList<FraudIndicator>>> FraudIndicators(DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record EvidenceView(string EvidenceType, [property: OneOf("REQUESTED", "RECEIVED")] string Status, Guid? DocumentId, DateTimeOffset? RequestedAt, DateTimeOffset? ReceivedAt);
+public sealed record EvidenceView([property: CodeList(CodeLists.EvidenceTypes)] string EvidenceType, [property: OneOf("REQUESTED", "RECEIVED")] string Status,
+    Guid? DocumentId, DateTimeOffset? RequestedAt, DateTimeOffset? ReceivedAt);
 
 public sealed record FraudHitView(string IndicatorCode, int Score, bool Referred, DateTimeOffset EvaluatedAt);
 
@@ -87,7 +88,8 @@ public sealed record SkippedIndicatorView(string IndicatorCode, [property: OneOf
 /// <summary>One screening of the claim against the fraud indicators in force, with what it skipped and why (F009).</summary>
 public sealed record FraudEvaluationView(Guid Id, DateTimeOffset EvaluatedAt, int Score, bool Referred, int IndicatorsEvaluated, IReadOnlyList<SkippedIndicatorView> Skipped);
 
-public sealed record ClaimView(Guid Id, string ClaimNumber, string Domain, Guid DomainClaimId, Guid PolicyRef, DateTimeOffset RegisteredAt,
+public sealed record ClaimView(Guid Id, string ClaimNumber, [property: OneOf("LIFE", "GENERAL", "HEALTH")] string Domain, Guid DomainClaimId, Guid PolicyRef,
+    DateTimeOffset RegisteredAt,
     IReadOnlyList<EvidenceView> Evidence, IReadOnlyList<FraudHitView> FraudHits, int Communications, IReadOnlyList<FraudEvaluationView> FraudEvaluations)
 {
     public static ClaimView From(ClaimRegistration c) => new(c.Id, c.ClaimNumber, c.Domain, c.DomainClaimId, c.PolicyRef, c.RegisteredAt,
@@ -97,7 +99,8 @@ public sealed record ClaimView(Guid Id, string ClaimNumber, string Domain, Guid 
             e.Skipped.Select(s => new SkippedIndicatorView(s.IndicatorCode, s.Reason, s.MissingFacts, s.ErrorCode)).ToList())).ToList());
 }
 
-public sealed record MovementView(Guid Id, string MovementType, string ReserveType, decimal Amount, string Currency, DateTimeOffset MovementAt);
+public sealed record MovementView(Guid Id, [property: OneOf("Reserve", "Payment", "Recovery")] string MovementType,
+    [property: CodeList(CodeLists.ReserveTypes)] string ReserveType, decimal Amount, string Currency, DateTimeOffset MovementAt);
 
 /// <param name="OutstandingReserves">Each reserve type's outstanding amount, in <paramref name="Currency"/>.</param>
 /// <param name="Currency">The claim's currency (BR-033): of every movement and every outstanding reserve; null until the first movement.</param>
@@ -109,7 +112,8 @@ public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementVi
 }
 
 public sealed record InstructionView(Guid Id, string ClaimNumber, string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency,
-    string ReserveType, InstructionStatus Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId, string? PayeeBankHash, Guid? PendingPayeePartyId,
+    [property: CodeList(CodeLists.ReserveTypes)] string ReserveType, InstructionStatus Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId,
+    string? PayeeBankHash, Guid? PendingPayeePartyId,
     Guid? PendingBankAccountId,
     [property: OneOf("RESERVE_BELOW_ZERO", "PAYEE_ACCOUNT_CHANGED")] string? HeldReason = null, string? HeldDetail = null, DateTimeOffset? HeldAt = null,
     LatestRejection? LatestRejection = null, long RowVersion = 0, string? MaskedAccount = null, string? PayeeName = null)
@@ -135,13 +139,15 @@ public sealed record InstructionView(Guid Id, string ClaimNumber, string Instruc
 
 /// <summary>Command AllocateClaimNumber; a repeat for the same domain claim returns the same number (CLM-005).</summary>
 /// <param name="ProductCode">The domain claim's product, and <paramref name="OrgNodeCode"/> its organisation node: they scope the claim's records (F103).</param>
-public sealed record AllocateClaimNumber(string Domain, Guid DomainClaimId, Guid PolicyRef, string? ProductCode = null, string? OrgNodeCode = null) : ICommand<ClaimView>;
+public sealed record AllocateClaimNumber([property: OneOf("LIFE", "GENERAL", "HEALTH")] string Domain, Guid DomainClaimId, Guid PolicyRef, string? ProductCode = null,
+    string? OrgNodeCode = null) : ICommand<ClaimView>;
 
-public sealed record RequestEvidence(string ClaimNumber, string EvidenceType) : ICommand<ClaimView>;
+public sealed record RequestEvidence(string ClaimNumber, [property: CodeList(CodeLists.EvidenceTypes)] string EvidenceType) : ICommand<ClaimView>;
 
-public sealed record RecordEvidence(string ClaimNumber, string EvidenceType, Guid DocumentId) : ICommand<ClaimView>;
+public sealed record RecordEvidence(string ClaimNumber, [property: CodeList(CodeLists.EvidenceTypes)] string EvidenceType, Guid DocumentId) : ICommand<ClaimView>;
 
-public sealed record RecordCommunication(string ClaimNumber, string Direction, string Channel, Guid? DocumentId) : ICommand<ClaimView>;
+public sealed record RecordCommunication(string ClaimNumber, string Direction, [property: KnownValues("EMAIL", "SMS", "PUSH", "WHATSAPP")] string Channel,
+    Guid? DocumentId) : ICommand<ClaimView>;
 
 public sealed record EvaluateFraudIndicators(string ClaimNumber, JsonElement Facts) : ICommand<ClaimView>;
 
@@ -154,7 +160,8 @@ public enum ReserveAction
 
 /// <summary>Commands SetReserve, ChangeReserve and RecordRecovery (CLM-004).</summary>
 /// <param name="Reason">Why the reserve moves; recorded in the audit trail. The initial reserve gives its basis (OQ-079).</param>
-public sealed record MoveReserve(string ClaimNumber, ReserveAction Action, string ReserveType, decimal Amount, string Currency, string? Reason = null)
+public sealed record MoveReserve(string ClaimNumber, ReserveAction Action, [property: CodeList(CodeLists.ReserveTypes)] string ReserveType, decimal Amount,
+    string Currency, string? Reason = null)
     : ICommand<FinancialsView>;
 
 public sealed class ClaimsPaymentOptions
@@ -169,7 +176,7 @@ public sealed class ClaimsPaymentOptions
 /// <summary>Command DraftInstruction; a repeat for the same claim and reference returns the same instruction (PAY-001).</summary>
 /// <param name="BankAccountId">The payee's verified bank account (party.bank_account); the approval covers it.</param>
 public sealed record DraftInstruction(string ClaimNumber, string InstructionRef, Guid PayeePartyId, Guid BankAccountId, decimal Amount, decimal ApprovedAmount,
-    string Currency, string ReserveType) : ICommand<InstructionView>;
+    string Currency, [property: CodeList(CodeLists.ReserveTypes)] string ReserveType) : ICommand<InstructionView>;
 
 public enum InstructionAction
 {
@@ -196,7 +203,8 @@ public sealed record ClaimRegisterSummary(Guid Id, string ClaimNumber, [property
 /// registration time (registered at or after <paramref name="RegisteredFrom"/>, before <paramref name="RegisteredTo"/>), by ID
 /// with cursor paging, within the caller's scope (F103).
 /// </summary>
-public sealed record SearchClaimRegister(string? ClaimNumber, string? Domain, Guid? PolicyRef, DateTimeOffset? RegisteredFrom, DateTimeOffset? RegisteredTo, Guid? AfterId,
+public sealed record SearchClaimRegister(string? ClaimNumber, [property: OneOf("LIFE", "GENERAL", "HEALTH")] string? Domain, Guid? PolicyRef,
+    DateTimeOffset? RegisteredFrom, DateTimeOffset? RegisteredTo, Guid? AfterId,
     int Limit) : IQuery<IReadOnlyList<ClaimRegisterSummary>>;
 
 public interface IClaimRegisterSearch
@@ -213,7 +221,8 @@ internal sealed class SearchClaimRegisterHandler(IClaimRegisterSearch register) 
 }
 
 /// <summary>One entry of a claim's correspondence log (claims.claim_communication): inbound or outbound, its channel and document, and when.</summary>
-public sealed record ClaimCommunicationView(Guid Id, [property: OneOf("IN", "OUT")] string Direction, string Channel, Guid? DocumentId, DateTimeOffset SentAt);
+public sealed record ClaimCommunicationView(Guid Id, [property: OneOf("IN", "OUT")] string Direction, [property: KnownValues("EMAIL", "SMS", "PUSH",
+    "WHATSAPP")] string Channel, Guid? DocumentId, DateTimeOffset SentAt);
 
 /// <summary>Query: a claim's communications, newest first (Wave 1 batch 3: listed, not only counted).</summary>
 public sealed record ListClaimCommunications(string ClaimNumber) : IQuery<IReadOnlyList<ClaimCommunicationView>>;

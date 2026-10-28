@@ -45,35 +45,41 @@ namespace Insys.General.Api;
 public sealed record AttributesRequest(JsonElement Attributes);
 
 /// <param name="ValuationCurrency">The valuation's currency (BR-033), a 3-letter code; only with a valuation.</param>
-public sealed record RevalueRequest(decimal? Valuation, string? ValuationBasis, string? ValuationCurrency = null);
+public sealed record RevalueRequest(decimal? Valuation, [property: BuildingBlocks.Domain.CodeList(CodeLists.ValuationBases)] string? ValuationBasis,
+    string? ValuationCurrency = null);
 
-public sealed record ReferRequest(string ReasonCode);
+public sealed record ReferRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.ReferralReasons)] string ReasonCode);
 
-public sealed record ReferralDecisionRequest(bool Approved, string DecisionCode, string[]? SpecialConditions, string? DeclineReason);
+public sealed record ReferralDecisionRequest(bool Approved, [property: BuildingBlocks.Domain.CodeList(CodeLists.UnderwritingDecisions)] string DecisionCode,
+    string[]? SpecialConditions, string? DeclineReason);
 
-public sealed record CancelRequest(string ReasonCode, DateOnly EffectiveDate);
+public sealed record CancelRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.CancellationReasons)] string ReasonCode, DateOnly EffectiveDate);
 
-public sealed record EndorsementRequest(string EndorsementType, DateOnly EffectiveDate, IReadOnlyList<EndorsementChange> Changes);
+public sealed record EndorsementRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EndorsementTypes)] string EndorsementType, DateOnly EffectiveDate,
+    IReadOnlyList<EndorsementChange> Changes);
 
 public sealed record PartyRequest(Guid PartyId, string Role, string? InsurerRef);
 
 public sealed record AssessorRequest(Guid AssessorPartyId);
 
-public sealed record SettlementRequestBody(Guid PayeePartyId, Guid BankAccountId, string ReserveType, string DecisionCode, string Rationale);
+public sealed record SettlementRequestBody(Guid PayeePartyId, Guid BankAccountId,
+    [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes)] string ReserveType,
+    [property: BuildingBlocks.Domain.CodeList(CodeLists.ClaimDecisionReasons)] string DecisionCode, string Rationale);
 
-public sealed record DeclineRequest(string DecisionCode, string Rationale);
+public sealed record DeclineRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.ClaimDecisionReasons)] string DecisionCode, string Rationale);
 
 public sealed record EstimateRequest(Guid RepairerPartyId, decimal Amount);
 
 public sealed record ReportRequest(decimal AssessedAmount, Guid? ReportDocumentId);
 
-public sealed record RecoveryRequest(string RecoveryType, Guid? CounterpartyPartyId, decimal ExpectedAmount);
+public sealed record RecoveryRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.RecoveryTypes)] string RecoveryType, Guid? CounterpartyPartyId,
+    decimal ExpectedAmount);
 
 public sealed record SalvageRequest(string Description);
 
-public sealed record DisposalRequest(string DisposalMethod, decimal Proceeds);
+public sealed record DisposalRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.DisposalMethods)] string DisposalMethod, decimal Proceeds);
 
-public sealed record RecoveredRequest(decimal Amount, string? ReserveType);
+public sealed record RecoveredRequest(decimal Amount, [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes)] string? ReserveType);
 
 /// <summary>
 /// The General module (§10): risk objects, quotes and underwriting referrals, proposals, policies with their risks and
@@ -460,4 +466,6 @@ public sealed class GeneralModule : IModule
 
 public sealed record PortalQuoteRequest(string ProductCode, Guid ProposerPartyId, string Currency, DateOnly PeriodStart, DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks);
 
-public sealed record PortalClaimRequest(Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, string CauseCode, string PerilCode, string? Description);
+public sealed record PortalClaimRequest(Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate,
+    [property: BuildingBlocks.Domain.CodeList(CodeLists.LossCauses)] string CauseCode, [property: BuildingBlocks.Domain.CodeList(CodeLists.Perils)] string PerilCode,
+    string? Description);

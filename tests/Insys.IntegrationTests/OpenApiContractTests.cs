@@ -205,6 +205,47 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
         }
     }
 
+    /// <summary>
+    /// BR-036 (the front end's GAP-034): every General and claims code field the front end listed declares its values (an
+    /// enum, or x-known-values for an open field) or names the static data table its codes come from (x-code-list). A
+    /// claim party's role has no list yet (OQ-122).
+    /// </summary>
+    [Fact]
+    public async Task GeneralAndClaimsCodeFields_DeclareTheirValuesOrTable_BR036()
+    {
+        string[] codes =
+        [
+            "billingFrequency", "collectionMethod", "reasonCode", "decisionCode", "endorsementType", "objectType", "valuationBasis", "riskZone", "refundBasis",
+            "coverStartsOn", "causeCode", "perilCode", "catEventCode", "reserveType", "recoveryType", "disposalMethod", "evidenceType", "channel", "domain",
+            "movementType",
+        ];
+        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        var undeclared = new List<string>();
+        var checkedFields = 0;
+        foreach (var schema in core.RootElement.GetProperty("components").GetProperty("schemas").EnumerateObject()
+                     .Where(s => s.Name.StartsWith("General", StringComparison.Ordinal) || s.Name.StartsWith("Claims", StringComparison.Ordinal)))
+        {
+            if (!schema.Value.TryGetProperty("properties", out var properties))
+            {
+                continue;
+            }
+
+            foreach (var property in properties.EnumerateObject().Where(p => codes.Contains(p.Name)))
+            {
+                checkedFields++;
+                var declared = property.Value.TryGetProperty("enum", out _) || property.Value.TryGetProperty("$ref", out _)
+                               || property.Value.TryGetProperty("x-known-values", out _) || property.Value.TryGetProperty("x-code-list", out _);
+                if (!declared)
+                {
+                    undeclared.Add($"{schema.Name}.{property.Name}");
+                }
+            }
+        }
+
+        checkedFields.ShouldBeGreaterThan(50);
+        undeclared.ShouldBeEmpty();
+    }
+
     /// <summary>GAP-033: the business reference types INSYS files documents under are declared on the documents list.</summary>
     [Fact]
     public async Task DocumentsList_DeclaresTheKnownBusinessReferenceTypes_GAP033()

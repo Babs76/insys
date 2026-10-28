@@ -39,13 +39,14 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.ClaimsFramework.Api;
 
-public sealed record EvidenceRequest(string EvidenceType, Guid? DocumentId);
+public sealed record EvidenceRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EvidenceTypes)] string EvidenceType, Guid? DocumentId);
 
 /// <param name="Reason">Why the reserve moves; required (OQ-079: an assessor adjusts a claim's reserve with a reason).</param>
-public sealed record ReserveRequest(ReserveAction Action, string ReserveType, decimal Amount, string Currency, string Reason);
+public sealed record ReserveRequest(ReserveAction Action, [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes)] string ReserveType, decimal Amount,
+    string Currency, string Reason);
 
 public sealed record DraftInstructionRequest(string InstructionRef, Guid PayeePartyId, Guid BankAccountId, decimal Amount, decimal ApprovedAmount, string Currency,
-    string ReserveType);
+    [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes)] string ReserveType);
 
 public sealed record PayeeRequest(Guid PayeePartyId, Guid BankAccountId);
 

@@ -124,7 +124,8 @@ public interface IGeneralRepository
 }
 
 /// <summary>A risk object type's attribute schema as configured (general.cfg_risk_object_types_and_attribute_schemas).</summary>
-public sealed record RiskObjectTypeDefinition(string ObjectType, int Version, IReadOnlyList<string> Attributes, IReadOnlyList<string> Validation);
+public sealed record RiskObjectTypeDefinition([property: CodeList(CodeLists.RiskObjectTypes)] string ObjectType, int Version, IReadOnlyList<string> Attributes,
+    IReadOnlyList<string> Validation);
 
 /// <summary>A renewal rule (general.cfg_renewal_rules).</summary>
 /// <summary>A product's renewal rule (general.cfg_renewal_rules): the notice for the invitation, whether it renews by itself, and whether it is re-rated.</summary>
@@ -246,14 +247,18 @@ public sealed record CoverageView(string CoverageCode, decimal SumInsured, strin
 public sealed record RiskView(Guid RiskObjectId, decimal SumInsured, DateOnly? AttachedFrom, DateOnly? DetachedOn, IReadOnlyList<CoverageView> Coverages);
 
 /// <param name="ValuationCurrency">The valuation's currency (BR-033); null when none was given (valuations before it was asked for).</param>
-public sealed record RiskObjectView(Guid Id, string ObjectType, JsonElement Attributes, int AttributeSchemaVersion, decimal? Valuation, string? ValuationBasis,
-    string? ValuationCurrency, string? Subdivision, string? PostalCode, string? RiskZone, RiskObjectStatus Status, long RowVersion)
+public sealed record RiskObjectView(Guid Id, [property: CodeList(CodeLists.RiskObjectTypes)] string ObjectType, JsonElement Attributes, int AttributeSchemaVersion,
+    decimal? Valuation, [property: CodeList(CodeLists.ValuationBases)] string? ValuationBasis,
+    string? ValuationCurrency, string? Subdivision, string? PostalCode, [property: CodeList(CodeLists.RiskZones)] string? RiskZone, RiskObjectStatus Status,
+    long RowVersion)
 {
     public static RiskObjectView From(RiskObject r) => new(r.Id, r.ObjectType, JsonDocument.Parse(r.Attributes).RootElement.Clone(), r.AttributeSchemaVersion, r.Valuation,
         r.ValuationBasis, r.ValuationCurrency, r.Subdivision, r.PostalCode, r.RiskZone, r.Status, r.RowVersion);
 }
 
-public sealed record ReferralView(Guid Id, string ReasonCode, [property: OneOf("OPEN", "APPROVED", "DECLINED")] string Status, Guid? ReferredBy, Guid? DecidedBy, string? DecisionCode, IReadOnlyList<string> SpecialConditions,
+public sealed record ReferralView(Guid Id, [property: CodeList(CodeLists.ReferralReasons)] string ReasonCode, [property: OneOf("OPEN", "APPROVED",
+    "DECLINED")] string Status, Guid? ReferredBy, Guid? DecidedBy, [property: CodeList(CodeLists.UnderwritingDecisions)] string? DecisionCode,
+    IReadOnlyList<string> SpecialConditions,
     string? DeclineReason);
 
 public sealed record QuoteView(Guid Id, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, Guid ProposerPartyId, string? IntermediaryCode,
@@ -274,12 +279,15 @@ public sealed record ProposalView(Guid Id, Guid QuoteId, ProposalStatus Status, 
     public static ProposalView From(GeneralProposal p) => new(p.Id, p.QuoteId, p.Status, p.SubmittedAt, JsonDocument.Parse(p.Declarations).RootElement.Clone(), p.RowVersion);
 }
 
-public sealed record CancellationView(string ReasonCode, DateOnly EffectiveDate, decimal RefundAmount, string RefundBasis, decimal Fee, DateTimeOffset? CancelledAt,
+public sealed record CancellationView([property: CodeList(CodeLists.CancellationReasons)] string ReasonCode, DateOnly EffectiveDate, decimal RefundAmount,
+    [property: OneOf("PRO_RATA", "SHORT_PERIOD", "NONE")] string RefundBasis, decimal Fee, DateTimeOffset? CancelledAt,
     DateTimeOffset? ReinstatedAt);
 
 public sealed record PolicyView(Guid Id, string PolicyNumber, string ProductCode, int ProductVersion, int RatingVersion, Guid PolicyholderPartyId, PolicyStatus Status,
-    DateOnly PeriodStart, DateOnly PeriodEnd, string Currency, decimal AnnualPremium, Guid BillingAccountRef, string? BillingFrequency, string? CollectionMethod,
-    Guid? RenewalOfId, string CoverStartsOn, DateOnly? FirstPaidOn, IReadOnlyList<RiskView> Risks, IReadOnlyList<CancellationView> Cancellations, long RowVersion,
+    DateOnly PeriodStart, DateOnly PeriodEnd, string Currency, decimal AnnualPremium, Guid BillingAccountRef,
+    [property: CodeList(CodeLists.BillingFrequencies)] string? BillingFrequency, [property: CodeList(CodeLists.CollectionMethods)] string? CollectionMethod,
+    Guid? RenewalOfId, [property: OneOf("ISSUE", "FIRST_PAYMENT")] string CoverStartsOn, DateOnly? FirstPaidOn, IReadOnlyList<RiskView> Risks,
+    IReadOnlyList<CancellationView> Cancellations, long RowVersion,
     Guid? QuoteId = null, Guid? ProposalId = null)
 {
     public static PolicyView From(GeneralPolicy p) => new(p.Id, p.PolicyNumber, p.ProductCode, p.ProductVersion, p.RatingVersion, p.PolicyholderPartyId, p.Status,
@@ -290,7 +298,8 @@ public sealed record PolicyView(Guid Id, string PolicyNumber, string ProductCode
         p.RowVersion, p.QuoteId);
 }
 
-public sealed record EndorsementView(Guid Id, string EndorsementNumber, Guid PolicyId, string EndorsementType, DateOnly EffectiveDate, EndorsementStatus Status,
+public sealed record EndorsementView(Guid Id, string EndorsementNumber, Guid PolicyId, [property: CodeList(CodeLists.EndorsementTypes)] string EndorsementType,
+    DateOnly EffectiveDate, EndorsementStatus Status,
     decimal PremiumDelta, decimal? NewAnnualPremium, string Currency, Guid? RatingRequestId, Guid? DocumentId, IReadOnlyList<EndorsementChange> Changes, long RowVersion,
     Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
@@ -304,11 +313,14 @@ public sealed record ClaimPartyView(Guid PartyId, string Role, string? InsurerRe
 /// currency. A settlement below it is a partial approval.</param>
 /// <param name="RequestedBy">Who requested the settlement's approval (BR-035).</param>
 /// <param name="BankAccountId">The payee's bank account the settlement is paid to (BR-035).</param>
-public sealed record SettlementView(decimal Amount, string Currency, Guid PayeePartyId, string ReserveType, bool Pending, Guid? ApprovalId, decimal? ClaimedAmount = null,
+public sealed record SettlementView(decimal Amount, string Currency, Guid PayeePartyId, [property: CodeList(CodeLists.ReserveTypes)] string ReserveType, bool Pending,
+    Guid? ApprovalId, decimal? ClaimedAmount = null,
     Guid? RequestedBy = null, Guid? BankAccountId = null);
 
 public sealed record ClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt,
-    string CauseCode, string PerilCode, string? CatEventCode, ClaimStatus Status, string? DecisionCode, string? DecisionRationale, SettlementView? Settlement,
+    [property: CodeList(CodeLists.LossCauses)] string CauseCode, [property: CodeList(CodeLists.Perils)] string PerilCode,
+    [property: CodeList(CodeLists.CatastropheEvents)] string? CatEventCode, ClaimStatus Status,
+    [property: CodeList(CodeLists.ClaimDecisionReasons)] string? DecisionCode, string? DecisionRationale, SettlementView? Settlement,
     IReadOnlyList<ClaimPartyView> Parties, long RowVersion,
     [property: OneOf(ClaimDecisionOutcomes.Approved, ClaimDecisionOutcomes.PartlyApproved, ClaimDecisionOutcomes.Declined), BuildingBlocks.Contracts.AlwaysPresent] string? Outcome = null,
     Workflow.Contracts.LatestRejection? LatestRejection = null, string? LossDescription = null, Guid? DecidedBy = null, DateTimeOffset? DecidedAt = null)
@@ -330,10 +342,11 @@ public sealed record AssessmentView(Guid Id, Guid ClaimId, Guid AssessorPartyId,
         a.ReportDocumentId, a.AssessedAt, a.Estimates.Select(e => new EstimateView(e.Id, e.RepairerPartyId, e.Amount, a.Currency, e.Status)).ToList(), a.RowVersion);
 }
 
-public sealed record SalvageView(Guid Id, string Description, string? DisposalMethod, decimal? Proceeds, string Currency);
+public sealed record SalvageView(Guid Id, string Description, [property: CodeList(CodeLists.DisposalMethods)] string? DisposalMethod, decimal? Proceeds, string Currency);
 
 /// <param name="Currency">Of the expected and recovered amounts and every salvage item's proceeds: the claim's policy's (BR-033).</param>
-public sealed record RecoveryView(Guid Id, Guid ClaimId, string RecoveryType, Guid? CounterpartyPartyId, decimal ExpectedAmount, decimal RecoveredAmount, string Currency,
+public sealed record RecoveryView(Guid Id, Guid ClaimId, [property: CodeList(CodeLists.RecoveryTypes)] string RecoveryType, Guid? CounterpartyPartyId,
+    decimal ExpectedAmount, decimal RecoveredAmount, string Currency,
     RecoveryStatus Status, IReadOnlyList<SalvageView> Salvage, long RowVersion)
 {
     public static RecoveryView From(RecoveryCase r) => new(r.Id, r.ClaimId, r.RecoveryType, r.CounterpartyPartyId, r.ExpectedAmount, r.RecoveredAmount, r.Currency, r.Status,

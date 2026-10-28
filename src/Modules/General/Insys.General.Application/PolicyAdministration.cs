@@ -40,20 +40,22 @@ namespace Insys.General.Application;
 /// Command IssuePolicy from the accepted quote version. The policy is billed on <paramref name="BillingAccountId"/>
 /// (an existing account of the payer) or on a new account Billing opens; the payer is the policyholder unless given.
 /// </summary>
-public sealed record IssuePolicy(Guid QuoteId, Guid? BillingAccountId, Guid? PayerPartyId, string BillingFrequency, string CollectionMethod, Guid? RenewalOfPolicyId)
+public sealed record IssuePolicy(Guid QuoteId, Guid? BillingAccountId, Guid? PayerPartyId, [property: CodeList(CodeLists.BillingFrequencies)] string BillingFrequency,
+    [property: CodeList(CodeLists.CollectionMethods)] string CollectionMethod, Guid? RenewalOfPolicyId)
     : ICommand<PolicyView>;
 
 /// <summary>Command RenewPolicy, where the product's renewal rule does not re-rate; a re-rated renewal is a new quote issued with <c>renewalOfPolicyId</c>.</summary>
 public sealed record RenewPolicy(Guid PolicyId) : ICommand<PolicyView>;
 
-public sealed record CancelPolicy(Guid PolicyId, string ReasonCode, DateOnly EffectiveDate) : ICommand<PolicyView>;
+public sealed record CancelPolicy(Guid PolicyId, [property: CodeList(CodeLists.CancellationReasons)] string ReasonCode, DateOnly EffectiveDate) : ICommand<PolicyView>;
 
 public sealed record ReinstatePolicy(Guid PolicyId) : ICommand<PolicyView>;
 
 public sealed record GetPolicy(Guid PolicyId) : IQuery<PolicyView>;
 
 /// <summary>Command DraftEndorsement: changes effective from a date within the policy period (GEN-003).</summary>
-public sealed record DraftEndorsement(Guid PolicyId, string EndorsementType, DateOnly EffectiveDate, IReadOnlyList<EndorsementChange> Changes) : ICommand<EndorsementView>;
+public sealed record DraftEndorsement(Guid PolicyId, [property: CodeList(CodeLists.EndorsementTypes)] string EndorsementType, DateOnly EffectiveDate,
+    IReadOnlyList<EndorsementChange> Changes) : ICommand<EndorsementView>;
 
 public sealed record SubmitEndorsement(Guid EndorsementId) : ICommand<EndorsementView>;
 

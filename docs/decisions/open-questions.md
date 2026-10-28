@@ -1182,3 +1182,8 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - the list codes for title and gender;
   - whether address type and capture channel are fixed lists (enums) or static data;
   - which classification an organisation's industry code uses.
+
+### OQ-122 A General claim party's role has no list (BR-036, 28 October 2026)
+- **The gap:** BR-036 declares the values or the code table of every General and claims code field the front end listed (its GAP-034). A claim party's `role` (`GeneralAddClaimParty`, `ClaimPartyView`) is checked only for length. The specification names no list for it, and INSYS itself writes none.
+- **Working position:** the role is free text, as before. Tests use `CLAIMANT` and `WITNESS`.
+- **Open, for the business:** whether claim party roles are a fixed list (an enum) or come from `party.ref_party_role_types` (its `GENERAL` domain roles), which would then also be checked.

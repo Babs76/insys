@@ -41,7 +41,8 @@ using Insys.ProductFactory.Contracts;
 namespace Insys.General.Application;
 
 /// <summary>Command NotifyLoss: the first notification of a loss on a policy's coverage.</summary>
-public sealed record NotifyLoss(Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, string CauseCode, string PerilCode, string? CatEventCode,
+public sealed record NotifyLoss(Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, [property: CodeList(CodeLists.LossCauses)] string CauseCode,
+    [property: CodeList(CodeLists.Perils)] string PerilCode, [property: CodeList(CodeLists.CatastropheEvents)] string? CatEventCode,
     string? Description) : ICommand<ClaimView>;
 
 /// <summary>Command RegisterClaim: the cover is validated (GEN-006) and the Claims Framework allocates the claim number (CLM-005).</summary>
@@ -54,10 +55,11 @@ public sealed record AppointAssessor(Guid ClaimId, Guid AssessorPartyId) : IComm
 
 /// <summary>Command ApproveSettlement: requested by the maker, approved in Workflow by a second person within authority (SRS-002).</summary>
 /// <param name="BankAccountId">The payee's verified bank account (party.bank_account); the approval covers it with the payee and amount.</param>
-public sealed record RequestSettlement(Guid ClaimId, Guid PayeePartyId, Guid BankAccountId, string ReserveType, string DecisionCode, string Rationale)
+public sealed record RequestSettlement(Guid ClaimId, Guid PayeePartyId, Guid BankAccountId, [property: CodeList(CodeLists.ReserveTypes)] string ReserveType,
+    [property: CodeList(CodeLists.ClaimDecisionReasons)] string DecisionCode, string Rationale)
     : ICommand<ClaimView>;
 
-public sealed record DeclineClaim(Guid ClaimId, string DecisionCode, string Rationale) : ICommand<ClaimView>;
+public sealed record DeclineClaim(Guid ClaimId, [property: CodeList(CodeLists.ClaimDecisionReasons)] string DecisionCode, string Rationale) : ICommand<ClaimView>;
 
 public enum ClaimAction
 {
@@ -86,7 +88,8 @@ public sealed record SubmitReport(Guid AssessmentId, decimal AssessedAmount, Gui
 public sealed record GetAssessment(Guid AssessmentId) : IQuery<AssessmentView>;
 
 
-public sealed record OpenRecovery(Guid ClaimId, string RecoveryType, Guid? CounterpartyPartyId, decimal ExpectedAmount) : ICommand<RecoveryView>;
+public sealed record OpenRecovery(Guid ClaimId, [property: CodeList(CodeLists.RecoveryTypes)] string RecoveryType, Guid? CounterpartyPartyId,
+    decimal ExpectedAmount) : ICommand<RecoveryView>;
 
 public enum RecoveryAction
 {
@@ -99,10 +102,11 @@ public sealed record ChangeRecovery(Guid RecoveryId, RecoveryAction Action) : IC
 
 public sealed record AddSalvageItem(Guid RecoveryId, string Description) : ICommand<RecoveryView>;
 
-public sealed record DisposeSalvage(Guid RecoveryId, Guid ItemId, string DisposalMethod, decimal Proceeds) : ICommand<RecoveryView>;
+public sealed record DisposeSalvage(Guid RecoveryId, Guid ItemId, [property: CodeList(CodeLists.DisposalMethods)] string DisposalMethod,
+    decimal Proceeds) : ICommand<RecoveryView>;
 
 /// <summary>Command RecordRecovery: recorded as a claim financial movement against the reserve type (CLM-004).</summary>
-public sealed record RecordRecovery(Guid RecoveryId, decimal Amount, string? ReserveType) : ICommand<RecoveryView>;
+public sealed record RecordRecovery(Guid RecoveryId, decimal Amount, [property: CodeList(CodeLists.ReserveTypes)] string? ReserveType) : ICommand<RecoveryView>;
 
 public sealed record GetRecovery(Guid RecoveryId) : IQuery<RecoveryView>;
 

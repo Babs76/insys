@@ -39,12 +39,14 @@ namespace Insys.General.Application;
 
 /// <summary>Command RegisterRiskObject: its attributes conform to the type's schema version (GEN-005).</summary>
 /// <param name="ValuationCurrency">The valuation's currency (BR-033), a 3-letter code; only with a valuation.</param>
-public sealed record RegisterRiskObject(string ObjectType, JsonElement Attributes, decimal? Valuation, string? ValuationBasis, string? Subdivision, string? PostalCode,
-    string? RiskZone, string? ValuationCurrency = null) : ICommand<RiskObjectView>;
+public sealed record RegisterRiskObject([property: CodeList(CodeLists.RiskObjectTypes)] string ObjectType, JsonElement Attributes, decimal? Valuation,
+    [property: CodeList(CodeLists.ValuationBases)] string? ValuationBasis, string? Subdivision, string? PostalCode,
+    [property: CodeList(CodeLists.RiskZones)] string? RiskZone, string? ValuationCurrency = null) : ICommand<RiskObjectView>;
 
 public sealed record UpdateRiskAttributes(Guid RiskObjectId, JsonElement Attributes) : ICommand<RiskObjectView>;
 
-public sealed record RevalueRiskObject(Guid RiskObjectId, decimal? Valuation, string? ValuationBasis, string? ValuationCurrency = null) : ICommand<RiskObjectView>;
+public sealed record RevalueRiskObject(Guid RiskObjectId, decimal? Valuation, [property: CodeList(CodeLists.ValuationBases)] string? ValuationBasis,
+    string? ValuationCurrency = null) : ICommand<RiskObjectView>;
 
 public sealed record DeactivateRiskObject(Guid RiskObjectId) : ICommand<RiskObjectView>;
 
@@ -67,10 +69,11 @@ public enum QuoteAction
 
 public sealed record ChangeQuote(Guid QuoteId, QuoteAction Action) : ICommand<QuoteView>;
 
-public sealed record ReferQuote(Guid QuoteId, string ReasonCode) : ICommand<QuoteView>;
+public sealed record ReferQuote(Guid QuoteId, [property: CodeList(CodeLists.ReferralReasons)] string ReasonCode) : ICommand<QuoteView>;
 
 /// <param name="DeclineReason">Why, when declined: the quote is then Declined for good.</param>
-public sealed record DecideReferral(Guid QuoteId, bool Approved, string DecisionCode, IReadOnlyList<string> SpecialConditions, string? DeclineReason = null) : ICommand<QuoteView>;
+public sealed record DecideReferral(Guid QuoteId, bool Approved, [property: CodeList(CodeLists.UnderwritingDecisions)] string DecisionCode,
+    IReadOnlyList<string> SpecialConditions, string? DeclineReason = null) : ICommand<QuoteView>;
 
 public sealed record GetQuote(Guid QuoteId) : IQuery<QuoteView>;
 
