@@ -36,7 +36,7 @@ namespace Insys.Billing.Application;
 // and its sub-brokers', from General and Life). Both within the caller's F103 scope. The view leaves out the account's
 // collection details, allocations and adjustments (§4).
 
-public sealed record PortalInvoiceView(Guid Id, string InvoiceNumber, string SourceDomain, Guid PolicyRef, DateOnly IssueDate, DateOnly DueDate, string Currency,
+public sealed record PortalInvoiceView(Guid Id, string InvoiceNumber, [property: BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")] string SourceDomain, Guid PolicyRef, DateOnly IssueDate, DateOnly DueDate, string Currency,
     decimal TotalAmount, decimal Outstanding, InvoiceStatus Status)
 {
     public static PortalInvoiceView From(Invoice i) => new(i.Id, i.InvoiceNumber, i.SourceDomain, i.PolicyRef, i.IssueDate, i.DueDate, i.Currency, i.TotalAmount,

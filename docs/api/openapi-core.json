@@ -8915,6 +8915,89 @@
         "x-function": [
           "BILLING_OPEN_ACCOUNT"
         ]
+      },
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Billing accounts by payer, policy and status, oldest first (BR-054)",
+        "description": "An account is listed when one of its schedules is in your scope, and shows only that part (PartlyInScope), as its read does.",
+        "operationId": "BillingListAccounts",
+        "parameters": [
+          {
+            "name": "payerPartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "policyRef",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/BillingAccountStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfBillingAccountView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "billing_account.read",
+        "x-function": [
+          "BILLING_ACCOUNTS"
+        ]
       }
     },
     "/api/v1/billing/accounts/{id}": {
@@ -9675,6 +9758,83 @@
         "x-permission": "invoice.create",
         "x-function": [
           "BILLING_RAISE_CREDIT_NOTE"
+        ]
+      }
+    },
+    "/api/v1/billing/refunds": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Refunds by account and status, oldest first (BR-055)",
+        "description": "Only refunds of accounts wholly in your scope, as a refund\u0027s read (OQ-081).",
+        "operationId": "BillingListRefunds",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/BillingRefundStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfBillingRefundView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "refund.read",
+        "x-function": [
+          "BILLING_REFUNDS"
         ]
       }
     },
@@ -33491,6 +33651,35 @@
           }
         }
       },
+      "BillingAccountRefundView": {
+        "required": [
+          "id",
+          "amount",
+          "currency",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BillingRefundStatus"
+          }
+        }
+      },
       "BillingAccountStatus": {
         "enum": [
           "Active",
@@ -33528,7 +33717,8 @@
             "type": "string"
           },
           "collectionMethod": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_collection_methods"
           },
           "status": {
             "$ref": "#/components/schemas/BillingAccountStatus"
@@ -33555,6 +33745,15 @@
           },
           "partlyInScope": {
             "type": "boolean"
+          },
+          "refunds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BillingAccountRefundView"
+            }
           }
         }
       },
@@ -33585,12 +33784,14 @@
           "daysOverdue",
           "amountOverdue",
           "nextAction",
-          "status"
+          "status",
+          "currency"
         ],
         "type": "object",
         "properties": {
           "bucketCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.cfg_arrears_ageing_buckets"
           },
           "daysOverdue": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -33609,13 +33810,23 @@
             "format": "double"
           },
           "nextAction": {
-            "type": "string"
+            "type": "string",
+            "x-known-values": [
+              "None",
+              "Reminder",
+              "Final notice",
+              "Lapse",
+              "Cancel"
+            ]
           },
           "status": {
             "enum": [
               "OPEN",
               "CLEARED"
             ],
+            "type": "string"
+          },
+          "currency": {
             "type": "string"
           }
         }
@@ -33633,6 +33844,11 @@
         "type": "object",
         "properties": {
           "sourceDomain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH"
+            ],
             "type": "string"
           },
           "policyRef": {
@@ -33643,7 +33859,8 @@
             "type": "string"
           },
           "frequency": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_billing_frequencies"
           },
           "startDate": {
             "type": "string",
@@ -33682,7 +33899,8 @@
             "format": "double"
           },
           "reasonCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_adjustment_and_reversal_reason_codes"
           }
         }
       },
@@ -33749,6 +33967,10 @@
             "format": "int32"
           },
           "chargeType": {
+            "enum": [
+              "PREMIUM",
+              "CREDIT"
+            ],
             "type": "string"
           },
           "description": {
@@ -33806,6 +34028,10 @@
             "type": "string"
           },
           "documentType": {
+            "enum": [
+              "Invoice",
+              "CreditNote"
+            ],
             "type": "string"
           },
           "billingAccountId": {
@@ -33813,6 +34039,11 @@
             "format": "uuid"
           },
           "sourceDomain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH"
+            ],
             "type": "string"
           },
           "policyRef": {
@@ -33928,7 +34159,8 @@
             "type": "string"
           },
           "collectionMethod": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_collection_methods"
           },
           "mandateRef": {
             "type": [
@@ -33961,6 +34193,11 @@
             "type": "string"
           },
           "sourceDomain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH"
+            ],
             "type": "string"
           },
           "policyRef": {
@@ -34016,7 +34253,8 @@
             "format": "double"
           },
           "reasonCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_adjustment_and_reversal_reason_codes"
           },
           "bankAccountId": {
             "type": "string",
@@ -34068,7 +34306,8 @@
             "type": "string"
           },
           "reasonCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_adjustment_and_reversal_reason_codes"
           },
           "status": {
             "$ref": "#/components/schemas/BillingRefundStatus"
@@ -34110,6 +34349,22 @@
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
             ]
+          },
+          "approvalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64",
+            "default": 0
           }
         }
       },
@@ -34133,6 +34388,11 @@
             "format": "uuid"
           },
           "sourceDomain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH"
+            ],
             "type": "string"
           },
           "policyRef": {
@@ -34143,7 +34403,8 @@
             "type": "string"
           },
           "frequency": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_billing_frequencies"
           },
           "startDate": {
             "type": "string",
@@ -35914,6 +36175,48 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AuditEventView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfBillingAccountView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingAccountView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfBillingRefundView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingRefundView"
             }
           },
           "nextCursor": {

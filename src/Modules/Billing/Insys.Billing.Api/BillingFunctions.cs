@@ -38,7 +38,7 @@ internal static class BillingFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("BILLING_ACCOUNTS", "BILLING", "Accounts", "billing/accounts", "BillingGetAccount")
+        .Screen("BILLING_ACCOUNTS", "BILLING", "Accounts", "billing/accounts", "BillingListAccounts", "BillingGetAccount")
         .Action("BILLING_OPEN_ACCOUNT", "BILLING_ACCOUNTS", "BillingOpenAccount")
         .Action("BILLING_CREATE_SCHEDULE", "BILLING_ACCOUNTS", "BillingCreateSchedule")
         .Action("BILLING_AMEND_SCHEDULE", "BILLING_ACCOUNTS", "BillingAmendSchedule")
@@ -49,7 +49,7 @@ internal static class BillingFunctions
         .Screen("BILLING_INVOICES", "BILLING", "Invoices & credit notes", "billing/invoices", "BillingGetInvoice", "BillingListInvoices")
         .Action("BILLING_RAISE_CREDIT_NOTE", "BILLING_INVOICES", "BillingRaiseCreditNote")
         .Screen("BILLING_DASHBOARD", "BILLING", "Arrears ageing & cases", "billing/summary", "BillingSummary")
-        .Screen("BILLING_REFUNDS", "BILLING", "Refunds (second person)", "billing/refunds", "BillingGetRefund")
+        .Screen("BILLING_REFUNDS", "BILLING", "Refunds (second person)", "billing/refunds", "BillingListRefunds", "BillingGetRefund")
         .Job("BILLING_DAILY_JOBS", "BILLING", "Background processing")
             .Functions,
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)

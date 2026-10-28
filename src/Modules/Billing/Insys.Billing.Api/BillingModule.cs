@@ -27,6 +27,7 @@
 using Insys.Billing.Api.StaticData;
 using Insys.Billing.Application;
 using Insys.Billing.Contracts;
+using Insys.Billing.Domain.Billing;
 using Insys.Billing.Infrastructure;
 using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Application.Context;
@@ -39,18 +40,19 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Billing.Api;
 
-public sealed record OpenAccountRequest(Guid PayerPartyId, string Currency, string CollectionMethod, string? MandateRef);
+public sealed record OpenAccountRequest(Guid PayerPartyId, string Currency, [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.CollectionMethods)] string CollectionMethod,
+    string? MandateRef);
 
-public sealed record CreateScheduleRequest(string SourceDomain, Guid PolicyRef, string ProductVersionRef, string Frequency, DateOnly StartDate, DateOnly? EndDate,
-    decimal InstalmentAmount);
+public sealed record CreateScheduleRequest([property: BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")] string SourceDomain, Guid PolicyRef, string ProductVersionRef,
+    [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.Frequencies)] string Frequency, DateOnly StartDate, DateOnly? EndDate, decimal InstalmentAmount);
 
 public sealed record AmendScheduleRequest(decimal InstalmentAmount, DateOnly EffectiveFrom);
 
 public sealed record IssueInvoicesRequest(DateOnly AsOf);
 
-public sealed record CreditNoteRequest(decimal Amount, string ReasonCode);
+public sealed record CreditNoteRequest(decimal Amount, [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.AdjustmentReasons)] string ReasonCode);
 
-public sealed record RefundRequestBody(decimal Amount, string ReasonCode, Guid BankAccountId);
+public sealed record RefundRequestBody(decimal Amount, [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.AdjustmentReasons)] string ReasonCode, Guid BankAccountId);
 
 /// <summary>The Billing module: accounts, premium schedules, invoices and credit notes, arrears and refunds (BIL-001 to BIL-004).</summary>
 public sealed class BillingModule : IModule
@@ -77,6 +79,14 @@ public sealed class BillingModule : IModule
             .WithSummary("Open a billing account for a payer")
             .RequirePermission(BillingPermissions.AccountCreate)
             .RequireIdempotencyKey();
+
+        accounts.MapGet("/", async (Guid? payerPartyId, Guid? policyRef, AccountStatus? status, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => dispatcher.Query(new ListAccounts(payerPartyId, policyRef, status, after, size), ct), a => a.Id))
+            .Produces<CursorPage<AccountView>>(StatusCodes.Status200OK)
+            .WithName("BillingListAccounts")
+            .WithSummary("Billing accounts by payer, policy and status, oldest first (BR-054)")
+            .WithDescription("An account is listed when one of its schedules is in your scope, and shows only that part (PartlyInScope), as its read does.")
+            .RequirePermission(BillingPermissions.AccountRead);
 
         accounts.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetAccount(id), ct)).ToHttp(Results.Ok))
             .Produces<AccountView>(StatusCodes.Status200OK)
@@ -156,6 +166,14 @@ public sealed class BillingModule : IModule
             .RequirePermission(BillingPermissions.InvoiceCreate)
             .RequireIdempotencyKey();
 
+        billing.MapGet("/refunds", async (Guid? accountId, RefundStatus? status, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => dispatcher.Query(new ListRefunds(accountId, status, after, size), ct), r => r.Id))
+            .Produces<CursorPage<RefundView>>(StatusCodes.Status200OK)
+            .WithName("BillingListRefunds")
+            .WithSummary("Refunds by account and status, oldest first (BR-055)")
+            .WithDescription("Only refunds of accounts wholly in your scope, as a refund's read (OQ-081).")
+            .RequirePermission(BillingPermissions.RefundRead);
+
         billing.MapGet("/refunds/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetRefund(id), ct)).ToHttp(Results.Ok))
             .Produces<RefundView>(StatusCodes.Status200OK)
             .WithName("BillingGetRefund")
@@ -185,5 +203,17 @@ public sealed class BillingModule : IModule
             .WithName("PortalBillingGetInvoice")
             .WithSummary("An invoice of the member or broker, without the account's collection details or allocations")
             .RequirePermission(BillingPermissions.InvoiceRead).ForPortal(member, broker);
+    }
+
+    /// <summary>A cursor page of a list query (GAP-032).</summary>
+    private static async Task<IResult> Page<T>(string? cursor, int? limit, Func<Guid?, int, Task<BuildingBlocks.Domain.Result<IReadOnlyList<T>>>> query, Func<T, Guid> id)
+    {
+        if (!Cursor.TryDecode(cursor, out var after))
+        {
+            return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+        }
+
+        var size = Cursor.ClampLimit(limit);
+        return (await query(after, size)).ToHttp(items => Results.Ok(new CursorPage<T>(items, items.Count == size ? Cursor.Encode(id(items[^1])) : null)));
     }
 }

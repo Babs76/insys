@@ -367,6 +367,9 @@ public sealed class RefundRequest : AggregateRoot<Guid>
     /// <summary>The payer's bank account (party.bank_account) the refund is paid to, and the keyed hash of its number, as approved.</summary>
     public Guid? BankAccountId { get; private set; }
 
+    /// <summary>The Workflow approval that approved the refund (BR-055); null until approved.</summary>
+    public Guid? ApprovalId { get; private set; }
+
     public string? PayeeBankHash { get; private set; }
 
     /// <summary>What the refund's approval covers: payer, bank account, amount and currency.</summary>
@@ -400,7 +403,7 @@ public sealed class RefundRequest : AggregateRoot<Guid>
     /// approval (rejected, expired, withdrawn) rejects the refund for good; an expired or withdrawn one has no checker
     /// (Guid.Empty), so no checker is compared or recorded. A refund already rejected takes a redelivered ending unchanged.
     /// </summary>
-    public Result Decide(bool approved, Guid checkerId, string? subjectHash, DateTimeOffset now)
+    public Result Decide(bool approved, Guid checkerId, string? subjectHash, DateTimeOffset now, Guid? approvalId = null)
     {
         if (!approved && Status == RefundStatus.Rejected)
         {
@@ -424,6 +427,7 @@ public sealed class RefundRequest : AggregateRoot<Guid>
             DecidedBy = hasChecker ? checkerId : null;
             if (approved)
             {
+                ApprovalId = approvalId;
                 Raise(new RefundApproved(Id, BillingAccountId, PayerPartyId, BankAccountId!.Value, Amount, Currency, now));
             }
         }

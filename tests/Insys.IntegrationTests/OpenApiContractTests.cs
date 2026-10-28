@@ -251,6 +251,39 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
         }
     }
 
+    /// <summary>BR-056: every Billing code field declares its values (an enum or known values) or names its static data table, and the arrears view its currency.</summary>
+    [Fact]
+    public async Task BillingCodeFields_DeclareTheirValuesOrTable_BR056()
+    {
+        string[] codes = ["collectionMethod", "frequency", "sourceDomain", "reasonCode", "bucketCode", "nextAction", "chargeType", "documentType", "status"];
+        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        var undeclared = new List<string>();
+        var checkedFields = 0;
+        foreach (var schema in core.RootElement.GetProperty("components").GetProperty("schemas").EnumerateObject().Where(s => s.Name.StartsWith("Billing", StringComparison.Ordinal)))
+        {
+            if (!schema.Value.TryGetProperty("properties", out var properties))
+            {
+                continue;
+            }
+
+            foreach (var property in properties.EnumerateObject().Where(p => codes.Contains(p.Name)))
+            {
+                checkedFields++;
+                var declared = property.Value.TryGetProperty("enum", out _) || property.Value.TryGetProperty("$ref", out _)
+                               || property.Value.TryGetProperty("x-known-values", out _) || property.Value.TryGetProperty("x-code-list", out _);
+                if (!declared)
+                {
+                    undeclared.Add($"{schema.Name}.{property.Name}");
+                }
+            }
+        }
+
+        checkedFields.ShouldBeGreaterThan(10);
+        undeclared.ShouldBeEmpty();
+        core.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("BillingArrearsView").GetProperty("properties").TryGetProperty("currency", out _)
+            .ShouldBeTrue();
+    }
+
     /// <summary>
     /// Riders BR-023 and BR-038: an audit event's actorType is an enum (USER, SERVICE); appointing an assessor, creating a
     /// quote and drafting an endorsement declare what follows them asynchronously.

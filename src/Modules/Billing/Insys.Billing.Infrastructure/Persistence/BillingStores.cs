@@ -82,6 +82,69 @@ internal sealed class BillingRepository(BillingDbContext db, IExecutionContext e
         return whole ? refund : execution.InScope(refund, null, null);
     }
 
+    public async Task<IReadOnlyList<BillingAccount>> Accounts(Guid? payerPartyId, Guid? policyRef, AccountStatus? status, Guid? afterId, int limit,
+        CancellationToken cancellationToken)
+    {
+        var accounts = db.Accounts.AsNoTracking().Include(a => a.Schedules).ThenInclude(s => s.Instalments).Include(a => a.Arrears).AsSplitQuery();
+        if (!execution.CurrentScope.IsUnrestricted)
+        {
+            var inScope = db.Set<PremiumSchedule>().AsNoTracking().InScope(execution.CurrentScope, s => s.ProductCode, s => s.OrgNodeCode);
+            accounts = accounts.Where(a => inScope.Any(s => s.BillingAccountId == a.Id));
+        }
+
+        if (payerPartyId is { } payer)
+        {
+            accounts = accounts.Where(a => a.PayerPartyId == payer);
+        }
+
+        if (policyRef is { } policy)
+        {
+            accounts = accounts.Where(a => a.Schedules.Any(s => s.PolicyRef == policy));
+        }
+
+        if (status is { } s)
+        {
+            accounts = accounts.Where(a => a.Status == s);
+        }
+
+        if (afterId is { } after)
+        {
+            accounts = accounts.Where(a => a.Id.CompareTo(after) > 0);
+        }
+
+        return await accounts.OrderBy(a => a.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<RefundRequest>> Refunds(Guid? accountId, RefundStatus? status, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var refunds = db.Refunds.AsNoTracking();
+        if (!execution.CurrentScope.IsUnrestricted)
+        {
+            // A refund is paid from the whole account's credit: only accounts all of whose schedules are in scope (OQ-081).
+            var schedules = db.Set<PremiumSchedule>().AsNoTracking();
+            var inScope = schedules.InScope(execution.CurrentScope, s => s.ProductCode, s => s.OrgNodeCode);
+            refunds = refunds.Where(r => schedules.Count(s => s.BillingAccountId == r.BillingAccountId) == inScope.Count(s => s.BillingAccountId == r.BillingAccountId)
+                                         && schedules.Any(s => s.BillingAccountId == r.BillingAccountId));
+        }
+
+        if (accountId is { } account)
+        {
+            refunds = refunds.Where(r => r.BillingAccountId == account);
+        }
+
+        if (status is { } s)
+        {
+            refunds = refunds.Where(r => r.Status == s);
+        }
+
+        if (afterId is { } after)
+        {
+            refunds = refunds.Where(r => r.Id.CompareTo(after) > 0);
+        }
+
+        return await refunds.OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
     public async Task<BillingAccount?> AccountForPolicy(string sourceDomain, Guid policyRef, CancellationToken cancellationToken) =>
         await db.Set<PremiumSchedule>().AsNoTracking().Where(s => s.SourceDomain == sourceDomain && s.PolicyRef == policyRef).Select(s => (Guid?)s.BillingAccountId)
             .FirstOrDefaultAsync(cancellationToken) is { } id ? await Account(id, cancellationToken) : null;

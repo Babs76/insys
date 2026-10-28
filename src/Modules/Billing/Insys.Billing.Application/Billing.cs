@@ -49,6 +49,12 @@ public interface IBillingRepository
 
     Task<RefundRequest?> Refund(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>BR-054: accounts with a schedule in the caller's scope, by payer, policy and status, by ID after <paramref name="afterId"/>.</summary>
+    Task<IReadOnlyList<BillingAccount>> Accounts(Guid? payerPartyId, Guid? policyRef, AccountStatus? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>BR-055: refunds of accounts wholly in the caller's scope, by account and status, by ID after <paramref name="afterId"/>.</summary>
+    Task<IReadOnlyList<RefundRequest>> Refunds(Guid? accountId, RefundStatus? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
     /// <summary>The account billing a domain's policy, through its premium schedule.</summary>
     Task<BillingAccount?> AccountForPolicy(string sourceDomain, Guid policyRef, CancellationToken cancellationToken);
 
@@ -91,17 +97,35 @@ public interface IBillingCodes
 
 public sealed record InstalmentView(Guid Id, DateOnly DueDate, decimal Amount, InstalmentStatus Status, Guid? InvoiceId);
 
-public sealed record ScheduleView(Guid Id, string SourceDomain, Guid PolicyRef, string ProductVersionRef, string Frequency, DateOnly StartDate, DateOnly? EndDate,
-    decimal InstalmentAmount, string Currency, IReadOnlyList<InstalmentView> Instalments);
+public sealed record ScheduleView(Guid Id, [property: OneOf("LIFE", "GENERAL", "HEALTH")] string SourceDomain, Guid PolicyRef, string ProductVersionRef,
+    [property: CodeList(BillingCodeLists.Frequencies)] string Frequency, DateOnly StartDate, DateOnly? EndDate, decimal InstalmentAmount, string Currency,
+    IReadOnlyList<InstalmentView> Instalments);
 
-public sealed record ArrearsView(string BucketCode, int DaysOverdue, decimal AmountOverdue, string NextAction, [property: OneOf("OPEN", "CLEARED")] string Status);
+/// <param name="NextAction">The ageing bucket's action (billing.cfg_arrears_ageing_buckets.action), for the arrears case's next step.</param>
+/// <param name="Currency">The account's currency, which the amount overdue is in (BR-056).</param>
+public sealed record ArrearsView([property: CodeList(BillingCodeLists.AgeingBuckets)] string BucketCode, int DaysOverdue, decimal AmountOverdue,
+    [property: KnownValues("None", "Reminder", "Final notice", "Lapse", "Cancel")] string NextAction, [property: OneOf("OPEN", "CLEARED")] string Status, string Currency);
+
+/// <summary>The tables Billing's code fields come from (BR-056).</summary>
+public static class BillingCodeLists
+{
+    public const string Frequencies = "billing.ref_billing_frequencies";
+    public const string CollectionMethods = "billing.ref_collection_methods";
+    public const string AdjustmentReasons = "billing.ref_adjustment_and_reversal_reason_codes";
+    public const string AgeingBuckets = "billing.cfg_arrears_ageing_buckets";
+}
+
+/// <summary>One of an account's refunds (BR-055).</summary>
+public sealed record AccountRefundView(Guid Id, decimal Amount, string Currency, RefundStatus Status);
 
 /// <param name="PartlyInScope">
 /// True when the account also bills policies outside the caller's scope (F103, OQ-081): only the schedules in scope are
 /// shown, and the account-level arrears are left out, so no other branch's or product's figures show through it.
 /// </param>
-public sealed record AccountView(Guid Id, string AccountNumber, Guid PayerPartyId, string Currency, string CollectionMethod, AccountStatus Status,
-    IReadOnlyList<ScheduleView> Schedules, IReadOnlyList<ArrearsView> Arrears, long RowVersion, bool PartlyInScope)
+/// <param name="Refunds">The account's refunds (BR-055), on the read by ID, when the caller covers the whole account; null otherwise.</param>
+public sealed record AccountView(Guid Id, string AccountNumber, Guid PayerPartyId, string Currency, [property: CodeList(BillingCodeLists.CollectionMethods)] string CollectionMethod,
+    AccountStatus Status, IReadOnlyList<ScheduleView> Schedules, IReadOnlyList<ArrearsView> Arrears, long RowVersion, bool PartlyInScope,
+    IReadOnlyList<AccountRefundView>? Refunds = null)
 {
     public static AccountView From(BillingAccount a, AccessScope scope)
     {
@@ -109,7 +133,7 @@ public sealed record AccountView(Guid Id, string AccountNumber, Guid PayerPartyI
         return new(a.Id, a.AccountNumber, a.PayerPartyId, a.Currency, a.CollectionMethod, a.Status,
         a.Schedules.Where(s => whole || scope.Allows(s.ProductCode, s.OrgNodeCode)).Select(s => new ScheduleView(s.Id, s.SourceDomain, s.PolicyRef, s.ProductVersionRef, s.Frequency, s.StartDate, s.EndDate, s.InstalmentAmount,
             s.Currency, s.Instalments.OrderBy(i => i.DueDate).Select(i => new InstalmentView(i.Id, i.DueDate, i.Amount, i.Status, i.InvoiceId)).ToList())).ToList(),
-        whole ? a.Arrears.Select(r => new ArrearsView(r.BucketCode, r.DaysOverdue, r.AmountOverdue, r.NextAction, r.Status)).ToList() : [], a.RowVersion, !whole);
+        whole ? a.Arrears.Select(r => new ArrearsView(r.BucketCode, r.DaysOverdue, r.AmountOverdue, r.NextAction, r.Status, a.Currency)).ToList() : [], a.RowVersion, !whole);
     }
 }
 
@@ -154,9 +178,10 @@ internal static class AccountScopes
             : Error.Forbidden(ErrorCodes.OutOfScope, "The account also bills policies outside your scope, so this account-wide operation is refused.");
 }
 
-public sealed record InvoiceLineView(int LineNo, string ChargeType, string Description, decimal Amount);
+public sealed record InvoiceLineView(int LineNo, [property: OneOf("PREMIUM", "CREDIT")] string ChargeType, string Description, decimal Amount);
 
-public sealed record InvoiceView(Guid Id, string InvoiceNumber, string DocumentType, Guid BillingAccountId, string SourceDomain, Guid PolicyRef, string ProductVersionRef,
+public sealed record InvoiceView(Guid Id, string InvoiceNumber, [property: OneOf("Invoice", "CreditNote")] string DocumentType, Guid BillingAccountId,
+    [property: OneOf("LIFE", "GENERAL", "HEALTH")] string SourceDomain, Guid PolicyRef, string ProductVersionRef,
     DateOnly IssueDate, DateOnly DueDate, string Currency, decimal NetAmount, decimal TaxAmount, decimal TotalAmount, decimal AllocatedAmount, decimal Credited,
     decimal Outstanding, InvoiceStatus Status, Guid? ReversesInvoiceId, IReadOnlyList<InvoiceLineView> Lines)
 {
@@ -165,8 +190,10 @@ public sealed record InvoiceView(Guid Id, string InvoiceNumber, string DocumentT
         i.Status, i.ReversesInvoiceId, i.Lines.OrderBy(l => l.LineNo).Select(l => new InvoiceLineView(l.LineNo, l.ChargeType, l.Description, l.Amount)).ToList());
 }
 
-public sealed record RefundView(Guid Id, Guid BillingAccountId, decimal Amount, string Currency, string ReasonCode, RefundStatus Status, Guid? PaymentId, Guid? RequestedBy,
-    Guid? DecidedBy, Guid? BankAccountId, LatestRejection? LatestRejection = null);
+/// <param name="ApprovalId">The Workflow approval that approved the refund (BR-055); null until approved, and for refunds approved before V0084.</param>
+public sealed record RefundView(Guid Id, Guid BillingAccountId, decimal Amount, string Currency, [property: CodeList(BillingCodeLists.AdjustmentReasons)] string ReasonCode,
+    RefundStatus Status, Guid? PaymentId, Guid? RequestedBy, Guid? DecidedBy, Guid? BankAccountId, LatestRejection? LatestRejection = null, Guid? ApprovalId = null,
+    long RowVersion = 0);
 
 public sealed record OpenAccount(Guid PayerPartyId, string Currency, string CollectionMethod, string? MandateRef) : ICommand<AccountView>;
 
@@ -190,6 +217,12 @@ public sealed record CloseAccount(Guid AccountId) : ICommand<AccountView>;
 public sealed record RequestRefund(Guid AccountId, decimal Amount, string ReasonCode, Guid BankAccountId) : ICommand<RefundView>;
 
 public sealed record GetAccount(Guid AccountId) : IQuery<AccountView>;
+
+/// <summary>BR-054: billing accounts by payer, policy and status, oldest first, each showing only what is in the caller's scope.</summary>
+public sealed record ListAccounts(Guid? PayerPartyId, Guid? PolicyRef, AccountStatus? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<AccountView>>;
+
+/// <summary>BR-055: refunds by account and status, oldest first, of accounts wholly in the caller's scope.</summary>
+public sealed record ListRefunds(Guid? AccountId, RefundStatus? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<RefundView>>;
 
 public sealed record GetInvoice(Guid InvoiceId) : IQuery<InvoiceView>;
 
@@ -527,10 +560,31 @@ internal sealed class RequestRefundHandler(IBillingRepository billing, IBankAcco
     }
 }
 
-internal sealed class GetAccountHandler(IBillingRepository billing, IExecutionContext execution) : IQueryHandler<GetAccount, AccountView>
+internal sealed class GetAccountHandler(IBillingRepository billing, IExecutionContext execution) : IQueryHandler<GetAccount, AccountView>,
+    IQueryHandler<ListAccounts, IReadOnlyList<AccountView>>, IQueryHandler<ListRefunds, IReadOnlyList<RefundView>>
 {
-    public async Task<Result<AccountView>> Handle(GetAccount query, CancellationToken cancellationToken) =>
-        await billing.Account(query.AccountId, cancellationToken) is { } a ? AccountView.From(a, execution.CurrentScope) : Error.NotFound(ErrorCodes.NotFound, "The billing account was not found.");
+    public async Task<Result<AccountView>> Handle(GetAccount query, CancellationToken cancellationToken)
+    {
+        if (await billing.Account(query.AccountId, cancellationToken) is not { } a)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The billing account was not found.");
+        }
+
+        var view = AccountView.From(a, execution.CurrentScope);
+        return view.PartlyInScope
+            ? view
+            : view with
+            {
+                Refunds = (await billing.Refunds(a.Id, null, null, 200, cancellationToken)).Select(r => new AccountRefundView(r.Id, r.Amount, r.Currency, r.Status)).ToList(),
+            };
+    }
+
+    public async Task<Result<IReadOnlyList<AccountView>>> Handle(ListAccounts query, CancellationToken cancellationToken) =>
+        (await billing.Accounts(query.PayerPartyId, query.PolicyRef, query.Status, query.AfterId, query.Limit, cancellationToken))
+        .Select(a => AccountView.From(a, execution.CurrentScope)).ToList();
+
+    public async Task<Result<IReadOnlyList<RefundView>>> Handle(ListRefunds query, CancellationToken cancellationToken) =>
+        (await billing.Refunds(query.AccountId, query.Status, query.AfterId, query.Limit, cancellationToken)).Select(Views.From).ToList();
 }
 
 internal sealed class GetInvoiceHandler(IBillingRepository billing) : IQueryHandler<GetInvoice, InvoiceView>
@@ -574,7 +628,7 @@ internal sealed class AccountsDueHandler(IBillingRepository billing) : IQueryHan
 internal static class Views
 {
     public static RefundView From(RefundRequest r) => new(r.Id, r.BillingAccountId, r.Amount, r.Currency, r.ReasonCode, r.Status, r.PaymentId, r.RequestedBy,
-        r.DecidedBy, r.BankAccountId);
+        r.DecidedBy, r.BankAccountId, null, r.ApprovalId, r.RowVersion);
 }
 
 /// <summary>
@@ -641,7 +695,7 @@ public sealed class BillingPolicies(IBillingRepository billing, IBusinessDate bu
             return;
         }
 
-        if (refund.Decide(true, granted.CheckerId, granted.SubjectHash, clock.UtcNow).IsFailure)
+        if (refund.Decide(true, granted.CheckerId, granted.SubjectHash, clock.UtcNow, granted.ApprovalId).IsFailure)
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
         }

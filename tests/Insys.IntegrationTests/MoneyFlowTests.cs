@@ -427,6 +427,20 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         await Approve(BillingApprovals.RefundBusinessRefType, refund);
         (await (await _maker.GetAsync($"/api/v1/billing/refunds/{refund}")).Json()).GetProperty("status").GetString().ShouldBe("Approved");
 
+        // BR-054, BR-055: the payer's account is listed, names its refunds, and the refund is listed by account and status, with its approval.
+        var refundApproval = (await (await _maker.GetAsync($"/api/v1/workflow/approvals?businessRefType={BillingApprovals.RefundBusinessRefType}&businessRefId={refund}")).Json())
+            .GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        var accounts = await (await _maker.GetAsync($"/api/v1/billing/accounts?payerPartyId={payer}")).Json();
+        ShouldMatchDocumented(accounts, "BillingListAccounts");
+        accounts.GetProperty("items").EnumerateArray().Select(a => a.GetProperty("id").GetGuid()).ShouldBe([account]);
+        (await (await _maker.GetAsync($"/api/v1/billing/accounts/{account}")).Json()).GetProperty("refunds").EnumerateArray()
+            .Select(r => (r.GetProperty("id").GetGuid(), r.GetProperty("status").GetString())).ShouldBe([(refund, "Approved")]);
+        var refunds = await (await _maker.GetAsync($"/api/v1/billing/refunds?accountId={account}&status=Approved")).Json();
+        ShouldMatchDocumented(refunds, "BillingListRefunds");
+        var listedRefund = refunds.GetProperty("items").EnumerateArray().Single();
+        (listedRefund.GetProperty("id").GetGuid(), listedRefund.GetProperty("approvalId").GetGuid()).ShouldBe((refund, refundApproval));
+        (await (await _maker.GetAsync($"/api/v1/billing/refunds?accountId={account}&status=Rejected")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+
         // GAP-036: the payout exists from approval, and the refund shows it before it is paid; it can be found from the refund.
         await _factory.DrainOutbox();
         var created = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @r", ("r", refund));
