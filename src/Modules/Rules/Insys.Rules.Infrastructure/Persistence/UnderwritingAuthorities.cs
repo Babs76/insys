@@ -35,7 +35,13 @@ namespace Insys.Rules.Infrastructure.Persistence;
 /// <summary>Underwriting authority matrices in force (rules.cfg_authority_matrices), on Rules' own connection.</summary>
 internal sealed class UnderwritingAuthorities([FromKeyedServices(RulesDbContext.SchemaName)] NpgsqlDataSource dataSource) : IUnderwritingAuthorities
 {
-    public async Task<IReadOnlyList<UnderwritingAuthority>> For(Guid tenantId, IReadOnlyCollection<string> roleCodes, string productCode, DateOnly day,
+    public Task<IReadOnlyList<UnderwritingAuthority>> For(Guid tenantId, IReadOnlyCollection<string> roleCodes, string productCode, DateOnly day,
+        CancellationToken cancellationToken) => Read(tenantId, roleCodes, productCode, day, cancellationToken);
+
+    public Task<IReadOnlyList<UnderwritingAuthority>> ForProduct(Guid tenantId, string productCode, DateOnly day, CancellationToken cancellationToken) =>
+        Read(tenantId, null, productCode, day, cancellationToken);
+
+    private async Task<IReadOnlyList<UnderwritingAuthority>> Read(Guid tenantId, IReadOnlyCollection<string>? roleCodes, string productCode, DateOnly day,
         CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -44,12 +50,13 @@ internal sealed class UnderwritingAuthorities([FromKeyedServices(RulesDbContext.
         await using var command = new NpgsqlCommand("""
             SELECT role_code, product_code, max_sum_assured, decision_types FROM rules.cfg_authority_matrices
             WHERE (tenant_id = @t OR tenant_id IS NULL) AND record_status = ANY(@statuses) AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)
-              AND role_code = ANY(@roles) AND (product_code IS NULL OR product_code = '' OR product_code = @product)
+              AND (@allRoles OR role_code = ANY(@roles)) AND (product_code IS NULL OR product_code = '' OR product_code = @product)
             """, connection, transaction);
+        command.Parameters.AddWithValue("allRoles", roleCodes is null);
         command.Parameters.AddWithValue("t", tenantId);
         command.Parameters.AddWithValue("statuses", StaticLifecycle.Configuration.InForce);
         command.Parameters.AddWithValue("day", day);
-        command.Parameters.AddWithValue("roles", roleCodes.ToArray());
+        command.Parameters.AddWithValue("roles", (roleCodes ?? []).ToArray());
         command.Parameters.AddWithValue("product", productCode);
         var rows = new List<UnderwritingAuthority>();
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))

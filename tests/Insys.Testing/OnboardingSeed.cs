@@ -287,6 +287,10 @@ public static class OnboardingSeed
             ("inputs", System.Text.Json.JsonDocument.Parse("""{"currency":"ZAR","frequency":"ANNUAL","sum_insured":100000,"vehicle_group":"G3"}""").RootElement),
             ("expected_premium", 3050m), ("tolerance", 0m));
 
+        // A role with underwriting authority to decide the product's referrals (GENERAL_REFERRAL_AUTHORITY).
+        await database.SeedStaticFilled(tenantId, "rules.cfg_authority_matrices", "EFFECTIVE", "AM-READY", from, ("role_code", "UW-READY"), ("product_code", "P-READY"),
+            ("max_sum_assured", 1_000_000m), ("decision_types", new[] { "ACCEPT", "DECLINE" }));
+
         // INTEGRATION_AND_REPORTING
         await database.SeedStaticFilled(tenantId, "finance.cfg_gl_export_layouts", "EFFECTIVE", "GL", from, ("format", "CSV"));
     }

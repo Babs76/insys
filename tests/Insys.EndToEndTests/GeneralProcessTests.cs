@@ -726,6 +726,13 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (quarterly.GetProperty("premium").GetDecimal(), quarterly.GetProperty("premiumFrequency").GetString(), quarterly.GetProperty("instalmentPremium").GetDecimal())
             .ShouldBe((3_050m, "ANNUAL", 3_050m));
         (priced.GetProperty("premiumFrequency").GetString(), priced.GetProperty("instalmentPremium").GetDecimal()).ShouldBe(("ANNUAL", 3_050m), "none chosen");
+
+        // An instalment loading for a frequency the product allows: quarterly at 4%, 3 050 / 4 × 1.04.
+        await Seed("general.cfg_product_billing_frequencies", "EFFECTIVE", $"{Product}-QUARTERLY", ("product_code", Product), ("frequency", "QUARTERLY"),
+            ("instalment_loading_pct", 4m));
+        var loaded = await PortalQuote(await Vehicle(), "QUARTERLY");
+        (loaded.GetProperty("premium").GetDecimal(), loaded.GetProperty("premiumFrequency").GetString(), loaded.GetProperty("instalmentPremium").GetDecimal())
+            .ShouldBe((3_050m, "QUARTERLY", 793.00m));
         (await (await Quote(await Vehicle(), "WEEKLY")).Code()).ShouldBe("GENERAL_CODE_NOT_IN_FORCE");
 
         // The broker has no way to price a quote: Rating's calculation and the staff quote operations are not open to it.
@@ -785,7 +792,21 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await _checker.PostAsJsonAsync($"/api/v1/general/quotes/{referredId}/referral-decision", Decision("ACCEPT_LOADED"))).Code())
             .ShouldBe("GENERAL_UW_AUTHORITY_EXCEEDED", "a decision type outside the senior underwriter's");
         (await BrokersQuote(referredId)).GetProperty("status").GetString().ShouldBe("Referred");
+
+        // Its referral task is in the queue of the role whose authority covers it: the senior underwriter's (the underwriter's
+        // 50 000 does not cover 100 000). The decision closes it.
+        string ReferralTask(string column) => $"""
+            SELECT t.{column} FROM workflow.task t JOIN workflow.process_instance p ON p.tenant_id = t.tenant_id AND p.id = t.process_instance_id
+            WHERE p.process_code = 'GENERAL_REFERRAL' AND p.business_ref_type = 'GENERAL_QUOTE' AND p.business_ref_id = @q
+            """;
+        var seniorRole = await _db.ScalarAsOwner<string>("""
+            SELECT a.role_code FROM iam.user_role_assignment a JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id
+            WHERE u.external_subject = 'senior-underwriter' AND a.role_code IN (SELECT role_code FROM rules.cfg_authority_matrices WHERE code = 'AM-SENIOR')
+            """);
+        (await _db.ScalarAsOwner<string>(ReferralTask("queue_code"), ("q", referredId))).ShouldBe(seniorRole);
         (await _checker.PostAsJsonAsync($"/api/v1/general/quotes/{referredId}/referral-decision", Decision("ACCEPT"))).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<string>(ReferralTask("status"), ("q", referredId))).ShouldBe("COMPLETED");
         var approved = await BrokersQuote(referredId);
         (approved.GetProperty("status").GetString(), approved.GetProperty("premium").GetDecimal()).ShouldBe(("Rated", 3_050m));
 

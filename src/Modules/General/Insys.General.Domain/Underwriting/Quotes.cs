@@ -67,6 +67,13 @@ public sealed record GeneralQuoteExpired(Guid QuoteId, string QuoteNumber, int Q
 public sealed record GeneralQuotePricingRequested(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, string Currency,
     DateOnly RatingDate, string ValuesJson, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>The quote was referred to an underwriter (by hand or by the rules), with its total sum insured, so the referral reaches someone with the authority.</summary>
+public sealed record GeneralQuoteReferred(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, string ReasonCode, decimal SumInsured, string Currency,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>An underwriter decided the quote's referral.</summary>
+public sealed record GeneralQuoteReferralDecided(Guid QuoteId, string QuoteNumber, int QuoteVersion, bool Approved, string DecisionCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>The underwriter declined the referred quote: it is final, and the proposer can be told why.</summary>
 public sealed record GeneralQuoteDeclined(Guid QuoteId, string QuoteNumber, int QuoteVersion, string DecisionCode, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -299,9 +306,12 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
     /// <summary>The frequency's periods per year when the quote was made (billing.ref_billing_frequencies).</summary>
     public int? PremiumPeriods { get; private set; }
 
-    /// <summary>What each instalment in <see cref="PremiumFrequency"/> comes to, as Billing charges it: the annual premium over the periods, to the cent.</summary>
+    /// <summary>The product's instalment loading for the frequency when the quote was made, in per cent (0 when none).</summary>
+    public decimal? PremiumLoadingPct { get; private set; }
+
+    /// <summary>What each instalment in <see cref="PremiumFrequency"/> comes to: the annual premium over the periods, with the loading, to the cent.</summary>
     public decimal? InstalmentPremium => Premium is { } annual && PremiumPeriods is { } periods
-        ? Math.Round(annual / periods, 2, MidpointRounding.AwayFromZero)
+        ? Math.Round(annual / periods * (1 + (PremiumLoadingPct ?? 0m) / 100m), 2, MidpointRounding.AwayFromZero)
         : null;
 
     /// <summary>Why a quote priced as it is made could not be rated (a Rating error code), while it stays Draft; null once rated.</summary>
@@ -397,16 +407,17 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
         return result;
     }
 
-    /// <summary>Prices a draft in a billing frequency its product allows: the premium stays annual, and the instalment is shown beside it.</summary>
-    public Result PriceIn(string frequency, int periodsPerYear)
+    /// <summary>Prices a draft in a billing frequency its product allows, with the product's instalment loading for it: the premium stays annual, and the instalment is shown beside it.</summary>
+    public Result PriceIn(string frequency, int periodsPerYear, decimal loadingPct = 0m)
     {
-        if (Status != QuoteStatus.Draft || periodsPerYear <= 0)
+        if (Status != QuoteStatus.Draft || periodsPerYear <= 0 || loadingPct < 0)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Quote {QuoteNumber} v{QuoteVersion} is priced in a frequency while it is a draft, with a positive number of periods.");
         }
 
         PremiumFrequency = Guard.MaxLength(frequency, 20);
         PremiumPeriods = periodsPerYear;
+        PremiumLoadingPct = loadingPct;
         MarkChanged();
         return Result.Success();
     }
@@ -450,24 +461,18 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
     /// A referral the rules raise, with nobody as its referrer, so any underwriter may decide it (BR-037): a quote priced as
     /// it is made that is over a zone and peril limit (F062) is referred as soon as it is rated (BR-095).
     /// </summary>
-    public Result ReferQuoteByRules(string reasonCode)
-    {
-        var result = Fire(QuoteTrigger.ReferQuote);
-        if (result.IsSuccess)
-        {
-            _referrals.Add(UnderwritingReferral.Open(Id, reasonCode, null));
-        }
-
-        return result;
-    }
+    public Result ReferQuoteByRules(string reasonCode, DateTimeOffset now) => Refer(reasonCode, null, now);
 
     /// <summary>Command ReferQuote: to an underwriter, with a referral reason.</summary>
-    public Result ReferQuote(string reasonCode, Guid referredBy)
+    public Result ReferQuote(string reasonCode, Guid referredBy, DateTimeOffset now) => Refer(reasonCode, referredBy, now);
+
+    private Result Refer(string reasonCode, Guid? referredBy, DateTimeOffset now)
     {
         var result = Fire(QuoteTrigger.ReferQuote);
         if (result.IsSuccess)
         {
             _referrals.Add(UnderwritingReferral.Open(Id, reasonCode, referredBy));
+            Raise(new GeneralQuoteReferred(Id, QuoteNumber, QuoteVersion, ProductCode, reasonCode, _risks.Sum(r => r.SumInsured), Currency, now));
         }
 
         return result;
@@ -497,6 +502,11 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
 
         referral.Decide(approved, decisionCode, specialConditions, declineReason, decidedBy, now);
         var result = Fire(approved ? QuoteTrigger.ReferralApproved : QuoteTrigger.ReferralDeclined);
+        if (result.IsSuccess)
+        {
+            Raise(new GeneralQuoteReferralDecided(Id, QuoteNumber, QuoteVersion, approved, decisionCode, now));
+        }
+
         if (result.IsSuccess && !approved)
         {
             Raise(new GeneralQuoteDeclined(Id, QuoteNumber, QuoteVersion, decisionCode, declineReason!, now));

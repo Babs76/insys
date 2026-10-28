@@ -100,6 +100,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             quote.Property(q => q.RatingIssue).HasMaxLength(500);
             quote.Property(q => q.PremiumFrequency).HasMaxLength(20);
             quote.Property(q => q.PremiumPeriods).HasColumnType("smallint");
+            quote.Property(q => q.PremiumLoadingPct).HasPrecision(7, 4);
             quote.Ignore(q => q.InstalmentPremium);
             quote.HasMany(q => q.Risks).WithOne().HasForeignKey(r => new { r.TenantId, r.QuoteId });
             quote.Navigation(q => q.Risks).UsePropertyAccessMode(PropertyAccessMode.Field);

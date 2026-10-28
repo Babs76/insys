@@ -113,6 +113,22 @@ public static class AggregationZones
 public sealed record GeneralQuotePricingRequested(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, string Currency,
     string Frequency, DateOnly RatingDate, System.Text.Json.JsonElement Values) : IIntegrationEvent;
 
+/// <summary>A quote is referred to an underwriter: Workflow opens a referral task for a role whose underwriting authority covers it.</summary>
+/// <param name="SumInsured">The quote's total sum insured, which the deciding authority must cover.</param>
+[IntegrationEvent("general.GeneralQuoteReferred")]
+public sealed record GeneralQuoteReferred(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, string ReasonCode, decimal SumInsured, string Currency)
+    : IIntegrationEvent;
+
+/// <summary>A quote's referral was decided: Workflow closes its referral task.</summary>
+[IntegrationEvent("general.GeneralQuoteReferralDecided")]
+public sealed record GeneralQuoteReferralDecided(Guid QuoteId, string QuoteNumber, int QuoteVersion, bool Approved, string DecisionCode) : IIntegrationEvent;
+
+/// <summary>What a General quote's referral task is about (Workflow's business reference).</summary>
+public static class GeneralReferrals
+{
+    public const string BusinessRefType = "GENERAL_QUOTE";
+}
+
 [IntegrationEvent("general.GeneralQuoteIssued")]
 public sealed record GeneralQuoteIssued(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, decimal Premium, string Currency,
     DateOnly ValidUntil) : IIntegrationEvent;

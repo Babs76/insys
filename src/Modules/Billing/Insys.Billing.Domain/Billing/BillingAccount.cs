@@ -122,6 +122,12 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
 
     public decimal InstalmentAmount { get; private set; }
 
+    /// <summary>
+    /// The annual premium the instalments come from, when the schedule is a share of one (a General policy): its instalments
+    /// then total exactly their share of it, the last taking the rounding. Null for a schedule of a fixed instalment.
+    /// </summary>
+    public decimal? AnnualPremium { get; private set; }
+
     public string Currency { get; private set; } = "";
 
     public long RowVersion { get; private set; }
@@ -149,7 +155,7 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
     }
 
     internal static PremiumSchedule Create(Guid accountId, string sourceDomain, Guid policyRef, BillingFrequency frequency, DateOnly start, DateOnly? end, decimal amount,
-        string currency)
+        string currency, decimal? annualPremium)
     {
         var schedule = new PremiumSchedule
         {
@@ -161,6 +167,7 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
             StartDate = start,
             EndDate = end,
             InstalmentAmount = amount,
+            AnnualPremium = annualPremium,
             Currency = currency,
         };
         schedule.Generate(frequency, start);
@@ -170,17 +177,29 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
     /// <summary>
     /// The instalments from <paramref name="from"/> to the end date, at the frequency. A schedule without an end date
     /// is generated a year ahead; TODO(spec): rolling generation for open-ended schedules is not specified (OQ-058).
+    /// With an annual premium, the instalments generated total exactly their share of it (the periods they cover over the
+    /// periods in a year, to the cent): the last takes the rounding, so twelve monthly instalments of 3 050.00 are eleven
+    /// of 254.17 and one of 254.13 (Ade, 28 October 2026).
     /// </summary>
     internal void Generate(BillingFrequency frequency, DateOnly from)
     {
         var months = 12 / frequency.PeriodsPerYear;
         var last = EndDate ?? from.AddYears(1).AddDays(-1);
+        var dueDates = new List<DateOnly>();
         for (var due = StartDate; due <= last; due = due.AddMonths(months))
         {
             if (due >= from && _instalments.All(i => i.DueDate != due || i.Status == InstalmentStatus.Cancelled))
             {
-                _instalments.Add(Instalment.Create(Id, due, InstalmentAmount));
+                dueDates.Add(due);
             }
+        }
+
+        var lastAmount = AnnualPremium is { } annual && dueDates.Count > 0
+            ? Math.Round(annual * dueDates.Count / frequency.PeriodsPerYear, 2, MidpointRounding.AwayFromZero) - InstalmentAmount * (dueDates.Count - 1)
+            : InstalmentAmount;
+        for (var i = 0; i < dueDates.Count; i++)
+        {
+            _instalments.Add(Instalment.Create(Id, dueDates[i], i == dueDates.Count - 1 && lastAmount > 0 ? lastAmount : InstalmentAmount));
         }
     }
 
@@ -202,8 +221,11 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
         Generate(frequency, from);
     }
 
-    /// <summary>AmendSchedule: instalments not yet invoiced from the effective date are cancelled and regenerated at the new amount.</summary>
-    internal void Amend(BillingFrequency frequency, decimal amount, DateOnly effectiveFrom)
+    /// <summary>
+    /// AmendSchedule: instalments not yet invoiced from the effective date are cancelled and regenerated at the new amount
+    /// (and, for a share of an annual premium, the new annual premium, whose share they then total).
+    /// </summary>
+    internal void Amend(BillingFrequency frequency, decimal amount, DateOnly effectiveFrom, decimal? annualPremium)
     {
         foreach (var instalment in _instalments.Where(i => i.Status == InstalmentStatus.Scheduled && i.DueDate >= effectiveFrom))
         {
@@ -211,6 +233,7 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
         }
 
         InstalmentAmount = amount;
+        AnnualPremium = annualPremium ?? AnnualPremium;
         Generate(frequency, effectiveFrom);
     }
 }
@@ -311,8 +334,9 @@ public sealed class BillingAccount : AggregateRoot<Guid>
     }
 
     /// <summary>Command CreateSchedule (BIL-001): one schedule per policy on the account.</summary>
+    /// <param name="annualPremium">The annual premium the instalments share, when they are a share of one: they then total it exactly.</param>
     public Result<PremiumSchedule> CreateSchedule(string sourceDomain, Guid policyRef, string productVersionRef, BillingFrequency frequency, DateOnly start,
-        DateOnly? end, decimal instalmentAmount)
+        DateOnly? end, decimal instalmentAmount, decimal? annualPremium = null)
     {
         if (Status == AccountStatus.Closed)
         {
@@ -329,14 +353,14 @@ public sealed class BillingAccount : AggregateRoot<Guid>
             return Error.Conflict(BillingErrorCodes.ScheduleExists, "The policy already has a premium schedule on this account.");
         }
 
-        var schedule = PremiumSchedule.Create(Id, sourceDomain, policyRef, frequency, start, end, instalmentAmount, Currency);
+        var schedule = PremiumSchedule.Create(Id, sourceDomain, policyRef, frequency, start, end, instalmentAmount, Currency, annualPremium);
         schedule.ProductVersionRef = productVersionRef;
         _schedules.Add(schedule);
         MarkChanged();
         return schedule;
     }
 
-    public Result AmendSchedule(Guid scheduleId, BillingFrequency frequency, decimal instalmentAmount, DateOnly effectiveFrom)
+    public Result AmendSchedule(Guid scheduleId, BillingFrequency frequency, decimal instalmentAmount, DateOnly effectiveFrom, decimal? annualPremium = null)
     {
         if (_schedules.SingleOrDefault(s => s.Id == scheduleId) is not { } schedule)
         {
@@ -348,7 +372,7 @@ public sealed class BillingAccount : AggregateRoot<Guid>
             return Error.Validation(ErrorCodes.ValidationFailed, "An instalment amount is positive.");
         }
 
-        schedule.Amend(frequency, instalmentAmount, effectiveFrom);
+        schedule.Amend(frequency, instalmentAmount, effectiveFrom, annualPremium);
         MarkChanged();
         return Result.Success();
     }

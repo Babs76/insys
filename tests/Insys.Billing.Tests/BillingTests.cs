@@ -53,6 +53,36 @@ public sealed class BillingTests
         RefundRequest.Lifecycle.Transitions.Select(t => $"{t.From}-{t.Trigger}->{t.To}").OrderBy(t => t, StringComparer.Ordinal).ToList().ShouldBe(specified);
     }
 
+    /// <summary>
+    /// A General policy's schedule is a share of its annual premium: twelve monthly instalments of 3 050.00 total exactly
+    /// 3 050.00, eleven of 254.17 and a last of 254.13. Amended mid-term, the regenerated instalments total their share of
+    /// the new annual premium, and the year still adds up to what was invoiced plus that share (Ade, 28 October 2026).
+    /// </summary>
+    [Fact]
+    public void AMonthlyScheduleOfAnAnnualPremium_TotalsItExactly_TheLastInstalmentTakingTheRounding()
+    {
+        var account = BillingAccount.OpenAccount(Guid.CreateVersion7(), Guid.CreateVersion7(), "ZAR", "DEBIT_ORDER", null, Now);
+        var schedule = account.CreateSchedule("GENERAL", Guid.CreateVersion7(), "MOTOR-v1", Monthly, Start, Start.AddYears(1).AddDays(-1), 254.17m, 3_050m).Value;
+
+        var instalments = schedule.Instalments.OrderBy(i => i.DueDate).ToList();
+        instalments.Count.ShouldBe(12);
+        instalments.Sum(i => i.Amount).ShouldBe(3_050.00m);
+        instalments.Take(11).ShouldAllBe(i => i.Amount == 254.17m);
+        instalments[^1].Amount.ShouldBe(254.13m);
+
+        // From the seventh month the annual premium is 4 000.00 (333.33 a month): the six regenerated instalments total half of it.
+        account.AmendSchedule(schedule.Id, Monthly, 333.33m, Start.AddMonths(6), 4_000m).IsSuccess.ShouldBeTrue();
+        var live = schedule.Instalments.Where(i => i.Status != InstalmentStatus.Cancelled).OrderBy(i => i.DueDate).ToList();
+        live.Count.ShouldBe(12);
+        live.Skip(6).Sum(i => i.Amount).ShouldBe(2_000.00m);
+        live[^1].Amount.ShouldBe(333.35m);
+        live.Sum(i => i.Amount).ShouldBe(6 * 254.17m + 2_000.00m);
+
+        // A schedule of a fixed instalment (Life, Health) is unchanged.
+        var fixedSchedule = account.CreateSchedule("LIFE", Guid.CreateVersion7(), "FUN-v2", Monthly, Start, Start.AddYears(1).AddDays(-1), 254.17m).Value;
+        fixedSchedule.Instalments.ShouldAllBe(i => i.Amount == 254.17m);
+    }
+
     [Fact]
     public void Schedule_GeneratesInstalments_BIL001()
     {

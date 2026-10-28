@@ -176,6 +176,7 @@ public static class GeneralStaticData
             StaticModel.ConfigureCommon(entity);
             entity.Property(x => x.ProductCode).HasColumnName("product_code").HasMaxLength(80);
             entity.Property(x => x.Frequency).HasColumnName("frequency").HasMaxLength(80);
+            entity.Property(x => x.InstalmentLoadingPct).HasColumnName("instalment_loading_pct").HasPrecision(7, 4);
         });
         modelBuilder.Entity<QuoteValidityPeriods>(entity =>
         {

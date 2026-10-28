@@ -49,4 +49,19 @@ public sealed record UnderwritingAuthority(string RoleCode, string? ProductCode,
 public interface IUnderwritingAuthorities
 {
     Task<IReadOnlyList<UnderwritingAuthority>> For(Guid tenantId, IReadOnlyCollection<string> roleCodes, string productCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>Every role's underwriting authority in force for the product (its own rows, and rows for all products): who may decide its referrals.</summary>
+    Task<IReadOnlyList<UnderwritingAuthority>> ForProduct(Guid tenantId, string productCode, DateOnly day, CancellationToken cancellationToken);
+}
+
+/// <summary>Choosing among underwriting authorities (§7.4).</summary>
+public static class ReferralRouting
+{
+    /// <summary>
+    /// The role to send a referral to: of the roles whose authority covers the sum insured with at least one decision type,
+    /// the one with the smallest such authority (the most junior who may decide it), then by role code. Null when none does.
+    /// </summary>
+    public static string? RouteTo(IEnumerable<UnderwritingAuthority> authorities, decimal sumInsured) =>
+        authorities.Where(a => a.MaxSumAssured >= sumInsured && a.DecisionTypes.Count > 0)
+            .OrderBy(a => a.MaxSumAssured).ThenBy(a => a.RoleCode, StringComparer.Ordinal).Select(a => a.RoleCode).FirstOrDefault();
 }

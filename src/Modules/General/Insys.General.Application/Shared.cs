@@ -163,8 +163,11 @@ public interface IGeneralCodes
 
     Task<int?> QuoteValidityDays(string productCode, DateOnly day, CancellationToken cancellationToken);
 
-    /// <summary>Whether the product allows the billing frequency on the day (general.cfg_product_billing_frequencies).</summary>
-    Task<bool> AllowsFrequency(string productCode, string frequency, DateOnly day, CancellationToken cancellationToken);
+    /// <summary>
+    /// The instalment loading in per cent when the product allows the billing frequency on the day (general.cfg_product_billing_frequencies;
+    /// 0 when it sets none); null when it does not allow it.
+    /// </summary>
+    Task<decimal?> FrequencyLoading(string productCode, string frequency, DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>The policy number prefix (general.cfg_policy_numbering_schemes, product line General).</summary>
     Task<string?> PolicyNumberPrefix(DateOnly day, CancellationToken cancellationToken);
@@ -279,7 +282,7 @@ public sealed record RatingIssueView(string Code, string Reason)
 
 /// <param name="Premium">The annual premium Rating gave.</param>
 /// <param name="PremiumFrequency">The frequency the quote is priced in: the one chosen when the product allows it, otherwise <c>ANNUAL</c>.</param>
-/// <param name="InstalmentPremium">Each instalment in <paramref name="PremiumFrequency"/>, as Billing will charge it (the annual premium over the periods per year); the premium itself when annual. Null until rated.</param>
+/// <param name="InstalmentPremium">Each instalment in <paramref name="PremiumFrequency"/>: the annual premium over the periods per year, with the product's instalment loading for the frequency; the premium itself when annual. Null until rated.</param>
 /// <param name="PricedOnCreation">Priced as it is made (a broker's portal quote and its later versions, BR-095): nobody requests its calculation.</param>
 /// <param name="RatingIssue">Why it could not be priced, while it stays Draft (BR-095); null otherwise.</param>
 public sealed record QuoteView(Guid Id, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, Guid ProposerPartyId, string? IntermediaryCode,

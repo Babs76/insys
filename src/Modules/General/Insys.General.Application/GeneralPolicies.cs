@@ -90,7 +90,7 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
                 && await ZoneExposure.FirstExceeded(general, codes, quote.Risks.Select(r => (r.RiskObjectId, r.SumInsured)).ToList(), quote.Currency, businessDate.Today,
                     cancellationToken) is not null)
             {
-                result = quote.ReferQuoteByRules(ZoneExposure.ReferralReason);
+                result = quote.ReferQuoteByRules(ZoneExposure.ReferralReason, clock.UtcNow);
             }
         }
         else if (calculated.SubjectType == GeneralRatingSubjects.Endorsement && await general.Endorsement(calculated.SubjectId, cancellationToken) is { } endorsement

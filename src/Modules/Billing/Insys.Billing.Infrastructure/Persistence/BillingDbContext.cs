@@ -77,6 +77,7 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options,
             schedule.Property(s => s.SourceDomain).HasMaxLength(10);
             schedule.Property(s => s.Frequency).HasMaxLength(10);
             schedule.Property(s => s.InstalmentAmount).HasPrecision(18, 2);
+            schedule.Property(s => s.AnnualPremium).HasPrecision(18, 2);
             schedule.Property(s => s.Currency).HasColumnType("char(3)");
             schedule.Property(s => s.ProductVersionRef).HasMaxLength(30);
             schedule.HasMany(s => s.Instalments).WithOne().HasForeignKey(i => new { i.TenantId, i.ScheduleId });

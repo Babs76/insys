@@ -36,6 +36,7 @@
     <ProjectReference Include="..\..\Party\Insys.Party.Contracts\Insys.Party.Contracts.csproj" />
     <ProjectReference Include="..\..\Tenancy\Insys.Tenancy.Contracts\Insys.Tenancy.Contracts.csproj" />
     <ProjectReference Include="..\..\General\Insys.General.Contracts\Insys.General.Contracts.csproj" />
+    <ProjectReference Include="..\..\Rules\Insys.Rules.Contracts\Insys.Rules.Contracts.csproj" />
     <ProjectReference Include="..\..\Payments\Insys.Payments.Contracts\Insys.Payments.Contracts.csproj" />
     <ProjectReference Include="..\..\Health\Insys.Health.Contracts\Insys.Health.Contracts.csproj" />
     <ProjectReference Include="..\..\Documents\Insys.Documents.Contracts\Insys.Documents.Contracts.csproj" />

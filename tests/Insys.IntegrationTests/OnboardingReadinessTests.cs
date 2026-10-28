@@ -188,6 +188,28 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "CASE_TYPE_PROCESS_NOT_IN_FORCE").GetProperty("ready").GetBoolean().ShouldBeTrue();
     }
 
+    /// <summary>
+    /// A sellable General product whose referrals no role is authorised to decide (rules.cfg_authority_matrices) is listed,
+    /// since a referred quote of it would wait for nobody; it clears when an authority covers it again.
+    /// </summary>
+    [Fact]
+    public async Task AGeneralProductNoRoleMayDecideReferralsFor_IsListed_UntilOneMay()
+    {
+        var (tenantId, url) = await Register("NOAUTH");
+        await fixture.Database.SeedReadyTenant(tenantId, From);
+        Check(await Readiness(url), "PRODUCT_FACTORY", "GENERAL_REFERRAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
+
+        await fixture.Database.ExecuteAsOwner(
+            "UPDATE rules.cfg_authority_matrices SET record_status = 'RETIRED' WHERE tenant_id = @t AND code = 'AM-READY'", ("t", tenantId));
+        var check = Check(await Readiness(url), "PRODUCT_FACTORY", "GENERAL_REFERRAL_AUTHORITY");
+        check.GetProperty("ready").GetBoolean().ShouldBeFalse();
+        check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["P-READY"]);
+
+        await fixture.Database.ExecuteAsOwner(
+            "UPDATE rules.cfg_authority_matrices SET record_status = 'EFFECTIVE' WHERE tenant_id = @t AND code = 'AM-READY'", ("t", tenantId));
+        Check(await Readiness(url), "PRODUCT_FACTORY", "GENERAL_REFERRAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
+    }
+
     private async Task<(Guid TenantId, string Url)> Register(string code)
     {
         var registered = await _operator.Send(HttpMethod.Post, "/api/v1/tenancy/tenants",

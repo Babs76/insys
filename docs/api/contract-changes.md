@@ -4,6 +4,22 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 6 (branch `wave2-6`, not merged)
 
+### New: a referral reaches someone with the authority to decide it (Ade)
+- **A Workflow task for every General referral:** when a quote is referred (by hand, at issue over a zone limit, or by the rules on a broker's portal quote), General publishes `general.GeneralQuoteReferred`. Workflow opens a one-step task (process `GENERAL_REFERRAL`, task type `DECIDE_REFERRAL`, business reference `GENERAL_QUOTE` and the quote's ID), due in one business day. The task is in the queue of the role whose underwriting authority covers the quote's product and total sum insured: the smallest such authority. It is listed by `GET /workflow/tasks?queueCode=` like any task.
+- **Decided:** `general.GeneralQuoteReferralDecided` completes the task (state `DECIDED`). Any role whose authority covers the decision may still decide it, from the queue or not.
+- **No role covering it:** the task goes to the queue configured for `DECIDE_REFERRAL`, or the default queue.
+- **Onboarding readiness `GENERAL_REFERRAL_AUTHORITY`** (step `PRODUCT_FACTORY`) lists each sellable General product that no role's authority may decide referrals for.
+
+### Fixed: a task can be in any role's queue
+- `workflow.task.queue_code` (and `TaskView.queueCode`) held 20 characters, while a role code may have up to 80. A referral task or an aggregation review for a role with a longer code could not be written, so the event delivery failed. Migration V0081 widens it to 80.
+
+### New: an instalment loading per product and frequency (Ade)
+- **`general.cfg_product_billing_frequencies.instalment_loading_pct`** (optional, per cent, not negative; none means 0). A quote priced in that frequency keeps the loading. Its `instalmentPremium` is the annual premium over the periods per year, times (1 + loading / 100), to the cent. `premium` stays annual.
+
+### Fixed: a General policy's instalments total its annual premium exactly (Ade)
+- Billing rounded every instalment on its own, so 3 050.00 a year billed monthly was twelve of 254.17: 3 050.04. A General policy's schedule now keeps the annual premium (`billing.premium_schedule.annual_premium`, migration V0080). The last instalment it generates takes the rounding: eleven of 254.17 and one of 254.13.
+- Amended mid-term, the regenerated instalments total their share of the new annual premium. Schedules of a fixed instalment (Life, Health, by hand) are unchanged, and so are schedules created before V0080.
+
 ### New: a quote is priced in the frequency chosen, when its product allows it (follow-up to BR-095, Ade)
 - **New static data table `general.cfg_product_billing_frequencies`** (CFG, tenant scope, Tier 2; `product_code`, `frequency`), maintained under `/api/v1/general/static/product-billing-frequencies`. It lists the billing frequencies (`billing.ref_billing_frequencies`) each General product allows.
 - **`PortalGeneralCreateQuote` and `GeneralCreateQuote`** take an optional `frequency` (`x-code-list: billing.ref_billing_frequencies`). A code that is not a billing frequency in force is 422 `GENERAL_CODE_NOT_IN_FORCE`. One the product does not allow is accepted, and the quote is shown as annual.

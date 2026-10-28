@@ -74,7 +74,7 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
         var frequency = await Frequency(issued.BillingFrequency, issued.PolicyNumber, cancellationToken);
         // The period end is the last day of cover (OQ-059).
         var schedule = account.CreateSchedule(SourceDomain, issued.PolicyId, $"{issued.ProductCode} v{issued.ProductVersion}", frequency, issued.PeriodStart,
-            issued.PeriodEnd, Instalment(issued.AnnualPremium, frequency));
+            issued.PeriodEnd, Instalment(issued.AnnualPremium, frequency), issued.AnnualPremium);
         if (schedule.IsFailure)
         {
             throw new InvalidOperationException($"Policy {issued.PolicyNumber} cannot be scheduled: {schedule.Error.Message}");
@@ -99,7 +99,7 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
         }
 
         var frequency = await Frequency(schedule.Frequency, endorsed.PolicyNumber, cancellationToken);
-        var amended = account.AmendSchedule(schedule.Id, frequency, Instalment(endorsed.NewAnnualPremium, frequency), endorsed.EffectiveDate);
+        var amended = account.AmendSchedule(schedule.Id, frequency, Instalment(endorsed.NewAnnualPremium, frequency), endorsed.EffectiveDate, endorsed.NewAnnualPremium);
         if (amended.IsFailure)
         {
             throw new InvalidOperationException($"Policy {endorsed.PolicyNumber}'s schedule cannot be amended: {amended.Error.Message}");
@@ -158,7 +158,7 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
         await codes.Frequency(code, businessDate.Today, cancellationToken)
         ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, code);
 
-    /// <summary>The annual premium spread over the year's instalments. TODO(spec): instalment rounding is not specified; each is rounded half up (OQ-059).</summary>
+    /// <summary>The annual premium spread over the year's instalments, each rounded half up; the schedule's last instalment takes the rounding, so they total the annual premium.</summary>
     private static decimal Instalment(decimal annualPremium, BillingFrequency frequency) =>
         Math.Round(annualPremium / frequency.PeriodsPerYear, 2, MidpointRounding.AwayFromZero);
 }

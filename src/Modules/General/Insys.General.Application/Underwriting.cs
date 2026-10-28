@@ -392,8 +392,8 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
                 return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{frequency} is not a billing frequency in force.");
             }
 
-            if (await codes.AllowsFrequency(product.Value.ProductCode, frequency, businessDate.Today, cancellationToken)
-                && quote.Value.PriceIn(frequency, periods) is { IsFailure: true } refused)
+            if (await codes.FrequencyLoading(product.Value.ProductCode, frequency, businessDate.Today, cancellationToken) is { } loading
+                && quote.Value.PriceIn(frequency, periods, loading) is { IsFailure: true } refused)
             {
                 return refused.Error;
             }
@@ -452,7 +452,7 @@ internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCod
 
                     audit.Record(new AuditEntry("GENERAL", "ReferQuote", nameof(GeneralQuote), quote.Id.ToString(),
                         new Dictionary<string, string?> { ["reason"] = ZoneExposure.ReferralReason, ["limit"] = exceeded.ToString() }));
-                    result = quote.ReferQuote(ZoneExposure.ReferralReason, user.Value);
+                    result = quote.ReferQuote(ZoneExposure.ReferralReason, user.Value, clock.UtcNow);
                     break;
                 }
 
@@ -470,7 +470,8 @@ internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCod
     }
 }
 
-internal sealed class ReferQuoteHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate) : ICommandHandler<ReferQuote, QuoteView>
+internal sealed class ReferQuoteHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate, IClock clock)
+    : ICommandHandler<ReferQuote, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(ReferQuote command, CancellationToken cancellationToken)
     {
@@ -490,7 +491,7 @@ internal sealed class ReferQuoteHandler(IGeneralRepository general, IGeneralCode
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{command.ReasonCode} is not a referral reason in force.");
         }
 
-        var result = quote.ReferQuote(command.ReasonCode, user.Value);
+        var result = quote.ReferQuote(command.ReasonCode, user.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : QuoteView.From(quote);
     }
 }

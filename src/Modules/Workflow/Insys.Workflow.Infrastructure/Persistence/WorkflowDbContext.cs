@@ -137,7 +137,7 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
             task.HasKey(t => new { t.TenantId, t.Id });
             task.HasAuditColumns();
             task.Property(t => t.TaskType).HasMaxLength(30);
-            task.Property(t => t.QueueCode).HasMaxLength(20);
+            task.Property(t => t.QueueCode).HasMaxLength(80);
             task.Property(t => t.Status).HasConversion(new UpperCaseEnumConverter<Domain.Processes.TaskStatus>()).HasMaxLength(12);
             task.Property(t => t.SlaCode).HasMaxLength(20);
             task.Property(t => t.Outcome).HasMaxLength(20);

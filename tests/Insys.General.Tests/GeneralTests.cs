@@ -111,11 +111,14 @@ public sealed class GeneralTests
         quote.RecordRatingIssue("RATING_INPUT_MISSING", "late").Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
         quote.RequestPricing("{}", Today, Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
 
-        quote.ReferQuoteByRules("AGG_LIMIT").IsSuccess.ShouldBeTrue();
+        quote.ReferQuoteByRules("AGG_LIMIT", Now).IsSuccess.ShouldBeTrue();
         quote.Referrals.Single().ReferredBy.ShouldBeNull();
         var underwriter = Guid.CreateVersion7();
+        var referred = quote.DomainEvents.OfType<GeneralQuoteReferred>().Single();
+        (referred.ReasonCode, referred.SumInsured, referred.ProductCode).ShouldBe(("AGG_LIMIT", 200_000m, "MOTOR"), "the referral task is routed on the product and sum insured");
         quote.DecideReferral(true, "ACCEPT", [], null, underwriter, Now).IsSuccess.ShouldBeTrue();
         (quote.Status, quote.Premium).ShouldBe((QuoteStatus.Rated, 6_050m));
+        quote.DomainEvents.OfType<GeneralQuoteReferralDecided>().Single().Approved.ShouldBeTrue();
     }
 
     /// <summary>BR-092: a risk object is registered for its owner, and staff change or clear the owner; the same owner again is refused.</summary>
@@ -225,7 +228,7 @@ public sealed class GeneralTests
     {
         var quote = Quote();
         quote.RateQuote(Guid.CreateVersion7(), "MOTOR", 1, 3, 100m, "ZAR");
-        quote.ReferQuote("HIGH_VALUE", Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
+        quote.ReferQuote("HIGH_VALUE", Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
         quote.IssueQuote(Today.AddDays(30), Now).IsFailure.ShouldBeTrue();
 
         quote.DecideReferral(false, "DECLINE", [], " ", Guid.CreateVersion7(), Now).Error!.Code.ShouldBe(GeneralErrorCodes.RationaleRequired);
@@ -317,7 +320,7 @@ public sealed class GeneralTests
         var quote = Quote();
         quote.RateQuote(Guid.CreateVersion7(), "MOTOR", 1, 3, 12_000m, "ZAR").IsSuccess.ShouldBeTrue();
         var referrer = Guid.CreateVersion7();
-        quote.ReferQuote("HIGH_VALUE", referrer).IsSuccess.ShouldBeTrue();
+        quote.ReferQuote("HIGH_VALUE", referrer, Now).IsSuccess.ShouldBeTrue();
 
         quote.DecideReferral(true, "ACCEPT", [], null, referrer, Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
         quote.Status.ShouldBe(QuoteStatus.Referred);

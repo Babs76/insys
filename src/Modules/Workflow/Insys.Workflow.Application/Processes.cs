@@ -623,3 +623,69 @@ public sealed class OpenAggregationReviewTask(IProcessRepository processes, IPro
     }
 }
 
+/// <summary>
+/// A General quote was referred (§7.4): a referral task on the built-in process GENERAL_REFERRAL about the quote, due in
+/// one business day, in the queue of the role whose underwriting authority (rules.cfg_authority_matrices) covers the
+/// quote's product and total sum insured: the smallest such authority, so the most junior who may decide it. Any role
+/// with a covering authority may still decide it. With no role covering it, the task goes to the queue configured for
+/// its task type (else the default queue), and onboarding readiness lists the product.
+/// </summary>
+public sealed class OpenGeneralReferralTask(IProcessRepository processes, IProcessQueries queries, IWorkflowConfiguration configuration,
+    Rules.Contracts.IUnderwritingAuthorities authorities, Contracts.IBusinessTime businessTime, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
+    IAuditTrail audit) : IIntegrationEventHandler<General.Contracts.GeneralQuoteReferred>
+{
+    public async Task Handle(General.Contracts.GeneralQuoteReferred referred, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if ((await queries.List(General.Contracts.GeneralReferrals.BusinessRefType, referred.QuoteId, null, 20, cancellationToken))
+            .Any(p => p.ProcessCode == BuiltInProcesses.GeneralReferral.ProcessCode && p.Status == ProcessStatus.Running))
+        {
+            return;
+        }
+
+        var tenantId = tenant.RequireTenantId();
+        var now = clock.UtcNow;
+        var role = Rules.Contracts.ReferralRouting.RouteTo(await authorities.ForProduct(tenantId, referred.ProductCode, businessDate.Today, cancellationToken),
+            referred.SumInsured);
+        var due = await businessTime.Add(tenantId, null, now, "P1D", cancellationToken);
+        var routing = role is null ? await configuration.Routing(businessDate.Today, now, cancellationToken) : null;
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.GeneralReferral, General.Contracts.GeneralReferrals.BusinessRefType,
+            referred.QuoteId, taskType => role is null ? routing!(taskType) : new TaskRouting(role, null, due), now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
+            new Dictionary<string, string?>
+            {
+                ["process"] = $"{BuiltInProcesses.GeneralReferral.ProcessCode}@{BuiltInProcesses.GeneralReferral.Version}",
+                ["quote"] = $"{referred.QuoteNumber} v{referred.QuoteVersion}",
+                ["reason"] = referred.ReasonCode,
+                ["queue"] = role,
+            }));
+    }
+}
+
+/// <summary>Closes a General quote's referral task once the referral is decided: the task moves to DECIDED, and the audit records the decision.</summary>
+public sealed class CloseGeneralReferralTask(IProcessRepository processes, IProcessQueries queries, IClock clock, IAuditTrail audit)
+    : IIntegrationEventHandler<General.Contracts.GeneralQuoteReferralDecided>
+{
+    public async Task Handle(General.Contracts.GeneralQuoteReferralDecided decided, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        foreach (var running in (await queries.List(General.Contracts.GeneralReferrals.BusinessRefType, decided.QuoteId, null, 20, cancellationToken))
+                 .Where(p => p.ProcessCode == BuiltInProcesses.GeneralReferral.ProcessCode && p.Status == ProcessStatus.Running))
+        {
+            if (await processes.Get(running.Id, cancellationToken) is not { OpenTask: { } task } process)
+            {
+                continue;
+            }
+
+            var outcome = decided.Approved ? "APPROVED" : "DECLINED";
+            var completed = process.CompleteTask(task.Id, "DECIDED", BuiltInProcesses.GeneralReferral, new Dictionary<string, object?>(),
+                _ => new TaskRouting(task.QueueCode, null, clock.UtcNow), clock.UtcNow);
+            if (completed.IsFailure)
+            {
+                throw new InvalidOperationException($"The referral task of quote {decided.QuoteNumber} v{decided.QuoteVersion} cannot be closed: {completed.Error.Code}");
+            }
+
+            audit.Record(new AuditEntry("WORKFLOW", "CompleteTask", nameof(ProcessInstance), process.Id.ToString(),
+                new Dictionary<string, string?> { ["decision"] = decided.DecisionCode, ["outcome"] = outcome }));
+        }
+    }
+}

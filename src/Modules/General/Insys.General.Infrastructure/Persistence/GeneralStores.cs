@@ -275,8 +275,9 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
         return row is null ? null : new RiskObjectTypeDefinition(row.ObjectType, row.Version, Strings(row.Attributes), row.Validation is { } v ? Strings(v) : []);
     }
 
-    public async Task<bool> AllowsFrequency(string productCode, string frequency, DateOnly day, CancellationToken cancellationToken) =>
-        await InForce<ProductBillingFrequencies>(day).AnyAsync(f => f.ProductCode == productCode && f.Frequency == frequency, cancellationToken);
+    public async Task<decimal?> FrequencyLoading(string productCode, string frequency, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<ProductBillingFrequencies>(day).Where(f => f.ProductCode == productCode && f.Frequency == frequency)
+            .Select(f => (decimal?)(f.InstalmentLoadingPct ?? 0m)).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<int?> QuoteValidityDays(string productCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<QuoteValidityPeriods>(day).Where(q => q.ProductCode == productCode).Select(q => (int?)q.DaysValid).FirstOrDefaultAsync(cancellationToken);
@@ -362,6 +363,8 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         GeneralQuoteAccepted e => new Contracts.GeneralQuoteAccepted(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.ProposerPartyId),
         GeneralQuoteExpired e => new Contracts.GeneralQuoteExpired(e.QuoteId, e.QuoteNumber, e.QuoteVersion),
         GeneralQuoteDeclined e => new Contracts.GeneralQuoteDeclined(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.DecisionCode),
+        GeneralQuoteReferred e => new Contracts.GeneralQuoteReferred(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.ProductCode, e.ReasonCode, e.SumInsured, e.Currency),
+        GeneralQuoteReferralDecided e => new Contracts.GeneralQuoteReferralDecided(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.Approved, e.DecisionCode),
         GeneralQuotePricingRequested e => new Contracts.GeneralQuotePricingRequested(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.ProductCode, e.ProductVersion, e.Currency,
             QuotePricing.Frequency, e.RatingDate, System.Text.Json.JsonDocument.Parse(e.ValuesJson).RootElement.Clone()),
         GeneralPolicyIssued e => new Contracts.GeneralPolicyIssued(e.PolicyId, e.PolicyNumber, e.ProductCode, e.ProductVersion, e.PolicyholderPartyId, e.Billing.PayerPartyId,

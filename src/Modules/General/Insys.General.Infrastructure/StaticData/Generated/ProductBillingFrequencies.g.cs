@@ -43,10 +43,13 @@ public sealed class ProductBillingFrequencies : StaticRecord<ProductBillingFrequ
 
     public string Frequency { get; set; } = "";
 
+    public decimal? InstalmentLoadingPct { get; set; }
+
     public override void ApplyFields(ProductBillingFrequenciesInput input, IFieldProtector protector)
     {
         ProductCode = input.ProductCode!;
         Frequency = input.Frequency!;
+        InstalmentLoadingPct = input.InstalmentLoadingPct;
     }
 }
 
@@ -58,6 +61,8 @@ public sealed record ProductBillingFrequenciesInput : StaticRecordInput
 
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Frequency { get; init; }
+
+    public decimal? InstalmentLoadingPct { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

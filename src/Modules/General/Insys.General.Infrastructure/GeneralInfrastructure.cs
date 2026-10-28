@@ -82,6 +82,7 @@ public static class GeneralInfrastructure
         services.AddScoped<IAggregationAlerts, AggregationAlerts>();
         services.AddScoped<IGeneralPortalQueries, GeneralPortalQueries>();
         services.AddScoped<IGeneralCodes, GeneralCodes>();
+        services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, GeneralReferralReadiness>(); // onboarding readiness GENERAL_REFERRAL_AUTHORITY
         services.AddSingleton<Distribution.Contracts.IPolicyDistribution, GeneralPolicyDistribution>();
         services.AddIntegrationEventHandler<PremiumCalculated, GeneralPolicies, GeneralDbContext>(schema, "PremiumCalculated");
         services.AddIntegrationEventHandler<PremiumNotCalculated, GeneralPolicies, GeneralDbContext>(schema, "PremiumNotCalculated");
