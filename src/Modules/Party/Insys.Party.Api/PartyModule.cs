@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using System.ComponentModel;
 using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.Party.Api.StaticData;
@@ -41,20 +42,21 @@ namespace Insys.Party.Api;
 
 public sealed record RegisterPartyRequest(IndividualData? Individual, OrganisationData? Organisation);
 
-public sealed record ContactPointRequest(string ChannelType, string Value, bool IsPrimary);
+public sealed record ContactPointRequest([property: BuildingBlocks.Domain.CodeList(Tables.ContactChannels)] string ChannelType, string Value, bool IsPrimary);
 
 /// <param name="Number">The document number. It is stored encrypted and never returned.</param>
-public sealed record IdentifierRequest(string DocType, string Country, string Number);
+public sealed record IdentifierRequest([property: BuildingBlocks.Domain.CodeList(Tables.IdentityDocuments)] string DocType,
+    [property: BuildingBlocks.Domain.CodeList(Tables.Countries)] string Country, string Number);
 
-public sealed record PreferredLanguageRequest(string? Language);
+public sealed record PreferredLanguageRequest([property: BuildingBlocks.Domain.CodeList(Tables.Languages)] string? Language);
 
 public sealed record BankAccountRequest(string AccountNumber, string BankCode, string? BranchCode, string AccountHolderName, string AccountType, string Currency);
 
 public sealed record VerifyIdentifierRequest(string VerificationRef);
 
-public sealed record RelationshipRequest(Guid ToPartyId, string RelationshipCode, DateOnly ValidFrom);
+public sealed record RelationshipRequest(Guid ToPartyId, [property: BuildingBlocks.Domain.CodeList(Tables.RelationshipTypes)] string RelationshipCode, DateOnly ValidFrom);
 
-public sealed record PartyRoleRequest(string RoleCode, string Domain, string ContextType, Guid ContextId, DateOnly ValidFrom);
+public sealed record PartyRoleRequest([property: BuildingBlocks.Domain.CodeList(Tables.RoleTypes)] string RoleCode, string Domain, string ContextType, Guid ContextId, DateOnly ValidFrom);
 
 /// <param name="Resolution">LINK or NEW.</param>
 public sealed record MatchResolutionRequest([property: BuildingBlocks.Domain.OneOf("LINK", "NEW")] string Resolution, Guid? ExistingPartyId);
@@ -64,9 +66,9 @@ public sealed record DeathRequest(DateOnly DeceasedDate);
 public sealed record MergePartiesRequest(Guid SurvivorId, Guid MergedId, string Reason);
 
 /// <summary>Party search filters (GAP-022): any combination, at least one. The body carries them, so an identifier number never appears in a URL.</summary>
-public sealed record PartySearchRequest(string? Name, IdentifierFilter? Identifier, string? RoleCode, PartyStatus? Status, string? Cursor, int? Limit);
+public sealed record PartySearchRequest(string? Name, IdentifierFilter? Identifier, [property: BuildingBlocks.Domain.CodeList(Tables.RoleTypes)] string? RoleCode, PartyStatus? Status, string? Cursor, int? Limit);
 
-public sealed record ConsentRequest(string PurposeCode, string CaptureChannel, string? EvidenceRef);
+public sealed record ConsentRequest([property: BuildingBlocks.Domain.CodeList(Tables.ConsentPurposes)] string PurposeCode, string CaptureChannel, string? EvidenceRef);
 
 /// <summary>The Party module: people and organisations, their details, identifiers, relationships, roles and consent (SRS PTY-001 to PTY-005).</summary>
 /// <summary>The outcome of a merge: the merged party and the survivor it is now read through.</summary>
@@ -108,7 +110,9 @@ public sealed class PartyModule : IModule
                 + "and the number of results, with an identifier by its keyed hash only. POST, so the identifier number is never in a URL.")
             .RequirePermission(PartyPermissions.PartyRead);
 
-        api.MapGet("/party/search-log", async (string? searchedBy, DateTimeOffset? from, DateTimeOffset? to, string? cursor, int? limit, IDispatcher dispatcher,
+        api.MapGet("/party/search-log", async (string? searchedBy,
+                [Description("An instant (ISO 8601 with its offset, for example 2026-10-28T00:00:00+02:00): searches made at or after it")] DateTimeOffset? from,
+                [Description("An instant (ISO 8601 with its offset): searches made before it")] DateTimeOffset? to, string? cursor, int? limit, IDispatcher dispatcher,
                 CancellationToken ct) =>
             {
                 if (!Cursor.TryDecode(cursor, out var beforeId))

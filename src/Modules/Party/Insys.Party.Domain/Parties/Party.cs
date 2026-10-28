@@ -54,8 +54,26 @@ public enum PartyTrigger
 }
 
 /// <summary>PersonName and the other details of an individual (party.individual).</summary>
-public sealed record IndividualData(string? TitleCode, string FirstNames, string Surname, DateOnly BirthDate, string? GenderCode, string? MaritalStatusCode,
-    string? Nationality, string? PreferredLanguage);
+/// <remarks>Each code names its static data table (BR-026). The title and gender lists are not named in the catalogue (OQ-121).</remarks>
+public sealed record IndividualData([property: CodeList(Tables.PersonalAttributes)] string? TitleCode, string FirstNames, string Surname, DateOnly BirthDate,
+    [property: CodeList(Tables.PersonalAttributes)] string? GenderCode,
+    [property: CodeList(Tables.PersonalAttributes, Filter = "list_code=MARITAL_STATUS")] string? MaritalStatusCode,
+    [property: CodeList(Tables.Countries)] string? Nationality, [property: CodeList(Tables.Languages)] string? PreferredLanguage);
+
+/// <summary>The static data tables Party's code fields take their codes from (BR-026), as the OpenAPI documents name them.</summary>
+public static class Tables
+{
+    public const string PersonalAttributes = "party.ref_personal_attribute_code_lists";
+    public const string LegalForms = "party.ref_party_types_and_legal_forms";
+    public const string Countries = "refdata.ref_countries";
+    public const string Subdivisions = "refdata.ref_country_subdivisions";
+    public const string Languages = "refdata.ref_languages";
+    public const string ContactChannels = "party.ref_contact_channel_types";
+    public const string IdentityDocuments = "party.ref_identity_document_types";
+    public const string RoleTypes = "party.ref_party_role_types";
+    public const string RelationshipTypes = "party.ref_relationship_types";
+    public const string ConsentPurposes = "party.cfg_consent_purposes";
+}
 
 /// <summary>A portal registration matched an existing party: staff link the two or confirm a new one (external-user access §6).</summary>
 public sealed record PartyMatchReviewRequested(Guid PartyId, Guid MatchedPartyId, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -66,10 +84,12 @@ public sealed record PartyMatchResolved(Guid PartyId, string Resolution, Guid? E
 public sealed record PartyMatchResolutionProposed(Guid PartyId, string Resolution, Guid ExistingPartyId, Guid RequestedBy, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>The details of an organisation (party.organisation).</summary>
-public sealed record OrganisationData(string LegalName, string? TradingName, string LegalFormCode, string? RegistrationNumber, string? IndustryCode);
+public sealed record OrganisationData(string LegalName, string? TradingName, [property: CodeList(Tables.LegalForms)] string LegalFormCode, string? RegistrationNumber,
+    string? IndustryCode);
 
 /// <summary>A postal address (party.address).</summary>
-public sealed record AddressData(string AddressType, string Line1, string? Line2, string City, string? Subdivision, string? PostalCode, string Country, DateOnly ValidFrom);
+public sealed record AddressData(string AddressType, string Line1, string? Line2, string City, [property: CodeList(Tables.Subdivisions)] string? Subdivision, string? PostalCode,
+    [property: CodeList(Tables.Countries)] string Country, DateOnly ValidFrom);
 
 public sealed record PartyRegistered(Guid PartyId, PartyKind Kind, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -374,14 +394,17 @@ public sealed class PartyIdentifier : Entity<Guid>, ITenantScoped
 
     public string NumberHash { get; private set; } = "";
 
+    /// <summary>The number's last four characters, for its masked display (BR-026); empty when it has four or fewer; null before V0069.</summary>
+    public string? NumberLast4 { get; private set; }
+
     public DateTimeOffset? VerifiedAt { get; private set; }
 
     public string? VerificationRef { get; private set; }
 
     public long RowVersion { get; private set; }
 
-    internal static PartyIdentifier Create(Guid partyId, string docType, string country, byte[] encrypted, string hash) =>
-        new() { Id = Guid.CreateVersion7(), PartyId = partyId, DocType = docType, Country = country, NumberEnc = encrypted, NumberHash = hash };
+    internal static PartyIdentifier Create(Guid partyId, string docType, string country, byte[] encrypted, string hash, string last4) =>
+        new() { Id = Guid.CreateVersion7(), PartyId = partyId, DocType = docType, Country = country, NumberEnc = encrypted, NumberHash = hash, NumberLast4 = last4 };
 
     internal void Verify(string reference, DateTimeOffset now)
     {
@@ -796,8 +819,11 @@ public sealed class Party : AggregateRoot<Guid>
         return Changed("contact", now);
     }
 
-    /// <summary>Command AddIdentifier. The number arrives encrypted with its keyed hash; uniqueness per type and country is checked by the caller and the database.</summary>
-    public Result<Guid> AddIdentifier(string docType, string country, byte[] encrypted, string hash, DateTimeOffset now)
+    /// <summary>
+    /// Command AddIdentifier. The number arrives encrypted with its keyed hash and its last four characters (empty for a
+    /// number of four or fewer); uniqueness per type and country is checked by the caller and the database.
+    /// </summary>
+    public Result<Guid> AddIdentifier(string docType, string country, byte[] encrypted, string hash, string last4, DateTimeOffset now)
     {
         var allowed = Changeable(null);
         if (allowed.IsFailure)
@@ -810,7 +836,7 @@ public sealed class Party : AggregateRoot<Guid>
             return Error.Conflict(PartyErrorCodes.IdentifierInUse, $"The party already has a {docType} identifier for {country}.");
         }
 
-        var identifier = PartyIdentifier.Create(Id, docType, country, encrypted, hash);
+        var identifier = PartyIdentifier.Create(Id, docType, country, encrypted, hash, Guard.MaxLength(last4, 4));
         _identifiers.Add(identifier);
         var changed = Changed("identifier", now);
         return changed.IsFailure ? changed.Error : identifier.Id;

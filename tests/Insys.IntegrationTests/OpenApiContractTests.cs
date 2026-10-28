@@ -133,6 +133,45 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
             .Select(v => v.GetString()).ShouldBe(["PENDING_VERIFICATION", "ACTIVE", "SUPERSEDED", "REJECTED"]);
     }
 
+    /// <summary>
+    /// BR-026: a party's kind is the summary's enum, its identifiers carry a masked number, each coded field names its static
+    /// data table (with the list, for a table of several), and the search log's from and to are described as instants.
+    /// </summary>
+    [Fact]
+    public async Task PartyContract_DeclaresKindMaskedNumbersCodeListsAndInstants_BR026()
+    {
+        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        var schemas = core.RootElement.GetProperty("components").GetProperty("schemas");
+        string Property(string schema, string property, string extension) =>
+            schemas.GetProperty(schema).GetProperty("properties").GetProperty(property).GetProperty(extension).GetString()!;
+
+        schemas.GetProperty("PartyView").GetProperty("properties").GetProperty("kind").ToString()
+            .ShouldBe(schemas.GetProperty("PartySummary").GetProperty("properties").GetProperty("kind").ToString());
+        schemas.GetProperty("PartyIdentifierView").GetProperty("properties").TryGetProperty("maskedNumber", out _).ShouldBeTrue();
+        foreach (var (schema, property, table) in new[]
+                 {
+                     ("PartyIdentifierView", "docType", "party.ref_identity_document_types"), ("PartyIdentifierView", "country", "refdata.ref_countries"),
+                     ("PartyAddressView", "country", "refdata.ref_countries"), ("PartyAddressView", "subdivision", "refdata.ref_country_subdivisions"),
+                     ("PartyContactPointView", "channelType", "party.ref_contact_channel_types"), ("PartyRoleView", "roleCode", "party.ref_party_role_types"),
+                     ("PartyRelationshipView", "relationshipCode", "party.ref_relationship_types"), ("PartyConsentView", "purposeCode", "party.cfg_consent_purposes"),
+                     ("PartyIndividualData", "nationality", "refdata.ref_countries"), ("PartyIndividualData", "preferredLanguage", "refdata.ref_languages"),
+                     ("PartyIndividualData", "maritalStatusCode", "party.ref_personal_attribute_code_lists"),
+                     ("PartyOrganisationData", "legalFormCode", "party.ref_party_types_and_legal_forms"),
+                 })
+        {
+            Property(schema, property, "x-code-list").ShouldBe(table, $"{schema}.{property}");
+        }
+
+        Property("PartyIndividualData", "maritalStatusCode", "x-code-list-filter").ShouldBe("list_code=MARITAL_STATUS");
+        var parameters = core.RootElement.GetProperty("paths").GetProperty("/api/v1/party/search-log").GetProperty("get").GetProperty("parameters").EnumerateArray().ToList();
+        foreach (var name in new[] { "from", "to" })
+        {
+            var parameter = parameters.Single(p => p.GetProperty("name").GetString() == name);
+            parameter.GetProperty("schema").GetProperty("format").GetString().ShouldBe("date-time");
+            parameter.GetProperty("description").GetString()!.ShouldContain("An instant");
+        }
+    }
+
     /// <summary>GAP-033: the business reference types INSYS files documents under are declared on the documents list.</summary>
     [Fact]
     public async Task DocumentsList_DeclaresTheKnownBusinessReferenceTypes_GAP033()

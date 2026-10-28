@@ -53,8 +53,11 @@ public static class StateEnums
 
     private static readonly ConcurrentDictionary<string, byte> Codes_ = new(StringComparer.Ordinal);
 
-    /// <summary>The OpenAPI extension naming the static data table a code field takes its codes from (<see cref="Contracts.CodeListAttribute"/>).</summary>
+    /// <summary>The OpenAPI extension naming the static data table a code field takes its codes from (<see cref="Domain.CodeListAttribute"/>).</summary>
     public const string CodeListExtension = "x-code-list";
+
+    /// <summary>The rows of a shared code table that make the field's list, as column=value (<see cref="Domain.CodeListAttribute.Filter"/>).</summary>
+    public const string CodeListFilterExtension = "x-code-list-filter";
 
     private static readonly ConcurrentDictionary<(Type Type, string Property), (string Description, string? Format)> Fields = new();
 
@@ -97,16 +100,20 @@ public static class StateEnums
         // Known values and code lists (BR-025, BR-036): an open field's usual values, and the static data table a code comes from.
         if (context.JsonPropertyInfo?.AttributeProvider is MemberInfo listed)
         {
-            if (listed.GetCustomAttribute<Contracts.KnownValuesAttribute>() is { } known)
+            if (listed.GetCustomAttribute<Domain.KnownValuesAttribute>() is { } known)
             {
                 schema.Extensions ??= new Dictionary<string, IOpenApiExtension>();
                 schema.Extensions[KnownValuesExtensions.Extension] = new JsonNodeExtension(new JsonArray([.. known.Values.Select(v => (JsonNode)JsonValue.Create(v))]));
             }
 
-            if (listed.GetCustomAttribute<Contracts.CodeListAttribute>() is { } codeList)
+            if (listed.GetCustomAttribute<Domain.CodeListAttribute>() is { } codeList)
             {
                 schema.Extensions ??= new Dictionary<string, IOpenApiExtension>();
                 schema.Extensions[CodeListExtension] = new JsonNodeExtension(JsonValue.Create(codeList.Table));
+                if (codeList.Filter is { } filter)
+                {
+                    schema.Extensions[CodeListFilterExtension] = new JsonNodeExtension(JsonValue.Create(filter));
+                }
             }
         }
 

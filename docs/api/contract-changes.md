@@ -4,6 +4,16 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### Changed: parties mask identifiers, declare their kind and name their code lists (BR-026)
+- **`PartyIdentifierView.maskedNumber`** (new): the identifier's last four characters, masked (`•••• 9087`). A number of four characters or fewer is `••••`, so it is never shown whole; the number itself is still never returned (PTY-005). Identifiers added before this change are masked the same way.
+- **`PartyView.kind`** is now the `PartyKind` enum (`Individual`, `Organisation`), as on `PartySummary`; the values are unchanged.
+- **Code lists:** each Party code field with a static data table names it as `x-code-list`, on the views and the requests:
+  - identity document type, contact channel, role, relationship, consent purpose and legal form (`party.*`);
+  - country, subdivision and language (`refdata.*`).
+  - Marital status adds `x-code-list-filter: list_code=MARITAL_STATUS` (a new extension, for a table holding several lists). Title and gender name the table only.
+  - Address type, capture channel and industry code have no table to name (OQ-121).
+- **`GET /api/v1/party/search-log`:** `from` and `to` are described as instants (ISO 8601 with an offset): searches at or after `from`, before `to`.
+
 ### Breaking: an insured life and a Health dependant see only their own cover (privacy check, Ade)
 - **`PortalLifePolicyView`** (`PortalLifeGetPolicy`, `PortalLifeListPolicies`) gains `viewedAs` (`POLICYHOLDER`, `INSURED_LIFE`, `INTERMEDIARY`). For an `INSURED_LIFE` (an insured life who is not the policyholder), `benefits` lists only the benefits on their own life, each benefit's `premium` is null, `policyholderPartyId` is null and `beneficiaries` null. `premium` and `policyholderPartyId` are now nullable. The policyholder and the broker see the policy as before.
 - **Life policy documents** in the portal (`GET /portal/documents?businessRefType=LIFE_POLICY`) are the policyholder's (and the broker's) only: an insured life who is not the policyholder no longer reaches them, as the schedule shows the whole policy.

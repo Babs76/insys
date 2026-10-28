@@ -75,40 +75,54 @@ public interface IPartyCodes
     Task<bool> ConsentPurposeExists(string purposeCode, DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record AddressView(Guid Id, string AddressType, string Line1, string? Line2, string City, string? Subdivision, string? PostalCode, string Country,
-    DateOnly ValidFrom, DateOnly? ValidTo);
+public sealed record AddressView(Guid Id, string AddressType, string Line1, string? Line2, string City, [property: CodeList(Tables.Subdivisions)] string? Subdivision,
+    string? PostalCode, [property: CodeList(Tables.Countries)] string Country, DateOnly ValidFrom, DateOnly? ValidTo);
 
-public sealed record ContactPointView(Guid Id, string ChannelType, string Value, bool IsPrimary, DateTimeOffset? VerifiedAt);
+public sealed record ContactPointView(Guid Id, [property: CodeList(Tables.ContactChannels)] string ChannelType, string Value, bool IsPrimary, DateTimeOffset? VerifiedAt);
 
-/// <summary>An identifier without its number, which is never returned (PTY-005).</summary>
-public sealed record IdentifierView(Guid Id, string DocType, string Country, bool Verified, DateTimeOffset? VerifiedAt);
+/// <summary>
+/// An identifier without its number, which is never returned (PTY-005): only masked, with at most its last four characters
+/// ("•••• 1234"; "••••" for a number of four or fewer), BR-026.
+/// </summary>
+public sealed record IdentifierView(Guid Id, [property: CodeList(Tables.IdentityDocuments)] string DocType, [property: CodeList(Tables.Countries)] string Country,
+    string MaskedNumber, bool Verified, DateTimeOffset? VerifiedAt)
+{
+    public const string Mask = "••••";
 
-public sealed record RoleView(Guid Id, string RoleCode, string Domain, string ContextType, Guid ContextId, DateOnly ValidFrom, DateOnly? ValidTo);
+    /// <summary>The masked form of a number's last four characters, as stored (empty for a short number).</summary>
+    public static string Masked(string last4) => last4.Length == 4 ? $"{Mask} {last4}" : Mask;
 
-public sealed record RelationshipView(Guid Id, Guid ToPartyId, string RelationshipCode, DateOnly ValidFrom, DateOnly? ValidTo);
+    /// <summary>What to store for a number: its last four characters, or nothing when that would be the whole number.</summary>
+    public static string LastFour(string number) => number.Length > 4 ? number[^4..] : "";
+}
+
+public sealed record RoleView(Guid Id, [property: CodeList(Tables.RoleTypes)] string RoleCode, string Domain, string ContextType, Guid ContextId, DateOnly ValidFrom, DateOnly? ValidTo);
+
+public sealed record RelationshipView(Guid Id, Guid ToPartyId, [property: CodeList(Tables.RelationshipTypes)] string RelationshipCode, DateOnly ValidFrom, DateOnly? ValidTo);
 
 /// <summary>A portal registration's review (external-user access §6): its status, who registered it, the party it matched and the resolution.</summary>
 public sealed record PartyReviewView([property: OneOf("PENDING_REVIEW", "PROPOSED", "LINKED", "CONFIRMED_NEW")] string Status, string? RegisteredBy, Guid? MatchedPartyId,
     [property: OneOf("LINK", "NEW")] string? Resolution);
 
-public sealed record PartyView(Guid Id, string Kind, string DisplayName, PartyStatus Status, Guid? MergedIntoId, IndividualData? Individual, OrganisationData? Organisation,
+public sealed record PartyView(Guid Id, PartyKind Kind, string DisplayName, PartyStatus Status, Guid? MergedIntoId, IndividualData? Individual, OrganisationData? Organisation,
     DateOnly? DeceasedDate, IReadOnlyList<AddressView> Addresses, IReadOnlyList<ContactPointView> ContactPoints, IReadOnlyList<IdentifierView> Identifiers,
     IReadOnlyList<RoleView> Roles, IReadOnlyList<RelationshipView> Relationships, long RowVersion, PartyReviewView? Review = null)
 {
-    public static PartyView From(Domain.Parties.Party p) => new(p.Id, p.Kind.ToString(), p.DisplayName, p.Status, p.MergedIntoId,
+    /// <param name="lastFour">An identifier's last four characters: the stored ones, or for one added before V0069, read from its number.</param>
+    public static PartyView From(Domain.Parties.Party p, Func<PartyIdentifier, string> lastFour) => new(p.Id, p.Kind, p.DisplayName, p.Status, p.MergedIntoId,
         p.Individual is { } i ? new IndividualData(i.TitleCode, i.FirstNames, i.Surname, i.BirthDate, i.GenderCode, i.MaritalStatusCode, i.Nationality, i.PreferredLanguage) : null,
         p.Organisation is { } o ? new OrganisationData(o.LegalName, o.TradingName, o.LegalFormCode, o.RegistrationNumber, o.IndustryCode) : null,
         p.Individual?.DeceasedDate,
         p.Addresses.OrderBy(a => a.ValidFrom).Select(a => new AddressView(a.Id, a.AddressType, a.Line1, a.Line2, a.City, a.Subdivision, a.PostalCode, a.Country, a.ValidFrom, a.ValidTo)).ToList(),
         p.ContactPoints.Select(c => new ContactPointView(c.Id, c.ChannelType, c.Value, c.IsPrimary, c.VerifiedAt)).ToList(),
-        p.Identifiers.Select(i => new IdentifierView(i.Id, i.DocType, i.Country, i.VerifiedAt is not null, i.VerifiedAt)).ToList(),
+        p.Identifiers.Select(i => new IdentifierView(i.Id, i.DocType, i.Country, IdentifierView.Masked(lastFour(i)), i.VerifiedAt is not null, i.VerifiedAt)).ToList(),
         p.Roles.Select(r => new RoleView(r.Id, r.RoleCode, r.Domain, r.ContextType, r.ContextId, r.ValidFrom, r.ValidTo)).ToList(),
         p.Relationships.Select(r => new RelationshipView(r.Id, r.ToPartyId, r.RelationshipCode, r.ValidFrom, r.ValidTo)).ToList(),
         p.RowVersion,
         p.ReviewStatus is null ? null : new PartyReviewView(p.ReviewStatus, p.RegisteredBy, p.MatchedPartyId, p.MatchResolution));
 }
 
-public sealed record ConsentView(string PurposeCode, bool Granted, DateTimeOffset CapturedAt, string CaptureChannel, string? EvidenceRef, DateTimeOffset? WithdrawnAt);
+public sealed record ConsentView([property: CodeList(Tables.ConsentPurposes)] string PurposeCode, bool Granted, DateTimeOffset CapturedAt, string CaptureChannel, string? EvidenceRef, DateTimeOffset? WithdrawnAt);
 
 /// <summary>Command RegisterParty: exactly one of individual and organisation (PTY-001).</summary>
 public sealed record RegisterParty(IndividualData? Individual, OrganisationData? Organisation) : ICommand<Guid>;
@@ -518,7 +532,7 @@ internal sealed class AddIdentifierHandler(IPartyRepository parties, IPartyCodes
 
         audit.Record(new AuditEntry("PARTY", "AddIdentifier", nameof(Domain.Parties.Party), command.PartyId.ToString(),
             new Dictionary<string, string?> { ["docType"] = command.DocType, ["country"] = command.Country }));
-        return party.Value.AddIdentifier(command.DocType, command.Country, protectedValue.Encrypted, protectedValue.Hash, clock.UtcNow);
+        return party.Value.AddIdentifier(command.DocType, command.Country, protectedValue.Encrypted, protectedValue.Hash, IdentifierView.LastFour(number), clock.UtcNow);
     }
 }
 
@@ -691,10 +705,12 @@ internal static class Consents
             .Select(r => new ConsentView(r.PurposeCode, r.Granted, r.CapturedAt, r.CaptureChannel, r.EvidenceRef, r.WithdrawnAt)).ToList();
 }
 
-internal sealed class GetPartyHandler(IPartyRepository parties) : IQueryHandler<GetParty, PartyView>
+internal sealed class GetPartyHandler(IPartyRepository parties, IFieldProtector protector) : IQueryHandler<GetParty, PartyView>
 {
     public async Task<Result<PartyView>> Handle(GetParty query, CancellationToken cancellationToken) =>
-        await parties.Get(query.PartyId, cancellationToken) is { } party ? PartyView.From(party) : Error.NotFound(ErrorCodes.NotFound, "The party was not found.");
+        await parties.Get(query.PartyId, cancellationToken) is { } party
+            ? PartyView.From(party, i => i.NumberLast4 ?? IdentifierView.LastFour(protector.Unprotect(i.NumberEnc)))
+            : Error.NotFound(ErrorCodes.NotFound, "The party was not found.");
 }
 
 internal sealed class GetConsentsHandler(IPartyRepository parties) : IQueryHandler<GetConsents, IReadOnlyList<ConsentView>>

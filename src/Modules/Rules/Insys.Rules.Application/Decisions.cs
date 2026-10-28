@@ -47,8 +47,8 @@ public interface IRuleDecisionRepository
 /// <param name="SubjectType">What the rules decided on: the values INSYS's own modules send are listed (BR-025).</param>
 /// <param name="Outcome">The decision: an eligibility rule set's ELIGIBLE, REFER or INELIGIBLE, an underwriting one's ACCEPT, REFER or DECLINE (BR-025).</param>
 public sealed record RuleDecisionView(Guid Id, string RulesetCode, int RulesetVersion,
-    [property: BuildingBlocks.Contracts.KnownValues("LIFE_PROPOSAL", "LIFE_UNDERWRITING_CASE")] string SubjectType, Guid SubjectId, JsonElement Inputs,
-    [property: BuildingBlocks.Contracts.KnownValues("ELIGIBLE", "REFER", "INELIGIBLE", "ACCEPT", "DECLINE")] string Outcome,
+    [property: BuildingBlocks.Domain.KnownValues("LIFE_PROPOSAL", "LIFE_UNDERWRITING_CASE")] string SubjectType, Guid SubjectId, JsonElement Inputs,
+    [property: BuildingBlocks.Domain.KnownValues("ELIGIBLE", "REFER", "INELIGIBLE", "ACCEPT", "DECLINE")] string Outcome,
     IReadOnlyList<string> FiredRules, DateTimeOffset EvaluatedAt);
 
 public interface IRuleDecisionQueries

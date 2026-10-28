@@ -112,8 +112,8 @@ public sealed class PartyTests
     public void Identifier_OfTheSameTypeAndCountry_IsAddedOnce()
     {
         var party = Individual();
-        party.AddIdentifier("NATIONAL_ID", "ZA", [1, 2, 3], new string('a', 64), Now).IsSuccess.ShouldBeTrue();
-        party.AddIdentifier("NATIONAL_ID", "ZA", [4, 5, 6], new string('b', 64), Now).Error!.Code.ShouldBe(PartyErrorCodes.IdentifierInUse);
+        party.AddIdentifier("NATIONAL_ID", "ZA", [1, 2, 3], new string('a', 64), "0089", Now).IsSuccess.ShouldBeTrue();
+        party.AddIdentifier("NATIONAL_ID", "ZA", [4, 5, 6], new string('b', 64), "0089", Now).Error!.Code.ShouldBe(PartyErrorCodes.IdentifierInUse);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public sealed class PartyTests
     public void DeceasedParty_IsAnonymised_AndKeepsNoPersonalData()
     {
         var party = Individual();
-        party.AddIdentifier("NATIONAL_ID", "ZA", [1], new string('a', 64), Now).IsSuccess.ShouldBeTrue();
+        party.AddIdentifier("NATIONAL_ID", "ZA", [1], new string('a', 64), "0089", Now).IsSuccess.ShouldBeTrue();
         party.AddContactPoint("EMAIL", "thandi@example.com", true, Now).IsSuccess.ShouldBeTrue();
         party.AnonymiseParty(Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
 

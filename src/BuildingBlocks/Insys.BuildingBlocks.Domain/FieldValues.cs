@@ -6,7 +6,7 @@
  * Copyright (c) 2026 OpenFactor Technology Group.
  * All rights reserved.
  * PRODUCT       : INSYS
- * COMPONENT     : BuildingBlocks.Contracts
+ * COMPONENT     : BuildingBlocks.Domain
  * CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
  * This source code and its associated documentation contain confidential and
  * proprietary information belonging to OpenFactor Technology Group or its
@@ -24,7 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
-namespace Insys.BuildingBlocks.Contracts;
+namespace Insys.BuildingBlocks.Domain;
 
 /// <summary>
 /// Values a free-string field is known to take (BR-025, BR-036): the ones INSYS itself writes or sends, which the OpenAPI
@@ -44,4 +44,7 @@ public sealed class KnownValuesAttribute(params string[] values) : Attribute
 public sealed class CodeListAttribute(string table) : Attribute
 {
     public string Table { get; } = table;
+
+    /// <summary>For a table holding several lists, the rows of this one, as column=value (BR-026): published as x-code-list-filter.</summary>
+    public string? Filter { get; init; }
 }

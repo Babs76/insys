@@ -2659,6 +2659,7 @@
           {
             "name": "from",
             "in": "query",
+            "description": "An instant (ISO 8601 with its offset, for example 2026-10-28T00:00:00\u002B02:00): searches made at or after it",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -2667,6 +2668,7 @@
           {
             "name": "to",
             "in": "query",
+            "description": "An instant (ISO 8601 with its offset): searches made before it",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -46300,7 +46302,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "refdata.ref_country_subdivisions"
           },
           "postalCode": {
             "type": [
@@ -46309,7 +46312,8 @@
             ]
           },
           "country": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "refdata.ref_countries"
           },
           "validFrom": {
             "type": "string",
@@ -46355,7 +46359,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "refdata.ref_country_subdivisions"
           },
           "postalCode": {
             "type": [
@@ -46364,7 +46369,8 @@
             ]
           },
           "country": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "refdata.ref_countries"
           },
           "validFrom": {
             "type": "string",
@@ -46499,7 +46505,8 @@
         "type": "object",
         "properties": {
           "purposeCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.cfg_consent_purposes"
           },
           "captureChannel": {
             "type": "string"
@@ -46524,7 +46531,8 @@
         "type": "object",
         "properties": {
           "purposeCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.cfg_consent_purposes"
           },
           "granted": {
             "type": "boolean"
@@ -46560,7 +46568,8 @@
         "type": "object",
         "properties": {
           "channelType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.ref_contact_channel_types"
           },
           "value": {
             "type": "string"
@@ -46585,7 +46594,8 @@
             "format": "uuid"
           },
           "channelType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.ref_contact_channel_types"
           },
           "value": {
             "type": "string"
@@ -46623,10 +46633,12 @@
         "type": "object",
         "properties": {
           "docType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.ref_identity_document_types"
           },
           "country": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "refdata.ref_countries"
           },
           "number": {
             "type": "string"
@@ -46642,10 +46654,12 @@
         "type": "object",
         "properties": {
           "docType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.ref_identity_document_types"
           },
           "country": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "refdata.ref_countries"
           },
           "number": {
             "type": "string"
@@ -46657,6 +46671,7 @@
           "id",
           "docType",
           "country",
+          "maskedNumber",
           "verified",
           "verifiedAt"
         ],
@@ -46667,9 +46682,14 @@
             "format": "uuid"
           },
           "docType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.ref_identity_document_types"
           },
           "country": {
+            "type": "string",
+            "x-code-list": "refdata.ref_countries"
+          },
+          "maskedNumber": {
             "type": "string"
           },
           "verified": {
@@ -46701,7 +46721,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "party.ref_personal_attribute_code_lists"
           },
           "firstNames": {
             "type": "string"
@@ -46717,25 +46738,30 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "party.ref_personal_attribute_code_lists"
           },
           "maritalStatusCode": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "party.ref_personal_attribute_code_lists",
+            "x-code-list-filter": "list_code=MARITAL_STATUS"
           },
           "nationality": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "refdata.ref_countries"
           },
           "preferredLanguage": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "refdata.ref_languages"
           }
         }
       },
@@ -46826,7 +46852,8 @@
             ]
           },
           "legalFormCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.ref_party_types_and_legal_forms"
           },
           "registrationNumber": {
             "type": [
@@ -46911,7 +46938,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "refdata.ref_languages"
           }
         }
       },
@@ -46979,7 +47007,8 @@
             "format": "uuid"
           },
           "relationshipCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.ref_relationship_types"
           },
           "validFrom": {
             "type": "string",
@@ -47006,7 +47035,8 @@
             "format": "uuid"
           },
           "relationshipCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.ref_relationship_types"
           },
           "validFrom": {
             "type": "string",
@@ -47076,7 +47106,8 @@
         "type": "object",
         "properties": {
           "roleCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.ref_party_role_types"
           },
           "domain": {
             "type": "string"
@@ -47111,7 +47142,8 @@
             "format": "uuid"
           },
           "roleCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "party.ref_party_role_types"
           },
           "domain": {
             "type": "string"
@@ -47351,7 +47383,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "party.ref_party_role_types"
           },
           "status": {
             "oneOf": [
@@ -47455,7 +47488,7 @@
             "format": "uuid"
           },
           "kind": {
-            "type": "string"
+            "$ref": "#/components/schemas/PartyKind"
           },
           "displayName": {
             "type": "string"

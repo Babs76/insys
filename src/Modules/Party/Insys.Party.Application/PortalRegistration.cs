@@ -76,7 +76,8 @@ internal sealed class RegisterPartyThroughPortalHandler(IPartyRepository parties
         // A matched party's document stays with the existing party; the review links the two.
         if (matched is null && command.Identifier is { } document && number is { } protectedNumber)
         {
-            party.AddIdentifier(document.DocType, document.Country, protectedNumber.Encrypted, protectedNumber.Hash, clock.UtcNow);
+            party.AddIdentifier(document.DocType, document.Country, protectedNumber.Encrypted, protectedNumber.Hash, IdentifierView.LastFour(document.Number.Trim()),
+                clock.UtcNow);
         }
 
         parties.Add(party);

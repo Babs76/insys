@@ -1172,3 +1172,13 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Open:**
   - Compliance to confirm the 7 years and the final statuses before go-live.
   - Whether audit evidence should keep blocking once the record periods are confirmed.
+
+### OQ-121 Party code fields with no named list (BR-026, 28 October 2026)
+- **The gap:** BR-026 names each Party code field's static data table in the contract (`x-code-list`). Five fields have no list in the catalogue to name:
+  - **Title and gender:** they belong in `party.ref_personal_attribute_code_lists`, but the catalogue gives a list code only for marital status (`MARITAL_STATUS`). The contract names the table without a list (`x-code-list-filter`) for these two.
+  - **Address type, consent capture channel and an organisation's industry code:** no table holds them. They are checked only for length; the contract declares nothing for them. Industry codes might be `general.ref_industry_classification_codes` (General's), but Party does not use it.
+- **Working position:** none of the five is checked against a list, as before BR-026.
+- **Open, for the business:**
+  - the list codes for title and gender;
+  - whether address type and capture channel are fixed lists (enums) or static data;
+  - which classification an organisation's industry code uses.

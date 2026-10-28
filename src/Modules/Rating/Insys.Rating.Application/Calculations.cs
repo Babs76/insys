@@ -62,7 +62,7 @@ public sealed record ResultLineView(int LineNo, string Component, string? Factor
 /// <param name="SubjectType">What was rated: the values INSYS's own modules send are listed (BR-025).</param>
 public sealed record CalculationView(Guid Id, string RequestRef,
     [property: System.ComponentModel.DataAnnotations.AllowedValues("LIFE", "GENERAL", "HEALTH", "PRODUCT")] string SourceDomain,
-    [property: BuildingBlocks.Contracts.KnownValues("GENERAL_QUOTE", "GENERAL_ENDORSEMENT", "LIFE_PROPOSAL")] string SubjectType, Guid SubjectId, string ProductCode, int ProductVersion,
+    [property: BuildingBlocks.Domain.KnownValues("GENERAL_QUOTE", "GENERAL_ENDORSEMENT", "LIFE_PROPOSAL")] string SubjectType, Guid SubjectId, string ProductCode, int ProductVersion,
     int RatingVersion, JsonElement Inputs, decimal Premium, string Currency, DateTimeOffset CalculatedAt, IReadOnlyList<ResultLineView> Lines);
 
 public sealed record SimulationView(decimal Premium, string Currency, int RatingVersion, IReadOnlyList<ResultLineView> Lines);
