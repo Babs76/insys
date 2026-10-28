@@ -295,9 +295,18 @@ public sealed class WorkflowModule : IModule
             .WithSummary("Escalate a task to the next escalation level")
             .RequirePermission(WorkflowPermissions.ProcessUpdate);
 
-        workflow.MapGet("/tasks", async (string? queueCode, Guid? assigneeId, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Query(new ListOpenTasks(queueCode, assigneeId, Cursor.ClampLimit(limit)), ct)).ToHttp(items => Results.Ok(items)))
-            .Produces<IReadOnlyList<OpenTaskView>>(StatusCodes.Status200OK)
+        workflow.MapGet("/tasks", async (string? queueCode, Guid? assigneeId, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!OpenTaskCursors.TryDecode(cursor, out var after))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListOpenTasks(queueCode, assigneeId, pageSize, after), ct)).ToHttp(items =>
+                    Results.Ok(new CursorPage<OpenTaskView>(items, items.Count == pageSize ? OpenTaskCursors.Encode(items[^1].Task) : null)));
+            })
+            .Produces<CursorPage<OpenTaskView>>(StatusCodes.Status200OK)
             .WithName("WorkflowListOpenTasks")
             .WithSummary("List open tasks by queue or assignee, earliest due first")
             .RequirePermission(WorkflowPermissions.ProcessRead);
@@ -372,5 +381,35 @@ public sealed class WorkflowModule : IModule
             Concurrency.SetETag(http, version);
             return Results.NoContent();
         });
+    }
+}
+
+/// <summary>The open task list's cursor (BR-028): the last task's due time and ID, as the list is ordered.</summary>
+internal static class OpenTaskCursors
+{
+    public static string Encode(TaskView last) => Cursor.EncodeKey($"{last.DueAt.UtcTicks}|{last.Id:N}");
+
+    public static bool TryDecode(string? cursor, out OpenTaskCursor? after)
+    {
+        after = null;
+        if (!Cursor.TryDecodeKey(cursor, out var key))
+        {
+            return false;
+        }
+
+        if (key is null)
+        {
+            return true;
+        }
+
+        var parts = key.Split('|');
+        if (parts.Length != 2 || !long.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out var ticks) || !Guid.TryParseExact(parts[1], "N", out var id)
+            || ticks < DateTimeOffset.MinValue.UtcTicks || ticks > DateTimeOffset.MaxValue.UtcTicks)
+        {
+            return false;
+        }
+
+        after = new OpenTaskCursor(new DateTimeOffset(ticks, TimeSpan.Zero), id);
+        return true;
     }
 }

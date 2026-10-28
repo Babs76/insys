@@ -5677,6 +5677,13 @@
             }
           },
           {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "schema": {
@@ -5695,10 +5702,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WorkflowOpenTaskView"
-                  }
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowOpenTaskView"
                 }
               }
             }
@@ -35410,6 +35414,27 @@
           }
         }
       },
+      "CursorPageOfWorkflowOpenTaskView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowOpenTaskView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfWorkflowPortalCaseSummaryView": {
         "required": [
           "items",
@@ -51833,6 +51858,21 @@
           "Cancelled"
         ]
       },
+      "WorkflowProcessTransitionView": {
+        "required": [
+          "toState",
+          "conditional"
+        ],
+        "type": "object",
+        "properties": {
+          "toState": {
+            "type": "string"
+          },
+          "conditional": {
+            "type": "boolean"
+          }
+        }
+      },
       "WorkflowProcessView": {
         "required": [
           "id",
@@ -51908,6 +51948,15 @@
               "string"
             ],
             "format": "int64"
+          },
+          "allowedTransitions": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WorkflowProcessTransitionView"
+            }
           }
         }
       },

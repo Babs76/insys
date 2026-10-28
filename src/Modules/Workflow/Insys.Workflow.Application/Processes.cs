@@ -66,8 +66,45 @@ public sealed record OpenTaskView(Guid ProcessId, TaskView Task);
 
 public sealed record CaseNoteView(Guid AuthorId, string Note, DateTimeOffset CreatedAt);
 
+/// <summary>A transition the process may take from its current state (BR-028): completing its open task with another is refused.</summary>
+/// <param name="Conditional">The transition has a guard, evaluated on the variables sent with the completion; it may still be refused.</param>
+public sealed record ProcessTransitionView(string ToState, bool Conditional);
+
+/// <param name="AllowedTransitions">
+/// From the current state, in the definition version the process started on (BR-028); empty unless the process is running.
+/// </param>
 public sealed record ProcessView(Guid Id, string ProcessCode, int ProcessVersion, string BusinessRefType, Guid BusinessRefId, ProcessStatus Status, string State,
-    DateTimeOffset StartedAt, DateTimeOffset? EndedAt, IReadOnlyList<TaskView> Tasks, IReadOnlyList<CaseNoteView> Notes, long RowVersion);
+    DateTimeOffset StartedAt, DateTimeOffset? EndedAt, IReadOnlyList<TaskView> Tasks, IReadOnlyList<CaseNoteView> Notes, long RowVersion,
+    IReadOnlyList<ProcessTransitionView>? AllowedTransitions = null)
+{
+    /// <summary>The view with its allowed transitions, from the definitions already read (one read per definition version).</summary>
+    public static async Task<ProcessView> WithTransitions(ProcessView view, IWorkflowConfiguration configuration, DateOnly day,
+        Dictionary<(string, int), ProcessDefinition?> definitions, CancellationToken cancellationToken)
+    {
+        if (view.Status != ProcessStatus.Running)
+        {
+            return view with { AllowedTransitions = [] };
+        }
+
+        var key = (view.ProcessCode, view.ProcessVersion);
+        if (!definitions.TryGetValue(key, out var definition))
+        {
+            var read = await configuration.Definition(view.ProcessCode, view.ProcessVersion, day, cancellationToken);
+            definitions[key] = definition = read.IsSuccess ? read.Value : null;
+        }
+
+        return view with
+        {
+            AllowedTransitions = definition is null
+                ? []
+                : definition.Transitions.Where(t => t.From == view.State).GroupBy(t => t.To)
+                    .Select(g => new ProcessTransitionView(g.Key, g.All(t => t.Guard is not null))).ToList(),
+        };
+    }
+}
+
+/// <summary>A page of open tasks, earliest due first: the cursor is the last task's due time and ID (BR-028).</summary>
+public sealed record OpenTaskCursor(DateTimeOffset DueAt, Guid Id);
 
 public interface IProcessQueries
 {
@@ -75,7 +112,7 @@ public interface IProcessQueries
 
     Task<ProcessView?> Get(Guid id, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<OpenTaskView>> OpenTasks(string? queueCode, Guid? assigneeId, int limit, CancellationToken cancellationToken);
+    Task<IReadOnlyList<OpenTaskView>> OpenTasks(string? queueCode, Guid? assigneeId, OpenTaskCursor? after, int limit, CancellationToken cancellationToken);
 }
 
 public sealed record StartProcess(string ProcessCode, string BusinessRefType, Guid BusinessRefId) : ICommand<Guid>;
@@ -106,7 +143,7 @@ public sealed record ListProcesses(string? BusinessRefType, Guid? BusinessRefId,
 
 public sealed record GetProcess(Guid ProcessId) : IQuery<ProcessView>;
 
-public sealed record ListOpenTasks(string? QueueCode, Guid? AssigneeId, int Limit) : IQuery<IReadOnlyList<OpenTaskView>>;
+public sealed record ListOpenTasks(string? QueueCode, Guid? AssigneeId, int Limit, OpenTaskCursor? After = null) : IQuery<IReadOnlyList<OpenTaskView>>;
 
 public sealed record ProcessesWithDueTimers(DateTimeOffset Now) : IQuery<IReadOnlyList<Guid>>;
 
@@ -328,22 +365,34 @@ internal sealed class EscalateTaskHandler(IProcessRepository processes, TaskEsca
     }
 }
 
-internal sealed class ListProcessesHandler(IProcessQueries queries) : IQueryHandler<ListProcesses, IReadOnlyList<ProcessView>>
+internal sealed class ListProcessesHandler(IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate)
+    : IQueryHandler<ListProcesses, IReadOnlyList<ProcessView>>
 {
-    public async Task<Result<IReadOnlyList<ProcessView>>> Handle(ListProcesses query, CancellationToken cancellationToken) =>
-        Result.Success(await queries.List(query.BusinessRefType, query.BusinessRefId, query.AfterId, query.Limit, cancellationToken));
+    public async Task<Result<IReadOnlyList<ProcessView>>> Handle(ListProcesses query, CancellationToken cancellationToken)
+    {
+        var definitions = new Dictionary<(string, int), ProcessDefinition?>();
+        var views = new List<ProcessView>();
+        foreach (var view in await queries.List(query.BusinessRefType, query.BusinessRefId, query.AfterId, query.Limit, cancellationToken))
+        {
+            views.Add(await ProcessView.WithTransitions(view, configuration, businessDate.Today, definitions, cancellationToken));
+        }
+
+        return views;
+    }
 }
 
-internal sealed class GetProcessHandler(IProcessQueries queries) : IQueryHandler<GetProcess, ProcessView>
+internal sealed class GetProcessHandler(IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate) : IQueryHandler<GetProcess, ProcessView>
 {
     public async Task<Result<ProcessView>> Handle(GetProcess query, CancellationToken cancellationToken) =>
-        await queries.Get(query.ProcessId, cancellationToken) is { } view ? view : Error.NotFound(ErrorCodes.NotFound, "The process was not found.");
+        await queries.Get(query.ProcessId, cancellationToken) is { } view
+            ? await ProcessView.WithTransitions(view, configuration, businessDate.Today, [], cancellationToken)
+            : Error.NotFound(ErrorCodes.NotFound, "The process was not found.");
 }
 
 internal sealed class ListOpenTasksHandler(IProcessQueries queries) : IQueryHandler<ListOpenTasks, IReadOnlyList<OpenTaskView>>
 {
     public async Task<Result<IReadOnlyList<OpenTaskView>>> Handle(ListOpenTasks query, CancellationToken cancellationToken) =>
-        Result.Success(await queries.OpenTasks(query.QueueCode, query.AssigneeId, query.Limit, cancellationToken));
+        Result.Success(await queries.OpenTasks(query.QueueCode, query.AssigneeId, query.After, query.Limit, cancellationToken));
 }
 
 internal sealed class ProcessesWithDueTimersHandler(IProcessRepository processes) : IQueryHandler<ProcessesWithDueTimers, IReadOnlyList<Guid>>

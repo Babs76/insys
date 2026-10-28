@@ -172,7 +172,7 @@ internal sealed class ProcessQueries(WorkflowDbContext db) : IProcessQueries
         return View(process, notes.Select(n => new CaseNoteView(n.AuthorId, n.Note, db.Entry(n).Property<DateTimeOffset>("CreatedAt").CurrentValue)).ToList());
     }
 
-    public async Task<IReadOnlyList<OpenTaskView>> OpenTasks(string? queueCode, Guid? assigneeId, int limit, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<OpenTaskView>> OpenTasks(string? queueCode, Guid? assigneeId, OpenTaskCursor? after, int limit, CancellationToken cancellationToken)
     {
         var query = db.Set<ProcessTask>().AsNoTracking().Where(t => t.Status == Domain.Processes.TaskStatus.Open);
         if (queueCode is not null)
@@ -185,7 +185,13 @@ internal sealed class ProcessQueries(WorkflowDbContext db) : IProcessQueries
             query = query.Where(t => t.AssigneeId == assigneeId);
         }
 
-        return (await query.OrderBy(t => t.DueAt).Take(limit).ToListAsync(cancellationToken)).Select(t => new OpenTaskView(t.ProcessInstanceId, View(t))).ToList();
+        if (after is { } cursor)
+        {
+            query = query.Where(t => t.DueAt > cursor.DueAt || (t.DueAt == cursor.DueAt && t.Id.CompareTo(cursor.Id) > 0));
+        }
+
+        return (await query.OrderBy(t => t.DueAt).ThenBy(t => t.Id).Take(limit).ToListAsync(cancellationToken))
+            .Select(t => new OpenTaskView(t.ProcessInstanceId, View(t))).ToList();
     }
 
     private static ProcessView View(ProcessInstance p, IReadOnlyList<CaseNoteView> notes) =>

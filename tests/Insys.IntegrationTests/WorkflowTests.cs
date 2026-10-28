@@ -111,9 +111,11 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
     {
         var client = _factory.ClientFor(DatabaseFixture.TenantA, "wf-maker");
         var (url, taskId) = await Start(client, "CLAIM");
+        (await Transitions(client, url)).ShouldBe([("Assessment", false)], "BR-028: the transitions from the current state");
 
-        (await client.Send(HttpMethod.Post, $"{url}/tasks/{taskId}/complete", new { toState = "Approved", variables = new { amount = 1 } }, ifMatch: "\"1\""))
-            .StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        var notOffered = await client.Send(HttpMethod.Post, $"{url}/tasks/{taskId}/complete", new { toState = "Approved", variables = new { amount = 1 } }, ifMatch: "\"1\"");
+        notOffered.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await notOffered.Code()).ShouldBe("TRANSITION_NOT_DEFINED", "a transition not offered is refused");
         (await client.Send(HttpMethod.Post, $"{url}/tasks/{taskId}/complete", new { toState = "Assessment" }, ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         var process = await (await client.GetAsync(url)).Json();
@@ -121,6 +123,7 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         assessment.GetProperty("taskType").GetString().ShouldBe("ASSESSMENT");
         assessment.GetProperty("slaCode").GetString().ShouldBe("SLA_ASS");
         var next = assessment.GetProperty("id").GetGuid();
+        (await Transitions(client, url)).ShouldBe([("Approved", true), ("Declined", false)], "Approved has a guard");
 
         var guardFailed = await client.Send(HttpMethod.Post, $"{url}/tasks/{next}/complete", new { toState = "Approved", variables = new { amount = 25_000 } },
             ifMatch: "\"2\"");
@@ -132,7 +135,46 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         process.GetProperty("status").GetString().ShouldBe("Completed");
         process.GetProperty("state").GetString().ShouldBe("Approved");
         process.GetProperty("processVersion").GetInt32().ShouldBe(1);
+        (await Transitions(client, url)).ShouldBeEmpty("a completed process offers none");
     }
+
+    /// <summary>BR-028: open tasks page with a cursor, earliest due first, every task once.</summary>
+    [Fact]
+    public async Task OpenTasks_PageEarliestDueFirst_EveryTaskOnce_BR028()
+    {
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, "wf-maker");
+        var started = new List<Guid>();
+        for (var i = 0; i < 5; i++)
+        {
+            started.Add((await Start(client, "CLAIM")).TaskId);
+        }
+
+        var seen = new List<(DateTimeOffset DueAt, Guid Id)>();
+        string? cursor = null;
+        for (var page = 0; page < 50; page++)
+        {
+            var response = await client.GetAsync($"/api/v1/workflow/tasks?queueCode=CLAIMS_Q&limit=2{(cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}")}");
+            response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+            var body = await response.Json();
+            seen.AddRange(body.GetProperty("items").EnumerateArray().Select(t => t.GetProperty("task"))
+                .Select(t => (t.GetProperty("dueAt").GetDateTimeOffset(), t.GetProperty("id").GetGuid())));
+            if (body.GetProperty("nextCursor").ValueKind == System.Text.Json.JsonValueKind.Null)
+            {
+                break;
+            }
+
+            cursor = body.GetProperty("nextCursor").GetString();
+        }
+
+        seen.Select(t => t.Id).ShouldBeUnique();
+        started.ShouldAllBe(id => seen.Any(t => t.Id == id));
+        seen.ShouldBe([.. seen.OrderBy(t => t.DueAt).ThenBy(t => t.Id)], "earliest due first");
+        (await client.GetAsync("/api/v1/workflow/tasks?cursor=not-a-cursor")).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+    }
+
+    private static async Task<List<(string, bool)>> Transitions(HttpClient client, string url) =>
+        [.. (await (await client.GetAsync(url)).Json()).GetProperty("allowedTransitions").EnumerateArray()
+            .Select(t => (t.GetProperty("toState").GetString()!, t.GetProperty("conditional").GetBoolean()))];
 
     [Fact]
     public async Task Transition_WithoutTheOwningDomainsValidation_IsRefused_WFL002()
@@ -162,7 +204,7 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         notes.GetArrayLength().ShouldBe(1);
 
         var queue = await (await client.GetAsync("/api/v1/workflow/tasks?queueCode=SUPERVISORS")).Json();
-        queue.EnumerateArray().ShouldContain(t => t.GetProperty("task").GetProperty("id").GetGuid() == taskId);
+        queue.GetProperty("items").EnumerateArray().ShouldContain(t => t.GetProperty("task").GetProperty("id").GetGuid() == taskId);
     }
 
     [Fact]

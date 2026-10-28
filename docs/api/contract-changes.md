@@ -4,6 +4,10 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### Breaking: open tasks page with a cursor; a process lists its allowed transitions (BR-028)
+- **`GET /api/v1/workflow/tasks`** (`WorkflowListOpenTasks`) returns a `CursorPage` (`items`, `nextCursor`) instead of a plain array, and takes `cursor`. The order is unchanged: earliest due first (then by task ID), and the cursor follows it.
+- **`ProcessView.allowedTransitions`** (new, on the read and the list): each `toState` the process may move to from its current state, in the definition version it started on, with `conditional` true when the transition has a guard evaluated on the completion's variables. Empty unless the process is `Running`. Completing a task with a `toState` not listed is refused, 422 `TRANSITION_NOT_DEFINED` (as before).
+
 ### Changed: documents declare channels and hold reasons, keep the file name, and say what reading needs (BR-027)
 - **`DocumentsDeliver`:** `channel` is an enum (`EMAIL`, `SMS`, `POST`, `PORTAL`, the channels the delivery settings allow) and names `document.cfg_delivery_channel_settings` as its code list: a channel the tenant has not configured is still refused (`CODE_NOT_IN_FORCE`). `DeliveryView.channel` declares the same enum.
 - **Legal hold reasons:** `reasonCode` on the document hold, the record hold and their views names `document.ref_legal_hold_reason_codes`.
