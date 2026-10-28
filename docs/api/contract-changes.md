@@ -4,6 +4,10 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### New: the party number (BR-029, decided)
+- **`partyNumber`** on `PartyView` and `PartySummary`: `P`, 8 digits and a Luhn (mod 10) check digit over those 8 (for example `P000000018`). INSYS assigns it when a party is registered, in any way (staff, portal or import); it is per tenant, never changed or reused, and holds no personal data. Existing parties are numbered in registration order.
+- **Search:** `PartySearchParties` takes `partyNumber`, an exact match (`^P[0-9]{9}$`); a number whose check digit is wrong is 422. It may be the only filter. The search log's entries gain `partyNumberFilter`.
+
 ### Breaking: open tasks page with a cursor; a process lists its allowed transitions (BR-028)
 - **`GET /api/v1/workflow/tasks`** (`WorkflowListOpenTasks`) returns a `CursorPage` (`items`, `nextCursor`) instead of a plain array, and takes `cursor`. The order is unchanged: earliest due first (then by task ID), and the cursor follows it.
 - **`ProcessView.allowedTransitions`** (new, on the read and the list): each `toState` the process may move to from its current state, in the definition version it started on, with `conditional` true when the transition has a guard evaluated on the completion's variables. Empty unless the process is `Running`. Completing a task with a `toState` not listed is refused, 422 `TRANSITION_NOT_DEFINED` (as before).

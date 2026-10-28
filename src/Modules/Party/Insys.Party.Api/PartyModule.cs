@@ -66,7 +66,9 @@ public sealed record DeathRequest(DateOnly DeceasedDate);
 public sealed record MergePartiesRequest(Guid SurvivorId, Guid MergedId, string Reason);
 
 /// <summary>Party search filters (GAP-022): any combination, at least one. The body carries them, so an identifier number never appears in a URL.</summary>
-public sealed record PartySearchRequest(string? Name, IdentifierFilter? Identifier, [property: BuildingBlocks.Domain.CodeList(Tables.RoleTypes)] string? RoleCode, PartyStatus? Status, string? Cursor, int? Limit);
+/// <param name="PartyNumber">An exact party number (BR-029), P and 9 digits; its check digit is checked.</param>
+public sealed record PartySearchRequest(string? Name, IdentifierFilter? Identifier, [property: BuildingBlocks.Domain.CodeList(Tables.RoleTypes)] string? RoleCode, PartyStatus? Status, string? Cursor, int? Limit,
+    [property: System.ComponentModel.DataAnnotations.RegularExpression(PartyNumbers.Pattern)] string? PartyNumber = null);
 
 public sealed record ConsentRequest([property: BuildingBlocks.Domain.CodeList(Tables.ConsentPurposes)] string PurposeCode, string CaptureChannel, string? EvidenceRef);
 
@@ -98,7 +100,7 @@ public sealed class PartyModule : IModule
                 }
 
                 var pageSize = Cursor.ClampLimit(r.Limit);
-                return (await dispatcher.Send(new SearchParties(r.Name, r.Identifier, r.RoleCode, r.Status, afterId, pageSize), ct))
+                return (await dispatcher.Send(new SearchParties(r.Name, r.Identifier, r.RoleCode, r.Status, afterId, pageSize, r.PartyNumber), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<PartySummary>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
             .Produces<CursorPage<PartySummary>>(StatusCodes.Status200OK)

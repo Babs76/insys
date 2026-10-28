@@ -47303,6 +47303,12 @@
               "string"
             ],
             "format": "int32"
+          },
+          "partyNumberFilter": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -47476,6 +47482,13 @@
               "string"
             ],
             "format": "int32"
+          },
+          "partyNumber": {
+            "pattern": "^P[0-9]{9}$",
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -47491,6 +47504,7 @@
       "PartySummary": {
         "required": [
           "id",
+          "partyNumber",
           "kind",
           "displayName",
           "status",
@@ -47501,6 +47515,9 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "partyNumber": {
+            "type": "string"
           },
           "kind": {
             "$ref": "#/components/schemas/PartyKind"
@@ -47533,6 +47550,7 @@
       "PartyView": {
         "required": [
           "id",
+          "partyNumber",
           "kind",
           "displayName",
           "status",
@@ -47552,6 +47570,9 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "partyNumber": {
+            "type": "string"
           },
           "kind": {
             "$ref": "#/components/schemas/PartyKind"

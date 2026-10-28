@@ -60,6 +60,31 @@ public sealed record IndividualData([property: CodeList(Tables.PersonalAttribute
     [property: CodeList(Tables.PersonalAttributes, Filter = "list_code=MARITAL_STATUS")] string? MaritalStatusCode,
     [property: CodeList(Tables.Countries)] string? Nationality, [property: CodeList(Tables.Languages)] string? PreferredLanguage);
 
+/// <summary>
+/// The party number (BR-029, decided 28 October 2026): "P", 8 digits from the tenant's counter, and a Luhn (mod 10) check
+/// digit over those 8. The database assigns it (V0071); this checks one given to a search.
+/// </summary>
+public static class PartyNumbers
+{
+    public const string Pattern = "^P[0-9]{9}$";
+
+    public static bool IsValid(string number) =>
+        number.Length == 10 && number[0] == 'P' && number[1..].All(char.IsAsciiDigit) && CheckDigit(number[1..9]) == number[9] - '0';
+
+    /// <summary>The digit that makes the digits followed by it pass the Luhn check.</summary>
+    public static int CheckDigit(string digits)
+    {
+        var sum = 0;
+        for (var i = 0; i < digits.Length; i++)
+        {
+            var digit = digits[digits.Length - 1 - i] - '0';
+            sum += i % 2 == 0 ? (digit * 2 > 9 ? digit * 2 - 9 : digit * 2) : digit;
+        }
+
+        return (10 - sum % 10) % 10;
+    }
+}
+
 /// <summary>The static data tables Party's code fields take their codes from (BR-026), as the OpenAPI documents name them.</summary>
 public static class Tables
 {
@@ -522,6 +547,9 @@ public sealed class Party : AggregateRoot<Guid>
     public PartyKind Kind { get; private set; }
 
     public string DisplayName { get; private set; } = "";
+
+    /// <summary>The party number INSYS gives on registration (BR-029): assigned by the database on insert, never changed.</summary>
+    public string PartyNumber { get; private set; } = null!;
 
     public PartyStatus Status { get; private set; }
 

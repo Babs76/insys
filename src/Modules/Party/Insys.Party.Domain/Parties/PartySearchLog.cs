@@ -58,8 +58,11 @@ public sealed class PartySearchLog : Entity<Guid>, ITenantScoped
 
     public int ResultCount { get; private set; }
 
+    /// <summary>A search by party number (BR-029); the number holds no personal data, so retention keeps it.</summary>
+    public string? PartyNumberFilter { get; private set; }
+
     public static PartySearchLog Record(string searchedBy, string? name, (string DocType, string Country, string Hash)? identifier, string? role,
-        string? status, int resultCount, DateTimeOffset now) => new()
+        string? status, int resultCount, DateTimeOffset now, string? partyNumber = null) => new()
     {
         Id = Guid.CreateVersion7(),
         SearchedAt = now,
@@ -71,5 +74,6 @@ public sealed class PartySearchLog : Entity<Guid>, ITenantScoped
         RoleFilter = role,
         StatusFilter = status,
         ResultCount = resultCount,
+        PartyNumberFilter = partyNumber,
     };
 }

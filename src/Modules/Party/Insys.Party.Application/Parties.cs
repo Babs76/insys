@@ -104,12 +104,13 @@ public sealed record RelationshipView(Guid Id, Guid ToPartyId, [property: CodeLi
 public sealed record PartyReviewView([property: OneOf("PENDING_REVIEW", "PROPOSED", "LINKED", "CONFIRMED_NEW")] string Status, string? RegisteredBy, Guid? MatchedPartyId,
     [property: OneOf("LINK", "NEW")] string? Resolution);
 
-public sealed record PartyView(Guid Id, PartyKind Kind, string DisplayName, PartyStatus Status, Guid? MergedIntoId, IndividualData? Individual, OrganisationData? Organisation,
+/// <param name="PartyNumber">The number INSYS gave the party on registration (BR-029): P, 8 digits and a Luhn check digit.</param>
+public sealed record PartyView(Guid Id, string PartyNumber, PartyKind Kind, string DisplayName, PartyStatus Status, Guid? MergedIntoId, IndividualData? Individual, OrganisationData? Organisation,
     DateOnly? DeceasedDate, IReadOnlyList<AddressView> Addresses, IReadOnlyList<ContactPointView> ContactPoints, IReadOnlyList<IdentifierView> Identifiers,
     IReadOnlyList<RoleView> Roles, IReadOnlyList<RelationshipView> Relationships, long RowVersion, PartyReviewView? Review = null)
 {
     /// <param name="lastFour">An identifier's last four characters: the stored ones, or for one added before V0069, read from its number.</param>
-    public static PartyView From(Domain.Parties.Party p, Func<PartyIdentifier, string> lastFour) => new(p.Id, p.Kind, p.DisplayName, p.Status, p.MergedIntoId,
+    public static PartyView From(Domain.Parties.Party p, Func<PartyIdentifier, string> lastFour) => new(p.Id, p.PartyNumber, p.Kind, p.DisplayName, p.Status, p.MergedIntoId,
         p.Individual is { } i ? new IndividualData(i.TitleCode, i.FirstNames, i.Surname, i.BirthDate, i.GenderCode, i.MaritalStatusCode, i.Nationality, i.PreferredLanguage) : null,
         p.Organisation is { } o ? new OrganisationData(o.LegalName, o.TradingName, o.LegalFormCode, o.RegistrationNumber, o.IndustryCode) : null,
         p.Individual?.DeceasedDate,

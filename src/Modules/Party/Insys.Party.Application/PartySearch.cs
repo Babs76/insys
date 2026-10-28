@@ -38,18 +38,20 @@ public sealed record IdentifierFilter([property: CodeList(Tables.IdentityDocumen
 
 /// <summary>
 /// Command SearchParties (GAP-022): find parties by name (at least 3 characters, anywhere in the display name), an exact
-/// identifier, a role in effect, and status. A command, not a query, because every search is written to the access log
+/// identifier, a party number (BR-029), a role in effect, and status. A command, not a query, because every search is written to the access log
 /// (PTY-003, PTY-005): who searched, when, the filters and the number of results; an identifier by its hash only.
 /// </summary>
-public sealed record SearchParties(string? Name, IdentifierFilter? Identifier, string? RoleCode, PartyStatus? Status, Guid? AfterId, int Limit)
-    : ICommand<IReadOnlyList<PartySummary>>;
+public sealed record SearchParties(string? Name, IdentifierFilter? Identifier, string? RoleCode, PartyStatus? Status, Guid? AfterId, int Limit,
+    string? PartyNumber = null) : ICommand<IReadOnlyList<PartySummary>>;
 
 public sealed class SearchPartiesValidator : AbstractValidator<SearchParties>
 {
     public SearchPartiesValidator()
     {
-        RuleFor(s => s).Must(s => s.Name is not null || s.Identifier is not null || s.RoleCode is not null || s.Status is not null)
-            .WithMessage("Give at least one of name, identifier, roleCode or status.");
+        RuleFor(s => s).Must(s => s.Name is not null || s.Identifier is not null || s.RoleCode is not null || s.Status is not null || s.PartyNumber is not null)
+            .WithMessage("Give at least one of name, identifier, partyNumber, roleCode or status.");
+        RuleFor(s => s.PartyNumber).Must(n => PartyNumbers.IsValid(n!.Trim().ToUpperInvariant())).When(s => s.PartyNumber is not null)
+            .WithMessage("partyNumber is P, 8 digits and a check digit (for example P000000018).");
         RuleFor(s => s.Name).Must(n => n!.Trim().Length >= 3).When(s => s.Name is not null).WithMessage("name needs at least 3 characters.")
             .MaximumLength(200);
         RuleFor(s => s.Identifier!.DocType).NotEmpty().MaximumLength(15).When(s => s.Identifier is not null);
@@ -63,11 +65,11 @@ public sealed class SearchPartiesValidator : AbstractValidator<SearchParties>
 /// A party in search results: only what is needed to pick the right one (PTY-005). Open the party for its details;
 /// identifiers, birth date and contact details are not in results.
 /// </summary>
-public sealed record PartySummary(Guid Id, PartyKind Kind, string DisplayName, PartyStatus Status, IReadOnlyList<string> Roles);
+public sealed record PartySummary(Guid Id, string PartyNumber, PartyKind Kind, string DisplayName, PartyStatus Status, IReadOnlyList<string> Roles);
 
 /// <summary>A party search in the access log, for audit roles (GAP-022): the identifier as document type, country and keyed hash only.</summary>
 public sealed record PartySearchLogEntry(Guid Id, DateTimeOffset SearchedAt, string SearchedBy, string? NameFilter, string? IdentifierDocType,
-    string? IdentifierCountry, string? IdentifierHash, string? RoleFilter, string? StatusFilter, int ResultCount);
+    string? IdentifierCountry, string? IdentifierHash, string? RoleFilter, string? StatusFilter, int ResultCount, string? PartyNumberFilter = null);
 
 /// <summary>Query ListPartySearches: the access log, newest first, by who searched and when.</summary>
 public sealed record ListPartySearches(string? SearchedBy, DateTimeOffset? From, DateTimeOffset? To, Guid? BeforeId, int Limit)
@@ -77,7 +79,7 @@ public interface IPartySearch
 {
     /// <summary>Parties matching every given filter, by ID after <paramref name="afterId"/>.</summary>
     Task<IReadOnlyList<PartySummary>> Search(string? name, (string DocType, string Country, string Hash)? identifier, string? roleCode, PartyStatus? status,
-        DateOnly today, Guid? afterId, int limit, CancellationToken cancellationToken);
+        DateOnly today, Guid? afterId, int limit, CancellationToken cancellationToken, string? partyNumber = null);
 
     void Log(PartySearchLog entry);
 
@@ -99,8 +101,9 @@ internal sealed class SearchPartiesHandler(IPartySearch search, IFieldProtector 
         (string DocType, string Country, string Hash)? identifier = command.Identifier is { } i
             ? (i.DocType, i.Country.ToUpperInvariant(), protector.Hash(i.Number.Trim()))
             : null;
-        var results = await search.Search(name, identifier, command.RoleCode, command.Status, businessDate.Today, command.AfterId, command.Limit, cancellationToken);
-        search.Log(PartySearchLog.Record(execution.ActorId, name, identifier, command.RoleCode, command.Status?.ToString(), results.Count, clock.UtcNow));
+        var number = command.PartyNumber?.Trim().ToUpperInvariant();
+        var results = await search.Search(name, identifier, command.RoleCode, command.Status, businessDate.Today, command.AfterId, command.Limit, cancellationToken, number);
+        search.Log(PartySearchLog.Record(execution.ActorId, name, identifier, command.RoleCode, command.Status?.ToString(), results.Count, clock.UtcNow, number));
         return Result.Success(results);
     }
 }

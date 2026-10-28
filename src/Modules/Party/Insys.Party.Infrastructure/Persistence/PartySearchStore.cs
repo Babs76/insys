@@ -37,7 +37,7 @@ namespace Insys.Party.Infrastructure.Persistence;
 internal sealed class PartySearchStore(PartyDbContext db) : IPartySearch
 {
     public async Task<IReadOnlyList<PartySummary>> Search(string? name, (string DocType, string Country, string Hash)? identifier, string? roleCode,
-        PartyStatus? status, DateOnly today, Guid? afterId, int limit, CancellationToken cancellationToken)
+        PartyStatus? status, DateOnly today, Guid? afterId, int limit, CancellationToken cancellationToken, string? partyNumber = null)
     {
         var parties = db.Parties.AsNoTracking().Where(p => p.MergedIntoId == null);
         if (name is not null)
@@ -50,6 +50,11 @@ internal sealed class PartySearchStore(PartyDbContext db) : IPartySearch
         if (identifier is { } i)
         {
             parties = parties.Where(p => p.Identifiers.Any(x => x.DocType == i.DocType && x.Country == i.Country && x.NumberHash == i.Hash));
+        }
+
+        if (partyNumber is not null)
+        {
+            parties = parties.Where(p => p.PartyNumber == partyNumber);
         }
 
         if (roleCode is not null)
@@ -70,11 +75,11 @@ internal sealed class PartySearchStore(PartyDbContext db) : IPartySearch
         var page = await parties.OrderBy(p => p.Id).Take(limit)
             .Select(p => new
             {
-                p.Id, p.Kind, p.DisplayName, p.Status,
+                p.Id, p.PartyNumber, p.Kind, p.DisplayName, p.Status,
                 Roles = p.Roles.Where(r => r.ValidFrom <= today && (r.ValidTo == null || r.ValidTo > today)).Select(r => r.RoleCode).Distinct().ToList(),
             })
             .ToListAsync(cancellationToken);
-        return page.Select(p => new PartySummary(p.Id, p.Kind, p.DisplayName, p.Status, [.. p.Roles.Order(StringComparer.Ordinal)])).ToList();
+        return page.Select(p => new PartySummary(p.Id, p.PartyNumber, p.Kind, p.DisplayName, p.Status, [.. p.Roles.Order(StringComparer.Ordinal)])).ToList();
     }
 
     public void Log(PartySearchLog entry) => db.Set<PartySearchLog>().Add(entry);
@@ -104,7 +109,7 @@ internal sealed class PartySearchStore(PartyDbContext db) : IPartySearch
 
         return await log.OrderByDescending(l => l.Id).Take(query.Limit)
             .Select(l => new PartySearchLogEntry(l.Id, l.SearchedAt, l.SearchedBy, l.NameFilter, l.IdentifierDocType, l.IdentifierCountry, l.IdentifierHash,
-                l.RoleFilter, l.StatusFilter, l.ResultCount))
+                l.RoleFilter, l.StatusFilter, l.ResultCount, l.PartyNumberFilter))
             .ToListAsync(cancellationToken);
     }
 }
