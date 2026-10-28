@@ -29,7 +29,9 @@ using System.Text.Json;
 using Insys.General.Contracts;
 using Insys.Health.Contracts;
 using Insys.Life.Contracts;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.Party.Contracts;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.IntegrationTests;
 
@@ -37,7 +39,8 @@ namespace Insys.IntegrationTests;
 /// BR-091 (external-user access §2): the portals list a member's own Life and General policies, Health memberships and
 /// claims, and a broker's policies, claims and clients, scoped only by the caller's link. Another member's or broker's
 /// records never appear in a list or by ID; a firm principal sees its sub-broker's, the sub-broker not the principal's;
-/// the same link in another tenant sees nothing. Every list pages with a cursor, each record once.
+/// the same link in another tenant sees nothing. Every list pages with a cursor, each record once. Privacy check (28 October
+/// 2026): an insured life who is not the policyholder, and a Health dependant, see only their own cover and claims.
 /// </summary>
 public sealed class PortalListTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
@@ -187,6 +190,91 @@ public sealed class PortalListTests(DatabaseFixture fixture) : IClassFixture<Dat
         (await brokerElsewhere.GetAsync($"/api/v1/portal/party/parties/{memberA}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    /// <summary>
+    /// Privacy check (Ade, 28 October 2026): an insured life who is not the policyholder sees only the benefits on their own
+    /// life, without premiums, and nothing of the policyholder (their party, the other lives' cover, the beneficiaries, the
+    /// policy's documents). A Health dependant sees the plan they are covered by and their own entry, not the principal or
+    /// the other dependants, and only the claims where they are the patient.
+    /// </summary>
+    [Fact]
+    public async Task AnInsuredLifeAndADependant_SeeOnlyTheirOwnCoverAndClaims_PrivacyCheck()
+    {
+        var holder = await Party("Policyholder");
+        var insured = await Party("Insured spouse");
+        var policy = await LifePolicy(holder, "P91");
+        var holderLife = await _rows.Insert(A, "life.policy_insured_life", ("policy_id", policy), ("party_id", holder), ("life_role", "MAIN"), ("entry_age", (short)45));
+        var insuredLife = await _rows.Insert(A, "life.policy_insured_life", ("policy_id", policy), ("party_id", insured), ("life_role", "SPOUSE"), ("entry_age", (short)43));
+        await Benefit(policy, holderLife, "DEATH", 1_000_000m, 450m);
+        await Benefit(policy, holderLife, "DISABILITY", 500_000m, 120m);
+        await Benefit(policy, insuredLife, "DEATH", 250_000m, 90m);
+        await _rows.Insert(A, "life.beneficiary", ("policy_id", policy), ("party_id", insured), ("relationship_code", "SPOUSE"), ("share_pct", 100m),
+            ("valid_from", From));
+
+        var asHolder = await Member(A, "privacy-holder", holder);
+        var asInsured = await Member(A, "privacy-insured", insured);
+
+        var full = await (await asHolder.GetAsync($"/api/v1/portal/life/policies/{policy}")).Json();
+        full.GetProperty("viewedAs").GetString().ShouldBe("POLICYHOLDER");
+        full.GetProperty("benefits").GetArrayLength().ShouldBe(3);
+        full.GetProperty("beneficiaries").GetArrayLength().ShouldBe(1);
+
+        var listed = await All(asInsured, "life/policies");
+        listed.ShouldBe([policy]);
+        var page = await (await asInsured.GetAsync("/api/v1/portal/life/policies")).Json();
+        foreach (var own in new[] { await (await asInsured.GetAsync($"/api/v1/portal/life/policies/{policy}")).Json(), page.GetProperty("items")[0] })
+        {
+            own.GetProperty("viewedAs").GetString().ShouldBe("INSURED_LIFE");
+            own.GetProperty("policyholderPartyId").ValueKind.ShouldBe(JsonValueKind.Null, "nothing of the policyholder");
+            own.GetProperty("beneficiaries").ValueKind.ShouldBe(JsonValueKind.Null);
+            var benefits = own.GetProperty("benefits").EnumerateArray().ToList();
+            benefits.Select(b => (b.GetProperty("benefitCode").GetString(), b.GetProperty("sumAssured").GetDecimal())).ShouldBe([("DEATH", 250_000m)],
+                "only the cover on their own life");
+            benefits.ShouldAllBe(b => b.GetProperty("premium").ValueKind == JsonValueKind.Null, "no premiums");
+            own.ToString().ShouldNotContain(holder.ToString());
+        }
+
+        // The policy's documents (its schedule shows the whole policy) are the policyholder's, not the insured life's.
+        var relations = _factory.Services.GetServices<IPortalRecordRelations>().Single(r => r.Covers(LifeDocuments.PolicyRefType));
+        (await relations.Related(A, Subject(holder), LifeDocuments.PolicyRefType, policy, CancellationToken.None)).ShouldBeTrue();
+        (await relations.Related(A, Subject(insured), LifeDocuments.PolicyRefType, policy, CancellationToken.None)).ShouldBeFalse();
+
+        // Health: a principal with two dependants, and a claim for each of the three.
+        var principal = await Party("Principal");
+        var dependant = await Party("Dependant one");
+        var otherDependant = await Party("Dependant two");
+        var membership = await Membership(principal);
+        foreach (var (party, suffix) in new[] { (dependant, "01"), (otherDependant, "02") })
+        {
+            await _rows.Insert(A, "health.member_dependant", ("membership_id", membership), ("party_id", party), ("dependant_type", "CHILD"), ("suffix", suffix),
+                ("start_date", From), ("status", "ACTIVE"));
+        }
+
+        var principalClaim = await MedicalClaim(membership, principal);
+        var dependantClaim = await MedicalClaim(membership, dependant);
+        var otherClaim = await MedicalClaim(membership, otherDependant);
+        var asPrincipal = await Member(A, "privacy-principal", principal);
+        var asDependant = await Member(A, "privacy-dependant", dependant);
+
+        var whole = await (await asPrincipal.GetAsync($"/api/v1/portal/health/memberships/{membership}")).Json();
+        whole.GetProperty("viewedAs").GetString().ShouldBe("PRINCIPAL");
+        whole.GetProperty("dependants").GetArrayLength().ShouldBe(2);
+        (await All(asPrincipal, "health/claims")).ShouldBe(Sorted(principalClaim, dependantClaim, otherClaim));
+
+        (await All(asDependant, "health/memberships")).ShouldBe([membership]);
+        var mine = await (await asDependant.GetAsync($"/api/v1/portal/health/memberships/{membership}")).Json();
+        mine.GetProperty("viewedAs").GetString().ShouldBe("DEPENDANT");
+        mine.GetProperty("planCode").GetString().ShouldNotBeNullOrEmpty();
+        mine.GetProperty("principalPartyId").ValueKind.ShouldBe(JsonValueKind.Null);
+        mine.GetProperty("dependants").EnumerateArray().Select(d => d.GetProperty("partyId").GetGuid()).ShouldBe([dependant]);
+        mine.ToString().ShouldNotContain(principal.ToString());
+        mine.ToString().ShouldNotContain(otherDependant.ToString());
+
+        (await All(asDependant, "health/claims")).ShouldBe([dependantClaim], "only the claims where they are the patient");
+        (await asDependant.GetAsync($"/api/v1/portal/health/claims/{dependantClaim}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await asDependant.GetAsync($"/api/v1/portal/health/claims/{principalClaim}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await asDependant.GetAsync($"/api/v1/portal/health/claims/{otherClaim}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
     /// <summary>Every page of a portal list, one record at a time, so the cursor is followed past each page boundary.</summary>
     private static async Task<List<Guid>> All(HttpClient client, string list)
     {
@@ -221,6 +309,21 @@ public sealed class PortalListTests(DatabaseFixture fixture) : IClassFixture<Dat
 
     private Task<Guid> LifePolicy(Guid holder, string broker) =>
         _rows.Insert(A, "life.policy", ("policyholder_party_id", holder), ("intermediary_code", broker), ("status", "IN_FORCE"), ("currency", "ZAR"));
+
+    private Task<Guid> Benefit(Guid policy, Guid life, string code, decimal sumAssured, decimal premium) =>
+        _rows.Insert(A, "life.policy_benefit", ("policy_id", policy), ("insured_life_id", life), ("benefit_code", code), ("sum_assured", sumAssured), ("premium", premium),
+            ("start_date", From), ("status", "ACTIVE"));
+
+    private async Task<Guid> MedicalClaim(Guid membership, Guid patient)
+    {
+        var claim = await _rows.Insert(A, "health.medical_claim", ("membership_id", membership), ("patient_party_id", patient), ("source", "PROVIDER"),
+            ("status", "RECEIVED"), ("currency", "ZAR"));
+        await _rows.Insert(A, "health.medical_claim_line", ("claim_id", claim), ("line_no", (short)1), ("tariff_code", "0190"), ("diagnosis_code", "J06.9"),
+            ("quantity", (short)1));
+        return claim;
+    }
+
+    private static ExternalSubject Subject(Guid party) => new(ExternalSubject.Party, party, null, new HashSet<string>(), null);
 
     private Task<Guid> Membership(Guid principal) => _rows.Insert(A, "health.membership", ("principal_party_id", principal), ("status", "ACTIVE"));
 

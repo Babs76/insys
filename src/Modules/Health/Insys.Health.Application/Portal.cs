@@ -35,17 +35,35 @@ using Insys.Health.Domain.Payments;
 namespace Insys.Health.Application;
 
 // External-user access (docs/specs/addenda/external-user-access.md) in Health. A member sees a membership where they are
-// the principal or a dependant. A provider sees its own preauthorisations, medical claims and remittances, and submits
+// the principal or a dependant; a dependant sees only their own cover on it, and only the claims where they are the patient. A provider sees its own preauthorisations, medical claims and remittances, and submits
 // only as itself: the provider is the link's, whatever a request says (§3). The views leave out adjudication internals,
 // fraud, clinical review, case management and benefit reservations (§4).
 
 public sealed record PortalDependantView(Guid PartyId, string DependantType, string Suffix, DateOnly StartDate, DateOnly? EndDate);
 
+/// <param name="ViewedAs">How the caller relates to the membership, which decides what the view shows.</param>
+/// <param name="PrincipalPartyId">Null for a dependant.</param>
+/// <param name="Dependants">For the principal, every dependant; for a dependant, only their own entry.</param>
 public sealed record PortalMembershipView(Guid Id, string MemberNumber, string? ProductCode, string PlanCode, string OptionCode, MembershipStatus Status, DateOnly StartDate,
-    DateOnly? EndDate, Guid PrincipalPartyId, IReadOnlyList<PortalDependantView> Dependants)
+    DateOnly? EndDate, [property: BuildingBlocks.Domain.OneOf(PortalMembershipView.Principal, PortalMembershipView.Dependant)] string ViewedAs, Guid? PrincipalPartyId,
+    IReadOnlyList<PortalDependantView> Dependants)
 {
-    public static PortalMembershipView From(HealthMembership m) => new(m.Id, m.MemberNumber, m.ProductCode, m.PlanCode, m.OptionCode, m.Status, m.StartDate, m.EndDate,
-        m.PrincipalPartyId, m.Dependants.Select(d => new PortalDependantView(d.PartyId, d.DependantType, d.Suffix, d.StartDate, d.EndDate)).ToList());
+    public const string Principal = "PRINCIPAL";
+
+    public const string Dependant = "DEPENDANT";
+
+    /// <summary>
+    /// The view for a member of the membership: the principal sees it whole; a dependant sees the plan and option they are
+    /// covered by and their own entry, nothing of the principal or the other dependants (privacy check, 28 October 2026).
+    /// </summary>
+    public static PortalMembershipView For(HealthMembership m, Guid partyId)
+    {
+        var principal = m.PrincipalPartyId == partyId;
+        return new(m.Id, m.MemberNumber, m.ProductCode, m.PlanCode, m.OptionCode, m.Status, m.StartDate, m.EndDate, principal ? Principal : Dependant,
+            principal ? m.PrincipalPartyId : null,
+            m.Dependants.Where(d => principal || d.PartyId == partyId)
+                .Select(d => new PortalDependantView(d.PartyId, d.DependantType, d.Suffix, d.StartDate, d.EndDate)).ToList());
+    }
 }
 
 public sealed record PortalClaimLineView(int LineNo, string TariffCode, int Quantity, decimal ClaimedAmount, decimal PaidAmount,
@@ -112,14 +130,14 @@ internal sealed class HealthPortalHandlers(IHealthRepository health, IHealthPort
     private ExternalSubject Who => execution.External ?? throw new InvalidOperationException("A portal endpoint is used by external users only.");
 
     public async Task<Result<PortalMembershipView>> Handle(GetPortalMembership query, CancellationToken cancellationToken) =>
-        await health.Membership(query.MembershipId, cancellationToken) is { } m && Who.Kind == ExternalSubject.Party
-        && (m.PrincipalPartyId == Who.PartyId || m.Dependants.Any(d => d.PartyId == Who.PartyId))
-            ? PortalMembershipView.From(m)
+        await health.Membership(query.MembershipId, cancellationToken) is { } m && Who is { Kind: ExternalSubject.Party, PartyId: { } party }
+        && (m.PrincipalPartyId == party || m.Dependants.Any(d => d.PartyId == party))
+            ? PortalMembershipView.For(m, party)
             : Error.NotFound(ErrorCodes.NotFound, "The membership was not found.");
 
     public async Task<Result<IReadOnlyList<PortalMembershipView>>> Handle(ListPortalMemberships query, CancellationToken cancellationToken) =>
         Result.Success<IReadOnlyList<PortalMembershipView>>(Who is { Kind: ExternalSubject.Party, PartyId: { } party }
-            ? (await queries.MemberMemberships(party, query.AfterId, query.Limit, cancellationToken)).Select(PortalMembershipView.From).ToList()
+            ? (await queries.MemberMemberships(party, query.AfterId, query.Limit, cancellationToken)).Select(m => PortalMembershipView.For(m, party)).ToList()
             : []);
 
     /// <summary>

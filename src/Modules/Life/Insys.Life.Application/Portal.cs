@@ -34,20 +34,40 @@ namespace Insys.Life.Application;
 
 // External-user access (docs/specs/addenda/external-user-access.md): a Life policy in the member and broker portals.
 // A member sees a policy where they are the policyholder or an insured life; a broker, where its code (or a sub-broker's)
-// is the policy's intermediary (§2). The view leaves out underwriting (loadings, decisions) and, except for the
-// policyholder, the beneficiaries; a beneficiary who is not the policyholder sees nothing before a claim (decided at sign-off).
+// is the policy's intermediary (§2). The view leaves out underwriting (loadings, decisions). Only the policyholder sees the
+// beneficiaries; a beneficiary who is not the policyholder sees nothing before a claim (decided at sign-off). An insured
+// life who is not the policyholder sees only their own cover: the benefits on their life, without premiums, and nothing of
+// the policyholder (privacy check, 28 October 2026).
 
-public sealed record PortalLifeBenefitView(string BenefitCode, decimal SumAssured, decimal Premium, DateOnly StartDate, DateOnly? EndDate, string Status);
+/// <param name="Premium">The benefit's premium; null for an insured life who is not the policyholder.</param>
+public sealed record PortalLifeBenefitView(string BenefitCode, decimal SumAssured, decimal? Premium, DateOnly StartDate, DateOnly? EndDate, string Status);
 
 public sealed record PortalBeneficiaryView(Guid PartyId, string RelationshipCode, decimal SharePct);
 
+/// <param name="ViewedAs">How the caller relates to the policy, which decides what the view shows.</param>
+/// <param name="PolicyholderPartyId">Null for an insured life who is not the policyholder.</param>
+/// <param name="Beneficiaries">The policyholder's only; null otherwise.</param>
 public sealed record PortalLifePolicyView(Guid Id, string PolicyNumber, string ProductCode, LifePolicyStatus Status, DateOnly InceptionDate, DateOnly? TermEndDate,
-    string Currency, Guid PolicyholderPartyId, string? IntermediaryCode, IReadOnlyList<PortalLifeBenefitView> Benefits, IReadOnlyList<PortalBeneficiaryView>? Beneficiaries)
+    string Currency, Guid? PolicyholderPartyId, string? IntermediaryCode, [property: OneOf(PortalLifePolicyView.Policyholder, PortalLifePolicyView.InsuredLife,
+        PortalLifePolicyView.Intermediary)] string ViewedAs, IReadOnlyList<PortalLifeBenefitView> Benefits, IReadOnlyList<PortalBeneficiaryView>? Beneficiaries)
 {
-    public static PortalLifePolicyView From(LifePolicy p, bool withBeneficiaries) => new(p.Id, p.PolicyNumber, p.ProductCode, p.Status, p.InceptionDate, p.TermEndDate,
-        p.Currency, p.PolicyholderPartyId, p.IntermediaryCode,
-        p.Benefits.Select(b => new PortalLifeBenefitView(b.BenefitCode, b.SumAssured, b.Premium, b.StartDate, b.EndDate, b.Status)).ToList(),
-        withBeneficiaries ? p.Beneficiaries.Where(b => b.ValidTo is null).Select(b => new PortalBeneficiaryView(b.PartyId, b.RelationshipCode, b.SharePct)).ToList() : null);
+    public const string Policyholder = "POLICYHOLDER";
+
+    public const string InsuredLife = "INSURED_LIFE";
+
+    public const string Intermediary = "INTERMEDIARY";
+
+    /// <summary>The view for a caller already known to be related to the policy (§2).</summary>
+    public static PortalLifePolicyView For(LifePolicy p, ExternalSubject who)
+    {
+        var viewedAs = who.Kind != ExternalSubject.Party ? Intermediary : p.PolicyholderPartyId == who.PartyId ? Policyholder : InsuredLife;
+        var lives = p.Lives.Where(l => l.PartyId == who.PartyId).Select(l => (Guid?)l.Id).ToHashSet();
+        var benefits = p.Benefits.Where(b => viewedAs != InsuredLife || lives.Contains(b.InsuredLifeId))
+            .Select(b => new PortalLifeBenefitView(b.BenefitCode, b.SumAssured, viewedAs == InsuredLife ? null : b.Premium, b.StartDate, b.EndDate, b.Status)).ToList();
+        return new(p.Id, p.PolicyNumber, p.ProductCode, p.Status, p.InceptionDate, p.TermEndDate, p.Currency, viewedAs == InsuredLife ? null : p.PolicyholderPartyId,
+            p.IntermediaryCode, viewedAs, benefits,
+            viewedAs == Policyholder ? p.Beneficiaries.Where(b => b.ValidTo is null).Select(b => new PortalBeneficiaryView(b.PartyId, b.RelationshipCode, b.SharePct)).ToList() : null);
+    }
 }
 
 public sealed record GetPortalLifePolicy(Guid PolicyId) : IQuery<PortalLifePolicyView>;
@@ -67,19 +87,17 @@ internal sealed class PortalLifePolicyHandlers(ILifeRepository life, ILifePortal
             return Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
         }
 
-        var related = Holder(who, policy) || (who.Kind == ExternalSubject.Party && policy.Lives.Any(l => l.PartyId == who.PartyId)) || who.Brokers(policy.IntermediaryCode);
-        return related ? PortalLifePolicyView.From(policy, Holder(who, policy)) : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
+        var related = (who.Kind == ExternalSubject.Party && (policy.PolicyholderPartyId == who.PartyId || policy.Lives.Any(l => l.PartyId == who.PartyId)))
+                      || who.Brokers(policy.IntermediaryCode);
+        return related ? PortalLifePolicyView.For(policy, who) : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
     }
 
     public async Task<Result<IReadOnlyList<PortalLifePolicyView>>> Handle(ListPortalLifePolicies query, CancellationToken cancellationToken)
     {
         var who = execution.External ?? throw new InvalidOperationException("A portal endpoint is used by external users only.");
         return Result.Success<IReadOnlyList<PortalLifePolicyView>>(
-            (await queries.Policies(who, query.AfterId, query.Limit, cancellationToken)).Select(p => PortalLifePolicyView.From(p, Holder(who, p))).ToList());
+            (await queries.Policies(who, query.AfterId, query.Limit, cancellationToken)).Select(p => PortalLifePolicyView.For(p, who)).ToList());
     }
-
-    /// <summary>Beneficiaries are shown to the policyholder only (§4).</summary>
-    private static bool Holder(ExternalSubject who, LifePolicy policy) => who.Kind == ExternalSubject.Party && policy.PolicyholderPartyId == who.PartyId;
 }
 
 /// <param name="ApprovedAmount">What is to be paid, once the claim is approved; nothing before.</param>

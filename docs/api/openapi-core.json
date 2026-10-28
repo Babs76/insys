@@ -40995,6 +40995,7 @@
           "status",
           "startDate",
           "endDate",
+          "viewedAs",
           "principalPartyId",
           "dependants"
         ],
@@ -41033,8 +41034,18 @@
             ],
             "format": "date"
           },
+          "viewedAs": {
+            "enum": [
+              "PRINCIPAL",
+              "DEPENDANT"
+            ],
+            "type": "string"
+          },
           "principalPartyId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "dependants": {
@@ -45614,6 +45625,7 @@
           "premium": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
             "type": [
+              "null",
               "number",
               "string"
             ],
@@ -45711,6 +45723,7 @@
           "currency",
           "policyholderPartyId",
           "intermediaryCode",
+          "viewedAs",
           "benefits",
           "beneficiaries"
         ],
@@ -45744,7 +45757,10 @@
             "type": "string"
           },
           "policyholderPartyId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "intermediaryCode": {
@@ -45752,6 +45768,14 @@
               "null",
               "string"
             ]
+          },
+          "viewedAs": {
+            "enum": [
+              "POLICYHOLDER",
+              "INSURED_LIFE",
+              "INTERMEDIARY"
+            ],
+            "type": "string"
           },
           "benefits": {
             "type": "array",

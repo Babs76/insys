@@ -2,7 +2,15 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## BR-091 (branch `br-091`, shipped alone ahead of Wave 2 batch 5)
+## Portal privacy (branch `portal-privacy`, shipped alone ahead of Wave 2 batch 5)
+
+### Breaking: an insured life and a Health dependant see only their own cover (privacy check, Ade)
+- **`PortalLifePolicyView`** (`PortalLifeGetPolicy`, `PortalLifeListPolicies`) gains `viewedAs` (`POLICYHOLDER`, `INSURED_LIFE`, `INTERMEDIARY`). For an `INSURED_LIFE` (an insured life who is not the policyholder), `benefits` lists only the benefits on their own life, each benefit's `premium` is null, `policyholderPartyId` is null and `beneficiaries` null. `premium` and `policyholderPartyId` are now nullable. The policyholder and the broker see the policy as before.
+- **Life policy documents** in the portal (`GET /portal/documents?businessRefType=LIFE_POLICY`) are the policyholder's (and the broker's) only: an insured life who is not the policyholder no longer reaches them, as the schedule shows the whole policy.
+- **`PortalMembershipView`** (`PortalHealthGetMembership`, `PortalHealthListMemberships`) gains `viewedAs` (`PRINCIPAL`, `DEPENDANT`). For a `DEPENDANT`, `principalPartyId` is null (now nullable) and `dependants` holds only their own entry; the plan and option are shown. The principal sees the membership as before.
+- **Unchanged, confirmed:** a dependant's Health claims (list and read) are only those where they are the patient; the principal's and other dependants' claims are 404.
+
+## BR-091 (branch `br-091`, shipped alone, merged at `41e237d`)
 
 ### Breaking: `GET /api/v1/portal/life/claims` is a cursor page
 - **`PortalLifeListClaims`** returns a `CursorPage` (`items`, `nextCursor`) instead of a plain array, and takes `cursor` (with `limit`) instead of `afterId`. The claims and their order (by ID) are unchanged.
