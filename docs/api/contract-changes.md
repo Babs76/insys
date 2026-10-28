@@ -2,6 +2,13 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## BR-094 (branch `br-094`, shipped alone, merged at `e3cb138`)
+
+### Fixed: broker and provider tokens keep their second factor (realm, no API change)
+- **The realm's method references** `amr-pwd` and `amr-otp` (`deploy/keycloak/insys-realm.json`) now set `default.reference.maxAge` to 36000 seconds, the SSO session's maximum. Without it Keycloak's AMR mapper used 0 seconds: a method counted only in the second it was used, so a broker's or provider's first token sometimes had no `otp`, and every refreshed token or silent sign-in had none, which INSYS refused with 403 `PORTAL_MFA_REQUIRED`.
+- **Environments** take it from the realm export on import. One already imported needs the same two values set (the admin console's authenticator config, or the admin API as the live run and demo did, D-48).
+- The API and its contract are unchanged.
+
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
 ### Breaking: a risk object's valuation requires its currency (BR-033, decided by Ade)
@@ -53,7 +60,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
   - a claim's domain: `LIFE`, `GENERAL`, `HEALTH`;
   - a financial movement's type: `Reserve`, `Payment`, `Recovery`.
 - **`x-known-values`:** a claim communication's `channel` (`EMAIL`, `SMS`, `PUSH`, `WHATSAPP`, the channels INSYS sends by); other channels may be recorded.
-- **Not yet:** a claim party's `role` has no list (OQ-122).
+- **A claim party's `role`** names `general.cfg_claim_party_roles` (OQ-122, decided; see the breaking change above).
 
 ### New: forward links and missing fields on General and claims (BR-035)
 - **Links:** `GeneralQuoteView.proposalId` and `orgNodeCode`; `GeneralProposalView.policyId`; `GeneralPolicyView.quoteId` and `proposalId`. The reverse links (a quote's proposal, a proposal's policy, a policy's proposal) are filled on the read by ID and are null on lists and command responses; `orgNodeCode` and the policy's `quoteId` are always there.
