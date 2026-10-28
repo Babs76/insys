@@ -41,6 +41,13 @@ public static class RatingPermissions
 public sealed record PremiumCalculated(Guid CalculationId, string RequestRef, string SourceDomain, string SubjectType, Guid SubjectId, string ProductCode,
     int ProductVersion, int RatingVersion, decimal Premium, string Currency) : IIntegrationEvent;
 
+/// <summary>
+/// A calculation another module asked for through an event could not be made (BR-095): nothing is recorded, and the
+/// subject is told why, with Rating's error code (for example a missing rating input).
+/// </summary>
+[IntegrationEvent("rating.PremiumNotCalculated")]
+public sealed record PremiumNotCalculated(string RequestRef, string SourceDomain, string SubjectType, Guid SubjectId, string ErrorCode, string Reason) : IIntegrationEvent;
+
 /// <param name="RatingDate">The day whose configuration applies; today when omitted. Recalculating as at the same day reproduces the result.</param>
 /// <param name="Values">The rating inputs as a JSON object.</param>
 public sealed record RatingRequest(string ProductCode, int ProductVersion, string Currency, string Frequency, DateOnly? RatingDate, JsonElement Values);

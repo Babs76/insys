@@ -96,6 +96,8 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             quote.Property(q => q.Status).HasConversion(new UpperCaseEnumConverter<QuoteStatus>()).HasMaxLength(12);
             quote.Property(q => q.Premium).HasPrecision(18, 2);
             quote.Property(q => q.Currency).HasColumnType("char(3)");
+            quote.Property(q => q.RatingIssueCode).HasMaxLength(50);
+            quote.Property(q => q.RatingIssue).HasMaxLength(500);
             quote.HasMany(q => q.Risks).WithOne().HasForeignKey(r => new { r.TenantId, r.QuoteId });
             quote.Navigation(q => q.Risks).UsePropertyAccessMode(PropertyAccessMode.Field);
             quote.HasMany(q => q.Referrals).WithOne().HasForeignKey(r => new { r.TenantId, r.QuoteId });

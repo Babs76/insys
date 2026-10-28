@@ -60,6 +60,13 @@ public sealed record GeneralQuoteAccepted(Guid QuoteId, string QuoteNumber, int 
 
 public sealed record GeneralQuoteExpired(Guid QuoteId, string QuoteNumber, int QuoteVersion, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>
+/// A quote priced as it is made (BR-095) asks Rating for its premium: the rating inputs are the risk objects' attributes and
+/// the quote's sum insured, as JSON, rated annually on the day the quote was made.
+/// </summary>
+public sealed record GeneralQuotePricingRequested(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, string Currency,
+    DateOnly RatingDate, string ValuesJson, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>The underwriter declined the referred quote: it is final, and the proposer can be told why.</summary>
 public sealed record GeneralQuoteDeclined(Guid QuoteId, string QuoteNumber, int QuoteVersion, string DecisionCode, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -192,7 +199,7 @@ public sealed class UnderwritingReferral : Entity<Guid>, ITenantScoped
 
     public long RowVersion { get; private set; }
 
-    internal static UnderwritingReferral Open(Guid quoteId, string reasonCode, Guid referredBy) =>
+    internal static UnderwritingReferral Open(Guid quoteId, string reasonCode, Guid? referredBy) =>
         new() { Id = Guid.CreateVersion7(), QuoteId = quoteId, ReasonCode = Guard.MaxLength(reasonCode, 15), ReferredBy = referredBy };
 
     internal void Decide(bool approved, string decisionCode, IReadOnlyList<string> conditions, string? declineReason, Guid decidedBy, DateTimeOffset now)
@@ -277,6 +284,18 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
 
     public int? RatingVersion { get; private set; }
 
+    /// <summary>
+    /// A broker's portal quote, and every later version of it, is priced as it is made (BR-095, decided by Ade): General asks
+    /// Rating, and the quote reads Rated once the premium comes back. Nobody requests its calculation by hand.
+    /// </summary>
+    public bool PricedOnCreation { get; private set; }
+
+    /// <summary>Why a quote priced as it is made could not be rated (a Rating error code), while it stays Draft; null once rated.</summary>
+    public string? RatingIssueCode { get; private set; }
+
+    /// <summary>The reason in words, for the broker.</summary>
+    public string? RatingIssue { get; private set; }
+
     public IReadOnlyList<QuotedRisk> Risks => _risks;
 
     public IReadOnlyList<UnderwritingReferral> Referrals => _referrals;
@@ -327,6 +346,7 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
             PeriodEnd = periodEnd,
             ValidUntil = validUntil,
             Status = QuoteStatus.Draft,
+            PricedOnCreation = previous?.PricedOnCreation ?? false,
         };
         quote._risks.AddRange(risks.Select(r => QuotedRisk.Create(id, r)));
         quote.MarkChanged();
@@ -356,6 +376,58 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
             Premium = premium;
             RatingRequestId = calculationId;
             RatingVersion = ratingVersion;
+            RatingIssueCode = null;
+            RatingIssue = null;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Command RequestPricing (BR-095): a quote priced as it is made asks Rating for its premium, with the inputs General
+    /// gathered. Its later versions are priced the same way.
+    /// </summary>
+    public Result RequestPricing(string valuesJson, DateOnly ratingDate, DateTimeOffset now)
+    {
+        if (Status != QuoteStatus.Draft)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Quote {QuoteNumber} v{QuoteVersion} is {Status}; only a draft is priced.");
+        }
+
+        PricedOnCreation = true;
+        MarkChanged();
+        Raise(new GeneralQuotePricingRequested(Id, QuoteNumber, QuoteVersion, ProductCode, ProductVersion, Currency, ratingDate, valuesJson, now));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Why the quote could not be priced (BR-095): it stays Draft with the reason, and is still priced as it is made. A
+    /// quote already rated, referred or further on keeps its state, and a late failure is not recorded on it.
+    /// </summary>
+    public Result RecordRatingIssue(string code, string reason)
+    {
+        if (Status != QuoteStatus.Draft)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Quote {QuoteNumber} v{QuoteVersion} is {Status}; a rating issue is recorded on a draft only.");
+        }
+
+        PricedOnCreation = true;
+        RatingIssueCode = Guard.MaxLength(code, 50);
+        RatingIssue = reason.Length > 500 ? reason[..500] : reason;
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// A referral the rules raise, with nobody as its referrer, so any underwriter may decide it (BR-037): a quote priced as
+    /// it is made that is over a zone and peril limit (F062) is referred as soon as it is rated (BR-095).
+    /// </summary>
+    public Result ReferQuoteByRules(string reasonCode)
+    {
+        var result = Fire(QuoteTrigger.ReferQuote);
+        if (result.IsSuccess)
+        {
+            _referrals.Add(UnderwritingReferral.Open(Id, reasonCode, null));
         }
 
         return result;

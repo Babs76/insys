@@ -227,8 +227,50 @@ internal static class RiskSchemas
             : Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{objectType} is not a risk object type in force.");
 }
 
+/// <summary>
+/// The rating inputs of a quote priced as it is made (BR-095): its total sum insured as <c>sum_insured</c>, and its risk
+/// objects' attributes by name, as the rating factors read them (rating.cfg_rating_factor_definitions.source_attribute).
+/// Risk objects giving one input two values are not guessed between: the quote stays Draft with the reason.
+/// </summary>
+public static class QuotePricing
+{
+    /// <summary>A General quote's premium is annual (the policy's annual premium; its billing frequency is chosen at issue).</summary>
+    public const string Frequency = "ANNUAL";
+
+    public static Result<string> Values(IReadOnlyList<RiskObject> objects, decimal sumInsured)
+    {
+        var values = new System.Text.Json.Nodes.JsonObject();
+        foreach (var riskObject in objects)
+        {
+            if (System.Text.Json.Nodes.JsonNode.Parse(riskObject.Attributes) is not System.Text.Json.Nodes.JsonObject attributes)
+            {
+                continue;
+            }
+
+            foreach (var (name, value) in attributes)
+            {
+                if (values.TryGetPropertyValue(name, out var existing))
+                {
+                    if (!System.Text.Json.Nodes.JsonNode.DeepEquals(existing, value))
+                    {
+                        return Error.Validation(GeneralErrorCodes.RatingInputsDiffer,
+                            $"The quote's risk objects give {name} different values, so it is not priced automatically; staff rate it.");
+                    }
+
+                    continue;
+                }
+
+                values[name] = value?.DeepClone();
+            }
+        }
+
+        values["sum_insured"] = sumInsured;
+        return values.ToJsonString();
+    }
+}
+
 internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellableProducts products, IIntermediaries intermediaries, ITenantContext tenant, IBusinessDate businessDate,
-    IAuditTrail audit, IExecutionContext execution, Tenancy.Contracts.IOrganisationStructure organisation)
+    IAuditTrail audit, IExecutionContext execution, Tenancy.Contracts.IOrganisationStructure organisation, IClock clock)
     : ICommandHandler<CreateQuote, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(CreateQuote command, CancellationToken cancellationToken)
@@ -258,12 +300,15 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
             return Error.Validation(refusal.Code, refusal.Message);
         }
 
+        var objects = new List<RiskObject>();
         foreach (var riskId in command.Risks.Select(r => r.RiskObjectId))
         {
-            if (await general.RiskObject(riskId, cancellationToken) is not { Status: RiskObjectStatus.Active })
+            if (await general.RiskObject(riskId, cancellationToken) is not { Status: RiskObjectStatus.Active } riskObject)
             {
                 return Error.Validation(ErrorCodes.ValidationFailed, $"Risk object {riskId} is not an active risk object.");
             }
+
+            objects.Add(riskObject);
         }
 
         // A draft is valid only once issued, for the product's quote validity period; until then the date is today.
@@ -287,6 +332,19 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
 
             quote.Value.PlaceAt(node.Value);
             quote.Value.RecordChannel(execution.ChannelCode);
+        }
+
+        // BR-095 (decided by Ade): a broker's portal quote, and every later version of it, is priced as it is made.
+        if (execution.External is { Kind: ExternalSubject.Intermediary } || previous is { PricedOnCreation: true })
+        {
+            var values = QuotePricing.Values(objects, command.Risks.Sum(r => r.SumInsured));
+            var priced = values.IsSuccess
+                ? quote.Value.RequestPricing(values.Value, businessDate.Today, clock.UtcNow)
+                : quote.Value.RecordRatingIssue(values.Error.Code, values.Error.Message);
+            if (priced.IsFailure)
+            {
+                return priced.Error;
+            }
         }
 
         general.Add(quote.Value);

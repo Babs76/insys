@@ -267,16 +267,25 @@ public sealed record ReferralView(Guid Id, [property: CodeList(CodeLists.Referra
     IReadOnlyList<string> SpecialConditions,
     string? DeclineReason);
 
+/// <summary>Why a quote priced as it is made could not be rated (BR-095): Rating's error code, and the reason in words.</summary>
+public sealed record RatingIssueView(string Code, string Reason)
+{
+    public static RatingIssueView? Of(GeneralQuote q) => q.RatingIssueCode is { } code ? new RatingIssueView(code, q.RatingIssue!) : null;
+}
+
+/// <param name="PricedOnCreation">Priced as it is made (a broker's portal quote and its later versions, BR-095): nobody requests its calculation.</param>
+/// <param name="RatingIssue">Why it could not be priced, while it stays Draft (BR-095); null otherwise.</param>
 public sealed record QuoteView(Guid Id, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, Guid ProposerPartyId, string? IntermediaryCode,
     QuoteStatus Status, DateOnly ValidUntil, DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Premium, string Currency, Guid? RatingRequestId, int? RatingVersion,
-    IReadOnlyList<RiskView> Risks, IReadOnlyList<ReferralView> Referrals, long RowVersion, string? OrgNodeCode = null, Guid? ProposalId = null)
+    IReadOnlyList<RiskView> Risks, IReadOnlyList<ReferralView> Referrals, long RowVersion, string? OrgNodeCode = null, Guid? ProposalId = null,
+    bool PricedOnCreation = false, RatingIssueView? RatingIssue = null)
 {
     public static QuoteView From(GeneralQuote q) => new(q.Id, q.QuoteNumber, q.QuoteVersion, q.ProductCode, q.ProductVersion, q.ProposerPartyId, q.IntermediaryCode,
         q.Status, q.ValidUntil, q.PeriodStart, q.PeriodEnd, q.Premium, q.Currency, q.RatingRequestId, q.RatingVersion,
         q.Risks.Select(r => new RiskView(r.RiskObjectId, r.SumInsured, null, null,
             r.Coverages.Select(c => new CoverageView(c.CoverageCode, c.SumInsured, c.ExcessScheduleCode, null)).ToList())).ToList(),
         q.Referrals.Select(r => new ReferralView(r.Id, r.ReasonCode, r.Status, r.ReferredBy, r.DecidedBy, r.DecisionCode, r.SpecialConditions ?? [], r.DeclineReason)).ToList(),
-        q.RowVersion, q.OrgNodeCode);
+        q.RowVersion, q.OrgNodeCode, PricedOnCreation: q.PricedOnCreation, RatingIssue: RatingIssueView.Of(q));
 }
 
 /// <param name="PolicyId">The policy issued from the proposal's quote (BR-035), on the read; null until it is issued, and on lists.</param>

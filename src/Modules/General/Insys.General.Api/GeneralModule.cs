@@ -147,7 +147,8 @@ public sealed class GeneralModule : IModule
             .Produces<QuoteView>(StatusCodes.Status201Created)
             .WithName("GeneralCreateQuote").WithSummary("Create a quote, or (fromQuoteId) the next version of one")
             .WithEventualEffects("The quote reads Rated (with its premium) once General handles Rating's PremiumCalculated for it, after the calculation is "
-                + "requested (POST /rating/calculations); read the quote again (BR-038).")
+                + "requested (POST /rating/calculations); read the quote again (BR-038). A new version of a quote priced as it is made (pricedOnCreation, a "
+                + "broker's portal quote) is priced the same way, with no request (BR-095).")
             .WithDescription("Rate it through Rating (POST /api/v1/rating/calculations with subjectType GENERAL_QUOTE and the quote's id); the recorded calculation is attached to the quote (PRD-008). "
                 + "A General product's line is its class code, or its family code when it has no class; panels, perils and approved lines are matched on it.")
             .RequirePermission(GeneralPermissions.QuoteCreate).RequireIdempotencyKey();
@@ -436,6 +437,11 @@ public sealed class GeneralModule : IModule
                 })
             .Produces<PortalQuoteView>(StatusCodes.Status201Created)
             .WithName("PortalGeneralCreateQuote").WithSummary("A broker's quote, under its own code, for a client it services or registered")
+            .WithEventualEffects("The quote is priced as it is made (BR-095): it reads Rated with its premium once Rating has priced it; read it again "
+                + "(GET /portal/general/quotes/{id}). A quote Rating cannot price stays Draft with ratingIssue (for example RATING_INPUT_MISSING); one over a zone "
+                + "and peril limit reads Referred, with no premium, until an underwriter decides it.")
+            .WithDescription("The broker never sets or changes the price: the premium is Rating's, from the quote's risk objects' attributes and sum insured. "
+                + "Later versions of the quote are priced the same way.")
             .RequirePermission(GeneralPermissions.QuoteCreate).RequireIdempotencyKey().ForPortal(broker);
         portal.MapGet("/claims", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPortalClaims(after, size), ct), c => c.Id))

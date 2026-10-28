@@ -88,6 +88,36 @@ public sealed class GeneralTests
         Model(RecoveryCase.Lifecycle).ShouldBe(Spec("RecoveryCase", ("Demand sent", "DemandSent")));
     }
 
+    /// <summary>
+    /// BR-095: a quote priced as it is made asks for its price once, and its later versions are priced the same way; a
+    /// rating issue keeps it Draft until it is rated; a rules referral has no referrer, so any underwriter decides it.
+    /// </summary>
+    [Fact]
+    public void AQuotePricedAsItIsMade_AsksOnce_KeepsItsIssueWhileDraft_AndItsRulesReferralHasNoReferrer_BR095()
+    {
+        var quote = Quote();
+        quote.RequestPricing("""{"sum_insured":200000}""", Today, Now).IsSuccess.ShouldBeTrue();
+        quote.PricedOnCreation.ShouldBeTrue();
+        var requested = quote.DomainEvents.OfType<GeneralQuotePricingRequested>().Single();
+        (requested.QuoteId, requested.ProductVersion, requested.RatingDate, requested.ValuesJson).ShouldBe((quote.Id, 1, Today, """{"sum_insured":200000}"""));
+
+        var next = GeneralQuote.CreateQuote(Guid.CreateVersion7(), "GQ-1", quote, Motor, quote.ProposerPartyId, null, "ZAR", Start, End, [Risk()], Today).Value;
+        (next.QuoteVersion, next.PricedOnCreation).ShouldBe((2, true));
+
+        quote.RecordRatingIssue("RATING_INPUT_MISSING", "Input vehicle_group (factor VEHICLE_GROUP) is missing.").IsSuccess.ShouldBeTrue();
+        (quote.Status, quote.RatingIssueCode).ShouldBe((QuoteStatus.Draft, "RATING_INPUT_MISSING"));
+        quote.RateQuote(Guid.CreateVersion7(), "MOTOR", 1, 3, 6_050m, "ZAR").IsSuccess.ShouldBeTrue();
+        (quote.Status, quote.RatingIssueCode, quote.RatingIssue).ShouldBe((QuoteStatus.Rated, null, null));
+        quote.RecordRatingIssue("RATING_INPUT_MISSING", "late").Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        quote.RequestPricing("{}", Today, Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+
+        quote.ReferQuoteByRules("AGG_LIMIT").IsSuccess.ShouldBeTrue();
+        quote.Referrals.Single().ReferredBy.ShouldBeNull();
+        var underwriter = Guid.CreateVersion7();
+        quote.DecideReferral(true, "ACCEPT", [], null, underwriter, Now).IsSuccess.ShouldBeTrue();
+        (quote.Status, quote.Premium).ShouldBe((QuoteStatus.Rated, 6_050m));
+    }
+
     [Fact]
     public void AttributeSchema_ValidatesTypesMandatoryFieldsAndRules_GEN005()
     {

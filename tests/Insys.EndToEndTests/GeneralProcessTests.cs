@@ -470,17 +470,6 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
                 ("transactions_allowed", Array.Empty<string>()), ("plan_code", "PLAN-10"));
         }
 
-        async Task<string> PortalUser(string subject, string kind, Guid? party, string? broker, params string[] permissions)
-        {
-            var user = await _db.UserWithPermissions(Tenant, subject, permissions);
-            await _db.ExecuteAsOwner("""
-                INSERT INTO iam.user_subject_link (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, kind, party_id, intermediary_code,
-                                                   status, requested_by, decided_by, decided_at)
-                VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, @k, @p, @i, 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
-                """, ("t", Tenant), ("u", user), ("k", kind), ("p", (object?)party ?? DBNull.Value), ("i", (object?)broker ?? DBNull.Value));
-            return (await _db.ScalarAsOwner<string>("SELECT role_code FROM iam.user_role_assignment WHERE user_id = @u", ("u", user)))!;
-        }
-
         string[] brokerPermissions = [GeneralPermissions.PolicyRead, GeneralPermissions.QuoteRead, GeneralPermissions.QuoteCreate, GeneralPermissions.ClaimRead,
             PartyPermissions.PartyCreate, BillingPermissions.InvoiceRead, DocumentPermissions.DocumentRead];
         var brokerRole = await PortalUser("broker-a", "INTERMEDIARY", null, "BRK-A", brokerPermissions);
@@ -644,6 +633,184 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         forKnown.StatusCode.ShouldBe(HttpStatusCode.Created, await forKnown.Content.ReadAsStringAsync());
         (await forKnown.Json()).GetProperty("proposerPartyId").GetGuid().ShouldBe(known);
     }
+
+    /// <summary>
+    /// BR-095 (decided by Ade, 28 October 2026): a broker's portal quote is priced as it is made, and so is every later
+    /// version of it. General asks Rating; the quote reads Rated with Rating's premium. A quote whose risk object lacks a
+    /// rating input stays Draft with the reason; one over a zone limit is referred by the rules and shows the broker no
+    /// price until an underwriter approves it. The broker has no way to set the price, and staff quotes are rated as before.
+    /// </summary>
+    [Fact]
+    public async Task ABrokersPortalQuote_IsPricedAsItIsMade_OrSaysWhyNot_BR095()
+    {
+        var (policy, _) = await IssuedPolicy();
+        var client = (await Policy(policy)).GetProperty("policyholderPartyId").GetGuid();
+        await _db.ExecuteAsOwner("UPDATE general.policy SET intermediary_code = 'BRK-A' WHERE id = @p", ("p", policy));
+        var broker = await Broker("BRK-A");
+
+        async Task<JsonElement> PortalQuote(Guid riskObject)
+        {
+            var quoted = await broker.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", new
+            {
+                productCode = Product, proposerPartyId = client, currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1),
+                risks = new[] { new { riskObjectId = riskObject, sumInsured = 100_000m, coverages = new[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 100_000m } } } },
+            }, idempotent: true);
+            quoted.StatusCode.ShouldBe(HttpStatusCode.Created, await quoted.Content.ReadAsStringAsync());
+            var made = await quoted.Json();
+            (made.GetProperty("status").GetString(), made.GetProperty("premium").ValueKind).ShouldBe(("Draft", JsonValueKind.Null), "the price arrives after the quote");
+            await _factory.DrainOutbox();
+            return await BrokersQuote(made.GetProperty("id").GetGuid());
+        }
+
+        async Task<JsonElement> BrokersQuote(Guid quote)
+        {
+            var read = await broker.GetAsync($"/api/v1/portal/general/quotes/{quote}");
+            read.StatusCode.ShouldBe(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+            return await read.Json();
+        }
+
+        // Priced: Rating's premium for the vehicle's group and the sum insured (100 000 × 0.03 + 50), recorded as a calculation.
+        var priced = await PortalQuote(await Vehicle());
+        var quoteId = priced.GetProperty("id").GetGuid();
+        (priced.GetProperty("status").GetString(), priced.GetProperty("premium").GetDecimal(), priced.GetProperty("ratingIssue").ValueKind)
+            .ShouldBe(("Rated", 3_050m, JsonValueKind.Null));
+        var staffView = await (await _maker.GetAsync($"/api/v1/general/quotes/{quoteId}")).Json();
+        staffView.GetProperty("pricedOnCreation").GetBoolean().ShouldBeTrue();
+        var calculation = await (await _maker.GetAsync($"/api/v1/rating/calculations/{staffView.GetProperty("ratingRequestId").GetGuid()}")).Json();
+        (calculation.GetProperty("subjectId").GetGuid(), calculation.GetProperty("requestRef").GetString(), calculation.GetProperty("premium").GetDecimal())
+            .ShouldBe((quoteId, $"{priced.GetProperty("quoteNumber").GetString()}-V1", 3_050m));
+        calculation.GetProperty("inputs").GetProperty("values").GetProperty("vehicle_group").GetString().ShouldBe("G3");
+
+        // The broker has no way to price a quote: Rating's calculation and the staff quote operations are not open to it.
+        (await broker.Send(HttpMethod.Post, "/api/v1/rating/calculations", new
+        {
+            requestRef = "BRK-PRICE", sourceDomain = GeneralRatingSubjects.SourceDomain, subjectType = GeneralRatingSubjects.Quote, subjectId = quoteId, productCode = Product,
+            productVersion = 1, currency = "ZAR", frequency = "ANNUAL", values = new { sum_insured = 1m, vehicle_group = "G3" },
+        }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await broker.PostAsync($"/api/v1/general/quotes/{quoteId}/issue", null)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await BrokersQuote(quoteId)).GetProperty("premium").GetDecimal().ShouldBe(3_050m);
+
+        // A later version, made by staff, is priced as it is made too, with nobody asking.
+        var revised = await Created("/api/v1/general/quotes", new
+        {
+            productCode = Product, proposerPartyId = client, currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1), fromQuoteId = quoteId,
+            intermediaryCode = "BRK-A",
+            risks = new[] { new { riskObjectId = priced.GetProperty("risks")[0].GetProperty("riskObjectId").GetGuid(), sumInsured = 200_000m,
+                coverages = new[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 200_000m } } } },
+        });
+        await _factory.DrainOutbox();
+        var second = await BrokersQuote(revised);
+        (second.GetProperty("quoteVersion").GetInt32(), second.GetProperty("status").GetString(), second.GetProperty("premium").GetDecimal()).ShouldBe((2, "Rated", 6_050m));
+
+        // A risk object without the vehicle group the rating reads: the quote stays Draft, saying why.
+        await _db.ExecuteAsOwner("""
+            INSERT INTO general.cfg_risk_object_types_and_attribute_schemas (tenant_id, code, version, effective_from, record_status, created_by, change_reason,
+                                                                             object_type, attributes, validation)
+            VALUES (@t, 'TRAILER', 1, @from, 'EFFECTIVE', 'seed', 'seed', 'TRAILER', '["registration:String(10):Y","year:Integer:Y"]', '[]')
+            """, ("t", Tenant), ("from", Today.AddDays(-30)));
+        var trailer = await Created("/api/v1/general/risk-objects", new { objectType = "TRAILER", attributes = new { registration = "CA77", year = Today.Year - 1 } });
+        var unpriced = await PortalQuote(trailer);
+        (unpriced.GetProperty("status").GetString(), unpriced.GetProperty("premium").ValueKind).ShouldBe(("Draft", JsonValueKind.Null));
+        unpriced.GetProperty("ratingIssue").GetProperty("code").GetString().ShouldBe("RATING_INPUT_MISSING");
+        unpriced.GetProperty("ratingIssue").GetProperty("reason").GetString()!.ShouldContain("vehicle_group");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM rating.rating_request WHERE subject_id = @q", ("q", unpriced.GetProperty("id").GetGuid()))).ShouldBe(0L);
+
+        // Over a zone and peril limit: the rules refer it as soon as it is rated, and the broker sees no price while it is referred.
+        await Seed("general.ref_risk_zones", "ACTIVE", "ZHAIL", ("zone_code", "ZHAIL"), ("peril", "HAIL"), ("geography", JsonSerializer.SerializeToElement(new { region = "Hail belt" })));
+        await Seed("general.cfg_aggregation_zones_and_limits", "EFFECTIVE", "ZL-HAIL", ("zone", "ZHAIL"), ("peril", "HAIL"), ("max_exposure", 50_000m), ("currency", "ZAR"));
+        await Seed("general.ref_underwriting_decision_codes", "ACTIVE", "ACCEPT", ("label", "Accepted"), ("requires_terms", false));
+        var exposed = await Created("/api/v1/general/risk-objects", new
+        {
+            objectType = "VEHICLE", attributes = new { registration = "CA8080", vehicle_group = "G3", year = Today.Year - 2 }, riskZone = "ZHAIL",
+        });
+        var referred = await PortalQuote(exposed);
+        (referred.GetProperty("status").GetString(), referred.GetProperty("premium").ValueKind).ShouldBe(("Referred", JsonValueKind.Null));
+        var referredId = referred.GetProperty("id").GetGuid();
+        var referral = (await (await _maker.GetAsync($"/api/v1/general/quotes/{referredId}")).Json()).GetProperty("referrals").EnumerateArray().Single();
+        (referral.GetProperty("reasonCode").GetString(), referral.GetProperty("referredBy").ValueKind).ShouldBe(("AGG_LIMIT", JsonValueKind.Null));
+
+        // A rules referral may be decided by any underwriter; approved, the broker sees the price.
+        (await _maker.PostAsJsonAsync($"/api/v1/general/quotes/{referredId}/referral-decision", new { approved = true, decisionCode = "ACCEPT", specialConditions = Array.Empty<string>() }))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        var approved = await BrokersQuote(referredId);
+        (approved.GetProperty("status").GetString(), approved.GetProperty("premium").GetDecimal()).ShouldBe(("Rated", 3_050m));
+
+        // A staff quote is rated when staff ask, as before.
+        var staffQuote = await Created("/api/v1/general/quotes", QuoteBody(await Vehicle(), null));
+        await _factory.DrainOutbox();
+        var draft = await (await _maker.GetAsync($"/api/v1/general/quotes/{staffQuote}")).Json();
+        (draft.GetProperty("status").GetString(), draft.GetProperty("pricedOnCreation").GetBoolean()).ShouldBe(("Draft", false));
+    }
+
+    /// <summary>A portal user linked to a party (a member) or an intermediary code (a broker), holding the permissions; gives its role.</summary>
+    private async Task<string> PortalUser(string subject, string kind, Guid? party, string? broker, params string[] permissions)
+    {
+        var user = await _db.UserWithPermissions(Tenant, subject, permissions);
+        await _db.ExecuteAsOwner("""
+            INSERT INTO iam.user_subject_link (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, kind, party_id, intermediary_code,
+                                               status, requested_by, decided_by, decided_at)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, @k, @p, @i, 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
+            """, ("t", Tenant), ("u", user), ("k", kind), ("p", (object?)party ?? DBNull.Value), ("i", (object?)broker ?? DBNull.Value));
+        return (await _db.ScalarAsOwner<string>("SELECT role_code FROM iam.user_role_assignment WHERE user_id = @u", ("u", user)))!;
+    }
+
+    /// <summary>
+    /// A broker on the broker portal: the intermediary, allowed to sell the product, and a portal user linked to its code,
+    /// on the tenant's broker and back-office channels, where its role may create the transactions given.
+    /// </summary>
+    private async Task<HttpClient> Broker(string code, params string[] transactions)
+    {
+        await Seed("commission.mst_intermediary_register", "ACTIVE", code, ("intermediary_code", code), ("type", "BROKER"), ("legal_name", code),
+            ("licence_numbers", JsonSerializer.SerializeToElement(new[] { "FSP-1" })), ("status", "ACTIVE"), ("hierarchy_node", $"NODE-{code}"));
+        await Seed("commission.cfg_intermediary_product_permissions", "EFFECTIVE", $"PERM-{code}", ("intermediary", code), ("product", Product),
+            ("transactions_allowed", Array.Empty<string>()), ("plan_code", "PLAN-10"));
+        var subject = $"broker-{code.ToLowerInvariant()}";
+        var role = await PortalUser(subject, "INTERMEDIARY", null, code, [.. BrokerPermissions, .. transactions]);
+        if (await _db.ScalarAsOwner<long>("SELECT count(*) FROM channel.cfg_channel_definitions WHERE channel_code = 'BRK'") == 0)
+        {
+            await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-BRK", ("channel_code", "BRK"), ("audience", "BROKER"), ("name", "Broker portal"),
+                ("client_ids", new[] { "broker-portal" }));
+            await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-STF", ("channel_code", "STF"), ("audience", "STAFF"), ("name", "Back office"),
+                ("client_ids", new[] { "insys-web" }));
+        }
+
+        foreach (var (transaction, t) in new[] { GeneralPermissions.QuoteCreate }.Concat(transactions).Select((x, i) => (x, i)))
+        {
+            await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", $"CP-{code}-{t}", ("channel_code", "BRK"), ("role_code", role),
+                ("transaction_type", transaction), ("allowed", true));
+        }
+
+        // With channels in force, staff work through the back office's application, which lets their roles make what they make here.
+        var staffRoles = (await _db.ScalarAsOwner<string[]>("""
+            SELECT array_agg(DISTINCT a.role_code) FROM iam.user_role_assignment a JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id
+            WHERE u.external_subject IN ('underwriter', 'senior-underwriter')
+            """))!;
+        string[] staffTransactions = [GeneralPermissions.RiskCreate, GeneralPermissions.RiskUpdate, GeneralPermissions.QuoteCreate, GeneralPermissions.QuoteUpdate,
+            GeneralPermissions.QuoteUnderwrite];
+        for (var r = 0; r < staffRoles.Length; r++)
+        {
+            for (var t = 0; t < staffTransactions.Length; t++)
+            {
+                var (staffRole, transaction, permissionCode) = (staffRoles[r], staffTransactions[t], $"CP-STF-{r}-{t}");
+                if (await _db.ScalarAsOwner<long>("SELECT count(*) FROM channel.cfg_channel_transaction_permissions WHERE code = @c", ("c", permissionCode)) == 0)
+                {
+                    await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", permissionCode, ("channel_code", "STF"), ("role_code", staffRole),
+                        ("transaction_type", transaction), ("allowed", true));
+                }
+            }
+        }
+
+        await _db.AdoptFunctionCatalogue();
+        _maker = _factory.ClientFor(Tenant, "underwriter", "insys-web");
+        _checker = _factory.ClientFor(Tenant, "senior-underwriter", "insys-web");
+        return _factory.ClientFor(Tenant, subject, "broker-portal", multiFactor: true);
+    }
+
+    private static readonly string[] BrokerPermissions =
+    [
+        GeneralPermissions.PolicyRead, GeneralPermissions.QuoteRead, GeneralPermissions.QuoteCreate, GeneralPermissions.ClaimRead, PartyPermissions.PartyCreate,
+        BillingPermissions.InvoiceRead, DocumentPermissions.DocumentRead,
+    ];
 
     private async Task<Guid> Vehicle() => await Created("/api/v1/general/risk-objects", new
     {

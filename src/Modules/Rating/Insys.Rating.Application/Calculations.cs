@@ -28,6 +28,7 @@ using System.Text.Json;
 using FluentValidation;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.Rating.Contracts;
 using Insys.Rating.Domain.Calculations;
@@ -54,6 +55,9 @@ public interface IRatingTestCases
 public interface IPremiumCalculationRepository
 {
     void Add(PremiumCalculation calculation);
+
+    /// <summary>Tells the module that asked for a calculation through an event why none was made (PremiumNotCalculated).</summary>
+    void NotCalculated(PremiumNotCalculated failure, Guid subjectId, DateTimeOffset now);
 }
 
 public sealed record ResultLineView(int LineNo, string Component, string? FactorCode, string? FactorValue, decimal Amount);
@@ -155,6 +159,32 @@ internal sealed class CalculatePremiumHandler(PremiumRater rater, IPremiumCalcul
             command.Rating.ProductCode, command.Rating.ProductVersion, rated.Value.InputsJson, rated.Value.Breakdown, clock.UtcNow);
         calculations.Add(calculation);
         return CalculationViews.From(calculation);
+    }
+}
+
+/// <summary>
+/// Rating's policies: a quote priced as it is made (General's GeneralQuotePricingRequested, BR-095) is rated and recorded
+/// as a calculation asked for through the API would be, and General attaches it from PremiumCalculated. When it cannot be
+/// rated (a missing input, no rating configuration in force), nothing is recorded and General is told why.
+/// </summary>
+public sealed class RatingRequestPolicies(PremiumRater rater, IPremiumCalculationRepository calculations, IClock clock)
+    : IIntegrationEventHandler<General.Contracts.GeneralQuotePricingRequested>
+{
+    public async Task Handle(General.Contracts.GeneralQuotePricingRequested requested, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var requestRef = $"{requested.QuoteNumber}-V{requested.QuoteVersion}";
+        var request = new RatingRequest(requested.ProductCode, requested.ProductVersion, requested.Currency, requested.Frequency, requested.RatingDate, requested.Values);
+        var rated = await rater.Rate(request, cancellationToken);
+        if (rated.IsFailure)
+        {
+            calculations.NotCalculated(new PremiumNotCalculated(requestRef, General.Contracts.GeneralRatingSubjects.SourceDomain, General.Contracts.GeneralRatingSubjects.Quote,
+                requested.QuoteId, rated.Error.Code, rated.Error.Message), requested.QuoteId, clock.UtcNow);
+            return;
+        }
+
+        calculations.Add(PremiumCalculation.CalculatePremium(Guid.CreateVersion7(), requestRef, General.Contracts.GeneralRatingSubjects.SourceDomain,
+            General.Contracts.GeneralRatingSubjects.Quote, requested.QuoteId, requested.ProductCode, requested.ProductVersion, rated.Value.InputsJson, rated.Value.Breakdown,
+            clock.UtcNow));
     }
 }
 

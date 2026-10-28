@@ -52,6 +52,10 @@ public static class GeneralErrorCodes
     [ErrorCode(422, "error.general.rating_mismatch")]
     public const string RatingMismatch = "RATING_MISMATCH";
 
+    /// <summary>A quote priced as it is made (BR-095) whose risk objects give different values for the same rating input; it stays Draft.</summary>
+    [ErrorCode(422, "error.general.rating_inputs_differ")]
+    public const string RatingInputsDiffer = "RATING_INPUTS_DIFFER";
+
     [ErrorCode(409, "error.general.quote_expired")]
     public const string QuoteExpired = "QUOTE_EXPIRED";
 

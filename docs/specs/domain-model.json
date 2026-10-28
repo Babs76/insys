@@ -688,6 +688,7 @@
      ],
      "commands": [
       "CreateQuote",
+      "RequestPricing",
       "RateQuote",
       "ReferQuote",
       "IssueQuote",
@@ -696,6 +697,10 @@
       "ExpireQuote"
      ],
      "events": [
+      {
+       "name": "GeneralQuotePricingRequested",
+       "provenance": "P"
+      },
       {
        "name": "GeneralQuoteIssued",
        "provenance": "P"
@@ -1261,7 +1266,11 @@
     },
     {
      "event": "PremiumCalculated",
-     "reaction": "Attach premium to quote or endorsement"
+     "reaction": "Attach premium to quote or endorsement; a quote priced as it is made over a zone and peril limit is referred (BR-095)"
+    },
+    {
+     "event": "PremiumNotCalculated",
+     "reaction": "A quote priced as it is made stays Draft with the reason (BR-095)"
     },
     {
      "event": "ApprovalGranted",
@@ -2145,6 +2154,10 @@
       {
        "name": "PremiumCalculated",
        "provenance": "P"
+      },
+      {
+       "name": "PremiumNotCalculated",
+       "provenance": "P"
       }
      ],
      "stateTransitions": [],
@@ -2159,6 +2172,10 @@
     {
      "event": "ProductVersionPublished",
      "reaction": "Load new rating version into cache"
+    },
+    {
+     "event": "GeneralQuotePricingRequested",
+     "reaction": "CalculatePremium for the quote, or PremiumNotCalculated with the reason (BR-095)"
     }
    ]
   },

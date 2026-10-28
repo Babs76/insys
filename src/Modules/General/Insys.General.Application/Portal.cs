@@ -52,12 +52,15 @@ public sealed record PortalPolicyView(Guid Id, string PolicyNumber, string Produ
             r.Coverages.Select(c => new PortalCoverageView(c.CoverageCode, c.SumInsured, c.Premium)).ToList())).ToList());
 }
 
+/// <param name="Premium">The annual premium Rating gave (BR-095): none while Draft, and none while Referred or once Declined, whatever was rated.</param>
+/// <param name="RatingIssue">Why the quote could not be priced, while it stays Draft (BR-095); null otherwise.</param>
 public sealed record PortalQuoteView(Guid Id, string QuoteNumber, int QuoteVersion, string ProductCode, Guid ProposerPartyId, string? IntermediaryCode, QuoteStatus Status,
-    DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Premium, string Currency, DateOnly ValidUntil, IReadOnlyList<PortalRiskView> Risks)
+    DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Premium, string Currency, DateOnly ValidUntil, IReadOnlyList<PortalRiskView> Risks, RatingIssueView? RatingIssue = null)
 {
     public static PortalQuoteView From(GeneralQuote q) => new(q.Id, q.QuoteNumber, q.QuoteVersion, q.ProductCode, q.ProposerPartyId, q.IntermediaryCode, q.Status,
-        q.PeriodStart, q.PeriodEnd, q.Premium, q.Currency, q.ValidUntil,
-        q.Risks.Select(r => new PortalRiskView(r.RiskObjectId, r.SumInsured, r.Coverages.Select(c => new PortalCoverageView(c.CoverageCode, c.SumInsured, null)).ToList())).ToList());
+        q.PeriodStart, q.PeriodEnd, q.Status is QuoteStatus.Referred or QuoteStatus.Declined ? null : q.Premium, q.Currency, q.ValidUntil,
+        q.Risks.Select(r => new PortalRiskView(r.RiskObjectId, r.SumInsured, r.Coverages.Select(c => new PortalCoverageView(c.CoverageCode, c.SumInsured, null)).ToList())).ToList(),
+        RatingIssueView.Of(q));
 }
 
 /// <param name="SettlementAmount">What is to be paid, once a settlement is approved; nothing before.</param>

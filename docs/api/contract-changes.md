@@ -2,6 +2,18 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 2 batch 6 (branch `wave2-6`, not merged)
+
+### Changed: a broker's portal quote is priced as it is made (BR-095, decided by Ade)
+- **`PortalGeneralCreateQuote`** still answers 201 with the quote as Draft, and now asks Rating for its premium itself (`x-eventual-effects`). Read it again (`GET /portal/general/quotes/{id}`):
+  - **Rated** with `premium`: Rating's annual premium, from the quote's risk objects' attributes (as the rating factors name them) and its total sum insured as `sum_insured`.
+  - **Draft** with `ratingIssue` `{ code, reason }`: Rating could not price it, for example `RATING_INPUT_MISSING` when a risk object lacks an attribute the rating reads, or `RATING_INPUTS_DIFFER` (new, General) when two risk objects give the same input different values. Nothing is guessed.
+  - **Referred**, with no `premium`: over a zone and peril limit, the rules refer it as soon as it is rated. It reads Rated, with its premium, once an underwriter approves the referral (any underwriter: a rules referral has no referrer, so `referredBy` is null).
+- **`PortalGeneralQuoteView.premium`** is null while the quote is Referred or Declined, whatever was rated. **`ratingIssue`** is new on it.
+- **The broker never sets or changes the price.** No portal operation takes one, and Rating's calculation endpoints stay closed to portal users (403).
+- **Later versions** of such a quote (`GeneralCreateQuote` with `fromQuoteId`) are priced the same way, with no calculation requested. `GeneralQuoteView` gains `pricedOnCreation` and `ratingIssue`. Staff quotes are priced as before, by `POST /rating/calculations`.
+- **Events:** General publishes `general.GeneralQuotePricingRequested`, which Rating consumes; Rating publishes `rating.PremiumNotCalculated` when it cannot price one, which General consumes. Migration V0076 adds the quote's `priced_on_creation`, `rating_issue_code` and `rating_issue`.
+
 ## BR-094 (branch `br-094`, shipped alone, merged at `e3cb138`)
 
 ### Fixed: broker and provider tokens keep their second factor (realm, no API change)

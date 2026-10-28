@@ -48,6 +48,7 @@ namespace Insys.General.Application;
 public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, IClaimDecisionReasons reasons, ITenantContext tenant,
     IBusinessDate businessDate, IClock clock, ILogger<GeneralPolicies> logger) :
     IIntegrationEventHandler<PremiumCalculated>,
+    IIntegrationEventHandler<PremiumNotCalculated>,
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<ClaimPaymentCompleted>,
@@ -82,6 +83,15 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
         if (calculated.SubjectType == GeneralRatingSubjects.Quote && await general.Quote(calculated.SubjectId, cancellationToken) is { } quote)
         {
             result = quote.RateQuote(calculated.CalculationId, calculated.ProductCode, calculated.ProductVersion, calculated.RatingVersion, calculated.Premium, calculated.Currency);
+
+            // BR-095: a quote priced as it is made is checked against its zone and peril limits (F062) as soon as it is
+            // rated, as its issue would check it, so a broker never sees a price the rules then withdraw.
+            if (result.IsSuccess && quote.PricedOnCreation
+                && await ZoneExposure.FirstExceeded(general, codes, quote.Risks.Select(r => (r.RiskObjectId, r.SumInsured)).ToList(), quote.Currency, businessDate.Today,
+                    cancellationToken) is not null)
+            {
+                result = quote.ReferQuoteByRules(ZoneExposure.ReferralReason);
+            }
         }
         else if (calculated.SubjectType == GeneralRatingSubjects.Endorsement && await general.Endorsement(calculated.SubjectId, cancellationToken) is { } endorsement
                  && await general.Policy(endorsement.PolicyId, cancellationToken) is { } policy
@@ -100,6 +110,19 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
         {
             logger.LogWarning("Premium calculation {CalculationId} not attached to {SubjectType} {SubjectId}: {Code}", calculated.CalculationId, calculated.SubjectType,
                 calculated.SubjectId, result.Error.Code);
+        }
+    }
+
+    /// <summary>
+    /// PremiumNotCalculated → a quote priced as it is made that Rating could not price stays Draft with the reason (BR-095),
+    /// for example a rating input its risk objects do not give.
+    /// </summary>
+    public async Task Handle(PremiumNotCalculated failed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (failed.SourceDomain == GeneralRatingSubjects.SourceDomain && failed.SubjectType == GeneralRatingSubjects.Quote
+            && await general.Quote(failed.SubjectId, cancellationToken) is { } quote && quote.RecordRatingIssue(failed.ErrorCode, failed.Reason) is { IsFailure: true } refused)
+        {
+            logger.LogWarning("Rating issue {Code} not recorded on quote {QuoteId}: {Refusal}", failed.ErrorCode, failed.SubjectId, refused.Error.Code);
         }
     }
 

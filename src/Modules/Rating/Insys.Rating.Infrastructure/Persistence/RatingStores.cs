@@ -46,6 +46,8 @@ namespace Insys.Rating.Infrastructure.Persistence;
 internal sealed class PremiumCalculationRepository(RatingDbContext db) : IPremiumCalculationRepository
 {
     public void Add(PremiumCalculation calculation) => db.Calculations.Add(calculation);
+
+    public void NotCalculated(Contracts.PremiumNotCalculated failure, Guid subjectId, DateTimeOffset now) => db.Publish(failure, "PremiumCalculation", subjectId, now);
 }
 
 internal sealed class PremiumCalculationQueries(RatingDbContext db) : IPremiumCalculationQueries

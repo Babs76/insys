@@ -84,6 +84,7 @@ public static class GeneralInfrastructure
         services.AddScoped<IGeneralCodes, GeneralCodes>();
         services.AddSingleton<Distribution.Contracts.IPolicyDistribution, GeneralPolicyDistribution>();
         services.AddIntegrationEventHandler<PremiumCalculated, GeneralPolicies, GeneralDbContext>(schema, "PremiumCalculated");
+        services.AddIntegrationEventHandler<PremiumNotCalculated, GeneralPolicies, GeneralDbContext>(schema, "PremiumNotCalculated");
         services.AddIntegrationEventHandler<Workflow.Contracts.CaseDecided, ReopenClaimsOnUpheldCase, GeneralDbContext>(schema, "CaseDecided");
         services.AddIntegrationEventHandler<ApprovalGranted, GeneralPolicies, GeneralDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, GeneralPolicies, GeneralDbContext>(schema, "ApprovalRejected");

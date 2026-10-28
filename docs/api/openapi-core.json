@@ -16650,7 +16650,7 @@
           "General"
         ],
         "summary": "Create a quote, or (fromQuoteId) the next version of one",
-        "description": "Rate it through Rating (POST /api/v1/rating/calculations with subjectType GENERAL_QUOTE and the quote\u0027s id); the recorded calculation is attached to the quote (PRD-008). A General product\u0027s line is its class code, or its family code when it has no class; panels, perils and approved lines are matched on it. Completes asynchronously (GAP-027): The quote reads Rated (with its premium) once General handles Rating\u0027s PremiumCalculated for it, after the calculation is requested (POST /rating/calculations); read the quote again (BR-038).",
+        "description": "Rate it through Rating (POST /api/v1/rating/calculations with subjectType GENERAL_QUOTE and the quote\u0027s id); the recorded calculation is attached to the quote (PRD-008). A General product\u0027s line is its class code, or its family code when it has no class; panels, perils and approved lines are matched on it. Completes asynchronously (GAP-027): The quote reads Rated (with its premium) once General handles Rating\u0027s PremiumCalculated for it, after the calculation is requested (POST /rating/calculations); read the quote again (BR-038). A new version of a quote priced as it is made (pricedOnCreation, a broker\u0027s portal quote) is priced the same way, with no request (BR-095).",
         "operationId": "GeneralCreateQuote",
         "parameters": [
           {
@@ -16714,7 +16714,7 @@
         "x-function": [
           "GENERAL_CREATE_QUOTE"
         ],
-        "x-eventual-effects": "The quote reads Rated (with its premium) once General handles Rating\u0027s PremiumCalculated for it, after the calculation is requested (POST /rating/calculations); read the quote again (BR-038)."
+        "x-eventual-effects": "The quote reads Rated (with its premium) once General handles Rating\u0027s PremiumCalculated for it, after the calculation is requested (POST /rating/calculations); read the quote again (BR-038). A new version of a quote priced as it is made (pricedOnCreation, a broker\u0027s portal quote) is priced the same way, with no request (BR-095)."
       },
       "get": {
         "tags": [
@@ -20749,6 +20749,7 @@
           "General"
         ],
         "summary": "A broker\u0027s quote, under its own code, for a client it services or registered",
+        "description": "The broker never sets or changes the price: the premium is Rating\u0027s, from the quote\u0027s risk objects\u0027 attributes and sum insured. Later versions of the quote are priced the same way. Completes asynchronously (GAP-027): The quote is priced as it is made (BR-095): it reads Rated with its premium once Rating has priced it; read it again (GET /portal/general/quotes/{id}). A quote Rating cannot price stays Draft with ratingIssue (for example RATING_INPUT_MISSING); one over a zone and peril limit reads Referred, with no premium, until an underwriter decides it.",
         "operationId": "PortalGeneralCreateQuote",
         "parameters": [
           {
@@ -20811,7 +20812,8 @@
         "x-permission": "general_quote.create",
         "x-function": [
           "BROKER_PORTAL_GENERAL_CREATE_QUOTE"
-        ]
+        ],
+        "x-eventual-effects": "The quote is priced as it is made (BR-095): it reads Rated with its premium once Rating has priced it; read it again (GET /portal/general/quotes/{id}). A quote Rating cannot price stays Draft with ratingIssue (for example RATING_INPUT_MISSING); one over a zone and peril limit reads Referred, with no premium, until an underwriter decides it."
       }
     },
     "/api/v1/portal/general/quotes/{id}": {
@@ -39557,6 +39559,16 @@
             "items": {
               "$ref": "#/components/schemas/GeneralPortalRiskView"
             }
+          },
+          "ratingIssue": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GeneralRatingIssueView"
+              }
+            ]
           }
         }
       },
@@ -39854,6 +39866,35 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "pricedOnCreation": {
+            "type": "boolean",
+            "default": false
+          },
+          "ratingIssue": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GeneralRatingIssueView"
+              }
+            ]
+          }
+        }
+      },
+      "GeneralRatingIssueView": {
+        "required": [
+          "code",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },

@@ -27,7 +27,13 @@ Batch 6 opens with the broker portal's quoting (group A, added by Ade on 28 Octo
 | 18 | **BR-049** reinsurance recoveries | A cursor on the list; who billed and who settled. | Paging; the fields. | Small |
 | 19 | **Riders (group C):** BR-041, BR-060 | BR-041: the GL export read declares its ETag in the contract. BR-060: an answer; see decision 3. | The contract declaration. | Small |
 
-## Decisions needed (Ade)
+## Decisions (Ade, 28 October 2026)
+
+1. **BR-095: option (a), priced as the quote is made.** Every new quote and every new quote version is rated through an event Rating consumes. A quote missing rating inputs stays Draft with the reason; a quote the rules refer stays Referred with no price; the broker can never change the price. `PortalGeneralCreateQuote` declares the eventual price in `x-eventual-effects`.
+2. **BR-092: option (a), an owner party.** A migration adds `owner_party_id` to `general.risk_object`, backfilled only where an item sits solely on policies of one policyholder; the rest stay empty, not guessed. A broker sees items owned by clients it currently services, and loses them when the client's intermediary changes. A staff change of owner is audited. Tests cover the broker's visibility and the loss of access on an intermediary change.
+3. **BR-060: no new reads.** The static data screens are the place for the intermediary register.
+
+The options set out before the decisions:
 
 1. **BR-095: how a portal quote is rated.**
    - **(a) Recommended: rated as it is made.** General asks Rating to calculate when a portal quote is created, through an event Rating consumes (as other cross-module work runs), so the quote reads Rated shortly after. `PortalGeneralCreateQuote` declares the eventual effect, as `GeneralCreateQuote` does. The broker needs no new permission.

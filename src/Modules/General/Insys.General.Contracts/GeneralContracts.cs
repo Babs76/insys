@@ -103,6 +103,16 @@ public static class AggregationZones
     }
 }
 
+/// <summary>
+/// A quote priced as it is made (a broker's portal quote and its later versions, BR-095) asks Rating for its premium.
+/// Rating answers with PremiumCalculated for subject GENERAL_QUOTE, or PremiumNotCalculated with the reason.
+/// </summary>
+/// <param name="Values">The rating inputs, as Rating's calculation request takes them: the risk objects' attributes and <c>sum_insured</c>.</param>
+/// <param name="Frequency">The premium's frequency: a General quote's premium is annual.</param>
+[IntegrationEvent("general.GeneralQuotePricingRequested")]
+public sealed record GeneralQuotePricingRequested(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, string Currency,
+    string Frequency, DateOnly RatingDate, System.Text.Json.JsonElement Values) : IIntegrationEvent;
+
 [IntegrationEvent("general.GeneralQuoteIssued")]
 public sealed record GeneralQuoteIssued(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, decimal Premium, string Currency,
     DateOnly ValidUntil) : IIntegrationEvent;
