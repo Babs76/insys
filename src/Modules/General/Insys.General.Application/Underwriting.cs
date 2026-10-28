@@ -470,7 +470,14 @@ internal sealed class ReferQuoteHandler(IGeneralRepository general, IGeneralCode
     }
 }
 
-internal sealed class DecideReferralHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
+/// <summary>
+/// Command DecideReferral, under the tenant's underwriting authority (§7.4): the underwriter's roles hold an authority in
+/// rules.cfg_authority_matrices for the quote's product that covers its total sum insured and the decision code, whoever
+/// referred it (the rules, staff or a broker's portal quote). Without one the decision is refused, and someone who holds
+/// it decides.
+/// </summary>
+internal sealed class DecideReferralHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit,
+    Identity.Contracts.IUserRoleQuery roles, Rules.Contracts.IUnderwritingAuthorities authorities, ITenantContext tenant)
     : ICommandHandler<DecideReferral, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(DecideReferral command, CancellationToken cancellationToken)
@@ -491,8 +498,19 @@ internal sealed class DecideReferralHandler(IGeneralRepository general, IGeneral
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{command.DecisionCode} is not an underwriting decision code in force.");
         }
 
+        var sumInsured = quote.Risks.Sum(r => r.SumInsured);
+        var tenantId = tenant.RequireTenantId();
+        var authority = (await authorities.For(tenantId, await roles.EffectiveRoles(tenantId, user.Value, cancellationToken), quote.ProductCode, businessDate.Today,
+                cancellationToken))
+            .FirstOrDefault(a => a.MaxSumAssured >= sumInsured && a.DecisionTypes.Contains(command.DecisionCode, StringComparer.Ordinal));
+        if (authority is null)
+        {
+            return Error.Forbidden(GeneralErrorCodes.UnderwritingAuthorityExceeded,
+                $"Your underwriting authority does not cover a {command.DecisionCode} decision on {quote.ProductCode} for {sumInsured} {quote.Currency}.");
+        }
+
         audit.Record(new AuditEntry("GENERAL", "DecideReferral", nameof(GeneralQuote), quote.Id.ToString(),
-            new Dictionary<string, string?> { ["approved"] = command.Approved.ToString(), ["decision"] = command.DecisionCode }));
+            new Dictionary<string, string?> { ["approved"] = command.Approved.ToString(), ["decision"] = command.DecisionCode, ["authority"] = authority.RoleCode }));
         var result = quote.DecideReferral(command.Approved, command.DecisionCode, command.SpecialConditions, command.DeclineReason, user.Value, clock.UtcNow);
         return result.IsFailure ? result.Error : QuoteView.From(quote);
     }

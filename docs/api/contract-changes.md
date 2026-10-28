@@ -4,6 +4,13 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 6 (branch `wave2-6`, not merged)
 
+### Breaking: a referral is decided under the tenant's underwriting authority (follow-up to BR-095, Ade)
+- **`GeneralDecideReferral`** now checks the decider's roles against the tenant's underwriting authority (`rules.cfg_authority_matrices`, as Life's underwriting decisions do). An authority row must be for the quote's product (or all products), cover the quote's total sum insured, and list the decision code among its `decision_types`. Otherwise the decision is refused with 403 `GENERAL_UW_AUTHORITY_EXCEEDED` (new), and the quote stays Referred.
+- It applies to every General referral: one a broker's portal quote got from the rules, one the rules raised at issue, and one staff raised by hand. Until now any user holding `general_quote.underwrite` could decide one. **A tenant needs authority rows for its General underwriters before they can decide referrals.**
+- Unchanged: whoever referred a quote by hand still cannot decide it (403 `MAKER_CHECKER_SAME_PERSON`), and a rules referral has no referrer.
+
+## Wave 2 batch 6, group A (BR-095, BR-092; shipped ahead, merged at `80d9a3f`)
+
 ### Breaking: a broker quotes only on its client's own items (BR-092, decided by Ade)
 - **`PortalGeneralCreateQuote`:** each `riskObjectId` must be an item the client owns (`ownerPartyId` is the proposer), and the broker must service the client now (below). Otherwise 403 `OUT_OF_SCOPE`, the same answer as for an unknown ID. Until now a broker could quote on any risk object whose ID it knew.
 
@@ -22,7 +29,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`PortalGeneralCreateQuote`** still answers 201 with the quote as Draft, and now asks Rating for its premium itself (`x-eventual-effects`). Read it again (`GET /portal/general/quotes/{id}`):
   - **Rated** with `premium`: Rating's annual premium, from the quote's risk objects' attributes (as the rating factors name them) and its total sum insured as `sum_insured`.
   - **Draft** with `ratingIssue` `{ code, reason }`: Rating could not price it, for example `RATING_INPUT_MISSING` when a risk object lacks an attribute the rating reads, or `RATING_INPUTS_DIFFER` (new, General) when two risk objects give the same input different values. Nothing is guessed.
-  - **Referred**, with no `premium`: over a zone and peril limit, the rules refer it as soon as it is rated. It reads Rated, with its premium, once an underwriter approves the referral (any underwriter: a rules referral has no referrer, so `referredBy` is null).
+  - **Referred**, with no `premium`: over a zone and peril limit, the rules refer it as soon as it is rated. It reads Rated, with its premium, once an underwriter approves the referral. A rules referral has no referrer, so `referredBy` is null; the decision is made under the tenant's underwriting authority (see above).
 - **`GeneralPortalQuoteView.premium`** is null while the quote is Referred or Declined, whatever was rated. **`ratingIssue`** is new on it.
 - **The broker never sets or changes the price.** No portal operation takes one, and Rating's calculation endpoints stay closed to portal users (403).
 - **Later versions** of such a quote (`GeneralCreateQuote` with `fromQuoteId`) are priced the same way, with no calculation requested. `GeneralQuoteView` gains `pricedOnCreation` and `ratingIssue`. Staff quotes are priced as before, by `POST /rating/calculations`.

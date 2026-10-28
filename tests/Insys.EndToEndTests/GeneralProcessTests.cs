@@ -82,7 +82,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     {
         _db = await server.CreateMigratedDatabase();
         await _db.SeedTenant(Tenant, "TENA");
-        await _db.UserWithPermissions(Tenant, "underwriter", Permissions);
+        var underwriter = await _db.UserWithPermissions(Tenant, "underwriter", Permissions);
         var checker = await _db.UserWithPermissions(Tenant, "senior-underwriter", Permissions);
         var approverRole = await _db.RoleWithPermissions(Tenant);
         await _db.AssignRole(Tenant, checker, approverRole);
@@ -95,6 +95,13 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             await Seed("workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}",
                 ("role_code", approverRole), ("transaction_type", type), ("limit_value", 1_000_000m), ("delegation_allowed", false));
         }
+
+        // Underwriting authority (§7.4): the senior underwriter decides referrals up to 500 000, the underwriter up to 50 000.
+        var underwriterRole = (await _db.ScalarAsOwner<string>("SELECT role_code FROM iam.user_role_assignment WHERE user_id = @u", ("u", underwriter)))!;
+        await Seed("rules.cfg_authority_matrices", "EFFECTIVE", "AM-SENIOR", ("role_code", approverRole), ("product_code", Product), ("max_sum_assured", 500_000m),
+            ("decision_types", new[] { "ACCEPT", "DECLINE" }));
+        await Seed("rules.cfg_authority_matrices", "EFFECTIVE", "AM-UW", ("role_code", underwriterRole), ("product_code", Product), ("max_sum_assured", 50_000m),
+            ("decision_types", new[] { "ACCEPT", "DECLINE" }));
 
         // A published General motor product: coverages, a limit and an excess schedule, and its document templates.
         await _db.ExecuteAsOwner("""
@@ -751,9 +758,16 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var referral = (await (await _maker.GetAsync($"/api/v1/general/quotes/{referredId}")).Json()).GetProperty("referrals").EnumerateArray().Single();
         (referral.GetProperty("reasonCode").GetString(), referral.GetProperty("referredBy").ValueKind).ShouldBe(("AGG_LIMIT", JsonValueKind.Null));
 
-        // A rules referral may be decided by any underwriter; approved, the broker sees the price.
-        (await _maker.PostAsJsonAsync($"/api/v1/general/quotes/{referredId}/referral-decision", new { approved = true, decisionCode = "ACCEPT", specialConditions = Array.Empty<string>() }))
-            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        // It is decided under the tenant's underwriting authority, as a staff quote's referral is: the underwriter's covers 50 000,
+        // not this 100 000; the senior underwriter's covers the amount but not a decision code outside its types. Within both, approved, the broker sees the price.
+        await Seed("general.ref_underwriting_decision_codes", "ACTIVE", "ACCEPT_LOADED", ("label", "Accepted with a loading"), ("requires_terms", false));
+        object Decision(string code) => new { approved = true, decisionCode = code, specialConditions = Array.Empty<string>() };
+        (await (await _maker.PostAsJsonAsync($"/api/v1/general/quotes/{referredId}/referral-decision", Decision("ACCEPT"))).Code())
+            .ShouldBe("GENERAL_UW_AUTHORITY_EXCEEDED", "over the underwriter's amount");
+        (await (await _checker.PostAsJsonAsync($"/api/v1/general/quotes/{referredId}/referral-decision", Decision("ACCEPT_LOADED"))).Code())
+            .ShouldBe("GENERAL_UW_AUTHORITY_EXCEEDED", "a decision type outside the senior underwriter's");
+        (await BrokersQuote(referredId)).GetProperty("status").GetString().ShouldBe("Referred");
+        (await _checker.PostAsJsonAsync($"/api/v1/general/quotes/{referredId}/referral-decision", Decision("ACCEPT"))).StatusCode.ShouldBe(HttpStatusCode.OK);
         var approved = await BrokersQuote(referredId);
         (approved.GetProperty("status").GetString(), approved.GetProperty("premium").GetDecimal()).ShouldBe(("Rated", 3_050m));
 

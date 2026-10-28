@@ -17273,7 +17273,7 @@
           "General"
         ],
         "summary": "An underwriter\u0027s decision on a referred quote",
-        "description": "The underwriter who referred the quote cannot decide it (403 MAKER_CHECKER_SAME_PERSON, BR-037); a referral raised by rules may be decided by any underwriter.",
+        "description": "The underwriter who referred the quote cannot decide it (403 MAKER_CHECKER_SAME_PERSON, BR-037); a referral raised by rules has no referrer. Decided under the tenant\u0027s underwriting authority (rules.cfg_authority_matrices: the product, the quote\u0027s total sum insured and the decision code), or 403 GENERAL_UW_AUTHORITY_EXCEEDED.",
         "operationId": "GeneralDecideReferral",
         "parameters": [
           {

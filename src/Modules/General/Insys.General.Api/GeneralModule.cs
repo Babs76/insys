@@ -191,7 +191,7 @@ public sealed class GeneralModule : IModule
             .Produces<QuoteView>(StatusCodes.Status200OK)
             .TakesIfMatch()
             .WithName("GeneralDecideReferral").WithSummary("An underwriter's decision on a referred quote")
-            .WithDescription("The underwriter who referred the quote cannot decide it (403 MAKER_CHECKER_SAME_PERSON, BR-037); a referral raised by rules may be decided by any underwriter.").RequirePermission(GeneralPermissions.QuoteUnderwrite);
+            .WithDescription("The underwriter who referred the quote cannot decide it (403 MAKER_CHECKER_SAME_PERSON, BR-037); a referral raised by rules has no referrer. Decided under the tenant's underwriting authority (rules.cfg_authority_matrices: the product, the quote's total sum insured and the decision code), or 403 GENERAL_UW_AUTHORITY_EXCEEDED.").RequirePermission(GeneralPermissions.QuoteUnderwrite);
 
         general.MapPost("/proposals", async (SubmitProposal r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/general/proposals/{v.Id}", v)))

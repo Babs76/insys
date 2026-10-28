@@ -44,7 +44,7 @@ For an external user, every scoped record is also checked against the link, in t
 | **Broker (intermediary)** | Quotes, proposals and policies whose `intermediary_code` is the broker's, and the claims, endorsements, invoices and documents of those policies. Commission entitlements and statements of that intermediary. |
 | **Provider** | Health preauthorisations and medical claims whose `provider_id` is the provider's, and remittance advices of that provider. |
 
-- **Servicing intermediary:** the policy's current `intermediary_code` serves as both selling and servicing intermediary. A change of broker (Life alteration `INTERMEDIARY`, or a General endorsement) moves the policy to the new broker from its effective date, and the old broker loses it. A separate servicing intermediary is not modelled anywhere; adding one would be a schema change, proposed only if the business needs both.
+- **Servicing intermediary:** the policy's current `intermediary_code` serves as both selling and servicing intermediary. A change of broker (Life alteration `INTERMEDIARY`, or a General endorsement) moves the policy to the new broker from its effective date, and the old broker loses it. A separate servicing intermediary is not modelled anywhere; adding one would be a schema change, proposed only if the business needs both. The General endorsement that changes a policy's intermediary is not built yet: it is backlog item B-001 for Wave 4 (`docs/backlog.md`). Until then a broker services a General client as BR-092 defines it.
 - **Lists** are filtered in the query, as for F103, so paging stays correct.
 - **Guessing an ID** gives 404, exactly as for a record that does not exist.
 

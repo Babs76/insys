@@ -52,6 +52,13 @@ public static class GeneralErrorCodes
     [ErrorCode(422, "error.general.rating_mismatch")]
     public const string RatingMismatch = "RATING_MISMATCH";
 
+    /// <summary>
+    /// A referral decided by someone whose roles hold no underwriting authority (rules.cfg_authority_matrices) for the quote's
+    /// product, covering its total sum insured and the decision code.
+    /// </summary>
+    [ErrorCode(403, "error.general.underwriting_authority_exceeded")]
+    public const string UnderwritingAuthorityExceeded = "GENERAL_UW_AUTHORITY_EXCEEDED";
+
     /// <summary>A quote priced as it is made (BR-095) whose risk objects give different values for the same rating input; it stays Draft.</summary>
     [ErrorCode(422, "error.general.rating_inputs_differ")]
     public const string RatingInputsDiffer = "RATING_INPUTS_DIFFER";
