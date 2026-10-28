@@ -172,6 +172,39 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
         }
     }
 
+    /// <summary>
+    /// BR-027: delivery channels are the enum the channel settings allow, legal hold reasons name their code list, the
+    /// document view says what reading needs and gives the file name, and the purpose parameter lists the classifications
+    /// that need one.
+    /// </summary>
+    [Fact]
+    public async Task DocumentsContract_DeclaresChannelsHoldReasonsAndWhatReadingNeeds_BR027()
+    {
+        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        var schemas = core.RootElement.GetProperty("components").GetProperty("schemas");
+        JsonElement Property(string schema, string property) => schemas.GetProperty(schema).GetProperty("properties").GetProperty(property);
+
+        Property("DocumentsDeliverDocumentRequest", "channel").GetProperty("enum").EnumerateArray().Select(v => v.GetString()).ShouldBe(["EMAIL", "SMS", "POST", "PORTAL"]);
+        Property("DocumentsDeliverDocumentRequest", "channel").GetProperty("x-code-list").GetString().ShouldBe("document.cfg_delivery_channel_settings");
+        foreach (var schema in new[] { "DocumentsLegalHoldRequest", "DocumentsRecordHoldRequest", "DocumentsLegalHoldView", "DocumentsRecordHoldView" })
+        {
+            Property(schema, "reasonCode").GetProperty("x-code-list").GetString().ShouldBe("document.ref_legal_hold_reason_codes", schema);
+        }
+
+        foreach (var property in new[] { "purposeRequired", "allowedRoleRequired", "fileName" })
+        {
+            schemas.GetProperty("DocumentsDocumentView").GetProperty("properties").TryGetProperty(property, out _).ShouldBeTrue(property);
+        }
+
+        schemas.GetProperty("DocumentsStoreDocumentRequest").GetProperty("properties").TryGetProperty("fileName", out _).ShouldBeTrue();
+        var purpose = core.RootElement.GetProperty("paths").GetProperty("/api/v1/documents/documents/{id}/content").GetProperty("get").GetProperty("parameters")
+            .EnumerateArray().Single(p => p.GetProperty("name").GetString() == "purpose").GetProperty("description").GetString()!;
+        foreach (var classification in Insys.Documents.Domain.Documents.Classifications.Sensitive)
+        {
+            purpose.ShouldContain(classification);
+        }
+    }
+
     /// <summary>GAP-033: the business reference types INSYS files documents under are declared on the documents list.</summary>
     [Fact]
     public async Task DocumentsList_DeclaresTheKnownBusinessReferenceTypes_GAP033()

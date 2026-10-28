@@ -54,7 +54,7 @@ public interface IRecordHoldRepository
 /// <param name="LatestRejection">The hold's latest release approval that ended without being granted (OQ-113), or null.</param>
 public sealed record RecordHoldView(Guid Id,
     [property: OneOf("PARTY", "LIFE_POLICY", "GENERAL_POLICY", "HEALTH_MEMBERSHIP", "LIFE_CLAIM", "GENERAL_CLAIM", "HEALTH_CLAIM", "CASE")] string ScopeType,
-    Guid ScopeId, string ReasonCode, Guid PlacedBy, DateTimeOffset PlacedAt, DateTimeOffset? ReleasedAt, Guid? ReleasedBy, Guid? ReleaseRequestedBy,
+    Guid ScopeId, [property: CodeList(DeliveryChannels.LegalHoldReasons)] string ReasonCode, Guid PlacedBy, DateTimeOffset PlacedAt, DateTimeOffset? ReleasedAt, Guid? ReleasedBy, Guid? ReleaseRequestedBy,
     DateTimeOffset? ReleaseRequestedAt, string? ReleaseReason, LatestRejection? LatestRejection, long RowVersion)
 {
     public static RecordHoldView From(RecordHold h, LatestRejection? latestRejection) => new(h.Id, h.ScopeType, h.ScopeId, h.ReasonCode, h.PlacedBy, h.PlacedAt,

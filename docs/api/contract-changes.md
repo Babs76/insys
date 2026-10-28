@@ -4,6 +4,12 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### Changed: documents declare channels and hold reasons, keep the file name, and say what reading needs (BR-027)
+- **`DocumentsDeliver`:** `channel` is an enum (`EMAIL`, `SMS`, `POST`, `PORTAL`, the channels the delivery settings allow) and names `document.cfg_delivery_channel_settings` as its code list: a channel the tenant has not configured is still refused (`CODE_NOT_IN_FORCE`). `DeliveryView.channel` declares the same enum.
+- **Legal hold reasons:** `reasonCode` on the document hold, the record hold and their views names `document.ref_legal_hold_reason_codes`.
+- **File name:** `DocumentsStore` takes an optional `fileName` (at most 255 characters, no control characters; any path before it, as `C:\fakepath\` from a browser, is dropped). `DocumentView.fileName` returns it; null for generated documents and earlier uploads.
+- **What reading needs:** `DocumentView` gains `purposeRequired` (CONFIDENTIAL, PERSONAL and HIGHLY_SENSITIVE: `GET …/content` needs `purpose`, DOC-003) and `allowedRoleRequired` (HIGHLY_SENSITIVE: also one of the category's allowed roles, DOC-004). The `purpose` parameter's description lists the classifications. `categoryCode` names `document.ref_document_categories`.
+
 ### Changed: parties mask identifiers, declare their kind and name their code lists (BR-026)
 - **`PartyIdentifierView.maskedNumber`** (new): the identifier's last four characters, masked (`•••• 9087`). A number of four characters or fewer is `••••`, so it is never shown whole; the number itself is still never returned (PTY-005). Identifiers added before this change are masked the same way.
 - **`PartyView.kind`** is now the `PartyKind` enum (`Individual`, `Organisation`), as on `PartySummary`; the values are unchanged.

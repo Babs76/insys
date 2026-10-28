@@ -45,11 +45,15 @@ public enum DocumentTrigger
 /// <summary>Classification, from the document category (V0002 record classes).</summary>
 public static class Classifications
 {
-    /// <summary>Access to these is recorded (DOC-003).</summary>
-    public static bool IsSensitive(string classification) => classification is "CONFIDENTIAL" or "PERSONAL" or "HIGHLY_SENSITIVE";
+    /// <summary>Reading these needs a purpose, and is recorded (DOC-003).</summary>
+    public static readonly IReadOnlyList<string> Sensitive = ["CONFIDENTIAL", "PERSONAL", "HIGHLY_SENSITIVE"];
 
-    /// <summary>These also need one of the category's allowed roles (DOC-004).</summary>
-    public static bool NeedsAllowedRole(string classification) => classification == "HIGHLY_SENSITIVE";
+    /// <summary>Reading these also needs one of the category's allowed roles (DOC-004).</summary>
+    public static readonly IReadOnlyList<string> AllowedRoleOnly = ["HIGHLY_SENSITIVE"];
+
+    public static bool IsSensitive(string classification) => Sensitive.Contains(classification);
+
+    public static bool NeedsAllowedRole(string classification) => AllowedRoleOnly.Contains(classification);
 }
 
 /// <summary>Where the content is kept, and how to check it is intact.</summary>
@@ -290,6 +294,9 @@ public sealed class Document : AggregateRoot<Guid>
 
     public bool LegalHold { get; private set; }
 
+    /// <summary>The uploaded file's name, without any path (BR-027); null for a generated document.</summary>
+    public string? FileName { get; private set; }
+
     public DocumentStatus Status { get; private set; }
 
     public DateTimeOffset? DisposedAt { get; private set; }
@@ -300,7 +307,7 @@ public sealed class Document : AggregateRoot<Guid>
 
     /// <summary>Commands GenerateDocument (with a template) and StoreDocument (without): the rendered or uploaded content is already stored.</summary>
     public static Document Create(Guid id, string categoryCode, string classification, StoredContent content, TemplateVersionRef? template, string? productVersionRef,
-        string businessRefType, Guid businessRefId, DateOnly? retentionUntil, DateTimeOffset now)
+        string businessRefType, Guid businessRefId, DateOnly? retentionUntil, DateTimeOffset now, string? fileName = null)
     {
         var document = new Document
         {
@@ -317,6 +324,7 @@ public sealed class Document : AggregateRoot<Guid>
             BusinessRefType = Guard.MaxLength(Guard.NotNullOrWhiteSpace(businessRefType), 30),
             BusinessRefId = Guard.NotEmpty(businessRefId),
             RetentionUntil = retentionUntil,
+            FileName = fileName is null ? null : Guard.MaxLength(Guard.NotNullOrWhiteSpace(fileName), 255),
             Status = DocumentStatus.Generated,
         };
         document.Raise(new DocumentGenerated(id, document.CategoryCode, document.BusinessRefType, businessRefId, template?.TemplateCode, template?.Version, now));

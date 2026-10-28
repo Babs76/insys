@@ -92,26 +92,31 @@ public interface IDocumentRepository
     void Add(AccessRecord record);
 }
 
-public sealed record DeliveryView(Guid Id, string Channel, string Recipient, [property: OneOf("SENT", "FAILED")] string Status, string? ProviderRef, DateTimeOffset? SentAt);
+public sealed record DeliveryView(Guid Id, [property: OneOf(DeliveryChannels.Email, DeliveryChannels.Sms, DeliveryChannels.Post, DeliveryChannels.Portal)] string Channel, string Recipient, [property: OneOf("SENT", "FAILED")] string Status, string? ProviderRef, DateTimeOffset? SentAt);
 
 /// <summary>A legal hold: in force until releasedAt is set; a release waits for approval while releaseRequestedAt is set (OQ-111).</summary>
 /// <param name="ReleaseRequestedBy">Who asked for the hold to be released, while that waits for a second person's approval (OQ-111); the hold is in force meanwhile.</param>
 /// <param name="ReleasedBy">The checker who approved the release.</param>
 /// <param name="LatestRejection">The hold's latest release approval that ended without being granted (OQ-113), or null.</param>
-public sealed record LegalHoldView(Guid Id, string ReasonCode, Guid PlacedBy, DateTimeOffset PlacedAt, DateTimeOffset? ReleasedAt, Guid? ReleasedBy,
+public sealed record LegalHoldView(Guid Id, [property: CodeList(DeliveryChannels.LegalHoldReasons)] string ReasonCode, Guid PlacedBy, DateTimeOffset PlacedAt, DateTimeOffset? ReleasedAt, Guid? ReleasedBy,
     Guid? ReleaseRequestedBy, DateTimeOffset? ReleaseRequestedAt, string? ReleaseReason, Workflow.Contracts.LatestRejection? LatestRejection = null)
 {
     public static LegalHoldView From(Domain.Documents.LegalHold h, Workflow.Contracts.LatestRejection? latestRejection = null) =>
         new(h.Id, h.ReasonCode, h.PlacedBy, h.PlacedAt, h.ReleasedAt, h.ReleasedBy, h.ReleaseRequestedBy, h.ReleaseRequestedAt, h.ReleaseReason, latestRejection);
 }
 
-public sealed record DocumentView(Guid Id, string CategoryCode, string Classification, DocumentStatus Status, string MimeType, long SizeBytes, string Sha256, string? TemplateCode,
-    int? TemplateVersion, string? ProductVersionRef, string BusinessRefType, Guid BusinessRefId, DateOnly? RetentionUntil, bool LegalHold, DateTimeOffset? DisposedAt,
+/// <param name="PurposeRequired">Whether reading the content needs a purpose, by the document's classification (DOC-003).</param>
+/// <param name="AllowedRoleRequired">Whether reading the content also needs one of the category's allowed roles (DOC-004).</param>
+/// <param name="FileName">The uploaded file's name (BR-027); null for a generated document and for uploads made before it was kept.</param>
+public sealed record DocumentView(Guid Id, [property: CodeList("document.ref_document_categories")] string CategoryCode, string Classification, bool PurposeRequired,
+    bool AllowedRoleRequired, DocumentStatus Status, string MimeType, string? FileName, long SizeBytes, string Sha256, string? TemplateCode, int? TemplateVersion,
+    string? ProductVersionRef, string BusinessRefType, Guid BusinessRefId, DateOnly? RetentionUntil, bool LegalHold, DateTimeOffset? DisposedAt,
     IReadOnlyList<DeliveryView> Deliveries, IReadOnlyList<LegalHoldView> Holds, long RowVersion)
 {
     /// <param name="rejections">Each hold's latest release approval that ended without being granted (OQ-113), by hold.</param>
     public static DocumentView From(Document d, IReadOnlyDictionary<Guid, Workflow.Contracts.LatestRejection?>? rejections = null) => new(d.Id, d.CategoryCode,
-        d.Classification, d.Status, d.MimeType, d.SizeBytes, d.Sha256, d.TemplateCode, d.TemplateVersion, d.ProductVersionRef, d.BusinessRefType, d.BusinessRefId,
+        d.Classification, Classifications.IsSensitive(d.Classification), Classifications.NeedsAllowedRole(d.Classification), d.Status, d.MimeType, d.FileName, d.SizeBytes,
+        d.Sha256, d.TemplateCode, d.TemplateVersion, d.ProductVersionRef, d.BusinessRefType, d.BusinessRefId,
         d.RetentionUntil, d.LegalHold, d.DisposedAt,
         d.Deliveries.OrderBy(x => x.Id).Select(x => new DeliveryView(x.Id, x.Channel, x.Recipient, x.Status, x.ProviderRef, x.SentAt)).ToList(),
         d.Holds.OrderBy(h => h.Id).Select(h => LegalHoldView.From(h, rejections?.GetValueOrDefault(h.Id))).ToList(), d.RowVersion);
@@ -136,8 +141,24 @@ public sealed record GenerateDocument(string TemplateCode, string Language, stri
     string? Jurisdiction, JsonElement Data) : ICommand<DocumentView>;
 
 /// <summary>Command StoreDocument: an uploaded document.</summary>
+/// <param name="FileName">The uploaded file's name; any path before it is dropped (BR-027).</param>
 public sealed record StoreDocument(string CategoryCode, string BusinessRefType, Guid BusinessRefId, string MimeType, byte[] Content, string? ProductVersionRef,
-    string? Jurisdiction) : ICommand<DocumentView>;
+    string? Jurisdiction, string? FileName = null) : ICommand<DocumentView>
+{
+    /// <summary>The name without a path: browsers send C:\fakepath\name, and a path names the uploader's folders.</summary>
+    public string? BaseFileName => FileName is null ? null : FileName[(FileName.LastIndexOfAny(['/', '\\']) + 1)..].Trim();
+}
+
+/// <summary>The channels a document is delivered by (document.cfg_delivery_channel_settings, its channel check), and the hold reasons' table.</summary>
+public static class DeliveryChannels
+{
+    public const string Email = "EMAIL";
+    public const string Sms = "SMS";
+    public const string Post = "POST";
+    public const string Portal = "PORTAL";
+    public const string Settings = "document.cfg_delivery_channel_settings";
+    public const string LegalHoldReasons = "document.ref_legal_hold_reason_codes";
+}
 
 public sealed record DeliverDocument(Guid DocumentId, string Channel, string Recipient) : ICommand<DeliveryView>;
 
@@ -194,6 +215,8 @@ public sealed class StoreDocumentValidator : AbstractValidator<StoreDocument>
         RuleFor(c => c.MimeType).NotEmpty().MaximumLength(80);
         RuleFor(c => c.Content).NotEmpty().Must(c => c.Length <= MaxBytes).WithMessage("A stored document is at most 10 MB.");
         RuleFor(c => c.ProductVersionRef).MaximumLength(30);
+        RuleFor(c => c.BaseFileName).NotEmpty().MaximumLength(255).Must(n => n!.All(ch => !char.IsControl(ch)))
+            .WithMessage("fileName is a file name of at most 255 characters, without control characters.").When(c => c.FileName is not null);
     }
 }
 
@@ -283,7 +306,7 @@ internal sealed class StoreDocumentHandler(IDocumentRepository documents, IDocum
         var id = Guid.CreateVersion7();
         var stored = await storage.Put(tenant.RequireTenantId(), id, command.Content, command.MimeType, cancellationToken);
         var document = Document.Create(id, command.CategoryCode, category.Classification, stored, null, command.ProductVersionRef, command.BusinessRefType,
-            command.BusinessRefId, await catalogue.RetentionUntil(command.CategoryCode, command.Jurisdiction, today, cancellationToken), clock.UtcNow);
+            command.BusinessRefId, await catalogue.RetentionUntil(command.CategoryCode, command.Jurisdiction, today, cancellationToken), clock.UtcNow, command.BaseFileName);
         documents.Add(document);
         return DocumentView.From(document);
     }

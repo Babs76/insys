@@ -45,12 +45,16 @@ public sealed record GenerateDocumentRequest(string TemplateCode, string Languag
     string? ProductVersionRef, string? Jurisdiction, JsonElement Data);
 
 /// <param name="ContentBase64">The file, base64-encoded; at most 10 MB.</param>
-public sealed record StoreDocumentRequest(string CategoryCode, string BusinessRefType, Guid BusinessRefId, string MimeType, string ContentBase64,
-    string? ProductVersionRef, string? Jurisdiction);
+/// <param name="FileName">The uploaded file's name, kept on the document (BR-027); any path before it is dropped. At most 255 characters.</param>
+public sealed record StoreDocumentRequest([property: BuildingBlocks.Domain.CodeList("document.ref_document_categories")] string CategoryCode, string BusinessRefType,
+    Guid BusinessRefId, string MimeType, string ContentBase64, string? ProductVersionRef, string? Jurisdiction, string? FileName = null);
 
-public sealed record DeliverDocumentRequest(string Channel, string Recipient);
+/// <param name="Channel">A channel the tenant has configured (document.cfg_delivery_channel_settings); others are refused with CODE_NOT_IN_FORCE.</param>
+public sealed record DeliverDocumentRequest(
+    [property: BuildingBlocks.Domain.OneOf(DeliveryChannels.Email, DeliveryChannels.Sms, DeliveryChannels.Post, DeliveryChannels.Portal),
+               BuildingBlocks.Domain.CodeList(DeliveryChannels.Settings)] string Channel, string Recipient);
 
-public sealed record LegalHoldRequest(string ReasonCode);
+public sealed record LegalHoldRequest([property: BuildingBlocks.Domain.CodeList(DeliveryChannels.LegalHoldReasons)] string ReasonCode);
 
 /// <param name="Reason">Why the hold may be released (at most 200 characters); the checker sees it.</param>
 /// <summary>A legal hold on a record itself (D-34).</summary>
@@ -59,7 +63,7 @@ public sealed record LegalHoldRequest(string ReasonCode);
 /// <param name="ReasonCode">A legal hold reason in force (documents/static/legal-hold-reason-codes).</param>
 public sealed record RecordHoldRequest(
     [property: Insys.BuildingBlocks.Domain.OneOf("PARTY", "LIFE_POLICY", "GENERAL_POLICY", "HEALTH_MEMBERSHIP", "LIFE_CLAIM", "GENERAL_CLAIM", "HEALTH_CLAIM", "CASE")]
-    string ScopeType, Guid ScopeId, string ReasonCode);
+    string ScopeType, Guid ScopeId, [property: Insys.BuildingBlocks.Domain.CodeList(DeliveryChannels.LegalHoldReasons)] string ReasonCode);
 
 public sealed record LegalHoldReleaseRequest([property: System.ComponentModel.DataAnnotations.MinLength(1), System.ComponentModel.DataAnnotations.MaxLength(200)] string Reason);
 
@@ -100,7 +104,7 @@ public sealed class DocumentsModule : IModule
                 }
 
                 return (await dispatcher.Send(new StoreDocument(r.CategoryCode, r.BusinessRefType, r.BusinessRefId, r.MimeType, content, r.ProductVersionRef,
-                    r.Jurisdiction), ct)).ToHttp(view => Created(http, view));
+                    r.Jurisdiction, r.FileName), ct)).ToHttp(view => Created(http, view));
             })
             .Produces<DocumentView>(StatusCodes.Status201Created)
             .WithName("DocumentsStore")
@@ -129,7 +133,9 @@ public sealed class DocumentsModule : IModule
             .WithSummary("Get a document's record (not its content)")
             .RequirePermission(DocumentPermissions.DocumentRead);
 
-        documents.MapGet("/{id:guid}/content", async (Guid id, string? purpose, IDispatcher dispatcher, CancellationToken ct) =>
+        documents.MapGet("/{id:guid}/content", async (Guid id,
+                [System.ComponentModel.Description("Why the content is read. Required for a CONFIDENTIAL, PERSONAL or HIGHLY_SENSITIVE document (the view's purposeRequired); recorded in its access log (DOC-003)")]
+                string? purpose, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ReadDocumentContent(id, purpose), ct)).ToHttp(content => Results.File(content.Content, content.MimeType)))
             .Produces(StatusCodes.Status200OK, typeof(Stream), "application/octet-stream")
             .WithName("DocumentsReadContent")

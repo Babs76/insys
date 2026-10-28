@@ -8075,6 +8075,7 @@
           {
             "name": "purpose",
             "in": "query",
+            "description": "Why the content is read. Required for a CONFIDENTIAL, PERSONAL or HIGHLY_SENSITIVE document (the view\u0027s purposeRequired); recorded in its access log (DOC-003)",
             "schema": {
               "type": "string"
             }
@@ -35975,7 +35976,14 @@
         "type": "object",
         "properties": {
           "channel": {
-            "type": "string"
+            "enum": [
+              "EMAIL",
+              "SMS",
+              "POST",
+              "PORTAL"
+            ],
+            "type": "string",
+            "x-code-list": "document.cfg_delivery_channel_settings"
           },
           "recipient": {
             "type": "string"
@@ -35998,6 +36006,12 @@
             "format": "uuid"
           },
           "channel": {
+            "enum": [
+              "EMAIL",
+              "SMS",
+              "POST",
+              "PORTAL"
+            ],
             "type": "string"
           },
           "recipient": {
@@ -36037,8 +36051,11 @@
           "id",
           "categoryCode",
           "classification",
+          "purposeRequired",
+          "allowedRoleRequired",
           "status",
           "mimeType",
+          "fileName",
           "sizeBytes",
           "sha256",
           "templateCode",
@@ -36060,16 +36077,29 @@
             "format": "uuid"
           },
           "categoryCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "document.ref_document_categories"
           },
           "classification": {
             "type": "string"
+          },
+          "purposeRequired": {
+            "type": "boolean"
+          },
+          "allowedRoleRequired": {
+            "type": "boolean"
           },
           "status": {
             "$ref": "#/components/schemas/DocumentsDocumentStatus"
           },
           "mimeType": {
             "type": "string"
+          },
+          "fileName": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "sizeBytes": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -36215,7 +36245,8 @@
         "type": "object",
         "properties": {
           "reasonCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "document.ref_legal_hold_reason_codes"
           }
         }
       },
@@ -36239,7 +36270,8 @@
             "format": "uuid"
           },
           "reasonCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "document.ref_legal_hold_reason_codes"
           },
           "placedBy": {
             "type": "string",
@@ -36359,7 +36391,8 @@
             "format": "uuid"
           },
           "reasonCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "document.ref_legal_hold_reason_codes"
           }
         }
       },
@@ -36403,7 +36436,8 @@
             "format": "uuid"
           },
           "reasonCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "document.ref_legal_hold_reason_codes"
           },
           "placedBy": {
             "type": "string",
@@ -36480,7 +36514,8 @@
         "type": "object",
         "properties": {
           "categoryCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "document.ref_document_categories"
           },
           "businessRefType": {
             "type": "string"
@@ -36502,6 +36537,12 @@
             ]
           },
           "jurisdiction": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fileName": {
             "type": [
               "null",
               "string"
