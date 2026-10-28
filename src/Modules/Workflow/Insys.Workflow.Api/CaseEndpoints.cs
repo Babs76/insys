@@ -246,10 +246,8 @@ internal static class CaseEndpoints
             CasePermissions.Update, (id, r, v) => new RecordCaseOmbudOutcome(id, r.Outcome, r.At, v), null);
         Versioned(cases, "/{id:guid}/share-with-broker", "WorkflowShareCaseWithBroker", "Let the broker of the case's policies see it (OQ-108)", CasePermissions.Update,
             (id, v) => new ShareCaseWithBroker(id, v), "A broker sees the cases it raised; a shared case is also seen by the broker of a policy the case links.");
-        Versioned<CaseReasonRequest>(cases, "/{id:guid}/legal-hold", "WorkflowPlaceCaseLegalHold", "Place a legal hold on the case (privileged)", CasePermissions.Update,
-            (id, r, v) => new HoldCase(id, true, r.Reason, v), "Open or closed: a held case is not disposed of after its retention date (OQ-106).");
-        Versioned<CaseReasonRequest>(cases, "/{id:guid}/legal-hold/release", "WorkflowReleaseCaseLegalHold", "Release the case's legal hold (privileged)",
-            CasePermissions.Update, (id, r, v) => new HoldCase(id, false, r.Reason, v), null);
+        // The case's own single-person legal hold is retired (V0068): a case is held by a record hold with scope CASE
+        // (POST /documents/legal-holds), whose release a second person approves.
 
         cases.MapPost("/{id:guid}/redress", async (Guid id, CaseRedressRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
             {

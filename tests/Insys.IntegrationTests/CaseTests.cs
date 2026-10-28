@@ -404,23 +404,41 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
             .ShouldBeGreaterThanOrEqualTo(750.50m);
     }
 
+    /// <summary>
+    /// The case's own single-person hold is retired (V0068, Ade 28 October 2026). A case still held by it becomes a record
+    /// hold on the case, placed by whoever placed it, so it stays past its retention until a second person releases it; the
+    /// case reads as held, its flag is cleared, and the two operations are gone.
+    /// </summary>
     [Fact]
-    public async Task ALegalHold_KeepsAClosedCasePastItsRetention_AndTheOtherIsDisposedOf_OQ106()
+    public async Task ACasesOwnHold_BecomesARecordHold_AndTheCaseStaysHeld_V0068()
     {
         var held = await ClosedComplaint();
         var disposed = await ClosedComplaint();
-        (await Act(_clerk, held, "legal-hold", new { reason = "Litigation" })).StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        await fixture.Database.ExecuteAsOwner("UPDATE workflow.service_case SET retain_until = current_date - 30 WHERE id = ANY(@ids)", ("ids", new[] { held, disposed }));
+        var placer = Guid.CreateVersion7();
+        await fixture.Database.ExecuteAsOwner("""
+            UPDATE workflow.service_case SET legal_hold = true WHERE id = @c;
+            INSERT INTO workflow.case_event (tenant_id, id, case_id, event_type, occurred_at, actor, detail)
+            VALUES (@t, gen_random_uuid(), @c, 'LEGAL_HOLD_PLACED', TIMESTAMPTZ '2026-10-01 09:00:00+00', @p, 'Litigation');
+            UPDATE workflow.service_case SET retain_until = current_date - 30 WHERE id = ANY(@ids);
+            """, ("t", T), ("c", held), ("p", placer.ToString()), ("ids", new[] { held, disposed }));
 
-        var (_, removed) = await _factory.Services.GetRequiredService<CaseTimelineJobs>().RunForTenant(T, CancellationToken.None);
-        removed.ShouldBeGreaterThanOrEqualTo(1);
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.service_case WHERE id = @id", ("id", held))).ShouldBe(1);
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.service_case WHERE id = @id", ("id", disposed))).ShouldBe(0);
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.case_event WHERE case_id = @id", ("id", disposed))).ShouldBe(0);
+        // The migration's statements, as they run on a database with such a case.
+        var migration = await File.ReadAllTextAsync(Path.Combine(RepositoryPaths.Root, "db", "migrations", "V0068__case_holds_become_record_holds.sql"));
+        await fixture.Database.ExecuteAsOwner(migration);
 
-        (await Act(_clerk, held, "legal-hold/release", new { reason = "Settled" })).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT scope_type || ' ' || reason_code || ' ' || placed_by || ' ' || to_char(placed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI')
+            FROM document.record_hold WHERE scope_id = @c AND released_at IS NULL
+            """, ("c", held))).ShouldBe($"CASE CASE_HOLD {placer} 2026-10-01 09:00");
+        (await fixture.Database.ScalarAsOwner<bool>("SELECT legal_hold FROM workflow.service_case WHERE id = @c", ("c", held))).ShouldBeFalse();
+        (await (await _clerk.GetAsync($"{Cases}/{held}")).Json()).GetProperty("legalHold").GetBoolean().ShouldBeTrue("a record hold keeps it");
+
         await _factory.Services.GetRequiredService<CaseTimelineJobs>().RunForTenant(T, CancellationToken.None);
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.service_case WHERE id = @id", ("id", held))).ShouldBe(0);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.service_case WHERE id = @id", ("id", held))).ShouldBe(1, "still held");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.service_case WHERE id = @id", ("id", disposed))).ShouldBe(0);
+
+        (await Act(_clerk, held, "legal-hold", new { reason = "Litigation" })).StatusCode.ShouldBe(HttpStatusCode.NotFound, "the case's own hold is retired");
+        (await Act(_clerk, held, "legal-hold/release", new { reason = "Settled" })).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     /// <summary>A legal hold on the case itself (D-34, document.record_hold) keeps it past its retention too, until the hold is released.</summary>

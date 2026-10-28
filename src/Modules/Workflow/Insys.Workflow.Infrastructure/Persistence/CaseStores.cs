@@ -89,7 +89,7 @@ internal sealed class CaseRepository(WorkflowDbContext db) : ICaseRepository
             .OrderBy(c => c.ExpectedBy).Select(c => c.Id).Take(limit).ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<Guid>> DueForDisposal(DateOnly today, int limit, CancellationToken cancellationToken) =>
-        await db.Cases.AsNoTracking().Where(c => Ended.Contains(c.Status) && !c.LegalHold && c.RetainUntil != null && c.RetainUntil < today)
+        await db.Cases.AsNoTracking().Where(c => Ended.Contains(c.Status) && c.RetainUntil != null && c.RetainUntil < today)
             .OrderBy(c => c.RetainUntil).Select(c => c.Id).Take(limit).ToListAsync(cancellationToken);
 }
 
@@ -141,7 +141,7 @@ internal sealed class CaseConfiguration(WorkflowDbContext db) : ICaseConfigurati
 
 /// <summary>Staff case reads (§11): within the caller's F103 scope (a case with no scoped record is tenant-wide), Health-linked ones only with medical_claim.read.</summary>
 internal sealed class CaseQueries(WorkflowDbContext db, IExecutionContext execution, CaseAccess access, CaseConfiguration configuration, IBusinessDate businessDate,
-    IClock clock) : ICaseQueries
+    IClock clock, Documents.Contracts.IRecordHolds holds) : ICaseQueries
 {
     private static readonly CaseStatus[] Ended = [CaseStatus.Closed, CaseStatus.Withdrawn];
 
@@ -181,10 +181,12 @@ internal sealed class CaseQueries(WorkflowDbContext db, IExecutionContext execut
         var history = await db.CaseHistory.AsNoTracking().Where(h => h.CaseId == id).OrderBy(h => h.OccurredAt).ThenBy(h => h.Id).ToListAsync(cancellationToken);
         var messages = await db.CaseMessages.AsNoTracking().Where(m => m.CaseId == id).OrderBy(m => m.SentAt).ThenBy(m => m.Id).ToListAsync(cancellationToken);
         var redress = await db.CaseRedress.AsNoTracking().Where(r => r.CaseId == id).OrderBy(r => r.Id).ToListAsync(cancellationToken);
+        // Held while a record hold is in force on the case or one of its documents (D-34; the case's own flag is retired, V0068).
+        var held = (await holds.Holds([c.Id], cancellationToken)).Count > 0;
         return new CaseView(c.Id, c.CaseNumber, c.CaseTypeCode, c.Family, c.Status, c.Outcome, c.ReceivedAt, c.ReceivedChannel, c.ComplainantPartyId, c.ComplainantName,
             c.ComplainantContact, c.OnBehalfOfPartyId, c.RaisedByAudience, c.RaisedByUserId, c.RaisedByIntermediaryCode, c.RaisedByProviderId, c.SharedWithBroker,
             c.CategoryCode, c.Summary, c.UpheldAtReceipt, c.Reportable, c.DecisionReasons, c.DecidedBy, c.DecidedAt, c.ParentCaseId, c.ProcessInstanceId, c.ProductCode,
-            c.OrgNodeCode, c.AcknowledgedAt, c.ExpectedBy, IsOverdue(c, clock.UtcNow), c.ClosedAt, c.RetainUntil, c.LegalHold, c.OmbudSchemeCode, c.OmbudReference,
+            c.OrgNodeCode, c.AcknowledgedAt, c.ExpectedBy, IsOverdue(c, clock.UtcNow), c.ClosedAt, c.RetainUntil, held, c.OmbudSchemeCode, c.OmbudReference,
             c.OmbudReferredAt, c.OmbudOutcome, c.OmbudOutcomeAt,
             c.Links.OrderBy(l => l.AddedAt).Select(l => new CaseLinkView(l.LinkType, l.RecordId, l.Reference, l.AddedAt)).ToList(),
             history.Select(h => new CaseHistoryView(h.EventType, h.OccurredAt, h.Actor, h.Detail)).ToList(),

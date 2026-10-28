@@ -74,8 +74,6 @@ internal static class WorkflowFunctions
         .Action("CASE_WITHDRAW", "SERVICE_COMPLAINTS", "WorkflowWithdrawCase")
         .Action("CASE_CLOSE", "SERVICE_COMPLAINTS", "WorkflowCloseCase")
         .Action("CASE_SHARE_WITH_BROKER", "SERVICE_COMPLAINTS", "WorkflowShareCaseWithBroker")
-        .Action("CASE_PLACE_LEGAL_HOLD", "SERVICE_COMPLAINTS", "WorkflowPlaceCaseLegalHold", privileged: true)
-        .Action("CASE_RELEASE_LEGAL_HOLD", "SERVICE_COMPLAINTS", "WorkflowReleaseCaseLegalHold", privileged: true)
         // The complaints report alone, so a role holding only case_report.read keeps a function for it (ADR-026 conversion);
         // the cases dashboard (case.read) is on the complaints screen.
         .Screen("SERVICE_CASE_REPORTS", "CUSTOMER_SERVICE", "Case reporting", "workflow/cases/reports", "WorkflowComplaintsReport")

@@ -335,6 +335,7 @@ public sealed class ServiceCase : AggregateRoot<Guid>
     /// <summary>OQ-106: set at closure; the case is disposed of after it unless held.</summary>
     public DateOnly? RetainUntil { get; private set; }
 
+    /// <summary>Retired by V0068 (Ade, 28 October 2026): a case is held by a record hold with scope CASE; always false.</summary>
     public bool LegalHold { get; private set; }
 
     public string? OmbudSchemeCode { get; private set; }
@@ -794,25 +795,6 @@ public sealed class ServiceCase : AggregateRoot<Guid>
         SharedWithBroker = true;
         MarkChanged();
         Record(CaseEventTypes.SharedWithBroker, actor, now, null);
-        return Result.Success();
-    }
-
-    /// <summary>A legal hold (OQ-106) keeps the case past its retention; placed or released on an open or closed case.</summary>
-    public Result HoldForLegalReasons(bool hold, string reason, string actor, DateTimeOffset now)
-    {
-        if (string.IsNullOrWhiteSpace(reason))
-        {
-            return Error.Validation(ErrorCodes.ValidationFailed, "A legal hold is placed and released with a reason.");
-        }
-
-        if (LegalHold == hold)
-        {
-            return Error.Conflict(ErrorCodes.InvalidStateTransition, hold ? "The case is already under a legal hold." : "The case is not under a legal hold.");
-        }
-
-        LegalHold = hold;
-        MarkChanged();
-        Record(hold ? CaseEventTypes.LegalHoldPlaced : CaseEventTypes.LegalHoldReleased, actor, now, reason.Trim());
         return Result.Success();
     }
 

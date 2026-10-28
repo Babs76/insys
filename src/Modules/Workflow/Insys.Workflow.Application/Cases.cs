@@ -145,6 +145,7 @@ public sealed record CaseRedressView(Guid Id, Guid CaseId, [property: AllowedVal
 }
 
 /// <summary>A case as staff see it (§1, §4). Overdue: open and past its expected date.</summary>
+/// <param name="LegalHold">A legal hold keeps the case past its retention: a record hold on it or on one of its documents (D-34, POST /documents/legal-holds).</param>
 public sealed record CaseView(Guid Id, string CaseNumber, string CaseTypeCode, [property: AllowedValues("ENQUIRY", "COMPLAINT", "DISPUTE", "APPEAL")] string Family,
     CaseStatus Status, [property: AllowedValues("UPHELD", "PARTLY_UPHELD", "REJECTED", "WITHDRAWN", "ANSWERED")] string? Outcome, DateTimeOffset ReceivedAt,
     string ReceivedChannel, Guid? ComplainantPartyId, string? ComplainantName, string? ComplainantContact, Guid? OnBehalfOfPartyId,
@@ -234,7 +235,6 @@ public sealed record RecordCaseOmbudOutcome(Guid CaseId, string Outcome, DateTim
 
 public sealed record ShareCaseWithBroker(Guid CaseId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
-public sealed record HoldCase(Guid CaseId, bool Hold, string Reason, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 public sealed record RecordCaseRedress(Guid CaseId, string RedressType, decimal Amount, string Currency, Guid PayeePartyId, Guid? BankAccountId) : ICommand<Guid>;
 
@@ -318,11 +318,6 @@ public sealed class WithdrawCaseValidator : AbstractValidator<WithdrawCase>
 public sealed class ReopenCaseValidator : AbstractValidator<ReopenCase>
 {
     public ReopenCaseValidator() => RuleFor(c => c.Reason).NotEmpty().MaximumLength(1_000);
-}
-
-public sealed class HoldCaseValidator : AbstractValidator<HoldCase>
-{
-    public HoldCaseValidator() => RuleFor(c => c.Reason).NotEmpty().MaximumLength(1_000);
 }
 
 public sealed class ReferCaseToOmbudValidator : AbstractValidator<ReferCaseToOmbud>
@@ -582,7 +577,6 @@ internal sealed class CaseCommandHandlers(ICaseRepository cases, ICaseConfigurat
     ICommandHandler<ReferCaseToOmbud, long>,
     ICommandHandler<RecordCaseOmbudOutcome, long>,
     ICommandHandler<ShareCaseWithBroker, long>,
-    ICommandHandler<HoldCase, long>,
     ICommandHandler<RecordCaseRedress, Guid>
 {
     private DateOnly Today => businessDate.Today;
@@ -769,10 +763,6 @@ internal sealed class CaseCommandHandlers(ICaseRepository cases, ICaseConfigurat
     public Task<Result<long>> Handle(ShareCaseWithBroker command, CancellationToken cancellationToken) =>
         Change(command.CaseId, command.ExpectedVersion, "ShareWithBroker", c => Task.FromResult(c.ShareWithBroker(access.Actor, clock.UtcNow)), cancellationToken);
 
-    public Task<Result<long>> Handle(HoldCase command, CancellationToken cancellationToken) =>
-        Change(command.CaseId, command.ExpectedVersion, command.Hold ? "PlaceLegalHold" : "ReleaseLegalHold",
-            c => Task.FromResult(c.HoldForLegalReasons(command.Hold, command.Reason, access.Actor, clock.UtcNow)), cancellationToken);
-
     /// <summary>OQ-104: redress is recorded REQUESTED and asks Workflow for a second person's approval (CASE_REDRESS), with its amount.</summary>
     public async Task<Result<Guid>> Handle(RecordCaseRedress command, CancellationToken cancellationToken)
     {
@@ -858,12 +848,12 @@ internal sealed class CaseJobHandlers(ICaseRepository cases, Documents.Contracts
 
     public async Task<Result<bool>> Handle(DisposeCase command, CancellationToken cancellationToken)
     {
-        if (await cases.Get(command.CaseId, cancellationToken) is not { IsOpen: false, LegalHold: false, RetainUntil: { } until } c || until >= businessDate.Today)
+        if (await cases.Get(command.CaseId, cancellationToken) is not { IsOpen: false, RetainUntil: { } until } c || until >= businessDate.Today)
         {
             return false;
         }
 
-        // D-34: a legal hold on the case itself, or on one of its documents, keeps it past its retention too.
+        // D-34: a legal hold on the case itself (its only hold since V0068), or on one of its documents, keeps it past its retention.
         if ((await holds.Holds([c.Id], cancellationToken)).Count > 0)
         {
             return false;

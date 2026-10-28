@@ -122,7 +122,7 @@ public sealed class ServiceCaseTests
     }
 
     [Fact]
-    public void AClosedCase_TakesNoChange_ButALegalHold()
+    public void AClosedCase_TakesNoChange()
     {
         var c = InProgress(Complaint);
         c.Decide("UPHELD", null, Decider, null, Now).IsSuccess.ShouldBeTrue();
@@ -131,8 +131,6 @@ public sealed class ServiceCaseTests
         c.LinkRecord(Complaint, "POLICY", Guid.CreateVersion7(), "P", "staff", Now).Error!.Code.ShouldBe(CaseErrorCodes.Closed);
         c.Escalate(1, "staff", Now).Error!.Code.ShouldBe(CaseErrorCodes.Closed);
         c.Withdraw("No", new DateOnly(2031, 1, 1), "staff", Now).Error!.Code.ShouldBe(CaseErrorCodes.Closed);
-        c.HoldForLegalReasons(true, "Litigation", "staff", Now).IsSuccess.ShouldBeTrue();
-        c.LegalHold.ShouldBeTrue();
     }
 
     [Fact]
