@@ -166,6 +166,28 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldContain("ageing buckets overlap from day 25");
     }
 
+    /// <summary>
+    /// Batch 5 (decided 28 October 2026): a case type in force whose process is not in force is listed, as "case type:process",
+    /// since its cases would open without a process; it clears when the process is in force again.
+    /// </summary>
+    [Fact]
+    public async Task ACaseTypeWhoseProcessIsNotInForce_IsListed_UntilItIs()
+    {
+        var (tenantId, url) = await Register("NOPROC");
+        await fixture.Database.SeedReadyTenant(tenantId, From);
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "CASE_TYPE_PROCESS_NOT_IN_FORCE").GetProperty("ready").GetBoolean().ShouldBeTrue();
+
+        await fixture.Database.ExecuteAsOwner(
+            "UPDATE workflow.cfg_workflow_definitions SET record_status = 'RETIRED' WHERE tenant_id = @t AND process_code = 'COMPLAINT'", ("t", tenantId));
+        var check = Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "CASE_TYPE_PROCESS_NOT_IN_FORCE");
+        check.GetProperty("ready").GetBoolean().ShouldBeFalse();
+        check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["COMPLAINT:COMPLAINT"]);
+
+        await fixture.Database.ExecuteAsOwner(
+            "UPDATE workflow.cfg_workflow_definitions SET record_status = 'EFFECTIVE' WHERE tenant_id = @t AND process_code = 'COMPLAINT'", ("t", tenantId));
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "CASE_TYPE_PROCESS_NOT_IN_FORCE").GetProperty("ready").GetBoolean().ShouldBeTrue();
+    }
+
     private async Task<(Guid TenantId, string Url)> Register(string code)
     {
         var registered = await _operator.Send(HttpMethod.Post, "/api/v1/tenancy/tenants",

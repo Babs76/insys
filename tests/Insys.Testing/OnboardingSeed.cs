@@ -200,6 +200,9 @@ public static class OnboardingSeed
         await database.SeedStaticFilled(tenantId, "workflow.cfg_case_types", "EFFECTIVE", "COMPLAINT", from, ("case_type_code", "COMPLAINT"), ("family", "COMPLAINT"),
             ("process_code", "COMPLAINT"), ("link_types", new[] { "POLICY", "CLAIM" }), ("requires_category", false), ("review_case_type_code", "COMPLAINT_REVIEW"),
             ("appeal_route", "PPR_NFO"), ("ombud_scheme_codes", Array.Empty<string>()), ("portal_audiences", Array.Empty<string>()));
+        // The process the complaint type names, in force (readiness CASE_TYPE_PROCESS_NOT_IN_FORCE).
+        await database.SeedStaticFilled(tenantId, "workflow.cfg_workflow_definitions", "EFFECTIVE", "COMPLAINT", from, ("process_code", "COMPLAINT"),
+            ("states", new[] { "HANDLE", "DONE" }), ("transitions", System.Text.Json.JsonDocument.Parse("""[{"from":"HANDLE","to":"DONE"}]""").RootElement), ("domain_validation", ""));
         foreach (var (step, duration) in new[] { ("ACKNOWLEDGE", "P2D"), ("RESOLVE", "P42D") })
         {
             await database.SeedStaticFilled(tenantId, "workflow.cfg_case_timelines", "EFFECTIVE", $"COMPLAINT-{step}", from, ("case_type_code", "COMPLAINT"),

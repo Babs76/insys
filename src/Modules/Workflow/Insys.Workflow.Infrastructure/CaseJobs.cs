@@ -30,6 +30,7 @@ using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Infrastructure.Readiness;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Workflow.Application;
+using Insys.Workflow.Domain.Processes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -184,8 +185,20 @@ internal static class CaseReadiness
             }
         }
 
+        // Every case type in force names a process in force (its own tenant's definition, or a built-in one). One that does not
+        // still opens its cases, without a process and with only a logged warning, so readiness says so first.
+        var typeProcesses = await ReadinessSql.Strings(connection, transaction,
+            $"SELECT case_type_code || ':' || process_code FROM workflow.cfg_case_types WHERE tenant_id = @t AND {ReadinessSql.InForce} ORDER BY case_type_code",
+            cancellationToken, ("t", context.TenantId), ("inForce", configuration), ("day", context.Day));
+        var processes = (await ReadinessSql.Strings(connection, transaction,
+            $"SELECT DISTINCT process_code FROM workflow.cfg_workflow_definitions WHERE tenant_id = @t AND {ReadinessSql.InForce}",
+            cancellationToken, ("t", context.TenantId), ("inForce", configuration), ("day", context.Day))).ToHashSet(StringComparer.Ordinal);
+        var processless = typeProcesses.Where(n => n.Split(':', 2)[1] is var process && !processes.Contains(process) && BuiltInProcesses.Find(process, null) is null).ToList();
+
         return
         [
+            ReadinessResult.Of(Step, "CASE_TYPE_PROCESS_NOT_IN_FORCE", "Every case type in force names a process in force (case type:process listed when not)",
+                processless),
             ReadinessResult.Of(Step, "COMPLAINT_CASE_TYPE", "A complaint case type that names its review type (PPR 18.6)", types.Count > 0 ? [] : ["workflow.cfg_case_types"]),
             ReadinessResult.Of(Step, "COMPLAINT_TIMELINES", "ACKNOWLEDGE and RESOLVE timelines for each complaint case type",
                 types.Count > 0 ? timelines.Distinct().ToList() : ["workflow.cfg_case_timelines"]),
