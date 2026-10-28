@@ -86,9 +86,35 @@ internal sealed class LifeLists(LifeDbContext db, IExecutionContext execution) :
     }
 }
 
-/// <summary>The portal's Life claims (external-user access §2), ordered by ID for cursor paging, within the caller's F103 scope.</summary>
+/// <summary>The portal's Life policies and claims (external-user access §2), ordered by ID for cursor paging, within the caller's F103 scope.</summary>
 internal sealed class LifePortalQueries(LifeDbContext db, IExecutionContext execution) : ILifePortalQueries
 {
+    public async Task<IReadOnlyList<LifePolicy>> Policies(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var rows = db.Policies.AsNoTracking().Include(p => p.Lives).Include(p => p.Benefits).Include(p => p.Beneficiaries).AsSplitQuery()
+            .InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode);
+        if (who.Kind == ExternalSubject.Party && who.PartyId is { } party)
+        {
+            rows = rows.Where(p => p.PolicyholderPartyId == party || db.Set<PolicyInsuredLife>().Any(l => l.PolicyId == p.Id && l.PartyId == party));
+        }
+        else if (who.Kind == ExternalSubject.Intermediary)
+        {
+            var codes = who.IntermediaryCodes.ToList();
+            rows = rows.Where(p => p.IntermediaryCode != null && codes.Contains(p.IntermediaryCode));
+        }
+        else
+        {
+            return [];
+        }
+
+        if (afterId is { } after)
+        {
+            rows = rows.Where(p => p.Id.CompareTo(after) > 0);
+        }
+
+        return await rows.OrderBy(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<LifeClaim>> Claims(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
         var rows = db.Claims.AsNoTracking().InScope(execution.CurrentScope, c => c.ProductCode, c => c.OrgNodeCode);

@@ -432,9 +432,9 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         var portalView = await seen.Json();
         portalView.TryGetProperty("decisionRationale", out _).ShouldBeFalse();
         portalView.TryGetProperty("reserveType", out _).ShouldBeFalse();
-        (await (await claimant.GetAsync("/api/v1/portal/life/claims")).Json()).EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldContain(claim);
+        (await (await claimant.GetAsync("/api/v1/portal/life/claims")).Json()).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldContain(claim);
         (await outsider.GetAsync($"/api/v1/portal/life/claims/{claim}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        (await (await outsider.GetAsync("/api/v1/portal/life/claims")).Json()).EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldContain(refused,
+        (await (await outsider.GetAsync("/api/v1/portal/life/claims")).Json()).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldContain(refused,
             "the stranger made that one");
         (await broker.GetAsync($"/api/v1/portal/life/claims/{claim}")).StatusCode.ShouldBe(HttpStatusCode.OK);
     }

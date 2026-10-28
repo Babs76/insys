@@ -76,6 +76,9 @@ public interface IGeneralPortalQueries
 
     Task<IReadOnlyList<GeneralQuote>> Quotes(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken);
 
+    /// <summary>The claims on the caller's policies: the member's as policyholder, the broker's under its codes (BR-091).</summary>
+    Task<IReadOnlyList<GeneralClaim>> Claims(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken);
+
     /// <summary>Whether the party is a client of the broker: a quote or policy of theirs names one of the broker's codes.</summary>
     Task<bool> Services(ExternalSubject broker, Guid partyId, CancellationToken cancellationToken);
 }
@@ -89,6 +92,8 @@ public sealed record ListPortalQuotes(Guid? AfterId, int Limit) : IQuery<IReadOn
 public sealed record GetPortalQuote(Guid QuoteId) : IQuery<PortalQuoteView>;
 
 public sealed record GetPortalClaim(Guid ClaimId) : IQuery<PortalClaimView>;
+
+public sealed record ListPortalClaims(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PortalClaimView>>;
 
 /// <summary>
 /// Before a broker's quote (§3): the proposer is a client the broker services or one it registered. Gives the broker's own
@@ -121,6 +126,7 @@ internal sealed class GeneralPortalHandlers(IGeneralRepository general, IGeneral
     IQueryHandler<ListPortalQuotes, IReadOnlyList<PortalQuoteView>>,
     IQueryHandler<GetPortalQuote, PortalQuoteView>,
     IQueryHandler<GetPortalClaim, PortalClaimView>,
+    IQueryHandler<ListPortalClaims, IReadOnlyList<PortalClaimView>>,
     IQueryHandler<PortalQuoteAllowed, PortalQuoter>,
     IQueryHandler<PortalClaimAllowed, bool>
 {
@@ -149,6 +155,10 @@ internal sealed class GeneralPortalHandlers(IGeneralRepository general, IGeneral
         && Related.Policy(Related.Require(execution), policy)
             ? PortalClaimView.From(claim)
             : Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
+
+    public async Task<Result<IReadOnlyList<PortalClaimView>>> Handle(ListPortalClaims query, CancellationToken cancellationToken) =>
+        Result.Success<IReadOnlyList<PortalClaimView>>((await queries.Claims(Related.Require(execution), query.AfterId, query.Limit, cancellationToken))
+            .Select(PortalClaimView.From).ToList());
 
     public async Task<Result<PortalQuoter>> Handle(PortalQuoteAllowed query, CancellationToken cancellationToken)
     {

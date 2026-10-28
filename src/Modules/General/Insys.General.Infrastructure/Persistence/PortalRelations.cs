@@ -35,8 +35,10 @@ namespace Insys.General.Infrastructure.Persistence;
 /// <summary>
 /// General's records in an external user's relationship (external-user access §2), for other modules' portal reads: a
 /// policy (and its endorsements) is the member's when they hold it, and the broker's when it carries one of its codes.
+/// A broker's clients are the holders and proposers of its policies and quotes.
 /// </summary>
-internal sealed class GeneralPortalRelations([FromKeyedServices(GeneralDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPortalRecordRelations, IBrokeredPolicies
+internal sealed class GeneralPortalRelations([FromKeyedServices(GeneralDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPortalRecordRelations, IBrokeredPolicies,
+    IBrokeredClients
 {
     private const string Policy = "p.policyholder_party_id = @party OR p.intermediary_code = ANY(@codes)";
 
@@ -51,6 +53,12 @@ internal sealed class GeneralPortalRelations([FromKeyedServices(GeneralDbContext
     public async Task<bool> Brokers(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, Guid policyId, CancellationToken cancellationToken) =>
         (await PortalRelationReader.Ids(dataSource, tenantId, "SELECT id FROM general.policy WHERE id = @id AND intermediary_code = ANY(@codes)", intermediaryCodes,
             policyId, cancellationToken)).Count > 0;
+
+    public Task<IReadOnlyList<Guid>> PartyIds(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, CancellationToken cancellationToken) =>
+        PortalRelationReader.Ids(dataSource, tenantId, """
+            SELECT policyholder_party_id FROM general.policy WHERE intermediary_code = ANY(@codes)
+            UNION SELECT proposer_party_id FROM general.quote WHERE intermediary_code = ANY(@codes)
+            """, intermediaryCodes, null, cancellationToken);
 
     private static string? Sql(string businessRefType) => businessRefType switch
     {

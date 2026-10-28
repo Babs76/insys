@@ -108,7 +108,7 @@ internal sealed class GeneralLists(GeneralDbContext db, IExecutionContext execut
     }
 }
 
-/// <summary>The portals' lists (external-user access §2): a member's policies, a broker's quotes and policies, in the caller's F103 scope too.</summary>
+/// <summary>The portals' lists (external-user access §2): a member's policies and claims, a broker's quotes, policies and claims, in the caller's F103 scope too.</summary>
 internal sealed class GeneralPortalQueries(GeneralDbContext db, IExecutionContext execution) : IGeneralPortalQueries
 {
     public async Task<IReadOnlyList<Domain.Policies.GeneralPolicy>> Policies(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken)
@@ -139,6 +139,21 @@ internal sealed class GeneralPortalQueries(GeneralDbContext db, IExecutionContex
         }
 
         return await quotes.OrderBy(q => q.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Domain.Claims.GeneralClaim>> Claims(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var claims = db.Claims.AsNoTracking().InScope(execution.CurrentScope, c => c.ProductCode, c => c.OrgNodeCode);
+        var codes = who.IntermediaryCodes.ToList();
+        claims = who.Kind == ExternalSubject.Party
+            ? claims.Where(c => db.Policies.Any(p => p.Id == c.PolicyId && p.PolicyholderPartyId == who.PartyId))
+            : claims.Where(c => db.Policies.Any(p => p.Id == c.PolicyId && p.IntermediaryCode != null && codes.Contains(p.IntermediaryCode)));
+        if (afterId is { } after)
+        {
+            claims = claims.Where(c => c.Id.CompareTo(after) > 0);
+        }
+
+        return await claims.OrderBy(c => c.Id).Take(limit).ToListAsync(cancellationToken);
     }
 
     public async Task<bool> Services(ExternalSubject broker, Guid partyId, CancellationToken cancellationToken)

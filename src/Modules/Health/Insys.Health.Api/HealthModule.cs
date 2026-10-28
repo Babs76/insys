@@ -350,12 +350,17 @@ public sealed class HealthModule : IModule
     }
 
     /// <summary>
-    /// The member and provider portals (external-user access): a member's membership; a provider's own claims,
+    /// The member and provider portals (external-user access): a member's memberships; a provider's own claims,
     /// preauthorisations and remittances. A provider submits only as itself.
     /// </summary>
     private static void MapPortal(RouteGroupBuilder portal)
     {
         const string member = BuildingBlocks.Application.Context.ExternalSubject.Party, provider = BuildingBlocks.Application.Context.ExternalSubject.Provider;
+        portal.MapGet("/memberships", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalMemberships(after, size), ct), m => m.Id))
+            .Produces<CursorPage<PortalMembershipView>>(StatusCodes.Status200OK)
+            .WithName("PortalHealthListMemberships").WithSummary("The member's memberships (principal or dependant), by the caller's link only (BR-091)")
+            .RequirePermission(HealthPermissions.MembershipRead).ForPortal(member);
         portal.MapGet("/memberships/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalMembership(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalMembershipView>(StatusCodes.Status200OK)
             .WithName("PortalHealthGetMembership").WithSummary("The member's membership (principal or dependant)").RequirePermission(HealthPermissions.MembershipRead)

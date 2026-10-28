@@ -107,17 +107,24 @@ public sealed class LifeModule : IModule
         MapSchemes(life);
 
         var portal = api.MapGroup("/portal/life").WithTags(Name);
+        portal.MapGet("/policies", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalLifePolicies(after, size), ct), p => p.Id))
+            .Produces<CursorPage<PortalLifePolicyView>>(StatusCodes.Status200OK)
+            .WithName("PortalLifeListPolicies")
+            .WithSummary("The member's Life policies (policyholder or insured life) or the broker's (its codes and its sub-brokers'), by the caller's link only (BR-091)")
+            .RequirePermission(LifePermissions.PolicyRead).ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party,
+                BuildingBlocks.Application.Context.ExternalSubject.Intermediary);
         portal.MapGet("/policies/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Query(new GetPortalLifePolicy(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalLifePolicyView>(StatusCodes.Status200OK)
             .WithName("PortalLifeGetPolicy").WithSummary("A Life policy of the member (policyholder or insured life) or broker (external-user access)")
             .RequirePermission(LifePermissions.PolicyRead).ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party,
                 BuildingBlocks.Application.Context.ExternalSubject.Intermediary);
-        portal.MapGet("/claims", async (Guid? afterId, int? limit, IDispatcher d, CancellationToken ct) =>
-                (await d.Query(new ListPortalLifeClaims(afterId, Math.Clamp(limit ?? 50, 1, 200)), ct)).ToHttp(Results.Ok))
-            .Produces<IReadOnlyList<PortalLifeClaimView>>(StatusCodes.Status200OK)
+        portal.MapGet("/claims", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalLifeClaims(after, size), ct), c => c.Id))
+            .Produces<CursorPage<PortalLifeClaimView>>(StatusCodes.Status200OK)
             .WithName("PortalLifeListClaims")
-            .WithSummary("The member's Life claims (claimant, policyholder or nominated beneficiary) or the broker's (its policies), by ID after afterId")
+            .WithSummary("The member's Life claims (claimant, policyholder or nominated beneficiary) or the broker's (its policies)")
             .RequirePermission(LifePermissions.ClaimRead).ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party,
                 BuildingBlocks.Application.Context.ExternalSubject.Intermediary);
         portal.MapGet("/claims/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) =>

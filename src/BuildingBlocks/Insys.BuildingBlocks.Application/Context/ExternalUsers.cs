@@ -80,3 +80,13 @@ public interface IBrokeredPolicies
 
     Task<bool> Brokers(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, Guid policyId, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// The parties a broker services in one domain (BR-091; external-user access §2, §3): those who hold, or are quoted or
+/// proposed for, a policy under one of its codes. Party lists a broker's clients from every domain's answer and the
+/// parties the broker registered.
+/// </summary>
+public interface IBrokeredClients
+{
+    Task<IReadOnlyList<Guid>> PartyIds(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, CancellationToken cancellationToken);
+}

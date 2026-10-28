@@ -2798,6 +2798,66 @@
       }
     },
     "/api/v1/portal/party/parties": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "The broker\u0027s clients, by the caller\u0027s link only (BR-091)",
+        "description": "Parties the broker or a sub-broker registered, and those who hold, or are quoted or proposed for, a policy under their codes. A registration linked to an existing party after review is shown as that party; anonymised parties are not shown.",
+        "operationId": "PortalPartyListClients",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartyPortalClientView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "party.read",
+        "x-function": [
+          "BROKER_PORTAL_PARTY_PARTIES"
+        ]
+      },
       "post": {
         "tags": [
           "Party"
@@ -2866,6 +2926,63 @@
         "x-permission": "party.create",
         "x-function": [
           "BROKER_PORTAL_PARTY_REGISTER"
+        ]
+      }
+    },
+    "/api/v1/portal/party/parties/{id}": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "A client of the broker\u0027s (BR-091)",
+        "operationId": "PortalPartyGetClient",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyPortalClientView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "party.read",
+        "x-function": [
+          "BROKER_PORTAL_PARTY_PARTIES"
         ]
       }
     },
@@ -15673,6 +15790,68 @@
         ]
       }
     },
+    "/api/v1/portal/life/policies": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "The member\u0027s Life policies (policyholder or insured life) or the broker\u0027s (its codes and its sub-brokers\u0027), by the caller\u0027s link only (BR-091)",
+        "operationId": "PortalLifeListPolicies",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfLifePortalLifePolicyView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "life_policy.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_LIFE_POLICIES",
+          "BROKER_PORTAL_LIFE_POLICIES"
+        ]
+      }
+    },
     "/api/v1/portal/life/policies/{id}": {
       "get": {
         "tags": [
@@ -15736,15 +15915,14 @@
         "tags": [
           "Life"
         ],
-        "summary": "The member\u0027s Life claims (claimant, policyholder or nominated beneficiary) or the broker\u0027s (its policies), by ID after afterId",
+        "summary": "The member\u0027s Life claims (claimant, policyholder or nominated beneficiary) or the broker\u0027s (its policies)",
         "operationId": "PortalLifeListClaims",
         "parameters": [
           {
-            "name": "afterId",
+            "name": "cursor",
             "in": "query",
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             }
           },
           {
@@ -15766,10 +15944,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/LifePortalLifeClaimView"
-                  }
+                  "$ref": "#/components/schemas/CursorPageOfLifePortalLifeClaimView"
                 }
               }
             }
@@ -20142,21 +20317,31 @@
         ]
       }
     },
-    "/api/v1/portal/general/claims/{id}": {
+    "/api/v1/portal/general/claims": {
       "get": {
         "tags": [
           "General"
         ],
-        "summary": "A claim on a policy of the member or broker",
-        "operationId": "PortalGeneralGetClaim",
+        "summary": "The claims on the member\u0027s or broker\u0027s policies, by the caller\u0027s link only (BR-091)",
+        "operationId": "PortalGeneralListClaims",
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
+            "name": "cursor",
+            "in": "query",
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
             }
           }
         ],
@@ -20166,7 +20351,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GeneralPortalClaimView"
+                  "$ref": "#/components/schemas/CursorPageOfGeneralPortalClaimView"
                 }
               }
             }
@@ -20185,12 +20370,6 @@
           },
           "503": {
             "$ref": "#/components/responses/Problem503"
-          },
-          "400": {
-            "$ref": "#/components/responses/Problem400"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem404"
           }
         },
         "x-permission": "general_claim.read",
@@ -20198,9 +20377,7 @@
           "CUSTOMER_PORTAL_GENERAL_CLAIMS",
           "BROKER_PORTAL_GENERAL_CLAIMS"
         ]
-      }
-    },
-    "/api/v1/portal/general/claims": {
+      },
       "post": {
         "tags": [
           "General"
@@ -20268,6 +20445,64 @@
         "x-permission": "general_claim.create",
         "x-function": [
           "CUSTOMER_PORTAL_GENERAL_NOTIFY_LOSS"
+        ]
+      }
+    },
+    "/api/v1/portal/general/claims/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "A claim on a policy of the member or broker",
+        "operationId": "PortalGeneralGetClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralPortalClaimView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "general_claim.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_GENERAL_CLAIMS",
+          "BROKER_PORTAL_GENERAL_CLAIMS"
         ]
       }
     },
@@ -23994,6 +24229,67 @@
         "x-permission": "provider_payment_run.update",
         "x-function": [
           "HEALTH_RELEASE_RUN"
+        ]
+      }
+    },
+    "/api/v1/portal/health/memberships": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "The member\u0027s memberships (principal or dependant), by the caller\u0027s link only (BR-091)",
+        "operationId": "PortalHealthListMemberships",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthPortalMembershipView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_membership.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_HEALTH_MEMBERSHIPS"
         ]
       }
     },
@@ -34418,6 +34714,27 @@
           }
         }
       },
+      "CursorPageOfGeneralPortalClaimView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralPortalClaimView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfGeneralPortalPolicyView": {
         "required": [
           "items",
@@ -34576,6 +34893,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HealthPortalMedicalClaimView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthPortalMembershipView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthPortalMembershipView"
             }
           },
           "nextCursor": {
@@ -34817,6 +35155,48 @@
           }
         }
       },
+      "CursorPageOfLifePortalLifeClaimView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifePortalLifeClaimView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfLifePortalLifePolicyView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifePortalLifePolicyView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfLifeProposalSummary": {
         "required": [
           "items",
@@ -34828,6 +35208,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/LifeProposalSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfPartyPortalClientView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyPortalClientView"
             }
           },
           "nextCursor": {
@@ -46414,6 +46815,30 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "PartyPortalClientView": {
+        "required": [
+          "id",
+          "kind",
+          "displayName",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PartyKind"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PartyStatus"
           }
         }
       },

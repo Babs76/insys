@@ -74,6 +74,9 @@ public sealed record PortalPatient(Guid MembershipId, Guid PatientPartyId);
 
 public interface IHealthPortalQueries
 {
+    /// <summary>A member's memberships: those where they are the principal or a dependant (BR-091), in the caller's F103 scope.</summary>
+    Task<IReadOnlyList<HealthMembership>> MemberMemberships(Guid partyId, Guid? afterId, int limit, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<MedicalClaim>> ProviderClaims(string providerId, Guid? afterId, int limit, CancellationToken cancellationToken);
 
     /// <summary>A member's claims: those where they are the patient, and every claim of a membership where they are the principal.</summary>
@@ -83,6 +86,8 @@ public interface IHealthPortalQueries
 }
 
 public sealed record GetPortalMembership(Guid MembershipId) : IQuery<PortalMembershipView>;
+
+public sealed record ListPortalMemberships(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PortalMembershipView>>;
 
 public sealed record GetPortalMedicalClaim(Guid ClaimId) : IQuery<PortalMedicalClaimView>;
 
@@ -97,6 +102,7 @@ public sealed record PortalPatientOf(string MemberNumber, string? DependantSuffi
 
 internal sealed class HealthPortalHandlers(IHealthRepository health, IHealthPortalQueries queries, IExecutionContext execution) :
     IQueryHandler<GetPortalMembership, PortalMembershipView>,
+    IQueryHandler<ListPortalMemberships, IReadOnlyList<PortalMembershipView>>,
     IQueryHandler<GetPortalMedicalClaim, PortalMedicalClaimView>,
     IQueryHandler<ListPortalMedicalClaims, IReadOnlyList<PortalMedicalClaimView>>,
     IQueryHandler<GetPortalPreauthorisation, PortalPreauthorisationView>,
@@ -110,6 +116,11 @@ internal sealed class HealthPortalHandlers(IHealthRepository health, IHealthPort
         && (m.PrincipalPartyId == Who.PartyId || m.Dependants.Any(d => d.PartyId == Who.PartyId))
             ? PortalMembershipView.From(m)
             : Error.NotFound(ErrorCodes.NotFound, "The membership was not found.");
+
+    public async Task<Result<IReadOnlyList<PortalMembershipView>>> Handle(ListPortalMemberships query, CancellationToken cancellationToken) =>
+        Result.Success<IReadOnlyList<PortalMembershipView>>(Who is { Kind: ExternalSubject.Party, PartyId: { } party }
+            ? (await queries.MemberMemberships(party, query.AfterId, query.Limit, cancellationToken)).Select(PortalMembershipView.From).ToList()
+            : []);
 
     /// <summary>
     /// A provider sees its own claims. A member sees the claims where they are the patient and, as principal, every claim
