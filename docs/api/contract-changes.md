@@ -4,6 +4,16 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 5 (branch `wave2-5`, not merged)
 
+### New and breaking: lists for General and a claim register search (BR-034)
+Each is a `CursorPage` (`cursor`, `limit`), by ID, within the caller's product and branch scope (F103).
+- **`GET /api/v1/general/risk-objects`** (`GeneralListRiskObjects`): by `objectType`, `riskZone` and `policyId` (the risk objects a policy insures; only a policy in scope).
+- **`GET /api/v1/general/proposals`** (`GeneralListProposals`): by `quoteId` and `status`, through their quote's scope.
+- **`GET /api/v1/general/policies/{id}/endorsements`** (`GeneralListPolicyEndorsements`): 404 for a policy outside scope.
+- **`GET /api/v1/general/assessments`** (`GeneralListAllAssessments`): by `status` and `assessorPartyId`, on claims in scope.
+- **Breaking: `GET /api/v1/general/claims/{id}/assessments`** (`GeneralListAssessments`) returns a `CursorPage` instead of a plain array, and is 404 for a claim outside scope (it was an empty or unscoped array).
+- **Fixed:** `GeneralGetAssessment` reads an assessment through its claim's scope; one on a claim outside scope is 404 (it was returned).
+- **`GET /api/v1/claims/claims`** (`ClaimsSearchRegister`): the claim register across domains, by exact `claimNumber`, `domain` (`LIFE`, `GENERAL`, `HEALTH`), `policyRef`, `registeredFrom` (at or after) and `registeredTo` (before), both instants; `registeredTo` not after `registeredFrom` is 422. `ClaimRegisterSummary`: `id`, `claimNumber`, `domain`, `domainClaimId`, `policyRef`, `registeredAt`, `productCode`.
+
 ### New: General and claims amounts carry their currency (BR-033)
 - **`currency`** on `GeneralAssessmentView` (with each estimate), `GeneralRecoveryView` (with each salvage item), `GeneralEndorsementView` and the claim's `FinancialsView` (`ClaimsGetFinancials`: the currency of every movement and every outstanding reserve; `outstandingReserves` is unchanged). Assessments, recoveries and endorsements are in their policy's currency.
 - **A risk object's valuation** names its own currency: `valuationCurrency` on `GeneralRegisterRiskObject` and `GeneralRevalueRiskObject` (optional, a 3-letter code, only with a valuation; 422 `VALUATION_BASIS_REQUIRED` otherwise) and on `GeneralRiskObjectView`. Valuations recorded before it are null.

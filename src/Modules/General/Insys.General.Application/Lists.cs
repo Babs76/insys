@@ -52,6 +52,24 @@ public sealed record ListPolicies(Guid? PolicyholderPartyId, string? PolicyNumbe
 /// <summary>Query ListClaims: by policy or claim number, by ID with cursor paging.</summary>
 public sealed record ListClaims(Guid? PolicyId, string? ClaimNumber, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ClaimSummary>>;
 
+/// <summary>
+/// Query ListRiskObjects (BR-034): by type, risk zone or the policy that insures them, by ID with cursor paging. A risk
+/// object belongs to no product, so it is not scoped itself; filtered by a policy, only a policy in the caller's scope.
+/// </summary>
+public sealed record ListRiskObjects(string? ObjectType, string? RiskZone, Guid? PolicyId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<RiskObjectView>>;
+
+/// <summary>Query ListProposals (BR-034): by quote or status, within the caller's scope through the proposal's quote.</summary>
+public sealed record ListProposals(Guid? QuoteId, ProposalStatus? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ProposalView>>;
+
+/// <summary>Query ListPolicyEndorsements (BR-034): a policy's endorsements; the policy must be in the caller's scope.</summary>
+public sealed record ListPolicyEndorsements(Guid PolicyId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<EndorsementView>>;
+
+/// <summary>
+/// Query ListAssessments (BR-034): loss assessments by claim, status or assessor, within the caller's scope through their
+/// claim; with a claim, the claim must be in scope (404 otherwise).
+/// </summary>
+public sealed record ListAssessments(Guid? ClaimId, AssessmentStatus? Status, Guid? AssessorPartyId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<AssessmentView>>;
+
 public interface IGeneralLists
 {
     Task<IReadOnlyList<QuoteSummary>> Quotes(ListQuotes query, CancellationToken cancellationToken);
@@ -60,15 +78,44 @@ public interface IGeneralLists
 
     Task<IReadOnlyList<ClaimSummary>> Claims(ListClaims query, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<RiskObject>> RiskObjects(ListRiskObjects query, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<GeneralProposal>> Proposals(ListProposals query, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<GeneralEndorsement>> Endorsements(Guid policyId, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<LossAssessment>> Assessments(ListAssessments query, CancellationToken cancellationToken);
+
     /// <summary>A claim's recoveries with their salvage, by ID after <paramref name="afterId"/> (BR-032); the caller checks the claim's scope.</summary>
     Task<IReadOnlyList<Domain.Claims.RecoveryCase>> Recoveries(Guid claimId, Guid? afterId, int limit, CancellationToken cancellationToken);
 }
 
-internal sealed class GeneralListHandlers(IGeneralLists lists) :
+internal sealed class GeneralListHandlers(IGeneralLists lists, IGeneralRepository general) :
     IQueryHandler<ListQuotes, IReadOnlyList<QuoteSummary>>,
     IQueryHandler<ListPolicies, IReadOnlyList<PolicySummary>>,
-    IQueryHandler<ListClaims, IReadOnlyList<ClaimSummary>>
+    IQueryHandler<ListClaims, IReadOnlyList<ClaimSummary>>,
+    IQueryHandler<ListRiskObjects, IReadOnlyList<RiskObjectView>>,
+    IQueryHandler<ListProposals, IReadOnlyList<ProposalView>>,
+    IQueryHandler<ListPolicyEndorsements, IReadOnlyList<EndorsementView>>,
+    IQueryHandler<ListAssessments, IReadOnlyList<AssessmentView>>
 {
+    public async Task<Result<IReadOnlyList<RiskObjectView>>> Handle(ListRiskObjects query, CancellationToken cancellationToken) =>
+        Result.Success<IReadOnlyList<RiskObjectView>>((await lists.RiskObjects(query, cancellationToken)).Select(RiskObjectView.From).ToList());
+
+    public async Task<Result<IReadOnlyList<ProposalView>>> Handle(ListProposals query, CancellationToken cancellationToken) =>
+        Result.Success<IReadOnlyList<ProposalView>>((await lists.Proposals(query, cancellationToken)).Select(ProposalView.From).ToList());
+
+    public async Task<Result<IReadOnlyList<EndorsementView>>> Handle(ListPolicyEndorsements query, CancellationToken cancellationToken) =>
+        await general.Policy(query.PolicyId, cancellationToken) is null
+            ? Error.NotFound(ErrorCodes.NotFound, "The policy was not found.")
+            : Result.Success<IReadOnlyList<EndorsementView>>(
+                (await lists.Endorsements(query.PolicyId, query.AfterId, query.Limit, cancellationToken)).Select(EndorsementView.From).ToList());
+
+    public async Task<Result<IReadOnlyList<AssessmentView>>> Handle(ListAssessments query, CancellationToken cancellationToken) =>
+        query.ClaimId is { } claim && await general.Claim(claim, cancellationToken) is null
+            ? Error.NotFound(ErrorCodes.NotFound, "The claim was not found.")
+            : Result.Success<IReadOnlyList<AssessmentView>>((await lists.Assessments(query, cancellationToken)).Select(AssessmentView.From).ToList());
+
     public async Task<Result<IReadOnlyList<QuoteSummary>>> Handle(ListQuotes query, CancellationToken cancellationToken) =>
         Result.Success(await lists.Quotes(query, cancellationToken));
 

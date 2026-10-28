@@ -11276,6 +11276,106 @@
         "x-function": [
           "CLAIMS_ALLOCATE_NUMBER"
         ]
+      },
+      "get": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Search the claim register across domains by number, domain, policy and registration time (BR-034)",
+        "operationId": "ClaimsSearchRegister",
+        "parameters": [
+          {
+            "name": "claimNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "description": "LIFE, GENERAL or HEALTH",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "policyRef",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "registeredFrom",
+            "in": "query",
+            "description": "An instant (ISO 8601 with its offset): claims registered at or after it",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "registeredTo",
+            "in": "query",
+            "description": "An instant (ISO 8601 with its offset): claims registered before it",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfClaimsFrameworkClaimRegisterSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "claim_register.read",
+        "x-function": [
+          "CLAIM_REGISTER"
+        ]
       }
     },
     "/api/v1/claims/claims/{claimNumber}": {
@@ -16106,6 +16206,87 @@
         "x-function": [
           "GENERAL_REGISTER_RISK_OBJECT"
         ]
+      },
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "List risk objects by type, risk zone or the policy insuring them (BR-034)",
+        "operationId": "GeneralListRiskObjects",
+        "parameters": [
+          {
+            "name": "objectType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "riskZone",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "policyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralRiskObjectView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "general_risk_object.read",
+        "x-function": [
+          "GENERAL_RISK_OBJECTS"
+        ]
       }
     },
     "/api/v1/general/risk-objects/{id}": {
@@ -17101,6 +17282,80 @@
         "x-function": [
           "GENERAL_SUBMIT_PROPOSAL"
         ]
+      },
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "List proposals by quote or status, through their quotes in the caller\u0027s scope (BR-034)",
+        "operationId": "GeneralListProposals",
+        "parameters": [
+          {
+            "name": "quoteId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/GeneralProposalStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralProposalView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "general_quote.read",
+        "x-function": [
+          "GENERAL_PROPOSALS"
+        ]
       }
     },
     "/api/v1/general/proposals/{id}": {
@@ -17762,6 +18017,80 @@
         "x-permission": "general_endorsement.create",
         "x-function": [
           "GENERAL_DRAFT_ENDORSEMENT"
+        ]
+      },
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "A policy\u0027s endorsements; 404 for a policy outside the caller\u0027s scope (BR-034)",
+        "operationId": "GeneralListPolicyEndorsements",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralEndorsementView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "general_endorsement.read",
+        "x-function": [
+          "GENERAL_ENDORSEMENTS"
         ]
       }
     },
@@ -18693,7 +19022,7 @@
         "tags": [
           "General"
         ],
-        "summary": "List a claim\u0027s loss assessments",
+        "summary": "List a claim\u0027s loss assessments; 404 for a claim outside the caller\u0027s scope",
         "operationId": "GeneralListAssessments",
         "parameters": [
           {
@@ -18704,6 +19033,25 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
           }
         ],
         "responses": {
@@ -18712,10 +19060,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GeneralAssessmentView"
-                  }
+                  "$ref": "#/components/schemas/CursorPageOfGeneralAssessmentView"
                 }
               }
             }
@@ -18745,6 +19090,82 @@
         "x-permission": "general_claim.read",
         "x-function": [
           "GENERAL_CLAIMS"
+        ]
+      }
+    },
+    "/api/v1/general/assessments": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "List loss assessments by status or assessor, on claims in the caller\u0027s scope (BR-034)",
+        "operationId": "GeneralListAllAssessments",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/GeneralAssessmentStatus"
+            }
+          },
+          {
+            "name": "assessorPartyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralAssessmentView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "general_claim.read",
+        "x-function": [
+          "GENERAL_ASSESSMENTS"
         ]
       }
     },
@@ -33102,6 +33523,53 @@
           }
         }
       },
+      "ClaimsFrameworkClaimRegisterSummary": {
+        "required": [
+          "id",
+          "claimNumber",
+          "domain",
+          "domainClaimId",
+          "policyRef",
+          "registeredAt",
+          "productCode"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimNumber": {
+            "type": "string"
+          },
+          "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH"
+            ],
+            "type": "string"
+          },
+          "domainClaimId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyRef": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "registeredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ClaimsFrameworkClaimView": {
         "required": [
           "id",
@@ -34652,6 +35120,27 @@
           }
         }
       },
+      "CursorPageOfClaimsFrameworkClaimRegisterSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimsFrameworkClaimRegisterSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfCommunicationsNotificationSummary": {
         "required": [
           "items",
@@ -34757,6 +35246,27 @@
           }
         }
       },
+      "CursorPageOfGeneralAssessmentView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralAssessmentView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfGeneralClaimSummary": {
         "required": [
           "items",
@@ -34768,6 +35278,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GeneralClaimSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfGeneralEndorsementView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralEndorsementView"
             }
           },
           "nextCursor": {
@@ -34862,6 +35393,27 @@
           }
         }
       },
+      "CursorPageOfGeneralProposalView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralProposalView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfGeneralQuoteSummary": {
         "required": [
           "items",
@@ -34894,6 +35446,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GeneralRecoveryView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfGeneralRiskObjectView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralRiskObjectView"
             }
           },
           "nextCursor": {

@@ -85,7 +85,6 @@ public sealed record SubmitReport(Guid AssessmentId, decimal AssessedAmount, Gui
 
 public sealed record GetAssessment(Guid AssessmentId) : IQuery<AssessmentView>;
 
-public sealed record ListAssessments(Guid ClaimId) : IQuery<IReadOnlyList<AssessmentView>>;
 
 public sealed record OpenRecovery(Guid ClaimId, string RecoveryType, Guid? CounterpartyPartyId, decimal ExpectedAmount) : ICommand<RecoveryView>;
 
@@ -493,19 +492,15 @@ internal sealed class SubmitReportHandler(IGeneralRepository general, ISellableP
     }
 }
 
+/// <summary>An assessment is read through its claim, so one on a claim outside the caller's scope is not found (F103).</summary>
 internal sealed class GetAssessmentHandler(IGeneralRepository general) : IQueryHandler<GetAssessment, AssessmentView>
 {
     public async Task<Result<AssessmentView>> Handle(GetAssessment query, CancellationToken cancellationToken) =>
-        await general.Assessment(query.AssessmentId, cancellationToken) is { } assessment
+        await general.Assessment(query.AssessmentId, cancellationToken) is { } assessment && await general.Claim(assessment.ClaimId, cancellationToken) is not null
             ? AssessmentView.From(assessment)
             : Error.NotFound(ErrorCodes.NotFound, "The loss assessment was not found.");
 }
 
-internal sealed class ListAssessmentsHandler(IGeneralRepository general) : IQueryHandler<ListAssessments, IReadOnlyList<AssessmentView>>
-{
-    public async Task<Result<IReadOnlyList<AssessmentView>>> Handle(ListAssessments query, CancellationToken cancellationToken) =>
-        (await general.Assessments(query.ClaimId, cancellationToken)).Select(AssessmentView.From).ToList();
-}
 
 internal sealed class OpenRecoveryHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate) : ICommandHandler<OpenRecovery, RecoveryView>
 {

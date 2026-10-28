@@ -107,6 +107,93 @@ internal sealed class GeneralLists(GeneralDbContext db, IExecutionContext execut
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Domain.Underwriting.RiskObject>> RiskObjects(ListRiskObjects query, CancellationToken cancellationToken)
+    {
+        var risks = db.RiskObjects.AsNoTracking();
+        if (query.ObjectType is { } type)
+        {
+            risks = risks.Where(r => r.ObjectType == type);
+        }
+
+        if (query.RiskZone is { } zone)
+        {
+            risks = risks.Where(r => r.RiskZone == zone);
+        }
+
+        if (query.PolicyId is { } policyId)
+        {
+            var policies = db.Policies.AsNoTracking().InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode).Where(p => p.Id == policyId);
+            risks = risks.Where(r => policies.Any(p => p.Risks.Any(x => x.RiskObjectId == r.Id)));
+        }
+
+        if (query.AfterId is { } after)
+        {
+            risks = risks.Where(r => r.Id.CompareTo(after) > 0);
+        }
+
+        return await risks.OrderBy(r => r.Id).Take(query.Limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Domain.Underwriting.GeneralProposal>> Proposals(ListProposals query, CancellationToken cancellationToken)
+    {
+        var quotes = db.Quotes.AsNoTracking().InScope(execution.CurrentScope, q => q.ProductCode, q => q.OrgNodeCode);
+        var proposals = db.Proposals.AsNoTracking().Where(p => quotes.Any(q => q.Id == p.QuoteId));
+        if (query.QuoteId is { } quote)
+        {
+            proposals = proposals.Where(p => p.QuoteId == quote);
+        }
+
+        if (query.Status is { } status)
+        {
+            proposals = proposals.Where(p => p.Status == status);
+        }
+
+        if (query.AfterId is { } after)
+        {
+            proposals = proposals.Where(p => p.Id.CompareTo(after) > 0);
+        }
+
+        return await proposals.OrderBy(p => p.Id).Take(query.Limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Domain.Policies.GeneralEndorsement>> Endorsements(Guid policyId, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var endorsements = db.Endorsements.AsNoTracking().Where(e => e.PolicyId == policyId);
+        if (afterId is { } after)
+        {
+            endorsements = endorsements.Where(e => e.Id.CompareTo(after) > 0);
+        }
+
+        return await endorsements.OrderBy(e => e.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Domain.Claims.LossAssessment>> Assessments(ListAssessments query, CancellationToken cancellationToken)
+    {
+        var claims = db.Claims.AsNoTracking().InScope(execution.CurrentScope, c => c.ProductCode, c => c.OrgNodeCode);
+        var assessments = db.Assessments.AsNoTracking().Include(a => a.Estimates).Where(a => claims.Any(c => c.Id == a.ClaimId));
+        if (query.ClaimId is { } claim)
+        {
+            assessments = assessments.Where(a => a.ClaimId == claim);
+        }
+
+        if (query.Status is { } status)
+        {
+            assessments = assessments.Where(a => a.Status == status);
+        }
+
+        if (query.AssessorPartyId is { } assessor)
+        {
+            assessments = assessments.Where(a => a.AssessorPartyId == assessor);
+        }
+
+        if (query.AfterId is { } after)
+        {
+            assessments = assessments.Where(a => a.Id.CompareTo(after) > 0);
+        }
+
+        return await assessments.OrderBy(a => a.Id).Take(query.Limit).ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Domain.Claims.RecoveryCase>> Recoveries(Guid claimId, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
         var recoveries = db.Recoveries.AsNoTracking().Include(r => r.Salvage).Where(r => r.ClaimId == claimId);

@@ -38,7 +38,7 @@ internal static class ClaimsFrameworkFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("CLAIM_REGISTER", "CLAIM_REGISTER", "Registration from all domains", "claims/claims", "ClaimsGet", "ClaimsListCommunications")
+        .Screen("CLAIM_REGISTER", "CLAIM_REGISTER", "Registration from all domains", "claims/claims", "ClaimsSearchRegister", "ClaimsGet", "ClaimsListCommunications")
         .Action("CLAIMS_ALLOCATE_NUMBER", "CLAIM_REGISTER", "ClaimsAllocateNumber")
         .Action("CLAIMS_REQUEST_EVIDENCE", "CLAIM_REGISTER", "ClaimsRequestEvidence")
         .Action("CLAIMS_RECORD_EVIDENCE", "CLAIM_REGISTER", "ClaimsRecordEvidence")

@@ -82,6 +82,25 @@ public sealed class ClaimsFrameworkModule : IModule
             .WithSummary("Register a domain claim and allocate its claim number; a repeat returns the same number (CLM-005)")
             .RequirePermission(ClaimsPermissions.ClaimCreate);
 
+        claims.MapGet("/claims", async (string? claimNumber, [System.ComponentModel.Description("LIFE, GENERAL or HEALTH")] string? domain, Guid? policyRef,
+                [System.ComponentModel.Description("An instant (ISO 8601 with its offset): claims registered at or after it")] DateTimeOffset? registeredFrom,
+                [System.ComponentModel.Description("An instant (ISO 8601 with its offset): claims registered before it")] DateTimeOffset? registeredTo,
+                string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var after))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var size = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new SearchClaimRegister(claimNumber, domain?.ToUpperInvariant(), policyRef, registeredFrom, registeredTo, after, size), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<ClaimRegisterSummary>(items, items.Count == size ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<ClaimRegisterSummary>>(StatusCodes.Status200OK)
+            .WithName("ClaimsSearchRegister")
+            .WithSummary("Search the claim register across domains by number, domain, policy and registration time (BR-034)")
+            .RequirePermission(ClaimsPermissions.ClaimRead);
+
         claims.MapGet("/claims/{claimNumber}", async (string claimNumber, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new GetClaim(claimNumber), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)

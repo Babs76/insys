@@ -404,7 +404,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
             .StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/assessor", new { assessorPartyId = Assessor })).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
-        var assessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{claim}/assessments")).Json()).EnumerateArray().Single().GetProperty("id").GetGuid();
+        var assessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{claim}/assessments")).Json()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
         (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/start", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _maker.PostAsJsonAsync($"/api/v1/general/assessments/{assessment}/report", new { assessedAmount = 40_000m })).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);

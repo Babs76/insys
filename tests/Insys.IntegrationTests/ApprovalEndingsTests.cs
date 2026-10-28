@@ -1337,7 +1337,7 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
             new { action = "Set", reserveType = "INDEMNITY", amount = 50_000m, currency = "ZAR", reason = "Assessed" }));
         await w.Ok(await w.Maker.Send(HttpMethod.Post, $"/api/v1/general/claims/{claim}/assessor", new { assessorPartyId = Assessor }));
         await w.Factory.DrainOutbox();
-        var assessment = (await w.Get($"/api/v1/general/claims/{claim}/assessments")).EnumerateArray().Single().GetProperty("id").GetGuid();
+        var assessment = (await w.Get($"/api/v1/general/claims/{claim}/assessments")).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
         await w.Ok(await w.Maker.PostAsync($"/api/v1/general/assessments/{assessment}/start", null));
         await w.Ok(await w.Maker.Send(HttpMethod.Post, $"/api/v1/general/assessments/{assessment}/estimates", new { repairerPartyId = Repairer, amount = 41_000m }));
         await w.Ok(await w.Maker.Send(HttpMethod.Post, $"/api/v1/general/assessments/{assessment}/report", new { assessedAmount = 40_000m }));

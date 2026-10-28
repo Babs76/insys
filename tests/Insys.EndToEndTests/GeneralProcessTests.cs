@@ -837,7 +837,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.Send(HttpMethod.Post, $"/api/v1/general/claims/{claim}/parties", new { partyId = Guid.CreateVersion7(), role = "WITNESS" }, raw: true)).StatusCode
             .ShouldBe(HttpStatusCode.PreconditionRequired);
         await _factory.DrainOutbox();
-        var assessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{claim}/assessments")).Json()).EnumerateArray().Single().GetProperty("id").GetGuid();
+        var assessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{claim}/assessments")).Json()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
         (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/start", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _maker.PostAsJsonAsync($"/api/v1/general/assessments/{assessment}/estimates", new { repairerPartyId = Repairer, amount = 41_000m }))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -879,7 +879,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsync($"/api/v1/general/claims/{secondClaim}/register", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{secondClaim}/assessor", new { assessorPartyId = Assessor })).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
-        var secondAssessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{secondClaim}/assessments")).Json()).EnumerateArray().Single().GetProperty("id").GetGuid();
+        var secondAssessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{secondClaim}/assessments")).Json()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
         (await _maker.PostAsync($"/api/v1/general/assessments/{secondAssessment}/start", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _maker.PostAsJsonAsync($"/api/v1/general/assessments/{secondAssessment}/report", new { assessedAmount = 15_000m })).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await _maker.PostAsync($"/api/v1/general/assessments/{secondAssessment}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);

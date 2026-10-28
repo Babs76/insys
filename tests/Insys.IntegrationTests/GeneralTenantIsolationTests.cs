@@ -86,14 +86,7 @@ public sealed class GeneralTenantIsolationTests(DatabaseFixture fixture) : IClas
                  })
         {
             var response = await client.GetAsync(url);
-            if (url.EndsWith("/assessments", StringComparison.Ordinal))
-            {
-                (await response.Json()).GetArrayLength().ShouldBe(0, url);
-            }
-            else
-            {
-                response.StatusCode.ShouldBe(HttpStatusCode.NotFound, url);
-            }
+            response.StatusCode.ShouldBe(HttpStatusCode.NotFound, url); // a claim's assessments too, since BR-034 (it was an empty list)
         }
     }
 

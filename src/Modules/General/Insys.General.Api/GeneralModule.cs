@@ -111,6 +111,11 @@ public sealed class GeneralModule : IModule
             .Produces<RiskObjectView>(StatusCodes.Status201Created)
             .WithName("GeneralRegisterRiskObject").WithSummary("Register a risk object; its attributes conform to its type's schema (GEN-005)")
             .RequirePermission(GeneralPermissions.RiskCreate).RequireIdempotencyKey();
+        general.MapGet("/risk-objects", async (string? objectType, string? riskZone, Guid? policyId, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListRiskObjects(objectType, riskZone, policyId, after, size), ct), r => r.Id))
+            .Produces<CursorPage<RiskObjectView>>(StatusCodes.Status200OK)
+            .WithName("GeneralListRiskObjects").WithSummary("List risk objects by type, risk zone or the policy insuring them (BR-034)")
+            .RequirePermission(GeneralPermissions.RiskRead);
         general.MapGet("/risk-objects/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetRiskObject(id), ct)).ToHttp(Results.Ok))
             .Produces<RiskObjectView>(StatusCodes.Status200OK)
             .WithName("GeneralGetRiskObject").WithSummary("Get a risk object").RequirePermission(GeneralPermissions.RiskRead);
@@ -173,6 +178,11 @@ public sealed class GeneralModule : IModule
             .Produces<ProposalView>(StatusCodes.Status201Created)
             .WithName("GeneralSubmitProposal").WithSummary("Submit a proposal, with declarations, on an accepted quote version")
             .RequirePermission(GeneralPermissions.QuoteUpdate).RequireIdempotencyKey();
+        general.MapGet("/proposals", async (Guid? quoteId, ProposalStatus? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListProposals(quoteId, status, after, size), ct), p => p.Id))
+            .Produces<CursorPage<ProposalView>>(StatusCodes.Status200OK)
+            .WithName("GeneralListProposals").WithSummary("List proposals by quote or status, through their quotes in the caller's scope (BR-034)")
+            .RequirePermission(GeneralPermissions.QuoteRead);
         general.MapGet("/proposals/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetProposal(id), ct)).ToHttp(Results.Ok))
             .Produces<ProposalView>(StatusCodes.Status200OK)
             .WithName("GeneralGetProposal").WithSummary("Get a proposal").RequirePermission(GeneralPermissions.QuoteRead);
@@ -223,6 +233,11 @@ public sealed class GeneralModule : IModule
             .WithName("GeneralDraftEndorsement").WithSummary("Draft an endorsement effective within the policy period (GEN-003)")
             .WithDescription("Rate it through Rating (subjectType GENERAL_ENDORSEMENT) with the endorsed policy's inputs; the premium is the new annual premium.")
             .RequirePermission(GeneralPermissions.EndorsementCreate).RequireIdempotencyKey();
+        general.MapGet("/policies/{id:guid}/endorsements", async (Guid id, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPolicyEndorsements(id, after, size), ct), e => e.Id))
+            .Produces<CursorPage<EndorsementView>>(StatusCodes.Status200OK)
+            .WithName("GeneralListPolicyEndorsements").WithSummary("A policy's endorsements; 404 for a policy outside the caller's scope (BR-034)")
+            .RequirePermission(GeneralPermissions.EndorsementRead);
         general.MapGet("/endorsements/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetEndorsement(id), ct)).ToHttp(Results.Ok))
             .Produces<EndorsementView>(StatusCodes.Status200OK)
             .WithName("GeneralGetEndorsement").WithSummary("Get an endorsement").RequirePermission(GeneralPermissions.EndorsementRead);
@@ -280,9 +295,15 @@ public sealed class GeneralModule : IModule
                 .WithName($"GeneralClaim{action}").WithSummary($"{action} a claim").RequirePermission(GeneralPermissions.ClaimUpdate);
         }
 
-        general.MapGet("/claims/{id:guid}/assessments", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new ListAssessments(id), ct)).ToHttp(Results.Ok))
-            .Produces<IReadOnlyList<AssessmentView>>(StatusCodes.Status200OK)
-            .WithName("GeneralListAssessments").WithSummary("List a claim's loss assessments").RequirePermission(GeneralPermissions.ClaimRead);
+        general.MapGet("/claims/{id:guid}/assessments", async (Guid id, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListAssessments(id, null, null, after, size), ct), a => a.Id))
+            .Produces<CursorPage<AssessmentView>>(StatusCodes.Status200OK)
+            .WithName("GeneralListAssessments").WithSummary("List a claim's loss assessments; 404 for a claim outside the caller's scope").RequirePermission(GeneralPermissions.ClaimRead);
+        general.MapGet("/assessments", async (Domain.Claims.AssessmentStatus? status, Guid? assessorPartyId, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListAssessments(null, status, assessorPartyId, after, size), ct), a => a.Id))
+            .Produces<CursorPage<AssessmentView>>(StatusCodes.Status200OK)
+            .WithName("GeneralListAllAssessments").WithSummary("List loss assessments by status or assessor, on claims in the caller's scope (BR-034)")
+            .RequirePermission(GeneralPermissions.ClaimRead);
         general.MapGet("/assessments/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetAssessment(id), ct)).ToHttp(Results.Ok))
             .Produces<AssessmentView>(StatusCodes.Status200OK)
             .WithName("GeneralGetAssessment").WithSummary("Get a loss assessment").RequirePermission(GeneralPermissions.ClaimRead);

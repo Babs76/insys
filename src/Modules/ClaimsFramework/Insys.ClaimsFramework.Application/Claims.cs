@@ -173,6 +173,31 @@ public sealed record RedirectInstruction(Guid InstructionId, Guid PayeePartyId, 
 
 public sealed record GetClaim(string ClaimNumber) : IQuery<ClaimView>;
 
+/// <summary>A claim in the register search (BR-034): enough to pick it; open it by number for its evidence and fraud hits.</summary>
+public sealed record ClaimRegisterSummary(Guid Id, string ClaimNumber, [property: OneOf("LIFE", "GENERAL", "HEALTH")] string Domain, Guid DomainClaimId, Guid PolicyRef,
+    DateTimeOffset RegisteredAt, string? ProductCode);
+
+/// <summary>
+/// Query SearchClaimRegister (BR-034): the claim register across domains, by exact claim number, domain, policy and
+/// registration time (registered at or after <paramref name="RegisteredFrom"/>, before <paramref name="RegisteredTo"/>), by ID
+/// with cursor paging, within the caller's scope (F103).
+/// </summary>
+public sealed record SearchClaimRegister(string? ClaimNumber, string? Domain, Guid? PolicyRef, DateTimeOffset? RegisteredFrom, DateTimeOffset? RegisteredTo, Guid? AfterId,
+    int Limit) : IQuery<IReadOnlyList<ClaimRegisterSummary>>;
+
+public interface IClaimRegisterSearch
+{
+    Task<IReadOnlyList<ClaimRegisterSummary>> Search(SearchClaimRegister query, CancellationToken cancellationToken);
+}
+
+internal sealed class SearchClaimRegisterHandler(IClaimRegisterSearch register) : IQueryHandler<SearchClaimRegister, IReadOnlyList<ClaimRegisterSummary>>
+{
+    public async Task<Result<IReadOnlyList<ClaimRegisterSummary>>> Handle(SearchClaimRegister query, CancellationToken cancellationToken) =>
+        query.RegisteredFrom is { } from && query.RegisteredTo is { } to && to <= from
+            ? Error.Validation(ErrorCodes.ValidationFailed, "registeredTo is after registeredFrom.")
+            : Result.Success(await register.Search(query, cancellationToken));
+}
+
 /// <summary>One entry of a claim's correspondence log (claims.claim_communication): inbound or outbound, its channel and document, and when.</summary>
 public sealed record ClaimCommunicationView(Guid Id, [property: OneOf("IN", "OUT")] string Direction, string Channel, Guid? DocumentId, DateTimeOffset SentAt);
 

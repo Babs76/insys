@@ -29,6 +29,7 @@ using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Domain.Expressions;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.ClaimsFramework.Application;
 using Insys.ClaimsFramework.Domain.Claims;
@@ -42,6 +43,48 @@ namespace Insys.ClaimsFramework.Infrastructure.Persistence;
 /// product and organisation node recorded at registration. Outside the caller's scope for the endpoint's permission, a read
 /// finds nothing (404) and an action is refused (403 OUT_OF_SCOPE). Registration, jobs and consumers are unrestricted.
 /// </summary>
+/// <summary>The claim register search (BR-034), in the query so paging stays correct, within the caller's scope (F103).</summary>
+internal sealed class ClaimRegisterSearch(ClaimsFrameworkDbContext db, IExecutionContext execution) : IClaimRegisterSearch
+{
+    public async Task<IReadOnlyList<ClaimRegisterSummary>> Search(SearchClaimRegister query, CancellationToken cancellationToken)
+    {
+        var claims = db.Claims.AsNoTracking().InScope(execution.CurrentScope, c => c.ProductCode, c => c.OrgNodeCode);
+        if (query.ClaimNumber is { } number)
+        {
+            claims = claims.Where(c => c.ClaimNumber == number);
+        }
+
+        if (query.Domain is { } domain)
+        {
+            claims = claims.Where(c => c.Domain == domain);
+        }
+
+        if (query.PolicyRef is { } policy)
+        {
+            claims = claims.Where(c => c.PolicyRef == policy);
+        }
+
+        if (query.RegisteredFrom is { } from)
+        {
+            claims = claims.Where(c => c.RegisteredAt >= from);
+        }
+
+        if (query.RegisteredTo is { } to)
+        {
+            claims = claims.Where(c => c.RegisteredAt < to);
+        }
+
+        if (query.AfterId is { } after)
+        {
+            claims = claims.Where(c => c.Id.CompareTo(after) > 0);
+        }
+
+        return await claims.OrderBy(c => c.Id).Take(query.Limit)
+            .Select(c => new ClaimRegisterSummary(c.Id, c.ClaimNumber, c.Domain, c.DomainClaimId, c.PolicyRef, c.RegisteredAt, c.ProductCode))
+            .ToListAsync(cancellationToken);
+    }
+}
+
 internal sealed class ClaimsRepository(ClaimsFrameworkDbContext db, IExecutionContext execution) : IClaimsRepository
 {
     public async Task<ClaimRegistration?> ByNumber(string claimNumber, CancellationToken cancellationToken)
