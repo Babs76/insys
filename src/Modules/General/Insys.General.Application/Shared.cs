@@ -253,13 +253,14 @@ public sealed record CoverageView(string CoverageCode, decimal SumInsured, strin
 public sealed record RiskView(Guid RiskObjectId, decimal SumInsured, DateOnly? AttachedFrom, DateOnly? DetachedOn, IReadOnlyList<CoverageView> Coverages);
 
 /// <param name="ValuationCurrency">The valuation's currency (BR-033): present whenever there is a valuation.</param>
+/// <param name="OwnerPartyId">The client the item belongs to (BR-092); null when not known.</param>
 public sealed record RiskObjectView(Guid Id, [property: CodeList(CodeLists.RiskObjectTypes)] string ObjectType, JsonElement Attributes, int AttributeSchemaVersion,
     decimal? Valuation, [property: CodeList(CodeLists.ValuationBases)] string? ValuationBasis,
     string? ValuationCurrency, string? Subdivision, string? PostalCode, [property: CodeList(CodeLists.RiskZones)] string? RiskZone, RiskObjectStatus Status,
-    long RowVersion)
+    long RowVersion, Guid? OwnerPartyId = null)
 {
     public static RiskObjectView From(RiskObject r) => new(r.Id, r.ObjectType, JsonDocument.Parse(r.Attributes).RootElement.Clone(), r.AttributeSchemaVersion, r.Valuation,
-        r.ValuationBasis, r.ValuationCurrency, r.Subdivision, r.PostalCode, r.RiskZone, r.Status, r.RowVersion);
+        r.ValuationBasis, r.ValuationCurrency, r.Subdivision, r.PostalCode, r.RiskZone, r.Status, r.RowVersion, r.OwnerPartyId);
 }
 
 public sealed record ReferralView(Guid Id, [property: CodeList(CodeLists.ReferralReasons)] string ReasonCode, [property: OneOf("OPEN", "APPROVED",

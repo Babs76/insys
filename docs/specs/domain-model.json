@@ -827,7 +827,8 @@
      "commands": [
       "RegisterRiskObject",
       "UpdateAttributes",
-      "RevalueRiskObject"
+      "RevalueRiskObject",
+      "ChangeOwner"
      ],
      "events": [
       {

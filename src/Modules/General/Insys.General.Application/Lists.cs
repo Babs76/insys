@@ -53,11 +53,12 @@ public sealed record ListPolicies(Guid? PolicyholderPartyId, string? PolicyNumbe
 public sealed record ListClaims(Guid? PolicyId, string? ClaimNumber, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ClaimSummary>>;
 
 /// <summary>
-/// Query ListRiskObjects (BR-034): by type, risk zone or the policy that insures them, by ID with cursor paging. A risk
-/// object belongs to no product, so it is not scoped itself; filtered by a policy, only a policy in the caller's scope.
+/// Query ListRiskObjects (BR-034): by type, risk zone, the policy that insures them or their owner (BR-092), by ID with
+/// cursor paging. A risk object belongs to no product, so it is not scoped itself; filtered by a policy, only a policy in
+/// the caller's scope.
 /// </summary>
 public sealed record ListRiskObjects([property: CodeList(CodeLists.RiskObjectTypes)] string? ObjectType, [property: CodeList(CodeLists.RiskZones)] string? RiskZone,
-    Guid? PolicyId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<RiskObjectView>>;
+    Guid? PolicyId, Guid? AfterId, int Limit, Guid? OwnerPartyId = null) : IQuery<IReadOnlyList<RiskObjectView>>;
 
 /// <summary>Query ListProposals (BR-034): by quote or status, within the caller's scope through the proposal's quote.</summary>
 public sealed record ListProposals(Guid? QuoteId, ProposalStatus? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ProposalView>>;

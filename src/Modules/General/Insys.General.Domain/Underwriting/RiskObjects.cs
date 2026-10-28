@@ -191,8 +191,14 @@ public sealed class RiskObject : AggregateRoot<Guid>
     /// <summary>The valuation's currency, required with a valuation (BR-033); a risk object belongs to no single policy, so it names its own.</summary>
     public string? ValuationCurrency { get; private set; }
 
+    /// <summary>
+    /// The client the item belongs to (BR-092, decided by Ade): a broker sees it while it services the owner. Null when not
+    /// known; staff set or change it (audited), a broker's registration sets it to its client.
+    /// </summary>
+    public Guid? OwnerPartyId { get; private set; }
+
     public static Result<RiskObject> RegisterRiskObject(Guid id, AttributeSchema schema, IReadOnlyDictionary<string, object?> values, string attributesJson,
-        decimal? valuation, string? valuationBasis, RiskLocation location, DateOnly today, DateTimeOffset now, string? valuationCurrency = null)
+        decimal? valuation, string? valuationBasis, RiskLocation location, DateOnly today, DateTimeOffset now, string? valuationCurrency = null, Guid? owner = null)
     {
         var valid = schema.Validate(values, today);
         var valued = CheckValuation(valuation, valuationBasis, valuationCurrency);
@@ -205,7 +211,7 @@ public sealed class RiskObject : AggregateRoot<Guid>
         {
             Id = Guard.NotEmpty(id), ObjectType = Guard.MaxLength(schema.ObjectType, 15), Attributes = attributesJson, AttributeSchemaVersion = schema.Version,
             Valuation = valuation, ValuationBasis = valuationBasis, ValuationCurrency = valuationCurrency, Subdivision = location.Subdivision, PostalCode = location.PostalCode, RiskZone = location.RiskZone,
-            Status = RiskObjectStatus.Active,
+            Status = RiskObjectStatus.Active, OwnerPartyId = owner is { } party ? Guard.NotEmpty(party) : null,
         };
         risk.Raise(new GeneralRiskObjectRegistered(id, risk.ObjectType, now));
         return risk;
@@ -243,6 +249,19 @@ public sealed class RiskObject : AggregateRoot<Guid>
         Valuation = valuation;
         ValuationBasis = valuationBasis;
         ValuationCurrency = valuationCurrency;
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>Command ChangeOwner (BR-092): the client the item belongs to, or none. The same owner again is refused, so every change is a real one.</summary>
+    public Result ChangeOwner(Guid? owner)
+    {
+        if (owner == OwnerPartyId)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "The risk object already has that owner.");
+        }
+
+        OwnerPartyId = owner is { } party ? Guard.NotEmpty(party) : null;
         MarkChanged();
         return Result.Success();
     }

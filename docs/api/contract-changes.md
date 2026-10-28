@@ -4,12 +4,26 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 2 batch 6 (branch `wave2-6`, not merged)
 
+### Breaking: a broker quotes only on its client's own items (BR-092, decided by Ade)
+- **`PortalGeneralCreateQuote`:** each `riskObjectId` must be an item the client owns (`ownerPartyId` is the proposer), and the broker must service the client now (below). Otherwise 403 `OUT_OF_SCOPE`, the same answer as for an unknown ID. Until now a broker could quote on any risk object whose ID it knew.
+
+### New: a broker registers and lists its clients' items (BR-092, decided by Ade)
+- **`POST /api/v1/portal/general/risk-objects`** (`PortalGeneralRegisterRiskObject`, function `BROKER_PORTAL_GENERAL_REGISTER_RISK_OBJECT`, `Idempotency-Key`). It takes `clientPartyId` and the staff registration's fields: `objectType`, `attributes`, `valuation`, `valuationBasis`, `valuationCurrency`, `subdivision`, `postalCode`, `riskZone`. It returns 201 with `GeneralPortalRiskObjectView`, whose `ownerPartyId` is the client. A client the broker does not service now is 403 `OUT_OF_SCOPE`. A registration staff linked to an existing party is registered for as that party, as quotes are.
+- **`GET /api/v1/portal/general/risk-objects?clientPartyId=`** (`PortalGeneralListRiskObjects`, a `CursorPage`; `clientPartyId` is required, 422 without it) and **`GET /api/v1/portal/general/risk-objects/{id}`** (`PortalGeneralGetRiskObject`), on the new screen function `BROKER_PORTAL_GENERAL_RISK_OBJECTS`. A client the broker does not service now is 404, and so is an item of one.
+- **"Services now":** the client's live General policy (Issued or In force) is under one of the broker's codes; with no live policy, the client's latest quote is; with neither, the broker registered the client. When the client's business moves to another intermediary (its policy with the broker ends and another's is issued), the broker loses the items and the new one gains them.
+- **The portal view** leaves out the schema version and row version.
+
+### New: a risk object's owner (BR-092, decided by Ade)
+- **`GeneralRiskObjectView.ownerPartyId`:** the client the item belongs to, or null when not known. **`GeneralRegisterRiskObject`** takes an optional `ownerPartyId`, which must be a party of the tenant (422 otherwise). **`GeneralListRiskObjects`** filters by `ownerPartyId`.
+- **`POST /api/v1/general/risk-objects/{id}/owner`** (`GeneralChangeRiskObjectOwner`, function `GENERAL_CHANGE_RISK_OBJECT_OWNER`, `If-Match`), with `{ "ownerPartyId": "..." }` or null to clear it. It is audited with the owner before and after. The same owner again is 409 `INVALID_STATE_TRANSITION`.
+- **Existing items (migration V0077)** have an owner only where every policy they are on has one policyholder and no quote for them names anyone else; the rest stay null, for staff to set.
+
 ### Changed: a broker's portal quote is priced as it is made (BR-095, decided by Ade)
 - **`PortalGeneralCreateQuote`** still answers 201 with the quote as Draft, and now asks Rating for its premium itself (`x-eventual-effects`). Read it again (`GET /portal/general/quotes/{id}`):
   - **Rated** with `premium`: Rating's annual premium, from the quote's risk objects' attributes (as the rating factors name them) and its total sum insured as `sum_insured`.
   - **Draft** with `ratingIssue` `{ code, reason }`: Rating could not price it, for example `RATING_INPUT_MISSING` when a risk object lacks an attribute the rating reads, or `RATING_INPUTS_DIFFER` (new, General) when two risk objects give the same input different values. Nothing is guessed.
   - **Referred**, with no `premium`: over a zone and peril limit, the rules refer it as soon as it is rated. It reads Rated, with its premium, once an underwriter approves the referral (any underwriter: a rules referral has no referrer, so `referredBy` is null).
-- **`PortalGeneralQuoteView.premium`** is null while the quote is Referred or Declined, whatever was rated. **`ratingIssue`** is new on it.
+- **`GeneralPortalQuoteView.premium`** is null while the quote is Referred or Declined, whatever was rated. **`ratingIssue`** is new on it.
 - **The broker never sets or changes the price.** No portal operation takes one, and Rating's calculation endpoints stay closed to portal users (403).
 - **Later versions** of such a quote (`GeneralCreateQuote` with `fromQuoteId`) are priced the same way, with no calculation requested. `GeneralQuoteView` gains `pricedOnCreation` and `ratingIssue`. Staff quotes are priced as before, by `POST /rating/calculations`.
 - **Events:** General publishes `general.GeneralQuotePricingRequested`, which Rating consumes; Rating publishes `rating.PremiumNotCalculated` when it cannot price one, which General consumes. Migration V0076 adds the quote's `priced_on_creation`, `rating_issue_code` and `rating_issue`.

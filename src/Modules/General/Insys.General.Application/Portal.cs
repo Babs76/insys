@@ -63,6 +63,15 @@ public sealed record PortalQuoteView(Guid Id, string QuoteNumber, int QuoteVersi
         RatingIssueView.Of(q));
 }
 
+/// <summary>A broker's view of an insured item (BR-092): what it registered or may quote on, without the schema version or row version.</summary>
+public sealed record PortalRiskObjectView(Guid Id, [property: CodeList(CodeLists.RiskObjectTypes)] string ObjectType, System.Text.Json.JsonElement Attributes,
+    decimal? Valuation, [property: CodeList(CodeLists.ValuationBases)] string? ValuationBasis, string? ValuationCurrency, string? Subdivision, string? PostalCode,
+    [property: CodeList(CodeLists.RiskZones)] string? RiskZone, RiskObjectStatus Status, Guid OwnerPartyId)
+{
+    public static PortalRiskObjectView From(RiskObject r) => new(r.Id, r.ObjectType, System.Text.Json.JsonDocument.Parse(r.Attributes).RootElement.Clone(), r.Valuation,
+        r.ValuationBasis, r.ValuationCurrency, r.Subdivision, r.PostalCode, r.RiskZone, r.Status, r.OwnerPartyId!.Value);
+}
+
 /// <param name="SettlementAmount">What is to be paid, once a settlement is approved; nothing before.</param>
 public sealed record PortalClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt, ClaimStatus Status,
     decimal? SettlementAmount, string? Currency)
@@ -84,6 +93,16 @@ public interface IGeneralPortalQueries
 
     /// <summary>Whether the party is a client of the broker: a quote or policy of theirs names one of the broker's codes.</summary>
     Task<bool> Services(ExternalSubject broker, Guid partyId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the broker services the party now (BR-092), by the party's General records: a live policy (Issued or In
+    /// force) under one of its codes; with no live policy, the party's latest quote under one of them. Null when the party
+    /// has neither, so the broker that registered it services it.
+    /// </summary>
+    Task<bool?> CurrentlyServices(ExternalSubject broker, Guid partyId, CancellationToken cancellationToken);
+
+    /// <summary>The risk objects the party owns, by ID with cursor paging.</summary>
+    Task<IReadOnlyList<RiskObject>> RiskObjects(Guid ownerPartyId, Guid? afterId, int limit, CancellationToken cancellationToken);
 }
 
 public sealed record ListPortalPolicies(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PortalPolicyView>>;
@@ -98,12 +117,26 @@ public sealed record GetPortalClaim(Guid ClaimId) : IQuery<PortalClaimView>;
 
 public sealed record ListPortalClaims(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PortalClaimView>>;
 
+/// <summary>A client's risk objects (BR-092), for a broker that services the client now; a client it does not is not found.</summary>
+public sealed record ListPortalRiskObjects(Guid ClientPartyId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PortalRiskObjectView>>;
+
+/// <summary>A risk object whose owner the broker services now (BR-092); any other is not found.</summary>
+public sealed record GetPortalRiskObject(Guid RiskObjectId) : IQuery<PortalRiskObjectView>;
+
+/// <summary>
+/// Before a broker registers a risk object (BR-092): the client is one it services now, or one it registered that has no
+/// General records yet. Gives the party the item is registered for: a registration staff linked to an existing party is
+/// registered for as that party, as quotes are.
+/// </summary>
+public sealed record PortalClientAllowed(Guid ClientPartyId) : IQuery<Guid>;
+
 /// <summary>
 /// Before a broker's quote (§3): the proposer is a client the broker services or one it registered. Gives the broker's own
 /// intermediary code, which the quote is made under whatever the request says, and the proposer to quote for: a
 /// registration staff linked to an existing party after review (§6) is quoted for as that party.
 /// </summary>
-public sealed record PortalQuoteAllowed(Guid ProposerPartyId) : IQuery<PortalQuoter>;
+/// <remarks>Each risk object quoted on belongs to the client (BR-092): a broker quotes only on the client's own items.</remarks>
+public sealed record PortalQuoteAllowed(Guid ProposerPartyId, IReadOnlyList<Guid>? RiskObjectIds = null) : IQuery<PortalQuoter>;
 
 public sealed record PortalQuoter(string IntermediaryCode, Guid ProposerPartyId);
 
@@ -131,8 +164,13 @@ internal sealed class GeneralPortalHandlers(IGeneralRepository general, IGeneral
     IQueryHandler<GetPortalClaim, PortalClaimView>,
     IQueryHandler<ListPortalClaims, IReadOnlyList<PortalClaimView>>,
     IQueryHandler<PortalQuoteAllowed, PortalQuoter>,
-    IQueryHandler<PortalClaimAllowed, bool>
+    IQueryHandler<PortalClaimAllowed, bool>,
+    IQueryHandler<ListPortalRiskObjects, IReadOnlyList<PortalRiskObjectView>>,
+    IQueryHandler<GetPortalRiskObject, PortalRiskObjectView>,
+    IQueryHandler<PortalClientAllowed, Guid>
 {
+    private static readonly Error RiskObjectNotFound = Error.NotFound(ErrorCodes.NotFound, "The risk object was not found.");
+
     private static readonly Error PolicyNotFound = Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
 
     public async Task<Result<IReadOnlyList<PortalPolicyView>>> Handle(ListPortalPolicies query, CancellationToken cancellationToken) =>
@@ -177,7 +215,59 @@ internal sealed class GeneralPortalHandlers(IGeneralRepository general, IGeneral
         var proposer = registered && await parties.MergedInto(tenant.RequireTenantId(), query.ProposerPartyId, cancellationToken) is { } existing
             ? existing
             : query.ProposerPartyId;
+
+        // BR-092: the items quoted on are the client's own, and the broker services the client now; an unknown item gets the
+        // same answer as another's.
+        foreach (var riskObjectId in query.RiskObjectIds ?? [])
+        {
+            if (await general.RiskObject(riskObjectId, cancellationToken) is not { OwnerPartyId: { } owner } || (owner != proposer && owner != query.ProposerPartyId)
+                || !await CurrentlyServices(broker, owner, cancellationToken))
+            {
+                return Error.Forbidden(ErrorCodes.OutOfScope,
+                    "You can quote only on your client's own risk objects; register the item for the client first (POST /portal/general/risk-objects).");
+            }
+        }
+
         return new PortalQuoter(code, proposer);
+    }
+
+    public async Task<Result<IReadOnlyList<PortalRiskObjectView>>> Handle(ListPortalRiskObjects query, CancellationToken cancellationToken) =>
+        await CurrentlyServices(Related.Require(execution), query.ClientPartyId, cancellationToken)
+            ? Result.Success<IReadOnlyList<PortalRiskObjectView>>((await queries.RiskObjects(query.ClientPartyId, query.AfterId, query.Limit, cancellationToken))
+                .Select(PortalRiskObjectView.From).ToList())
+            : Error.NotFound(ErrorCodes.NotFound, "The client was not found.");
+
+    public async Task<Result<PortalRiskObjectView>> Handle(GetPortalRiskObject query, CancellationToken cancellationToken) =>
+        await general.RiskObject(query.RiskObjectId, cancellationToken) is { OwnerPartyId: { } owner } risk
+        && await CurrentlyServices(Related.Require(execution), owner, cancellationToken)
+            ? PortalRiskObjectView.From(risk)
+            : RiskObjectNotFound;
+
+    public async Task<Result<Guid>> Handle(PortalClientAllowed query, CancellationToken cancellationToken)
+    {
+        if (!await CurrentlyServices(Related.Require(execution), query.ClientPartyId, cancellationToken))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "You can register an item only for a client you service, or one you registered.");
+        }
+
+        return await parties.MergedInto(tenant.RequireTenantId(), query.ClientPartyId, cancellationToken) ?? query.ClientPartyId;
+    }
+
+    /// <summary>
+    /// BR-092 (decided by Ade): a broker services a client now when the client's live General policy, or with none its latest
+    /// quote, is under one of the broker's codes; a client with neither is serviced by the broker that registered it. So a
+    /// broker loses a client's items when the client's business moves to another intermediary.
+    /// </summary>
+    private async Task<bool> CurrentlyServices(ExternalSubject broker, Guid partyId, CancellationToken cancellationToken)
+    {
+        if (await queries.CurrentlyServices(broker, partyId, cancellationToken) is { } byRecords)
+        {
+            return byRecords;
+        }
+
+        var registeredBy = await parties.RegisteredBy(tenant.RequireTenantId(), partyId, cancellationToken);
+        return registeredBy is not null && registeredBy.StartsWith($"{ExternalSubject.Intermediary}:", StringComparison.Ordinal)
+            && broker.Brokers(registeredBy[(ExternalSubject.Intermediary.Length + 1)..]);
     }
 
     public async Task<Result<bool>> Handle(PortalClaimAllowed query, CancellationToken cancellationToken) =>

@@ -118,10 +118,11 @@ public sealed class GeneralModule : IModule
             .Produces<RiskObjectView>(StatusCodes.Status201Created)
             .WithName("GeneralRegisterRiskObject").WithSummary("Register a risk object; its attributes conform to its type's schema (GEN-005)")
             .RequirePermission(GeneralPermissions.RiskCreate).RequireIdempotencyKey();
-        general.MapGet("/risk-objects", async (string? objectType, string? riskZone, Guid? policyId, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
-                await Page(cursor, limit, (after, size) => d.Query(new ListRiskObjects(objectType, riskZone, policyId, after, size), ct), r => r.Id))
+        general.MapGet("/risk-objects", async (string? objectType, string? riskZone, Guid? policyId, Guid? ownerPartyId, string? cursor, int? limit, IDispatcher d,
+                    CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListRiskObjects(objectType, riskZone, policyId, after, size, ownerPartyId), ct), r => r.Id))
             .Produces<CursorPage<RiskObjectView>>(StatusCodes.Status200OK)
-            .WithName("GeneralListRiskObjects").WithSummary("List risk objects by type, risk zone or the policy insuring them (BR-034)")
+            .WithName("GeneralListRiskObjects").WithSummary("List risk objects by type, risk zone, the policy insuring them (BR-034) or their owner (BR-092)")
             .RequirePermission(GeneralPermissions.RiskRead);
         general.MapGet("/risk-objects/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetRiskObject(id), ct)).ToHttp(Results.Ok))
             .Produces<RiskObjectView>(StatusCodes.Status200OK)
@@ -137,6 +138,14 @@ public sealed class GeneralModule : IModule
             .Produces<RiskObjectView>(StatusCodes.Status200OK)
             .TakesIfMatch()
             .WithName("GeneralRevalueRiskObject").WithSummary("Revalue a risk object, with a valuation basis").RequirePermission(GeneralPermissions.RiskUpdate);
+        general.MapPost("/risk-objects/{id:guid}/owner", async (Guid id, RiskOwnerRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new ChangeRiskObjectOwner(id, r.OwnerPartyId), ct)).ToHttp(Results.Ok))
+            .Produces<RiskObjectView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
+            .WithName("GeneralChangeRiskObjectOwner").WithSummary("Set, change or clear the client a risk object belongs to (BR-092); audited")
+            .WithDescription("A broker sees the item while it services the owner, so a new owner moves it to the new owner's broker. The same owner again is 409 "
+                + "INVALID_STATE_TRANSITION; an owner who is not a party of the tenant is 422.")
+            .RequirePermission(GeneralPermissions.RiskUpdate);
         general.MapPost("/risk-objects/{id:guid}/deactivate", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DeactivateRiskObject(id), ct)).ToHttp(Results.Ok))
             .Produces<RiskObjectView>(StatusCodes.Status200OK)
@@ -423,7 +432,7 @@ public sealed class GeneralModule : IModule
             .WithName("PortalGeneralGetQuote").WithSummary("A quote of the broker").RequirePermission(GeneralPermissions.QuoteRead).ForPortal(broker);
         portal.MapPost("/quotes", async (PortalQuoteRequest r, IDispatcher d, CancellationToken ct) =>
                 {
-                    var allowed = await d.Query(new PortalQuoteAllowed(r.ProposerPartyId), ct);
+                    var allowed = await d.Query(new PortalQuoteAllowed(r.ProposerPartyId, r.Risks.Select(x => x.RiskObjectId).ToList()), ct);
                     if (allowed.IsFailure)
                     {
                         return allowed.ToHttp(_ => Results.Ok());
@@ -441,8 +450,39 @@ public sealed class GeneralModule : IModule
                 + "(GET /portal/general/quotes/{id}). A quote Rating cannot price stays Draft with ratingIssue (for example RATING_INPUT_MISSING); one over a zone "
                 + "and peril limit reads Referred, with no premium, until an underwriter decides it.")
             .WithDescription("The broker never sets or changes the price: the premium is Rating's, from the quote's risk objects' attributes and sum insured. "
-                + "Later versions of the quote are priced the same way.")
+                + "Later versions of the quote are priced the same way. Each risk object quoted on belongs to the client (BR-092); another is 403 OUT_OF_SCOPE.")
             .RequirePermission(GeneralPermissions.QuoteCreate).RequireIdempotencyKey().ForPortal(broker);
+        portal.MapGet("/risk-objects", async (Guid? clientPartyId, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                clientPartyId is not { } client
+                    ? Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "clientPartyId is required.", StatusCodes.Status422UnprocessableEntity)
+                    : await Page(cursor, limit, (after, size) => d.Query(new ListPortalRiskObjects(client, after, size), ct), r => r.Id))
+            .Produces<CursorPage<PortalRiskObjectView>>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralListRiskObjects").WithSummary("A client's insured items, for a broker that services the client now (BR-092)")
+            .WithDescription("A client the broker does not service now (its live policy, or with none its latest quote, is another intermediary's) is 404.")
+            .RequirePermission(GeneralPermissions.RiskRead).ForPortal(broker);
+        portal.MapGet("/risk-objects/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalRiskObject(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalRiskObjectView>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralGetRiskObject").WithSummary("An insured item of a client the broker services now (BR-092)")
+            .RequirePermission(GeneralPermissions.RiskRead).ForPortal(broker);
+        portal.MapPost("/risk-objects", async (PortalRiskObjectRequest r, IDispatcher d, CancellationToken ct) =>
+                {
+                    var allowed = await d.Query(new PortalClientAllowed(r.ClientPartyId), ct);
+                    if (allowed.IsFailure)
+                    {
+                        return allowed.ToHttp(_ => Results.Ok());
+                    }
+
+                    var registered = await d.Send(new RegisterRiskObject(r.ObjectType, r.Attributes, r.Valuation, r.ValuationBasis, r.Subdivision, r.PostalCode, r.RiskZone,
+                        r.ValuationCurrency, allowed.Value), ct);
+                    return registered.IsFailure
+                        ? registered.ToHttp(_ => Results.Ok())
+                        : (await d.Query(new GetPortalRiskObject(registered.Value.Id), ct)).ToHttp(v => Results.Created($"/api/v1/portal/general/risk-objects/{v.Id}", v));
+                })
+            .Produces<PortalRiskObjectView>(StatusCodes.Status201Created)
+            .WithName("PortalGeneralRegisterRiskObject").WithSummary("A broker registers an insured item for a client it services (BR-092)")
+            .WithDescription("The item belongs to the client (ownerPartyId), so the broker can quote on it and list it while it services the client. Its attributes conform "
+                + "to its type's schema (GEN-005), and a valuation names its currency.")
+            .RequirePermission(GeneralPermissions.RiskCreate).RequireIdempotencyKey().ForPortal(broker);
         portal.MapGet("/claims", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPortalClaims(after, size), ct), c => c.Id))
             .Produces<CursorPage<PortalClaimView>>(StatusCodes.Status200OK)
@@ -481,6 +521,14 @@ public sealed class GeneralModule : IModule
         return (await query(after, size)).ToHttp(items => Results.Ok(new CursorPage<T>(items, items.Count == size ? Cursor.Encode(id(items[^1])) : null)));
     }
 }
+
+/// <param name="OwnerPartyId">The client the item belongs to; null clears it.</param>
+public sealed record RiskOwnerRequest(Guid? OwnerPartyId);
+
+/// <param name="ClientPartyId">The client the item belongs to: one the broker services, or one it registered.</param>
+public sealed record PortalRiskObjectRequest(Guid ClientPartyId, [property: BuildingBlocks.Domain.CodeList(CodeLists.RiskObjectTypes)] string ObjectType,
+    JsonElement Attributes, decimal? Valuation, [property: BuildingBlocks.Domain.CodeList(CodeLists.ValuationBases)] string? ValuationBasis, string? ValuationCurrency,
+    string? Subdivision, string? PostalCode, [property: BuildingBlocks.Domain.CodeList(CodeLists.RiskZones)] string? RiskZone);
 
 public sealed record PortalQuoteRequest(string ProductCode, Guid ProposerPartyId, string Currency, DateOnly PeriodStart, DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks);
 

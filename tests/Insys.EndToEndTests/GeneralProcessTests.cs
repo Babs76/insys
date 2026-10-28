@@ -460,8 +460,14 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         {
             policyId = policyB, riskObjectId = vehicleB, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC",
         });
-        var spare = await Vehicle();
         var known = await _maker.RegisterPerson("Known");
+        var owned = new Dictionary<Guid, Guid>();
+        foreach (var owner in new[] { holderA, holderB })
+        {
+            owned[owner] = await Vehicle();
+            await _db.ExecuteAsOwner("UPDATE general.risk_object SET owner_party_id = @o WHERE id = @r", ("o", owner), ("r", owned[owner]));
+        }
+
         foreach (var code in new[] { "BRK-A", "BRK-B" })
         {
             await Seed("commission.mst_intermediary_register", "ACTIVE", code, ("intermediary_code", code), ("type", "BROKER"), ("legal_name", code),
@@ -509,15 +515,30 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         view.TryGetProperty("cancellations", out _).ShouldBeFalse();
 
         // A broker quotes only for a client it services, under its own code whatever it sends.
-        object Quote(Guid proposer) => new
+        // BR-092: a broker quotes only on its client's own items, so each proposer here owns the vehicle quoted on.
+        async Task<object> Quote(Guid proposer)
         {
-            productCode = Product, proposerPartyId = proposer, currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1),
-            risks = new[] { new { riskObjectId = spare, sumInsured = 100_000m, coverages = new object[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 100_000m, excessScheduleCode = "MOT-EXC" } } } },
-        };
-        var otherClient = await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", Quote(holderB), idempotent: true);
+            if (!owned.TryGetValue(proposer, out var vehicle))
+            {
+                // Staff are off the channels here, so the client's vehicle goes straight in.
+                vehicle = owned[proposer] = Guid.CreateVersion7();
+                await _db.ExecuteAsOwner("""
+                    INSERT INTO general.risk_object (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, object_type, attributes,
+                                                     attribute_schema_version, status, owner_party_id)
+                    VALUES (@t, @id, 1, now(), 'seed', now(), 'seed', 'VEHICLE', '{"registration":"CA1","vehicle_group":"G3","year":2024}', 1, 'ACTIVE', @o)
+                    """, ("t", Tenant), ("id", vehicle), ("o", proposer));
+            }
+
+            return new
+            {
+                productCode = Product, proposerPartyId = proposer, currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1),
+                risks = new[] { new { riskObjectId = vehicle, sumInsured = 100_000m, coverages = new object[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 100_000m, excessScheduleCode = "MOT-EXC" } } } },
+            };
+        }
+        var otherClient = await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", await Quote(holderB), idempotent: true);
         otherClient.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await otherClient.Code()).ShouldBe("OUT_OF_SCOPE");
-        var quoted = await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", Quote(holderA), idempotent: true);
+        var quoted = await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", await Quote(holderA), idempotent: true);
         quoted.StatusCode.ShouldBe(HttpStatusCode.Created, await quoted.Content.ReadAsStringAsync());
         (await quoted.Json()).GetProperty("intermediaryCode").GetString().ShouldBe("BRK-A");
 
@@ -596,7 +617,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         known.ShouldNotBe(match.GetProperty("id").GetGuid());
 
         // The broker may now quote for the client it registered.
-        (await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", Quote(fresh.GetProperty("id").GetGuid()), idempotent: true)).StatusCode
+        (await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", await Quote(fresh.GetProperty("id").GetGuid()), idempotent: true)).StatusCode
             .ShouldBe(HttpStatusCode.Created);
 
         async Task<JsonElement> Get(string url)
@@ -629,7 +650,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             .ShouldBe(("Merged", known, "LINKED"));
         (await _db.ScalarAsOwner<string>("SELECT state FROM workflow.process_instance WHERE process_code = 'PARTY_MATCH_REVIEW' AND business_ref_id = @p AND ended_at IS NOT NULL",
             ("p", registration))).ShouldBe("COMPLETED:REVIEWED");
-        var forKnown = await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", Quote(registration), idempotent: true);
+        var forKnown = await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", await Quote(registration), idempotent: true);
         forKnown.StatusCode.ShouldBe(HttpStatusCode.Created, await forKnown.Content.ReadAsStringAsync());
         (await forKnown.Json()).GetProperty("proposerPartyId").GetGuid().ShouldBe(known);
     }
@@ -643,13 +664,14 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     [Fact]
     public async Task ABrokersPortalQuote_IsPricedAsItIsMade_OrSaysWhyNot_BR095()
     {
-        var (policy, _) = await IssuedPolicy();
-        var client = (await Policy(policy)).GetProperty("policyholderPartyId").GetGuid();
-        await _db.ExecuteAsOwner("UPDATE general.policy SET intermediary_code = 'BRK-A' WHERE id = @p", ("p", policy));
         var broker = await Broker("BRK-A");
+        var client = await _maker.RegisterPerson("Client");
+        await IssuedPolicy(proposer: client, intermediaryCode: "BRK-A");
 
         async Task<JsonElement> PortalQuote(Guid riskObject)
         {
+            // The item is the client's (BR-092).
+            await _db.ExecuteAsOwner("UPDATE general.risk_object SET owner_party_id = @o WHERE id = @r", ("o", client), ("r", riskObject));
             var quoted = await broker.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", new
             {
                 productCode = Product, proposerPartyId = client, currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1),
@@ -742,6 +764,103 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (draft.GetProperty("status").GetString(), draft.GetProperty("pricedOnCreation").GetBoolean()).ShouldBe(("Draft", false));
     }
 
+    /// <summary>
+    /// BR-092 (decided by Ade, 28 October 2026): a risk object belongs to a client. A broker registers one for a client it
+    /// services and quotes on it; it lists and reads the items of clients it services now, and no other broker's. A staff
+    /// change of owner is audited. When the client's business moves to another broker, the first loses the items and the
+    /// second gains them.
+    /// </summary>
+    [Fact]
+    public async Task ABroker_RegistersAndListsItsClientsItems_AndLosesThemWhenTheClientMoves_BR092()
+    {
+        var brokerA = await Broker("BRK-A", GeneralPermissions.RiskCreate, GeneralPermissions.RiskRead);
+        var brokerB = await Broker("BRK-B", GeneralPermissions.RiskCreate, GeneralPermissions.RiskRead);
+        var client = await _maker.RegisterPerson("Client");
+        var (policyA, insured) = await IssuedPolicy(proposer: client, intermediaryCode: "BRK-A");
+
+        async Task<HttpResponseMessage> Register(HttpClient broker, Guid owner) => await broker.Send(HttpMethod.Post, "/api/v1/portal/general/risk-objects", new
+        {
+            clientPartyId = owner, objectType = "VEHICLE", attributes = new { registration = "CA4242", vehicle_group = "G3", year = Today.Year - 1 },
+            valuation = 150_000m, valuationBasis = "MARKET", valuationCurrency = "ZAR",
+        }, idempotent: true);
+
+        async Task<Guid[]> Items(HttpClient broker, HttpStatusCode expected = HttpStatusCode.OK)
+        {
+            var listed = await broker.GetAsync($"/api/v1/portal/general/risk-objects?clientPartyId={client}&limit=1");
+            listed.StatusCode.ShouldBe(expected, await listed.Content.ReadAsStringAsync());
+            if (expected != HttpStatusCode.OK)
+            {
+                return [];
+            }
+
+            // Paged one at a time, so every item comes back once.
+            var items = new List<Guid>();
+            var page = await listed.Json();
+            while (true)
+            {
+                items.AddRange(page.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
+                if (page.GetProperty("nextCursor").GetString() is not { } next)
+                {
+                    return [.. items];
+                }
+
+                page = await (await broker.GetAsync($"/api/v1/portal/general/risk-objects?clientPartyId={client}&limit=1&cursor={Uri.EscapeDataString(next)}")).Json();
+            }
+        }
+
+        object QuoteOn(Guid item) => new
+        {
+            productCode = Product, proposerPartyId = client, currency = "ZAR", periodStart = Today, periodEnd = Today.AddYears(1).AddDays(-1),
+            risks = new[] { new { riskObjectId = item, sumInsured = 100_000m, coverages = new[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 100_000m } } } },
+        };
+
+        await Seed("general.ref_valuation_bases", "ACTIVE", "MARKET", ("label", "Market value"));
+
+        // The broker registers the client's car: it belongs to the client, and the broker quotes on it.
+        var registered = await Register(brokerA, client);
+        registered.StatusCode.ShouldBe(HttpStatusCode.Created, await registered.Content.ReadAsStringAsync());
+        var car = await registered.Json();
+        var carId = car.GetProperty("id").GetGuid();
+        (car.GetProperty("ownerPartyId").GetGuid(), car.GetProperty("valuationCurrency").GetString()).ShouldBe((client, "ZAR"));
+        car.TryGetProperty("rowVersion", out _).ShouldBeFalse();
+        (await (await _maker.GetAsync($"/api/v1/general/risk-objects/{carId}")).Json()).GetProperty("ownerPartyId").GetGuid().ShouldBe(client);
+        (await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", QuoteOn(carId), idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        // The insured vehicle staff registered has no owner yet: the broker neither sees it nor quotes on it.
+        (await Items(brokerA)).ShouldBe([carId]);
+        (await brokerA.GetAsync($"/api/v1/portal/general/risk-objects/{insured}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await (await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", QuoteOn(insured), idempotent: true)).Code()).ShouldBe("OUT_OF_SCOPE");
+
+        // Another broker sees none of it, by list or by ID, and cannot register for the client.
+        await Items(brokerB, HttpStatusCode.NotFound);
+        (await brokerB.GetAsync($"/api/v1/portal/general/risk-objects/{carId}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await (await Register(brokerB, client)).Code()).ShouldBe("OUT_OF_SCOPE");
+
+        // Staff give the insured vehicle its owner, audited with the owner before and after; the same owner again is refused.
+        var etag = $"\"{(await (await _maker.GetAsync($"/api/v1/general/risk-objects/{insured}")).Json()).GetProperty("rowVersion").GetInt64()}\"";
+        var changed = await _maker.Send(HttpMethod.Post, $"/api/v1/general/risk-objects/{insured}/owner", new { ownerPartyId = client }, ifMatch: etag);
+        changed.StatusCode.ShouldBe(HttpStatusCode.OK, await changed.Content.ReadAsStringAsync());
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<string>("SELECT details::text FROM audit.audit_event WHERE operation = 'ChangeRiskObjectOwner' AND target_id = @r",
+            ("r", insured.ToString())))!.ShouldContain($"\"owner_after\": \"{client}\"");
+        var again = (await (await _maker.GetAsync($"/api/v1/general/risk-objects/{insured}")).Json()).GetProperty("rowVersion").GetInt64();
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/risk-objects/{insured}/owner", new { ownerPartyId = client }, ifMatch: $"\"{again}\"")).Code())
+            .ShouldBe("INVALID_STATE_TRANSITION");
+        (await Items(brokerA)).Order().ShouldBe(new[] { carId, insured }.Order());
+        ((await (await _maker.GetAsync($"/api/v1/general/risk-objects?ownerPartyId={client}")).Json()).GetProperty("items").GetArrayLength()).ShouldBe(2);
+
+        // The client moves its business: its policy with broker A is cancelled and broker B's is issued. A loses the items, B gains them.
+        (await _maker.PostAsJsonAsync($"/api/v1/general/policies/{policyA}/cancel", new { reasonCode = "INS_REQUEST", effectiveDate = Today })).StatusCode
+            .ShouldBe(HttpStatusCode.OK);
+        await IssuedPolicy(proposer: client, intermediaryCode: "BRK-B");
+        await Items(brokerA, HttpStatusCode.NotFound);
+        (await brokerA.GetAsync($"/api/v1/portal/general/risk-objects/{carId}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await (await Register(brokerA, client)).Code()).ShouldBe("OUT_OF_SCOPE");
+        (await (await brokerA.Send(HttpMethod.Post, "/api/v1/portal/general/quotes", QuoteOn(carId), idempotent: true)).Code()).ShouldBe("OUT_OF_SCOPE");
+        (await Items(brokerB)).Order().ShouldBe(new[] { carId, insured }.Order());
+        (await brokerB.GetAsync($"/api/v1/portal/general/risk-objects/{carId}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
     /// <summary>A portal user linked to a party (a member) or an intermediary code (a broker), holding the permissions; gives its role.</summary>
     private async Task<string> PortalUser(string subject, string kind, Guid? party, string? broker, params string[] permissions)
     {
@@ -780,13 +899,16 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
                 ("transaction_type", transaction), ("allowed", true));
         }
 
-        // With channels in force, staff work through the back office's application, which lets their roles make what they make here.
+        // With channels in force, staff work through the back office's application, which lets their roles make what these tests make.
         var staffRoles = (await _db.ScalarAsOwner<string[]>("""
             SELECT array_agg(DISTINCT a.role_code) FROM iam.user_role_assignment a JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id
             WHERE u.external_subject IN ('underwriter', 'senior-underwriter')
             """))!;
-        string[] staffTransactions = [GeneralPermissions.RiskCreate, GeneralPermissions.RiskUpdate, GeneralPermissions.QuoteCreate, GeneralPermissions.QuoteUpdate,
-            GeneralPermissions.QuoteUnderwrite];
+        string[] staffTransactions =
+        [
+            GeneralPermissions.RiskCreate, GeneralPermissions.RiskUpdate, GeneralPermissions.QuoteCreate, GeneralPermissions.QuoteUpdate, GeneralPermissions.QuoteUnderwrite,
+            GeneralPermissions.PolicyCreate, GeneralPermissions.PolicyUpdate, GeneralPermissions.PolicyCancel, RatingPermissions.CalculationCreate, PartyPermissions.PartyCreate,
+        ];
         for (var r = 0; r < staffRoles.Length; r++)
         {
             for (var t = 0; t < staffTransactions.Length; t++)
@@ -1264,7 +1386,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>A vehicle, a quote rated through Rating, issued and accepted (GeneralQuoteAccepted), a proposal, and the policy issued from it.</summary>
-    private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null, string? riskZone = null, string? orgNodeCode = null)
+    private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null, string? riskZone = null, string? orgNodeCode = null,
+        Guid? proposer = null, string? intermediaryCode = null)
     {
         var periodStart = start ?? Today;
         var vehicle = await Created("/api/v1/general/risk-objects", new
@@ -1277,7 +1400,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         });
         var quote = await Created("/api/v1/general/quotes", new
         {
-            productCode = product, proposerPartyId = Guid.CreateVersion7(), currency = "ZAR", periodStart, periodEnd = periodStart.AddYears(1).AddDays(-1), orgNodeCode,
+            productCode = product, proposerPartyId = proposer ?? Guid.CreateVersion7(), currency = "ZAR", periodStart, periodEnd = periodStart.AddYears(1).AddDays(-1), orgNodeCode,
+            intermediaryCode,
             risks = new[]
             {
                 new

@@ -33,15 +33,20 @@ using Insys.BuildingBlocks.Domain;
 using Insys.Distribution.Contracts;
 using Insys.General.Domain;
 using Insys.General.Domain.Underwriting;
+using Insys.Party.Contracts;
 using Insys.ProductFactory.Contracts;
 
 namespace Insys.General.Application;
 
 /// <summary>Command RegisterRiskObject: its attributes conform to the type's schema version (GEN-005).</summary>
 /// <param name="ValuationCurrency">The valuation's currency (BR-033), a 3-letter code: required with a valuation, and only with one.</param>
+/// <param name="OwnerPartyId">The client the item belongs to (BR-092), a registered party; none when not known.</param>
 public sealed record RegisterRiskObject([property: CodeList(CodeLists.RiskObjectTypes)] string ObjectType, JsonElement Attributes, decimal? Valuation,
     [property: CodeList(CodeLists.ValuationBases)] string? ValuationBasis, string? Subdivision, string? PostalCode,
-    [property: CodeList(CodeLists.RiskZones)] string? RiskZone, string? ValuationCurrency = null) : ICommand<RiskObjectView>;
+    [property: CodeList(CodeLists.RiskZones)] string? RiskZone, string? ValuationCurrency = null, Guid? OwnerPartyId = null) : ICommand<RiskObjectView>;
+
+/// <summary>Command ChangeRiskObjectOwner (BR-092): staff set, change or clear the client an item belongs to; audited with the owner before and after.</summary>
+public sealed record ChangeRiskObjectOwner(Guid RiskObjectId, Guid? OwnerPartyId) : ICommand<RiskObjectView>;
 
 public sealed record UpdateRiskAttributes(Guid RiskObjectId, JsonElement Attributes) : ICommand<RiskObjectView>;
 
@@ -130,10 +135,16 @@ public sealed class DecideReferralValidator : AbstractValidator<DecideReferral>
     public DecideReferralValidator() => RuleFor(c => c.DecisionCode).NotEmpty().MaximumLength(15);
 }
 
-internal sealed class RegisterRiskObjectHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<RegisterRiskObject, RiskObjectView>
+internal sealed class RegisterRiskObjectHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit,
+    IPartyDirectory parties, ITenantContext tenant) : ICommandHandler<RegisterRiskObject, RiskObjectView>
 {
     public async Task<Result<RiskObjectView>> Handle(RegisterRiskObject command, CancellationToken cancellationToken)
     {
+        if (command.OwnerPartyId is { } owner && !await parties.Exists(tenant.RequireTenantId(), owner, cancellationToken))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "The owner is not a party of the tenant.");
+        }
+
         var schema = await RiskSchemas.Load(codes, command.ObjectType, businessDate.Today, cancellationToken);
         var values = Attributes.Read(command.Attributes);
         if (schema.IsFailure || values.IsFailure)
@@ -147,7 +158,8 @@ internal sealed class RegisterRiskObjectHandler(IGeneralRepository general, IGen
         }
 
         var risk = RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema.Value, values.Value, command.Attributes.GetRawText(), command.Valuation, command.ValuationBasis,
-            new RiskLocation(command.Subdivision, command.PostalCode, command.RiskZone), businessDate.Today, clock.UtcNow, command.ValuationCurrency?.ToUpperInvariant());
+            new RiskLocation(command.Subdivision, command.PostalCode, command.RiskZone), businessDate.Today, clock.UtcNow, command.ValuationCurrency?.ToUpperInvariant(),
+            command.OwnerPartyId);
         if (risk.IsFailure)
         {
             return risk.Error;
@@ -196,6 +208,34 @@ internal sealed class RevalueRiskObjectHandler(IGeneralRepository general, IGene
 
         var result = risk.RevalueRiskObject(command.Valuation, command.ValuationBasis, command.ValuationCurrency?.ToUpperInvariant());
         return result.IsFailure ? result.Error : RiskObjectView.From(risk);
+    }
+}
+
+internal sealed class ChangeRiskObjectOwnerHandler(IGeneralRepository general, IAuditTrail audit, IPartyDirectory parties, ITenantContext tenant)
+    : ICommandHandler<ChangeRiskObjectOwner, RiskObjectView>
+{
+    public async Task<Result<RiskObjectView>> Handle(ChangeRiskObjectOwner command, CancellationToken cancellationToken)
+    {
+        if (await general.RiskObject(command.RiskObjectId, cancellationToken) is not { } risk)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The risk object was not found.");
+        }
+
+        if (command.OwnerPartyId is { } owner && !await parties.Exists(tenant.RequireTenantId(), owner, cancellationToken))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "The owner is not a party of the tenant.");
+        }
+
+        var before = risk.OwnerPartyId;
+        var result = risk.ChangeOwner(command.OwnerPartyId);
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        audit.Record(new AuditEntry("GENERAL", "ChangeRiskObjectOwner", nameof(RiskObject), risk.Id.ToString(),
+            new Dictionary<string, string?> { ["owner_before"] = before?.ToString(), ["owner_after"] = command.OwnerPartyId?.ToString() }));
+        return RiskObjectView.From(risk);
     }
 }
 

@@ -118,6 +118,23 @@ public sealed class GeneralTests
         (quote.Status, quote.Premium).ShouldBe((QuoteStatus.Rated, 6_050m));
     }
 
+    /// <summary>BR-092: a risk object is registered for its owner, and staff change or clear the owner; the same owner again is refused.</summary>
+    [Fact]
+    public void ARiskObjectsOwner_IsSetOnRegistration_AndChangedOnlyToAnother_BR092()
+    {
+        var schema = AttributeSchema.Parse("VEHICLE", 1, ["registration:String(10):Y"], []).Value;
+        var values = new Dictionary<string, object?> { ["registration"] = "CA1" };
+        var (client, other) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        var risk = RiskObject.RegisterRiskObject(Guid.CreateVersion7(), schema, values, "{}", null, null, new(null, null, null), Today, Now, owner: client).Value;
+        risk.OwnerPartyId.ShouldBe(client);
+
+        risk.ChangeOwner(client).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        risk.ChangeOwner(other).IsSuccess.ShouldBeTrue();
+        risk.OwnerPartyId.ShouldBe(other);
+        risk.ChangeOwner(null).IsSuccess.ShouldBeTrue();
+        risk.OwnerPartyId.ShouldBeNull();
+    }
+
     [Fact]
     public void AttributeSchema_ValidatesTypesMandatoryFieldsAndRules_GEN005()
     {

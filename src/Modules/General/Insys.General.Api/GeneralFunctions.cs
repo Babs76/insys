@@ -85,6 +85,7 @@ internal static class GeneralFunctions
         .Action("GENERAL_UPDATE_RISK_ATTRIBUTES", "GENERAL_RISK_OBJECTS", "GeneralUpdateRiskAttributes")
         .Action("GENERAL_REVALUE_RISK_OBJECT", "GENERAL_RISK_OBJECTS", "GeneralRevalueRiskObject")
         .Action("GENERAL_DEACTIVATE_RISK_OBJECT", "GENERAL_RISK_OBJECTS", "GeneralDeactivateRiskObject")
+        .Action("GENERAL_CHANGE_RISK_OBJECT_OWNER", "GENERAL_RISK_OBJECTS", "GeneralChangeRiskObjectOwner")
         .Job("GENERAL_EVENT_PROCESSING", "GENERAL_POLICY_ADMIN", "Background processing")
         .Job("GENERAL_DAILY_JOBS", "GENERAL_POLICY_ADMIN", "Background processing")
             .Functions,
@@ -98,6 +99,9 @@ internal static class GeneralFunctions
         .Screen("BROKER_PORTAL_GENERAL_QUOTES", "BROKER_PORTAL", "Quotes", "portal/general/quotes", "PortalGeneralListQuotes", "PortalGeneralGetQuote")
         .Action("BROKER_PORTAL_GENERAL_CREATE_QUOTE", "BROKER_PORTAL_GENERAL_QUOTES", "PortalGeneralCreateQuote")
         .Screen("BROKER_PORTAL_GENERAL_CLAIMS", "BROKER_PORTAL", "Claims", "portal/general/claims", "PortalGeneralListClaims", "PortalGeneralGetClaim")
+        .Screen("BROKER_PORTAL_GENERAL_RISK_OBJECTS", "BROKER_PORTAL", "Insured items", "portal/general/risk-objects", "PortalGeneralListRiskObjects",
+            "PortalGeneralGetRiskObject")
+        .Action("BROKER_PORTAL_GENERAL_REGISTER_RISK_OBJECT", "BROKER_PORTAL_GENERAL_RISK_OBJECTS", "PortalGeneralRegisterRiskObject")
             .Functions,
     ];
 }

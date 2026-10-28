@@ -120,6 +120,11 @@ internal sealed class GeneralLists(GeneralDbContext db, IExecutionContext execut
             risks = risks.Where(r => r.RiskZone == zone);
         }
 
+        if (query.OwnerPartyId is { } owner)
+        {
+            risks = risks.Where(r => r.OwnerPartyId == owner);
+        }
+
         if (query.PolicyId is { } policyId)
         {
             var policies = db.Policies.AsNoTracking().InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode).Where(p => p.Id == policyId);
@@ -252,6 +257,33 @@ internal sealed class GeneralPortalQueries(GeneralDbContext db, IExecutionContex
         }
 
         return await claims.OrderBy(c => c.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool?> CurrentlyServices(ExternalSubject broker, Guid partyId, CancellationToken cancellationToken)
+    {
+        var codes = broker.IntermediaryCodes.ToList();
+        var live = db.Policies.AsNoTracking()
+            .Where(p => p.PolicyholderPartyId == partyId && (p.Status == Domain.Policies.PolicyStatus.Issued || p.Status == Domain.Policies.PolicyStatus.InForce));
+        if (await live.AnyAsync(cancellationToken))
+        {
+            return await live.AnyAsync(p => p.IntermediaryCode != null && codes.Contains(p.IntermediaryCode), cancellationToken);
+        }
+
+        // UUIDv7 IDs sort by creation, so the highest is the latest quote.
+        var latest = await db.Quotes.AsNoTracking().Where(q => q.ProposerPartyId == partyId).OrderByDescending(q => q.Id).Select(q => new { q.IntermediaryCode })
+            .FirstOrDefaultAsync(cancellationToken);
+        return latest is null ? null : latest.IntermediaryCode is { } code && codes.Contains(code);
+    }
+
+    public async Task<IReadOnlyList<Domain.Underwriting.RiskObject>> RiskObjects(Guid ownerPartyId, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var risks = db.RiskObjects.AsNoTracking().Where(r => r.OwnerPartyId == ownerPartyId);
+        if (afterId is { } after)
+        {
+            risks = risks.Where(r => r.Id.CompareTo(after) > 0);
+        }
+
+        return await risks.OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
     }
 
     public async Task<bool> Services(ExternalSubject broker, Guid partyId, CancellationToken cancellationToken)
