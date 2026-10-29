@@ -2,7 +2,37 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 2 batch 6 (branch `wave2-6`, not merged)
+## Wave 2 batch 7 (branch `wave2-7`): the front end's Life and Health requests
+
+### Changed: my-authority lists all the authority approving checks (BR-081)
+- `WorkflowMyAuthority` rows gain `basis` (`DELEGATION`, `MODULE_LIMIT`, `PERMISSION`) and `appliesTo` (`claimType=DEATH`, or null).
+- Life claims now list Life's own limits by claim type (`MODULE_LIMIT`), and no longer the delegation table's `LIFE_CLAIM` rows, which approving never used.
+- A holder of `static_data.approve` also sees each static data approval type the delegation table does not configure (`PERMISSION`, limit 0, role `(static_data.approve)`).
+
+### New: Life (BR-062, 063, 065, 066, 074 to 078, 086)
+- `LifeListLoans` (`GET /life/loans`, by `policyId` and `status`): the loan gives `currency`, the policy's, as does `LoanView` (BR-062, BR-063).
+- `LifeClaimView` gives `approvalId`, `requestedBy`, `decidedBy`, `decidedAt`, `notifiedAt` and `reserveType` (BR-065).
+- `LifePolicyView` gives `cashValue` and `cashValueDate`: the latest stored on or before today. They stay null until the actuarial basis (OQ-052) defines a valuation (BR-065).
+- `LifeListUnderwritingCases` (`GET /life/underwriting-cases`, by `status`, `underwriterId` and `decisionPending`) (BR-074).
+- `CaseView` gives `requestedBy` (who proposed the waiting decision), `approvalId`, `decidedAt` and `assignedTo` (BR-076).
+- `ProposalView.policyId` once converted; `LifePolicySummary.proposalId`; `LifeListPolicies` takes `proposalId` (BR-075, BR-086).
+- `x-eventual-effects` are declared on capture, submit, the case decision and issue, and on Rating's and Rules' evaluations for a Life subject. `RulesEvaluateRuleSet.subjectType` lists its values, and its `code` says which rule set a proposal and a case use (BR-077, BR-086).
+- Code fields name their table (`x-code-list`): claim type, cause, beneficiary relationship, alteration, loan rate, reserve type, claim decision reason, underwriting decision and the exclusion of a decision term, frequency, collection method and scheme type. A case decision's `reason` (20) and `decisionCode` (15), and a claim's `reserveType` (15) and `decisionReason` (20), state their limits. Evidence type states its 20-character limit; no static data table lists evidence types yet (BR-066, BR-078).
+
+### New: Health (BR-067 to 072, 079, 080)
+- `HealthListSchemes` (`GET /health/schemes`, by `schemeNumber`, `sponsorCode` and `status`) (BR-067).
+- `currency` on the membership, accumulator and preauthorisation views, from the membership (BR-068).
+- `HealthSearchMemberships` (`POST /health/memberships/search`): the list's filters, with the member number in the body (BR-069).
+- `MembershipView` gives `events` (type, effective date, reason), `payerPartyId`, `billingAccountRef` and `currency` (BR-070).
+- The preauthorisation gives `clinicalReviewer` and `decidedBy`. The diagnosis codes come only from `HealthGetAuthorisationClinical` (`GET /health/preauthorisations/{id}/clinical`): it needs the clinical review permission, and each read is audited (HLT-008). It is the new function `HEALTH_READ_AUTHORISATION_CLINICAL` (BR-072).
+- `HealthListEligibilityDecisions` (`POST /health/eligibility-decisions/search`, by member number and dependant) (BR-072).
+- Plan, option, dependant type, service type, member category, collection method, sponsor and diagnosis fields name their tables (BR-072).
+- `MedicalClaimView` gives `approvedBy` and `approvedAt`. `PaymentRunView` gives `approvalId`, `approvedBy`, `releasedAt` and `payoutBatchRef`, and each remittance its advice `documentId`. The utilisation and fraud cases give `openedAt` and `concludedAt` (BR-079).
+- `domain-model.json`: `ProviderPaymentRun` Calculated → Rejected (`RejectRun`) (BR-080).
+
+No migration: every new field was already stored.
+
+## Wave 2 batch 6 (branch `wave2-6`, merged at `c2a5870`)
 
 ### Breaking: lists that were arrays are cursor pages (phase 4)
 - **`FinanceListJournals`**, **`FinanceListPostingExceptions`**, **`ReinsuranceListCessions`** and **`ReinsuranceListRecoveries`** now return a `CursorPage` (`items`, `nextCursor`; `cursor` and `limit` parameters). `ReinsuranceListRecoveries` no longer takes `after`. `FinanceListJournals` and `ReinsuranceListCessions` no longer require a business record or policy.

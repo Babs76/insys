@@ -3984,7 +3984,7 @@
           "Rating"
         ],
         "summary": "Calculate a premium and record it with its breakdown",
-        "description": "Uses the rating configuration in force on the rating date (today by default). The record keeps the inputs, the product version and the rating version, so recalculating as at the same date gives the same premium (PRD-008, LIF-002).",
+        "description": "Uses the rating configuration in force on the rating date (today by default). The record keeps the inputs, the product version and the rating version, so recalculating as at the same date gives the same premium (PRD-008, LIF-002). Completes asynchronously (GAP-027): for a LIFE_PROPOSAL, its quotedPremium appears once Life handles rating.PremiumCalculated (BR-077).",
         "operationId": "RatingCalculatePremium",
         "parameters": [
           {
@@ -4047,7 +4047,8 @@
         "x-permission": "premium_calculation.create",
         "x-function": [
           "RATING_CALCULATE_PREMIUM"
-        ]
+        ],
+        "x-eventual-effects": "for a LIFE_PROPOSAL, its quotedPremium appears once Life handles rating.PremiumCalculated (BR-077)."
       },
       "get": {
         "tags": [
@@ -4248,7 +4249,7 @@
           "Rules"
         ],
         "summary": "Evaluate a rule set and record the decision",
-        "description": "The most severe outcome among the rules that fire is the decision. A rule that cannot be evaluated, for example because an input it reads is missing, fails the evaluation and nothing is recorded.",
+        "description": "The most severe outcome among the rules that fire is the decision. A rule that cannot be evaluated, for example because an input it reads is missing, fails the evaluation and nothing is recorded. Completes asynchronously (GAP-027): for a LIFE_PROPOSAL, its eligibilityOutcome appears; for a LIFE_UNDERWRITING_CASE, its ruleOutcome appears, once Life handles rules.RuleDecisionRecorded (BR-077).",
         "operationId": "RulesEvaluateRuleSet",
         "parameters": [
           {
@@ -4311,7 +4312,8 @@
         "x-permission": "rule_decision.create",
         "x-function": [
           "RULES_EVALUATE_RULE_SET"
-        ]
+        ],
+        "x-eventual-effects": "for a LIFE_PROPOSAL, its eligibilityOutcome appears; for a LIFE_UNDERWRITING_CASE, its ruleOutcome appears, once Life handles rules.RuleDecisionRecorded (BR-077)."
       },
       "get": {
         "tags": [
@@ -4544,7 +4546,7 @@
           "Workflow"
         ],
         "summary": "The signed-in user\u0027s approval authority",
-        "description": "BR-002: one row per role and approval type in force for the signed-in user\u0027s roles today (workflow/static/delegation-and-approval-authority), with the limit and its currency (the tenant\u0027s base currency when the row has none). Life claims are the exception: their authority is per claim type in Life\u0027s static data, checked per claim, so use decidable=true on the approvals list to know which Life claim approvals the user can decide.",
+        "description": "BR-002, BR-081: all the authority approving checks for the signed-in user\u0027s roles today, one row per role, approval type and scope, with the limit and its currency (the tenant\u0027s base currency when the row has none). basis DELEGATION rows come from workflow/static/delegation-and-approval-authority; MODULE_LIMIT rows from a module\u0027s own limits, which replace the delegation table for that approval type (Life claims by claim type: appliesTo claimType=DEATH); PERMISSION rows are static data approval types the delegation table does not configure, which a holder of static_data.approve decides whatever the amount. Approving also checks the record\u0027s scope and any permission the requester named: decidable=true on the approvals list gives the result per approval.",
         "operationId": "WorkflowMyAuthority",
         "responses": {
           "200": {
@@ -13267,6 +13269,7 @@
           "Life"
         ],
         "summary": "Capture a proposal on a Life product version on sale (LIF-001)",
+        "description": "Completes asynchronously (GAP-027): rate it with POST /api/v1/rating/calculations and evaluate its eligibility rule set (the product version\u0027s) with POST /api/v1/rules/decisions, each with subjectType LIFE_PROPOSAL; the proposal\u0027s quotedPremium and eligibilityOutcome appear once Life handles rating.PremiumCalculated and rules.RuleDecisionRecorded.",
         "operationId": "LifeCaptureProposal",
         "parameters": [
           {
@@ -13337,7 +13340,8 @@
         "x-permission": "life_proposal.create",
         "x-function": [
           "LIFE_CAPTURE_PROPOSAL"
-        ]
+        ],
+        "x-eventual-effects": "rate it with POST /api/v1/rating/calculations and evaluate its eligibility rule set (the product version\u0027s) with POST /api/v1/rules/decisions, each with subjectType LIFE_PROPOSAL; the proposal\u0027s quotedPremium and eligibilityOutcome appear once Life handles rating.PremiumCalculated and rules.RuleDecisionRecorded."
       }
     },
     "/api/v1/life/policies": {
@@ -13345,7 +13349,7 @@
         "tags": [
           "Life"
         ],
-        "summary": "List policies, by policyholder, number or status (GAP-040)",
+        "summary": "List policies, by policyholder, number, status or the proposal issued from (GAP-040, BR-075)",
         "operationId": "LifeListPolicies",
         "parameters": [
           {
@@ -13368,6 +13372,14 @@
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/LifePolicyStatus"
+            }
+          },
+          {
+            "name": "proposalId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
             }
           },
           {
@@ -13430,6 +13442,7 @@
           "Life"
         ],
         "summary": "Issue a policy from an accepted proposal, on its product and rating versions (LIF-003)",
+        "description": "Completes asynchronously (GAP-027): the proposal reads Converted once the policy\u0027s issue event (life.LifePolicyIssued) is handled; its policyId names the policy from the issue (BR-086).",
         "operationId": "LifeIssuePolicy",
         "parameters": [
           {
@@ -13500,6 +13513,172 @@
         "x-permission": "life_policy.create",
         "x-function": [
           "LIFE_ISSUE_POLICY"
+        ],
+        "x-eventual-effects": "the proposal reads Converted once the policy\u0027s issue event (life.LifePolicyIssued) is handled; its policyId names the policy from the issue (BR-086)."
+      }
+    },
+    "/api/v1/life/loans": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "List policy loans, by policy or status, in their policies\u0027 currency (BR-062, BR-063)",
+        "operationId": "LifeListLoans",
+        "parameters": [
+          {
+            "name": "policyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/LifeLoanStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfLifeLoanSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "life_loan.read",
+        "x-function": [
+          "LIFE_LOANS"
+        ]
+      }
+    },
+    "/api/v1/life/underwriting-cases": {
+      "get": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "List underwriting cases, by status, the underwriter assigned or whether a decision waits for a second person (BR-074)",
+        "operationId": "LifeListUnderwritingCases",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/LifeCaseStatus"
+            }
+          },
+          {
+            "name": "underwriterId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "decisionPending",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfLifeUnderwritingCaseSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "life_underwriting.read",
+        "x-function": [
+          "LIFE_UNDERWRITING_CASES"
         ]
       }
     },
@@ -13908,6 +14087,7 @@
           "Life"
         ],
         "summary": "Submit a quoted, eligible proposal; its content is frozen from then (LIF-001)",
+        "description": "Completes asynchronously (GAP-027): the underwriting case opens (GET /api/v1/life/proposals/{id}/underwriting-case) and the proposal then reads InUnderwriting; evaluate the underwriting rule set with POST /api/v1/rules/decisions (subjectType LIFE_UNDERWRITING_CASE), and the case\u0027s ruleOutcome appears.",
         "operationId": "LifeSubmitProposal",
         "parameters": [
           {
@@ -13985,7 +14165,8 @@
         "x-permission": "life_proposal.update",
         "x-function": [
           "LIFE_SUBMIT_PROPOSAL"
-        ]
+        ],
+        "x-eventual-effects": "the underwriting case opens (GET /api/v1/life/proposals/{id}/underwriting-case) and the proposal then reads InUnderwriting; evaluate the underwriting rule set with POST /api/v1/rules/decisions (subjectType LIFE_UNDERWRITING_CASE), and the case\u0027s ruleOutcome appears."
       }
     },
     "/api/v1/life/proposals/{id}/withdraw": {
@@ -14784,6 +14965,7 @@
           "Life"
         ],
         "summary": "Propose the decision and terms; a second person approves them in Workflow within authority (SRS-002)",
+        "description": "Completes asynchronously (GAP-027): the Workflow approval appears (approvalId on the case); once it is granted the case is decided and the proposal reads Accepted, Declined or Postponed.",
         "operationId": "LifeDecideCase",
         "parameters": [
           {
@@ -14871,7 +15053,8 @@
         "x-permission": "life_underwriting.decide",
         "x-function": [
           "LIFE_DECIDE_CASE"
-        ]
+        ],
+        "x-eventual-effects": "the Workflow approval appears (approvalId on the case); once it is granted the case is decided and the proposal reads Accepted, Declined or Postponed."
       }
     },
     "/api/v1/life/policies/{id}": {
@@ -22920,6 +23103,65 @@
         ]
       }
     },
+    "/api/v1/health/memberships/search": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Find memberships as the list does, with the member number in the body rather than the address (BR-069)",
+        "operationId": "HealthSearchMemberships",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthMembershipSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthMembershipSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_membership.read",
+        "x-function": [
+          "HEALTH_MEMBERSHIPS"
+        ]
+      }
+    },
     "/api/v1/health/preauthorisations": {
       "get": {
         "tags": [
@@ -23735,6 +23977,89 @@
         "x-permission": "health_scheme.create",
         "x-function": [
           "HEALTH_REGISTER_SCHEME"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "List schemes, by number, sponsor or status (BR-067)",
+        "operationId": "HealthListSchemes",
+        "parameters": [
+          {
+            "name": "schemeNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sponsorCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/HealthSchemeStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthSchemeSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_scheme.read",
+        "x-function": [
+          "HEALTH_SCHEMES"
         ]
       }
     },
@@ -24680,6 +25005,65 @@
         ]
       }
     },
+    "/api/v1/health/eligibility-decisions/search": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Find recorded eligibility decisions, by member number and dependant, for memberships in your scope (BR-072, HLT-003)",
+        "operationId": "HealthListEligibilityDecisions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthEligibilityDecisionSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthEligibilityDecisionSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_membership.read",
+        "x-function": [
+          "HEALTH_MEMBERSHIPS"
+        ]
+      }
+    },
     "/api/v1/health/eligibility": {
       "post": {
         "tags": [
@@ -24801,6 +25185,63 @@
         "x-permission": "health_preauthorisation.read",
         "x-function": [
           "HEALTH_PREAUTHORISATIONS"
+        ]
+      }
+    },
+    "/api/v1/health/preauthorisations/{id}/clinical": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A preauthorisation\u0027s diagnosis codes, for clinical review only; each read is audited (BR-072, HLT-008)",
+        "operationId": "HealthGetAuthorisationClinical",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthPreauthorisationClinicalView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_preauthorisation.review",
+        "x-function": [
+          "HEALTH_READ_AUTHORISATION_CLINICAL"
         ]
       }
     },
@@ -38436,6 +38877,27 @@
           }
         }
       },
+      "CursorPageOfHealthEligibilityDecisionSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthEligibilityDecisionSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfHealthFraudCaseSummary": {
         "required": [
           "items",
@@ -38594,6 +39056,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HealthPreauthorisationSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthSchemeSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthSchemeSummary"
             }
           },
           "nextCursor": {
@@ -38772,6 +39255,27 @@
           }
         }
       },
+      "CursorPageOfLifeLoanSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeLoanSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfLifePolicySummary": {
         "required": [
           "items",
@@ -38846,6 +39350,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/LifeProposalSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfLifeUnderwritingCaseSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeUnderwritingCaseSummary"
             }
           },
           "nextCursor": {
@@ -43863,7 +44388,8 @@
           "remaining",
           "deductibleMet",
           "copayTaken",
-          "rowVersion"
+          "rowVersion",
+          "currency"
         ],
         "type": "object",
         "properties": {
@@ -43946,6 +44472,12 @@
               "string"
             ],
             "format": "int64"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -44052,7 +44584,8 @@
             ]
           },
           "serviceType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "health.cfg_authorisation_validity_periods"
           },
           "serviceDate": {
             "type": [
@@ -44270,7 +44803,8 @@
             "format": "uuid"
           },
           "dependantType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "health.cfg_dependant_types_and_age_limits"
           },
           "student": {
             "type": "boolean"
@@ -44324,6 +44858,86 @@
               "REMOVED"
             ],
             "type": "string"
+          }
+        }
+      },
+      "HealthEligibilityDecisionSearchRequest": {
+        "required": [
+          "memberNumber",
+          "dependantSuffix",
+          "cursor",
+          "limit"
+        ],
+        "type": "object",
+        "properties": {
+          "memberNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dependantSuffix": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "limit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "HealthEligibilityDecisionSummary": {
+        "required": [
+          "id",
+          "memberNumber",
+          "dependantSuffix",
+          "providerId",
+          "serviceType",
+          "responseCode",
+          "decidedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "memberNumber": {
+            "type": "string"
+          },
+          "dependantSuffix": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serviceType": {
+            "type": "string",
+            "x-code-list": "health.cfg_authorisation_validity_periods"
+          },
+          "responseCode": {
+            "type": "string",
+            "x-code-list": "health.ref_eligibility_response_codes"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -44402,13 +45016,16 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "health.cfg_scheme_member_categories"
           },
           "planCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "health.cfg_plans_and_options"
           },
           "optionCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "health.cfg_plans_and_options"
           },
           "startDate": {
             "type": "string",
@@ -44432,7 +45049,8 @@
             "format": "uuid"
           },
           "collectionMethod": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_collection_methods"
           },
           "facts": {
             "oneOf": [
@@ -44497,7 +45115,9 @@
           "status",
           "outcomeCode",
           "investigatorId",
-          "rowVersion"
+          "rowVersion",
+          "openedAt",
+          "concludedAt"
         ],
         "type": "object",
         "properties": {
@@ -44540,6 +45160,20 @@
               "string"
             ],
             "format": "int64"
+          },
+          "openedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "concludedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -44686,7 +45320,9 @@
           "lines",
           "rowVersion",
           "outcome",
-          "decisionReasonCode"
+          "decisionReasonCode",
+          "approvedBy",
+          "approvedAt"
         ],
         "type": "object",
         "properties": {
@@ -44784,6 +45420,98 @@
               "null",
               "string"
             ]
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "HealthMembershipEventView": {
+        "required": [
+          "eventType",
+          "effectiveDate",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "eventType": {
+            "type": "string"
+          },
+          "effectiveDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthMembershipSearchRequest": {
+        "required": [
+          "principalPartyId",
+          "memberNumber",
+          "schemeId",
+          "status",
+          "cursor",
+          "limit"
+        ],
+        "type": "object",
+        "properties": {
+          "principalPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "memberNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "schemeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HealthMembershipStatus"
+              }
+            ]
+          },
+          "cursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "limit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -44882,7 +45610,11 @@
           "memberCategory",
           "waitingPeriods",
           "dependants",
-          "rowVersion"
+          "rowVersion",
+          "events",
+          "payerPartyId",
+          "billingAccountRef",
+          "currency"
         ],
         "type": "object",
         "properties": {
@@ -44972,6 +45704,35 @@
               "string"
             ],
             "format": "int64"
+          },
+          "events": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/HealthMembershipEventView"
+            }
+          },
+          "payerPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "billingAccountRef": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -45077,6 +45838,10 @@
           "remittances",
           "rowVersion",
           "partlyInScope",
+          "approvalId",
+          "approvedBy",
+          "releasedAt",
+          "payoutBatchRef",
           "latestRejection"
         ],
         "type": "object",
@@ -45140,6 +45905,34 @@
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
             ]
+          },
+          "approvalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "releasedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "payoutBatchRef": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -45167,10 +45960,12 @@
         "type": "object",
         "properties": {
           "planCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "health.cfg_plans_and_options"
           },
           "optionCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "health.cfg_plans_and_options"
           },
           "effectiveDate": {
             "type": "string",
@@ -45501,10 +46296,12 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "x-code-list": "health.ref_diagnosis_codes"
           },
           "serviceType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "health.cfg_authorisation_validity_periods"
           },
           "lines": {
             "type": "array",
@@ -45734,6 +46531,38 @@
           "Cancelled"
         ]
       },
+      "HealthPreauthorisationClinicalView": {
+        "required": [
+          "id",
+          "authNumber",
+          "diagnosisCodes",
+          "clinicalReviewer"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "authNumber": {
+            "type": "string"
+          },
+          "diagnosisCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "x-code-list": "health.ref_diagnosis_codes"
+          },
+          "clinicalReviewer": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "HealthPreauthorisationSummary": {
         "required": [
           "id",
@@ -45819,7 +46648,10 @@
           "conditions",
           "decisionReason",
           "lines",
-          "rowVersion"
+          "rowVersion",
+          "currency",
+          "clinicalReviewer",
+          "decidedBy"
         ],
         "type": "object",
         "properties": {
@@ -45906,6 +46738,26 @@
               "string"
             ],
             "format": "int64"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "clinicalReviewer": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -45930,7 +46782,8 @@
         "type": "object",
         "properties": {
           "sponsorCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "health.mst_sponsor_register"
           },
           "startDate": {
             "type": "string",
@@ -45954,7 +46807,8 @@
           "amount",
           "claimCount",
           "paymentId",
-          "paidOn"
+          "paidOn",
+          "documentId"
         ],
         "type": "object",
         "properties": {
@@ -46002,6 +46856,13 @@
               "string"
             ],
             "format": "date"
+          },
+          "documentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -46031,10 +46892,12 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "x-code-list": "health.ref_diagnosis_codes"
           },
           "serviceType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "health.cfg_authorisation_validity_periods"
           },
           "lines": {
             "type": "array",
@@ -46067,6 +46930,48 @@
           "Active",
           "Terminated"
         ]
+      },
+      "HealthSchemeSummary": {
+        "required": [
+          "id",
+          "schemeNumber",
+          "sponsorCode",
+          "status",
+          "startDate",
+          "renewalDate",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schemeNumber": {
+            "type": "string"
+          },
+          "sponsorCode": {
+            "type": "string",
+            "x-code-list": "health.mst_sponsor_register"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthSchemeStatus"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "renewalDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
       },
       "HealthSchemeView": {
         "required": [
@@ -46221,7 +47126,9 @@
           "reviewerId",
           "outcome",
           "claimId",
-          "rowVersion"
+          "rowVersion",
+          "openedAt",
+          "concludedAt"
         ],
         "type": "object",
         "properties": {
@@ -46266,6 +47173,20 @@
               "string"
             ],
             "format": "int64"
+          },
+          "openedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "concludedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -48321,7 +49242,8 @@
         "type": "object",
         "properties": {
           "alterationCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "life.cfg_alteration_types"
           },
           "effectiveDate": {
             "type": "string",
@@ -48381,7 +49303,8 @@
             "format": "uuid"
           },
           "relationshipCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "life.ref_beneficiary_relationship_types"
           },
           "sharePct": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -48575,10 +49498,12 @@
             "format": "date"
           },
           "frequency": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_billing_frequencies"
           },
           "collectionMethod": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_collection_methods"
           },
           "payerPartyId": {
             "type": [
@@ -48638,9 +49563,12 @@
             "$ref": "#/components/schemas/LifeUnderwritingOutcome"
           },
           "decisionCode": {
-            "type": "string"
+            "maxLength": 15,
+            "type": "string",
+            "x-code-list": "life.ref_underwriting_decision_codes"
           },
           "reason": {
+            "maxLength": 20,
             "type": "string"
           },
           "items": {
@@ -48692,6 +49620,10 @@
           "requirements",
           "items",
           "rowVersion",
+          "requestedBy",
+          "approvalId",
+          "decidedAt",
+          "assignedTo",
           "latestRejection"
         ],
         "type": "object",
@@ -48797,6 +49729,34 @@
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
             ]
+          },
+          "requestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "approvalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "assignedTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -48816,10 +49776,14 @@
             }
           },
           "reserveType": {
-            "type": "string"
+            "maxLength": 15,
+            "type": "string",
+            "x-code-list": "claims.ref_reserve_types"
           },
           "decisionReason": {
-            "type": "string"
+            "maxLength": 20,
+            "type": "string",
+            "x-code-list": "claims.ref_claim_decision_reason_codes"
           },
           "rationale": {
             "type": "string"
@@ -48834,7 +49798,9 @@
         "type": "object",
         "properties": {
           "decisionReason": {
-            "type": "string"
+            "maxLength": 20,
+            "type": "string",
+            "x-code-list": "claims.ref_claim_decision_reason_codes"
           },
           "rationale": {
             "type": "string"
@@ -48987,6 +49953,12 @@
           "rowVersion",
           "outcome",
           "claimedAmount",
+          "notifiedAt",
+          "reserveType",
+          "approvalId",
+          "requestedBy",
+          "decidedBy",
+          "decidedAt",
           "latestRejection"
         ],
         "type": "object",
@@ -49123,6 +50095,47 @@
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
             ]
+          },
+          "notifiedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "reserveType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "approvalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "requestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -49223,7 +50236,8 @@
             "type": "string"
           },
           "decisionCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "life.ref_underwriting_decision_codes"
           },
           "loadingPct": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -49247,7 +50261,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "product.cfg_exclusion_library"
           },
           "postponedUntil": {
             "type": [
@@ -49313,6 +50328,7 @@
         "type": "object",
         "properties": {
           "evidenceType": {
+            "maxLength": 20,
             "type": "string"
           },
           "mandatory": {
@@ -49486,7 +50502,8 @@
             "format": "double"
           },
           "rateCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "life.cfg_policy_loan_rates"
           }
         }
       },
@@ -49496,6 +50513,58 @@
           "Repaid",
           "Offset"
         ]
+      },
+      "LifeLoanSummary": {
+        "required": [
+          "id",
+          "loanNumber",
+          "policyId",
+          "principal",
+          "balance",
+          "status",
+          "issuedAt",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "loanNumber": {
+            "type": "string"
+          },
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "principal": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "balance": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LifeLoanStatus"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
       },
       "LifeLoanTransactionView": {
         "required": [
@@ -49533,7 +50602,8 @@
           "status",
           "issuedAt",
           "transactions",
-          "rowVersion"
+          "rowVersion",
+          "currency"
         ],
         "type": "object",
         "properties": {
@@ -49587,6 +50657,9 @@
               "string"
             ],
             "format": "int64"
+          },
+          "currency": {
+            "type": "string"
           }
         }
       },
@@ -49764,7 +50837,8 @@
             "format": "uuid"
           },
           "claimType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "life.ref_life_claim_types"
           },
           "eventDate": {
             "type": "string",
@@ -49774,7 +50848,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "life.ref_cause_of_event_codes"
           },
           "claimantPartyId": {
             "type": "string",
@@ -49833,7 +50908,8 @@
           "status",
           "inceptionDate",
           "termEndDate",
-          "currency"
+          "currency",
+          "proposalId"
         ],
         "type": "object",
         "properties": {
@@ -49867,6 +50943,10 @@
           },
           "currency": {
             "type": "string"
+          },
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -49891,7 +50971,9 @@
           "beneficiaries",
           "schedule",
           "lapseHistory",
-          "rowVersion"
+          "rowVersion",
+          "cashValue",
+          "cashValueDate"
         ],
         "type": "object",
         "properties": {
@@ -49999,6 +51081,22 @@
               "string"
             ],
             "format": "int64"
+          },
+          "cashValue": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "cashValueDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         }
       },
@@ -50305,7 +51403,8 @@
           "lives",
           "covers",
           "nominations",
-          "rowVersion"
+          "rowVersion",
+          "policyId"
         ],
         "type": "object",
         "properties": {
@@ -50418,6 +51517,13 @@
               "string"
             ],
             "format": "int64"
+          },
+          "policyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -50691,7 +51797,8 @@
             "format": "int32"
           },
           "schemeType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "life.ref_group_scheme_types"
           },
           "startDate": {
             "type": "string",
@@ -50709,6 +51816,58 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "LifeUnderwritingCaseSummary": {
+        "required": [
+          "id",
+          "proposalId",
+          "proposalNumber",
+          "status",
+          "assignedTo",
+          "decisionPending",
+          "decisionCode",
+          "requestedBy"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposalNumber": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LifeCaseStatus"
+          },
+          "assignedTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decisionPending": {
+            "type": "boolean"
+          },
+          "decisionCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "requestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -54292,7 +55451,11 @@
             "type": "string"
           },
           "subjectType": {
-            "type": "string"
+            "type": "string",
+            "x-known-values": [
+              "LIFE_PROPOSAL",
+              "LIFE_UNDERWRITING_CASE"
+            ]
           },
           "subjectId": {
             "type": "string",
@@ -54760,7 +55923,8 @@
           "approvalType",
           "roleCode",
           "limit",
-          "currency"
+          "currency",
+          "appliesTo"
         ],
         "type": "object",
         "properties": {
@@ -54807,6 +55971,21 @@
               "string"
             ],
             "description": "The limit\u0027s ISO 4217 currency: the authority row\u0027s own, or the tenant\u0027s base currency when the row has none."
+          },
+          "basis": {
+            "enum": [
+              "DELEGATION",
+              "MODULE_LIMIT",
+              "PERMISSION"
+            ],
+            "type": "string",
+            "default": "DELEGATION"
+          },
+          "appliesTo": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

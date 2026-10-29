@@ -40,6 +40,10 @@
 | 9 Wave 2 batch 1 | Release tasks (Analytics rebuild once per tenant), month pattern and figure code enum, Keycloak addresses per environment; approval endings D-1 to D-5; front-end requests BR-006 and BR-007; Wave 2 cases addendum signed off | **Merged** (`77d377a`, 25 Oct 2026; CI run 40205730406) |
 | 9 Wave 2 batch 2 | D-5 extended (refused grants never log-only); OQ-112 (payment release limits retired); OQ-111 role templates in code and tested; BR-001, 002, 004, 005, 010 built; Wave 2 cases (Workflow cases, portal, notices, claim reopen and partial approval, redress paid and posted) | **Merged** (`ea84183`, 26 Oct 2026; CI run 40380406037) |
 | 9 Wave 2 batch 3 | BR-013 (two first administrators), BR-018 (Provisioned means usable), the 20 privileged flags, `LEGAL_HOLD_RELEASE`, BR-019, front-end requests BR-011, 012, 014, 015, 020, 022; proposals BR-016, BR-021, record-scoped history | **Handed back for review on `wave2-3`** (27 Oct 2026) |
+| 9 Wave 2 batch 4 | Legal holds (D-34); concurrency sweep over General, claims, billing, distribution, Life and Health (BR-031, 057, 064, 071); BR-073 defect; static data import approved as one change (BR-016); BR-084, 085, 088; BR-087 shipped alone | **Merged, `ef5a85c`** |
+| 9 Wave 2 batch 5 | Phases 1 to 3 requests (BR-021, 023 to 030, 032 to 039); OQ-122 claim party roles; BR-091 and portal privacy shipped alone | **Merged, `99ac395`** |
+| 9 Wave 2 batch 6 | BR-095, BR-092 (group A, `80d9a3f`); referral authority and routing; frequencies, loading and instalments; BR-093 loss codes; phase 4 money requests (BR-041, 043 to 056, 058, 059); BR-094 shipped alone | **Merged, `c2a5870`** (29 Oct 2026) |
+| 9 Wave 2 batch 7 | The front end's Life and Health requests: BR-062, 063, 065 to 070, 072, 074 to 081, 086 (plan: `docs/specs/addenda/wave2-7-plan.md`) | Branch `wave2-7` |
 
 ## Phase 1 review items
 
