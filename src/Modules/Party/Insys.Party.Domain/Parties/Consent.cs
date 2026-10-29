@@ -114,3 +114,41 @@ public sealed class ConsentLedger
         return record;
     }
 }
+
+/// <summary>
+/// A possible duplicate that a person reviewed (party.duplicate_candidate, PTY-004): staff registering a party that matches
+/// an existing one confirm it is new, with a reason (OQ-127). PartyAId is the party registered; PartyBId the existing match.
+/// </summary>
+public sealed class DuplicateCandidate : AggregateRoot<Guid>
+{
+    /// <summary>Reviewed and found to be a different person (status is at most 12 characters).</summary>
+    public const string Distinct = "DISTINCT";
+
+    private DuplicateCandidate()
+    {
+    }
+
+    public Guid PartyAId { get; private set; }
+
+    public Guid PartyBId { get; private set; }
+
+    public decimal Score { get; private set; }
+
+    public string RuleCode { get; private set; } = "";
+
+    public string Status { get; private set; } = "";
+
+    public Guid? ReviewedBy { get; private set; }
+
+    /// <summary>The registration confirmed new by the person who made it, over a close name and birth date match.</summary>
+    public static DuplicateCandidate ConfirmedNewOver(Guid registered, Guid existing, string ruleCode, Guid reviewer) => new()
+    {
+        Id = Guid.CreateVersion7(),
+        PartyAId = registered,
+        PartyBId = existing,
+        Score = 0.9m,
+        RuleCode = Guard.MaxLength(ruleCode, 15),
+        Status = Distinct,
+        ReviewedBy = reviewer,
+    };
+}

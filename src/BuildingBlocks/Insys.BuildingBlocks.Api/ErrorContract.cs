@@ -154,6 +154,28 @@ public static class ErrorContract
             Description = "Validation failures (422): field name, as the request body spells it (camel case, with a path such as lines[0].amount for a nested field), to its messages.",
             AdditionalProperties = new OpenApiSchema { Type = JsonSchemaType.Array, Items = new OpenApiSchema { Type = JsonSchemaType.String } },
         };
+        schema.Properties["candidates"] = new OpenApiSchema
+        {
+            Type = JsonSchemaType.Array | JsonSchemaType.Null,
+            Description = "Only with PARTY_POSSIBLE_DUPLICATE (409, OQ-127): the existing parties the person registered matches (the same names, ignoring case, "
+                + "and birth date). Use one, or register again with confirmNew and a reason.",
+            Items = new OpenApiSchema
+            {
+                Type = JsonSchemaType.Object,
+                Required = new HashSet<string> { "partyId", "partyNumber", "displayName" },
+                Properties = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["partyId"] = new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid" },
+                    ["partyNumber"] = new OpenApiSchema { Type = JsonSchemaType.String },
+                    ["displayName"] = new OpenApiSchema { Type = JsonSchemaType.String },
+                    ["identifierLastFour"] = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.String | JsonSchemaType.Null,
+                        Description = "The last four characters of one of its identity documents, to tell people apart; null when it has none.",
+                    },
+                },
+            },
+        };
         schema.Properties["blocks"] = new OpenApiSchema
         {
             Type = JsonSchemaType.Array | JsonSchemaType.Null,

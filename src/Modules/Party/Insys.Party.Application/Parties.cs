@@ -59,6 +59,11 @@ public interface IPartyRepository
     void Add(Domain.Parties.Party party);
 
     void Add(ConsentRecord record);
+
+    void Add(DuplicateCandidate candidate);
+
+    /// <summary>Existing parties matching a person by a close name and the same birth date (as Match), merged ones excluded.</summary>
+    Task<IReadOnlyList<DuplicateCandidateView>> Candidates(IndividualData person, CancellationToken cancellationToken);
 }
 
 /// <summary>The Party module's static data in force that commands check codes against.</summary>
@@ -125,8 +130,15 @@ public sealed record PartyView(Guid Id, string PartyNumber, PartyKind Kind, stri
 
 public sealed record ConsentView([property: CodeList(Tables.ConsentPurposes)] string PurposeCode, bool Granted, DateTimeOffset CapturedAt, string CaptureChannel, string? EvidenceRef, DateTimeOffset? WithdrawnAt);
 
-/// <summary>Command RegisterParty: exactly one of individual and organisation (PTY-001).</summary>
-public sealed record RegisterParty(IndividualData? Individual, OrganisationData? Organisation) : ICommand<Guid>;
+/// <summary>
+/// Command RegisterParty: exactly one of individual and organisation (PTY-001). A person matching an existing party (a close
+/// name and the same birth date, as a portal registration is matched) is refused with the candidates, unless the registrar
+/// confirms they are new, with a reason (OQ-127, decided 24 and 29 October 2026).
+/// </summary>
+public sealed record RegisterParty(IndividualData? Individual, OrganisationData? Organisation, bool ConfirmNew = false, string? Reason = null) : ICommand<Guid>;
+
+/// <summary>An existing party a registration may duplicate (OQ-127): enough for staff to recognise it, and no more.</summary>
+public sealed record DuplicateCandidateView(Guid PartyId, string PartyNumber, string DisplayName, string? IdentifierLastFour);
 
 public sealed record UpdateIndividualDetails(Guid PartyId, IndividualData Details, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
@@ -302,6 +314,7 @@ public sealed class RegisterPartyValidator : AbstractValidator<RegisterParty>
         RuleFor(c => c).Must(c => (c.Individual is null) != (c.Organisation is null)).WithMessage("Give either individual or organisation details (PTY-001).");
         When(c => c.Individual is not null, () => RuleFor(c => c.Individual!).SetValidator(new IndividualValidator()));
         When(c => c.Organisation is not null, () => RuleFor(c => c.Organisation!).SetValidator(new OrganisationValidator()));
+        When(c => c.ConfirmNew, () => RuleFor(c => c.Reason).NotEmpty().WithMessage("Say why the person is new (OQ-127).").MaximumLength(2000));
     }
 }
 
@@ -441,17 +454,47 @@ internal static class Parties
             : Error.Forbidden(ErrorCodes.Forbidden, "This change is made by an identified user.");
 }
 
-internal sealed class RegisterPartyHandler(IPartyRepository parties, IClock clock, IAuditTrail audit) : ICommandHandler<RegisterParty, Guid>
+internal sealed class RegisterPartyHandler(IPartyRepository parties, IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<RegisterParty, Guid>
 {
-    public Task<Result<Guid>> Handle(RegisterParty command, CancellationToken cancellationToken)
+    private const string MatchRule = "NAME_DOB";
+
+    public async Task<Result<Guid>> Handle(RegisterParty command, CancellationToken cancellationToken)
     {
+        // OQ-127: staff may know who is already a client, so a match is answered with the candidates (unlike a portal, §6).
+        var candidates = command.Individual is { } person ? await parties.Candidates(person, cancellationToken) : [];
+        if (candidates.Count > 0 && !command.ConfirmNew)
+        {
+            return new Error(PartyErrorCodes.PossibleDuplicate,
+                $"{candidates.Count} existing part{(candidates.Count == 1 ? "y matches" : "ies match")} this person. Use the existing party, or register again with "
+                + "confirmNew and a reason. See candidates.", ErrorKind.Conflict)
+            {
+                Extensions = new Dictionary<string, object?> { ["candidates"] = candidates },
+            };
+        }
+
+        var user = Parties.User(execution);
+        if (candidates.Count > 0 && user.IsFailure)
+        {
+            return user.Error;
+        }
+
         var id = Guid.CreateVersion7();
         var party = command.Individual is { } individual
             ? Domain.Parties.Party.RegisterIndividual(id, individual, clock.UtcNow)
             : Domain.Parties.Party.RegisterOrganisation(id, command.Organisation!, clock.UtcNow);
         parties.Add(party);
-        audit.Record(new AuditEntry("PARTY", "RegisterParty", nameof(Domain.Parties.Party), id.ToString()));
-        return Task.FromResult(Result.Success(id));
+        foreach (var candidate in candidates)
+        {
+            parties.Add(DuplicateCandidate.ConfirmedNewOver(id, candidate.PartyId, MatchRule, user.Value));
+        }
+
+        audit.Record(new AuditEntry("PARTY", "RegisterParty", nameof(Domain.Parties.Party), id.ToString(), candidates.Count == 0 ? null
+            : new Dictionary<string, string?>
+            {
+                ["confirmedNewOver"] = string.Join(",", candidates.Select(c => c.PartyId)),
+                ["reason"] = command.Reason,
+            }));
+        return id;
     }
 }
 

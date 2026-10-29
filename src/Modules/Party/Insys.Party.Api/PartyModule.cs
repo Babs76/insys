@@ -40,7 +40,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Party.Api;
 
-public sealed record RegisterPartyRequest(IndividualData? Individual, OrganisationData? Organisation);
+/// <param name="ConfirmNew">After a PARTY_POSSIBLE_DUPLICATE: the person is not any of the candidates; Reason says why (OQ-127).</param>
+public sealed record RegisterPartyRequest(IndividualData? Individual, OrganisationData? Organisation, bool ConfirmNew = false, string? Reason = null);
 
 public sealed record ContactPointRequest([property: BuildingBlocks.Domain.CodeList(Tables.ContactChannels)] string ChannelType, string Value, bool IsPrimary);
 
@@ -135,7 +136,7 @@ public sealed class PartyModule : IModule
             .RequirePermission(Audit.Contracts.AuditPermissions.Read);
 
         parties.MapPost("/", async (RegisterPartyRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
-                (await dispatcher.Send(new RegisterParty(r.Individual, r.Organisation), ct)).ToHttp(id =>
+                (await dispatcher.Send(new RegisterParty(r.Individual, r.Organisation, r.ConfirmNew, r.Reason), ct)).ToHttp(id =>
                 {
                     Concurrency.SetETag(http, 1);
                     return Results.Created($"/api/v1/party/parties/{id}", new { id });
@@ -143,7 +144,10 @@ public sealed class PartyModule : IModule
             .Produces<CreatedId>(StatusCodes.Status201Created)
             .WithName("PartyRegisterParty")
             .WithSummary("Register an individual or an organisation")
-            .WithDescription("Give exactly one of individual and organisation; the kind never changes (PTY-001).")
+            .WithDescription("Give exactly one of individual and organisation; the kind never changes (PTY-001). A person matching an existing party (the same "
+                + "names, ignoring case, and birth date) is refused with 409 PARTY_POSSIBLE_DUPLICATE and its candidates; use one of them, or send the "
+                + "registration again with confirmNew true and a reason, which is recorded as reviewed and audited (OQ-127).")
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .RequirePermission(PartyPermissions.PartyCreate)
             .RequireIdempotencyKey();
 

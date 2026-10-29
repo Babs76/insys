@@ -86,6 +86,23 @@ internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
     public void Add(Domain.Parties.Party party) => db.Parties.Add(party);
 
     public void Add(ConsentRecord record) => db.Consents.Add(record);
+
+    public void Add(DuplicateCandidate candidate) => db.DuplicateCandidates.Add(candidate);
+
+    public async Task<IReadOnlyList<DuplicateCandidateView>> Candidates(IndividualData person, CancellationToken cancellationToken)
+    {
+        var first = person.FirstNames.Trim().ToLower();
+        var surname = person.Surname.Trim().ToLower();
+        var matches = await db.Database.SqlQuery<Guid>($"""
+            SELECT i.party_id AS "Value" FROM party.individual i JOIN party.party p ON p.tenant_id = i.tenant_id AND p.id = i.party_id
+            WHERE lower(trim(i.first_names)) = {first} AND lower(trim(i.surname)) = {surname} AND i.birth_date = {person.BirthDate} AND p.merged_into_id IS NULL
+            ORDER BY i.party_id LIMIT 10
+            """).ToListAsync(cancellationToken);
+        var found = await db.Parties.AsNoTracking().Include(p => p.Identifiers).Where(p => matches.Contains(p.Id)).ToListAsync(cancellationToken);
+        return found.OrderBy(p => p.Id)
+            .Select(p => new DuplicateCandidateView(p.Id, p.PartyNumber, p.DisplayName, p.Identifiers.Select(i => i.NumberLast4).FirstOrDefault(l => l != null)))
+            .ToList();
+    }
 }
 
 /// <summary>A broker's clients for its portal (BR-091): merged parties are followed to their survivor before paging, so each client appears once.</summary>

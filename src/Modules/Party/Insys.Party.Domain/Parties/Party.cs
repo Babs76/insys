@@ -1030,6 +1030,10 @@ public static class PartyErrorCodes
     [ErrorCode(409, "error.party.read_only")]
     public const string PartyReadOnly = "PARTY_READ_ONLY";
 
+    /// <summary>OQ-127: staff registering a person who matches an existing party (a close name and the same birth date); the problem's candidates list them.</summary>
+    [ErrorCode(409, "error.party.possible_duplicate")]
+    public const string PossibleDuplicate = "PARTY_POSSIBLE_DUPLICATE";
+
     [ErrorCode(422, "error.party.kind_cannot_change")]
     public const string KindCannotChange = "PARTY_KIND_CANNOT_CHANGE";
 

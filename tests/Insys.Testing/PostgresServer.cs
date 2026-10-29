@@ -115,6 +115,39 @@ public sealed class PostgresServer : IAsyncLifetime
     /// owner, then the module role grants). Copying is much faster than migrating each test class's database, and keeps the
     /// heavy DDL of the migrations out of the time other test classes run.
     /// </summary>
+    /// <summary>
+    /// The monthly partitions of the partitioned tables for the months around the end-to-end clock (<see cref="WindowClock"/>),
+    /// which may be a fixed date far from today: production's maintenance job creates them from the database's own date,
+    /// which in a test is today's. Created as audit.ensure_monthly_partitions does, with row-level security.
+    /// </summary>
+    private static async Task PartitionsAroundTheTestClock(string ownerConnectionString)
+    {
+        var anchor = new DateOnly(WindowClock.Start.Year, WindowClock.Start.Month, 1);
+        await using var connection = new NpgsqlConnection(ownerConnectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand("""
+            DO $$
+            DECLARE parent text; m date; name text;
+            BEGIN
+              FOREACH parent IN ARRAY audit.partitioned_tables() LOOP
+                m := (@from)::date;
+                WHILE m <= (@to)::date LOOP
+                  name := parent || '_' || to_char(m, 'YYYY_MM');
+                  IF to_regclass(name) IS NULL THEN
+                    EXECUTE format('CREATE TABLE %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)', name, parent, m, (m + INTERVAL '1 month')::date);
+                    EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', name);
+                    EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', name);
+                    EXECUTE format($p$CREATE POLICY tenant_isolation ON %s USING (tenant_id = current_setting('app.tenant_id')::uuid)
+                                    WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid)$p$, name);
+                  END IF;
+                  m := (m + INTERVAL '1 month')::date;
+                END LOOP;
+              END LOOP;
+            END $$;
+            """.Replace("@from", $"'{anchor.AddMonths(-14):yyyy-MM-dd}'").Replace("@to", $"'{anchor.AddMonths(3):yyyy-MM-dd}'"), connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
     public async Task<TestDatabase> CreateMigratedDatabase()
     {
         var name = $"insys_test_{Guid.NewGuid():N}"[..30];
@@ -129,6 +162,7 @@ public sealed class PostgresServer : IAsyncLifetime
                 var runner = new MigrationRunner(templateOwner);
                 var migrated = await runner.Migrate(RepositoryPaths.Migrations);
                 await runner.ApplyRoles(RepositoryPaths.Roles, RolePassword);
+                await PartitionsAroundTheTestClock(templateOwner);
                 NpgsqlConnection.ClearAllPools();
                 _template = (new NpgsqlConnectionStringBuilder(templateOwner).Database!, migrated);
             }

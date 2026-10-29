@@ -261,6 +261,7 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
         var response = await client.Send(HttpMethod.Post, "/api/v1/party/parties", new
         {
             individual = new { firstNames, surname, birthDate = "1990-04-02", nationality = "ZA" },
+            confirmNew = true, reason = "A separate test person",
         }, idempotent: true);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         return (await response.Json()).GetProperty("id").GetGuid();

@@ -240,3 +240,34 @@ jobs:
 
       - name: End-to-end processes
         run: dotnet test --project tests/Insys.EndToEndTests --no-build --configuration Release
+
+  # The process flows that turn on dates (billing, Life, Health, General) on fixed clocks (Wave 3 batch 1), so a result
+  # never depends on the day CI runs: the 28th, 30th and 31st of a month, 29 February in a leap year, and 23:30 UTC on a
+  # month end (the next business day in Johannesburg). The names are WindowClock.Dates; the job name says the date.
+  end-to-end-dates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        clock: [28th, 30th, 31st, leap-29-feb, 2330-utc-month-end]
+    name: end-to-end on ${{ matrix.clock }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Insys.slnx
+
+      - name: Build
+        run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
+
+      - name: Process flows on ${{ matrix.clock }}
+        env:
+          INSYS_TEST_CLOCK: ${{ matrix.clock }}
+        run: >-
+          dotnet test --project tests/Insys.EndToEndTests --no-build --configuration Release --
+          --filter-class "*LifeProcessTests" --filter-class "*HealthProcessTests" --filter-class "*GeneralProcessTests" --filter-class "*EnterpriseProcessTests"

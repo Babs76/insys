@@ -43,6 +43,8 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
 
     public DbSet<ConsentRecord> Consents => Set<ConsentRecord>();
 
+    public DbSet<DuplicateCandidate> DuplicateCandidates => Set<DuplicateCandidate>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         PartyStaticData.Configure(modelBuilder);
@@ -203,6 +205,17 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             consent.HasAuditColumns();
             consent.Ignore(c => c.DomainEvents);
             consent.Ignore(c => c.HasChanges);
+        });
+
+        modelBuilder.Entity<DuplicateCandidate>(candidate =>
+        {
+            candidate.ToTable("duplicate_candidate");
+            candidate.HasKey(c => new { c.TenantId, c.Id });
+            candidate.HasAuditColumns();
+            candidate.Ignore(c => c.DomainEvents);
+            candidate.Ignore(c => c.HasChanges);
+            candidate.HasOne<Domain.Parties.Party>().WithMany().HasForeignKey(c => new { c.TenantId, c.PartyAId });
+            candidate.HasOne<Domain.Parties.Party>().WithMany().HasForeignKey(c => new { c.TenantId, c.PartyBId });
         });
     }
 

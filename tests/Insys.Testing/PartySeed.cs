@@ -37,6 +37,8 @@ public static class PartySeed
         var response = await client.Send(HttpMethod.Post, "/api/v1/party/parties", new
         {
             individual = new { firstNames = "Test", surname, birthDate = "1985-06-15", nationality = "ZA" },
+            // Test people share names and a birth date, so a second one confirms it is new (OQ-127).
+            confirmNew = true, reason = "A separate test person",
         }, idempotent: true);
         return (await Expect(response, HttpStatusCode.Created)).GetProperty("id").GetGuid();
     }
