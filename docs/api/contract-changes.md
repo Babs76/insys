@@ -32,6 +32,9 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 No migration: every new field was already stored.
 
+### Defect fixed: billing schedules starting late in a month
+A schedule starting on the 29th to 31st drifted to the 28th after February and gave a year a thirteenth instalment. Due dates now count from the start: the 30th stays the 30th (28 or 29 in February), and a year has 12 monthly instalments totalling the annual premium.
+
 ## Wave 2 batch 6 (branch `wave2-6`, merged at `c2a5870`)
 
 ### Breaking: lists that were arrays are cursor pages (phase 4)
