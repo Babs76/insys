@@ -45841,7 +45841,6 @@
           "approvalId",
           "approvedBy",
           "releasedAt",
-          "payoutBatchRef",
           "latestRejection"
         ],
         "type": "object",
@@ -45926,13 +45925,6 @@
               "string"
             ],
             "format": "date-time"
-          },
-          "payoutBatchRef": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
           }
         }
       },

@@ -306,14 +306,14 @@ public sealed record RemittanceView(Guid Id, string ProviderId, Guid ProviderPar
 /// </param>
 public sealed record PaymentRunView(Guid Id, string RunCode, DateTimeOffset CutOff, RunStatus Status, string Currency, int ClaimCount, decimal TotalAmount,
     IReadOnlyList<RemittanceView> Remittances, long RowVersion, bool PartlyInScope, Workflow.Contracts.LatestRejection? LatestRejection = null,
-    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovalId = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovedBy = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ReleasedAt = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? PayoutBatchRef = null)
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovalId = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovedBy = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ReleasedAt = null)
 {
     public static PaymentRunView From(ProviderPaymentRun r) => Of(r, r.Remittances, false);
 
     public static PaymentRunView Of(ProviderPaymentRun r, IReadOnlyList<RemittanceAdvice> visible, bool partly) => new(r.Id, r.RunCode, r.CutOff, r.Status, r.Currency,
         partly ? visible.Sum(x => x.ClaimCount) : r.ClaimCount, partly ? visible.Sum(x => x.Amount) : r.TotalAmount,
         visible.Select(x => new RemittanceView(x.Id, x.ProviderId, x.ProviderPartyId, x.BankAccountId, x.Amount, x.ClaimCount, x.PaymentId, x.PaidOn, x.DocumentId)).ToList(),
-        r.RowVersion, partly, null, r.ApprovalId, r.ApprovedBy, r.ReleasedAt, r.PayoutBatchRef);
+        r.RowVersion, partly, null, r.ApprovalId, r.ApprovedBy, r.ReleasedAt);
 }
 
 /// <summary>A membership's number, product and node: what scopes the claims a payment run pays (F103).</summary>

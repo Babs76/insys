@@ -370,14 +370,14 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<Guid>("SELECT bank_account_id FROM payment.payment WHERE id = @p", ("p", payment))).ShouldBe(providerAccount);
         (await _maker.SimulatorCallback(_factory, _db, payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
-        // BR-079: the run names its approval, approver, release time and payout batch, and each remittance its advice document.
+        // BR-079: the run names its approval, approver and release time, and each remittance its advice document and payment.
         var paidRun = await Get($"/api/v1/health/payment-runs/{run}");
         paidRun.GetProperty("status").GetString().ShouldBe("Reconciled");
         DocumentedSchema.ResponseProblems(paidRun, "core", "HealthGetRun").ShouldBeEmpty();
         paidRun.GetProperty("approvedBy").GetGuid().ShouldBe(await UserId("health-manager"));
         (paidRun.GetProperty("approvalId").ValueKind, paidRun.GetProperty("releasedAt").ValueKind).ShouldBe((JsonValueKind.String, JsonValueKind.String));
-        paidRun.GetProperty("payoutBatchRef").GetGuid().ShouldBe(await _db.ScalarAsOwner<Guid>("SELECT payout_batch_ref FROM health.provider_payment_run WHERE id = @r",
-            ("r", run)));
+        // Each remittance is paid on its own: its payment, and through it the payout batch, is the remittance's paymentId.
+        paidRun.GetProperty("remittances")[0].GetProperty("paymentId").GetGuid().ShouldBe(payment);
         paidRun.GetProperty("remittances")[0].GetProperty("documentId").GetGuid().ShouldBe(advice);
 
         // The remittance's payment follows its claims' branch too.

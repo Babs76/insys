@@ -27,7 +27,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - The preauthorisation gives `clinicalReviewer` and `decidedBy`. The diagnosis codes come only from `HealthGetAuthorisationClinical` (`GET /health/preauthorisations/{id}/clinical`): it needs the clinical review permission, and each read is audited (HLT-008). It is the new function `HEALTH_READ_AUTHORISATION_CLINICAL` (BR-072).
 - `HealthListEligibilityDecisions` (`POST /health/eligibility-decisions/search`, by member number and dependant) (BR-072).
 - Plan, option, dependant type, service type, member category, collection method, sponsor and diagnosis fields name their tables (BR-072).
-- `MedicalClaimView` gives `approvedBy` and `approvedAt`. `PaymentRunView` gives `approvalId`, `approvedBy`, `releasedAt` and `payoutBatchRef`, and each remittance its advice `documentId`. The utilisation and fraud cases give `openedAt` and `concludedAt` (BR-079).
+- `MedicalClaimView` gives `approvedBy` and `approvedAt`. `PaymentRunView` gives `approvalId`, `approvedBy`, `releasedAt`, and each remittance its advice `documentId`. Remittances are paid one by one, so the payout batch is the remittance's payment's (`paymentId`): a run has no single batch. The utilisation and fraud cases give `openedAt` and `concludedAt` (BR-079).
 - `domain-model.json`: `ProviderPaymentRun` Calculated → Rejected (`RejectRun`) (BR-080).
 
 No migration: every new field was already stored.
