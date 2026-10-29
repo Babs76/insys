@@ -220279,7 +220279,9 @@
               "PROVIDER_SYSTEM",
               "REINSURER",
               "GL",
-              "OTHER"
+              "OTHER",
+              "IDENTITY_VERIFICATION",
+              "SCREENING"
             ],
             "type": "string"
           },
@@ -220516,6 +220518,8 @@
               "REINSURER",
               "GL",
               "OTHER",
+              "IDENTITY_VERIFICATION",
+              "SCREENING",
               null
             ],
             "type": [
@@ -238983,6 +238987,40 @@
               }
             },
             "description": "Validation failures (422): field name, as the request body spells it (camel case, with a path such as lines[0].amount for a nested field), to its messages."
+          },
+          "candidates": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "required": [
+                "partyId",
+                "partyNumber",
+                "displayName"
+              ],
+              "type": "object",
+              "properties": {
+                "partyId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "partyNumber": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "identifierLastFour": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last four characters of one of its identity documents, to tell people apart; null when it has none."
+                }
+              }
+            },
+            "description": "Only with PARTY_POSSIBLE_DUPLICATE (409, OQ-127): the existing parties the person registered matches (the same names, ignoring case, and birth date). Use one, or register again with confirmNew and a reason."
           },
           "blocks": {
             "type": [

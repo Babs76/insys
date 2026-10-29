@@ -43,6 +43,33 @@ public interface IReinsurerAdapter
         CancellationToken cancellationToken);
 }
 
+/// <summary>The partner types an adapter call goes to (integration.mst_partner_register.partner_type).</summary>
+public static class PartnerTypes
+{
+    public const string IdentityVerification = "IDENTITY_VERIFICATION";
+    public const string Screening = "SCREENING";
+}
+
+/// <summary>A provider's answer to an identity check (F001): verified with its reference, or why not.</summary>
+public sealed record IdentityVerificationResult(bool Verified, string? ProviderRef, string? Reason);
+
+/// <summary>
+/// Partner adapter to identity verification providers (F001, addenda/due-diligence.md §4.1): an identity document's number
+/// is checked against the provider's source (a population register, through a vendor). The number is sent and never
+/// logged. The stub verifies every number except one ending 0000, which it answers NO_MATCH, so tests can see both.
+/// </summary>
+public interface IIdentityVerificationAdapter
+{
+    Task<IdentityVerificationResult> Verify(Guid tenantId, string partnerCode, string docType, string country, string number, string? firstNames, string? surname,
+        DateOnly? birthDate, CancellationToken cancellationToken);
+}
+
+/// <summary>Public query interface: the tenant's active partner of a type in force on the day, if any (integration.mst_partner_register).</summary>
+public interface IPartnerDirectory
+{
+    Task<string?> ActivePartner(Guid tenantId, string partnerType, DateOnly day, CancellationToken cancellationToken);
+}
+
 /// <summary>Partner adapter to regulators: returns are submitted through it; the stub accepts and records each call.</summary>
 public interface IRegulatorAdapter
 {

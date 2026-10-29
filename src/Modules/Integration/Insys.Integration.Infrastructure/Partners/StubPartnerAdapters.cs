@@ -40,8 +40,18 @@ namespace Insys.Integration.Infrastructure.Partners;
 /// integration.external_call_log, on Integration's own connection. Only codes and references are logged, never content.
 /// </summary>
 internal sealed class StubPartnerAdapters([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IClock clock)
-    : IReinsurerAdapter, IRegulatorAdapter, IGeneralLedgerAdapter
+    : IReinsurerAdapter, IRegulatorAdapter, IGeneralLedgerAdapter, IIdentityVerificationAdapter
 {
+    /// <summary>F001: verified, except a number ending 0000 (NO_MATCH). Only the partner and operation are logged, never the number or names.</summary>
+    public async Task<IdentityVerificationResult> Verify(Guid tenantId, string partnerCode, string docType, string country, string number, string? firstNames,
+        string? surname, DateOnly? birthDate, CancellationToken cancellationToken)
+    {
+        var call = await Call(tenantId, partnerCode, "party.VerifyIdentity", cancellationToken);
+        return number.EndsWith("0000", StringComparison.Ordinal)
+            ? new IdentityVerificationResult(false, call.PartnerRef, "NO_MATCH")
+            : new IdentityVerificationResult(true, call.PartnerRef, null);
+    }
+
     public Task<PartnerCallResult> SendGlExport(Guid tenantId, string layoutCode, string targetSystem, string periodCode, string content,
         CancellationToken cancellationToken) =>
         Call(tenantId, layoutCode, "finance.SendGlExport", cancellationToken);

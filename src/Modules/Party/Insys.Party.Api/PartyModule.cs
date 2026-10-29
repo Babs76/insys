@@ -53,7 +53,8 @@ public sealed record PreferredLanguageRequest([property: BuildingBlocks.Domain.C
 
 public sealed record BankAccountRequest(string AccountNumber, string BankCode, string? BranchCode, string AccountHolderName, string AccountType, string Currency);
 
-public sealed record VerifyIdentifierRequest(string VerificationRef);
+/// <param name="DocumentId">The identity document the person checked the number against, filed against the party (F001).</param>
+public sealed record VerifyIdentifierRequest(string VerificationRef, Guid DocumentId);
 
 public sealed record RelationshipRequest(Guid ToPartyId, [property: BuildingBlocks.Domain.CodeList(Tables.RelationshipTypes)] string RelationshipCode, DateOnly ValidFrom);
 
@@ -238,12 +239,21 @@ public sealed class PartyModule : IModule
             .RequirePermission(PartyPermissions.PartyUpdate);
 
         parties.MapPost("/{id:guid}/identifiers/{identifierId:guid}/verify", (Guid id, Guid identifierId, VerifyIdentifierRequest r, IDispatcher dispatcher,
-                HttpContext http, CancellationToken ct) => Versioned(http, v => dispatcher.Send(new VerifyIdentifier(id, identifierId, r.VerificationRef, v), ct)))
+                HttpContext http, CancellationToken ct) => Versioned(http, v => dispatcher.Send(new VerifyIdentifier(id, identifierId, r.VerificationRef, r.DocumentId, v), ct)))
             .Produces(StatusCodes.Status204NoContent)
             .RequireIfMatch()
             .WithName("PartyVerifyIdentifier")
-            .WithSummary("Record that an identifier was verified")
+            .WithSummary("Record that a person verified an identifier against a document filed against the party (F001)")
+            .WithDescription("documentId is required (breaking, Wave 3): the identity document the number was checked against, filed against this party "
+                + "(422 otherwise). It is recorded as a due diligence check by the caller, and audited. A tenant with an active IDENTITY_VERIFICATION partner also "
+                + "has every identifier checked by the provider when it is added.")
             .RequirePermission(PartyPermissions.PartyUpdate);
+        parties.MapGet("/{id:guid}/identity-checks", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListIdentityChecks(id), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<DueDiligenceCheckView>>(StatusCodes.Status200OK)
+            .WithName("PartyListIdentityChecks")
+            .WithSummary("The identity checks run on the party, by a provider or a person, oldest first (F001)")
+            .RequirePermission(PartyPermissions.PartyRead);
 
         parties.MapPost("/{id:guid}/relationships", (Guid id, RelationshipRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new RecordRelationship(id, r.ToPartyId, r.RelationshipCode, r.ValidFrom, v), ct)))

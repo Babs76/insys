@@ -87,6 +87,10 @@ public sealed record PartyMatchResolved(Guid PartyId, string Resolution, Guid? E
 [IntegrationEvent("party.PartyRegistered")]
 public sealed record PartyRegistered(Guid PartyId, string Kind) : IIntegrationEvent;
 
+/// <summary>An identity document was added to the party (F001): Party verifies it with the tenant's identity verification provider, if one is active.</summary>
+[IntegrationEvent("party.PartyIdentifierAdded")]
+public sealed record PartyIdentifierAdded(Guid PartyId, Guid IdentifierId) : IIntegrationEvent;
+
 [IntegrationEvent("party.PartyDetailsChanged")]
 public sealed record PartyDetailsChanged(Guid PartyId, string Part) : IIntegrationEvent;
 

@@ -331,7 +331,7 @@
     },
     {
      "name": "partner_type",
-     "logicalType": "Enum{Broker system,Bank,Payment provider,Provider system,Reinsurer,GL,Other}",
+     "logicalType": "Enum{Broker system,Bank,Payment provider,Provider system,Reinsurer,GL,Other,Identity verification,Screening}",
      "mandatory": true,
      "sample": "Broker system"
     },

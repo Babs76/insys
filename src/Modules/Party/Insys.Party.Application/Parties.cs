@@ -62,6 +62,11 @@ public interface IPartyRepository
 
     void Add(DuplicateCandidate candidate);
 
+    void Add(DueDiligenceCheck check);
+
+    /// <summary>The due diligence checks run on the party, oldest first (F001).</summary>
+    Task<IReadOnlyList<DueDiligenceCheck>> Checks(Guid partyId, CancellationToken cancellationToken);
+
     /// <summary>Existing parties matching a person by a close name and the same birth date (as Match), merged ones excluded.</summary>
     Task<IReadOnlyList<DuplicateCandidateView>> Candidates(IndividualData person, CancellationToken cancellationToken);
 }
@@ -284,7 +289,23 @@ internal sealed class ListBankAccountsHandler(IPartyRepository parties, Workflow
     }
 }
 
-public sealed record VerifyIdentifier(Guid PartyId, Guid IdentifierId, string VerificationRef, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+/// <summary>
+/// Command VerifyIdentifier, by a person (F001, addenda/due-diligence.md §4.1): against a document filed against the party
+/// (DocumentId), recorded as a due diligence check by that person.
+/// </summary>
+public sealed record VerifyIdentifier(Guid PartyId, Guid IdentifierId, string VerificationRef, Guid DocumentId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+
+public sealed record ListIdentityChecks(Guid PartyId) : IQuery<IReadOnlyList<DueDiligenceCheckView>>;
+
+/// <param name="Outcome">PASSED or FAILED (an identity check); HIT and WAIVED come with screening (Wave 3 batch 2).</param>
+/// <param name="PartnerCode">The provider that checked it, or null for a person's check against DocumentId.</param>
+public sealed record DueDiligenceCheckView(Guid Id, [property: OneOf("IDENTITY", "ADDRESS", "SANCTIONS", "PEP", "ADVERSE_MEDIA", "BENEFICIAL_OWNERSHIP", "SOURCE_OF_FUNDS")] string CheckType,
+    [property: OneOf("PASSED", "FAILED", "HIT", "WAIVED")] string Outcome, Guid? IdentifierId, string? PartnerCode, string? ProviderRef, Guid? DocumentId, string? Reason,
+    DateTimeOffset CheckedAt, Guid? CheckedBy)
+{
+    public static DueDiligenceCheckView From(DueDiligenceCheck c) => new(c.Id, c.CheckType, c.Outcome, c.IdentifierId, c.PartnerCode, c.ProviderRef, c.DocumentId,
+        c.Reason, c.CheckedAt, c.CheckedBy);
+}
 
 public sealed record RecordRelationship(Guid PartyId, Guid ToPartyId, string RelationshipCode, DateOnly ValidFrom, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
@@ -587,11 +608,44 @@ internal sealed class AddIdentifierHandler(IPartyRepository parties, IPartyCodes
     }
 }
 
-internal sealed class VerifyIdentifierHandler(IPartyRepository parties, IClock clock) : ICommandHandler<VerifyIdentifier, long>
+internal sealed class VerifyIdentifierHandler(IPartyRepository parties, Documents.Contracts.IDocumentOwnership documents, IExecutionContext execution, IClock clock,
+    IAuditTrail audit) : ICommandHandler<VerifyIdentifier, long>, IQueryHandler<ListIdentityChecks, IReadOnlyList<DueDiligenceCheckView>>
 {
-    public Task<Result<long>> Handle(VerifyIdentifier command, CancellationToken cancellationToken) =>
-        Parties.Change(parties, command.PartyId, command.ExpectedVersion, p => p.VerifyIdentifier(command.IdentifierId, command.VerificationRef, clock.UtcNow),
-            cancellationToken);
+    public async Task<Result<long>> Handle(VerifyIdentifier command, CancellationToken cancellationToken)
+    {
+        var user = Parties.User(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        // F001: the person verified the number against a document filed against this party.
+        if (!await documents.FiledAgainst(command.DocumentId, Documents.Contracts.PartyDocuments.RefType, command.PartyId, cancellationToken))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "documentId is not a document filed against this party.");
+        }
+
+        var changed = await Parties.Change(parties, command.PartyId, command.ExpectedVersion,
+            p => p.VerifyIdentifier(command.IdentifierId, command.VerificationRef, clock.UtcNow), cancellationToken);
+        if (changed.IsSuccess)
+        {
+            parties.Add(DueDiligenceCheck.ByPerson(command.PartyId, command.IdentifierId, command.DocumentId, user.Value, command.VerificationRef, clock.UtcNow));
+            audit.Record(new AuditEntry("PARTY", "VerifyIdentifier", nameof(Domain.Parties.Party), command.PartyId.ToString(),
+                new Dictionary<string, string?> { ["identifier"] = command.IdentifierId.ToString(), ["document"] = command.DocumentId.ToString() }));
+        }
+
+        return changed;
+    }
+
+    public async Task<Result<IReadOnlyList<DueDiligenceCheckView>>> Handle(ListIdentityChecks query, CancellationToken cancellationToken)
+    {
+        if (await parties.Get(query.PartyId, cancellationToken) is null)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The party was not found.");
+        }
+
+        return (await parties.Checks(query.PartyId, cancellationToken)).Select(DueDiligenceCheckView.From).ToList();
+    }
 }
 
 internal sealed class RecordRelationshipHandler(IPartyRepository parties, IPartyCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<RecordRelationship, long>

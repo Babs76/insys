@@ -51,6 +51,7 @@ public static class DocumentsInfrastructure
         services.AddScoped<PortalDocuments>();
         services.AddScoped<IDocumentCatalogue, DocumentCatalogue>();
         services.AddScoped<Contracts.IRecordHolds, RecordHolds>(); // D-34: the party anonymisation check
+        services.AddScoped<Contracts.IDocumentOwnership, DocumentOwnership>(); // F001: a manual identity check's document
         services.AddScoped<IRecordHoldRepository, RecordHoldRepository>();
         services.AddScoped<RecordHoldTargets>();
         services.AddOptions<DocumentStorageOptions>().BindConfiguration("Documents:Storage");

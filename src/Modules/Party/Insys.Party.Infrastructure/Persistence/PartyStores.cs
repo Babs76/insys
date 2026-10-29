@@ -89,6 +89,11 @@ internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
 
     public void Add(DuplicateCandidate candidate) => db.DuplicateCandidates.Add(candidate);
 
+    public void Add(DueDiligenceCheck check) => db.DueDiligenceChecks.Add(check);
+
+    public async Task<IReadOnlyList<DueDiligenceCheck>> Checks(Guid partyId, CancellationToken cancellationToken) =>
+        await db.DueDiligenceChecks.AsNoTracking().Where(c => c.PartyId == partyId).OrderBy(c => c.CheckedAt).ThenBy(c => c.Id).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<DuplicateCandidateView>> Candidates(IndividualData person, CancellationToken cancellationToken)
     {
         var first = person.FirstNames.Trim().ToLower();
@@ -163,6 +168,7 @@ internal sealed class PartyEventMapper : IDomainEventMapper
     {
         PartyRegistered e => new Contracts.PartyRegistered(e.PartyId, e.Kind.ToString().ToUpperInvariant()),
         PartyDetailsChanged e => new Contracts.PartyDetailsChanged(e.PartyId, e.Part),
+        PartyIdentifierAdded e => new Contracts.PartyIdentifierAdded(e.PartyId, e.IdentifierId),
         PartiesMerged e => new Contracts.PartiesMerged(e.SurvivorId, e.MergedId),
         PartyMatchReviewRequested e => new Contracts.PartyMatchReviewRequested(e.PartyId, e.MatchedPartyId),
         PartyAnonymised e => new Contracts.PartyAnonymised(e.PartyId),

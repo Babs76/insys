@@ -74,6 +74,7 @@ public static class PartyInfrastructure
         services.AddSingleton<IPartyContacts>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddSingleton<IPartyConsent>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddIntegrationEventHandler<Communications.Contracts.MarketingOptedOut, WithdrawConsentOnOptOut, PartyDbContext>(PartyDbContext.SchemaName);
+        services.AddIntegrationEventHandler<Contracts.PartyIdentifierAdded, IdentityVerificationPolicy, PartyDbContext>(PartyDbContext.SchemaName); // F001
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, BankAccountVerificationPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, PartyMatchResolutionPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, PartyMatchResolutionPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalRejected");

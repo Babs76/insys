@@ -38,7 +38,7 @@ internal static class PartyFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("PARTIES", "PARTIES", "Register people & organisations", "party/parties", "PartyGetParty")
+        .Screen("PARTIES", "PARTIES", "Register people & organisations", "party/parties", "PartyGetParty", "PartyListIdentityChecks")
         .Action("PARTY_SEARCH_PARTIES", "PARTIES", "PartySearchParties")
         .Action("PARTY_REGISTER_PARTY", "PARTIES", "PartyRegisterParty")
         .Action("PARTY_UPDATE_INDIVIDUAL", "PARTIES", "PartyUpdateIndividual")

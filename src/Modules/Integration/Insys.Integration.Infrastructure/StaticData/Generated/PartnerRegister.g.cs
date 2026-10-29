@@ -41,7 +41,7 @@ public sealed class PartnerRegister : StaticRecord<PartnerRegisterInput>
 {
     public string PartnerCode { get; set; } = "";
 
-    [Insys.BuildingBlocks.Domain.OneOf("BROKER_SYSTEM", "BANK", "PAYMENT_PROVIDER", "PROVIDER_SYSTEM", "REINSURER", "GL", "OTHER")]
+    [Insys.BuildingBlocks.Domain.OneOf("BROKER_SYSTEM", "BANK", "PAYMENT_PROVIDER", "PROVIDER_SYSTEM", "REINSURER", "GL", "OTHER", "IDENTITY_VERIFICATION", "SCREENING")]
     public string PartnerType { get; set; } = "";
 
     public string LegalName { get; set; } = "";
@@ -73,7 +73,7 @@ public sealed record PartnerRegisterInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PartnerCode { get; init; }
 
-    [Insys.BuildingBlocks.Domain.OneOf("BROKER_SYSTEM", "BANK", "PAYMENT_PROVIDER", "PROVIDER_SYSTEM", "REINSURER", "GL", "OTHER")]
+    [Insys.BuildingBlocks.Domain.OneOf("BROKER_SYSTEM", "BANK", "PAYMENT_PROVIDER", "PROVIDER_SYSTEM", "REINSURER", "GL", "OTHER", "IDENTITY_VERIFICATION", "SCREENING")]
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PartnerType { get; init; }
 
@@ -96,7 +96,7 @@ public sealed record PartnerRegisterInput : StaticRecordInput
         errors.MaxLength("partnerCode", PartnerCode, 15);
         errors.Required("partnerType", PartnerType);
         errors.MaxLength("partnerType", PartnerType, 40);
-        errors.OneOf("partnerType", PartnerType, ["BROKER_SYSTEM", "BANK", "PAYMENT_PROVIDER", "PROVIDER_SYSTEM", "REINSURER", "GL", "OTHER"]);
+        errors.OneOf("partnerType", PartnerType, ["BROKER_SYSTEM", "BANK", "PAYMENT_PROVIDER", "PROVIDER_SYSTEM", "REINSURER", "GL", "OTHER", "IDENTITY_VERIFICATION", "SCREENING"]);
         errors.Required("legalName", LegalName);
         errors.MaxLength("legalName", LegalName, 150);
         if (IpAllowlist is not null) { foreach (var item in IpAllowlist) { errors.Valid("ipAllowlist", item, StaticConverters.IsCidr, "CIDR notation such as 10.0.0.0/8"); } }

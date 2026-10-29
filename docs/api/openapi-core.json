@@ -1181,7 +1181,7 @@
           "Party"
         ],
         "summary": "Register an individual or an organisation",
-        "description": "Give exactly one of individual and organisation; the kind never changes (PTY-001).",
+        "description": "Give exactly one of individual and organisation; the kind never changes (PTY-001). A person matching an existing party (the same names, ignoring case, and birth date) is refused with 409 PARTY_POSSIBLE_DUPLICATE and its candidates; use one of them, or send the registration again with confirmNew true and a reason, which is recorded as reviewed and audited (OQ-127).",
         "operationId": "PartyRegisterParty",
         "parameters": [
           {
@@ -1216,6 +1216,9 @@
               }
             }
           },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
           "401": {
             "$ref": "#/components/responses/Problem401"
           },
@@ -1233,9 +1236,6 @@
           },
           "400": {
             "$ref": "#/components/responses/Problem400"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
           },
           "422": {
             "$ref": "#/components/responses/Problem422"
@@ -1945,7 +1945,8 @@
         "tags": [
           "Party"
         ],
-        "summary": "Record that an identifier was verified",
+        "summary": "Record that a person verified an identifier against a document filed against the party (F001)",
+        "description": "documentId is required (breaking, Wave 3): the identity document the number was checked against, filed against this party (422 otherwise). It is recorded as a due diligence check by the caller, and audited. A tenant with an active IDENTITY_VERIFICATION partner also has every identifier checked by the provider when it is added.",
         "operationId": "PartyVerifyIdentifier",
         "parameters": [
           {
@@ -2027,6 +2028,66 @@
         "x-permission": "party.update",
         "x-function": [
           "PARTY_VERIFY_IDENTIFIER"
+        ]
+      }
+    },
+    "/api/v1/party/parties/{id}/identity-checks": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "The identity checks run on the party, by a provider or a person, oldest first (F001)",
+        "operationId": "PartyListIdentityChecks",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyDueDiligenceCheckView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "party.read",
+        "x-function": [
+          "PARTIES"
         ]
       }
     },
@@ -33891,6 +33952,8 @@
                 "DeadLetter",
                 "DeviceRegistration",
                 "Document",
+                "DueDiligenceCheck",
+                "DuplicateCandidate",
                 "EligibilityDecision",
                 "Endpoint",
                 "FinancialMovement",
@@ -34323,6 +34386,8 @@
                 "DeadLetter",
                 "DeviceRegistration",
                 "Document",
+                "DueDiligenceCheck",
+                "DuplicateCandidate",
                 "EligibilityDecision",
                 "Endpoint",
                 "FinancialMovement",
@@ -52333,6 +52398,91 @@
           }
         }
       },
+      "PartyDueDiligenceCheckView": {
+        "required": [
+          "id",
+          "checkType",
+          "outcome",
+          "identifierId",
+          "partnerCode",
+          "providerRef",
+          "documentId",
+          "reason",
+          "checkedAt",
+          "checkedBy"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "checkType": {
+            "enum": [
+              "IDENTITY",
+              "ADDRESS",
+              "SANCTIONS",
+              "PEP",
+              "ADVERSE_MEDIA",
+              "BENEFICIAL_OWNERSHIP",
+              "SOURCE_OF_FUNDS"
+            ],
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "PASSED",
+              "FAILED",
+              "HIT",
+              "WAIVED"
+            ],
+            "type": "string"
+          },
+          "identifierId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "partnerCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "providerRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "documentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checkedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "PartyIdentifierFilter": {
         "required": [
           "docType",
@@ -52677,6 +52827,16 @@
               {
                 "$ref": "#/components/schemas/PartyOrganisationData"
               }
+            ]
+          },
+          "confirmNew": {
+            "type": "boolean",
+            "default": false
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         }
@@ -53181,12 +53341,17 @@
       },
       "PartyVerifyIdentifierRequest": {
         "required": [
-          "verificationRef"
+          "verificationRef",
+          "documentId"
         ],
         "type": "object",
         "properties": {
           "verificationRef": {
             "type": "string"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -54216,6 +54381,40 @@
               }
             },
             "description": "Validation failures (422): field name, as the request body spells it (camel case, with a path such as lines[0].amount for a nested field), to its messages."
+          },
+          "candidates": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "required": [
+                "partyId",
+                "partyNumber",
+                "displayName"
+              ],
+              "type": "object",
+              "properties": {
+                "partyId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "partyNumber": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "identifierLastFour": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last four characters of one of its identity documents, to tell people apart; null when it has none."
+                }
+              }
+            },
+            "description": "Only with PARTY_POSSIBLE_DUPLICATE (409, OQ-127): the existing parties the person registered matches (the same names, ignoring case, and birth date). Use one, or register again with confirmNew and a reason."
           },
           "blocks": {
             "type": [

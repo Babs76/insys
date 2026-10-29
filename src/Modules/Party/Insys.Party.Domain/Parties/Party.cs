@@ -121,6 +121,9 @@ public sealed record PartyRegistered(Guid PartyId, PartyKind Kind, DateTimeOffse
 /// <summary>Names which part changed, never the values (INT-007).</summary>
 public sealed record PartyDetailsChanged(Guid PartyId, string Part, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>An identity document was added to the party (F001): its verification follows. The identifier's ID only, never its number.</summary>
+public sealed record PartyIdentifierAdded(Guid PartyId, Guid IdentifierId, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record PartiesMerged(Guid SurvivorId, Guid MergedId, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record PartyAnonymised(Guid PartyId, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -866,6 +869,7 @@ public sealed class Party : AggregateRoot<Guid>
 
         var identifier = PartyIdentifier.Create(Id, docType, country, encrypted, hash, Guard.MaxLength(last4, 4));
         _identifiers.Add(identifier);
+        Raise(new PartyIdentifierAdded(Id, identifier.Id, now));
         var changed = Changed("identifier", now);
         return changed.IsFailure ? changed.Error : identifier.Id;
     }

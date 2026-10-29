@@ -45,6 +45,8 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
 
     public DbSet<DuplicateCandidate> DuplicateCandidates => Set<DuplicateCandidate>();
 
+    public DbSet<DueDiligenceCheck> DueDiligenceChecks => Set<DueDiligenceCheck>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         PartyStaticData.Configure(modelBuilder);
@@ -216,6 +218,16 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             candidate.Ignore(c => c.HasChanges);
             candidate.HasOne<Domain.Parties.Party>().WithMany().HasForeignKey(c => new { c.TenantId, c.PartyAId });
             candidate.HasOne<Domain.Parties.Party>().WithMany().HasForeignKey(c => new { c.TenantId, c.PartyBId });
+        });
+
+        modelBuilder.Entity<DueDiligenceCheck>(check =>
+        {
+            check.ToTable("due_diligence_check");
+            check.HasKey(c => new { c.TenantId, c.Id });
+            check.HasAuditColumns();
+            check.Ignore(c => c.DomainEvents);
+            check.Ignore(c => c.HasChanges);
+            check.HasOne<Domain.Parties.Party>().WithMany().HasForeignKey(c => new { c.TenantId, c.PartyId });
         });
     }
 

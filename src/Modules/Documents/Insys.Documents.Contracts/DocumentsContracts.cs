@@ -65,6 +65,18 @@ public interface IRecordHolds
     Task<IReadOnlyList<RecordHold>> Holds(IReadOnlyCollection<Guid> recordIds, CancellationToken cancellationToken);
 }
 
+/// <summary>The business reference type of a document filed against a party (identity documents, for example).</summary>
+public static class PartyDocuments
+{
+    public const string RefType = "PARTY";
+}
+
+/// <summary>Public query interface: whether a document is filed against a business record (its business reference), in the current tenant.</summary>
+public interface IDocumentOwnership
+{
+    Task<bool> FiledAgainst(Guid documentId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
+}
+
 [IntegrationEvent("document.DocumentGenerated")]
 public sealed record DocumentGenerated(Guid DocumentId, string CategoryCode, string BusinessRefType, Guid BusinessRefId, string? TemplateCode, int? TemplateVersion)
     : IIntegrationEvent;
