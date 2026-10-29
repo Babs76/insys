@@ -243,7 +243,7 @@ public sealed class DueDiligenceService(IPartyRepository parties, IDueDiligenceS
         var bands = await configuration.RiskClasses(today, cancellationToken);
         var band = bands.Where(b => score >= b.MinScore && (b.MaxScore is null || score <= b.MaxScore)).OrderByDescending(b => b.MinScore).FirstOrDefault();
 
-        // TODO(spec): with no risk class configured, the party is assessed as MEDIUM at STANDARD; readiness names the gap (DUE_DILIGENCE_RISK_CLASSES).
+        // TODO(spec): with no risk class in force (a tenant withdrew the platform's), the party is assessed as MEDIUM at STANDARD.
         RiskAssessment Of(RiskClassBand b) => new(b.RiskClass, score, b.Level, b.ReviewInterval);
         dueDiligence.Classify(band is null ? new RiskAssessment("MEDIUM", score, DueDiligenceCodes.Standard, "P3Y") : Of(band),
             c => bands.FirstOrDefault(b => b.RiskClass == c) is { } kept ? Of(kept) : null);

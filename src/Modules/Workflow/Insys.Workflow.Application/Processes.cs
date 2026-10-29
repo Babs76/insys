@@ -585,6 +585,91 @@ public sealed class ClosePartyMatchReviewTask(IProcessRepository processes, IPro
 }
 
 /// <summary>
+/// Due diligence work for compliance (addenda/due-diligence.md §4.3): a hit to review (DUE_DILIGENCE_HIT_REVIEW), a true
+/// sanctions match to report and decide (the compliance case, DUE_DILIGENCE_SANCTIONS) and a review once a cleared party
+/// expires (DUE_DILIGENCE_REVIEW), each on the party, due in one business day, in the COMPLIANCE queue, one open per party.
+/// Each closes when Party says its cause is gone. The task carries the party only; the reviewer opens its due diligence.
+/// </summary>
+public sealed class DueDiligenceTasks(IProcessRepository processes, IProcessQueries queries, Contracts.IBusinessTime businessTime, ITenantContext tenant,
+    IClock clock, IAuditTrail audit) :
+    IIntegrationEventHandler<Party.Contracts.DueDiligenceReferred>,
+    IIntegrationEventHandler<Party.Contracts.DueDiligenceBlocked>,
+    IIntegrationEventHandler<Party.Contracts.DueDiligenceExpired>,
+    IIntegrationEventHandler<Party.Contracts.DueDiligenceChanged>
+{
+    public const string Queue = "COMPLIANCE";
+
+    public Task Handle(Party.Contracts.DueDiligenceReferred referred, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Open(BuiltInProcesses.DueDiligenceHitReview, referred.PartyId, cancellationToken);
+
+    public async Task Handle(Party.Contracts.DueDiligenceBlocked blocked, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        await Close(BuiltInProcesses.DueDiligenceHitReview, blocked.PartyId, cancellationToken);
+        await Open(BuiltInProcesses.DueDiligenceSanctionsMatch, blocked.PartyId, cancellationToken);
+    }
+
+    public Task Handle(Party.Contracts.DueDiligenceExpired expired, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Open(BuiltInProcesses.DueDiligenceReview, expired.PartyId, cancellationToken);
+
+    public async Task Handle(Party.Contracts.DueDiligenceChanged changed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (changed.Status != "REFERRED")
+        {
+            await Close(BuiltInProcesses.DueDiligenceHitReview, changed.PartyId, cancellationToken);
+        }
+
+        if (changed.Status != "BLOCKED")
+        {
+            await Close(BuiltInProcesses.DueDiligenceSanctionsMatch, changed.PartyId, cancellationToken);
+        }
+
+        if (changed.Status == "CLEARED")
+        {
+            await Close(BuiltInProcesses.DueDiligenceReview, changed.PartyId, cancellationToken);
+        }
+    }
+
+    private async Task Open(ProcessDefinition definition, Guid partyId, CancellationToken cancellationToken)
+    {
+        if ((await queries.List(OpenPartyMatchReviewTask.BusinessRefType, partyId, null, 20, cancellationToken))
+            .Any(p => p.ProcessCode == definition.ProcessCode && p.Status == ProcessStatus.Running))
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), definition, OpenPartyMatchReviewTask.BusinessRefType, partyId,
+            _ => new TaskRouting(Queue, null, due), now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
+            new Dictionary<string, string?> { ["process"] = $"{definition.ProcessCode}@{definition.Version}", ["party"] = partyId.ToString() }));
+    }
+
+    private async Task Close(ProcessDefinition definition, Guid partyId, CancellationToken cancellationToken)
+    {
+        foreach (var running in (await queries.List(OpenPartyMatchReviewTask.BusinessRefType, partyId, null, 20, cancellationToken))
+                 .Where(p => p.ProcessCode == definition.ProcessCode && p.Status == ProcessStatus.Running))
+        {
+            if (await processes.Get(running.Id, cancellationToken) is not { OpenTask: { } task } process)
+            {
+                continue;
+            }
+
+            var completed = process.CompleteTask(task.Id, definition.States[^1], definition, new Dictionary<string, object?>(),
+                _ => new TaskRouting(Queue, null, clock.UtcNow), clock.UtcNow);
+            if (completed.IsFailure)
+            {
+                throw new InvalidOperationException($"The {definition.ProcessCode} task of party {partyId} cannot be closed: {completed.Error.Code}");
+            }
+
+            audit.Record(new AuditEntry("WORKFLOW", "CompleteTask", nameof(ProcessInstance), process.Id.ToString(),
+                new Dictionary<string, string?> { ["process"] = definition.ProcessCode }));
+        }
+    }
+}
+
+/// <summary>
 /// A zone and peril reached its aggregation alert level (GAP-051, F062 §1): a review task for the alert's target role,
 /// due in one business day, on the built-in process AGGREGATION_REVIEW about the zone and peril (AGGREGATION_ZONE). One
 /// task is open per zone and peril; later alerts while it is open add none. An alert without a target role opens none.

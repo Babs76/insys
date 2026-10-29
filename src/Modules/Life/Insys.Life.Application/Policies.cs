@@ -106,7 +106,8 @@ internal static class LifePolicies
         await life.Policy(id, cancellationToken) is { } policy ? policy : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
 }
 
-internal sealed class IssueLifePolicyHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
+internal sealed class IssueLifePolicyHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, Party.Contracts.IDueDiligenceStatus dueDiligence,
+    ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<IssueLifePolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(IssueLifePolicy command, CancellationToken cancellationToken)
@@ -124,6 +125,13 @@ internal sealed class IssueLifePolicyHandler(ILifeRepository life, ILifeCodes co
         if (await life.CaseForProposal(proposal.Id, cancellationToken) is not { } decided)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "The proposal has not been underwritten.");
+        }
+
+        // OQ-123 (addenda/due-diligence.md §5): FICA, the policyholder's due diligence is cleared before the policy is issued.
+        var cleared = await dueDiligence.ClearedFor(tenant.RequireTenantId(), proposal.ApplicantPartyId, Party.Contracts.DueDiligenceSteps.Issue, "LIFE", cancellationToken);
+        if (!cleared.Cleared)
+        {
+            return DueDiligenceRefusal.For(cleared.Outstanding, false);
         }
 
         // Issued on the approved product version (LIF-003), still on sale when the policy is issued.
@@ -264,7 +272,8 @@ internal sealed class RequestPolicyValueHandler(ILifeRepository life) : ICommand
     }
 }
 
-internal sealed class IssuePolicyLoanHandler(ILifeRepository life, ILifeCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<IssuePolicyLoan, LoanView>
+internal sealed class IssuePolicyLoanHandler(ILifeRepository life, ILifeCodes codes, Party.Contracts.IDueDiligenceStatus dueDiligence, ITenantContext tenant,
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<IssuePolicyLoan, LoanView>
 {
     public async Task<Result<LoanView>> Handle(IssuePolicyLoan command, CancellationToken cancellationToken)
     {
@@ -272,6 +281,14 @@ internal sealed class IssuePolicyLoanHandler(ILifeRepository life, ILifeCodes co
         if (policy.IsFailure)
         {
             return policy.Error;
+        }
+
+        // §5: a loan advance is a payout to the policyholder; it is refused here, where staff grant it, until they are cleared.
+        var cleared = await dueDiligence.ClearedFor(tenant.RequireTenantId(), policy.Value.PolicyholderPartyId, Party.Contracts.DueDiligenceSteps.Payout, "LIFE",
+            cancellationToken);
+        if (!cleared.Cleared)
+        {
+            return DueDiligenceRefusal.For(cleared.Outstanding, false);
         }
 
         if (!await codes.Exists(LifeCode.LoanRate, command.RateCode, businessDate.Today, cancellationToken))

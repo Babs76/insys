@@ -103,7 +103,8 @@ internal static class PolicyNumbers
             : Error.Validation(GeneralErrorCodes.CodeNotInForce, "No General policy numbering scheme is in force.");
 }
 
-internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
+internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, Party.Contracts.IDueDiligenceStatus dueDiligence,
+    ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<IssuePolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(IssuePolicy command, CancellationToken cancellationToken)
@@ -116,6 +117,13 @@ internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCod
         if (await general.PolicyFromQuote(quote.Id, cancellationToken) is { } existing)
         {
             return PolicyView.From(existing);
+        }
+
+        // §5 (OQ-123): issue is allowed by default for General; a tenant may gate it.
+        var cleared = await dueDiligence.ClearedFor(tenant.RequireTenantId(), quote.ProposerPartyId, Party.Contracts.DueDiligenceSteps.Issue, "GENERAL", cancellationToken);
+        if (!cleared.Cleared)
+        {
+            return DueDiligenceRefusal.For(cleared.Outstanding, false);
         }
 
         // The product version is still on sale when the policy is issued.

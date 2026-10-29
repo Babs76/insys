@@ -101,6 +101,7 @@ public static class TestTokens
         ["Billing:Jobs:Enabled"] = "false",
         ["Payments:Jobs:Enabled"] = "false",
         ["Communications:JobEnabled"] = "false",
+        ["Party:DueDiligenceJobs:JobEnabled"] = "false",
         ["Analytics:ReleaseTasksEnabled"] = "false",
         ["FieldProtection:ActiveKeyId"] = "test1",
         ["FieldProtection:Keys:test1"] = Convert.ToBase64String(Enumerable.Range(0, 32).Select(i => (byte)i).ToArray()),

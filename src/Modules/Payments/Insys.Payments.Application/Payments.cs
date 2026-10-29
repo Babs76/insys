@@ -53,6 +53,9 @@ public interface IPaymentRepository
 
     Task<IReadOnlyList<Payment>> AwaitingBatch(string purpose, string currency, CancellationToken cancellationToken);
 
+    /// <summary>The payee's payouts held by due diligence (§5).</summary>
+    Task<IReadOnlyList<Payment>> HeldFor(Guid payeePartyId, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Payment>> InBatch(Guid batchId, CancellationToken cancellationToken);
 
     /// <summary>The payments for one business record, oldest first (GAP-036).</summary>
@@ -136,14 +139,16 @@ public sealed record PaymentSearch(string? BusinessRefType, Guid? BusinessRefId,
 public sealed record PaymentView(Guid Id, string PaymentRef, string Direction, [property: OneOf(PaymentPurposes.Premium, PaymentPurposes.Refund, PaymentPurposes.ClaimPayout, PaymentPurposes.Recovery, PaymentPurposes.Commission, PaymentPurposes.CaseRedress)] string Purpose, string MethodCode, string ProviderCode, decimal Amount, string Currency,
     PaymentStatus Status, string? ExternalRef, string IdempotencyKey, DateOnly? ValueDate, string? BusinessRefType, Guid? BusinessRefId, Guid? PayoutBatchId,
     IReadOnlyList<StatusChangeView> History, IReadOnlyList<AllocationView> Allocations, ResolutionRequestView? ResolutionRequest, DateTimeOffset InitiatedAt,
-    Guid? CounterpartyPartyId, Guid? BankAccountId, string? FailureReason, long RowVersion)
+    Guid? CounterpartyPartyId, Guid? BankAccountId, string? FailureReason, long RowVersion,
+    [property: System.ComponentModel.Description("DUE_DILIGENCE_NOT_CLEARED while the payout waits outside the batches for its payee's due diligence (§5); otherwise null.")]
+    [property: OneOf(Payment.DueDiligenceNotCleared)] string? HeldReason = null)
 {
     public static PaymentView From(Payment p) => new(p.Id, p.PaymentRef, p.Direction.ToString(), p.Purpose, p.MethodCode, p.ProviderCode, p.Amount, p.Currency,
         p.Status, p.ExternalRef, p.IdempotencyKey, p.ValueDate, p.BusinessRefType, p.BusinessRefId, p.PayoutBatchId,
         p.History.OrderBy(h => h.ChangedAt).ThenBy(h => h.Id).Select(h => new StatusChangeView(h.FromStatus, h.ToStatus, h.Source, h.ChangedAt)).ToList(),
         p.Allocations.Select(a => new AllocationView(a.Id, a.InvoiceId, a.Amount, a.Currency, a.AllocatedAt, a.ReversedById, a.AllocationRule)).ToList(),
         p.ResolutionRequestedBy is { } by ? new ResolutionRequestView(by, p.ResolutionRequestedAt!.Value, p.ResolutionEvidence!) : null,
-        p.InitiatedAt, p.CounterpartyPartyId, p.BankAccountId, p.FailureReason, p.RowVersion);
+        p.InitiatedAt, p.CounterpartyPartyId, p.BankAccountId, p.FailureReason, p.RowVersion, p.HeldReason);
 }
 
 /// <summary>
@@ -894,7 +899,7 @@ public static class PaymentPrerequisites
 }
 
 public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter starter, IPaymentCodes codes, IAllocationPlanner planner, IBankAccounts bankAccounts,
-    ITenantContext tenant, IBusinessDate businessDate, IClock clock) :
+    Party.Contracts.IDueDiligenceStatus dueDiligence, ITenantContext tenant, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<InvoiceIssued>,
     IIntegrationEventHandler<RefundApproved>,
     IIntegrationEventHandler<CaseRedressApproved>,
@@ -906,7 +911,8 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     IIntegrationEventHandler<PaymentReceived>,
     IIntegrationEventHandler<PaymentSucceeded>,
     IIntegrationEventHandler<Contracts.PaymentFailed>,
-    IIntegrationEventHandler<Contracts.PaymentOutcomeUnknown>
+    IIntegrationEventHandler<Contracts.PaymentOutcomeUnknown>,
+    IIntegrationEventHandler<Party.Contracts.DueDiligenceChanged>
 {
     public async Task Handle(InvoiceIssued issued, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -922,7 +928,27 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
 
     public Task Handle(RefundApproved approved, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Payout($"REFUND:{approved.RefundId:N}", PaymentPurposes.Refund, approved.Amount, approved.Currency, approved.PayerPartyId, BillingApprovals.RefundBusinessRefType,
-            approved.RefundId, approved.BankAccountId, cancellationToken);
+            approved.RefundId, approved.BankAccountId, cancellationToken, gated: true);
+
+    /// <summary>
+    /// §5: the payee's due diligence changed. Each payout held for it may be batched again once the payee is cleared for a
+    /// payout whose domain is not known (domain ANY: a refund, case redress).
+    /// </summary>
+    public async Task Handle(Party.Contracts.DueDiligenceChanged changed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var held = await payments.HeldFor(changed.PartyId, cancellationToken);
+        if (held.Count == 0
+            || !(await dueDiligence.ClearedFor(tenant.RequireTenantId(), changed.PartyId, Party.Contracts.DueDiligenceSteps.Payout, Party.Contracts.DueDiligenceSteps.AnyDomain,
+                cancellationToken)).Cleared)
+        {
+            return;
+        }
+
+        foreach (var payment in held)
+        {
+            payment.ReleaseHold();
+        }
+    }
 
     /// <summary>
     /// Redress approved on a case by a second person (OQ-104) is paid to the payee's verified account through a payout
@@ -937,7 +963,7 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
                             ? current.Id
                             : throw new PrerequisiteMissingException(PaymentPrerequisites.PayeeAccountNotPayable, $"{approved.PayeePartyId}:{approved.Currency}"));
         await Payout($"CASE_REDRESS:{approved.RedressId:N}", CaseApprovals.RedressPaymentPurpose, approved.Amount, approved.Currency, approved.PayeePartyId,
-            CaseApprovals.RedressBusinessRefType, approved.RedressId, accountId, cancellationToken);
+            CaseApprovals.RedressBusinessRefType, approved.RedressId, accountId, cancellationToken, gated: true);
     }
 
     public Task Handle(ClaimPaymentInstructed instructed, EventEnvelope envelope, CancellationToken cancellationToken) =>
@@ -1057,8 +1083,12 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
         return Task.CompletedTask;
     }
 
+    /// <param name="gated">
+    /// A payout the domain has not already gated (a refund, case redress): held out of the batches while the payee is not
+    /// cleared (§5, domain ANY). Claim payments are gated in the Claims Framework before they are instructed.
+    /// </param>
     private async Task Payout(string key, string purpose, decimal amount, string currency, Guid? payee, string businessRefType, Guid businessRefId, Guid bankAccountId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool gated = false)
     {
         // GAP-038, ADR-022 decision 7: a payout that cannot start is parked, visible and escalated, never skipped. It is
         // retried when a payout method or provider is published, and the payment is then created once (its idempotency key).
@@ -1077,6 +1107,13 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
                 PaymentErrorCodes.NoProvider => new PrerequisiteMissingException(PaymentPrerequisites.ProviderNotInForce, method),
                 _ => new InvalidOperationException($"The payout could not start: {started.Error.Code}."),
             };
+        }
+
+        if (gated && payee is { } payeeId
+            && !(await dueDiligence.ClearedFor(tenant.RequireTenantId(), payeeId, Party.Contracts.DueDiligenceSteps.Payout, Party.Contracts.DueDiligenceSteps.AnyDomain,
+                cancellationToken)).Cleared)
+        {
+            started.Value.HoldForDueDiligence(clock.UtcNow);
         }
     }
 

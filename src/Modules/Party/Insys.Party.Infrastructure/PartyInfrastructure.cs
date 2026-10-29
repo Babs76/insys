@@ -96,6 +96,7 @@ public static class PartyInfrastructure
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, DueDiligenceApprovalPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalRejected");
         services.AddOptions<DueDiligenceJobOptions>().BindConfiguration("Party:DueDiligenceJobs");
         services.AddSingleton<DueDiligenceJobs>();
+        services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, DueDiligenceReadiness>(); // §7
         if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {
             services.AddHostedService<DueDiligenceJobsService>();

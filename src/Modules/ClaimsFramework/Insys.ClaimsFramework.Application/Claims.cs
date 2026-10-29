@@ -56,6 +56,9 @@ public interface IClaimsRepository
 
     Task<ClaimPaymentInstruction?> Instruction(string claimNumber, string instructionRef, CancellationToken cancellationToken);
 
+    /// <summary>The payee's instructions held for the reason (ReleaseHoldReasons).</summary>
+    Task<IReadOnlyList<ClaimPaymentInstruction>> HeldFor(Guid payeePartyId, string reason, CancellationToken cancellationToken);
+
     void Add(ClaimRegistration registration);
 
     void Add(FinancialMovement movement);
@@ -519,8 +522,8 @@ internal sealed class DraftInstructionHandler(IClaimsRepository claims, IClaimsC
     }
 }
 
-internal sealed class ChangeInstructionHandler(IClaimsRepository claims, IBankAccounts bankAccounts, ITenantContext tenant, IExecutionContext execution, IClock clock,
-    IAuditTrail audit)
+internal sealed class ChangeInstructionHandler(IClaimsRepository claims, IBankAccounts bankAccounts, Party.Contracts.IDueDiligenceStatus dueDiligence, ITenantContext tenant,
+    IExecutionContext execution, IClock clock, IAuditTrail audit)
     : ICommandHandler<ChangeInstruction, InstructionView>
 {
     public async Task<Result<InstructionView>> Handle(ChangeInstruction command, CancellationToken cancellationToken)
@@ -554,6 +557,14 @@ internal sealed class ChangeInstructionHandler(IClaimsRepository claims, IBankAc
             if (!await Payees.Unchanged(bankAccounts, tenant, instruction.Payee, cancellationToken))
             {
                 return Error.Conflict(ClaimsErrorCodes.BankAccountChanged, "The payee's bank account changed after approval; redirect the instruction for a fresh approval.");
+            }
+
+            // §5: a payee not cleared by due diligence is not paid; the instruction is released once Party clears them.
+            var cleared = await dueDiligence.ClearedFor(tenant.RequireTenantId(), instruction.PayeePartyId, Party.Contracts.DueDiligenceSteps.ClaimPayout,
+                claim.Value.Domain, cancellationToken);
+            if (!cleared.Cleared)
+            {
+                return DueDiligenceRefusal.For(cleared.Outstanding, false);
             }
 
             var financials = await Loaded.Financials(claims, claim.Value, instruction.Currency, cancellationToken);
@@ -699,7 +710,8 @@ internal sealed class GetInstructionHandler(IClaimsRepository claims, IApprovalH
 /// Claims' policies (domain-model.json: claims consumes): Workflow's decision on an instruction; the payout's outcome
 /// (RecordOutcome); and its own ClaimPaymentCompleted, which records the payment movement against the reserve (CLM-004).
 /// </summary>
-public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankAccounts, ITenantContext tenant, IBusinessDate businessDate, IClock clock, ILogger<ClaimsPolicies> logger) :
+public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankAccounts, Party.Contracts.IDueDiligenceStatus dueDiligence, ITenantContext tenant,
+    IBusinessDate businessDate, IClock clock, ILogger<ClaimsPolicies> logger) :
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<PaymentSucceeded>,
@@ -708,7 +720,8 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
     IIntegrationEventHandler<Contracts.ClaimPaymentCompleted>,
     IIntegrationEventHandler<GeneralClaimApproved>,
     IIntegrationEventHandler<LifeClaimApproved>,
-    IIntegrationEventHandler<RecoveryRecorded>
+    IIntegrationEventHandler<RecoveryRecorded>,
+    IIntegrationEventHandler<Party.Contracts.DueDiligenceChanged>
 {
     /// <summary>
     /// The approval of a new instruction or of new payee details was granted: the instruction is approved, or takes the new
@@ -813,12 +826,26 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
         }
 
         var financials = new ClaimFinancials(claim.ClaimNumber, claim.Domain, approved.Currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
-        Release(instruction.Value, approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType));
+        await Release(instruction.Value, approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType), cancellationToken);
     }
 
-    /// <summary>An automatic release: refused, the instruction is held with why, and the claims role gets a task (never a silent stop).</summary>
-    private void Release(ClaimPaymentInstruction instruction, Guid releasedBy, string domain, decimal outstanding)
+    /// <summary>
+    /// An automatic release: refused, the instruction is held with why, and the claims role gets a task (never a silent
+    /// stop). A payee not cleared by due diligence holds it too (§5), until Party clears them.
+    /// </summary>
+    private async Task Release(ClaimPaymentInstruction instruction, Guid releasedBy, string domain, decimal outstanding, CancellationToken cancellationToken)
     {
+        var cleared = await dueDiligence.ClearedFor(tenant.RequireTenantId(), instruction.PayeePartyId, Party.Contracts.DueDiligenceSteps.ClaimPayout, domain,
+            cancellationToken);
+        if (!cleared.Cleared)
+        {
+            instruction.HoldForDueDiligence($"The payee is not cleared by due diligence ({string.Join(", ", cleared.Outstanding)}); it is released once they are.",
+                domain, clock.UtcNow);
+            logger.LogWarning("ClaimPaymentReleaseHeld: claim {ClaimNumber} instruction {InstructionId} held: {Reason}", instruction.ClaimNumber, instruction.Id,
+                ReleaseHoldReasons.DueDiligenceNotCleared);
+            return;
+        }
+
         var released = instruction.ReleaseInstruction(releasedBy, domain, outstanding, clock.UtcNow);
         if (released.IsFailure)
         {
@@ -868,7 +895,7 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
             claims.Add(instruction.Value);
             if (await Payees.Unchanged(bankAccounts, tenant, instruction.Value.Payee, cancellationToken))
             {
-                Release(instruction.Value, approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType));
+                await Release(instruction.Value, approved.CheckerId, claim.Domain, financials.Outstanding(approved.ReserveType), cancellationToken);
             }
             else
             {
@@ -890,6 +917,32 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
         if (movement.IsSuccess)
         {
             claims.Add(movement.Value);
+        }
+    }
+
+    /// <summary>
+    /// §5: the payee's due diligence changed. Each instruction held for it is released when the payee is now cleared, within
+    /// the outstanding reserve and while the approved account is unchanged; otherwise it stays held.
+    /// </summary>
+    public async Task Handle(Party.Contracts.DueDiligenceChanged changed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        foreach (var instruction in await claims.HeldFor(changed.PartyId, ReleaseHoldReasons.DueDiligenceNotCleared, cancellationToken))
+        {
+            if (await claims.ByNumber(instruction.ClaimNumber, cancellationToken) is not { } claim
+                || !(await dueDiligence.ClearedFor(tenant.RequireTenantId(), instruction.PayeePartyId, Party.Contracts.DueDiligenceSteps.ClaimPayout, claim.Domain,
+                    cancellationToken)).Cleared)
+            {
+                continue;
+            }
+
+            if (!await Payees.Unchanged(bankAccounts, tenant, instruction.Payee, cancellationToken))
+            {
+                Hold(instruction, ReleaseHoldReasons.PayeeAccountChanged, "The payee's bank account changed after approval.", claim.Domain);
+                continue;
+            }
+
+            var financials = new ClaimFinancials(claim.ClaimNumber, claim.Domain, instruction.Currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
+            await Release(instruction, Guid.Empty, claim.Domain, financials.Outstanding(instruction.ReserveType), cancellationToken);
         }
     }
 

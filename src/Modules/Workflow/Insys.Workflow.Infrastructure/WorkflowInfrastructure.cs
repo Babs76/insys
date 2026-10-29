@@ -83,6 +83,10 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<General.Contracts.GeneralQuoteReferralDecided, CloseGeneralReferralTask, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Identity.Contracts.AdministratorGranted, TenantAdministratorAuthority, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Party.Contracts.PartyMatchResolved, ClosePartyMatchReviewTask, WorkflowDbContext>(schema);
+        services.AddIntegrationEventHandler<Party.Contracts.DueDiligenceReferred, DueDiligenceTasks, WorkflowDbContext>(schema, "DueDiligenceReferred");
+        services.AddIntegrationEventHandler<Party.Contracts.DueDiligenceBlocked, DueDiligenceTasks, WorkflowDbContext>(schema, "DueDiligenceBlocked");
+        services.AddIntegrationEventHandler<Party.Contracts.DueDiligenceExpired, DueDiligenceTasks, WorkflowDbContext>(schema, "DueDiligenceExpired");
+        services.AddIntegrationEventHandler<Party.Contracts.DueDiligenceChanged, DueDiligenceTasks, WorkflowDbContext>(schema, "DueDiligenceChanged");
 
         services.AddSingleton<WorkflowJobs>();
         services.AddSingleton<CaseTimelineJobs>();

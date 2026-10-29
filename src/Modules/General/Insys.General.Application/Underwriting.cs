@@ -320,7 +320,7 @@ public static class QuotePricing
 
 internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellableProducts products, IIntermediaries intermediaries, ITenantContext tenant, IBusinessDate businessDate,
     IAuditTrail audit, IExecutionContext execution, Tenancy.Contracts.IOrganisationStructure organisation, IClock clock, IGeneralCodes codes,
-    Billing.Contracts.IPolicyArrears billing)
+    Billing.Contracts.IPolicyArrears billing, Party.Contracts.IDueDiligenceStatus dueDiligence)
     : ICommandHandler<CreateQuote, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(CreateQuote command, CancellationToken cancellationToken)
@@ -340,6 +340,13 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
         if (product.IsFailure)
         {
             return product.Error;
+        }
+
+        // §5: a quote is allowed by default; a tenant may gate it (party.cfg_due_diligence_gates). A portal caller is told only that it is under review.
+        var cleared = await dueDiligence.ClearedFor(tenant.RequireTenantId(), command.ProposerPartyId, Party.Contracts.DueDiligenceSteps.Quote, "GENERAL", cancellationToken);
+        if (!cleared.Cleared)
+        {
+            return DueDiligenceRefusal.For(cleared.Outstanding, false);
         }
 
         // DST-001: a quote through an intermediary needs one that may sell the product.

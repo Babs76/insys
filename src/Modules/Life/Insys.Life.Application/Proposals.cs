@@ -100,7 +100,8 @@ public sealed class CaptureProposalValidator : AbstractValidator<CaptureProposal
 }
 
 internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, IPersonFacts persons, IIntermediaries intermediaries,
-    ITenantContext tenant, IBusinessDate businessDate, IAuditTrail audit, IExecutionContext execution, IOrganisationStructure organisation)
+    Party.Contracts.IDueDiligenceStatus dueDiligence, ITenantContext tenant, IBusinessDate businessDate, IAuditTrail audit, IExecutionContext execution,
+    IOrganisationStructure organisation)
     : ICommandHandler<CaptureProposal, ProposalView>
 {
     public async Task<Result<ProposalView>> Handle(CaptureProposal command, CancellationToken cancellationToken)
@@ -110,6 +111,13 @@ internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes co
         if (product.IsFailure)
         {
             return product.Error;
+        }
+
+        // §5: a quote is allowed by default; a tenant may gate it (party.cfg_due_diligence_gates).
+        var cleared = await dueDiligence.ClearedFor(tenantId, command.ApplicantPartyId, Party.Contracts.DueDiligenceSteps.Quote, "LIFE", cancellationToken);
+        if (!cleared.Cleared)
+        {
+            return DueDiligenceRefusal.For(cleared.Outstanding, false);
         }
 
         // F103 (addenda/access-scopes.md §2): the owning node, in the structure and, with the product, in the caller's scope.
