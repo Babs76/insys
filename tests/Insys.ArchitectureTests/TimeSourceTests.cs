@@ -50,6 +50,47 @@ public sealed partial class TimeSourceTests
         found.ShouldBeEmpty("pass the application's time as a parameter instead");
     }
 
+    /// <summary>
+    /// Every SQL file in the repository except the applied migrations (immutable; the functions they leave in force are
+    /// checked in the database by RecordTimeSourceTests): the database's clock only on reviewed lines, each with its reason.
+    /// A new folder or file is scanned as it appears.
+    /// </summary>
+    [Fact]
+    public void EverySqlFile_ReadsTheDatabasesClock_OnlyWhereReviewed_V0093()
+    {
+        var root = RepositoryPaths.Root;
+        var found = Directory.EnumerateFiles(root, "*.sql", SearchOption.AllDirectories)
+            .Select(f => Path.GetRelativePath(root, f).Replace(Path.DirectorySeparatorChar, '/'))
+            .Where(f => !f.StartsWith(".git/", StringComparison.Ordinal) && !f.Contains("/bin/", StringComparison.Ordinal) && !f.Contains("/obj/", StringComparison.Ordinal)
+                        && !AppliedMigration().IsMatch(f))
+            .SelectMany(f => File.ReadLines(Path.Combine(root, f)).Select((line, i) => (File: f, Line: i + 1, Text: line.Trim())))
+            .Where(l => !l.Text.StartsWith("--", StringComparison.Ordinal) && DatabaseClock().IsMatch(l.Text))
+            .Where(l => !(Reviewed.TryGetValue(l.File, out var reviewed) && reviewed.Any(r => r.Line.IsMatch(l.Text))))
+            .Select(l => $"{l.File}:{l.Line}: {l.Text}")
+            .ToList();
+        found.ShouldBeEmpty("pass the application's time as a parameter, or review the line into TimeSourceTests.Reviewed with its reason");
+    }
+
+    /// <summary>The reviewed uses of the database's clock in SQL files, by file: the lines they may be on, and why.</summary>
+    private static readonly Dictionary<string, (Regex Line, string Why)[]> Reviewed = new(StringComparer.Ordinal)
+    {
+        ["db/bootstrap/operator.sql"] =
+        [
+            (new Regex(@"^SELECT audit\.ensure_monthly_partitions\(current_date, 3\);$"),
+                "Provisioning runs before any host exists, so there is no application clock yet; the hosts then keep the partitions by theirs (Ade, 29 October 2026)"),
+            (new Regex(@"'bootstrap'|admin_id|'ACTIVE', now\(\)\)$"), "Stamps the rows provisioning inserts (created, approved, effective from); nothing is decided by the time"),
+        ],
+        ["db/migrations/R__error_code_catalogue.sql"] = [(new Regex(@"'migration', now\(\), 'migration'"), "Stamps the seeded rows' created_at at release")],
+        ["db/migrations/R__function_catalogue.sql"] =
+        [
+            (new Regex(@"'migration', now\(\), 'migration'"), "Stamps the seeded rows' created_at at release"),
+            (new Regex(@"effective_from < current_date|ELSE current_date END"), "Versions the catalogue on the release's date, run by the migrator with no application running (ADR-026 §7)"),
+        ],
+    };
+
+    [GeneratedRegex(@"^db/migrations/V\d{4}__[^/]+\.sql$")]
+    private static partial Regex AppliedMigration();
+
     [Theory]
     [InlineData("WHERE retires_at > now()")]
     [InlineData("AND due_at <= CURRENT_TIMESTAMP")]
