@@ -124,6 +124,24 @@ public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixtu
             ("r", (await ExternalRef(payment))!))).ShouldBe(1);
     }
 
+    /// <summary>
+    /// V0093 (one time source, 29 October 2026): whether a retiring endpoint is still usable is decided by the application's
+    /// clock, passed in, not the database's. With the cut-over an hour after the database's now, the endpoint is refused
+    /// when the application's time is past it, and accepted when it is before.
+    /// </summary>
+    [Fact]
+    public async Task ARetiringEndpointsCutOver_IsJudgedByTheApplicationsClock_NotTheDatabases_V0093()
+    {
+        var endpoint = await Issue(DatabaseFixture.TenantB);
+        await fixture.Database.ExecuteAsOwner("UPDATE payment.callback_endpoint SET status = 'RETIRING', retires_at = now() + interval '1 hour' WHERE id = @id",
+            ("id", endpoint.Endpoint.Id));
+        var hash = await fixture.Database.ScalarAsOwner<string>("SELECT key_hash FROM payment.callback_endpoint WHERE id = @id", ("id", endpoint.Endpoint.Id));
+        const string resolve = "SELECT count(*) FROM payment.resolve_callback_endpoint(@h, now() + @ahead)";
+        (await fixture.Database.ScalarAsOwner<long>(resolve, ("h", hash!), ("ahead", TimeSpan.Zero))).ShouldBe(1L, "before the cut-over by the application's clock");
+        (await fixture.Database.ScalarAsOwner<long>(resolve, ("h", hash!), ("ahead", TimeSpan.FromHours(2)))).ShouldBe(0L,
+            "past the cut-over by the application's clock, though not by the database's");
+    }
+
     [Fact]
     public async Task RotatedEndpoint_IsAcceptedUntilItsCutOver_AndARevokedOneAtOnceRefused_ADR023()
     {

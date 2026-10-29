@@ -105,15 +105,15 @@ BEGIN
   ALTER DEFAULT PRIVILEGES IN SCHEMA audit REVOKE UPDATE, DELETE ON TABLES FROM insys_audit;
 
   -- Partition maintenance through owner-defined functions only (V0005).
-  GRANT EXECUTE ON FUNCTION audit.ensure_monthly_partitions(integer) TO insys_audit;
+  GRANT EXECUTE ON FUNCTION audit.ensure_monthly_partitions(date, integer) TO insys_audit;
   GRANT EXECUTE ON FUNCTION audit.partition_horizon() TO insys_audit;
   -- Opening an accounting period creates its ledger partitions (V0089).
   GRANT EXECUTE ON FUNCTION finance.ensure_ledger_partitions(date, date) TO insys_finance;
   -- The party search log's retention (OQ-073): the only way its rows change.
   GRANT EXECUTE ON FUNCTION party.minimise_search_log(timestamptz) TO insys_party;
   GRANT EXECUTE ON FUNCTION party.purge_search_log(timestamptz) TO insys_party;
-  GRANT EXECUTE ON FUNCTION payment.resolve_callback_endpoint(char) TO insys_payment;
-  GRANT EXECUTE ON FUNCTION communication.resolve_callback_endpoint(char) TO insys_communication;
+  GRANT EXECUTE ON FUNCTION payment.resolve_callback_endpoint(char, timestamptz) TO insys_payment;
+  GRANT EXECUTE ON FUNCTION communication.resolve_callback_endpoint(char, timestamptz) TO insys_communication;
 
   -- The API building block: idempotency keys only (INT-003, DBA-008).
   GRANT USAGE ON SCHEMA integration TO insys_api;

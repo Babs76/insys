@@ -85,16 +85,19 @@ public abstract class CallbackEndpointStore(ModuleDbContext db) : ICallbackEndpo
 
 /// <summary>
 /// The key-hash lookup across tenants, before any tenant is known, through the module's
-/// &lt;schema&gt;.resolve_callback_endpoint (V0033, V0051) on the module's own role.
+/// &lt;schema&gt;.resolve_callback_endpoint (V0033, V0051, V0093) on the module's own role. A retiring endpoint is usable until
+/// its cut-over by the application's clock, passed in, never the database's (V0093).
 /// </summary>
 public static class CallbackEndpointLookup
 {
-    public static async Task<(Guid TenantId, Guid EndpointId)?> Resolve(NpgsqlDataSource dataSource, string schema, string keyHash, CancellationToken cancellationToken)
+    public static async Task<(Guid TenantId, Guid EndpointId)?> Resolve(NpgsqlDataSource dataSource, string schema, string keyHash, DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand($"SELECT tenant_id, endpoint_id FROM {schema}.resolve_callback_endpoint(@hash)", connection, transaction);
+        await using var command = new NpgsqlCommand($"SELECT tenant_id, endpoint_id FROM {schema}.resolve_callback_endpoint(@hash, @now)", connection, transaction);
         command.Parameters.AddWithValue("hash", keyHash);
+        command.Parameters.AddWithValue("now", now);
         (Guid, Guid)? found = null;
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {

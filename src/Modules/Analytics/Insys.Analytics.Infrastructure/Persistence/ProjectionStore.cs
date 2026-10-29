@@ -51,9 +51,10 @@ internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tena
     {
         await using var command = await Command("""
             INSERT INTO analytics.event_log (tenant_id, event_id, event_type, occurred_at, received_at, payload)
-            VALUES (@t, @id, @type, @occurred, now(), @payload) ON CONFLICT (tenant_id, event_id) DO NOTHING
+            VALUES (@t, @id, @type, @occurred, @received, @payload) ON CONFLICT (tenant_id, event_id) DO NOTHING
             """, cancellationToken);
         command.Parameters.AddWithValue("id", eventId);
+        command.Parameters.AddWithValue("received", clock.UtcNow); // one time source (V0093): the application's clock, not the database's
         command.Parameters.AddWithValue("type", eventType);
         command.Parameters.AddWithValue("occurred", occurredAt);
         command.Parameters.Add(new NpgsqlParameter("payload", NpgsqlTypes.NpgsqlDbType.Jsonb) { Value = JsonSerializer.Serialize(entry, Json) });

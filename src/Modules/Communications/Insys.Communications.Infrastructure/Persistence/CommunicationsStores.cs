@@ -221,11 +221,11 @@ internal sealed class CommunicationCodes(CommunicationsDbContext db) : ICommunic
 
 internal sealed class CommunicationCallbackEndpoints(CommunicationsDbContext db) : CallbackEndpointStore(db), ICommunicationCallbackEndpoints;
 
-internal sealed class CommunicationCallbackResolver([FromKeyedServices(CommunicationsDbContext.SchemaName)] Npgsql.NpgsqlDataSource dataSource)
+internal sealed class CommunicationCallbackResolver([FromKeyedServices(CommunicationsDbContext.SchemaName)] Npgsql.NpgsqlDataSource dataSource, IClock clock)
     : ICommunicationCallbackResolver
 {
     public Task<(Guid TenantId, Guid EndpointId)?> Resolve(string keyHash, CancellationToken cancellationToken) =>
-        CallbackEndpointLookup.Resolve(dataSource, CommunicationsDbContext.SchemaName, keyHash, cancellationToken);
+        CallbackEndpointLookup.Resolve(dataSource, CommunicationsDbContext.SchemaName, keyHash, clock.UtcNow, cancellationToken);
 }
 
 internal sealed class CommunicationsEventMapper : IDomainEventMapper

@@ -53,11 +53,13 @@ public sealed class PartitionOptions
 /// SECURITY DEFINER function audit.ensure_monthly_partitions, which gives each partition the parent's tenant policy.
 /// The Audit role has no DDL rights of its own.
 /// </summary>
-public sealed class PartitionMaintainer([FromKeyedServices(AuditDbContext.SchemaName)] NpgsqlDataSource dataSource, IOptions<PartitionOptions> options)
+public sealed class PartitionMaintainer([FromKeyedServices(AuditDbContext.SchemaName)] NpgsqlDataSource dataSource, IOptions<PartitionOptions> options, IClock clock)
 {
+    /// <summary>The months ahead of the application's UTC date (V0093): the months its rows are dated in, not the database's.</summary>
     public async Task<IReadOnlyList<string>> EnsurePartitions(CancellationToken cancellationToken)
     {
-        await using var command = dataSource.CreateCommand("SELECT * FROM audit.ensure_monthly_partitions(@months)");
+        await using var command = dataSource.CreateCommand("SELECT * FROM audit.ensure_monthly_partitions(@today, @months)");
+        command.Parameters.AddWithValue("today", clock.UtcToday); // technical UTC date: partitions are by UTC month
         command.Parameters.AddWithValue("months", options.Value.MonthsAhead);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var created = new List<string>();

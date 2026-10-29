@@ -193,8 +193,27 @@ public sealed class ModuleRoleAndPartitionTests(DatabaseFixture fixture) : IClas
         (await Check(maintainer, horizon.AddMonths(-1)).CheckHealthAsync(now)).Status.ShouldBe(HealthStatus.Degraded);
     }
 
-    private PartitionMaintainer Maintainer(int monthsAhead) =>
-        new(NpgsqlDataSource.Create(fixture.Database.ConnectionFor("insys_audit")), Options.Create(new PartitionOptions { MonthsAhead = monthsAhead }));
+    private PartitionMaintainer Maintainer(int monthsAhead, DateOnly? today = null) =>
+        new(NpgsqlDataSource.Create(fixture.Database.ConnectionFor("insys_audit")), Options.Create(new PartitionOptions { MonthsAhead = monthsAhead }),
+            new SystemClock(new FakeTimeProvider(new DateTimeOffset((today ?? DateOnly.FromDateTime(DateTime.UtcNow)).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero))));
+
+    /// <summary>
+    /// V0093 (one time source, 29 October 2026): partitions are made for the application's months, the months its rows are
+    /// dated in, from the date the application passes, never the database's own date. Here the application is 40 months
+    /// ahead of the database: maintenance makes the partitions those rows need.
+    /// </summary>
+    [Fact]
+    public async Task PartitionMaintenance_FollowsTheApplicationsClock_NotTheDatabases_V0093()
+    {
+        var ahead = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(40);
+        var month = new DateOnly(ahead.Year, ahead.Month, 1).AddMonths(2);
+        var name = $"audit.audit_event_{month:yyyy_MM}";
+        (await fixture.Database.ScalarAsOwner<bool>($"SELECT to_regclass('{name}') IS NULL")).ShouldBeTrue("not made by the database's clock");
+
+        var created = await Maintainer(monthsAhead: 3, today: ahead).EnsurePartitions(CancellationToken.None);
+        created.ShouldContain(name);
+        (await fixture.Database.ScalarAsOwner<bool>($"SELECT to_regclass('{name}') IS NOT NULL")).ShouldBeTrue();
+    }
 
     private static PartitionHorizonHealthCheck Check(PartitionMaintainer maintainer, DateOnly today) =>
         new(maintainer, new SystemClock(new FakeTimeProvider(new DateTimeOffset(today.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero))),

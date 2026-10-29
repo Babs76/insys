@@ -263,8 +263,8 @@ internal sealed class PaymentsEventMapper : IDomainEventMapper
 internal sealed class CallbackEndpoints(PaymentsDbContext db) : BuildingBlocks.Infrastructure.ProviderCallbacks.CallbackEndpointStore(db), ICallbackEndpoints;
 
 /// <summary>The key-hash lookup across tenants, through payment.resolve_callback_endpoint (V0033), on the Payments role.</summary>
-internal sealed class CallbackEndpointResolver([FromKeyedServices(PaymentsDbContext.SchemaName)] Npgsql.NpgsqlDataSource dataSource) : ICallbackEndpointResolver
+internal sealed class CallbackEndpointResolver([FromKeyedServices(PaymentsDbContext.SchemaName)] Npgsql.NpgsqlDataSource dataSource, BuildingBlocks.Application.Context.IClock clock) : ICallbackEndpointResolver
 {
     public Task<(Guid TenantId, Guid EndpointId)?> Resolve(string keyHash, CancellationToken cancellationToken) =>
-        BuildingBlocks.Infrastructure.ProviderCallbacks.CallbackEndpointLookup.Resolve(dataSource, PaymentsDbContext.SchemaName, keyHash, cancellationToken);
+        BuildingBlocks.Infrastructure.ProviderCallbacks.CallbackEndpointLookup.Resolve(dataSource, PaymentsDbContext.SchemaName, keyHash, clock.UtcNow, cancellationToken);
 }
