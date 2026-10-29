@@ -98,6 +98,9 @@ public static class PartyPermissions
 
     public const string DueDiligenceReport = "due_diligence.report";
 
+    /// <summary>OQ-138: completing a party's periodic review (confirming its details are current, with a fresh screening).</summary>
+    public const string DueDiligenceReview = "due_diligence.review";
+
     /// <summary>OQ-126, privileged: the approver of enhanced due diligence holds it.</summary>
     public const string DueDiligenceApproveEnhanced = "due_diligence.approve_enhanced";
 

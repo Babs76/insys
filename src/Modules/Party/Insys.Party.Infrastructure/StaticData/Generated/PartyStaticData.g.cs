@@ -79,6 +79,7 @@ public static class PartyStaticData
             entity.Property(x => x.MaxScore).HasColumnName("max_score");
             entity.Property(x => x.DdLevel).HasColumnName("dd_level").HasMaxLength(12);
             entity.Property(x => x.ReviewInterval).HasColumnName("review_interval").HasConversion(StaticConverters.Duration).HasColumnType("interval");
+            entity.Property(x => x.ReviewMode).HasColumnName("review_mode").HasMaxLength(9);
         });
         modelBuilder.Entity<CustomerRiskFactors>(entity =>
         {

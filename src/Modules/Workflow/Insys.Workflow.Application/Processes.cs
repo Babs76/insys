@@ -241,6 +241,13 @@ internal sealed class CompleteTaskHandler(IProcessRepository processes, IWorkflo
             return process.Error;
         }
 
+        // OQ-138: a periodic due diligence review is completed through Party (POST /party/parties/{id}/due-diligence/review); its task closes then.
+        if (process.Value.ProcessCode == BuiltInProcesses.DueDiligenceReview.ProcessCode)
+        {
+            return Error.Conflict(WorkflowErrorCodes.TaskClosedByItsRecord,
+                "This review is completed on the party's due diligence; the task closes when the party clears.");
+        }
+
         var definition = await configuration.Definition(process.Value.ProcessCode, process.Value.ProcessVersion, businessDate.Today, cancellationToken);
         if (definition.IsFailure)
         {

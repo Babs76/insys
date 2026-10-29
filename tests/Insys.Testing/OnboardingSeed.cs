@@ -238,9 +238,12 @@ public static class OnboardingSeed
                 ("status", "ACTIVE"));
         }
 
-        await database.GrantFunctionsWithin(tenantId, "CLERK", from, "due_diligence.review_hit");
+        // ...and that reviews hits and completes periodic reviews (OQ-138).
+        await database.GrantFunctionsWithin(tenantId, "CLERK", from, "due_diligence.review_hit", "due_diligence.review");
         await database.SeedStaticFilled(tenantId, "channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CTP-CLERK-DD", from, ("channel_code", "STF"),
             ("role_code", "CLERK"), ("function_code", "PARTY_REVIEW_SCREENING_HIT"), ("allowed", true));
+        await database.SeedStaticFilled(tenantId, "channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CTP-CLERK-DD-REVIEW", from, ("channel_code", "STF"),
+            ("role_code", "CLERK"), ("function_code", "PARTY_COMPLETE_DUE_DILIGENCE_REVIEW"), ("allowed", true));
 
         // OQ-110: the case notification types, each with a template.
         foreach (var type in new[] { "CASE_ACKNOWLEDGED", "CASE_UPDATE", "CASE_DECISION" })

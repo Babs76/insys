@@ -46,8 +46,9 @@ public sealed record RegisterPartyRequest(IndividualData? Individual, Organisati
 public sealed record ContactPointRequest([property: BuildingBlocks.Domain.CodeList(Tables.ContactChannels, "code")] string ChannelType, string Value, bool IsPrimary);
 
 /// <param name="Number">The document number. It is stored encrypted and never returned.</param>
+/// <param name="ExpiryDate">OQ-138: the document's expiry date, when it has one (a passport; not a company registration).</param>
 public sealed record IdentifierRequest([property: BuildingBlocks.Domain.CodeList(Tables.IdentityDocuments, "doc_type")] string DocType,
-    [property: BuildingBlocks.Domain.CodeList(Tables.Countries, "code")] string Country, string Number);
+    [property: BuildingBlocks.Domain.CodeList(Tables.Countries, "code")] string Country, string Number, DateOnly? ExpiryDate = null);
 
 public sealed record PreferredLanguageRequest([property: BuildingBlocks.Domain.CodeList(Tables.Languages, "code")] string? Language);
 
@@ -73,6 +74,9 @@ public sealed record DueDiligenceCheckRequest([property: BuildingBlocks.Domain.O
     Guid? IdentifierId, Guid? DocumentId, string? Reference);
 
 /// <param name="Reason">Why, in the reviewer's words; required. Kept on the hit, never put in an event.</param>
+/// <param name="DetailsCurrent">OQ-138: the reviewer confirms the party's details are current (true).</param>
+public sealed record DueDiligenceReviewRequest(bool DetailsCurrent, string? Note);
+
 public sealed record HitReviewRequest([property: BuildingBlocks.Domain.OneOf("TRUE_MATCH", "FALSE_POSITIVE")] string Outcome, string Reason);
 
 public sealed record RiskClassOverrideRequest([property: BuildingBlocks.Domain.OneOf("LOW", "MEDIUM", "HIGH")] string RiskClass, string Reason);
@@ -246,7 +250,7 @@ public sealed class PartyModule : IModule
                 var expected = Concurrency.ExpectedVersion(http.Request);
                 return expected.IsFailure
                     ? Problems.For(expected.Error)
-                    : (await dispatcher.Send(new AddIdentifier(id, r.DocType, r.Country, r.Number, expected.Value), ct)).ToHttp(identifierId =>
+                    : (await dispatcher.Send(new AddIdentifier(id, r.DocType, r.Country, r.Number, expected.Value, r.ExpiryDate), ct)).ToHttp(identifierId =>
                     {
                         Concurrency.SetETag(http, expected.Value + 1);
                         return Results.Created($"/api/v1/party/parties/{id}", new { id = identifierId });
@@ -478,6 +482,25 @@ public sealed class PartyModule : IModule
             .WithDescription("If-Match is the due diligence's ETag. A true sanctions match blocks the party, needs a report to the FIC (s28A) and opens a "
                 + "compliance case; a true PEP match raises the level to ENHANCED. The party is then assessed again.")
             .RequirePermission(PartyPermissions.DueDiligenceReviewHit);
+
+        parties.MapPost("/{id:guid}/due-diligence/review", async (Guid id, DueDiligenceReviewRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                return expected.IsFailure
+                    ? Problems.For(expected.Error)
+                    : (await dispatcher.Send(new CompleteDueDiligenceReview(id, r.DetailsCurrent, r.Note, expected.Value), ct)).ToHttp(Results.Ok);
+            })
+            .RequireIfMatch()
+            .ETagsFromRowVersion()
+            .Produces<DueDiligenceView>(StatusCodes.Status200OK)
+            .WithName("PartyCompleteDueDiligenceReview")
+            .WithSummary("Complete the periodic review of a party past its review date, confirming its details are current (OQ-138)")
+            .WithDescription("If-Match is the due diligence's ETag. For a party whose risk class reviews by a person (review mode PERSON, the default), "
+                + "only this ends the review: a fresh screening runs as part of it, and the party clears when nothing else is outstanding (at ENHANCED, "
+                + "after the enhanced approval, which the reviewer cannot give). Identity and address checks are not redone. 409 "
+                + "DUE_DILIGENCE_NOT_UNDER_REVIEW when no review is due; 422 DUE_DILIGENCE_IDENTITY_DOCUMENT_EXPIRED while the identity check's document "
+                + "has expired and no newer one of its kind is on file. The DUE_DILIGENCE_REVIEW task closes when the party clears.")
+            .RequirePermission(PartyPermissions.DueDiligenceReview);
 
         parties.MapPost("/{id:guid}/due-diligence/risk-class", async (Guid id, RiskClassOverrideRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new OverrideRiskClass(id, r.RiskClass, r.Reason), ct)).ToHttp(Results.Ok))

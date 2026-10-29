@@ -958,6 +958,12 @@
      "logicalType": "ISO 8601 duration",
      "mandatory": true,
      "sample": "P1Y"
+    },
+    {
+     "name": "review_mode",
+     "logicalType": "Enum{Person,Automatic}",
+     "mandatory": true,
+     "sample": "PERSON"
     }
    ]
   },

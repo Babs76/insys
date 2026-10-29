@@ -94,8 +94,9 @@ public sealed record ContactPointView(Guid Id, [property: CodeList(Tables.Contac
 /// An identifier without its number, which is never returned (PTY-005): only masked, with at most its last four characters
 /// ("•••• 1234"; "••••" for a number of four or fewer), BR-026.
 /// </summary>
+/// <param name="ExpiryDate">OQ-138: the document's expiry date, when it has one.</param>
 public sealed record IdentifierView(Guid Id, [property: CodeList(Tables.IdentityDocuments, "doc_type")] string DocType, [property: CodeList(Tables.Countries, "code")] string Country,
-    string MaskedNumber, bool Verified, DateTimeOffset? VerifiedAt)
+    string MaskedNumber, bool Verified, DateTimeOffset? VerifiedAt, [property: BuildingBlocks.Contracts.AlwaysPresent] DateOnly? ExpiryDate = null)
 {
     public const string Mask = "••••";
 
@@ -126,7 +127,7 @@ public sealed record PartyView(Guid Id, string PartyNumber, PartyKind Kind, stri
         p.Individual?.DeceasedDate,
         p.Addresses.OrderBy(a => a.ValidFrom).Select(a => new AddressView(a.Id, a.AddressType, a.Line1, a.Line2, a.City, a.Subdivision, a.PostalCode, a.Country, a.ValidFrom, a.ValidTo)).ToList(),
         p.ContactPoints.Select(c => new ContactPointView(c.Id, c.ChannelType, c.Value, c.IsPrimary, c.VerifiedAt)).ToList(),
-        p.Identifiers.Select(i => new IdentifierView(i.Id, i.DocType, i.Country, IdentifierView.Masked(lastFour(i)), i.VerifiedAt is not null, i.VerifiedAt)).ToList(),
+        p.Identifiers.Select(i => new IdentifierView(i.Id, i.DocType, i.Country, IdentifierView.Masked(lastFour(i)), i.VerifiedAt is not null, i.VerifiedAt, i.ExpiryDate)).ToList(),
         p.Roles.Select(r => new RoleView(r.Id, r.RoleCode, r.Domain, r.ContextType, r.ContextId, r.ValidFrom, r.ValidTo)).ToList(),
         p.Relationships.Select(r => new RelationshipView(r.Id, r.ToPartyId, r.RelationshipCode, r.ValidFrom, r.ValidTo)).ToList(),
         p.RowVersion,
@@ -157,7 +158,9 @@ public sealed record AddAddress(Guid PartyId, AddressData Address, long Expected
 public sealed record AddContactPoint(Guid PartyId, string ChannelType, string Value, bool IsPrimary, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 /// <summary>Command AddIdentifier: the number is checked against the document type's format, encrypted, and hashed for lookup.</summary>
-public sealed record AddIdentifier(Guid PartyId, string DocType, string Country, string Number, long ExpectedVersion) : ICommand<Guid>, IVersionedCommand;
+/// <param name="ExpiryDate">OQ-138: the document's expiry date, when it has one. A renewed document (expiring later) is added beside the one it replaces.</param>
+public sealed record AddIdentifier(Guid PartyId, string DocType, string Country, string Number, long ExpectedVersion, DateOnly? ExpiryDate = null) : ICommand<Guid>,
+    IVersionedCommand;
 
 /// <summary>Command AddBankAccount: the number is encrypted at once and never returned; the party's active account in the currency is superseded once the new one is verified (D-3).</summary>
 public sealed record AddBankAccount(Guid PartyId, string AccountNumber, string BankCode, string? BranchCode, string AccountHolderName, string AccountType, string Currency)
@@ -604,7 +607,8 @@ internal sealed class AddIdentifierHandler(IPartyRepository parties, IPartyCodes
 
         audit.Record(new AuditEntry("PARTY", "AddIdentifier", nameof(Domain.Parties.Party), command.PartyId.ToString(),
             new Dictionary<string, string?> { ["docType"] = command.DocType, ["country"] = command.Country }));
-        return party.Value.AddIdentifier(command.DocType, command.Country, protectedValue.Encrypted, protectedValue.Hash, IdentifierView.LastFour(number), clock.UtcNow);
+        return party.Value.AddIdentifier(command.DocType, command.Country, protectedValue.Encrypted, protectedValue.Hash, IdentifierView.LastFour(number), clock.UtcNow,
+            command.ExpiryDate);
     }
 }
 

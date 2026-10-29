@@ -309,8 +309,15 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         (await Gate(w with { Tenant = DatabaseFixture.TenantA }, unscreened, DueDiligenceSteps.Issue, "LIFE")).Cleared.ShouldBeTrue();
     }
 
+    /// <summary>
+    /// OQ-124, OQ-138: past its review date the party expires and Workflow opens the review. Its class reviews by a person (PERSON,
+    /// the default), so a fresh screening keeps sanctions current but leaves it expired, and the review task cannot be closed by
+    /// hand. A person with the review function completes the review (a fresh screening runs as part of it): the party clears,
+    /// the reviewer is recorded, the next review counts from today, and the task closes. An identifier with no expiry date does
+    /// not hold up the review.
+    /// </summary>
     [Fact]
-    public async Task APassedReviewDate_ExpiresTheParty_TheJobRaisesTheReview_AndAFreshScreeningClearsItAgain_OQ124()
+    public async Task APassedReviewDate_ExpiresTheParty_ARescreenLeavesItExpired_AndOnlyAPersonsReviewClearsIt_OQ124_OQ138()
     {
         var w = await World();
         var party = await w.Clerk.RegisterPerson("Reviewed");
@@ -318,21 +325,153 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         await AddIdentifier(w, party, "7708085009086");
         await Check(w, party, "ADDRESS", await Document(w, party));
         (await DueDiligence(w.Clerk, party)).GetProperty("status").GetString().ShouldBe("CLEARED");
-        await fixture.Database.ExecuteAsOwner("UPDATE party.due_diligence SET next_review_on = @d WHERE party_id = @p", ("d", Today.AddDays(-1)), ("p", party));
+        (await (await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/review", new { detailsCurrent = true },
+            ifMatch: await ETag(w.Reviewer, party))).Code()).ShouldBe("DUE_DILIGENCE_NOT_UNDER_REVIEW", "no review is due yet");
+        await Expire(w, party);
+        (await Gate(w, party, DueDiligenceSteps.Issue, "LIFE")).Cleared.ShouldBeFalse("an expired party is not cleared");
 
+        // The automatic screening: sanctions are current, but the review waits for a person.
+        await Screen(w, party);
+        var view = await DueDiligence(w.Clerk, party);
+        (view.GetProperty("status").GetString(), Outstanding(view).Single(), view.GetProperty("reviewDue").GetBoolean()).ShouldBe(("EXPIRED", "PERIODIC_REVIEW", true));
+        var task = await fixture.Database.ScalarAsOwner<Guid>("""
+            SELECT p.id FROM workflow.process_instance p WHERE p.tenant_id = @t AND p.process_code = 'DUE_DILIGENCE_REVIEW' AND p.business_ref_id = @p AND p.ended_at IS NULL
+            """, ("t", w.Tenant), ("p", party));
+        var worker = "dd-wf-" + Guid.NewGuid().ToString("N")[..8];
+        await fixture.Database.UserWithPermissions(w.Tenant, worker, WorkflowPermissions.ProcessRead, WorkflowPermissions.ProcessUpdate);
+        var taskId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM workflow.task WHERE tenant_id = @t AND process_instance_id = @p", ("t", w.Tenant), ("p", task));
+        var version = await fixture.Database.ScalarAsOwner<long>("SELECT row_version FROM workflow.process_instance WHERE id = @p", ("p", task));
+        var byHand = await w.Factory.ClientFor(w.Tenant, worker).Send(HttpMethod.Post, $"/api/v1/workflow/processes/{task}/tasks/{taskId}/complete",
+            new { toState = "REVIEWED" }, ifMatch: $"\"{version}\"");
+        (await byHand.Code()).ShouldBe("TASK_CLOSED_BY_ITS_RECORD");
+
+        (await (await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/review", new { detailsCurrent = false },
+            ifMatch: await ETag(w.Reviewer, party))).Code()).ShouldBe("VALIDATION_FAILED", "the reviewer confirms the details are current");
+        var reviewed = await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/review", new { detailsCurrent = true, note = "Address confirmed by phone" },
+            ifMatch: await ETag(w.Reviewer, party));
+        reviewed.StatusCode.ShouldBe(HttpStatusCode.OK, await reviewed.Content.ReadAsStringAsync());
+        await w.Factory.DrainOutbox();
+        view = await DueDiligence(w.Clerk, party);
+        (view.GetProperty("status").GetString(), view.GetProperty("nextReviewOn").GetString(), view.GetProperty("reviewedBy").GetGuid(), view.GetProperty("reviewDue").GetBoolean())
+            .ShouldBe(("CLEARED", Today.AddYears(5).ToString("yyyy-MM-dd"), w.ReviewerId, false));
+        view.GetProperty("reviewedBySystem").GetBoolean().ShouldBeFalse();
+        (await Running(w, "DUE_DILIGENCE_REVIEW", party)).ShouldBe(0L);
+    }
+
+    /// <summary>OQ-138: a class the tenant sets to AUTOMATIC (here LOW) ends its review on the fresh screening, with the system recorded as the reviewer.</summary>
+    [Fact]
+    public async Task AnAutomaticClass_ClearsOnAFreshScreening_WithTheSystemAsReviewer_OQ138()
+    {
+        var w = await World();
+        await fixture.Database.SeedStatic(w.Tenant, "party.cfg_customer_risk_classes", "EFFECTIVE", "LOW", Today.AddDays(-1), ("risk_class", "LOW"), ("min_score", -1000),
+            ("max_score", 29), ("dd_level", "STANDARD"), ("review_interval", TimeSpan.FromDays(365 * 5)), ("review_mode", "AUTOMATIC"));
+        var party = await w.Clerk.RegisterPerson("Automatic");
+        await w.Factory.DrainOutbox();
+        await AddIdentifier(w, party, "7708085009086");
+        await Check(w, party, "ADDRESS", await Document(w, party));
+        await Expire(w, party);
+
+        await Screen(w, party);
+        var view = await DueDiligence(w.Clerk, party);
+        (view.GetProperty("status").GetString(), view.GetProperty("reviewedBy").GetGuid(), view.GetProperty("reviewedBySystem").GetBoolean())
+            .ShouldBe(("CLEARED", MakerChecker.SystemMaker, true));
+        (await Running(w, "DUE_DILIGENCE_REVIEW", party)).ShouldBe(0L, "closed by the system when the party cleared");
+    }
+
+    /// <summary>
+    /// OQ-138: the reviewer contributed to the assessment, so they cannot give the party's enhanced approval on review; a person
+    /// who took no part does. The approval of the earlier cycle does not make its approver a contributor now.
+    /// </summary>
+    [Fact]
+    public async Task TheReviewerOfAnEnhancedParty_IsRefusedItsEnhancedApproval_AnotherPersonGivesIt_OQ138()
+    {
+        var w = await World();
+        await fixture.Database.SeedStatic(w.Tenant, "party.cfg_customer_risk_factors", "EFFECTIVE", "ZA-TEST", Today.AddDays(-1), ("factor", "COUNTRY"),
+            ("match_values", new[] { "ZA" }), ("weight", 70));
+        var party = await w.Clerk.RegisterPerson("Highrisk");
+        await w.Factory.DrainOutbox();
+        await AddIdentifier(w, party, "6802025009087");
+        await Check(w, party, "ADDRESS", await Document(w, party));
+        await Check(w, party, "SOURCE_OF_FUNDS", await Document(w, party));
+        (await w.Approver.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{await Waiting(w, PartyApprovals.DueDiligenceBusinessRefType, party)}/approve",
+            ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await w.Factory.DrainOutbox();
+        (await DueDiligence(w.Clerk, party)).GetProperty("status").GetString().ShouldBe("CLEARED");
+        await Expire(w, party);
+
+        var reviewed = await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/review", new { detailsCurrent = true },
+            ifMatch: await ETag(w.Reviewer, party));
+        reviewed.StatusCode.ShouldBe(HttpStatusCode.OK, await reviewed.Content.ReadAsStringAsync());
+        await w.Factory.DrainOutbox();
+        var view = await DueDiligence(w.Clerk, party);
+        (view.GetProperty("status").GetString(), Outstanding(view).Single()).ShouldBe(("IN_PROGRESS", "ENHANCED_APPROVAL"));
+        var approval = await Waiting(w, PartyApprovals.DueDiligenceBusinessRefType, party);
+        (await (await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        (await w.Approver.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await w.Factory.DrainOutbox();
+        view = await DueDiligence(w.Clerk, party);
+        (view.GetProperty("status").GetString(), view.GetProperty("reviewedBy").GetGuid(), view.GetProperty("clearedBy").GetGuid())
+            .ShouldBe(("CLEARED", w.ReviewerId, w.ApproverId));
+    }
+
+    /// <summary>
+    /// OQ-138: a review cannot complete while the identity check's document has a recorded expiry date that has passed and no newer
+    /// one of its kind is on file; the refusal names the document type only. Once a new passport with a future expiry is recorded
+    /// and verified, the same review completes.
+    /// </summary>
+    [Fact]
+    public async Task AReview_IsRefusedOnAnExpiredPassport_AndCompletesOnceANewOneIsRecorded_OQ138()
+    {
+        var w = await World();
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO party.ref_identity_document_types (tenant_id, code, version, effective_from, record_status, created_by, change_reason, country, doc_type, label, format_pattern)
+            VALUES (@t, 'ZA-PASSPORT', 1, current_date - 1, 'ACTIVE', 'seed', 'test seed', 'ZA', 'PASSPORT', 'Passport', '^[A-Z][0-9]{8}$')
+            """, ("t", w.Tenant));
+        var party = await w.Clerk.RegisterPerson("Traveller");
+        await w.Factory.DrainOutbox();
+        await AddIdentifier(w, party, "M12345671", "PASSPORT", Today.AddDays(10));
+        await Check(w, party, "ADDRESS", await Document(w, party));
+        (await DueDiligence(w.Clerk, party)).GetProperty("status").GetString().ShouldBe("CLEARED");
+        await Expire(w, party);
+        await fixture.Database.ExecuteAsOwner("UPDATE party.party_identifier SET expiry_date = @d WHERE party_id = @p", ("d", Today.AddDays(-1)), ("p", party));
+
+        var refused = await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/review", new { detailsCurrent = true },
+            ifMatch: await ETag(w.Reviewer, party));
+        var problem = await refused.Json();
+        (problem.GetProperty("code").GetString(), problem.GetProperty("status").GetInt32()).ShouldBe(("DUE_DILIGENCE_IDENTITY_DOCUMENT_EXPIRED", 422));
+        problem.GetRawText().ShouldContain("PASSPORT");
+        problem.GetRawText().ShouldNotContain("12345671", Case.Sensitive, "never the number");
+
+        // A renewed passport, expiring later, is recorded beside the old one and verified by the provider; the review completes.
+        await AddIdentifier(w, party, "M76543219", "PASSPORT", Today.AddYears(10));
+        var reviewed = await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/review", new { detailsCurrent = true },
+            ifMatch: await ETag(w.Reviewer, party));
+        reviewed.StatusCode.ShouldBe(HttpStatusCode.OK, await reviewed.Content.ReadAsStringAsync());
+        await w.Factory.DrainOutbox();
+        var view = await DueDiligence(w.Clerk, party);
+        view.GetProperty("status").GetString().ShouldBe("CLEARED");
+        var passports = (await (await w.Clerk.GetAsync($"/api/v1/party/parties/{party}")).Json()).GetProperty("identifiers").EnumerateArray()
+            .Where(i => i.GetProperty("docType").GetString() == "PASSPORT").ToList();
+        passports.Select(i => (i.GetProperty("expiryDate").GetString(), i.GetProperty("verified").GetBoolean()))
+            .ShouldBe([(Today.AddDays(-1).ToString("yyyy-MM-dd"), true), (Today.AddYears(10).ToString("yyyy-MM-dd"), true)], ignoreOrder: true);
+    }
+
+    private async Task Expire(DdWorld w, Guid party)
+    {
+        await fixture.Database.ExecuteAsOwner("UPDATE party.due_diligence SET next_review_on = @d WHERE party_id = @p", ("d", Today.AddDays(-1)), ("p", party));
         var run = await w.Factory.Services.GetRequiredService<DueDiligenceJobs>().RunForTenant(w.Tenant, CancellationToken.None);
         run!.Expired.ShouldBe(1);
         await w.Factory.DrainOutbox();
         (await DueDiligence(w.Clerk, party)).GetProperty("status").GetString().ShouldBe("EXPIRED");
         (await Running(w, "DUE_DILIGENCE_REVIEW", party)).ShouldBe(1L);
-        (await Gate(w, party, DueDiligenceSteps.Issue, "LIFE")).Cleared.ShouldBeFalse("an expired party is not cleared");
+    }
 
+    /// <summary>A screening as the monthly job runs it: no person reviews anything.</summary>
+    private static async Task Screen(DdWorld w, Guid party)
+    {
         var screened = await w.Clerk.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/checks", new { checkType = "SCREENING" }, idempotent: true);
         screened.StatusCode.ShouldBe(HttpStatusCode.OK, await screened.Content.ReadAsStringAsync());
         await w.Factory.DrainOutbox();
-        var view = await DueDiligence(w.Clerk, party);
-        (view.GetProperty("status").GetString(), view.GetProperty("nextReviewOn").GetString()).ShouldBe(("CLEARED", Today.AddYears(5).ToString("yyyy-MM-dd")));
-        (await Running(w, "DUE_DILIGENCE_REVIEW", party)).ShouldBe(0L);
     }
 
     [Fact]
@@ -418,7 +557,7 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         var checks = await Checks(factory.ClientFor(gated, "dd-ready"));
         checks["DUE_DILIGENCE_LIFE_GATE"].ShouldBeEmpty("a new LIFE tenant has its gates on");
         checks["DUE_DILIGENCE_PROVIDER"].ShouldBe(["SCREENING", "IDENTITY_VERIFICATION"]);
-        checks["DUE_DILIGENCE_REVIEWER"].ShouldBe(["PARTY_REVIEW_SCREENING_HIT"]);
+        checks["DUE_DILIGENCE_REVIEWER"].ShouldBe(["PARTY_REVIEW_SCREENING_HIT", "PARTY_COMPLETE_DUE_DILIGENCE_REVIEW"], "OQ-138: a role also completes periodic reviews");
 
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantB, "dd-ready-b", TenancyPermissions.Read);
         checks = await Checks(factory.ClientFor(DatabaseFixture.TenantB, "dd-ready-b"));
@@ -462,7 +601,7 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         var db = fixture.Database;
         await db.SeedTenant(tenant, "DD" + suffix.ToUpperInvariant(), dueDiligenceGates: true);
         var clerk = await db.UserWithPermissions(tenant, $"dd-clerk-{suffix}", Permissions);
-        var reviewer = await db.UserWithPermissions(tenant, $"dd-review-{suffix}", [.. Permissions, PartyPermissions.DueDiligenceReviewHit]);
+        var reviewer = await db.UserWithPermissions(tenant, $"dd-review-{suffix}", [.. Permissions, PartyPermissions.DueDiligenceReviewHit, PartyPermissions.DueDiligenceReview]);
         // BR-109: a compliance officer who took no part in the assessment, for the enhanced approval.
         var approver = await db.UserWithPermissions(tenant, $"dd-approve-{suffix}", Permissions);
         var officer = await db.RoleWithPermissions(tenant);
@@ -525,10 +664,10 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
     private Task<string?> Held(Guid refund) =>
         fixture.Database.ScalarAsOwner<string>("SELECT held_reason FROM payment.payment WHERE idempotency_key = @k", ("k", $"REFUND:{refund:N}"));
 
-    private static async Task AddIdentifier(DdWorld w, Guid party, string number)
+    private static async Task AddIdentifier(DdWorld w, Guid party, string number, string docType = "NATIONAL_ID", DateOnly? expiryDate = null)
     {
         var etag = (await w.Clerk.GetAsync($"/api/v1/party/parties/{party}")).ETag();
-        var added = await w.Clerk.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/identifiers", new { docType = "NATIONAL_ID", country = "ZA", number }, ifMatch: etag);
+        var added = await w.Clerk.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/identifiers", new { docType, country = "ZA", number, expiryDate }, ifMatch: etag);
         added.StatusCode.ShouldBe(HttpStatusCode.Created, await added.Content.ReadAsStringAsync());
         await w.Factory.DrainOutbox();
     }

@@ -59,6 +59,14 @@ public static class DueDiligenceCodes
     /// <summary>What is outstanding while a hit waits for review.</summary>
     public const string HitReview = "HIT_REVIEW";
 
+    /// <summary>OQ-138: outstanding while an expired party waits for a person to complete its periodic review.</summary>
+    public const string PeriodicReview = "PERIODIC_REVIEW";
+
+    /// <summary>OQ-138: how a risk class's periodic review ends (party.cfg_customer_risk_classes.review_mode).</summary>
+    public const string ReviewByPerson = "PERSON";
+
+    public const string ReviewAutomatic = "AUTOMATIC";
+
     public static readonly IReadOnlyList<string> CheckTypes = [Identity, Address, Sanctions, Pep, AdverseMedia, BeneficialOwnership, SourceOfFunds];
 
     /// <summary>The checks a provider runs by screening; the others are verified by a person against a document, or by a provider (IDENTITY).</summary>
@@ -295,6 +303,14 @@ public sealed class DueDiligence : AggregateRoot<Guid>
 
     public Guid? UnblockRequestedBy { get; private set; }
 
+    /// <summary>OQ-138: who completed the current periodic review, and when; the system requester for an AUTOMATIC class. Cleared on expiry.</summary>
+    public DateTimeOffset? ReviewedAt { get; private set; }
+
+    public Guid? ReviewedBy { get; private set; }
+
+    /// <summary>OQ-138: the party passed its review date and its periodic review has not ended; set on expiry.</summary>
+    public bool ReviewDue { get; private set; }
+
     public IReadOnlyList<ScreeningHit> Hits => _hits;
 
     public bool HasOpenHit => _hits.Any(h => h.Open);
@@ -393,7 +409,10 @@ public sealed class DueDiligence : AggregateRoot<Guid>
     /// (OQ-126); otherwise the party is CLEARED, next reviewed on the date its class's interval gives. An EXPIRED party stays so
     /// until a fresh screening has run.
     /// </summary>
-    public void Assess(IReadOnlyList<string> missing, bool anyCheck, bool freshSinceExpiry, DateOnly today, DateOnly? nextReviewIfCleared, Guid? actor, DateTimeOffset now)
+    /// <param name="reviewMode">OQ-138: how the periodic review of the party's class ends. PERSON: an expired party stays expired until a person
+    /// completes the review (CompleteReview) and a fresh screening is on file. AUTOMATIC: a fresh screening ends it, with the system as reviewer.</param>
+    public void Assess(IReadOnlyList<string> missing, bool anyCheck, bool freshSinceExpiry, DateOnly today, DateOnly? nextReviewIfCleared, Guid? actor, DateTimeOffset now,
+        string reviewMode = DueDiligenceCodes.ReviewByPerson)
     {
         var outstanding = missing.ToList();
         string status;
@@ -406,9 +425,15 @@ public sealed class DueDiligence : AggregateRoot<Guid>
             status = DueDiligenceCodes.Referred;
             outstanding.Add(DueDiligenceCodes.HitReview);
         }
-        else if (Status == DueDiligenceCodes.Expired && !freshSinceExpiry)
+        else if (ReviewDue && !freshSinceExpiry)
         {
             status = DueDiligenceCodes.Expired;
+        }
+        else if (ReviewDue && ReviewedAt is null && reviewMode != DueDiligenceCodes.ReviewAutomatic)
+        {
+            // OQ-138: a fresh screening keeps sanctions current, but only a person ends the review.
+            status = DueDiligenceCodes.Expired;
+            outstanding.Add(DueDiligenceCodes.PeriodicReview);
         }
         else if (outstanding.Count > 0)
         {
@@ -429,6 +454,19 @@ public sealed class DueDiligence : AggregateRoot<Guid>
         else
         {
             status = DueDiligenceCodes.Cleared;
+        }
+
+        // OQ-138: the review has ended (a person completed it, or an AUTOMATIC class was screened afresh, with the system recorded
+        // as the reviewer). A hit or a block found meanwhile is dealt with first, and the review stays due until then.
+        if (ReviewDue && status is not (DueDiligenceCodes.Expired or DueDiligenceCodes.Referred or DueDiligenceCodes.Blocked))
+        {
+            if (ReviewedAt is null)
+            {
+                ReviewedAt = now;
+                ReviewedBy = MakerChecker.SystemMaker;
+            }
+
+            ReviewDue = false;
         }
 
         AssessedOn = today;
@@ -471,10 +509,36 @@ public sealed class DueDiligence : AggregateRoot<Guid>
         EnhancedApprovedAt = null;
         EnhancedApprovalId = null;
         EnhancedRequestedBy = null;
+        ReviewDue = true;
+        ReviewedAt = null;
+        ReviewedBy = null;
         Raise(new DueDiligenceStatusChanged(PartyId, Status, true, now));
         Raise(new DueDiligenceReached(PartyId, Status, now));
         MarkChanged();
         return true;
+    }
+
+    /// <summary>
+    /// OQ-138: a person completes the periodic review of an expired party, confirming its details are current. The caller
+    /// then screens it afresh and assesses it; with nothing else outstanding it clears (or, at ENHANCED, waits for the
+    /// enhanced approval, which the reviewer cannot give).
+    /// </summary>
+    public Result CompleteReview(Guid reviewer, DateTimeOffset now)
+    {
+        if (!ReviewDue || ReviewedAt is not null)
+        {
+            return Error.Conflict(PartyErrorCodes.DueDiligenceNotUnderReview, "Only a party past its review date whose review is not yet completed is reviewed.");
+        }
+
+        if (MakerChecker.IsSystem(reviewer))
+        {
+            return Error.Forbidden(ErrorCodes.Forbidden, "A review is completed by an identified person.");
+        }
+
+        ReviewedAt = now;
+        ReviewedBy = Guard.NotEmpty(reviewer);
+        MarkChanged();
+        return Result.Success();
     }
 
     /// <summary>True when the granted enhanced approval was already applied (a redelivered grant).</summary>

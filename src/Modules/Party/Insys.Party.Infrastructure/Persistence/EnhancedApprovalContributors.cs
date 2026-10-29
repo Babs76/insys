@@ -35,7 +35,7 @@ namespace Insys.Party.Infrastructure.Persistence;
 /// <summary>
 /// BR-109 (Ade, 30 October 2026): nobody who contributed to a party's current assessment may give its enhanced due
 /// diligence approval, whatever order the results arrived in. A contributor recorded a check or reviewed a hit since the
-/// party was last cleared (or ever, if it never was). The requester is the maker, refused by Workflow as for any approval.
+/// party was last cleared (or ever, if it never was), or completed its current periodic review (OQ-138). The requester is the maker, refused by Workflow as for any approval.
 /// </summary>
 internal sealed class EnhancedApprovalContributors([FromKeyedServices(PartyDbContext.SchemaName)] NpgsqlDataSource dataSource) : IApprovalCheckerExclusions
 {
@@ -47,11 +47,12 @@ internal sealed class EnhancedApprovalContributors([FromKeyedServices(PartyDbCon
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            WITH dd AS (SELECT id, cleared_at FROM party.due_diligence WHERE tenant_id = @t AND party_id = @p)
+            WITH dd AS (SELECT id, cleared_at, reviewed_by FROM party.due_diligence WHERE tenant_id = @t AND party_id = @p)
             SELECT EXISTS (SELECT 1 FROM party.due_diligence_check c LEFT JOIN dd ON true
                            WHERE c.tenant_id = @t AND c.party_id = @p AND c.checked_by = @u AND (dd.cleared_at IS NULL OR c.checked_at > dd.cleared_at))
                 OR EXISTS (SELECT 1 FROM party.screening_hit h JOIN dd ON dd.id = h.due_diligence_id
                            WHERE h.tenant_id = @t AND h.reviewed_by = @u AND (dd.cleared_at IS NULL OR h.reviewed_at > dd.cleared_at))
+                OR EXISTS (SELECT 1 FROM dd WHERE dd.reviewed_by = @u)
             """, connection, transaction);
         command.Parameters.AddWithValue("t", tenantId);
         command.Parameters.AddWithValue("p", businessRefId);

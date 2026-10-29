@@ -61,7 +61,8 @@ public sealed record DueDiligenceFilter(string? Status, string? RiskClass, DateO
 public sealed record RiskFactor(string Factor, IReadOnlyList<string> MatchValues, int Weight);
 
 /// <summary>A risk class's score band, level and review interval (party.cfg_customer_risk_classes).</summary>
-public sealed record RiskClassBand(string RiskClass, int MinScore, int? MaxScore, string Level, string ReviewInterval);
+/// <param name="ReviewMode">OQ-138: PERSON (the default) or AUTOMATIC, how an expired party's periodic review ends.</param>
+public sealed record RiskClassBand(string RiskClass, int MinScore, int? MaxScore, string Level, string ReviewInterval, string ReviewMode = DueDiligenceCodes.ReviewByPerson);
 
 /// <summary>The due diligence configuration in force: a tenant's own rows replace the platform's for the same key (scope GT).</summary>
 public interface IDueDiligenceConfiguration
@@ -253,13 +254,14 @@ public sealed class DueDiligenceService(IPartyRepository parties, IDueDiligenceS
         var required = await configuration.Requirements(party.Kind == PartyKind.Organisation ? "ORGANISATION" : "INDIVIDUAL", dueDiligence.Level,
             domains.Count > 0 ? domains : DomainFeatures, today, cancellationToken);
         var adverseMedia = await configuration.AdverseMediaEnabled(today, cancellationToken);
-        var since = dueDiligence.Status == DueDiligenceCodes.Expired && dueDiligence.NextReviewOn is { } due
+        var since = dueDiligence.ReviewDue && dueDiligence.NextReviewOn is { } due
             ? new DateTimeOffset(due.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
             : (DateTimeOffset?)null;
         var missing = required.Distinct().Where(t => t != DueDiligenceCodes.AdverseMedia || adverseMedia).Where(t => !Met(t, checks, owners, since)).ToList();
         var fresh = since is { } from && checks.Any(c => c.CheckType == DueDiligenceCodes.Sanctions && c.CheckedAt >= from);
         var nextReview = configuration.After(today, band?.ReviewInterval ?? "P3Y");
-        dueDiligence.Assess(missing, checks.Count > 0, fresh, today, nextReview, actor, clock.UtcNow);
+        var reviewMode = bands.FirstOrDefault(b => b.RiskClass == dueDiligence.RiskClass)?.ReviewMode ?? DueDiligenceCodes.ReviewByPerson;
+        dueDiligence.Assess(missing, checks.Count > 0, fresh, today, nextReview, actor, clock.UtcNow, reviewMode);
     }
 
     /// <summary>Screens (when a provider is active) and assesses again: what onboarding, a payout's re-screen and the jobs do.</summary>
@@ -312,6 +314,13 @@ public sealed record RunDueDiligenceCheck(Guid PartyId, string CheckType, Guid? 
 
 public sealed record ReviewScreeningHit(Guid PartyId, Guid HitId, string Outcome, string Reason, long ExpectedVersion) : ICommand<DueDiligenceView>, IVersionedCommand;
 
+/// <summary>
+/// OQ-138: a person completes the periodic review of a party past its review date, confirming its details are current. A
+/// fresh screening runs as part of it; identity and address checks are not redone (a changed detail is updated the usual way).
+/// </summary>
+/// <param name="DetailsCurrent">The reviewer confirms the party's details are current; it must be true.</param>
+public sealed record CompleteDueDiligenceReview(Guid PartyId, bool DetailsCurrent, string? Note, long ExpectedVersion) : ICommand<DueDiligenceView>, IVersionedCommand;
+
 public sealed record OverrideRiskClass(Guid PartyId, string RiskClass, string Reason) : ICommand<DueDiligenceView>;
 
 public sealed record RecordFicReport(Guid PartyId, Guid HitId, string ReportType, string FicReference) : ICommand<DueDiligenceView>;
@@ -351,12 +360,17 @@ public sealed record DueDiligenceView(Guid Id, Guid PartyId, [property: OneOf("N
     [property: OneOf("LOW", "MEDIUM", "HIGH")] string? RiskClass, int? RiskScore, bool RiskClassOverridden, [property: OneOf("SIMPLIFIED", "STANDARD", "ENHANCED")] string Level,
     IReadOnlyList<string> Outstanding, DateTimeOffset? ClearedAt, Guid? ClearedBy, DateOnly? NextReviewOn, DateTimeOffset? LastScreenedAt, bool Blocked,
     [property: OneOf("LOW", "MEDIUM", "HIGH")] string? PendingOverrideClass, bool UnblockPending, IReadOnlyList<DueDiligenceCheckView> Checks,
-    IReadOnlyList<BeneficialOwnerView> BeneficialOwners, IReadOnlyList<ScreeningHitView>? Hits, long RowVersion)
+    IReadOnlyList<BeneficialOwnerView> BeneficialOwners, IReadOnlyList<ScreeningHitView>? Hits, long RowVersion,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] bool ReviewDue = false, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ReviewedAt = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReviewedBy = null)
 {
+    /// <summary>OQ-138: the review ended with no person (an AUTOMATIC class): ReviewedBy is the system requester.</summary>
+    public bool ReviewedBySystem => ReviewedBy is { } by && MakerChecker.IsSystem(by);
+
     public static DueDiligenceView From(DueDiligence d, IEnumerable<DueDiligenceCheck> checks, IEnumerable<BeneficialOwner> owners, bool showHits, long rowVersion) =>
         new(d.Id, d.PartyId, d.Status, d.RiskClass, d.RiskScore, d.RiskClassOverridden, d.Level, d.Outstanding, d.ClearedAt, d.ClearedBy, d.NextReviewOn, d.LastScreenedAt,
             d.Blocked, d.OverrideClass, d.UnblockRequestedBy is not null, [.. checks.Select(DueDiligenceCheckView.From)], [.. owners.Select(BeneficialOwnerView.From)],
-            showHits ? [.. d.Hits.OrderBy(h => h.RaisedAt).Select(ScreeningHitView.From)] : null, rowVersion);
+            showHits ? [.. d.Hits.OrderBy(h => h.RaisedAt).Select(ScreeningHitView.From)] : null, rowVersion, d.ReviewDue, d.ReviewedAt, d.ReviewedBy);
 }
 
 /// <summary>A row of the compliance work list (§9): no hit detail, only how many wait.</summary>
@@ -377,6 +391,15 @@ public sealed class RunDueDiligenceCheckValidator : AbstractValidator<RunDueDili
         RuleFor(c => c.DocumentId).NotNull().When(c => c.CheckType is "ADDRESS" or "BENEFICIAL_OWNERSHIP" or "SOURCE_OF_FUNDS")
             .WithMessage("A check recorded by a person names the document it was verified against.");
         RuleFor(c => c.Reference).MaximumLength(80);
+    }
+}
+
+public sealed class CompleteDueDiligenceReviewValidator : AbstractValidator<CompleteDueDiligenceReview>
+{
+    public CompleteDueDiligenceReviewValidator()
+    {
+        RuleFor(c => c.DetailsCurrent).Equal(true).WithMessage("detailsCurrent must be true: the reviewer confirms the party's details are current.");
+        RuleFor(c => c.Note).MaximumLength(500);
     }
 }
 
@@ -429,6 +452,7 @@ internal sealed class DueDiligenceHandlers(IPartyRepository parties, IDueDiligen
     ICommandHandler<GetDueDiligence, DueDiligenceView>,
     ICommandHandler<RunDueDiligenceCheck, DueDiligenceView>,
     ICommandHandler<ReviewScreeningHit, DueDiligenceView>,
+    ICommandHandler<CompleteDueDiligenceReview, DueDiligenceView>,
     ICommandHandler<OverrideRiskClass, DueDiligenceView>,
     ICommandHandler<RecordFicReport, DueDiligenceView>,
     ICommandHandler<RequestDueDiligenceUnblock, DueDiligenceView>,
@@ -541,6 +565,39 @@ internal sealed class DueDiligenceHandlers(IPartyRepository parties, IDueDiligen
         audit.Record(new AuditEntry("PARTY", "ReviewScreeningHit", nameof(DueDiligence), dueDiligence.Id.ToString(), new Dictionary<string, string?>
         {
             ["party"] = party.Id.ToString(), ["hit"] = command.HitId.ToString(), ["outcome"] = command.Outcome, ["status"] = dueDiligence.Status,
+        }));
+        return await View(party.Id, dueDiligence, cancellationToken);
+    }
+
+    public async Task<Result<DueDiligenceView>> Handle(CompleteDueDiligenceReview command, CancellationToken cancellationToken)
+    {
+        var user = Parties.User(execution);
+        var loaded = await Load(command.PartyId, command.ExpectedVersion, cancellationToken);
+        if (user.IsFailure || loaded.IsFailure)
+        {
+            return user.IsFailure ? user.Error : loaded.Error!;
+        }
+
+        // OQ-138: the identity check's document, when it records an expiry date that has passed, is replaced before the review completes.
+        var (party, dueDiligence) = loaded.Value;
+        var identityCheck = (await parties.Checks(party.Id, cancellationToken))
+            .Where(c => c.CheckType == DueDiligenceCodes.Identity && c.Outcome == DueDiligenceCheck.Passed && c.IdentifierId is not null).MaxBy(c => c.CheckedAt);
+        if (identityCheck is not null && party.ExpiredIdentityDocument(identityCheck.IdentifierId!.Value, businessDate.Today) is { } expiredType)
+        {
+            return Error.Validation(PartyErrorCodes.IdentityDocumentExpired,
+                $"The {expiredType} used for the party's identity check has expired; record a newer one, then complete the review.");
+        }
+
+        var reviewed = dueDiligence.CompleteReview(user.Value, clock.UtcNow);
+        if (reviewed.IsFailure)
+        {
+            return reviewed.Error;
+        }
+
+        await service.ScreenAndAssess(party, user.Value, cancellationToken);
+        audit.Record(new AuditEntry("PARTY", "CompleteDueDiligenceReview", nameof(DueDiligence), dueDiligence.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["party"] = party.Id.ToString(), ["status"] = dueDiligence.Status, ["note"] = command.Note,
         }));
         return await View(party.Id, dueDiligence, cancellationToken);
     }

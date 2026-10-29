@@ -429,10 +429,17 @@ public sealed class PartyIdentifier : Entity<Guid>, ITenantScoped
 
     public string? VerificationRef { get; private set; }
 
+    /// <summary>OQ-138: the document's expiry date, when it has one; an identifier that does not expire (a company registration) has none.</summary>
+    public DateOnly? ExpiryDate { get; private set; }
+
     public long RowVersion { get; private set; }
 
-    internal static PartyIdentifier Create(Guid partyId, string docType, string country, byte[] encrypted, string hash, string last4) =>
-        new() { Id = Guid.CreateVersion7(), PartyId = partyId, DocType = docType, Country = country, NumberEnc = encrypted, NumberHash = hash, NumberLast4 = last4 };
+    internal static PartyIdentifier Create(Guid partyId, string docType, string country, byte[] encrypted, string hash, string last4, DateOnly? expiryDate) =>
+        new()
+        {
+            Id = Guid.CreateVersion7(), PartyId = partyId, DocType = docType, Country = country, NumberEnc = encrypted, NumberHash = hash, NumberLast4 = last4,
+            ExpiryDate = expiryDate,
+        };
 
     internal void Verify(string reference, DateTimeOffset now)
     {
@@ -854,7 +861,9 @@ public sealed class Party : AggregateRoot<Guid>
     /// Command AddIdentifier. The number arrives encrypted with its keyed hash and its last four characters (empty for a
     /// number of four or fewer); uniqueness per type and country is checked by the caller and the database.
     /// </summary>
-    public Result<Guid> AddIdentifier(string docType, string country, byte[] encrypted, string hash, string last4, DateTimeOffset now)
+    /// <param name="expiryDate">OQ-138: the document's expiry date, when it has one. A document that expires is renewed: a newer one of the same kind
+    /// (expiring later) is added beside it. A kind already held without an expiry date is held once.</param>
+    public Result<Guid> AddIdentifier(string docType, string country, byte[] encrypted, string hash, string last4, DateTimeOffset now, DateOnly? expiryDate = null)
     {
         var allowed = Changeable(null);
         if (allowed.IsFailure)
@@ -862,16 +871,34 @@ public sealed class Party : AggregateRoot<Guid>
             return allowed.Error;
         }
 
-        if (_identifiers.Any(i => i.DocType == docType && i.Country == country))
+        var held = _identifiers.Where(i => i.DocType == docType && i.Country == country).ToList();
+        if (held.Count > 0 && (expiryDate is not { } expires || held.Any(i => i.ExpiryDate is not { } other || other >= expires)))
         {
             return Error.Conflict(PartyErrorCodes.IdentifierInUse, $"The party already has a {docType} identifier for {country}.");
         }
 
-        var identifier = PartyIdentifier.Create(Id, docType, country, encrypted, hash, Guard.MaxLength(last4, 4));
+        var identifier = PartyIdentifier.Create(Id, docType, country, encrypted, hash, Guard.MaxLength(last4, 4), expiryDate);
         _identifiers.Add(identifier);
         Raise(new PartyIdentifierAdded(Id, identifier.Id, now));
         var changed = Changed("identifier", now);
         return changed.IsFailure ? changed.Error : identifier.Id;
+    }
+
+    /// <summary>
+    /// OQ-138: the type of the identity check's document when it has expired by <paramref name="today"/> and no newer one of its
+    /// kind (expiring later, not yet expired) is on file; null when the document does not block a review.
+    /// </summary>
+    public string? ExpiredIdentityDocument(Guid identifierId, DateOnly today)
+    {
+        if (_identifiers.SingleOrDefault(i => i.Id == identifierId) is not { ExpiryDate: { } expires } used || expires >= today)
+        {
+            return null;
+        }
+
+        return _identifiers.Any(i => i.Id != used.Id && i.DocType == used.DocType && i.Country == used.Country && i.ExpiryDate is { } later && later > expires
+                                      && later >= today)
+            ? null
+            : used.DocType;
     }
 
     public Result VerifyIdentifier(Guid identifierId, string reference, DateTimeOffset now)
@@ -1056,4 +1083,12 @@ public static class PartyErrorCodes
     /// <summary>D-34: a record linked to the party is open, inside its retention period or under legal hold; the problem's blocks list each.</summary>
     [ErrorCode(409, "error.party.anonymisation_blocked")]
     public const string AnonymisationBlocked = "PARTY_ANONYMISATION_BLOCKED";
+
+    /// <summary>OQ-138: only an expired party (past its review date) is reviewed.</summary>
+    [ErrorCode(409, "error.party.due_diligence_not_under_review")]
+    public const string DueDiligenceNotUnderReview = "DUE_DILIGENCE_NOT_UNDER_REVIEW";
+
+    /// <summary>OQ-138: the identity check's document has expired and no newer one of its kind is on file; the problem names the document type only.</summary>
+    [ErrorCode(422, "error.party.due_diligence_identity_document_expired")]
+    public const string IdentityDocumentExpired = "DUE_DILIGENCE_IDENTITY_DOCUMENT_EXPIRED";
 }

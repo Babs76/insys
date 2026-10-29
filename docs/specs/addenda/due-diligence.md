@@ -9,6 +9,16 @@
 - **OQ-128:** due diligence records follow the party retention default: 7 years after the last policy, claim or payment ends, which covers FICA's 5-year minimum. A legal hold overrides it.
 - **Adverse media screening** (`ADVERSE_MEDIA`) is off by default for each tenant, and is switched on deliberately. It may involve special personal information under POPIA (§1).
 
+**Amended (Ade, 30 October 2026): OQ-138, what ends a periodic review (GAP-113). Built in its own batch after Wave 4 batch 4.2.**
+- **A review needs a person by default.** Each customer risk class has a review mode: `PERSON` (the default for every class) or `AUTOMATIC` (a tenant's compliance may choose it per class, for example LOW).
+  - `PERSON`: an `EXPIRED` party stays expired until a person with the review function (`PARTY_COMPLETE_DUE_DILIGENCE_REVIEW`, permission `due_diligence.review`) completes the review through Party. A fresh screening runs as part of it, and who reviewed and when are recorded. Automatic re-screens still record checks and raise hits, but do not end the review.
+  - `AUTOMATIC`: a fresh screening ends the review, as before OQ-138, with the system requester recorded as the reviewer so the audit shows how it cleared.
+  - The Workflow review task (`DUE_DILIGENCE_REVIEW`) cannot be completed directly; it closes when the party clears.
+- **What the review checks.** It does not redo identity or address checks by itself: the reviewer confirms the details are current, and a changed detail is updated the usual way and runs its own check. An identifier may record its document's expiry date (optional; a company registration has none). While the identity check's document has an expiry date that has passed (by the tenant's business date) and no newer document of that kind is on file, the review cannot complete (`DUE_DILIGENCE_IDENTITY_DOCUMENT_EXPIRED`, naming the document type only). An expired document does not change the party's status between reviews; only the review checks it. A renewed document (expiring later) is recorded beside the one it replaces.
+- **The reviewer is a contributor:** under the enhanced-approval rule (BR-109), the reviewer cannot give that party's enhanced approval.
+- **`next_review_on`** counts from the day the review completes.
+- **Readiness:** with the gates on, a staff role must hold the review function (`DUE_DILIGENCE_REVIEWER`, as for hit review).
+
 ## 0. Why an addendum
 - **F001 (verify customer identity)** has a basis in the SRS (§6.1, identity documents and verification references). Today:
   - an identifier is stored encrypted and hashed;
@@ -93,7 +103,7 @@ INSYS's first tenants are South African. The obligations below come from the Fin
   - **A true sanctions match** sets the due diligence `BLOCKED` and `report_required`, and opens a case for compliance. Unblocking is privileged and needs a second person.
   - **A true PEP match** raises the level to `ENHANCED`.
 - **Enhanced due diligence:** source of wealth and source of funds are recorded as checks with their documents. Clearance then goes through a Workflow approval (`DUE_DILIGENCE_ENHANCED`), decided by someone holding the `PARTY_APPROVE_ENHANCED_DD` authority, standing for "senior management" in s21F (OQ-126).
-- **Ongoing due diligence:** each risk class has a review interval. When `next_review_on` passes, the status becomes `EXPIRED` and the daily job raises a review task. An expired party is not cleared (§5).
+- **Ongoing due diligence:** each risk class has a review interval. When `next_review_on` passes, the status becomes `EXPIRED` and the daily job raises a review task. An expired party is not cleared (§5). What ends the review depends on the class's review mode (OQ-138, at the top of this addendum): by default a person completes it (`POST /party/parties/{id}/due-diligence/review`); for an `AUTOMATIC` class a fresh screening does.
 
 ### 4.4 Customer risk classification (F077)
 - **The class is worked out from weighted factors** in `party.cfg_customer_risk_factors` (Tier 1). Each factor is a rule on the party's facts: country of residence or registration, party type and legal form, occupation or industry, PEP status, products held, channel (a portal registration that was never met in person), and the source of funds.
@@ -126,7 +136,7 @@ INSYS's first tenants are South African. The obligations below come from the Fin
 
 ## 7. Readiness
 - **The Life issue gate:** for a tenant with the LIFE feature it is on by default, and readiness flags it when switched off (`DUE_DILIGENCE_LIFE_GATE`, OQ-123).
-- **For a tenant with a gate on:** readiness needs an active adapter of each kind the requirement sets use, or the gate off (`DUE_DILIGENCE_PROVIDER`). It also needs at least one holder of the hit-review function (`DUE_DILIGENCE_REVIEWER`).
+- **For a tenant with a gate on:** readiness needs an active adapter of each kind the requirement sets use, or the gate off (`DUE_DILIGENCE_PROVIDER`). It also needs holders of the hit-review function and of the periodic review function (`DUE_DILIGENCE_REVIEWER`, OQ-138).
 - **Without an adapter,** checks are manual only, and readiness warns.
 
 ## 8. Decisions (all decided, 29 October 2026; see the top of this addendum)
@@ -143,6 +153,7 @@ INSYS's first tenants are South African. The obligations below come from the Fin
 - `POST /party/parties/{id}/due-diligence/hits/{hitId}/review`: true match or false positive, with a reason. It takes If-Match.
 - `POST /party/parties/{id}/due-diligence/risk-class`: an override with a reason, through Workflow approval.
 - `POST /party/parties/{id}/due-diligence/report`: record the FIC reference of a report made (s28A or s29).
+- `POST /party/parties/{id}/due-diligence/review` (OQ-138): complete a party's periodic review, confirming its details are current (`detailsCurrent: true`, optional `note`). It takes If-Match.
 - `GET /party/due-diligence`: by status, class, review due date, and open hits. It feeds the compliance work list.
 - `RegisterParty` gains `confirmNew` and `reason` (§4.5).
 - **New functions:**

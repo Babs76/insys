@@ -2,6 +2,20 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## GAP-113 (branch `gap113-dd-review`): what ends a periodic due diligence review (OQ-138, Ade 30 October 2026)
+
+### New
+- **`POST /party/parties/{id}/due-diligence/review`** (`PartyCompleteDueDiligenceReview`; function `PARTY_COMPLETE_DUE_DILIGENCE_REVIEW`, permission `due_diligence.review`; If-Match is the due diligence's ETag). Body: `detailsCurrent` (must be true) and an optional `note`. It completes the periodic review of a party past its review date, runs a fresh screening, and assesses the party: it clears when nothing else is outstanding (at ENHANCED, after the enhanced approval, which the reviewer cannot give). Errors: 409 `DUE_DILIGENCE_NOT_UNDER_REVIEW` (no review due, or already completed); 422 `DUE_DILIGENCE_IDENTITY_DOCUMENT_EXPIRED` (the identity check's document has expired and no newer one of its kind is on file; the detail names the document type, never the number); 422 `VALIDATION_FAILED` when `detailsCurrent` is not true.
+- **Due diligence view:** `reviewDue` (a review is due and not ended), `reviewedAt`, `reviewedBy` (the person, or the system requester `00000000-0000-0000-0000-00000000005e` for an AUTOMATIC class) and `reviewedBySystem`. `outstanding` lists `PERIODIC_REVIEW` while a PERSON class's party waits for its review after a fresh screening.
+- **Customer risk classes** (`party.cfg_customer_risk_classes`, static data) gain **`reviewMode`**: `PERSON` (the default, and the value of every existing row) or `AUTOMATIC`. Required when a tenant creates a row.
+- **Party identifiers** gain an optional **`expiryDate`** on `POST /party/parties/{id}/identifiers` and on the identifier view. A renewed document (an expiry later than every one of its kind on file) is added beside the one it replaces; a kind held without an expiry date is still held once (409 `PARTY_IDENTIFIER_IN_USE`).
+
+### Changed behaviour
+- **A party past its review date stays `EXPIRED`** after an automatic re-screen when its class reviews by `PERSON` (the default); only the review action ends the review. For an `AUTOMATIC` class a fresh screening ends it, as before, with the system recorded as the reviewer.
+- **The `DUE_DILIGENCE_REVIEW` task** cannot be completed through Workflow (409 `TASK_CLOSED_BY_ITS_RECORD`); it closes when the party clears.
+- **The reviewer cannot give the party's enhanced approval** (403 `MAKER_CHECKER_SAME_PERSON`).
+- **Readiness `DUE_DILIGENCE_REVIEWER`** also lists `PARTY_COMPLETE_DUE_DILIGENCE_REVIEW` when no staff role grants it (with the gates on).
+
 ## Wave 4 batch 4.2 (branch `wave4-2`): claim decision rights on every decline, renewal review
 
 ### Fixed first: BR-109 / GAP-112 (group A), an enhanced due diligence approval requested by a provider's result

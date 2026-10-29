@@ -1236,3 +1236,14 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - **Records:** the claim's financial records show gross, deduction and net. Reinsurance recoveries and claims figures use the gross. Commission treats the deducted premium as collected.
   - **Notice:** the customer's settlement notice shows gross, deduction and net.
   - **Setting:** the deduction stays off by default until a tenant configures it. **Closed; built in Wave 4 batch 4.1.**
+
+### OQ-138 What ends a periodic due diligence review (GAP-113, 30 October 2026)
+- **The gap:** the due diligence addendum (§4.3) said an expired party is not cleared but not what ends its review. As built, any fresh screening (the monthly automatic re-screen included) cleared it, and the system closed the review task; completing the task did nothing.
+- **Decided (Ade, 30 October 2026):**
+  - each customer risk class has a review mode, `PERSON` (default) or `AUTOMATIC`. `PERSON`: only a person with the review function ends the review, through Party, with a fresh screening as part of it; `AUTOMATIC`: a fresh screening ends it, with the system requester recorded as the reviewer;
+  - the Workflow review task cannot be completed directly; it closes when the party clears;
+  - the review does not redo identity or address checks; an identifier may record its document's expiry date, and a review cannot complete while the identity check's document has expired with no newer one of its kind on file (`DUE_DILIGENCE_IDENTITY_DOCUMENT_EXPIRED`);
+  - the reviewer counts as a contributor (cannot give that party's enhanced approval);
+  - `next_review_on` counts from the day the review completes;
+  - readiness: with the gates on, a role holds the review function.
+- Recorded in the due diligence addendum. **Closed; built in its own batch after Wave 4 batch 4.2.**

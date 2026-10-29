@@ -52,6 +52,9 @@ public sealed class CustomerRiskClasses : StaticRecord<CustomerRiskClassesInput>
     [System.ComponentModel.Description("An ISO 8601 duration, such as P7Y, P18M or P30D.")]
     public string ReviewInterval { get; set; } = "";
 
+    [Insys.BuildingBlocks.Domain.OneOf("PERSON", "AUTOMATIC")]
+    public string ReviewMode { get; set; } = "";
+
     public override void ApplyFields(CustomerRiskClassesInput input, IFieldProtector protector)
     {
         RiskClass = input.RiskClass!;
@@ -59,6 +62,7 @@ public sealed class CustomerRiskClasses : StaticRecord<CustomerRiskClassesInput>
         MaxScore = input.MaxScore;
         DdLevel = input.DdLevel!;
         ReviewInterval = input.ReviewInterval!;
+        ReviewMode = input.ReviewMode!;
     }
 }
 
@@ -82,6 +86,10 @@ public sealed record CustomerRiskClassesInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? ReviewInterval { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("PERSON", "AUTOMATIC")]
+    [Insys.BuildingBlocks.Domain.RequiredField]
+    public string? ReviewMode { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("riskClass", RiskClass);
@@ -93,5 +101,8 @@ public sealed record CustomerRiskClassesInput : StaticRecordInput
         errors.OneOf("ddLevel", DdLevel, ["SIMPLIFIED", "STANDARD", "ENHANCED"]);
         errors.Required("reviewInterval", ReviewInterval);
         errors.Valid("reviewInterval", ReviewInterval, StaticConverters.IsDuration, "an ISO 8601 duration such as P3M");
+        errors.Required("reviewMode", ReviewMode);
+        errors.MaxLength("reviewMode", ReviewMode, 9);
+        errors.OneOf("reviewMode", ReviewMode, ["PERSON", "AUTOMATIC"]);
     }
 }

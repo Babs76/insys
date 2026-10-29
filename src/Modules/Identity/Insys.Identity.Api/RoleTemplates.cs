@@ -116,7 +116,7 @@ public static class RoleTemplates
     /// the membership administrator capture the evidence); reviewing hits, overriding the risk class and FIC reports are
     /// compliance's. The approval of enhanced due diligence is in no template: the tenant gives it to senior management.
     /// </summary>
-    private static readonly string[] DueDiligenceCompliance = ["PARTY_REVIEW_SCREENING_HIT", "PARTY_OVERRIDE_RISK_CLASS", "PARTY_RECORD_FIC_REPORT"];
+    private static readonly string[] DueDiligenceCompliance = ["PARTY_REVIEW_SCREENING_HIT", "PARTY_COMPLETE_DUE_DILIGENCE_REVIEW", "PARTY_OVERRIDE_RISK_CLASS", "PARTY_RECORD_FIC_REPORT"];
 
     private static readonly string[] DueDiligenceAll = ["PARTY_DUE_DILIGENCE", "PARTY_RUN_DUE_DILIGENCE_CHECK", .. DueDiligenceCompliance];
 

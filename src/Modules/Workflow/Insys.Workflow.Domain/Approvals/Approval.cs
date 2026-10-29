@@ -396,4 +396,8 @@ public static class WorkflowErrorCodes
 
     [ErrorCode(409, "error.workflow.process_not_running")]
     public const string ProcessNotRunning = "PROCESS_NOT_RUNNING";
+
+    /// <summary>OQ-138: the task closes when its record does what it asks (a due diligence review is completed through Party), not by hand.</summary>
+    [ErrorCode(409, "error.workflow.task_closed_by_its_record")]
+    public const string TaskClosedByItsRecord = "TASK_CLOSED_BY_ITS_RECORD";
 }

@@ -104,7 +104,7 @@ internal sealed class DueDiligenceConfiguration(PartyDbContext db) : IDueDiligen
         [.. Own(await InForce<CustomerRiskFactors>(day).ToListAsync(cancellationToken)).Select(f => new RiskFactor(f.Factor, f.MatchValues, f.Weight))];
 
     public async Task<IReadOnlyList<RiskClassBand>> RiskClasses(DateOnly day, CancellationToken cancellationToken) =>
-        [.. Own(await InForce<CustomerRiskClasses>(day).ToListAsync(cancellationToken)).Select(c => new RiskClassBand(c.RiskClass, c.MinScore, c.MaxScore, c.DdLevel, c.ReviewInterval))];
+        [.. Own(await InForce<CustomerRiskClasses>(day).ToListAsync(cancellationToken)).Select(c => new RiskClassBand(c.RiskClass, c.MinScore, c.MaxScore, c.DdLevel, c.ReviewInterval, c.ReviewMode))];
 
     public async Task<bool> AdverseMediaEnabled(DateOnly day, CancellationToken cancellationToken) =>
         (await Settings(day, cancellationToken))?.AdverseMediaEnabled ?? false;

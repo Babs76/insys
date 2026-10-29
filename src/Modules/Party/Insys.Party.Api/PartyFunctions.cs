@@ -67,6 +67,7 @@ internal static class PartyFunctions
         .Screen("PARTY_DUE_DILIGENCE", "PARTIES", "Customer due diligence", "party/due-diligence", "PartyGetDueDiligence", "PartyListDueDiligence")
         .Action("PARTY_RUN_DUE_DILIGENCE_CHECK", "PARTY_DUE_DILIGENCE", ["PartyRunDueDiligenceCheck", "PartyRecordBeneficialOwner"])
         .Action("PARTY_REVIEW_SCREENING_HIT", "PARTY_DUE_DILIGENCE", "PartyReviewScreeningHit")
+        .Action("PARTY_COMPLETE_DUE_DILIGENCE_REVIEW", "PARTY_DUE_DILIGENCE", "PartyCompleteDueDiligenceReview")
         .Action("PARTY_OVERRIDE_RISK_CLASS", "PARTY_DUE_DILIGENCE", "PartyOverrideRiskClass")
         .Action("PARTY_RECORD_FIC_REPORT", "PARTY_DUE_DILIGENCE", "PartyRecordFicReport")
         .Action("PARTY_UNBLOCK_DUE_DILIGENCE", "PARTY_DUE_DILIGENCE", "PartyRequestDueDiligenceUnblock", privileged: true)

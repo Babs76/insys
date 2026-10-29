@@ -42,7 +42,8 @@ namespace Insys.Party.Infrastructure;
 /// <item>DUE_DILIGENCE_LIFE_GATE: a tenant entitled to LIFE has its gates on (they are, with no settings row).</item>
 /// <item>DUE_DILIGENCE_PROVIDER: with the gates on, an active SCREENING partner (every domain screens sanctions) and, for
 /// LIFE, an IDENTITY_VERIFICATION partner; without it identity is verified by people only.</item>
-/// <item>DUE_DILIGENCE_REVIEWER: with the gates on, a staff role in force grants PARTY_REVIEW_SCREENING_HIT, so hits are reviewed.</item>
+/// <item>DUE_DILIGENCE_REVIEWER: with the gates on, staff roles in force grant PARTY_REVIEW_SCREENING_HIT, so hits are reviewed, and
+/// PARTY_COMPLETE_DUE_DILIGENCE_REVIEW, so periodic reviews end (OQ-138).</item>
 /// </list>
 /// </summary>
 internal sealed class DueDiligenceReadiness([FromKeyedServices(PartyDbContext.SchemaName)] NpgsqlDataSource dataSource, ITenantFunctionSettings tenants,
@@ -96,9 +97,14 @@ internal sealed class DueDiligenceReadiness([FromKeyedServices(PartyDbContext.Sc
                 providers.Add(PartnerTypes.IdentityVerification);
             }
 
-            if (!(await roles.InForce(context.TenantId, context.Day, cancellationToken)).Any(r => r.Functions.Contains("PARTY_REVIEW_SCREENING_HIT")))
+            // §7 and OQ-138: a role reviews hits, and a role completes periodic reviews.
+            var inForce = await roles.InForce(context.TenantId, context.Day, cancellationToken);
+            foreach (var function in new[] { "PARTY_REVIEW_SCREENING_HIT", "PARTY_COMPLETE_DUE_DILIGENCE_REVIEW" })
             {
-                reviewers.Add("PARTY_REVIEW_SCREENING_HIT");
+                if (!inForce.Any(r => r.Functions.Contains(function)))
+                {
+                    reviewers.Add(function);
+                }
             }
         }
 
@@ -107,7 +113,7 @@ internal sealed class DueDiligenceReadiness([FromKeyedServices(PartyDbContext.Sc
             ReadinessResult.Of(Step, "DUE_DILIGENCE_LIFE_GATE", "A tenant entitled to LIFE has its due diligence gates on (GATES_OFF listed when not)",
                 life && !gatesOn ? ["GATES_OFF"] : []),
             ReadinessResult.Of(Step, "DUE_DILIGENCE_PROVIDER", "With the gates on, an active partner of each kind they use (partner type listed when none)", providers),
-            ReadinessResult.Of(Step, "DUE_DILIGENCE_REVIEWER", "With the gates on, a staff role grants the screening hit review (function listed when none does)", reviewers),
+            ReadinessResult.Of(Step, "DUE_DILIGENCE_REVIEWER", "With the gates on, staff roles grant the screening hit review and the periodic review (each function listed when no role grants it)", reviewers),
         ];
     }
 }
