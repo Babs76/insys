@@ -266,6 +266,12 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
     public async Task<Domain.Renewals.Renewal?> RenewalOfPeriod(Guid policyId, DateOnly periodEnd, CancellationToken cancellationToken) =>
         await db.Renewals.Include(r => r.Checks).SingleOrDefaultAsync(r => r.PolicyId == policyId && r.PeriodEnd == periodEnd, cancellationToken);
 
+    public async Task<Domain.Renewals.Renewal?> LatestRenewal(Guid policyId, CancellationToken cancellationToken) =>
+        await db.Renewals.Include(r => r.Checks).Where(r => r.PolicyId == policyId).OrderByDescending(r => r.PeriodEnd).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<Domain.Renewals.Renewal?> RenewalIssuedAs(Guid renewalPolicyId, CancellationToken cancellationToken) =>
+        await db.Renewals.Include(r => r.Checks).SingleOrDefaultAsync(r => r.RenewalPolicyId == renewalPolicyId, cancellationToken);
+
     public async Task<IReadOnlyList<Domain.Renewals.Renewal>> Renewals(Domain.Renewals.RenewalStatus? status, Guid? policyId, Guid? beforeId, int limit,
         CancellationToken cancellationToken)
     {
@@ -373,12 +379,14 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
 
     public async Task<RenewalRule?> RenewalRule(string productCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<RenewalRules>(day).Where(r => r.ProductCode == productCode)
-            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate, r.ReminderDays, r.Review ?? false))
+            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate, r.ReminderDays, r.Review ?? false,
+                r.Acceptance ?? Domain.Renewals.RenewalAcceptance.Automatic))
             .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<IReadOnlyList<RenewalRule>> RenewalRules(DateOnly day, CancellationToken cancellationToken) =>
         await InForce<RenewalRules>(day).OrderBy(r => r.ProductCode)
-            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate, r.ReminderDays, r.Review ?? false))
+            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate, r.ReminderDays, r.Review ?? false,
+                r.Acceptance ?? Domain.Renewals.RenewalAcceptance.Automatic))
             .ToListAsync(cancellationToken);
 
     public async Task<RenewalReviewRule?> RenewalReviewRule(string productCode, DateOnly day, CancellationToken cancellationToken) =>
@@ -394,6 +402,10 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
                                          && (f.LossRatioFrom is null || (lossRatio ?? 0) >= f.LossRatioFrom) && (f.LossRatioTo is null || (lossRatio ?? 0) <= f.LossRatioTo))
             ?.Factor ?? 1m;
     }
+
+    public async Task<Application.NonRenewalReason?> NonRenewalReason(string reasonCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<NonRenewalReasons>(day).Where(r => r.ReasonCode == reasonCode)
+            .Select(r => new Application.NonRenewalReason(r.ReasonCode, r.NoticeDays, r.CustomerWording, r.RequiresApproval)).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<Application.RenewalTermsSettings> RenewalSettings(DateOnly day, CancellationToken cancellationToken) =>
         await InForce<StaticData.RenewalSettings>(day).Select(s => new Application.RenewalTermsSettings(s.WorseTermsPct, s.ChangedTermsNoticeDays))
@@ -487,6 +499,21 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         Domain.Renewals.GeneralRenewalDecided e => new Contracts.GeneralRenewalDecided(e.RenewalId, e.PolicyId, e.PolicyNumber, e.Offered, e.DecisionCode),
         Domain.Renewals.GeneralRenewalOffered e => new Contracts.GeneralRenewalOffered(e.RenewalId, e.PolicyId, e.PolicyNumber, e.CurrentPremium, e.OfferedPremium, e.Currency,
             e.ChangedTerms),
+        // Wave 4 §4.3, §4.4: the customer's answer, a lapse, an insurer's non-renewal (its approval, and its notice) and the cover a late notice extends.
+        Domain.Renewals.GeneralRenewalAccepted e => new Contracts.GeneralRenewalAccepted(e.RenewalId, e.PolicyId, e.PolicyNumber, e.Channel),
+        Domain.Renewals.GeneralRenewalDeclined e => new Contracts.GeneralRenewalDeclined(e.RenewalId, e.PolicyId, e.PolicyNumber, e.Channel),
+        Domain.Renewals.GeneralRenewalLapsed e => new Contracts.GeneralRenewalLapsed(e.RenewalId, e.PolicyId, e.PolicyNumber),
+        Domain.Renewals.GeneralNonRenewalRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.GeneralApprovals.NonRenewalBusinessRefType,
+            e.RenewalId, Contracts.GeneralApprovals.NonRenewalApprovalType, e.RequestedBy, null, null, $"Do not renew policy {e.PolicyNumber} ({e.ReasonCode})", null,
+            Contracts.GeneralPermissions.PolicyNonRenew),
+        Domain.Renewals.GeneralPolicyNotRenewed e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.NonRenewalNotice,
+            e.PolicyholderPartyId, "GENERAL_POLICY", e.PolicyId, new Dictionary<string, string>
+            {
+                ["policy_number"] = e.PolicyNumber, ["product_code"] = e.ProductCode, ["reason"] = e.CustomerWording,
+                ["period_end"] = e.PeriodEnd.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                ["cover_ends_on"] = e.CoverEndsOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            }, e.ProductCode, e.OrgNodeCode),
+        GeneralCoverExtended e => new Contracts.GeneralCoverExtended(e.PolicyId, e.PolicyNumber, e.PreviousPeriodEnd, e.NewPeriodEnd, e.ExtraPremium, e.Currency),
         GeneralPolicyCancelled e => new Contracts.GeneralPolicyCancelled(e.PolicyId, e.PolicyNumber, e.ReasonCode, e.EffectiveDate, e.RefundAmount, e.Currency, e.ProductCode,
             e.ProductVersion),
         GeneralPolicyReinstated e => new Contracts.GeneralPolicyReinstated(e.PolicyId, e.PolicyNumber),

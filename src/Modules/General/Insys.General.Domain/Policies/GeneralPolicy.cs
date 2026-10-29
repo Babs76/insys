@@ -104,6 +104,18 @@ public sealed record GeneralPolicyCancelled(Guid PolicyId, string PolicyNumber, 
 
 public sealed record GeneralPolicyReinstated(Guid PolicyId, string PolicyNumber, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>OQ-132 (b): cover runs on, pro rata, to <paramref name="NewPeriodEnd"/> for a non-renewal's notice; Billing bills the extra days.</summary>
+public sealed record GeneralCoverExtended(Guid PolicyId, string PolicyNumber, DateOnly PreviousPeriodEnd, DateOnly NewPeriodEnd, decimal ExtraPremium, string Currency,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>Why a policy expired without renewal (Wave 4 §4.3, §4.4; general.policy.expiry_reason).</summary>
+public static class PolicyExpiryReasons
+{
+    public const string NotRenewedByInsurer = "NOT_RENEWED_BY_INSURER";
+    public const string DeclinedByCustomer = "DECLINED_BY_CUSTOMER";
+    public const string Lapsed = "LAPSED";
+}
+
 /// <summary>Entity GeneralCoverage (general.coverage), modelled inside the policy so limits and premium totals stay consistent.</summary>
 public sealed class GeneralCoverage : Entity<Guid>, ITenantScoped
 {
@@ -499,9 +511,39 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    public Result ExpirePolicy(DateOnly today) =>
-        Status == PolicyStatus.InForce && PeriodEnd < today ? Fire(PolicyTrigger.PeriodEndsWithoutRenewal)
-            : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is {Status}, to the end of {PeriodEnd:yyyy-MM-dd}.");
+    /// <param name="reason">Why it was not renewed (PolicyExpiryReasons), when the renewal says.</param>
+    public Result ExpirePolicy(DateOnly today, string? reason = null)
+    {
+        if (Status != PolicyStatus.InForce || PeriodEnd >= today)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is {Status}, to the end of {PeriodEnd:yyyy-MM-dd}.");
+        }
+
+        ExpiryReason = reason;
+        return Fire(PolicyTrigger.PeriodEndsWithoutRenewal);
+    }
+
+    /// <summary>Why the policy expired without renewal (Wave 4 §4.3, §4.4), when known.</summary>
+    public string? ExpiryReason { get; private set; }
+
+    /// <summary>
+    /// OQ-132 (b): a non-renewal decided too late for its notice keeps the policy covered until the notice runs out, at the
+    /// annual premium pro rata for the extra days (a 365-day year, to the cent).
+    /// </summary>
+    public Result ExtendForNotice(DateOnly coverEndsOn, DateTimeOffset now)
+    {
+        if (Status != PolicyStatus.InForce || coverEndsOn <= PeriodEnd)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is not extended past {PeriodEnd:yyyy-MM-dd}.");
+        }
+
+        var previous = PeriodEnd;
+        var extra = Math.Round(AnnualPremium * (coverEndsOn.DayNumber - previous.DayNumber) / 365m, 2, MidpointRounding.AwayFromZero);
+        PeriodEnd = coverEndsOn;
+        Raise(new GeneralCoverExtended(Id, PolicyNumber, previous, coverEndsOn, extra, Currency, now));
+        MarkChanged();
+        return Result.Success();
+    }
 
     /// <summary>
     /// Command CancelPolicy by the reason's refund rule (GEN-004): pro rata returns the unexpired part of the annual

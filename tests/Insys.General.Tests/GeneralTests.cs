@@ -334,6 +334,20 @@ public sealed class GeneralTests
     public void Cancellation_WithAnUnspecifiedScale_IsRefused() =>
         Policy().CancelPolicy(new CancellationRule("X", "INSURER", "SHORT_PERIOD", 0), Today, Guid.CreateVersion7(), Now).Error!.Code.ShouldBe(GeneralErrorCodes.RuleNotSpecified);
 
+    /// <summary>OQ-132 (b): cover extended for a late non-renewal's notice runs to the new end at the annual premium pro rata; it expires then, not renewed by the insurer.</summary>
+    [Fact]
+    public void CoverExtendedForANotice_IsBilledProRata_AndThePolicyExpiresNotRenewedByTheInsurer_OQ132()
+    {
+        var policy = Policy(premium: 3_650m);
+        policy.ExtendForNotice(End, Now).IsFailure.ShouldBeTrue("not past the period end");
+        policy.ExtendForNotice(End.AddDays(21), Now).IsSuccess.ShouldBeTrue();
+        policy.PeriodEnd.ShouldBe(End.AddDays(21));
+        policy.DomainEvents.OfType<GeneralCoverExtended>().Single().ShouldSatisfyAllConditions(e => e.PreviousPeriodEnd.ShouldBe(End),
+            e => e.ExtraPremium.ShouldBe(Math.Round(policy.AnnualPremium * 21 / 365m, 2, MidpointRounding.AwayFromZero)));
+        policy.ExpirePolicy(End.AddDays(22), PolicyExpiryReasons.NotRenewedByInsurer).IsSuccess.ShouldBeTrue();
+        (policy.Status, policy.ExpiryReason).ShouldBe((PolicyStatus.Expired, PolicyExpiryReasons.NotRenewedByInsurer));
+    }
+
     [Fact]
     public void Renewal_IsTheNextPeriod_AndThePolicyBecomesRenewed()
     {

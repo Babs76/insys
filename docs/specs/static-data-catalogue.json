@@ -5803,6 +5803,13 @@
      "logicalType": "Boolean",
      "mandatory": false,
      "sample": "true"
+    },
+    {
+     "name": "acceptance",
+     "logicalType": "Enum{Automatic,OnAcceptance,OnPayment}",
+     "mandatory": false,
+     "sample": "ON_ACCEPTANCE",
+     "note": "Added by V0099 (OQ-130): how the renewal is accepted; none is AUTOMATIC."
     }
    ]
   },

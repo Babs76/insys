@@ -60,6 +60,8 @@ internal static class GeneralFunctions
         .Screen("GENERAL_POLICIES", "GENERAL_POLICY_ADMIN", "Policy issue", "general/policies", "GeneralListPolicies", "GeneralGetPolicy")
         .Screen("GENERAL_RENEWALS", "GENERAL_RENEWALS", "Risk & claims review", "general/renewals", "GeneralListRenewals", "GeneralGetRenewal")
         .Action("GENERAL_DECIDE_RENEWAL", "GENERAL_RENEWALS", "GeneralDecideRenewal")
+        .Action("GENERAL_RECORD_RENEWAL_ANSWER", "GENERAL_RENEWALS", ["GeneralAcceptRenewal", "GeneralDeclineRenewal"])
+        .Action("GENERAL_PROPOSE_NON_RENEWAL", "GENERAL_RENEWALS", "GeneralProposeNonRenewal")
         .Action("GENERAL_ISSUE_POLICY", "GENERAL_POLICIES", "GeneralIssuePolicy")
         .Action("GENERAL_RENEW_POLICY", "GENERAL_POLICIES", "GeneralRenewPolicy")
         .Action("GENERAL_CANCEL_POLICY", "GENERAL_POLICIES", "GeneralCancelPolicy")
@@ -96,9 +98,13 @@ internal static class GeneralFunctions
         .Screen("CUSTOMER_PORTAL_GENERAL_CLAIMS", "CUSTOMER_PORTAL", "Claims", "portal/general/claims", "PortalGeneralListClaims", "PortalGeneralGetClaim",
             "PortalGeneralListLossCodes")
         .Action("CUSTOMER_PORTAL_GENERAL_NOTIFY_LOSS", "CUSTOMER_PORTAL_GENERAL_CLAIMS", "PortalGeneralNotifyLoss")
+        .Screen("CUSTOMER_PORTAL_GENERAL_RENEWALS", "CUSTOMER_PORTAL", "Renewals", "portal/general/renewals", "PortalGeneralListRenewals", "PortalGeneralGetRenewal")
+        .Action("CUSTOMER_PORTAL_GENERAL_ANSWER_RENEWAL", "CUSTOMER_PORTAL_GENERAL_RENEWALS", ["PortalGeneralAcceptRenewal", "PortalGeneralDeclineRenewal"])
             .Functions,
         .. new FunctionMap([Audiences.Broker], Features.BrokerPortal)
         .Screen("BROKER_PORTAL_GENERAL_POLICIES", "BROKER_PORTAL", "Policies", "portal/general/policies", "PortalGeneralListPolicies", "PortalGeneralGetPolicy")
+        .Screen("BROKER_PORTAL_GENERAL_RENEWALS", "BROKER_PORTAL", "Renewals", "portal/general/renewals", "PortalGeneralListRenewals", "PortalGeneralGetRenewal")
+        .Action("BROKER_PORTAL_GENERAL_ANSWER_RENEWAL", "BROKER_PORTAL_GENERAL_RENEWALS", ["PortalGeneralAcceptRenewal", "PortalGeneralDeclineRenewal"])
         .Screen("BROKER_PORTAL_GENERAL_QUOTES", "BROKER_PORTAL", "Quotes", "portal/general/quotes", "PortalGeneralListQuotes", "PortalGeneralGetQuote")
         .Action("BROKER_PORTAL_GENERAL_CREATE_QUOTE", "BROKER_PORTAL_GENERAL_QUOTES", "PortalGeneralCreateQuote")
         .Screen("BROKER_PORTAL_GENERAL_CLAIMS", "BROKER_PORTAL", "Claims", "portal/general/claims", "PortalGeneralListClaims", "PortalGeneralGetClaim")

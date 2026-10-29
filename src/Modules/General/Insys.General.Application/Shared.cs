@@ -100,6 +100,12 @@ public interface IGeneralRepository
     /// <summary>The renewal of a policy's period, if one was opened.</summary>
     Task<Domain.Renewals.Renewal?> RenewalOfPeriod(Guid policyId, DateOnly periodEnd, CancellationToken cancellationToken);
 
+    /// <summary>The policy's latest renewal (its period end may since have moved: a non-renewal's extended cover, OQ-132).</summary>
+    Task<Domain.Renewals.Renewal?> LatestRenewal(Guid policyId, CancellationToken cancellationToken);
+
+    /// <summary>The renewal the policy was issued on (ON_PAYMENT: its first premium is the customer's acceptance).</summary>
+    Task<Domain.Renewals.Renewal?> RenewalIssuedAs(Guid renewalPolicyId, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Domain.Renewals.Renewal>> Renewals(Domain.Renewals.RenewalStatus? status, Guid? policyId, Guid? beforeId, int limit, CancellationToken cancellationToken);
 
     /// <summary>Policies of the product in force, not yet reviewed for this period, whose period ends on or before the date (Wave 4 §4.2).</summary>
@@ -159,8 +165,12 @@ public sealed record RiskObjectTypeDefinition([property: CodeList(CodeLists.Risk
 /// <summary>A renewal rule (general.cfg_renewal_rules).</summary>
 /// <summary>A product's renewal rule (general.cfg_renewal_rules): the notice for the invitation, whether it renews by itself, and whether it is re-rated.</summary>
 /// <param name="ReminderDays">Days before the period ends to remind a policyholder who has not renewed (OQ-089); empty by default.</param>
+/// <param name="Acceptance">How the renewal is accepted (OQ-130): AUTOMATIC, ON_ACCEPTANCE or ON_PAYMENT.</param>
 public sealed record RenewalRule(string ProductCode, int NoticeDays, bool AutoRenew, bool ReRating, string InvitationTemplate, IReadOnlyList<int>? ReminderDays = null,
-    bool Review = false);
+    bool Review = false, string Acceptance = Domain.Renewals.RenewalAcceptance.Automatic);
+
+/// <summary>An insurer's non-renewal reason (general.cfg_non_renewal_reasons, F025, OQ-132).</summary>
+public sealed record NonRenewalReason(string ReasonCode, int NoticeDays, string CustomerWording, bool RequiresApproval);
 
 /// <summary>What a product's renewal review checks (general.cfg_renewal_review_rules, Wave 4 §4.2).</summary>
 public sealed record RenewalReviewRule(string ProductCode, string? EligibilityRuleset, bool UnderwritingRules, int ClaimsLookbackYears, int ReviewDaysBeforeInvitation);
@@ -238,6 +248,8 @@ public interface IGeneralCodes
 
     /// <summary>The tenant's renewal settings in force, else the defaults.</summary>
     Task<RenewalTermsSettings> RenewalSettings(DateOnly day, CancellationToken cancellationToken);
+
+    Task<NonRenewalReason?> NonRenewalReason(string reasonCode, DateOnly day, CancellationToken cancellationToken);
 
     Task<bool> Exists(GeneralCode kind, string code, DateOnly day, CancellationToken cancellationToken);
 

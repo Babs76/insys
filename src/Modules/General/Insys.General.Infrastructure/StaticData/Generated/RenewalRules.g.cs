@@ -53,6 +53,9 @@ public sealed class RenewalRules : StaticRecord<RenewalRulesInput>
 
     public bool? Review { get; set; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("AUTOMATIC", "ON_ACCEPTANCE", "ON_PAYMENT")]
+    public string? Acceptance { get; set; }
+
     public override void ApplyFields(RenewalRulesInput input, IFieldProtector protector)
     {
         ProductCode = input.ProductCode!;
@@ -62,6 +65,7 @@ public sealed class RenewalRules : StaticRecord<RenewalRulesInput>
         InvitationTemplate = input.InvitationTemplate!;
         ReminderDays = input.ReminderDays;
         Review = input.Review;
+        Acceptance = input.Acceptance;
     }
 }
 
@@ -87,6 +91,9 @@ public sealed record RenewalRulesInput : StaticRecordInput
 
     public bool? Review { get; init; }
 
+    [Insys.BuildingBlocks.Domain.OneOf("AUTOMATIC", "ON_ACCEPTANCE", "ON_PAYMENT")]
+    public string? Acceptance { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("productCode", ProductCode);
@@ -96,5 +103,7 @@ public sealed record RenewalRulesInput : StaticRecordInput
         errors.Required("reRating", ReRating);
         errors.Required("invitationTemplate", InvitationTemplate);
         errors.MaxLength("invitationTemplate", InvitationTemplate, 80);
+        errors.MaxLength("acceptance", Acceptance, 13);
+        errors.OneOf("acceptance", Acceptance, ["AUTOMATIC", "ON_ACCEPTANCE", "ON_PAYMENT"]);
     }
 }

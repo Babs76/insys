@@ -1244,6 +1244,45 @@
    "layer": "Insurance Domains · General",
    "module": "Policy administration",
    "subModule": "Renewal",
+   "entity": "Non-renewal reasons",
+   "table": "general.cfg_non_renewal_reasons",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "General Product Manager",
+   "provenance": "Wave 4 addendum (addenda/renewals-and-retention.md), signed off by Ade, 29 October 2026",
+   "basis": "F025; OQ-132; addendum §4.3",
+   "fields": [
+    {
+     "name": "reason_code",
+     "logicalType": "Code(20)",
+     "mandatory": true,
+     "sample": "CLAIMS_EXPERIENCE"
+    },
+    {
+     "name": "notice_days",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "31"
+    },
+    {
+     "name": "customer_wording",
+     "logicalType": "Text(500)",
+     "mandatory": true,
+     "sample": "We will not renew your policy because of its claims experience."
+    },
+    {
+     "name": "requires_approval",
+     "logicalType": "Boolean",
+     "mandatory": true,
+     "sample": "true"
+    }
+   ]
+  },
+  {
+   "layer": "Insurance Domains · General",
+   "module": "Policy administration",
+   "subModule": "Renewal",
    "entity": "Claims experience factors",
    "table": "general.cfg_claims_experience_factors",
    "class": "CFG",

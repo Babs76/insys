@@ -2,6 +2,24 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 4 batch 4.3a (branch `wave4-3a`): renewal acceptance and insurer non-renewal (addendum §4.3, §4.4, §4.6; OQ-130, OQ-132)
+
+### New
+- **`general.cfg_renewal_rules.acceptance`** (static data, optional): `AUTOMATIC` (none means this), `ON_ACCEPTANCE` or `ON_PAYMENT`.
+- **`general.cfg_non_renewal_reasons`** (new static data, tenant, Tier 2): `reasonCode`, `noticeDays`, `customerWording`, `requiresApproval`.
+- **`POST /general/renewals/{id}/accept`** and **`/decline`** (`GeneralAcceptRenewal`, `GeneralDeclineRenewal`; function `GENERAL_RECORD_RENEWAL_ANSWER`, permission `general_renewal.respond`): staff record the customer's answer (channel `STAFF`). 409 `GENERAL_RENEWAL_NOT_OFFERED` unless offered (or, to decline, accepted).
+- **`POST /general/policies/{id}/non-renewal`** (`GeneralProposeNonRenewal`; function `GENERAL_PROPOSE_NON_RENEWAL`, permission `general_policy.non_renew`), body `{ "reasonCode" }`. A reason with `requiresApproval` raises Workflow approval `GENERAL_NON_RENEWAL` (business reference `GENERAL_RENEWAL`, the renewal's ID; the approver needs `general_policy.non_renew` and authority); otherwise it is decided at once.
+- **Member and broker portals:** `GET /portal/general/renewals`, `GET /portal/general/renewals/{id}` (`PortalRenewalView`: status `OFFERED`, `ACCEPTED`, `RENEWED`, `DECLINED_BY_CUSTOMER`, `NOT_RENEWED_BY_INSURER`, `LAPSED`; the current and offered premium, `needsAcceptance`, and `coverEndsOn` for a non-renewal), `POST …/accept` and `…/decline` (channel `PORTAL` for a member, `BROKER` for a broker). Functions `CUSTOMER_PORTAL_GENERAL_RENEWALS` / `…_ANSWER_RENEWAL` and `BROKER_PORTAL_GENERAL_RENEWALS` / `…_ANSWER_RENEWAL`. A renewal under review is never shown; one is shown once invited.
+- **Renewal view:** `answer` (`acceptance`, `needsAcceptance`, accepted and declined at, by and `…Channel`, `renewalPolicyId`) and `nonRenewal` (`reasonCode`, `status` `REQUESTED`/`DECIDED`/`REJECTED`, requested and decided by and at, `noticeOn`, `coverExtendedTo`). Status gains `Accepted`, `DeclinedByCustomer`, `NotRenewedByInsurer`, `Lapsed`.
+- **Notification type `NON_RENEWAL_NOTICE`** (merge fields `policy_number`, `product_code`, `period_end`, `cover_ends_on`, `reason`).
+- **Events:** `general.GeneralRenewalAccepted`, `GeneralRenewalDeclined`, `GeneralRenewalLapsed`, `GeneralCoverExtended`.
+
+### Changed behaviour
+- **Every invited renewal has a record.** A product that is not reviewed gets a renewal offered at its current terms when it is invited.
+- **Acceptance (OQ-130):** `AUTOMATIC` renews at the period end unless declined (as before, when `auto_renew`); `ON_ACCEPTANCE` renews only once accepted; `ON_PAYMENT` renews at the period end and its first premium paid is the acceptance; if grace ends unpaid, the renewal policy is cancelled for non-payment (4.1) and the renewal is `Lapsed`. A renewal whose premium rises by more than the tenant's `worse_terms_pct` (default 15 %) needs acceptance whatever the product says. A renewal awaiting acceptance at the period end lapses, and the policy expires.
+- **Policy view:** an expired policy may carry `expiryReason`: `NOT_RENEWED_BY_INSURER`, `DECLINED_BY_CUSTOMER` or `LAPSED`.
+- **Non-renewal (F025, OQ-132):** decided, the notice is sent at once and the renewal is `NotRenewedByInsurer`; decided less than the reason's notice before the period end, the policy's period end moves to the notice's end and the extra days (annual premium × days / 365) are billed as one instalment due the day after the old end.
+
 ## GAP-113 (branch `gap113-dd-review`): what ends a periodic due diligence review (OQ-138, Ade 30 October 2026)
 
 ### New

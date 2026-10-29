@@ -37,6 +37,40 @@ public enum RenewalStatus
     Offered,
     Renewed,
     NotRenewed,
+
+    /// <summary>§4.4: the customer (or staff for them, or the broker) accepted the offered terms.</summary>
+    Accepted,
+
+    /// <summary>§4.4: the customer declined the renewal; the policy expires at its period end.</summary>
+    DeclinedByCustomer,
+
+    /// <summary>§4.3 (F025): the insurer decided not to renew; the policy expires at its period end (or its extended cover's end, OQ-132).</summary>
+    NotRenewedByInsurer,
+
+    /// <summary>§4.4: a renewal that needed acceptance was not accepted by the period end.</summary>
+    Lapsed,
+}
+
+/// <summary>How a renewal is accepted (OQ-130; general.cfg_renewal_rules.acceptance).</summary>
+public static class RenewalAcceptance
+{
+    public const string Automatic = "AUTOMATIC";
+    public const string OnAcceptance = "ON_ACCEPTANCE";
+    public const string OnPayment = "ON_PAYMENT";
+
+    /// <summary>Who recorded the customer's answer.</summary>
+    public const string Staff = "STAFF";
+    public const string Portal = "PORTAL";
+    public const string Broker = "BROKER";
+    public const string Payment = "PAYMENT";
+}
+
+/// <summary>The state of an insurer's non-renewal (F025).</summary>
+public static class NonRenewalStates
+{
+    public const string Requested = "REQUESTED";
+    public const string Decided = "DECIDED";
+    public const string Rejected = "REJECTED";
 }
 
 /// <summary>What a renewal review checked, and its result.</summary>
@@ -124,6 +158,25 @@ public sealed record GeneralRenewalReferred(Guid RenewalId, Guid PolicyId, strin
 public sealed record GeneralRenewalNotEligible(Guid RenewalId, Guid PolicyId, string PolicyNumber, string ProductCode, decimal SumInsured, string Reason,
     DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>§4.4: the customer accepted the renewal (by the channel), or declined it.</summary>
+public sealed record GeneralRenewalAccepted(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel, DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record GeneralRenewalDeclined(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>§4.4: a renewal needing acceptance was not accepted by the period end.</summary>
+public sealed record GeneralRenewalLapsed(Guid RenewalId, Guid PolicyId, string PolicyNumber, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>F025: a person proposed not renewing the policy, with a reason that a second person approves.</summary>
+public sealed record GeneralNonRenewalRequested(Guid RenewalId, Guid PolicyId, string PolicyNumber, string ReasonCode, Guid RequestedBy, DateTimeOffset OccurredAt)
+    : IDomainEvent;
+
+/// <summary>
+/// F025, OQ-132: the policy will not be renewed. The notice goes to the policyholder with the reason's customer wording; cover
+/// ends at the period end, or at <paramref name="CoverEndsOn"/> when the decision came too late for the notice.
+/// </summary>
+public sealed record GeneralPolicyNotRenewed(Guid RenewalId, Guid PolicyId, string PolicyNumber, string ProductCode, string ReasonCode, string CustomerWording,
+    DateOnly PeriodEnd, DateOnly CoverEndsOn, bool CoverExtended, Guid PolicyholderPartyId, string? OrgNodeCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>An underwriter decided a referred or ineligible renewal: offered (with any loading) or not.</summary>
 public sealed record GeneralRenewalDecided(Guid RenewalId, Guid PolicyId, string PolicyNumber, bool Offered, string DecisionCode, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -206,6 +259,200 @@ public sealed class Renewal : AggregateRoot<Guid>
     public DateTimeOffset? DecidedAt { get; private set; }
 
     public IReadOnlyList<RenewalCheck> Checks => _checks;
+
+    /// <summary>§4.4 (OQ-130): how this renewal is accepted, set when it is offered.</summary>
+    public string? Acceptance { get; private set; }
+
+    /// <summary>It renews only once accepted: the product says ON_ACCEPTANCE, or the terms are worse than the tenant's threshold.</summary>
+    public bool NeedsAcceptance { get; private set; }
+
+    public DateTimeOffset? AcceptedAt { get; private set; }
+
+    public Guid? AcceptedBy { get; private set; }
+
+    public string? AcceptedChannel { get; private set; }
+
+    public DateTimeOffset? DeclinedAt { get; private set; }
+
+    public Guid? DeclinedBy { get; private set; }
+
+    public string? DeclinedChannel { get; private set; }
+
+    /// <summary>The policy issued on this renewal.</summary>
+    public Guid? RenewalPolicyId { get; private set; }
+
+    public string? NonRenewalReason { get; private set; }
+
+    public string? NonRenewalStatus { get; private set; }
+
+    public Guid? NonRenewalRequestedBy { get; private set; }
+
+    public DateTimeOffset? NonRenewalRequestedAt { get; private set; }
+
+    public Guid? NonRenewalDecidedBy { get; private set; }
+
+    public DateTimeOffset? NonRenewalDecidedAt { get; private set; }
+
+    /// <summary>The day the non-renewal notice was sent.</summary>
+    public DateOnly? NonRenewalNoticeOn { get; private set; }
+
+    /// <summary>OQ-132 (b): cover extended, pro rata, to this day because the decision came too late for the notice.</summary>
+    public DateOnly? CoverExtendedTo { get; private set; }
+
+    /// <summary>Whether the renewal still waits for the customer: offered, needing acceptance, not yet accepted.</summary>
+    public bool AwaitsAcceptance => Status == RenewalStatus.Offered && NeedsAcceptance;
+
+    /// <summary>
+    /// A renewal of a product that is not reviewed (§4.4): offered at the current terms when it is invited, so that its
+    /// acceptance, a decline or a non-renewal has a record.
+    /// </summary>
+    public static Renewal OpenOffered(Guid id, Guid policyId, string policyNumber, string productCode, DateOnly periodEnd, decimal currentPremium, decimal sumInsured,
+        string currency, DateOnly today, DateTimeOffset now)
+    {
+        var renewal = new Renewal
+        {
+            Id = Guard.NotEmpty(id), PolicyId = Guard.NotEmpty(policyId), PolicyNumber = Guard.MaxLength(policyNumber, 30), ProductCode = Guard.MaxLength(productCode, 15),
+            PeriodEnd = periodEnd, Status = RenewalStatus.Reviewing, OpenedOn = today, Currency = Guard.MaxLength(currency, 3), CurrentPremium = currentPremium,
+            SumInsured = sumInsured, Factor = 1m,
+        };
+        renewal.Offer(now);
+        renewal.MarkChanged();
+        return renewal;
+    }
+
+    /// <summary>
+    /// §4.4 (OQ-130): how the offered renewal is accepted. ON_ACCEPTANCE needs the customer's acceptance; so does a renewal
+    /// whose premium rises by more than the tenant's threshold (worse terms), whatever the product says.
+    /// </summary>
+    public void SetAcceptance(string acceptance, decimal worseTermsPct)
+    {
+        Acceptance = acceptance;
+        var worse = OfferedPremium is { } offered && CurrentPremium > 0 && (offered - CurrentPremium) / CurrentPremium * 100m > worseTermsPct;
+        NeedsAcceptance = acceptance == RenewalAcceptance.OnAcceptance || worse;
+        MarkChanged();
+    }
+
+    /// <summary>§4.4: the customer accepts the offered terms, through the channel; who recorded it is kept.</summary>
+    public Result Accept(Guid by, string channel, DateTimeOffset now)
+    {
+        if (Status != RenewalStatus.Offered)
+        {
+            return Error.Conflict(GeneralErrorCodes.RenewalNotOffered, $"Renewal of {PolicyNumber} is {Status}; only an offered renewal is accepted.");
+        }
+
+        Status = RenewalStatus.Accepted;
+        (AcceptedBy, AcceptedChannel, AcceptedAt) = (by, channel, now);
+        Raise(new GeneralRenewalAccepted(Id, PolicyId, PolicyNumber, channel, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>§4.4: the customer declines the renewal (offered or accepted): the policy expires at its period end.</summary>
+    public Result Decline(Guid by, string channel, DateTimeOffset now)
+    {
+        if (Status is not (RenewalStatus.Offered or RenewalStatus.Accepted))
+        {
+            return Error.Conflict(GeneralErrorCodes.RenewalNotOffered, $"Renewal of {PolicyNumber} is {Status}; only an offered or accepted renewal is declined.");
+        }
+
+        Status = RenewalStatus.DeclinedByCustomer;
+        (DeclinedBy, DeclinedChannel, DeclinedAt) = (by, channel, now);
+        Raise(new GeneralRenewalDeclined(Id, PolicyId, PolicyNumber, channel, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>§4.4: the period ended with the renewal still awaiting the customer's acceptance.</summary>
+    public bool Lapse(DateTimeOffset now)
+    {
+        if (!AwaitsAcceptance)
+        {
+            return false;
+        }
+
+        Status = RenewalStatus.Lapsed;
+        Raise(new GeneralRenewalLapsed(Id, PolicyId, PolicyNumber, now));
+        MarkChanged();
+        return true;
+    }
+
+    /// <summary>§4.4 ON_PAYMENT: the renewal policy's first premium was paid; that is the customer's acceptance.</summary>
+    public void AcceptedByPayment(DateTimeOffset now)
+    {
+        if (Status == RenewalStatus.Renewed && AcceptedAt is null)
+        {
+            (AcceptedChannel, AcceptedAt) = (RenewalAcceptance.Payment, now);
+            Raise(new GeneralRenewalAccepted(Id, PolicyId, PolicyNumber, RenewalAcceptance.Payment, now));
+            MarkChanged();
+        }
+    }
+
+    /// <summary>§4.4 ON_PAYMENT: grace ended without the renewal's first premium, and the renewal policy was cancelled.</summary>
+    public void LapsedUnpaid(DateTimeOffset now)
+    {
+        if (Status == RenewalStatus.Renewed && AcceptedAt is null)
+        {
+            Status = RenewalStatus.Lapsed;
+            Raise(new GeneralRenewalLapsed(Id, PolicyId, PolicyNumber, now));
+            MarkChanged();
+        }
+    }
+
+    /// <summary>
+    /// F025: a person proposes not renewing, with a reason. A reason that needs approval waits for a second person
+    /// (Workflow); otherwise the proposer's decision stands at once (DecideNonRenewal follows in the same command).
+    /// </summary>
+    public Result RequestNonRenewal(string reasonCode, bool requiresApproval, Guid by, DateTimeOffset now)
+    {
+        if (Status is RenewalStatus.Renewed or RenewalStatus.NotRenewedByInsurer or RenewalStatus.DeclinedByCustomer or RenewalStatus.Lapsed
+            || NonRenewalStatus == NonRenewalStates.Requested)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Renewal of {PolicyNumber} is {Status}; it cannot be stopped now.");
+        }
+
+        (NonRenewalReason, NonRenewalStatus, NonRenewalRequestedBy, NonRenewalRequestedAt) = (Guard.MaxLength(reasonCode, 20), NonRenewalStates.Requested, by, now);
+        (NonRenewalDecidedBy, NonRenewalDecidedAt) = (null, null);
+        if (requiresApproval)
+        {
+            Raise(new GeneralNonRenewalRequested(Id, PolicyId, PolicyNumber, NonRenewalReason, by, now));
+        }
+
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// F025, OQ-132: the non-renewal is decided (approved, or needing no approval). The notice is sent today; when today
+    /// plus the reason's notice is after the period end, cover is extended, pro rata, until the notice runs out (b). A
+    /// rejected non-renewal leaves the renewal as it was.
+    /// </summary>
+    /// <param name="customerWording">The reason's wording the policyholder is told (general.cfg_non_renewal_reasons.customer_wording).</param>
+    public Result DecideNonRenewal(bool approved, Guid by, int noticeDays, string customerWording, Guid policyholderPartyId, string? orgNodeCode, DateOnly today,
+        DateTimeOffset now)
+    {
+        if (NonRenewalStatus != NonRenewalStates.Requested)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"No non-renewal of {PolicyNumber} is waiting.");
+        }
+
+        (NonRenewalDecidedBy, NonRenewalDecidedAt) = (by, now);
+        if (!approved)
+        {
+            NonRenewalStatus = NonRenewalStates.Rejected;
+            MarkChanged();
+            return Result.Success();
+        }
+
+        NonRenewalStatus = NonRenewalStates.Decided;
+        Status = RenewalStatus.NotRenewedByInsurer;
+        NonRenewalNoticeOn = today;
+        var noticeEnds = today.AddDays(noticeDays);
+        CoverExtendedTo = noticeEnds > PeriodEnd ? noticeEnds : null;
+        Raise(new GeneralPolicyNotRenewed(Id, PolicyId, PolicyNumber, ProductCode, NonRenewalReason!, customerWording, PeriodEnd, CoverExtendedTo ?? PeriodEnd,
+            CoverExtendedTo is not null, policyholderPartyId, orgNodeCode, now));
+        MarkChanged();
+        return Result.Success();
+    }
 
     /// <summary>
     /// Command OpenRenewalReview: the facts are checked now; a rule set and a re-rating wait for Rules and Rating. A product
@@ -400,15 +647,16 @@ public sealed class Renewal : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    /// <summary>The policy was renewed on the offered terms.</summary>
-    public Result MarkRenewed()
+    /// <summary>The policy was renewed on the offered terms: offered (and not awaiting acceptance) or accepted.</summary>
+    public Result MarkRenewed(Guid? renewalPolicyId = null)
     {
-        if (Status != RenewalStatus.Offered)
+        if (Status is not (RenewalStatus.Offered or RenewalStatus.Accepted) || AwaitsAcceptance)
         {
-            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Renewal of {PolicyNumber} is {Status}.");
+            return Error.Conflict(GeneralErrorCodes.RenewalNotOffered, $"Renewal of {PolicyNumber} is {Status}{(AwaitsAcceptance ? ", awaiting acceptance" : "")}.");
         }
 
         Status = RenewalStatus.Renewed;
+        RenewalPolicyId = renewalPolicyId;
         MarkChanged();
         return Result.Success();
     }

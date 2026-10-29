@@ -60,6 +60,20 @@ public sealed class BillingTests
     /// 3 050.00, eleven of 254.17 and a last of 254.13. Amended mid-term, the regenerated instalments total their share of
     /// the new annual premium, and the year still adds up to what was invoiced plus that share (Ade, 28 October 2026).
     /// </summary>
+    /// <summary>OQ-132 (b): a schedule extended for a non-renewal's notice runs to the new end, with the extra days' premium as one instalment due after the old end.</summary>
+    [Fact]
+    public void AnExtendedSchedule_BillsTheExtraDaysAsOneInstalment_AfterItsOldEnd_OQ132()
+    {
+        var account = BillingAccount.OpenAccount(Guid.CreateVersion7(), Guid.CreateVersion7(), "ZAR", "DEBIT_ORDER", null, Now);
+        var end = Start.AddYears(1).AddDays(-1);
+        var schedule = account.CreateSchedule("GENERAL", Guid.CreateVersion7(), "MOTOR-v1", Monthly, Start, end, 254.17m, 3_050m).Value;
+        account.ExtendSchedule(schedule.Id, end, 175.48m).IsFailure.ShouldBeTrue("an extension is past the end");
+        account.ExtendSchedule(schedule.Id, end.AddDays(21), 175.48m).IsSuccess.ShouldBeTrue();
+        schedule.EndDate.ShouldBe(end.AddDays(21));
+        schedule.Instalments.Count.ShouldBe(13);
+        (schedule.Instalments[^1].DueDate, schedule.Instalments[^1].Amount).ShouldBe((end.AddDays(1), 175.48m));
+    }
+
     [Fact]
     public void AMonthlyScheduleOfAnAnnualPremium_TotalsItExactly_TheLastInstalmentTakingTheRounding()
     {

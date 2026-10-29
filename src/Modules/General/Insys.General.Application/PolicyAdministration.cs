@@ -179,11 +179,15 @@ internal sealed class RenewPolicyHandler(IGeneralRepository general, IGeneralCod
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{expiring.ProductCode} has no renewal rule in force.");
         }
 
-        // Wave 4 §4.2: a reviewed product renews on its review's offered terms (re-rated or not), and only once offered.
-        var review = rule.Review ? await general.RenewalOfPeriod(expiring.Id, expiring.PeriodEnd, cancellationToken) : null;
-        if (rule.Review && review is not { Status: Domain.Renewals.RenewalStatus.Offered })
+        // Wave 4 §4.2: a reviewed product renews on its review's offered terms (re-rated or not), and only once offered. §4.4: any
+        // renewal on record renews only offered (not awaiting the customer's acceptance) or accepted; declined, not renewed by
+        // the insurer, or lapsed, it does not.
+        var review = await general.RenewalOfPeriod(expiring.Id, expiring.PeriodEnd, cancellationToken);
+        if ((rule.Review && review is null) || (review is not null && (review.AwaitsAcceptance
+                || review.Status is not (Domain.Renewals.RenewalStatus.Offered or Domain.Renewals.RenewalStatus.Accepted))))
         {
-            return Error.Conflict(GeneralErrorCodes.RenewalNotOffered, $"Policy {expiring.PolicyNumber}'s renewal is {review?.Status.ToString() ?? "not reviewed"}; it renews once offered.");
+            var state = review is null ? "not reviewed" : review.AwaitsAcceptance ? "awaiting the customer's acceptance" : review.Status.ToString();
+            return Error.Conflict(GeneralErrorCodes.RenewalNotOffered, $"Policy {expiring.PolicyNumber}'s renewal is {state}; it does not renew now.");
         }
 
         if (rule.ReRating && review is null)
@@ -204,7 +208,7 @@ internal sealed class RenewPolicyHandler(IGeneralRepository general, IGeneralCod
             return renewal.Error;
         }
 
-        review?.MarkRenewed();
+        review?.MarkRenewed(id);
 
         general.Add(renewal.Value);
         audit.Record(new AuditEntry("GENERAL", "RenewPolicy", nameof(GeneralPolicy), expiring.Id.ToString(), new Dictionary<string, string?> { ["renewal"] = id.ToString() }));

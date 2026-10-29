@@ -72,6 +72,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         Insys.Party.Contracts.PartyPermissions.PartyRead, Insys.Party.Contracts.PartyPermissions.BankAccountCreate,
         Insys.Party.Contracts.PartyPermissions.BankAccountRead, Insys.Party.Contracts.PartyPermissions.BankAccountVerify,
         Insys.Party.Contracts.PartyPermissions.DueDiligenceRead, Insys.Party.Contracts.PartyPermissions.DueDiligenceReviewHit,
+        GeneralPermissions.RenewalRespond, GeneralPermissions.PolicyNonRenew,
     ];
 
     private TestDatabase _db = null!;
@@ -92,7 +93,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var from = Today.AddDays(-30);
 
         foreach (var type in new[] { GeneralApprovals.EndorsementApprovalType, GeneralApprovals.SettlementApprovalType, PaymentApprovals.PayoutApprovalType, ClaimsApprovals.InstructionApprovalType,
-                     PartyApprovals.MatchResolutionType })
+                     PartyApprovals.MatchResolutionType, GeneralApprovals.NonRenewalApprovalType })
         {
             await Seed("workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}",
                 ("role_code", approverRole), ("transaction_type", type), ("limit_value", 1_000_000m), ("delegation_allowed", false));
@@ -712,6 +713,12 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<string>("SELECT status || ':' || body FROM communication.notification WHERE recipient_party_id = @h AND type_code = 'RENEWAL_INVITATION'",
             ("h", holder))).ShouldBe($"SENT:{number} renews at 4026.00 ZAR.");
 
+        // OQ-130: the offer is 32 % above the current premium, more than the tenant's 15 %: it renews only once the customer accepts.
+        var answer = (await Get($"/api/v1/general/renewals/{id}")).GetProperty("answer");
+        (answer.GetProperty("acceptance").GetString(), answer.GetProperty("needsAcceptance").GetBoolean()).ShouldBe(("AUTOMATIC", true));
+        var accepted = await _maker.PostAsync($"/api/v1/general/renewals/{id}/accept", null);
+        accepted.StatusCode.ShouldBe(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
+
         // At the period's end it renews on the offered terms.
         await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(-1)), ("p", policy));
         await _db.ExecuteAsOwner("UPDATE general.renewal SET period_end = @e WHERE id = @r", ("e", Today.AddDays(-1)), ("r", id));
@@ -719,7 +726,154 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
         var renewed = await _db.ScalarAsOwner<Guid>("SELECT id FROM general.policy WHERE renewal_of_id = @p", ("p", policy));
         (await Policy(renewed)).GetProperty("annualPremium").GetDecimal().ShouldBe(4_026m);
-        (await Get($"/api/v1/general/renewals/{id}")).GetProperty("status").GetString().ShouldBe("Renewed");
+        var done = await Get($"/api/v1/general/renewals/{id}");
+        (done.GetProperty("status").GetString(), done.GetProperty("answer").GetProperty("acceptedChannel").GetString(),
+            done.GetProperty("answer").GetProperty("renewalPolicyId").GetGuid()).ShouldBe(("Renewed", "STAFF", renewed));
+    }
+
+    /// <summary>
+    /// Wave 4 §4.4, §4.6 (F022, OQ-130): a product renewing ON_ACCEPTANCE is invited with an offer that waits for the customer.
+    /// The member accepts through the portal and the policy renews at its period end; another member's renewal, not accepted,
+    /// lapses and the policy expires (LAPSED). A member sees only their own renewal.
+    /// </summary>
+    [Fact]
+    public async Task ARenewalOnAcceptance_RenewsOnceTheMemberAcceptsThroughThePortal_AndOneNotAcceptedLapses_F022_OQ130()
+    {
+        await Seed("general.cfg_renewal_rules", "EFFECTIVE", "RR-GMOT", ("product_code", Product), ("notice_days", 31), ("auto_renew", true), ("re_rating", false),
+            ("invitation_template", "TPL-RENEWAL_NOTICE"), ("acceptance", "ON_ACCEPTANCE"));
+        var (accepting, _) = await IssuedPolicy();
+        var (lapsing, _) = await IssuedPolicy();
+        var holder = (await Policy(accepting)).GetProperty("policyholderPartyId").GetGuid();
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_start = @s, period_end = @e WHERE id IN (@a, @b)", ("s", Today.AddYears(-1).AddDays(21)),
+            ("e", Today.AddDays(20)), ("a", accepting), ("b", lapsing));
+        var jobs = _factory.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>();
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        async Task<JsonElement> RenewalOf(Guid policy) =>
+            (await (await _maker.GetAsync($"/api/v1/general/renewals?policyId={policy}")).Json()).GetProperty("items").EnumerateArray().Single();
+        var invited = await RenewalOf(accepting);
+        (invited.GetProperty("status").GetString(), invited.GetProperty("answer").GetProperty("acceptance").GetString(),
+            invited.GetProperty("answer").GetProperty("needsAcceptance").GetBoolean()).ShouldBe(("Offered", "ON_ACCEPTANCE", true));
+
+        // The member's portal: their renewal only, with its terms; they accept it.
+        var memberRole = await PortalUser("member-renewal", "PARTY", holder, null, GeneralPermissions.PolicyRead, GeneralPermissions.RenewalRespond);
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-MEM", ("channel_code", "MEM"), ("audience", "CUSTOMER"), ("name", "Member portal"),
+            ("client_ids", new[] { "member-portal" }));
+        await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CP-MEM-R", ("channel_code", "MEM"), ("role_code", memberRole),
+            ("transaction_type", GeneralPermissions.RenewalRespond), ("allowed", true));
+        await _db.AdoptFunctionCatalogue();
+        var member = _factory.ClientFor(Tenant, "member-renewal", "member-portal");
+        var listed = (await (await member.GetAsync("/api/v1/portal/general/renewals")).Json()).GetProperty("items").EnumerateArray().ToList();
+        listed.Select(r => r.GetProperty("policyId").GetGuid()).ShouldBe([accepting]);
+        (listed[0].GetProperty("status").GetString(), listed[0].GetProperty("needsAcceptance").GetBoolean()).ShouldBe(("OFFERED", true));
+        listed[0].TryGetProperty("factor", out _).ShouldBeFalse("the review is not shown");
+        (await member.PostAsync($"/api/v1/portal/general/renewals/{(await RenewalOf(lapsing)).GetProperty("id").GetGuid()}/accept", null)).StatusCode
+            .ShouldBe(HttpStatusCode.NotFound, "another member's renewal");
+        var accepted = await member.PostAsync($"/api/v1/portal/general/renewals/{listed[0].GetProperty("id").GetGuid()}/accept", null);
+        accepted.StatusCode.ShouldBe(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
+        (await accepted.Json()).GetProperty("status").GetString().ShouldBe("ACCEPTED");
+
+        // The period ends: the accepted one renews; the other lapses, and its policy expires as LAPSED.
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id IN (@a, @b)", ("e", Today.AddDays(-1)), ("a", accepting), ("b", lapsing));
+        await _db.ExecuteAsOwner("UPDATE general.renewal SET period_end = @e WHERE policy_id IN (@a, @b)", ("e", Today.AddDays(-1)), ("a", accepting), ("b", lapsing));
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        var renewedPolicy = await _db.ScalarAsOwner<Guid>("SELECT id FROM general.policy WHERE renewal_of_id = @p", ("p", accepting));
+        (await RenewalOf(accepting)).GetProperty("answer").ShouldSatisfyAllConditions(a => a.GetProperty("acceptedChannel").GetString().ShouldBe("PORTAL"),
+            a => a.GetProperty("renewalPolicyId").GetGuid().ShouldBe(renewedPolicy));
+        (await RenewalOf(lapsing)).GetProperty("status").GetString().ShouldBe("Lapsed");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM general.policy WHERE renewal_of_id = @p", ("p", lapsing))).ShouldBe(0);
+        (await _db.ScalarAsOwner<string>("SELECT status || ':' || expiry_reason FROM general.policy WHERE id = @p", ("p", lapsing))).ShouldBe("EXPIRED:LAPSED");
+    }
+
+    /// <summary>
+    /// Wave 4 §4.3 (F025, OQ-132): an insurer's non-renewal. A reason needing approval waits for a second person; approved,
+    /// the policyholder gets the notice with the reason's wording, and the policy expires at its period end, not renewed by
+    /// the insurer. A decision too late for its notice extends cover, pro rata, until the notice runs out, and the extra days
+    /// are billed.
+    /// </summary>
+    [Fact]
+    public async Task AnInsurersNonRenewal_IsApprovedAndNoticed_AndALateOneExtendsCoverProRata_F025_OQ132()
+    {
+        await _db.SeedEmailNotices(Tenant, Today.AddDays(-30), "NRN",
+            (Insys.Communications.Contracts.NotificationTypes.NonRenewalNotice, "Not renewing {policy_number}",
+                "{policy_number} will not be renewed: {reason} Cover ends on {cover_ends_on}."));
+        await Seed("general.cfg_non_renewal_reasons", "EFFECTIVE", "NR-CLAIMS", ("reason_code", "CLAIMS"), ("notice_days", 31),
+            ("customer_wording", "Its claims experience is outside our acceptance."), ("requires_approval", true));
+        await Seed("general.cfg_non_renewal_reasons", "EFFECTIVE", "NR-EXIT", ("reason_code", "PRODUCT_EXIT"), ("notice_days", 31),
+            ("customer_wording", "We no longer offer this cover."), ("requires_approval", false));
+        var (approved, _) = await IssuedPolicy();
+        var (late, _) = await IssuedPolicy();
+        var holder = (await Policy(approved)).GetProperty("policyholderPartyId").GetGuid();
+        await _db.AddContact(Tenant, holder, "EMAIL", "notice@example.com");
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(60)), ("p", approved));
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(10)), ("p", late));
+
+        // Needing approval: proposed by one person, approved by another; then the notice goes.
+        var proposed = await (await _maker.PostAsJsonAsync($"/api/v1/general/policies/{approved}/non-renewal", new { reasonCode = "CLAIMS" })).Json();
+        proposed.GetProperty("nonRenewal").GetProperty("status").GetString().ShouldBe("REQUESTED");
+        var renewalId = proposed.GetProperty("id").GetGuid();
+        await _factory.DrainOutbox();
+        await Decide(GeneralApprovals.NonRenewalBusinessRefType, renewalId, approve: true);
+        await _factory.DrainOutbox();
+        var decided = await (await _maker.GetAsync($"/api/v1/general/renewals/{renewalId}")).Json();
+        (decided.GetProperty("status").GetString(), decided.GetProperty("nonRenewal").GetProperty("status").GetString(),
+            decided.GetProperty("nonRenewal").GetProperty("coverExtendedTo").ValueKind).ShouldBe(("NotRenewedByInsurer", "DECIDED", JsonValueKind.Null));
+        await _factory.Services.GetRequiredService<Insys.Communications.Infrastructure.NotificationSender>().RunForTenant(Tenant, CancellationToken.None);
+        var number = (await Policy(approved)).GetProperty("policyNumber").GetString();
+        (await _db.ScalarAsOwner<string>("SELECT status || ':' || body FROM communication.notification WHERE recipient_party_id = @h AND type_code = 'NON_RENEWAL_NOTICE'",
+            ("h", holder))).ShouldBe($"SENT:{number} will not be renewed: Its claims experience is outside our acceptance. Cover ends on {Today.AddDays(60):yyyy-MM-dd}.");
+
+        // Too late for its 31 days' notice (10 days left): decided at once, cover runs to the notice's end, and the extra 21 days are billed.
+        var annual = (await Policy(late)).GetProperty("annualPremium").GetDecimal();
+        var extended = await (await _maker.PostAsJsonAsync($"/api/v1/general/policies/{late}/non-renewal", new { reasonCode = "PRODUCT_EXIT" })).Json();
+        extended.GetProperty("nonRenewal").GetProperty("coverExtendedTo").GetString().ShouldBe(Today.AddDays(31).ToString("yyyy-MM-dd"));
+        await _factory.DrainOutbox();
+        (await Policy(late)).GetProperty("periodEnd").GetString().ShouldBe(Today.AddDays(31).ToString("yyyy-MM-dd"));
+        (await _db.ScalarAsOwner<decimal>("""
+            SELECT i.amount FROM billing.premium_instalment i JOIN billing.premium_schedule s ON s.id = i.schedule_id WHERE s.policy_ref = @p AND i.due_date = @d
+            """, ("p", late), ("d", Today.AddDays(11)))).ShouldBe(Math.Round(annual * 21 / 365m, 2, MidpointRounding.AwayFromZero));
+
+        // At the period's end the approved one expires, not renewed by the insurer.
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(-1)), ("p", approved));
+        await _factory.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>().Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<string>("SELECT status || ':' || expiry_reason FROM general.policy WHERE id = @p", ("p", approved))).ShouldBe("EXPIRED:NOT_RENEWED_BY_INSURER");
+    }
+
+    /// <summary>Wave 4 §4.4 (F022, OQ-130): an ON_PAYMENT renewal renews at the period end, and its first premium paid is the customer's acceptance.</summary>
+    [Fact]
+    public async Task AnOnPaymentRenewal_RenewsAndIsAcceptedByItsFirstPremium_F022()
+    {
+        await Seed("general.cfg_renewal_rules", "EFFECTIVE", "RR-GMOT", ("product_code", Product), ("notice_days", 31), ("auto_renew", true), ("re_rating", false),
+            ("invitation_template", "TPL-RENEWAL_NOTICE"), ("acceptance", "ON_PAYMENT"));
+        var (policy, _) = await IssuedPolicy();
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_start = @s, period_end = @e WHERE id = @p", ("s", Today.AddYears(-1).AddDays(21)),
+            ("e", Today.AddDays(20)), ("p", policy));
+        var jobs = _factory.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>();
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(-1)), ("p", policy));
+        await _db.ExecuteAsOwner("UPDATE general.renewal SET period_end = @e WHERE policy_id = @p", ("e", Today.AddDays(-1)), ("p", policy));
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        var renewed = await _db.ScalarAsOwner<Guid>("SELECT id FROM general.policy WHERE renewal_of_id = @p", ("p", policy));
+        var renewal = await (await _maker.GetAsync($"/api/v1/general/renewals?policyId={policy}")).Json();
+        var answer = renewal.GetProperty("items")[0].GetProperty("answer");
+        (answer.GetProperty("acceptance").GetString(), answer.GetProperty("acceptedChannel").ValueKind).ShouldBe(("ON_PAYMENT", JsonValueKind.Null));
+
+        foreach (var payment in await _db.ScalarAsOwner<Guid[]>("""
+                     SELECT array_agg(p.id) FROM payment.payment p JOIN billing.invoice i ON i.id = p.business_ref_id WHERE i.policy_ref = @p
+                     """, ("p", renewed)) ?? [])
+        {
+            (await Callback(payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        await _factory.DrainOutbox();
+        renewal = await (await _maker.GetAsync($"/api/v1/general/renewals?policyId={policy}")).Json();
+        renewal.GetProperty("items")[0].GetProperty("answer").GetProperty("acceptedChannel").GetString().ShouldBe("PAYMENT");
     }
 
     /// <summary>

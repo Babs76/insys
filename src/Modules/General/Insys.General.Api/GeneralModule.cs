@@ -384,6 +384,34 @@ public sealed class GeneralModule : IModule
             .WithName("GeneralDecideRenewal")
             .WithSummary("Decide a referred or ineligible renewal (F019): offer it, with any loading in per cent, or not, within your underwriting authority")
             .RequirePermission(GeneralPermissions.QuoteUnderwrite);
+        // Wave 4 §4.3, §4.4: the customer's answer recorded by staff, and an insurer's non-renewal.
+        general.MapPost("/renewals/{id:guid}/accept", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new AcceptRenewal(id), ct)).ToHttp(Results.Ok))
+            .Produces<RenewalView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName("GeneralAcceptRenewal")
+            .WithSummary("Record the customer's acceptance of an offered renewal (Wave 4 §4.4, channel STAFF)")
+            .WithDescription("Only an OFFERED renewal is accepted (409 GENERAL_RENEWAL_NOT_OFFERED otherwise). An ON_ACCEPTANCE renewal, or one on worse terms "
+                + "than the tenant's threshold, renews at the period end only once accepted.")
+            .RequirePermission(GeneralPermissions.RenewalRespond);
+        general.MapPost("/renewals/{id:guid}/decline", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new DeclineRenewal(id), ct)).ToHttp(Results.Ok))
+            .Produces<RenewalView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName("GeneralDeclineRenewal")
+            .WithSummary("Record the customer's decline of a renewal (Wave 4 §4.4): the policy expires at its period end")
+            .RequirePermission(GeneralPermissions.RenewalRespond);
+        general.MapPost("/policies/{id:guid}/non-renewal", async (Guid id, NonRenewalRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new ProposeNonRenewal(id, r.ReasonCode), ct)).ToHttp(Results.Ok))
+            .Produces<RenewalView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithEventualEffects("with a reason that requires approval, a second person approves it in Workflow (GENERAL_NON_RENEWAL); granted, the notice is "
+                + "sent and nonRenewal.status becomes DECIDED; rejected, REJECTED and the renewal goes on as before.")
+            .WithName("GeneralProposeNonRenewal")
+            .WithSummary("Propose not renewing a policy, with a reason (Wave 4 §4.3, F025)")
+            .WithDescription("The reason (general.cfg_non_renewal_reasons) gives the notice days, the customer's wording, and whether a second person approves. "
+                + "Once decided, the policyholder gets NON_RENEWAL_NOTICE with the wording, and the renewal is NOT_RENEWED_BY_INSURER: the policy expires at its "
+                + "period end. A decision less than the notice before the period end extends cover, pro rata, until the notice runs out (OQ-132 (b)); the "
+                + "extra days are billed.")
+            .RequirePermission(GeneralPermissions.PolicyNonRenew);
         general.MapGet("/aggregation-alerts", async (string? zone, string? peril, Guid? zoneReference, DateOnly? from, DateOnly? to, string? cursor, int? limit,
                 IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListAggregationAlerts(zone, peril, zoneReference, from, to, after, size), ct), a => a.Id))
@@ -452,6 +480,24 @@ public sealed class GeneralModule : IModule
             .WithDescription("The perils of the policy's product line in force today (general.ref_peril_codes), and the loss causes of those perils "
                 + "(general.ref_loss_cause_codes), each with its label: the codes PortalGeneralNotifyLoss takes as perilCode and causeCode. Another's policy is 404.")
             .RequirePermission(GeneralPermissions.ClaimRead).ForPortal(party);
+        // Wave 4 §4.6: the renewal invitation, and the member's or broker's answer.
+        portal.MapGet("/renewals", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalRenewals(after, size), ct), r => r.Id))
+            .Produces<CursorPage<PortalRenewalView>>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralListRenewals").WithSummary("The renewals of the member's or broker's policies, once invited (Wave 4 §4.6)")
+            .RequirePermission(GeneralPermissions.PolicyRead).ForPortal(party, broker);
+        portal.MapGet("/renewals/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalRenewal(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalRenewalView>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralGetRenewal").WithSummary("A renewal of the member's or broker's policy: the offered terms and the answer").RequirePermission(GeneralPermissions.PolicyRead)
+            .ForPortal(party, broker);
+        portal.MapPost("/renewals/{id:guid}/accept", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new PortalAcceptRenewal(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalRenewalView>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralAcceptRenewal").WithSummary("Accept the renewal invitation (channel PORTAL for the member, BROKER for the broker)")
+            .RequirePermission(GeneralPermissions.RenewalRespond).ForPortal(party, broker);
+        portal.MapPost("/renewals/{id:guid}/decline", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new PortalDeclineRenewal(id), ct)).ToHttp(Results.Ok))
+            .Produces<PortalRenewalView>(StatusCodes.Status200OK)
+            .WithName("PortalGeneralDeclineRenewal").WithSummary("Decline the renewal: the policy is not renewed")
+            .RequirePermission(GeneralPermissions.RenewalRespond).ForPortal(party, broker);
         portal.MapGet("/quotes", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPortalQuotes(after, size), ct), q => q.Id))
             .Produces<CursorPage<PortalQuoteView>>(StatusCodes.Status200OK)
@@ -571,6 +617,9 @@ public sealed record PortalClaimRequest(Guid PolicyId, Guid? RiskObjectId, strin
     string? Description);
 
 /// <summary>An underwriter's decision on a renewal (F019): offer it or not, with an underwriting decision code and any loading in per cent.</summary>
+/// <param name="ReasonCode">An insurer's non-renewal reason in force (general.cfg_non_renewal_reasons).</param>
+public sealed record NonRenewalRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.NonRenewalReasons, "reason_code")] string ReasonCode);
+
 public sealed record DecideRenewalRequest(bool Offer, [property: BuildingBlocks.Domain.CodeList(CodeLists.UnderwritingDecisions, "code")] string DecisionCode,
     decimal? LoadingPct = null);
 

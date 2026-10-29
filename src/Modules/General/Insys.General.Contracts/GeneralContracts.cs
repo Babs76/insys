@@ -41,6 +41,12 @@ public static class GeneralPermissions
     public const string PolicyCreate = "general_policy.create";
     public const string PolicyUpdate = "general_policy.update";
     public const string PolicyCancel = "general_policy.cancel";
+
+    /// <summary>Wave 4 §4.3: proposing an insurer's non-renewal (F025), and deciding one that needs approval.</summary>
+    public const string PolicyNonRenew = "general_policy.non_renew";
+
+    /// <summary>Wave 4 §4.4: recording the customer's acceptance or decline of a renewal.</summary>
+    public const string RenewalRespond = "general_renewal.respond";
     public const string EndorsementRead = "general_endorsement.read";
     public const string EndorsementCreate = "general_endorsement.create";
     public const string ClaimRead = "general_claim.read";
@@ -59,6 +65,10 @@ public static class GeneralApprovals
     public const string EndorsementApprovalType = "ENDORSEMENT";
     public const string SettlementBusinessRefType = "GENERAL_CLAIM";
     public const string SettlementApprovalType = "CLAIM_SETTLEMENT";
+
+    /// <summary>F025: an insurer's non-renewal whose reason needs a second person (Wave 4 §4.3).</summary>
+    public const string NonRenewalBusinessRefType = "GENERAL_RENEWAL";
+    public const string NonRenewalApprovalType = "GENERAL_NON_RENEWAL";
 }
 
 /// <summary>The subjects General rates through Rating (PremiumCalculated.SubjectType; PRD-008).</summary>
@@ -256,6 +266,23 @@ public sealed record GeneralRenewalNotEligible(Guid RenewalId, Guid PolicyId, st
 /// <summary>An underwriter decided a referred or ineligible renewal: its task closes.</summary>
 [IntegrationEvent("general.GeneralRenewalDecided")]
 public sealed record GeneralRenewalDecided(Guid RenewalId, Guid PolicyId, string PolicyNumber, bool Offered, string DecisionCode) : IIntegrationEvent;
+
+/// <summary>Wave 4 §4.4: the customer accepted the renewal, through STAFF, PORTAL, BROKER or PAYMENT (ON_PAYMENT).</summary>
+[IntegrationEvent("general.GeneralRenewalAccepted")]
+public sealed record GeneralRenewalAccepted(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel) : IIntegrationEvent;
+
+/// <summary>Wave 4 §4.4: the customer declined the renewal; the policy expires at its period end (and a retention case may open, F026).</summary>
+[IntegrationEvent("general.GeneralRenewalDeclined")]
+public sealed record GeneralRenewalDeclined(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel) : IIntegrationEvent;
+
+/// <summary>Wave 4 §4.4: a renewal needing acceptance was not accepted (or, ON_PAYMENT, not paid within grace).</summary>
+[IntegrationEvent("general.GeneralRenewalLapsed")]
+public sealed record GeneralRenewalLapsed(Guid RenewalId, Guid PolicyId, string PolicyNumber) : IIntegrationEvent;
+
+/// <summary>OQ-132 (b): cover runs on, pro rata, for a late non-renewal's notice; Billing bills the extra days.</summary>
+[IntegrationEvent("general.GeneralCoverExtended")]
+public sealed record GeneralCoverExtended(Guid PolicyId, string PolicyNumber, DateOnly PreviousPeriodEnd, DateOnly NewPeriodEnd, decimal ExtraPremium, string Currency)
+    : IIntegrationEvent;
 
 /// <summary>The review offered terms (F018): the invitation states them; changed terms are invited with the tenant's longer notice.</summary>
 [IntegrationEvent("general.GeneralRenewalOffered")]

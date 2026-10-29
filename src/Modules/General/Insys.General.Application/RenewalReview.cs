@@ -61,13 +61,28 @@ public sealed record RenewalView(Guid Id, Guid PolicyId, string PolicyNumber, st
     string Currency, decimal CurrentPremium, decimal SumInsured, int ClaimsCount, decimal ClaimsPaid, decimal EarnedPremium, decimal? LossRatio, int Endorsements,
     int FraudReferredClaims, decimal Factor, bool ReRated, Guid? QuoteId, decimal? RatedPremium, string? ReferralReason, decimal? LoadingPct, decimal? OfferedPremium,
     bool ChangedTerms, [property: CodeList(CodeLists.UnderwritingDecisions, "code")] string? DecisionCode, Guid? DecidedBy, DateTimeOffset? DecidedAt,
-    IReadOnlyList<RenewalCheckView> Checks, long RowVersion)
+    IReadOnlyList<RenewalCheckView> Checks, long RowVersion, [property: AlwaysPresent] RenewalAnswerView? Answer = null,
+    [property: AlwaysPresent] NonRenewalView? NonRenewal = null)
 {
     public static RenewalView From(Renewal r) => new(r.Id, r.PolicyId, r.PolicyNumber, r.ProductCode, r.PeriodEnd, r.Status, r.OpenedOn, r.Currency, r.CurrentPremium,
         r.SumInsured, r.ClaimsCount, r.ClaimsPaid, r.EarnedPremium, r.LossRatio, r.Endorsements, r.FraudReferredClaims, r.Factor, r.ReRated, r.QuoteId, r.RatedPremium,
         r.ReferralReason, r.LoadingPct, r.OfferedPremium, r.ChangedTerms, r.DecisionCode, r.DecidedBy, r.DecidedAt,
-        r.Checks.Select(c => new RenewalCheckView(c.CheckCode, c.Outcome, c.Detail)).ToList(), r.RowVersion);
+        r.Checks.Select(c => new RenewalCheckView(c.CheckCode, c.Outcome, c.Detail)).ToList(), r.RowVersion,
+        r.Acceptance is null ? null : new RenewalAnswerView(r.Acceptance, r.NeedsAcceptance, r.AcceptedAt, r.AcceptedBy, r.AcceptedChannel, r.DeclinedAt, r.DeclinedBy,
+            r.DeclinedChannel, r.RenewalPolicyId),
+        r.NonRenewalStatus is null ? null : new NonRenewalView(r.NonRenewalReason!, r.NonRenewalStatus, r.NonRenewalRequestedBy, r.NonRenewalRequestedAt,
+            r.NonRenewalDecidedBy, r.NonRenewalDecidedAt, r.NonRenewalNoticeOn, r.CoverExtendedTo));
 }
+
+/// <summary>Wave 4 §4.4 (OQ-130): how the renewal is accepted, whether it needs the customer's acceptance, and their answer, by whom and through which channel.</summary>
+public sealed record RenewalAnswerView([property: OneOf("AUTOMATIC", "ON_ACCEPTANCE", "ON_PAYMENT")] string Acceptance, bool NeedsAcceptance, DateTimeOffset? AcceptedAt,
+    Guid? AcceptedBy, [property: OneOf("STAFF", "PORTAL", "BROKER", "PAYMENT")] string? AcceptedChannel, DateTimeOffset? DeclinedAt, Guid? DeclinedBy,
+    [property: OneOf("STAFF", "PORTAL", "BROKER")] string? DeclinedChannel, Guid? RenewalPolicyId);
+
+/// <summary>Wave 4 §4.3 (F025, OQ-132): an insurer's non-renewal: its reason, approval, notice and any cover extended for the notice.</summary>
+public sealed record NonRenewalView([property: CodeList(CodeLists.NonRenewalReasons, "reason_code")] string ReasonCode,
+    [property: OneOf("REQUESTED", "DECIDED", "REJECTED")] string Status, Guid? RequestedBy, DateTimeOffset? RequestedAt, Guid? DecidedBy, DateTimeOffset? DecidedAt,
+    DateOnly? NoticeOn, DateOnly? CoverExtendedTo);
 
 public sealed class DecideRenewalValidator : AbstractValidator<DecideRenewal>
 {

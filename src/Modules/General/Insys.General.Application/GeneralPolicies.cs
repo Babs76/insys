@@ -248,6 +248,18 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
                 : endorsement.Decide(approved, approvalId, checkerId, clock.UtcNow);
             NotApplied(decided, approved, GeneralApprovals.EndorsementApprovalType, approvalId);
         }
+        else if (businessRefType == GeneralApprovals.NonRenewalBusinessRefType && await general.Renewal(id, cancellationToken) is { } renewal)
+        {
+            // Wave 4 §4.3 (F025): the second person's decision on a non-renewal. A redelivery, or a decision after the renewal moved on, changes nothing.
+            if (renewal.NonRenewalStatus != Domain.Renewals.NonRenewalStates.Requested || await general.Policy(renewal.PolicyId, cancellationToken) is not { } policy
+                || await codes.NonRenewalReason(renewal.NonRenewalReason!, businessDate.Today, cancellationToken) is not { } reason)
+            {
+                return;
+            }
+
+            var decided = NonRenewals.Decide(renewal, policy, approved, checkerId, reason, businessDate.Today, clock.UtcNow);
+            NotApplied(decided, approved, GeneralApprovals.NonRenewalApprovalType, approvalId);
+        }
         else if (businessRefType == GeneralApprovals.SettlementBusinessRefType && await general.Claim(id, cancellationToken) is { } claim)
         {
             if (approved ? claim.SettlementApprovalApplied(approvalId) : claim.SettlementEndingApplied(approvalId))
@@ -373,7 +385,8 @@ internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCod
                     .Select(id => new RenewalReminder(id, days)));
             }
 
-            if (rule.AutoRenew && (!rule.ReRating || rule.Review))
+            // OQ-130: AUTOMATIC renews as the rule's auto_renew says; ON_ACCEPTANCE and ON_PAYMENT renew once accepted, or to be paid.
+            if ((rule.AutoRenew || rule.Acceptance != Domain.Renewals.RenewalAcceptance.Automatic) && (!rule.ReRating || rule.Review))
             {
                 renew.AddRange(await general.PoliciesToRenew(rule.ProductCode, query.Day, query.Limit, cancellationToken));
             }
@@ -444,6 +457,13 @@ internal sealed class RunDueHandler(IGeneralRepository general, IGeneralCodes co
                         ? policy.CancelForNonPayment(cancellation, grace, command.Day, clock.UtcNow)
                         : BuildingBlocks.Domain.Error.Validation(Domain.GeneralErrorCodes.CodeNotInForce,
                             $"{policy.ProductCode} has no grace rule, or its cancellation reason, in force for {policy.BillingFrequency}.");
+
+                    // Wave 4 §4.4, ON_PAYMENT: a renewal whose first premium was not paid within grace lapses.
+                    if (result.IsSuccess && await general.RenewalIssuedAs(policy.Id, cancellationToken) is { } unpaid)
+                    {
+                        unpaid.LapsedUnpaid(clock.UtcNow);
+                    }
+
                     break;
                 }
 
@@ -455,22 +475,40 @@ internal sealed class RunDueHandler(IGeneralRepository general, IGeneralCodes co
                         break;
                     }
 
+                    var settings = await codes.RenewalSettings(command.Day, cancellationToken);
+                    var existing = await general.RenewalOfPeriod(policy.Id, policy.PeriodEnd, cancellationToken);
                     if (!rule.Review)
                     {
+                        // Wave 4 §4.4: a renewal that is not reviewed is offered at its current terms when invited, so the customer's answer
+                        // (or the insurer's non-renewal, which stops the invitation) has a record. Its acceptance is the product's (OQ-130).
+                        if (existing is { Status: not Domain.Renewals.RenewalStatus.Offered })
+                        {
+                            return false;
+                        }
+
+                        var current = existing ?? Domain.Renewals.Renewal.OpenOffered(Guid.CreateVersion7(), policy.Id, policy.PolicyNumber, policy.ProductCode,
+                            policy.PeriodEnd, policy.AnnualPremium, policy.SumInsuredOn(policy.PeriodEnd), policy.Currency, command.Day, clock.UtcNow);
+                        current.SetAcceptance(rule.Acceptance, settings.WorseTermsPct);
+                        if (existing is null)
+                        {
+                            general.Add(current);
+                        }
+
                         result = policy.InviteRenewal(rule.NoticeDays, rule.InvitationTemplate, command.Day, clock.UtcNow);
                         break;
                     }
 
                     // Wave 4 §4.2 and addition 2: a reviewed renewal is invited once offered, with its terms; changed terms at least the
                     // tenant's notice before the renewal date, unchanged ones the rule's.
-                    if (await general.RenewalOfPeriod(policy.Id, policy.PeriodEnd, cancellationToken) is not { Status: Domain.Renewals.RenewalStatus.Offered } offered)
+                    if (existing is not { Status: Domain.Renewals.RenewalStatus.Offered } offered)
                     {
                         return false;
                     }
 
-                    var notice = offered.ChangedTerms
-                        ? Math.Max(rule.NoticeDays, (await codes.RenewalSettings(command.Day, cancellationToken)).ChangedTermsNoticeDays)
-                        : rule.NoticeDays;
+                    // OQ-130: worse terms than the tenant's threshold need the customer's acceptance, whatever the product says.
+                    offered.SetAcceptance(rule.Acceptance, settings.WorseTermsPct);
+
+                    var notice = offered.ChangedTerms ? Math.Max(rule.NoticeDays, settings.ChangedTermsNoticeDays) : rule.NoticeDays;
                     if (command.Day < policy.PeriodEnd.AddDays(-notice))
                     {
                         return false;
@@ -480,7 +518,23 @@ internal sealed class RunDueHandler(IGeneralRepository general, IGeneralCodes co
                     break;
                 }
 
-                result = command.Action == DueAction.StartPeriod ? policy.StartPeriod(command.Day) : policy.ExpirePolicy(command.Day);
+                if (command.Action == DueAction.StartPeriod)
+                {
+                    result = policy.StartPeriod(command.Day);
+                    break;
+                }
+
+                // Wave 4 §4.3, §4.4: why it was not renewed. A renewal still awaiting the customer's acceptance lapses now.
+                var renewal = await general.LatestRenewal(policy.Id, cancellationToken);
+                var reason = renewal is null ? null
+                    : renewal.Lapse(clock.UtcNow) || renewal.Status == Domain.Renewals.RenewalStatus.Lapsed ? Domain.Policies.PolicyExpiryReasons.Lapsed
+                    : renewal.Status switch
+                    {
+                        Domain.Renewals.RenewalStatus.NotRenewedByInsurer => Domain.Policies.PolicyExpiryReasons.NotRenewedByInsurer,
+                        Domain.Renewals.RenewalStatus.DeclinedByCustomer => Domain.Policies.PolicyExpiryReasons.DeclinedByCustomer,
+                        _ => null,
+                    };
+                result = policy.ExpirePolicy(command.Day, reason);
                 break;
         }
 

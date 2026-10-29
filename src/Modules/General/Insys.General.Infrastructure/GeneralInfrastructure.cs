@@ -52,8 +52,10 @@ public static class GeneralInfrastructure
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.General.Contracts.GeneralApprovals.EndorsementBusinessRefType, "GENERAL_ENDORSEMENTS", Insys.General.Contracts.GeneralApprovals.EndorsementApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.General.Contracts.GeneralApprovals.SettlementBusinessRefType, "GENERAL_CLAIMS", Insys.General.Contracts.GeneralApprovals.SettlementApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.General.Contracts.GeneralApprovals.NonRenewalBusinessRefType, "GENERAL_RENEWALS",
+            Insys.General.Contracts.GeneralApprovals.NonRenewalApprovalType); // Wave 4 §4.3, F025
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.RaisedWith("GENERAL", Insys.General.Contracts.GeneralApprovals.EndorsementApprovalType,
-            Insys.General.Contracts.GeneralApprovals.SettlementApprovalType);
+            Insys.General.Contracts.GeneralApprovals.SettlementApprovalType, Insys.General.Contracts.GeneralApprovals.NonRenewalApprovalType);
         // ADR-026 §2: this module's event consumers run under its JOB function.
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.GeneralDbContext.SchemaName, "GENERAL_EVENT_PROCESSING");
         const string schema = GeneralDbContext.SchemaName;
@@ -92,6 +94,7 @@ public static class GeneralInfrastructure
         services.AddIntegrationEventHandler<Workflow.Contracts.CaseDecided, ReopenClaimsOnUpheldCase, GeneralDbContext>(schema, "CaseDecided");
         services.AddIntegrationEventHandler<ApprovalGranted, GeneralPolicies, GeneralDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, GeneralPolicies, GeneralDbContext>(schema, "ApprovalRejected");
+        services.AddIntegrationEventHandler<Billing.Contracts.InvoiceSettled, RenewalPayments, GeneralDbContext>(schema); // Wave 4 §4.4 ON_PAYMENT
         services.AddIntegrationEventHandler<ClaimPaymentCompleted, GeneralPolicies, GeneralDbContext>(schema, "ClaimPaymentCompleted");
         services.AddIntegrationEventHandler<DocumentGenerated, GeneralPolicies, GeneralDbContext>(schema, "DocumentGenerated");
         // BR-038: a policy's invoices, documents and cessions, as they arrive.

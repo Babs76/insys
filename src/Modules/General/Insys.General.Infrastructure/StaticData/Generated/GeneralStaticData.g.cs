@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.General.Infrastructure.StaticData;
 
-/// <summary>The 46 static data tables owned by the General module.</summary>
+/// <summary>The 47 static data tables owned by the General module.</summary>
 public static class GeneralStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -49,6 +49,7 @@ public static class GeneralStaticData
         new("general", "cfg_extension_and_condition_library", "cfg_extension_and_condition_library", "Extension and condition library", "general", "extension-and-condition-library", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ExtensionAndConditionLibrary), typeof(ExtensionAndConditionLibraryInput), "E · Coverage Management"),
         new("general", "cfg_grace_period_rules", "cfg_grace_period_rules", "Grace period rules", "general", "grace-period-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(GracePeriodRules), typeof(GracePeriodRulesInput), "Policy administration"),
         new("general", "cfg_indemnity_period_options", "cfg_indemnity_period_options", "Indemnity period options", "general", "indemnity-period-options", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(IndemnityPeriodOptions), typeof(IndemnityPeriodOptionsInput), "G · Property Insurance"),
+        new("general", "cfg_non_renewal_reasons", "cfg_non_renewal_reasons", "Non-renewal reasons", "general", "non-renewal-reasons", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(NonRenewalReasons), typeof(NonRenewalReasonsInput), "Policy administration"),
         new("general", "cfg_package_section_definitions", "cfg_package_section_definitions", "Package section definitions", "general", "package-section-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(PackageSectionDefinitions), typeof(PackageSectionDefinitionsInput), "I · Commercial Insurance"),
         new("general", "cfg_policy_numbering_schemes", "cfg_policy_numbering_schemes", "Policy numbering schemes", "general", "policy-numbering-schemes", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(PolicyNumberingSchemes), typeof(PolicyNumberingSchemesInput), "D · General Policy Administration"),
         new("general", "cfg_product_billing_frequencies", "cfg_product_billing_frequencies", "Product billing frequencies", "general", "product-billing-frequencies", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ProductBillingFrequencies), typeof(ProductBillingFrequenciesInput), "A · Quotation and Proposal"),
@@ -180,6 +181,15 @@ public static class GeneralStaticData
             entity.Property(x => x.ProductCode).HasColumnName("product_code").HasMaxLength(80);
             entity.Property(x => x.Months).HasColumnName("months");
         });
+        modelBuilder.Entity<NonRenewalReasons>(entity =>
+        {
+            entity.ToTable("cfg_non_renewal_reasons", "general");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.ReasonCode).HasColumnName("reason_code").HasMaxLength(20);
+            entity.Property(x => x.NoticeDays).HasColumnName("notice_days");
+            entity.Property(x => x.CustomerWording).HasColumnName("customer_wording").HasMaxLength(500);
+            entity.Property(x => x.RequiresApproval).HasColumnName("requires_approval");
+        });
         modelBuilder.Entity<PackageSectionDefinitions>(entity =>
         {
             entity.ToTable("cfg_package_section_definitions", "general");
@@ -236,6 +246,7 @@ public static class GeneralStaticData
             entity.Property(x => x.InvitationTemplate).HasColumnName("invitation_template").HasMaxLength(80);
             entity.Property(x => x.ReminderDays).HasColumnName("reminder_days");
             entity.Property(x => x.Review).HasColumnName("review");
+            entity.Property(x => x.Acceptance).HasColumnName("acceptance").HasMaxLength(13);
         });
         modelBuilder.Entity<RenewalSettings>(entity =>
         {

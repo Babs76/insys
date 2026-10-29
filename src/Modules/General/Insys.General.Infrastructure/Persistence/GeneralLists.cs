@@ -214,6 +214,28 @@ internal sealed class GeneralLists(GeneralDbContext db, IExecutionContext execut
 /// <summary>The portals' lists (external-user access §2): a member's policies and claims, a broker's quotes, policies and claims, in the caller's F103 scope too.</summary>
 internal sealed class GeneralPortalQueries(GeneralDbContext db, IExecutionContext execution) : IGeneralPortalQueries
 {
+    /// <summary>
+    /// Wave 4 §4.6: the renewals the member or broker sees: of their policies, once invited (or not renewed by the insurer, or
+    /// answered). A renewal still under review, referred or ineligible is not shown.
+    /// </summary>
+    public async Task<IReadOnlyList<Domain.Renewals.Renewal>> Renewals(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var policies = db.Policies.AsNoTracking().InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode);
+        var codes = who.IntermediaryCodes.ToList();
+        policies = who.Kind == ExternalSubject.Party
+            ? policies.Where(p => p.PolicyholderPartyId == who.PartyId)
+            : policies.Where(p => p.IntermediaryCode != null && codes.Contains(p.IntermediaryCode));
+        var hidden = new[] { Domain.Renewals.RenewalStatus.Reviewing, Domain.Renewals.RenewalStatus.Referred, Domain.Renewals.RenewalStatus.NotEligible };
+        var renewals = db.Renewals.AsNoTracking().Where(r => !hidden.Contains(r.Status)
+            && policies.Any(p => p.Id == r.PolicyId && (p.RenewalInvitedOn != null || r.Status != Domain.Renewals.RenewalStatus.Offered)));
+        if (afterId is { } after)
+        {
+            renewals = renewals.Where(r => r.Id.CompareTo(after) > 0);
+        }
+
+        return await renewals.OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Domain.Policies.GeneralPolicy>> Policies(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
         var policies = db.Policies.AsNoTracking().Include(p => p.Risks).ThenInclude(r => r.Coverages).AsSplitQuery()

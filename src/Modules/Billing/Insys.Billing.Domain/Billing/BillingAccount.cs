@@ -225,6 +225,20 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
         EndDate = from.AddDays(-1) < StartDate ? StartDate : from.AddDays(-1);
     }
 
+    /// <summary>
+    /// OQ-132 (b): cover runs on past the schedule's end for a non-renewal's notice; the extra days are billed as one
+    /// instalment due the day after the old end.
+    /// </summary>
+    internal void Extend(DateOnly newEnd, decimal amount)
+    {
+        var from = (EndDate ?? newEnd).AddDays(1);
+        EndDate = newEnd;
+        if (amount > 0)
+        {
+            _instalments.Add(Instalment.Create(Id, from, amount));
+        }
+    }
+
     /// <summary>An ended schedule resumes from a date (a reinstated policy) to its new end: instalments are generated again from then.</summary>
     internal void Resume(BillingFrequency frequency, DateOnly from, DateOnly? end)
     {
@@ -404,6 +418,24 @@ public sealed class BillingAccount : AggregateRoot<Guid>
         }
 
         schedule.End(from);
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>OQ-132 (b): a policy's cover extended for a non-renewal's notice; the extra days' premium is one more instalment.</summary>
+    public Result ExtendSchedule(Guid scheduleId, DateOnly newEnd, decimal amount)
+    {
+        if (_schedules.SingleOrDefault(s => s.Id == scheduleId) is not { } schedule)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The account has no such schedule.");
+        }
+
+        if (amount < 0 || (schedule.EndDate is { } end && newEnd <= end))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "A schedule is extended past its end, by a premium of zero or more.");
+        }
+
+        schedule.Extend(newEnd, amount);
         MarkChanged();
         return Result.Success();
     }

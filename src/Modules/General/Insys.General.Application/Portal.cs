@@ -105,6 +105,9 @@ public interface IGeneralPortalQueries
 {
     Task<IReadOnlyList<GeneralPolicy>> Policies(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Wave 4 §4.6: the renewals of the caller's policies, once invited (never one under review).</summary>
+    Task<IReadOnlyList<Domain.Renewals.Renewal>> Renewals(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<GeneralQuote>> Quotes(ExternalSubject who, Guid? afterId, int limit, CancellationToken cancellationToken);
 
     /// <summary>The claims on the caller's policies: the member's as policyholder, the broker's under its codes (BR-091).</summary>

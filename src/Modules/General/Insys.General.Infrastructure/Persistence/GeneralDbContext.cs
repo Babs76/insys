@@ -182,7 +182,12 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             Root(renewal);
             renewal.Property(r => r.PolicyNumber).HasMaxLength(30);
             renewal.Property(r => r.ProductCode).HasMaxLength(15);
-            renewal.Property(r => r.Status).HasConversion(new UpperCaseEnumConverter<Domain.Renewals.RenewalStatus>()).HasMaxLength(20);
+            renewal.Property(r => r.Status).HasConversion(new UpperCaseEnumConverter<Domain.Renewals.RenewalStatus>()).HasMaxLength(25);
+            renewal.Property(r => r.Acceptance).HasMaxLength(13);
+            renewal.Property(r => r.AcceptedChannel).HasMaxLength(10);
+            renewal.Property(r => r.DeclinedChannel).HasMaxLength(10);
+            renewal.Property(r => r.NonRenewalReason).HasMaxLength(20);
+            renewal.Property(r => r.NonRenewalStatus).HasMaxLength(10);
             renewal.Property(r => r.Currency).HasColumnType("char(3)");
             foreach (var amount in new[] { nameof(Domain.Renewals.Renewal.CurrentPremium), nameof(Domain.Renewals.Renewal.SumInsured), nameof(Domain.Renewals.Renewal.ClaimsPaid),
                          nameof(Domain.Renewals.Renewal.EarnedPremium), nameof(Domain.Renewals.Renewal.RatedPremium), nameof(Domain.Renewals.Renewal.OfferedPremium) })

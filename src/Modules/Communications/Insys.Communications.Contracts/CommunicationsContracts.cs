@@ -94,6 +94,9 @@ public static class NotificationTypes
 
     /// <summary>A Health scheme's renewal is near: its sponsor is told, by the scheme's renewal rule's notice (Wave 4 §4.5).</summary>
     public const string SchemeRenewalNotice = "SCHEME_RENEWAL_NOTICE";
+
+    /// <summary>The insurer will not renew a General policy (F025): the reason's customer wording and when cover ends (OQ-132), Wave 4 §4.3.</summary>
+    public const string NonRenewalNotice = "NON_RENEWAL_NOTICE";
 }
 
 /// <summary>

@@ -39,6 +39,7 @@ namespace Insys.Billing.Application;
 /// </summary>
 public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<GeneralPolicyIssued>,
+    IIntegrationEventHandler<GeneralCoverExtended>,
     IIntegrationEventHandler<GeneralPolicyEndorsed>,
     IIntegrationEventHandler<GeneralPolicyCancelled>
 {
@@ -92,6 +93,27 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
     }
 
     /// <summary>AmendSchedule from the effective date, at the new annual premium. Instalments already invoiced are not changed.</summary>
+    /// <summary>OQ-132 (b): a non-renewal's notice ran past the period end; the schedule runs on to the new end with the extra days' premium.</summary>
+    public async Task Handle(GeneralCoverExtended extended, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await billing.AccountForPolicy(SourceDomain, extended.PolicyId, cancellationToken) is not { } account
+            || account.ScheduleFor(SourceDomain, extended.PolicyId) is not { } schedule)
+        {
+            throw new InvalidOperationException($"Policy {extended.PolicyNumber} has no premium schedule yet.");
+        }
+
+        if (schedule.EndDate is { } end && end >= extended.NewPeriodEnd)
+        {
+            return; // already extended (a redelivery)
+        }
+
+        var result = account.ExtendSchedule(schedule.Id, extended.NewPeriodEnd, extended.ExtraPremium);
+        if (result.IsFailure)
+        {
+            throw new InvalidOperationException($"Policy {extended.PolicyNumber}'s schedule cannot be extended: {result.Error.Message}");
+        }
+    }
+
     public async Task Handle(GeneralPolicyEndorsed endorsed, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         if (await billing.AccountForPolicy(SourceDomain, endorsed.PolicyId, cancellationToken) is not { } account
