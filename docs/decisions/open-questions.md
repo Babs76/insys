@@ -1124,6 +1124,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **The gap:** PPR 17.6.3 says a repudiation notice gives reasons; HLT-008 keeps medical information to minimum necessary access. The Health `CLAIM_DECISION_RIGHTS` notice carries no reason and no amount but the total paid.
 - **Open:** whether a Health partial approval's notice may carry its reason, for compliance to confirm.
 
+- **Settled for declines (Ade, 29 October 2026):** any decision that declines all or part of a claim, Health included, sends `CLAIM_DECISION_RIGHTS` with the decline reason's customer wording. That is configured text, never the claim's reason text, lines or diagnoses, so HLT-008 holds. **Closed.**
 ### OQ-117 The representations period and time-bar (PPR 17.6.3)
 - **The gap:** `CLAIM_DECISION_RIGHTS` should state the right to make representations within a period (at least 90 days) and any time-bar; nothing configures them, so the tenant's template wording carries them and `{representations_deadline}` is not offered on it.
 - **Open:** whether these become tenant configuration (a period per claim domain), so the notice states a computed date.

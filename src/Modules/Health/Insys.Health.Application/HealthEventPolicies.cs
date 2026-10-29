@@ -260,7 +260,7 @@ internal sealed class FindHealthDueWorkHandler(IHealthRepository health) : IQuer
 }
 
 /// <summary>Transitions "Validity ends" (HLT-005: authorisations expire automatically) and "Start date reached".</summary>
-internal sealed class RunHealthDueHandler(IHealthRepository health, IHealthCodes codes, IClock clock) : ICommandHandler<RunHealthDue, bool>
+internal sealed class RunHealthDueHandler(IHealthRepository health, IHealthCodes codes, HealthDeclineRights rights, IClock clock) : ICommandHandler<RunHealthDue, bool>
 {
     /// <summary>The reason a claim held for arrears is declined with once the membership is suspended for them (F006).</summary>
     public const string ArrearsDeclineReason = "CONTRIBUTIONS_ARREARS";
@@ -279,7 +279,8 @@ internal sealed class RunHealthDueHandler(IHealthRepository health, IHealthCodes
                 ? due.RaiseTerminationDue(command.Day, clock.UtcNow)
                 : Result.Success(),
             HealthDueAction.DeclineHeldClaim => await health.Claim(command.Id, cancellationToken) is { Status: Domain.Care.MedicalClaimStatus.Pended } claim
-                ? claim.RejectClaim(ArrearsDeclineReason, clock.UtcNow)
+                ? claim.RejectClaim(ArrearsDeclineReason, clock.UtcNow) is { IsSuccess: true } ? await rights.Notice(claim, ArrearsDeclineReason, cancellationToken)
+                    : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Claim {claim.ClaimNumber} could not be declined.")
                 : Result.Success(),
             HealthDueAction.ExpireAuthorisation => await health.Preauthorisation(command.Id, cancellationToken) is { } preauth
                 ? preauth.Expire(command.Day, clock.UtcNow)

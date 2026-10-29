@@ -130,6 +130,7 @@ public static class WorkflowInfrastructure
         services.AddScoped<CaseOpening>();
         services.AddScoped<CaseNoticeTexts>();
         services.AddScoped<Contracts.ICaseNotices, CaseNotices>();
+        services.AddScoped<Contracts.IClaimAppealRoutes, ClaimAppealRoutes>(); // OQ-101, OQ-102
         services.AddIntegrationEventHandler<Contracts.ApprovalGranted, CaseRedressPolicies, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Contracts.ApprovalRejected, CaseRedressPolicies, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Payments.Contracts.PaymentSucceeded, CaseRedressPolicies, WorkflowDbContext>(schema);

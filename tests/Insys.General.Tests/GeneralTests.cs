@@ -478,8 +478,15 @@ public sealed class GeneralTests
         var declined = GeneralClaim.NotifyLoss(Guid.CreateVersion7(), policy.Id, Vehicle, "OWN_DAMAGE", Today, "COLLISION", "ACC", null, null, Today, Now).Value;
         declined.RegisterClaim(policy, "GEN-P3", Now);
         declined.AppointAssessor(Guid.CreateVersion7(), Now);
+        declined.NoticeDeclineRights(new ClaimRightsNotice(Guid.CreateVersion7(), "Excluded", "ZAR", Today), Now).IsFailure.ShouldBeTrue("not declined yet");
         declined.DeclineClaim("EXCLUDED", "Excluded peril", Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
         declined.DecisionOutcome.ShouldBe(ClaimDecisionOutcomes.Declined);
+
+        // OQ-102 (Ade, 29 October 2026): any decision that declines all or part of a claim sends the rights, with the reason's wording.
+        var holder = Guid.CreateVersion7();
+        declined.NoticeDeclineRights(new ClaimRightsNotice(holder, "Your policy does not cover this peril.", "ZAR", Today), Now).IsSuccess.ShouldBeTrue();
+        declined.DomainEvents.OfType<GeneralClaimDecisionRightsDue>().Single().ShouldSatisfyAllConditions(e => e.RecipientPartyId.ShouldBe(holder),
+            e => e.DecisionReasons.ShouldBe("Your policy does not cover this peril."), e => e.Amount.ShouldBe(0m));
     }
 
     /// <summary>

@@ -292,7 +292,9 @@ internal sealed class ApproveLifeClaimHandler(ILifeRepository life, IBankAccount
     }
 }
 
-internal sealed class DeclineLifeClaimHandler(ILifeRepository life, IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<DeclineLifeClaim, LifeClaimView>
+/// <summary>Command DeclineClaim; a claim declined in full sends the claimant its rights, with the reason's wording (OQ-102).</summary>
+internal sealed class DeclineLifeClaimHandler(ILifeRepository life, ClaimsFramework.Contracts.IClaimDecisionReasons reasons, ITenantContext tenant, IBusinessDate businessDate,
+    IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<DeclineLifeClaim, LifeClaimView>
 {
     public async Task<Result<LifeClaimView>> Handle(DeclineLifeClaim command, CancellationToken cancellationToken)
     {
@@ -309,6 +311,12 @@ internal sealed class DeclineLifeClaimHandler(ILifeRepository life, IExecutionCo
 
         audit.Record(new AuditEntry("LIFE", "DeclineClaim", nameof(LifeClaim), claim.Id.ToString()));
         var result = claim.DeclineClaim(command.DecisionReason, command.Rationale, user.Value, clock.UtcNow);
+        if (result.IsSuccess)
+        {
+            var reason = await reasons.InForce(tenant.RequireTenantId(), command.DecisionReason, businessDate.Today, cancellationToken);
+            result = claim.NoticeDecisionRights(reason?.CustomerWording, businessDate.Today, clock.UtcNow);
+        }
+
         return result.IsFailure ? result.Error : LifeClaimView.From(claim);
     }
 }

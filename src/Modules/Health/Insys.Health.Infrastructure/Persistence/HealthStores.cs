@@ -364,6 +364,24 @@ internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
 
 internal sealed class HealthEventMapper : IDomainEventMapper
 {
+    /// <summary>The Health rights notice: the claim number, the date, the total paid, and the reason's customer wording when it has one (never clinical).</summary>
+    private static Dictionary<string, string> RightsMerge(Domain.Care.MedicalClaimDecisionRightsDue e)
+    {
+        var merge = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["claim_number"] = e.ClaimNumber,
+            ["decision_date"] = e.DecidedOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            ["amount"] = e.TotalPaid.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+            ["currency"] = e.Currency,
+        };
+        if (e.DecisionReasons is { Length: > 0 } reasons)
+        {
+            merge["decision_reasons"] = reasons;
+        }
+
+        return merge;
+    }
+
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
     {
         Domain.Members.HealthSchemeRenewed e => new Contracts.HealthSchemeRenewed(e.SchemeId, e.SchemeNumber, e.RenewalDate),
@@ -401,13 +419,7 @@ internal sealed class HealthEventMapper : IDomainEventMapper
         Domain.Care.MedicalClaimSettled e => new Contracts.MedicalClaimSettled(e.ClaimId, e.ClaimNumber, e.ProviderId, e.PaymentRunId, e.Amount, e.Currency, e.PaidOn),
         Domain.Care.MedicalClaimRejected e => new Contracts.MedicalClaimRejected(e.ClaimId, e.ClaimNumber, e.MembershipId, e.ReasonCode),
         Domain.Care.MedicalClaimDecisionRightsDue e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.ClaimDecisionRights,
-            e.RecipientPartyId, "HEALTH_CLAIM", e.ClaimId, new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["claim_number"] = e.ClaimNumber,
-                ["decision_date"] = e.DecidedOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
-                ["amount"] = e.TotalPaid.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
-                ["currency"] = e.Currency,
-            }, e.ProductCode, e.OrgNodeCode),
+            e.RecipientPartyId, "HEALTH_CLAIM", e.ClaimId, RightsMerge(e), e.ProductCode, e.OrgNodeCode),
         Domain.Care.MedicalClaimReversed e => new Contracts.MedicalClaimReversed(e.ClaimId, e.ClaimNumber, e.ProviderId, e.Amount, e.Currency, e.Reason),
         Domain.Care.UtilisationCaseConcluded e => new Contracts.UtilisationCaseConcluded(e.CaseId, e.MembershipId, e.RuleCode, e.Outcome),
         Domain.Care.FraudCaseConcluded e => new Contracts.FraudCaseConcluded(e.CaseId, e.SubjectType, e.SubjectRef, e.OutcomeCode),

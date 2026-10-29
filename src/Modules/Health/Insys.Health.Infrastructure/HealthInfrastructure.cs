@@ -78,6 +78,7 @@ public static class HealthInfrastructure
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, PaymentRunApprovalScopes>();
         services.AddHealthChecks().AddCheck<PlanProductsHealthCheck>("health-plan-products");
         services.AddScoped<IHealthCodes, HealthCodes>();
+        services.AddScoped<HealthDeclineRights>(); // OQ-102
         services.AddScoped<IHealthLists, HealthLists>();
         services.AddScoped<BenefitContexts>();
         services.AddIntegrationEventHandler<PreauthorisationApproved, HealthEventPolicies, HealthDbContext>(schema, "PreauthorisationApproved");

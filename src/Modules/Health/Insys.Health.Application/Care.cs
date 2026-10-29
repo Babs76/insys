@@ -430,8 +430,29 @@ internal sealed class SubmitMedicalClaimHandler(IHealthRepository health, IHealt
     }
 }
 
+/// <summary>
+/// OQ-102 (Ade, 29 October 2026): any decision that declines all or part of a Health claim sends CLAIM_DECISION_RIGHTS to the
+/// claim's notice recipient, with the reason's configured customer wording when the reason is a decision reason in force.
+/// </summary>
+public sealed class HealthDeclineRights(Contracts.IHealthNoticeRecipients recipients, ClaimsFramework.Contracts.IClaimDecisionReasons reasons, ITenantContext tenant,
+    IBusinessDate businessDate, IClock clock)
+{
+    public async Task<Result> Notice(MedicalClaim claim, string? reasonCode, CancellationToken cancellationToken)
+    {
+        var tenantId = tenant.RequireTenantId();
+        if (await recipients.ForClaim(tenantId, claim.Id, cancellationToken) is not { } to)
+        {
+            return Result.Success();
+        }
+
+        var wording = reasonCode is { Length: > 0 } code ? (await reasons.InForce(tenantId, code, businessDate.Today, cancellationToken))?.CustomerWording : null;
+        return claim.NoticeDecisionRights(to.PartyId, to.ProductCode, to.OrgNodeCode, businessDate.Today, clock.UtcNow, wording);
+    }
+}
+
 /// <summary>Command ValidateClaim (HLT-007): the membership covers the patient on the service date, the format, provider and codes are known.</summary>
-internal sealed class ValidateMedicalClaimHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<ValidateMedicalClaim, MedicalClaimView>
+internal sealed class ValidateMedicalClaimHandler(IHealthRepository health, IHealthCodes codes, HealthDeclineRights rights, IBusinessDate businessDate, IClock clock)
+    : ICommandHandler<ValidateMedicalClaim, MedicalClaimView>
 {
     public async Task<Result<MedicalClaimView>> Handle(ValidateMedicalClaim command, CancellationToken cancellationToken)
     {
@@ -467,6 +488,11 @@ internal sealed class ValidateMedicalClaimHandler(IHealthRepository health, IHea
         }
 
         var result = claim.ValidateClaim(problem, clock.UtcNow);
+        if (result.IsSuccess && claim.Status == MedicalClaimStatus.Rejected)
+        {
+            result = await rights.Notice(claim, problem, cancellationToken); // OQ-102: a rejection declines the claim in full
+        }
+
         return result.IsFailure ? result.Error : MedicalClaimView.From(claim);
     }
 }
@@ -530,7 +556,7 @@ internal sealed class AdjudicateMedicalClaimHandler(IHealthRepository health, Be
 }
 
 internal sealed class MedicalClaimDecisions(IHealthRepository health, ClaimsFramework.Contracts.IClaimDecisionReasons reasons, Contracts.IHealthNoticeRecipients recipients,
-    ITenantContext tenant, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
+    HealthDeclineRights rights, ITenantContext tenant, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
     ICommandHandler<ApproveMedicalClaim, MedicalClaimView>,
     ICommandHandler<RejectMedicalClaim, MedicalClaimView>,
     ICommandHandler<ReverseMedicalClaim, MedicalClaimView>
@@ -551,12 +577,16 @@ internal sealed class MedicalClaimDecisions(IHealthRepository health, ClaimsFram
             }
 
             return await recipients.ForClaim(tenantId, claim.Id, cancellationToken) is { } to
-                ? claim.NoticeDecisionRights(to.PartyId, to.ProductCode, to.OrgNodeCode, businessDate.Today, clock.UtcNow)
+                ? claim.NoticeDecisionRights(to.PartyId, to.ProductCode, to.OrgNodeCode, businessDate.Today, clock.UtcNow, reason?.CustomerWording)
                 : approved;
         }, cancellationToken);
 
     public Task<Result<MedicalClaimView>> Handle(RejectMedicalClaim command, CancellationToken cancellationToken) =>
-        Apply(command.ClaimId, "RejectClaim", (c, _) => Task.FromResult(c.RejectClaim(command.Reason, clock.UtcNow)), cancellationToken);
+        Apply(command.ClaimId, "RejectClaim", async (c, _) =>
+        {
+            var rejected = c.RejectClaim(command.Reason, clock.UtcNow);
+            return rejected.IsFailure ? rejected : await rights.Notice(c, command.Reason, cancellationToken); // OQ-102
+        }, cancellationToken);
 
     /// <summary>Command ReverseClaim: the claim's consumption is given back on the accumulators covering its service date (same transaction, ADR-012).</summary>
     public Task<Result<MedicalClaimView>> Handle(ReverseMedicalClaim command, CancellationToken cancellationToken) =>

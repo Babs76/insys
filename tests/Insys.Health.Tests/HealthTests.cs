@@ -201,6 +201,12 @@ public sealed class HealthTests
         rejected.ValidateClaim("NOT_COVERED", Now).IsSuccess.ShouldBeTrue();
         (rejected.Status, rejected.PendReason).ShouldBe((MedicalClaimStatus.Rejected, "NOT_COVERED"));
 
+        // OQ-102 (Ade, 29 October 2026): a rejection declines the claim in full, so it sends the rights, with the reason's configured wording only.
+        var member = Guid.CreateVersion7();
+        rejected.NoticeDecisionRights(member, "HLT-CORE", null, Today, Now, "Your plan does not cover this service.").IsSuccess.ShouldBeTrue();
+        rejected.DomainEvents.OfType<MedicalClaimDecisionRightsDue>().Single().ShouldSatisfyAllConditions(e => e.RecipientPartyId.ShouldBe(member),
+            e => e.DecisionReasons.ShouldBe("Your plan does not cover this service."), e => e.TotalPaid.ShouldBe(0m));
+
         var claim = MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC2", ClaimSources.Provider, "PR-1", Guid.CreateVersion7(), Principal, Today, "API", "ZAR", null,
             [new ClaimLineRequest("0300", null, 1, 900m, null), new ClaimLineRequest("0190", null, 1, 400m, null)], Now).Value;
         claim.ValidateClaim(null, Now);

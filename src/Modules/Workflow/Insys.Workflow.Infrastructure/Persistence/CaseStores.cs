@@ -102,6 +102,11 @@ internal sealed class CaseConfiguration(WorkflowDbContext db) : ICaseConfigurati
                 t.ReviewCaseTypeCode, t.AppealRoute, t.OmbudSchemeCodes ?? [])
             : null;
 
+    public async Task<IReadOnlyList<CaseTypeConfig>> ClaimDisputeTypes(DateOnly day, CancellationToken cancellationToken) =>
+        (await InForce<CaseTypes>(day).Where(t => t.Family == "DISPUTE" && t.LinkTypes.Contains("CLAIM")).OrderBy(t => t.CaseTypeCode).ToListAsync(cancellationToken))
+        .Select(t => new CaseTypeConfig(t.CaseTypeCode, t.Family, t.ProcessCode, t.DefaultQueueCode, t.LinkTypes, t.PortalAudiences ?? [], t.RequiresCategory,
+            t.ReviewCaseTypeCode, t.AppealRoute, t.OmbudSchemeCodes ?? [])).ToList();
+
     public async Task<IReadOnlyList<CaseTimeline>> Timelines(string caseTypeCode, DateOnly day, CancellationToken cancellationToken) =>
         (await InForce<CaseTimelines>(day).Where(t => t.CaseTypeCode == caseTypeCode).ToListAsync(cancellationToken))
         .GroupBy(t => t.Step).Select(g => g.OrderByDescending(t => t.EffectiveFrom).First())
@@ -336,6 +341,34 @@ internal sealed class CaseNotices(WorkflowDbContext db, ICaseRepository cases, I
         }
 
         return data;
+    }
+}
+
+/// <summary>
+/// IClaimAppealRoutes (OQ-101, OQ-102): the tenant's dispute case type for claims gives a claim decision notice its appeal
+/// route, review options and ombud schemes. A Health claim takes a CMS type where the tenant has one; otherwise, and for
+/// Life and General, a PPR_NFO type. Read on Workflow's own connection, in a transaction of its own.
+/// </summary>
+internal sealed class ClaimAppealRoutes(WorkflowDbContext db, ICaseConfiguration configuration, CaseNoticeTexts texts, IBusinessDate businessDate) : IClaimAppealRoutes
+{
+    public async Task<ClaimAppealRoute?> For(string domain, CancellationToken cancellationToken)
+    {
+        await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        var types = await configuration.ClaimDisputeTypes(businessDate.Today, cancellationToken);
+        var preferred = domain == "HEALTH" ? "CMS" : "PPR_NFO";
+        ClaimAppealRoute? route = null;
+        if ((types.FirstOrDefault(t => t.AppealRoute == preferred) ?? types.FirstOrDefault()) is { } type)
+        {
+            var (review, ombud) = await texts.For(type, cancellationToken);
+            route = new ClaimAppealRoute(type.AppealRoute, review, ombud);
+        }
+
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        return route;
     }
 }
 

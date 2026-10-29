@@ -157,7 +157,14 @@ public static class ClaimDecisionRightsFields
     public const string ClaimedAmount = "claimed_amount";
     public const string Currency = "currency";
 
-    public static readonly string[] All = [ClaimNumber, DecisionDate, DecisionReasons, Amount, ClaimedAmount, Currency];
+    /// <summary>OQ-101: PPR_NFO for an insurer, CMS for a medical scheme, from the tenant's dispute case type for claims.</summary>
+    public const string AppealRoute = "appeal_route";
+
+    public const string ReviewOptions = "review_options";
+
+    public const string OmbudDetails = "ombud_details";
+
+    public static readonly string[] All = [ClaimNumber, DecisionDate, DecisionReasons, Amount, ClaimedAmount, Currency, AppealRoute, ReviewOptions, OmbudDetails];
 }
 
 /// <summary>Masks an address for the record: the first character and the domain of an email, the last three digits of a number.</summary>

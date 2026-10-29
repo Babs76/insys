@@ -118,11 +118,38 @@ public sealed class NotificationQueue(INotificationRepository notifications, ICo
 }
 
 /// <summary>A module asked for a notification (communication.NotificationRequested, §1).</summary>
-public sealed class QueueRequestedNotification(NotificationQueue queue) : IIntegrationEventHandler<NotificationRequested>
+public sealed class QueueRequestedNotification(NotificationQueue queue, Workflow.Contracts.IClaimAppealRoutes appeals) : IIntegrationEventHandler<NotificationRequested>
 {
-    public Task Handle(NotificationRequested requested, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        queue.Queue(new NotificationRequest(requested.NotificationType, requested.RecipientPartyId, requested.SourceType, requested.SourceId, requested.MergeValues,
-            requested.ProductCode, requested.OrgNodeCode), envelope.EventId, cancellationToken);
+    public async Task Handle(NotificationRequested requested, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        await queue.Queue(new NotificationRequest(requested.NotificationType, requested.RecipientPartyId, requested.SourceType, requested.SourceId,
+            await WithAppealRoute(requested, cancellationToken), requested.ProductCode, requested.OrgNodeCode), envelope.EventId, cancellationToken);
+
+    /// <summary>
+    /// OQ-101, OQ-102: a claim decision's rights notice says where to take it, by the tenant's type: its dispute case type for
+    /// claims names the route (the PPR and the ombud for an insurer, the Council for Medical Schemes for a scheme), the review
+    /// and the ombud schemes. Nothing is added when the tenant has none in force; the template's own wording stands.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, string>> WithAppealRoute(NotificationRequested requested, CancellationToken cancellationToken)
+    {
+        if (requested.NotificationType != NotificationTypes.ClaimDecisionRights || !requested.SourceType.EndsWith("_CLAIM", StringComparison.Ordinal)
+            || await appeals.For(requested.SourceType[..^"_CLAIM".Length], cancellationToken) is not { } route)
+        {
+            return requested.MergeValues;
+        }
+
+        var merge = new Dictionary<string, string>(requested.MergeValues, StringComparer.Ordinal) { [ClaimDecisionRightsFields.AppealRoute] = route.AppealRoute };
+        if (route.ReviewOptions is { } review)
+        {
+            merge[ClaimDecisionRightsFields.ReviewOptions] = review;
+        }
+
+        if (route.OmbudDetails is { } ombud)
+        {
+            merge[ClaimDecisionRightsFields.OmbudDetails] = ombud;
+        }
+
+        return merge;
+    }
 }
 
 /// <summary>

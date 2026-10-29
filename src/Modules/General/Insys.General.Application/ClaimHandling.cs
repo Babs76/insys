@@ -384,7 +384,9 @@ internal sealed class RequestSettlementHandler(IGeneralRepository general, IGene
     }
 }
 
-internal sealed class DeclineClaimHandler(IGeneralRepository general, IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<DeclineClaim, ClaimView>
+/// <summary>Command DeclineClaim; a claim declined in full sends the policyholder its rights, with the reason's wording (OQ-102).</summary>
+internal sealed class DeclineClaimHandler(IGeneralRepository general, ClaimsFramework.Contracts.IClaimDecisionReasons reasons, ITenantContext tenant, IBusinessDate businessDate,
+    IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<DeclineClaim, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(DeclineClaim command, CancellationToken cancellationToken)
     {
@@ -401,6 +403,12 @@ internal sealed class DeclineClaimHandler(IGeneralRepository general, IExecution
 
         audit.Record(new AuditEntry("GENERAL", "DeclineClaim", nameof(GeneralClaim), claim.Id.ToString(), new Dictionary<string, string?> { ["decision"] = command.DecisionCode }));
         var result = claim.DeclineClaim(command.DecisionCode, command.Rationale, user.Value, clock.UtcNow);
+        if (result.IsSuccess && await general.Policy(claim.PolicyId, cancellationToken) is { } policy)
+        {
+            var reason = await reasons.InForce(tenant.RequireTenantId(), command.DecisionCode, businessDate.Today, cancellationToken);
+            result = claim.NoticeDeclineRights(new ClaimRightsNotice(policy.PolicyholderPartyId, reason?.CustomerWording, policy.Currency, businessDate.Today), clock.UtcNow);
+        }
+
         return result.IsFailure ? result.Error : ClaimView.From(claim);
     }
 }

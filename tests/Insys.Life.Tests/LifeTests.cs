@@ -371,8 +371,14 @@ public sealed class LifeTests
         claim.ReopenForCase("CASE-1").ShouldBeFalse("a registered claim is open");
         var death = policy.Benefits.Single(b => b.BenefitCode == "DEATH");
         claim.AssessClaim([new BenefitLineRequest(death.Id, death.SumAssured)], new Dictionary<Guid, decimal> { [death.Id] = death.SumAssured }).IsSuccess.ShouldBeTrue();
+        claim.NoticeDecisionRights("Material non-disclosure", Today, Now).IsFailure.ShouldBeTrue("not decided yet");
         claim.DeclineClaim("NON_DISCLOSURE", "Material non-disclosure", Maker, Now).IsSuccess.ShouldBeTrue();
         claim.DecisionOutcome.ShouldBe(LifeClaimOutcomes.Declined);
+
+        // OQ-102 (Ade, 29 October 2026): a claim declined in full sends the claimant their rights, with the reason's wording; nothing is paid.
+        claim.NoticeDecisionRights("A material fact was not disclosed.", Today, Now).IsSuccess.ShouldBeTrue();
+        claim.DomainEvents.OfType<LifeClaimDecisionRightsDue>().Single().ShouldSatisfyAllConditions(e => e.RecipientPartyId.ShouldBe(Spouse),
+            e => e.DecisionReasons.ShouldBe("A material fact was not disclosed."), e => e.Amount.ShouldBe(0m));
 
         claim.ReopenForCase("CASE-1").ShouldBeTrue();
         claim.Status.ShouldBe(LifeClaimStatus.InAssessment);

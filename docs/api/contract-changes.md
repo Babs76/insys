@@ -2,6 +2,17 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 4 batch 4.2 (branch `wave4-2`): claim decision rights on every decline, renewal review
+
+### Changed (OQ-102, Ade, 29 October 2026: any decision that declines all or part of a claim sends `CLAIM_DECISION_RIGHTS`)
+- **A full decline now sends it too**, in every domain, to the same recipient as a partial approval: `GeneralDeclineClaim`, `LifeDeclineClaim`, a Health claim rejected by staff or at validation, and a Health claim declined for contribution arrears. Before, only a partial approval sent it. `amount` is `0.00` for a full decline.
+- **`decision_reasons`** is the decline reason's customer wording (claims decision reasons), when the reason is one in force. Health now carries it too, on a partial approval and a decline. It is only the configured wording, never the claim's own reason text, lines or diagnoses (HLT-008; settles OQ-116 for declines).
+- **New merge fields** (OQ-101) from the tenant's dispute case type for claims (`workflow.cfg_case_types`, family `DISPUTE`, link type `CLAIM`):
+  - `appeal_route`: `PPR_NFO` for an insurer, `CMS` for a medical scheme. A Health claim takes a CMS type where the tenant has one.
+  - `review_options`;
+  - `ombud_details`.
+  Nothing is added if the tenant has no such case type in force.
+
 ## Wave 4 batch 4.1 (branch `wave4-1`): grace and short-period refunds (addenda/renewals-and-retention.md §4.1)
 
 ### New

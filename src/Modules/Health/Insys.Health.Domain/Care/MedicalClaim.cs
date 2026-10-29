@@ -93,8 +93,12 @@ public sealed record MedicalClaimRejected(Guid ClaimId, string ClaimNumber, Guid
 /// A claim was partly approved (OQ-102): the member is sent their rights on the declined part (CLAIM_DECISION_RIGHTS). As
 /// every Health notice, it carries the claim number, the date and the total paid only: never a reason or a line (HLT-008).
 /// </summary>
+/// <param name="DecisionReasons">
+/// The decline reason's configured customer wording (Ade, 29 October 2026), never the claim's own reason text, lines or
+/// diagnoses (HLT-008); null when the reason has no wording in force.
+/// </param>
 public sealed record MedicalClaimDecisionRightsDue(Guid ClaimId, string ClaimNumber, Guid RecipientPartyId, string? ProductCode, string? OrgNodeCode, decimal TotalPaid,
-    string Currency, DateOnly DecidedOn, DateTimeOffset OccurredAt) : IDomainEvent;
+    string Currency, DateOnly DecidedOn, DateTimeOffset OccurredAt, string? DecisionReasons = null) : IDomainEvent;
 
 public sealed record MedicalClaimReversed(Guid ClaimId, string ClaimNumber, string? ProviderId, decimal Amount, string Currency, string Reason, DateTimeOffset OccurredAt)
     : IDomainEvent;
@@ -335,17 +339,20 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// The member's rights on a partial approval (OQ-102): asks Communications for CLAIM_DECISION_RIGHTS to the notice's
-    /// recipient (the patient, or the principal for a dependant under 18). Only a partly approved claim sends it.
+    /// The member's rights on a decision that declines all or part of the claim (OQ-102; Ade, 29 October 2026): asks
+    /// Communications for CLAIM_DECISION_RIGHTS to the notice's recipient (the patient, or the principal for a dependant
+    /// under 18), with the reason's customer wording. A partial approval or a rejection sends it.
     /// </summary>
-    public Result NoticeDecisionRights(Guid recipientPartyId, string? productCode, string? orgNodeCode, DateOnly decidedOn, DateTimeOffset now)
+    public Result NoticeDecisionRights(Guid recipientPartyId, string? productCode, string? orgNodeCode, DateOnly decidedOn, DateTimeOffset now,
+        string? decisionReasons = null)
     {
-        if (!PartlyApproved)
+        if (!PartlyApproved && Status != MedicalClaimStatus.Rejected)
         {
-            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a partly approved claim sends the rights on its declined part.");
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a claim declined in full or in part sends the rights on its decision.");
         }
 
-        Raise(new MedicalClaimDecisionRightsDue(Id, ClaimNumber, Guard.NotEmpty(recipientPartyId), productCode, orgNodeCode, TotalPaid ?? 0, Currency, decidedOn, now));
+        Raise(new MedicalClaimDecisionRightsDue(Id, ClaimNumber, Guard.NotEmpty(recipientPartyId), productCode, orgNodeCode, TotalPaid ?? 0, Currency, decidedOn, now,
+            decisionReasons));
         return Result.Success();
     }
 

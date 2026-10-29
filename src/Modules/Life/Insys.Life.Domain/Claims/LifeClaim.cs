@@ -502,17 +502,20 @@ public sealed class LifeClaim : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// The claimant's rights on a partial approval (OQ-102, PPR 17.6.3): asks Communications for CLAIM_DECISION_RIGHTS to the
-    /// claimant with the reason's customer wording. Only a partly approved claim sends it.
+    /// The claimant's rights on a decision that declines all or part of the claim (OQ-102, PPR 17.6.3; Ade, 29 October 2026):
+    /// asks Communications for CLAIM_DECISION_RIGHTS to the claimant with the reason's customer wording. A partial approval
+    /// gives the approved amount; a decline in full, nothing paid.
     /// </summary>
     public Result NoticeDecisionRights(string? decisionReasons, DateOnly decidedOn, DateTimeOffset now)
     {
-        if (!PartlyApproved || ApprovedAmount is not { } amount || ClaimedAmount is not { } claimed)
+        var declined = DecisionOutcome == LifeClaimOutcomes.Declined;
+        if (!declined && (!PartlyApproved || ApprovedAmount is null || ClaimedAmount is null))
         {
-            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a partly approved claim sends the rights on its declined part.");
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a claim declined in full or in part sends the rights on its decision.");
         }
 
-        Raise(new LifeClaimDecisionRightsDue(Id, ClaimNumber!, ClaimantPartyId, ProductCode, OrgNodeCode, decisionReasons, amount, claimed, Currency, decidedOn, now));
+        Raise(new LifeClaimDecisionRightsDue(Id, ClaimNumber!, ClaimantPartyId, ProductCode, OrgNodeCode, decisionReasons, declined ? 0m : ApprovedAmount!.Value,
+            ClaimedAmount ?? 0m, Currency, decidedOn, now));
         return Result.Success();
     }
 

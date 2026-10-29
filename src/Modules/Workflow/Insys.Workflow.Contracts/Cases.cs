@@ -153,3 +153,16 @@ public interface ICaseNotices
 {
     Task<CaseNoticeData?> ForNotice(Guid caseId, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Where a claimant takes a claim decision (OQ-101, OQ-102), from the tenant's dispute case type for claims in force: its
+/// appeal route (PPR_NFO for an insurer, CMS for a medical scheme), the internal review open to them and the ombud schemes.
+/// </summary>
+public sealed record ClaimAppealRoute(string AppealRoute, string? ReviewOptions, string? OmbudDetails);
+
+/// <summary>A claim's appeal route for a claim decision notice, in the current tenant; null when no dispute case type for claims is in force.</summary>
+public interface IClaimAppealRoutes
+{
+    /// <param name="domain">LIFE, GENERAL or HEALTH: a Health claim takes a CMS route where the tenant has one (a medical scheme).</param>
+    Task<ClaimAppealRoute?> For(string domain, CancellationToken cancellationToken);
+}

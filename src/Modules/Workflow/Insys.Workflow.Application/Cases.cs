@@ -83,6 +83,9 @@ public interface ICaseConfiguration
 {
     Task<CaseTypeConfig?> Type(string caseTypeCode, DateOnly day, CancellationToken cancellationToken);
 
+    /// <summary>The dispute case types in force that a claim may be linked to (family DISPUTE, link type CLAIM).</summary>
+    Task<IReadOnlyList<CaseTypeConfig>> ClaimDisputeTypes(DateOnly day, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<CaseTimeline>> Timelines(string caseTypeCode, DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>The case type's query window (workflow.cfg_case_reportability), or null.</summary>

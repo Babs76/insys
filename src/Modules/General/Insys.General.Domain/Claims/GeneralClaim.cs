@@ -543,12 +543,27 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             // OQ-102: a claim declined in full sends the claimant their rights on the decision, with the reason's wording.
             if (rights is not null)
             {
-                Raise(new GeneralClaimDecisionRightsDue(Id, ClaimNumber ?? "", Guard.NotEmpty(rights.RecipientPartyId), ProductCode, OrgNodeCode, rights.DecisionReasons, 0m,
-                    claimed, rights.Currency, rights.DecidedOn, now));
+                NoticeDeclineRights(rights, now, claimed);
             }
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// OQ-102 (Ade, 29 October 2026: any decision that declines all or part of a claim sends it): a claim declined in full
+    /// asks for CLAIM_DECISION_RIGHTS to the policyholder, with the decline reason's customer wording. Nothing is paid.
+    /// </summary>
+    public Result NoticeDeclineRights(ClaimRightsNotice rights, DateTimeOffset now, decimal? claimed = null)
+    {
+        if (Status != ClaimStatus.Declined)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a declined claim sends the rights on its decline.");
+        }
+
+        Raise(new GeneralClaimDecisionRightsDue(Id, ClaimNumber ?? "", Guard.NotEmpty(rights.RecipientPartyId), ProductCode, OrgNodeCode, rights.DecisionReasons, 0m,
+            claimed ?? ClaimedAmount ?? 0m, rights.Currency, rights.DecidedOn, now));
+        return Result.Success();
     }
 
     /// <summary>Command DeclineClaim, with the decision and its rationale (CLM-003).</summary>

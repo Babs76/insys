@@ -402,6 +402,47 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
         (reader.GetProperty("body").GetString(), reader.GetProperty("bodyRedacted").GetBoolean()).ShouldBe(("Your claim HC-0001 is PAID.", false));
     }
 
+    /// <summary>
+    /// OQ-101, OQ-102 (Ade, 29 October 2026): a claim decision's rights notice names where to take it by the tenant's type. Its
+    /// dispute case type for claims gives the route and the ombud: the PPR and the ombud for an insurer's claim, and the
+    /// Council for Medical Schemes for a Health claim where the tenant is a scheme.
+    /// </summary>
+    [Fact]
+    public async Task AClaimDecisionRightsNotice_NamesTheAppealRouteForTheTenantsType_OQ101_OQ102()
+    {
+        await fixture.Database.SeedStatic(Tenant, "workflow.ref_ombud_schemes", "ACTIVE", "NFO", From, ("scheme_code", "NFO"), ("name", "National Financial Ombud Scheme"),
+            ("contact", "info@nfosa.co.za"), ("referral_information", "Refer within six months of our final decision."), ("families", new[] { "DISPUTE", "COMPLAINT" }));
+        await fixture.Database.SeedStatic(Tenant, "workflow.ref_ombud_schemes", "ACTIVE", "CMS", From, ("scheme_code", "CMS"), ("name", "Council for Medical Schemes"),
+            ("contact", "complaints@medicalschemes.co.za"), ("referral_information", "Complain to the Registrar within three months."), ("families", new[] { "DISPUTE" }));
+        foreach (var (code, route, ombud) in new[] { ("CLAIM_DISPUTE", "PPR_NFO", "NFO"), ("SCHEME_DISPUTE", "CMS", "CMS") })
+        {
+            await Seed("workflow.cfg_case_types", code, ("case_type_code", code), ("family", "DISPUTE"), ("process_code", "CASE_PROC"), ("default_queue_code", "CASES"),
+                ("link_types", new[] { "CLAIM" }), ("portal_audiences", new[] { "CUSTOMER" }), ("requires_category", false), ("review_case_type_code", DBNull.Value),
+                ("appeal_route", route), ("ombud_scheme_codes", new[] { ombud }));
+        }
+
+        await Type(NotificationTypes.ClaimDecisionRights, "SERVICE", null, ["EMAIL"], portalVisible: false);
+        await Template(NotificationTypes.ClaimDecisionRights, "EMAIL", "en", "Your rights on {claim_number}", "{claim_number}|{decision_reasons}|{appeal_route}|{ombud_details}");
+        await fixture.Database.UserWithPermissions(Tenant, "comms-rights", CommunicationPermissions.NotificationRead, "medical_claim.read");
+        var reader = _factory.ClientFor(Tenant, "comms-rights");
+        async Task<string> Rights(string sourceType, string number, string wording)
+        {
+            var party = await Party($"Rights {sourceType}", email: $"{number.ToLowerInvariant()}@example.com", mobile: null, language: null);
+            var source = Guid.CreateVersion7();
+            await Publish(Envelope("communication.NotificationRequested", source, new NotificationRequested(NotificationTypes.ClaimDecisionRights, party, sourceType, source,
+                new Dictionary<string, string> { ["claim_number"] = number, ["decision_reasons"] = wording })));
+            await Send();
+            var id = (await Single(party)).GetProperty("id").GetGuid();
+            return (await (await reader.GetAsync($"/api/v1/communications/notifications/{id}")).Json()).GetProperty("body").GetString()!;
+        }
+
+        (await Rights("GENERAL_CLAIM", "GC-9001", "Not covered."))
+            .ShouldBe("GC-9001|Not covered.|PPR_NFO|National Financial Ombud Scheme (info@nfosa.co.za): Refer within six months of our final decision.");
+        (await Rights("LIFE_CLAIM", "LC-9001", "Not disclosed.")).ShouldStartWith("LC-9001|Not disclosed.|PPR_NFO|National Financial Ombud Scheme");
+        (await Rights("HEALTH_CLAIM", "HC-9001", "Plan does not cover it."))
+            .ShouldBe("HC-9001|Plan does not cover it.|CMS|Council for Medical Schemes (complaints@medicalschemes.co.za): Complain to the Registrar within three months.");
+    }
+
     [Fact]
     public async Task AMember_ListsAndRemovesTheirPushDevices_AndNeverSeesTheToken()
     {
