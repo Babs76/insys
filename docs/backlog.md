@@ -36,3 +36,10 @@ Work decided but not yet planned into a batch, by the wave it is meant for. Each
 - **When:** a quiet stretch, such as while an addendum awaits review, or the hardening phase. Sooner only if the OQ-129 stall recurs or an integration shard passes 30 minutes.
 - **Until then:** the stall logging stays on the dated jobs, and their 30-minute limit is unchanged.
 
+
+## Onboarding readiness, not this wave (Ade, 30 October 2026)
+
+### B-006: warn when an approval type's deciding roles have too few active users
+- **Decided by:** Ade, 30 October 2026, after the 4.2 approval authority readiness item.
+- **What:** a readiness warning, not a blocker, for each approval type the tenant can raise whose deciding roles (as `APPROVAL_AUTHORITY` finds them: authority, `approval.approve` and the type's own permission) are held by no active user, and a second warning when only one active user holds them, since maker-checker (SRS-002) then cannot decide that person's own requests.
+- **Until then:** `APPROVAL_AUTHORITY` checks that a role can decide each type, not that anyone holds the role; staffing the roles is left to the tenant.
