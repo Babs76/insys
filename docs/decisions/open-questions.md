@@ -1219,3 +1219,11 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **What the logs do show:** CI runners have 2 cores. Each end-to-end test starts its own host, and a host takes 47 to 124 seconds to build its router on a runner. While several build at once, the thread pool stays busy (8 or 9 of 13 threads) with nothing in the database. A request that needs CPU then waits, and the API description document, built on request, is the largest. The stall logging stays on the dated jobs (`stall-<date>` artifacts). The 30-minute limit is not raised.
 - **Open:** confirm which in-process work starves the request, then reduce it (hosts shared within a class, the router built once per process, or the OpenAPI document cached). The document endpoint is anonymous and builds the document on every request; cache it, or serve the committed document, before production (proposed, for Ade).
 - **Status:** open, investigated alongside Wave 3 batch 3.
+
+### OQ-130 to OQ-136 Renewals and retention (Wave 4, `addenda/renewals-and-retention.md`, 29 October 2026)
+**Open: proposed for Ade's sign-off.** The addendum's §8 gives the options and a recommendation for each.
+- **OQ-130:** which products renew by invitation and which automatically (per product: automatic, on acceptance, on payment), and when worse terms need acceptance.
+- **OQ-131:** how claims history affects renewal terms (a claims factor table and referral rules).
+- **OQ-132:** non-renewal notice periods, and what happens when a non-renewal is decided too late for its notice.
+- **OQ-133:** the source of the short-period refund scale (OQ-059's open point).
+- **OQ-134 to OQ-136 (B-001):** whether a broker of record change needs a second person; commission across the effective date; who sees a future-dated change.
