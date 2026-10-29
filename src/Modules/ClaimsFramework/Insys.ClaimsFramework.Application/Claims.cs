@@ -105,15 +105,20 @@ public sealed record ClaimView(Guid Id, string ClaimNumber, [property: OneOf("LI
             e.Skipped.Select(s => new SkippedIndicatorView(s.IndicatorCode, s.Reason, s.MissingFacts, s.ErrorCode)).ToList())).ToList());
 }
 
+/// <param name="Amount">For a payment, the gross the claim paid.</param>
+/// <param name="PremiumOffset">A payment made less the policy's arrears (OQ-137): what was deducted.</param>
+/// <param name="NetAmount">A payment made less the policy's arrears (OQ-137): what the payee received.</param>
 public sealed record MovementView(Guid Id, [property: OneOf("Reserve", "Payment", "Recovery")] string MovementType,
-    [property: CodeList(CodeLists.ReserveTypes, "code")] string ReserveType, decimal Amount, string Currency, DateTimeOffset MovementAt);
+    [property: CodeList(CodeLists.ReserveTypes, "code")] string ReserveType, decimal Amount, string Currency, DateTimeOffset MovementAt, decimal? PremiumOffset = null,
+    decimal? NetAmount = null);
 
 /// <param name="OutstandingReserves">Each reserve type's outstanding amount, in <paramref name="Currency"/>.</param>
 /// <param name="Currency">The claim's currency (BR-033): of every movement and every outstanding reserve; null until the first movement.</param>
 public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementView> Movements, IReadOnlyDictionary<string, decimal> OutstandingReserves, string? Currency)
 {
     public static FinancialsView From(ClaimFinancials f) => new(f.ClaimNumber,
-        f.Movements.OrderBy(m => m.MovementAt).ThenBy(m => m.Id).Select(m => new MovementView(m.Id, m.MovementType.ToString(), m.ReserveType, m.Amount, m.Currency, m.MovementAt)).ToList(),
+        f.Movements.OrderBy(m => m.MovementAt).ThenBy(m => m.Id).Select(m => new MovementView(m.Id, m.MovementType.ToString(), m.ReserveType, m.Amount, m.Currency, m.MovementAt, m.PremiumOffset,
+            m.NetAmount)).ToList(),
         f.Movements.Select(m => m.ReserveType).Distinct().ToDictionary(t => t, f.Outstanding), f.Currency is { Length: > 0 } currency ? currency : null);
 }
 
@@ -122,11 +127,11 @@ public sealed record InstructionView(Guid Id, string ClaimNumber, string Instruc
     string? PayeeBankHash, Guid? PendingPayeePartyId,
     Guid? PendingBankAccountId,
     [property: OneOf("RESERVE_BELOW_ZERO", "PAYEE_ACCOUNT_CHANGED", "DUE_DILIGENCE_NOT_CLEARED", "PREMIUM_ARREARS")] string? HeldReason = null, string? HeldDetail = null, DateTimeOffset? HeldAt = null,
-    LatestRejection? LatestRejection = null, long RowVersion = 0, string? MaskedAccount = null, string? PayeeName = null)
+    LatestRejection? LatestRejection = null, long RowVersion = 0, string? MaskedAccount = null, string? PayeeName = null, decimal PremiumOffset = 0m)
 {
     public static InstructionView From(ClaimPaymentInstruction i) => new(i.Id, i.ClaimNumber, i.InstructionRef, i.PayeePartyId, i.Amount, i.ApprovedAmount, i.Currency,
         i.ReserveType, i.Status, i.ApprovalId, i.PaymentId, i.Attempt, i.BankAccountId, i.PayeeBankHash, i.PendingPayeePartyId, i.PendingBankAccountId, i.HeldReason,
-        i.HeldDetail, i.HeldAt, null, i.RowVersion);
+        i.HeldDetail, i.HeldAt, null, i.RowVersion, PremiumOffset: i.PremiumOffset);
 
     /// <summary>
     /// The view with the payee's name and the account's last four, masked ("•••• 1234"), read from Party on the instruction's
@@ -832,7 +837,8 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
         }
 
         var financials = new ClaimFinancials(claim.ClaimNumber, claim.Domain, completed.Currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
-        var movement = financials.RecordPayment(completed.MovementId, completed.ReserveType, completed.Amount, clock.UtcNow);
+        // OQ-137: the claim paid the gross; a deduction for the policy's arrears is kept with it, and the net paid.
+        var movement = financials.RecordPayment(completed.MovementId, completed.ReserveType, completed.Amount + completed.PremiumOffset, clock.UtcNow, completed.PremiumOffset);
 
         // TODO(spec): a payment above the reserve left when it completes (reserve lowered after release) is not recorded; it needs an exception queue (OQ-058).
         if (movement.IsSuccess)
@@ -857,7 +863,7 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
 
         var instruction = ClaimPaymentInstruction.FromApprovedSettlement(Guid.CreateVersion7(), claim, reference,
             new PayeeAccount(approved.PayeePartyId, approved.BankAccountId, approved.PayeeBankHash), approved.Amount, approved.Currency, approved.ReserveType,
-            approved.ApprovalId);
+            approved.ApprovalId, approved.PremiumOffset);
         if (instruction.IsFailure)
         {
             throw new InvalidOperationException($"Settlement of {approved.ClaimNumber} could not be instructed: {instruction.Error.Message}");

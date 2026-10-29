@@ -801,9 +801,18 @@ public sealed class GeneralTests
         var paid = netted.DomainEvents.OfType<GeneralClaimApproved>().Single();
         (paid.HoldReason, paid.Amount, paid.PremiumOffset).ShouldBe(((string?)null, netted.SettlementAmount!.Value - 1_250m, 1_250m));
         netted.DomainEvents.OfType<GeneralPremiumOffsetFromClaim>().Single().ShouldSatisfyAllConditions(e => e.Amount.ShouldBe(1_250m), e => e.PolicyId.ShouldBe(policy.Id));
+        // OQ-137: the claim keeps the deduction; settled, it reports the gross and the deduction.
+        netted.PremiumOffset.ShouldBe(1_250m);
+        netted.SettleClaim(Today, Now).IsSuccess.ShouldBeTrue();
+        netted.DomainEvents.OfType<GeneralClaimSettled>().Single().ShouldSatisfyAllConditions(e => e.Amount.ShouldBe(netted.SettlementAmount!.Value),
+            e => e.PremiumOffset.ShouldBe(1_250m));
 
         // Grace ended unpaid: declined with the rule's claim decision even once approved; a later approval decision is moot.
-        held.DeclineForNonPayment("NON_PAYMENT", Today.AddDays(-5), Now).IsSuccess.ShouldBeTrue();
+        var holder = Guid.CreateVersion7();
+        held.DeclineForNonPayment("NON_PAYMENT", Today.AddDays(-5), Now, new ClaimRightsNotice(holder, "The premium was not paid.", "ZAR", Today)).IsSuccess.ShouldBeTrue();
+        // OQ-102: a claim declined in full sends the claimant their rights, with the reason's wording.
+        held.DomainEvents.OfType<GeneralClaimDecisionRightsDue>().Single().ShouldSatisfyAllConditions(e => e.RecipientPartyId.ShouldBe(holder),
+            e => e.DecisionReasons.ShouldBe("The premium was not paid."), e => e.Amount.ShouldBe(0m));
         (held.Status, held.DecisionCode, held.DeclinedForNonPayment).ShouldBe((ClaimStatus.Declined, "NON_PAYMENT", true));
         held.DomainEvents.OfType<GeneralClaimDeclined>().Single().DecisionCode.ShouldBe("NON_PAYMENT");
         held.DecideSettlement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), null, Now).IsSuccess.ShouldBeTrue("moot");

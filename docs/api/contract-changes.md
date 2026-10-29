@@ -9,7 +9,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **A loss in grace without cover** (`coverDuringGrace` false, loss from `arrearsSince`) is always accepted: notification, registration, assessment and settlement all work as usual (Ade, 29 October 2026).
   - Its payment instruction is **held** with `heldReason` **`PREMIUM_ARREARS`** until the arrears are paid, and then released automatically. Releasing it by hand is 409 `PREMIUM_ARREARS`.
   - With `deductArrearsFromClaims`, a settlement larger than the arrears is instead paid **less them**: the instruction's `amount` is the settlement less the arrears, which Billing settles from it.
-  - If grace ends unpaid, the claim is **declined** with `claimDeclineReason`, whatever its stage short of payment, and a held instruction becomes `Rejected`.
+  - If grace ends unpaid, the claim is **declined** with `claimDeclineReason`, whatever its stage short of payment, and a held instruction becomes `Rejected`. The policyholder gets `CLAIM_DECISION_RIGHTS` with the reason's customer wording (OQ-102).
+- **A claim paid less the arrears (OQ-137, post gross).**
+  - The payment instruction's `amount` is the net and gains `premiumOffset`.
+  - The claim's financials payment movement has `amount` = the gross and gains `premiumOffset` and `netAmount`.
+  - The General claim view gains `paymentSplit` (`gross`, `premiumDeducted`, `net`).
+  - `claims.ClaimPaymentCompleted` and `general.GeneralClaimSettled` gain `premiumOffset`.
+  - The settled `CLAIM_STATUS` notice gains merge fields `premium_deducted` and `net_amount`, with `amount` the gross.
+  - New Finance transaction type `PREMIUM_OFFSET` (the non-cash premium receipt) needs a posting rule; without one the posting is parked, as for any type.
 - **Notices** (Wave 4 addition 1), to the policyholder, from the tenant's templates:
   - `GRACE_NOTICE`, with merge fields `policy_number`, `product_code`, `unpaid_since`, `grace_until`, `cover_ends_on` (the last day of grace with cover in grace, else the day before `unpaid_since`);
   - `NON_PAYMENT_CANCELLATION`, with merge fields `policy_number`, `product_code`, `cancelled_from`, `refund_amount`, `currency`.

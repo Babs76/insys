@@ -78,18 +78,23 @@ public sealed class GeneralGrace(IGeneralRepository general, IGeneralCodes codes
 /// F006: grace ended unpaid and the policy was cancelled for non-payment: its claims for losses from the cancellation date
 /// are declined with the grace rule's claim decision, at whatever stage short of payment. Earlier losses are untouched.
 /// </summary>
-public sealed class DeclineClaimsOnLapse(IGeneralRepository general, IClock clock, ILogger<DeclineClaimsOnLapse> logger)
+public sealed class DeclineClaimsOnLapse(IGeneralRepository general, ClaimsFramework.Contracts.IClaimDecisionReasons reasons, ITenantContext tenant,
+    IBusinessDate businessDate, IClock clock, ILogger<DeclineClaimsOnLapse> logger)
     : IIntegrationEventHandler<General.Contracts.GeneralPolicyLapsedUnpaid>
 {
     public async Task Handle(General.Contracts.GeneralPolicyLapsedUnpaid lapsed, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        // OQ-102: each declined claim sends the policyholder its rights, with the reason's customer wording.
+        var policy = await general.Policy(lapsed.PolicyId, cancellationToken);
+        var wording = (await reasons.InForce(tenant.RequireTenantId(), lapsed.ClaimDeclineReason, businessDate.Today, cancellationToken))?.CustomerWording;
+        var rights = policy is null ? null : new Domain.Claims.ClaimRightsNotice(policy.PolicyholderPartyId, wording, policy.Currency, businessDate.Today);
         foreach (var id in await general.ClaimsOfPolicy(lapsed.PolicyId, cancellationToken))
         {
             if (await general.Claim(id, cancellationToken) is { } claim && claim.LossDate >= lapsed.CancelledFrom
                 && claim.Status is Domain.Claims.ClaimStatus.FirstNotification or Domain.Claims.ClaimStatus.Registered or Domain.Claims.ClaimStatus.UnderAssessment
                     or Domain.Claims.ClaimStatus.Approved)
             {
-                var declined = claim.DeclineForNonPayment(lapsed.ClaimDeclineReason, lapsed.CancelledFrom, clock.UtcNow);
+                var declined = claim.DeclineForNonPayment(lapsed.ClaimDeclineReason, lapsed.CancelledFrom, clock.UtcNow, rights);
                 if (declined.IsFailure)
                 {
                     logger.LogWarning("Claim {ClaimId} not declined for non-payment: {Code}", id, declined.Error.Code);

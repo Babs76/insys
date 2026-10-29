@@ -56,6 +56,18 @@ public sealed class FinancialMovement : AggregateRoot<Guid>
 
     public MovementType MovementType { get; private set; }
 
+    /// <summary>A payment made less the policy's arrears (OQ-137): what was deducted. <see cref="Amount"/> is the gross.</summary>
+    public decimal? PremiumOffset { get; private set; }
+
+    /// <summary>A payment made less the policy's arrears (OQ-137): what the payee received.</summary>
+    public decimal? NetAmount { get; private set; }
+
+    internal void NetOf(decimal premiumOffset)
+    {
+        PremiumOffset = premiumOffset;
+        NetAmount = Amount - premiumOffset;
+    }
+
     public string ReserveType { get; private set; } = "";
 
     /// <summary>Signed for a reserve (positive raises it); positive for a payment or recovery.</summary>
@@ -133,15 +145,24 @@ public sealed class ClaimFinancials
         return movement;
     }
 
-    /// <summary>Command RecordPayment: a completed claim payment draws down its reserve, which never goes below zero.</summary>
-    public Result<FinancialMovement> RecordPayment(Guid movementId, string reserveType, decimal amount, DateTimeOffset now)
+    /// <summary>
+    /// Command RecordPayment: a completed claim payment draws down its reserve, which never goes below zero. The movement
+    /// is the gross the claim paid; one made less the policy's arrears (OQ-137) also keeps the deduction and the net paid.
+    /// </summary>
+    public Result<FinancialMovement> RecordPayment(Guid movementId, string reserveType, decimal amount, DateTimeOffset now, decimal premiumOffset = 0m)
     {
         if (amount > Outstanding(reserveType))
         {
             return Error.Validation(ClaimsErrorCodes.ReserveBelowZero, $"A payment of {amount} {Currency} exceeds the outstanding {reserveType} reserve.");
         }
 
-        return Add(MovementType.Payment, reserveType, amount, now, movementId);
+        var movement = Add(MovementType.Payment, reserveType, amount, now, movementId);
+        if (premiumOffset > 0)
+        {
+            movement.NetOf(premiumOffset);
+        }
+
+        return movement;
     }
 
     /// <summary>Command RecordRecovery: money recovered (salvage, subrogation).</summary>

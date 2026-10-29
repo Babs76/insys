@@ -209,3 +209,17 @@ ALTER TABLE health.membership ADD COLUMN termination_notice_ends date;
 ALTER TABLE health.membership ADD COLUMN termination_due_raised boolean NOT NULL DEFAULT false;
 ALTER TABLE health.membership ADD CONSTRAINT ck_membership_grace CHECK ((grace_until IS NULL) = (arrears_since IS NULL));
 CREATE INDEX membership_arrears ON health.membership (tenant_id, suspend_on) WHERE arrears_since IS NOT NULL;
+
+-- OQ-137 (Ade, 29 October 2026): a claim paid less the policy's arrears records the gross. The claim keeps what was
+-- deducted; the instruction pays the net (its amount) and keeps the deduction; the payment movement records the gross
+-- (what the claim paid), the deduction and the net paid to the bank.
+ALTER TABLE general.claim ADD COLUMN premium_offset numeric(18,2) NOT NULL DEFAULT 0;
+ALTER TABLE general.claim ADD CONSTRAINT ck_claim_premium_offset CHECK (premium_offset >= 0);
+ALTER TABLE claims.claim_payment_instruction ADD COLUMN premium_offset numeric(18,2) NOT NULL DEFAULT 0;
+ALTER TABLE claims.claim_payment_instruction ADD CONSTRAINT ck_instruction_premium_offset CHECK (premium_offset >= 0);
+ALTER TABLE claims.claim_financial_movement ADD COLUMN premium_offset numeric(18,2);
+ALTER TABLE claims.claim_financial_movement ADD COLUMN net_amount numeric(18,2);
+ALTER TABLE claims.claim_financial_movement ADD CONSTRAINT ck_movement_premium_offset
+  CHECK ((premium_offset IS NULL) = (net_amount IS NULL) AND (premium_offset IS NULL OR (premium_offset > 0 AND net_amount = amount - premium_offset)));
+COMMENT ON COLUMN claims.claim_financial_movement.premium_offset IS 'A payment made less the policy''s arrears (OQ-137): what was deducted; amount is the gross the claim paid.';
+COMMENT ON COLUMN claims.claim_financial_movement.net_amount IS 'A payment made less the policy''s arrears (OQ-137): what was paid to the payee.';

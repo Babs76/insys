@@ -75,6 +75,9 @@ public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid
 /// <summary>The policy's arrears were paid from a claim's settlement (F006, the tenant's rule): Billing settles them.</summary>
 public sealed record GeneralPremiumOffsetFromClaim(Guid PolicyId, Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>Who is told of a full decline and its rights (OQ-102): the policyholder, the reason's customer wording, in the policy's currency.</summary>
+public sealed record ClaimRightsNotice(Guid RecipientPartyId, string? DecisionReasons, string Currency, DateOnly DecidedOn);
+
 /// <summary>
 /// How an approved settlement is paid when the loss falls in grace without cover (F006): held for the arrears, or paid less
 /// <paramref name="PremiumOffset"/> (the arrears, which the settlement covers).
@@ -85,7 +88,9 @@ public sealed record SettlementCondition(Guid PolicyId, bool HoldForArrears, dec
     public const string PremiumArrears = "PREMIUM_ARREARS";
 }
 
-public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, Guid PolicyId, decimal Amount, string Currency, DateOnly PaidOn, DateTimeOffset OccurredAt)
+/// <param name="Amount">The gross the claim paid (OQ-137): what a payee received plus <paramref name="PremiumOffset"/>.</param>
+public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, Guid PolicyId, decimal Amount, string Currency, DateOnly PaidOn, DateTimeOffset OccurredAt,
+    decimal PremiumOffset = 0m)
     : IDomainEvent;
 
 public sealed record GeneralClaimClosed(Guid ClaimId, string ClaimNumber, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -291,6 +296,9 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
     /// </summary>
     public decimal? ClaimedAmount { get; private set; }
 
+    /// <summary>The policy's arrears deducted from the settlement (F006, OQ-137): the payee receives the settlement less this; the claim paid the gross.</summary>
+    public decimal PremiumOffset { get; private set; }
+
     /// <summary>The decision's outcome (OQ-102): APPROVED, PARTLY_APPROVED or DECLINED; null until decided.</summary>
     public string? DecisionOutcome { get; private set; }
 
@@ -476,6 +484,7 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             DecidedAt = now;
             DecisionOutcome = SettlementAmount < ClaimedAmount ? ClaimDecisionOutcomes.PartlyApproved : ClaimDecisionOutcomes.Approved;
             var offset = condition is { HoldForArrears: false, PremiumOffset: > 0 } ? Math.Min(condition.PremiumOffset, SettlementAmount!.Value) : 0m;
+            PremiumOffset = offset;
             Raise(new GeneralClaimApproved(Id, ClaimNumber!, SettlementPayeePartyId!.Value, SettlementBankAccountId!.Value, SettlementPayeeBankHash!, SettlementAmount!.Value - offset,
                 SettlementCurrency!, SettlementReserveType!, approvalId, checkerId, now, PolicyId, condition is { HoldForArrears: true } ? SettlementCondition.PremiumArrears : null,
                 offset));
@@ -507,13 +516,14 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
     /// so a claim for a loss from then is declined with the grace rule's claim decision, whatever stage it reached short of
     /// payment. A settlement waiting for approval is dropped; a payment held for the arrears is withdrawn.
     /// </summary>
-    public Result DeclineForNonPayment(string decisionCode, DateOnly cancelledFrom, DateTimeOffset now)
+    public Result DeclineForNonPayment(string decisionCode, DateOnly cancelledFrom, DateTimeOffset now, ClaimRightsNotice? rights = null)
     {
         if (LossDate < cancelledFrom || Status is not (ClaimStatus.FirstNotification or ClaimStatus.Registered or ClaimStatus.UnderAssessment or ClaimStatus.Approved))
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Claim {ClaimNumber} is {Status} for a loss on {LossDate:yyyy-MM-dd}.");
         }
 
+        var claimed = ClaimedAmount ?? SettlementAmount ?? 0m;
         var result = Fire(ClaimTrigger.DeclineForNonPayment);
         if (result.IsSuccess)
         {
@@ -529,6 +539,13 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             DecidedAt = now;
             DecisionOutcome = ClaimDecisionOutcomes.Declined;
             Raise(new GeneralClaimDeclined(Id, ClaimNumber ?? "", DecisionCode, now));
+
+            // OQ-102: a claim declined in full sends the claimant their rights on the decision, with the reason's wording.
+            if (rights is not null)
+            {
+                Raise(new GeneralClaimDecisionRightsDue(Id, ClaimNumber ?? "", Guard.NotEmpty(rights.RecipientPartyId), ProductCode, OrgNodeCode, rights.DecisionReasons, 0m,
+                    claimed, rights.Currency, rights.DecidedOn, now));
+            }
         }
 
         return result;
@@ -572,7 +589,7 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
         var result = Fire(ClaimTrigger.PaymentCompleted);
         if (result.IsSuccess)
         {
-            Raise(new GeneralClaimSettled(Id, ClaimNumber!, PolicyId, SettlementAmount!.Value, SettlementCurrency!, paidOn, now));
+            Raise(new GeneralClaimSettled(Id, ClaimNumber!, PolicyId, SettlementAmount!.Value, SettlementCurrency!, paidOn, now, PremiumOffset));
         }
 
         return result;

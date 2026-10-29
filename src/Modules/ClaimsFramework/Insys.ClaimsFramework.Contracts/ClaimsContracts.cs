@@ -86,8 +86,10 @@ public sealed record ClaimPaymentReleaseHeld(Guid InstructionId, string ClaimNum
     string TargetRole) : IIntegrationEvent;
 
 [IntegrationEvent("claims.ClaimPaymentCompleted")]
+/// <param name="Amount">What was paid to the payee (the net, OQ-137).</param>
+/// <param name="PremiumOffset">The policy's arrears deducted from the settlement: the claim paid <paramref name="Amount"/> plus this (the gross), and Finance posts it so.</param>
 public sealed record ClaimPaymentCompleted(Guid InstructionId, Guid MovementId, string ClaimNumber, string Domain, string ReserveType, decimal Amount, string Currency,
-    DateOnly PaidOn) : IIntegrationEvent;
+    DateOnly PaidOn, decimal PremiumOffset = 0m) : IIntegrationEvent;
 
 /// <summary>
 /// The reserve a claim starts with, set at registration (OQ-079: a Life lump-sum claim's reserve is the sum assured of each

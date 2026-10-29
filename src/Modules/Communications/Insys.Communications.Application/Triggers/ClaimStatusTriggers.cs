@@ -59,8 +59,22 @@ public static class ClaimStatusNotices
     public static NotificationRequest For(GeneralClaimDeclined e, NoticeRecipient to, DateOnly on) =>
         Request(TriggerSources.GeneralClaim, e.ClaimId, e.ClaimNumber, ClaimNoticeStatuses.Declined, to, on);
 
-    public static NotificationRequest For(GeneralClaimSettled e, NoticeRecipient to, DateOnly on) =>
-        Request(TriggerSources.GeneralClaim, e.ClaimId, e.ClaimNumber, ClaimNoticeStatuses.Settled, to, on, e.Amount, e.Currency);
+    /// <summary>OQ-137: a settlement paid less the policy's arrears shows the gross, what was deducted and the net paid.</summary>
+    public static NotificationRequest For(GeneralClaimSettled e, NoticeRecipient to, DateOnly on)
+    {
+        var request = Request(TriggerSources.GeneralClaim, e.ClaimId, e.ClaimNumber, ClaimNoticeStatuses.Settled, to, on, e.Amount, e.Currency);
+        if (e.PremiumOffset > 0)
+        {
+            var merge = new Dictionary<string, string>(request.MergeValues, StringComparer.Ordinal)
+            {
+                ["premium_deducted"] = TriggerFormats.Amount(e.PremiumOffset),
+                ["net_amount"] = TriggerFormats.Amount(e.Amount - e.PremiumOffset),
+            };
+            return request with { MergeValues = merge };
+        }
+
+        return request;
+    }
 
     public static NotificationRequest For(GeneralClaimClosed e, NoticeRecipient to, DateOnly on) =>
         Request(TriggerSources.GeneralClaim, e.ClaimId, e.ClaimNumber, ClaimNoticeStatuses.Closed, to, on);

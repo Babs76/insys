@@ -205,7 +205,9 @@ public sealed record GeneralPolicyLapsedUnpaid(Guid PolicyId, string PolicyNumbe
 public sealed record GeneralPremiumOffsetFromClaim(Guid PolicyId, Guid ClaimId, string ClaimNumber, decimal Amount, string Currency) : IIntegrationEvent;
 
 [IntegrationEvent("general.GeneralClaimSettled")]
-public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateOnly PaidOn, Guid? PolicyId = null) : IIntegrationEvent;
+/// <param name="Amount">The gross the claim paid; with <paramref name="PremiumOffset"/> (OQ-137), the payee received the gross less it.</param>
+public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateOnly PaidOn, Guid? PolicyId = null, decimal PremiumOffset = 0m)
+    : IIntegrationEvent;
 
 [IntegrationEvent("general.GeneralClaimClosed")]
 public sealed record GeneralClaimClosed(Guid ClaimId, string ClaimNumber) : IIntegrationEvent;

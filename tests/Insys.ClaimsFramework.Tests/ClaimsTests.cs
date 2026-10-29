@@ -341,4 +341,25 @@ public sealed class ClaimsTests
         instruction.Decide(false, Guid.CreateVersion7(), instruction.SubjectHash, claim.Domain, Now).IsFailure.ShouldBeTrue();
         instruction.Status.ShouldBe(InstructionStatus.Rejected);
     }
+
+    /// <summary>
+    /// OQ-137: a settlement paid less the policy's arrears pays the payee the net, but draws the reserve down by the gross and
+    /// records the payment movement as the gross, with the deduction and the net kept on it.
+    /// </summary>
+    [Fact]
+    public void ASettlementPaidLessTheArrears_DrawsTheReserveByTheGross_AndRecordsGrossDeductionAndNet_OQ137()
+    {
+        var claim = Claim();
+        var instruction = ClaimPaymentInstruction.FromApprovedSettlement(Guid.CreateVersion7(), claim, "SETTLEMENT:1", Account(Guid.CreateVersion7()), 13_750m, "ZAR",
+            "INDEMNITY", Guid.CreateVersion7(), premiumOffset: 1_250m).Value;
+        (instruction.Amount, instruction.PremiumOffset, instruction.GrossAmount).ShouldBe((13_750m, 1_250m, 15_000m));
+        instruction.ReleaseInstruction(Guid.CreateVersion7(), "GENERAL", 14_000m, Now).Error!.Code.ShouldBe(ClaimsErrorCodes.ReserveBelowZero, "the gross is above the reserve");
+        instruction.ReleaseInstruction(Guid.CreateVersion7(), "GENERAL", 15_000m, Now).IsSuccess.ShouldBeTrue();
+
+        var financials = Financials(claim);
+        financials.ChangeReserve("INDEMNITY", 15_000m, Today, Now).IsSuccess.ShouldBeTrue();
+        var paid = financials.RecordPayment(Guid.CreateVersion7(), "INDEMNITY", 15_000m, Now, premiumOffset: 1_250m).Value;
+        (paid.Amount, paid.PremiumOffset, paid.NetAmount).ShouldBe((15_000m, (decimal?)1_250m, (decimal?)13_750m));
+        financials.Outstanding("INDEMNITY").ShouldBe(0m);
+    }
 }

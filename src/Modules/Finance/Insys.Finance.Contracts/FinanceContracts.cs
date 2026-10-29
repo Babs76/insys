@@ -70,6 +70,13 @@ public static class TransactionTypes
     public const string PremiumCeded = "PREMIUM_CEDED";
     public const string ReinsuranceRecoverable = "RI_RECOVERABLE";
     public const string ReinsuranceRecovered = "RI_RECOVERED";
+
+    /// <summary>
+    /// A non-cash premium receipt (OQ-137): the policy's arrears paid from a claim's settlement. It clears the premium
+    /// receivable; CLAIM_PAID posts the claim's gross, so with this the bank side is the net paid. The tenant's posting rule
+    /// names the accounts; finance to confirm.
+    /// </summary>
+    public const string PremiumOffset = "PREMIUM_OFFSET";
 }
 
 [IntegrationEvent("finance.SubledgerEntryPosted")]

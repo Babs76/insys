@@ -287,4 +287,14 @@ public sealed class TriggerMappingTests
         consumers.Distinct(StringComparer.Ordinal).Count().ShouldBe(21);
         consumers.ShouldAllBe(c => c.Length <= 60);
     }
+
+    /// <summary>OQ-137: a settlement paid less the policy's arrears tells the customer the gross, the premium deducted and the net paid.</summary>
+    [Fact]
+    public void ASettledNotice_PaidLessTheArrears_ShowsGrossDeductionAndNet_OQ137()
+    {
+        var merge = ClaimStatusNotices.For(new GeneralClaimSettled(ClaimId, "GC-1", 15_000m, "ZAR", StatusDate, PremiumOffset: 1_250m), Recipient, StatusDate).MergeValues;
+        (merge["amount"], merge["premium_deducted"], merge["net_amount"], merge["currency"]).ShouldBe(("15000.00", "1250.00", "13750.00", "ZAR"));
+        ClaimStatusNotices.For(new GeneralClaimSettled(ClaimId, "GC-1", 15_000m, "ZAR", StatusDate), Recipient, StatusDate).MergeValues.ContainsKey("premium_deducted")
+            .ShouldBeFalse("nothing was deducted");
+    }
 }

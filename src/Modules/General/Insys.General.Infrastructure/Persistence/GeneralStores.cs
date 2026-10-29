@@ -450,7 +450,7 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         Domain.Claims.GeneralPremiumOffsetFromClaim e => new Contracts.GeneralPremiumOffsetFromClaim(e.PolicyId, e.ClaimId, e.ClaimNumber, e.Amount, e.Currency),
         GeneralPolicyArrearsCleared e => new Contracts.GeneralPolicyArrearsCleared(e.PolicyId, e.PolicyNumber),
         GeneralPolicyLapsedUnpaid e => new Contracts.GeneralPolicyLapsedUnpaid(e.PolicyId, e.PolicyNumber, e.CancelledFrom, e.ClaimDeclineReason),
-        GeneralClaimSettled e => new Contracts.GeneralClaimSettled(e.ClaimId, e.ClaimNumber, e.Amount, e.Currency, e.PaidOn, e.PolicyId),
+        GeneralClaimSettled e => new Contracts.GeneralClaimSettled(e.ClaimId, e.ClaimNumber, e.Amount, e.Currency, e.PaidOn, e.PolicyId, e.PremiumOffset),
         GeneralClaimClosed e => new Contracts.GeneralClaimClosed(e.ClaimId, e.ClaimNumber),
         LossAssessed e => new Contracts.LossAssessed(e.AssessmentId, e.ClaimId, e.AssessedAmount, e.ExcessApplied),
         RecoveryRecorded e => new Contracts.RecoveryRecorded(e.RecoveryCaseId, e.ClaimId, e.ClaimNumber, e.RecoveryType, e.Amount, e.Currency, e.ReserveType),

@@ -470,9 +470,21 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     {
         await _db.SeedEmailNotices(Tenant, Today.AddDays(-30), "GRC",
             (Insys.Communications.Contracts.NotificationTypes.GraceNotice, "Grace {policy_number}", "{policy_number}: cover ends on {cover_ends_on} unless paid."),
-            (Insys.Communications.Contracts.NotificationTypes.NonPaymentCancellation, "Cancelled {policy_number}", "{policy_number} was cancelled from {cancelled_from}."));
+            (Insys.Communications.Contracts.NotificationTypes.NonPaymentCancellation, "Cancelled {policy_number}", "{policy_number} was cancelled from {cancelled_from}."),
+            (Insys.Communications.Contracts.NotificationTypes.ClaimStatus, "Claim {claim_number}", "{claim_number} {status}: {amount} less premium {premium_deducted}, paid {net_amount}."),
+            (Insys.Communications.Contracts.NotificationTypes.ClaimDecisionRights, "Your rights on {claim_number}", "{claim_number} declined: {decision_reasons}"));
         await Seed("general.cfg_cancellation_reasons_and_refund_rules", "EFFECTIVE", "NON_PAYMENT", ("reason_code", "NON_PAYMENT"), ("initiator", "INSURER"),
             ("refund_basis", "NONE"), ("fee", 0m));
+        await Seed("claims.ref_claim_decision_reason_codes", "ACTIVE", "NON_PAYMENT", ("decision_type", "DECLINE"),
+            ("customer_wording", "The premium for the loss date was not paid."));
+        // OQ-137: the non-cash premium receipt clears the premium receivable (1100) against the bank side (1200) that CLAIM_PAID credits.
+        await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-PREM-OFFSET", ("rule_code", "PR-PREM-OFFSET"), ("transaction_type", TransactionTypes.PremiumOffset),
+            ("debit_account", "1200"), ("credit_account", "1100"));
+        // A 30 % retention quota share on the product: a recovery is on the gross claim paid.
+        await Seed("reinsurance.cfg_treaty_definitions", "EFFECTIVE", "QS-1", ("treaty_code", "QS-1"), ("type", "QUOTA_SHARE"), ("retention", "30"), ("capacity", 5_000_000m),
+            ("period_from", Today.AddYears(-1)), ("period_to", Today.AddYears(1)), ("participants", JsonSerializer.SerializeToElement(new[] { new { reinsurer = "RE-1", share = 100 } })));
+        await Seed("reinsurance.cfg_cession_rules", "EFFECTIVE", "CR-1", ("rule_code", "CR-1"), ("treaty", "QS-1"), ("products", new[] { Product }),
+            ("allocation_basis", "SUM_INSURED"));
         // Monthly: held until paid. Annual (the tenant's other rule): paid less the arrears. Neither keeps cover in grace.
         await Seed("general.cfg_grace_period_rules", "EFFECTIVE", $"GRACE-{Product}-MONTHLY", ("product_code", Product), ("frequency", "MONTHLY"), ("grace_days", 15),
             ("cover_during_grace", false), ("cancellation_reason", "NON_PAYMENT"), ("claim_decline_reason", "NON_PAYMENT"));
@@ -565,6 +577,34 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             .ShouldBe(0L, "the arrears were settled from the claim");
         (await Policy(netted.Policy)).GetProperty("grace").ValueKind.ShouldBe(JsonValueKind.Null);
 
+        // OQ-137: paid, the claim records the gross; Finance posts claims paid at the gross and a non-cash premium receipt for
+        // the deduction, each journal balanced and the bank side netting to what was paid; the recovery is on the gross.
+        await PayOut(nettedInstruction, "PAID");
+        var nettedClaim = await _db.ScalarAsOwner<Guid>("SELECT domain_claim_id FROM claims.claim_register r JOIN claims.claim_payment_instruction i ON i.claim_number = r.claim_number WHERE i.id = @i",
+            ("i", nettedInstruction));
+        var settledClaim = await Claim(nettedClaim);
+        settledClaim.GetProperty("status").GetString().ShouldBe("Settled");
+        var split = settledClaim.GetProperty("paymentSplit");
+        (split.GetProperty("gross").GetDecimal(), split.GetProperty("premiumDeducted").GetDecimal(), split.GetProperty("net").GetDecimal()).ShouldBe((15_000m, owed, 15_000m - owed));
+        var nettedNumber = settledClaim.GetProperty("claimNumber").GetString()!;
+        var paidMovement = (await (await _maker.GetAsync($"/api/v1/claims/claims/{nettedNumber}/financials")).Json()).GetProperty("movements").EnumerateArray()
+            .Single(m => m.GetProperty("movementType").GetString() == "Payment");
+        (paidMovement.GetProperty("amount").GetDecimal(), paidMovement.GetProperty("premiumOffset").GetDecimal(), paidMovement.GetProperty("netAmount").GetDecimal())
+            .ShouldBe((15_000m, owed, 15_000m - owed));
+        var journals = await Journals("CLAIM_MOVEMENT", paidMovement.GetProperty("id").GetGuid());
+        journals.Count.ShouldBe(2, "claims paid, and the non-cash premium receipt");
+        var lines = journals.SelectMany(j => j.GetProperty("lines").EnumerateArray()).ToList();
+        foreach (var journal in journals)
+        {
+            var entries = journal.GetProperty("lines").EnumerateArray().ToList();
+            entries.Sum(l => l.GetProperty("debit").GetDecimal()).ShouldBe(entries.Sum(l => l.GetProperty("credit").GetDecimal()), "each journal balances");
+        }
+
+        decimal Net(string account) => lines.Where(l => l.GetProperty("accountCode").GetString() == account).Sum(l => l.GetProperty("debit").GetDecimal() - l.GetProperty("credit").GetDecimal());
+        (Net("2100"), Net("1200"), Net("1100")).ShouldBe((15_000m, -(15_000m - owed), -owed), "claims paid gross; the bank pays the net; the receivable is cleared");
+        var recovery = (await (await _maker.GetAsync($"/api/v1/reinsurance/recoveries?claimNumber={nettedNumber}")).Json()).GetProperty("items").EnumerateArray().Single();
+        (recovery.GetProperty("paidAmount").GetDecimal(), recovery.GetProperty("recoverable").GetDecimal()).ShouldBe((15_000m, 10_500m), "the recovery is on the gross");
+
         // Path 3: grace ends unpaid. The policy is cancelled for non-payment from the first unpaid due date; the claim, approved
         // and held, is declined with the rule's reason and its payment withdrawn.
         var (lapsedClaim, lapsedInstruction) = await Approved(lapsing.Policy, lapsing.Vehicle, "Lapsed Repairs");
@@ -580,8 +620,15 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM payment.payment WHERE business_ref_id = @i", ("i", lapsedInstruction))).ShouldBe(0L, "nothing is paid");
         (await Policy(held.Policy)).GetProperty("status").GetString().ShouldBe("InForce", "paid in time");
 
-        // The lapsed policy's notices, sent once each.
+        // The lapsed policy's notices, sent once each; the declined claim's rights (OQ-102); the settled claim's gross, deduction and net.
         await _factory.Services.GetRequiredService<Insys.Communications.Infrastructure.NotificationSender>().RunForTenant(Tenant, CancellationToken.None);
+        var lapsedNumber = (await Claim(lapsedClaim)).GetProperty("claimNumber").GetString();
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(status || ':' || body, '|') FROM communication.notification WHERE recipient_party_id = @h AND type_code = 'CLAIM_DECISION_RIGHTS'
+            """, ("h", lapsing.Holder))).ShouldBe($"SENT:{lapsedNumber} declined: The premium for the loss date was not paid.");
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(body, '|') FROM communication.notification WHERE recipient_party_id = @h AND type_code = 'CLAIM_STATUS' AND body LIKE '% SETTLED:%'
+            """, ("h", netted.Holder))).ShouldBe($"{nettedNumber} SETTLED: 15000.00 less premium {owed:0.00}, paid {15_000m - owed:0.00}.");
         (await _db.ScalarAsOwner<string>("""
             SELECT string_agg(type_code || ':' || status || ':' || body, '|' ORDER BY type_code) FROM communication.notification WHERE recipient_party_id = @h
               AND type_code IN ('GRACE_NOTICE', 'NON_PAYMENT_CANCELLATION')

@@ -1230,4 +1230,8 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 
 ### OQ-137 Posting a claim's premium offset (Wave 4 batch 4.1, 29 October 2026)
 - **The gap:** with a tenant's `deduct_arrears_from_claims`, a General claim in grace is paid less the policy's arrears, and Billing settles them from it. Finance posts the net claim payment (ClaimPaymentCompleted) but not the offset: claims payable against premium receivable. The claim's financials record the net payment.
-- **Open, for Ade (with finance):** the posting rule for the offset, and whether the claim's paid movement records the gross amount. Until then the setting stays off by default.
+- **Decided (Ade, 29 October 2026): post gross.**
+  - **Postings:** the claim payment is recorded gross (claims paid = gross); the bank pays the net; a non-cash premium receipt for the deducted arrears clears the premium receivable. Each goes through posting rules: `CLAIM_PAID` at the gross, `PREMIUM_OFFSET` for the deduction. The tenant configures the accounts; finance to confirm them.
+  - **Records:** the claim's financial records show gross, deduction and net. Reinsurance recoveries and claims figures use the gross. Commission treats the deducted premium as collected.
+  - **Notice:** the customer's settlement notice shows gross, deduction and net.
+  - **Setting:** the deduction stays off by default until a tenant configures it. **Closed; built in Wave 4 batch 4.1.**

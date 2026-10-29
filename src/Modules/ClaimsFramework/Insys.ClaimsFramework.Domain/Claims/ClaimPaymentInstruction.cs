@@ -93,8 +93,10 @@ public static class ReleaseHoldReasons
 /// <summary>A payee held by due diligence is screened again before the payment (OQ-125): the payee only.</summary>
 public sealed record PayeeScreeningNeeded(Guid PartyId, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <param name="Amount">What was paid to the payee (the net, OQ-137).</param>
+/// <param name="PremiumOffset">The policy's arrears deducted from the settlement: the claim paid <paramref name="Amount"/> plus this.</param>
 public sealed record ClaimPaymentCompleted(Guid InstructionId, Guid MovementId, string ClaimNumber, string Domain, string ReserveType, decimal Amount, string Currency,
-    DateOnly PaidOn, DateTimeOffset OccurredAt) : IDomainEvent;
+    DateOnly PaidOn, DateTimeOffset OccurredAt, decimal PremiumOffset = 0m) : IDomainEvent;
 
 /// <summary>
 /// The ClaimPaymentInstruction aggregate (claims.claim_payment_instruction): released only after maker-checker
@@ -160,6 +162,12 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
     /// <summary>Why an automatic release was refused (ReleaseHoldReasons), until the instruction is released.</summary>
     public string? HeldReason { get; private set; }
 
+    /// <summary>The policy's arrears deducted from the settlement (OQ-137): <see cref="Amount"/> is paid to the payee, the claim pays the gross.</summary>
+    public decimal PremiumOffset { get; private set; }
+
+    /// <summary>What the claim pays: the payee's amount plus any premium deducted (OQ-137); the reserve is drawn down by it.</summary>
+    public decimal GrossAmount => Amount + PremiumOffset;
+
     /// <summary>What the person who resolves it needs to know: amounts and reserve type, never bank details.</summary>
     public string? HeldDetail { get; private set; }
 
@@ -208,7 +216,7 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
     /// so it is not asked again (ADR-009).
     /// </summary>
     public static Result<ClaimPaymentInstruction> FromApprovedSettlement(Guid id, ClaimRegistration claim, string instructionRef, PayeeAccount payee, decimal amount,
-        string currency, string reserveType, Guid approvalId)
+        string currency, string reserveType, Guid approvalId, decimal premiumOffset = 0m)
     {
         var instruction = DraftInstruction(id, claim, instructionRef, payee, amount, amount, currency, reserveType, Guid.Empty);
         if (instruction.IsFailure)
@@ -216,6 +224,7 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
             return instruction;
         }
 
+        instruction.Value.PremiumOffset = Math.Max(0m, premiumOffset);
         instruction.Value.DraftedBy = null;
         instruction.Value.Fire(InstructionTrigger.SubmitInstruction);
         instruction.Value.Decide(approved: true, approvalId, instruction.Value.SubjectHash, claim.Domain, DateTimeOffset.MinValue);
@@ -299,9 +308,9 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
     /// <summary>Command ReleaseInstruction: to Payments, within the outstanding reserve so the reserve never goes below zero.</summary>
     public Result ReleaseInstruction(Guid releasedBy, string domain, decimal outstandingReserve, DateTimeOffset now)
     {
-        if (Amount > outstandingReserve)
+        if (GrossAmount > outstandingReserve)
         {
-            return Error.Validation(ClaimsErrorCodes.ReserveBelowZero, $"{Amount} {Currency} exceeds the outstanding {ReserveType} reserve of {outstandingReserve}.");
+            return Error.Validation(ClaimsErrorCodes.ReserveBelowZero, $"{GrossAmount} {Currency} exceeds the outstanding {ReserveType} reserve of {outstandingReserve}.");
         }
 
         var result = Fire(InstructionTrigger.ReleaseInstruction);
@@ -372,7 +381,7 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
             PaymentId = paymentId;
             if (succeeded)
             {
-                Raise(new ClaimPaymentCompleted(Id, Guid.CreateVersion7(), ClaimNumber, domain, ReserveType, Amount, Currency, paidOn, now));
+                Raise(new ClaimPaymentCompleted(Id, Guid.CreateVersion7(), ClaimNumber, domain, ReserveType, Amount, Currency, paidOn, now, PremiumOffset));
             }
         }
 

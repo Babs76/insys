@@ -115,7 +115,7 @@ public static partial class MergeFields
         [NotificationTypes.PaymentFinalNotice] = ["account_number", "policy_number", "amount_overdue", "currency", "days_overdue", "due_date"],
         [NotificationTypes.RenewalInvitation] = ["policy_number", "product_code", "period_end"],
         [NotificationTypes.RenewalReminder] = ["policy_number", "product_code", "period_end", "days_to_renewal"],
-        [NotificationTypes.ClaimStatus] = ["claim_number", "status", "status_date", "amount", "currency"],
+        [NotificationTypes.ClaimStatus] = ["claim_number", "status", "status_date", "amount", "currency", "premium_deducted", "net_amount"],
         [NotificationTypes.HealthClaimDecision] = ["claim_number", "status", "status_date", "total_paid", "currency"],
         [NotificationTypes.PreauthDecision] = ["auth_number", "status", "valid_from", "valid_to"],
         [NotificationTypes.CaseAcknowledged] = Triggers.CaseMergeFields.All,

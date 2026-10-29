@@ -128,9 +128,20 @@ public sealed class PostingPolicies(EventPoster poster, IBusinessDate businessDa
             : Post(envelope, e.Domain, e.Change > 0 ? TransactionTypes.ClaimReserveIncrease : TransactionTypes.ClaimReserveDecrease, e.MovementDate, Math.Abs(e.Change),
                 e.Currency, "CLAIM_MOVEMENT", e.MovementId, new() { ["domain"] = e.Domain, ["reserve_type"] = e.ReserveType }, cancellationToken);
 
-    public Task Handle(ClaimPaymentCompleted e, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Post(envelope, e.Domain, TransactionTypes.ClaimPaid, e.PaidOn, e.Amount, e.Currency, "CLAIM_MOVEMENT", e.MovementId,
-            new() { ["domain"] = e.Domain, ["reserve_type"] = e.ReserveType }, cancellationToken);
+    /// <summary>
+    /// The claim paid (OQ-137): CLAIM_PAID at the gross. A payment made less the policy's arrears also posts the deduction as a
+    /// non-cash premium receipt (PREMIUM_OFFSET) that clears the premium receivable, so the bank side nets to what was paid.
+    /// </summary>
+    public async Task Handle(ClaimPaymentCompleted e, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        await Post(envelope, e.Domain, TransactionTypes.ClaimPaid, e.PaidOn, e.Amount + e.PremiumOffset, e.Currency, "CLAIM_MOVEMENT", e.MovementId,
+            new() { ["domain"] = e.Domain, ["reserve_type"] = e.ReserveType, ["premium_offset"] = e.PremiumOffset }, cancellationToken);
+        if (e.PremiumOffset > 0)
+        {
+            await Post(envelope, e.Domain, TransactionTypes.PremiumOffset, e.PaidOn, e.PremiumOffset, e.Currency, "CLAIM_MOVEMENT", e.MovementId,
+                new() { ["domain"] = e.Domain, ["claim"] = e.ClaimNumber }, cancellationToken);
+        }
+    }
 
     /// <summary>A Health claim paid by a provider payment run (process "Health care to provider payment": PostBusinessEvent, claims paid).</summary>
     public Task Handle(Health.Contracts.MedicalClaimSettled e, EventEnvelope envelope, CancellationToken cancellationToken) =>

@@ -391,14 +391,19 @@ public sealed record ClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, Guid
     [property: CodeList(CodeLists.ClaimDecisionReasons, "code")] string? DecisionCode, string? DecisionRationale, SettlementView? Settlement,
     IReadOnlyList<ClaimPartyView> Parties, long RowVersion,
     [property: OneOf(ClaimDecisionOutcomes.Approved, ClaimDecisionOutcomes.PartlyApproved, ClaimDecisionOutcomes.Declined), BuildingBlocks.Contracts.AlwaysPresent] string? Outcome = null,
-    Workflow.Contracts.LatestRejection? LatestRejection = null, string? LossDescription = null, Guid? DecidedBy = null, DateTimeOffset? DecidedAt = null)
+    Workflow.Contracts.LatestRejection? LatestRejection = null, string? LossDescription = null, Guid? DecidedBy = null, DateTimeOffset? DecidedAt = null,
+    ClaimPaymentSplitView? PaymentSplit = null)
 {
     public static ClaimView From(GeneralClaim c) => new(c.Id, c.ClaimNumber, c.PolicyId, c.RiskObjectId, c.CoverageCode, c.LossDate, c.NotifiedAt, c.CauseCode, c.PerilCode,
         c.CatEventCode, c.Status, c.DecisionCode, c.DecisionRationale,
         c.SettlementAmount is { } amount ? new SettlementView(amount, c.SettlementCurrency!, c.SettlementPayeePartyId!.Value, c.SettlementReserveType!, c.SettlementPending,
             c.SettlementApprovalId, c.ClaimedAmount, c.SettlementRequestedBy, c.SettlementBankAccountId) : null,
-        c.Parties.Select(p => new ClaimPartyView(p.PartyId, p.Role, p.InsurerRef)).ToList(), c.RowVersion, c.DecisionOutcome, null, c.Description, c.DecidedBy, c.DecidedAt);
+        c.Parties.Select(p => new ClaimPartyView(p.PartyId, p.Role, p.InsurerRef)).ToList(), c.RowVersion, c.DecisionOutcome, null, c.Description, c.DecidedBy, c.DecidedAt,
+        c.PremiumOffset > 0 && c.SettlementAmount is { } gross ? new ClaimPaymentSplitView(gross, c.PremiumOffset, gross - c.PremiumOffset) : null);
 }
+
+/// <summary>A settlement paid less the policy's arrears (F006, OQ-137): the gross the claim pays, the premium deducted, and the net the payee receives.</summary>
+public sealed record ClaimPaymentSplitView(decimal Gross, decimal PremiumDeducted, decimal Net);
 
 public sealed record EstimateView(Guid Id, Guid RepairerPartyId, decimal Amount, string Currency, [property: OneOf("SUBMITTED", "ACCEPTED", "REJECTED")] string Status);
 
