@@ -103,6 +103,7 @@ internal sealed class ReadPortalDocumentContentHandler(IDocumentRepository docum
             || !await portal.RecordRelated(doc.BusinessRefType, doc.BusinessRefId, cancellationToken)
             || !(await portal.Readable([doc.CategoryCode], cancellationToken)).Contains(doc.CategoryCode))
         {
+            audit.Record(DocumentReads.Denied(command.DocumentId, "NOT_FOUND", PortalDocuments.Purpose));
             return Error.NotFound(ErrorCodes.NotFound, "The document was not found.");
         }
 

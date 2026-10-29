@@ -309,12 +309,29 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (authorised.GetProperty("clinicalReviewer").GetGuid(), authorised.GetProperty("decidedBy").GetGuid(), authorised.GetProperty("currency").GetString())
             .ShouldBe((makerId, makerId, "ZAR"));
         authorised.TryGetProperty("diagnosisCodes", out _).ShouldBeFalse();
-        var clinical = await Get($"/api/v1/health/preauthorisations/{preauth}/clinical");
+        var clinicalPath = $"/api/v1/health/preauthorisations/{preauth}/clinical";
+        var clinical = await Get($"{clinicalPath}?purpose=Clinical%20review%20of%20the%20request");
         clinical.GetProperty("diagnosisCodes").EnumerateArray().Select(d => d.GetString()).ShouldNotBeEmpty();
         await _db.UserWithPermissions(Tenant, "no-clinical", HealthPermissions.PreauthRead);
         var notClinical = _factory.ClientFor(Tenant, "no-clinical");
         (await notClinical.GetAsync($"/api/v1/health/preauthorisations/{preauth}")).StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await notClinical.GetAsync($"/api/v1/health/preauthorisations/{preauth}/clinical")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await notClinical.GetAsync($"{clinicalPath}?purpose=curious")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        // HLT-008: every clinical read leaves exactly one audit entry (who, when, which preauthorisation, purpose); a refused one is DENIED.
+        (await (await _maker.GetAsync(clinicalPath)).Code()).ShouldBe("HEALTH_PURPOSE_REQUIRED");
+        var unknown = Guid.CreateVersion7();
+        (await _maker.GetAsync($"/api/v1/health/preauthorisations/{unknown}/clinical?purpose=review")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        await _factory.DrainOutbox();
+        // One row per read, in order: outcome, who, purpose, why refused.
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(concat_ws('|', outcome, actor_id, coalesce(details->>'purpose', '-'), coalesce(details->>'refused', '-')), ',' ORDER BY occurred_at)
+            FROM audit.audit_event WHERE tenant_id = @t AND operation = 'ReadClinical' AND target_id = @p AND occurred_at IS NOT NULL
+            """, ("t", Tenant), ("p", preauth.ToString())))
+            .ShouldBe($"SUCCESS|{makerId}|Clinical review of the request|-,DENIED|{makerId}|-|PURPOSE_REQUIRED");
+        (await _db.ScalarAsOwner<string>("SELECT string_agg(outcome || ':' || (details->>'refused'), ',') FROM audit.audit_event WHERE tenant_id = @t AND operation = 'ReadClinical' AND target_id = @p",
+            ("t", Tenant), ("p", unknown.ToString()))).ShouldBe("DENIED:NOT_FOUND");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE tenant_id = @t AND operation = 'AccessDenied' AND outcome = 'DENIED' AND target_id = @e",
+            ("t", Tenant), ("e", $"GET {clinicalPath}"))).ShouldBe(1L);
 
         // MedicalClaimSubmitted; ValidateClaim; AdjudicateClaim (ADR-012): contract tariff 1 000, allowed 1 000, 10% co-payment 100, paid 900, the member pays 300.
         var claim = await Claim(membership, principal, 1_200m);

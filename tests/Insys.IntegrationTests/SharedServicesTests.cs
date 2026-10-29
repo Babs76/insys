@@ -248,6 +248,14 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM document.document_access_log WHERE document_id = @d AND purpose = 'Assess claim'", ("d", id)))
             .ShouldBe(1);
 
+        // Every read leaves exactly one audit entry; a refused one (no allowed role, no purpose) is DENIED with why.
+        (await (await assessor.GetAsync($"/api/v1/documents/documents/{id}/content")).Code()).ShouldBe("DOCUMENT_PURPOSE_REQUIRED");
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT string_agg(concat_ws('|', outcome, coalesce(details->>'purpose', '-'), coalesce(details->>'refused', '-')), ',' ORDER BY occurred_at)
+            FROM audit.audit_event WHERE tenant_id = @t AND operation = 'ReadDocument' AND target_id = @d
+            """, ("t", TenantA), ("d", id.ToString()))).ShouldBe("DENIED|Assess claim|ROLE_REQUIRED,SUCCESS|Assess claim|-,DENIED|-|PURPOSE_REQUIRED");
+
         var hold = await (await client.Send(HttpMethod.Post, $"/api/v1/documents/documents/{id}/legal-holds", new { reasonCode = "LITIGATION" })).Json();
         (await (await client.GetAsync($"/api/v1/documents/documents/{id}")).Json()).GetProperty("legalHold").GetBoolean().ShouldBeTrue();
         // Releasing it needs a second person (OQ-111): the request is accepted and the hold stays in force until approved.

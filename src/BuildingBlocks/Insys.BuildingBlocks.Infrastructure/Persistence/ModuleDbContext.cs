@@ -227,7 +227,7 @@ public abstract class ModuleDbContext(DbContextOptions options, ModuleDbContextD
         {
             var targetId = Guid.TryParse(entry.TargetId, out var parsed) ? parsed : Guid.Empty;
             Publish(new SensitiveOperationRecorded(execution.ActorId, execution.ActorType == ActorType.Service ? "SERVICE" : "USER",
-                entry.EventType, entry.Operation, entry.TargetType, entry.TargetId, outcome.ToString().ToUpperInvariant(), now, entry.Details),
+                entry.EventType, entry.Operation, entry.TargetType, entry.TargetId, (entry.Outcome ?? outcome).ToString().ToUpperInvariant(), now, entry.Details),
                 entry.TargetType, targetId, now);
         }
     }

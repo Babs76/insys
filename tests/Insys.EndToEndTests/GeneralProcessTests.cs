@@ -608,6 +608,12 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<string>("SELECT purpose FROM document.document_access_log WHERE document_id = @d", ("d", scheduleId))).ShouldBe("PORTAL");
         (await brokerA.GetAsync($"/api/v1/portal/documents/{scheduleId}/content")).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await brokerB.GetAsync($"/api/v1/portal/documents/{scheduleId}/content")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        // One audit entry per read; the other broker's refused read is DENIED (DOC-003).
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(concat_ws('|', outcome, coalesce(details->>'refused', '-')), ',' ORDER BY occurred_at)
+            FROM audit.audit_event WHERE tenant_id = @t AND operation = 'ReadDocument' AND target_id = @d
+            """, ("t", Tenant), ("d", scheduleId.ToString()))).ShouldBe("SUCCESS|-,SUCCESS|-,DENIED|NOT_FOUND");
 
         // Outside the portal: a staff endpoint, the staff client, and a broker token without MFA are refused.
         (await (await brokerA.GetAsync($"/api/v1/general/policies/{policyA}")).Code()).ShouldBe("EXTERNAL_USER_NOT_ALLOWED");

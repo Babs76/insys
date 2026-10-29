@@ -462,6 +462,8 @@ internal sealed class DownloadReportExportHandler(IComplianceRepository reposito
         var held = await roles.EffectiveRoles(tenant.RequireTenantId(), user.Value, cancellationToken);
         if (report is null || !report.ExportAllowed || !report.Roles.Any(held.Contains))
         {
+            audit.Record(new AuditEntry("COMPLIANCE", "DownloadReportExport", nameof(ReportRun), run.Id.ToString(),
+                new Dictionary<string, string?> { ["report"] = run.ReportCode, ["refused"] = "REPORT_NOT_ALLOWED" }) { Outcome = AuditOutcome.Denied });
             return Error.Forbidden(ComplianceErrorCodes.ReportNotAllowed, $"Report {run.ReportCode} may not be exported by your roles.");
         }
 

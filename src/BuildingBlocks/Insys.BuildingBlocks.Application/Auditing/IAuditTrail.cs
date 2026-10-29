@@ -42,7 +42,14 @@ public sealed record AuditEntry(
     string Operation,
     string TargetType,
     string TargetId,
-    IReadOnlyDictionary<string, string?>? Details = null);
+    IReadOnlyDictionary<string, string?>? Details = null)
+{
+    /// <summary>
+    /// The outcome this entry records whatever the command's result, for a refused read of sensitive data (Denied, HLT-008,
+    /// DOC-003); null takes the command's outcome (Success, or Failure when it fails).
+    /// </summary>
+    public AuditOutcome? Outcome { get; init; }
+}
 
 /// <summary>
 /// Collects audit entries during a command. The transaction pipeline publishes them through the module's outbox in

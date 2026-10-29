@@ -2,7 +2,12 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 3 batch 4 (branch `wave3-4`): code lists name their column (BR-105), Health service types
+## Wave 3 batch 4 (branch `wave3-4`): code lists name their column (BR-105), Health service types, audited sensitive reads
+
+### Changed (group A: audited reads, HLT-008)
+- **`GET /health/preauthorisations/{id}/clinical` (`HealthGetAuthorisationClinical`) now needs `?purpose=`** (up to 200 characters): without it, 422 `HEALTH_PURPOSE_REQUIRED`. **Breaking:** send the reviewer's purpose. Each read leaves one audit entry (`ReadClinical`: who, when, which preauthorisation, the purpose). Before this batch the read was not audited at all, though the contract said it was.
+- **A refused read is audited as `DENIED`**, with why (`details.refused`): the clinical read with no purpose (`PURPOSE_REQUIRED`) or of a preauthorisation not found or outside your scope (`NOT_FOUND`); a document content read with no purpose (`PURPOSE_REQUIRED`) or without the category's allowed role (`ROLE_REQUIRED`); a portal document read of a document not yours (`NOT_FOUND`); a report export your roles may not download (`REPORT_NOT_ALLOWED`). A read refused for want of the permission (403) is audited as before (`AccessDenied`). The responses are unchanged.
+- The document read's refused entry is now operation `ReadDocument` with outcome `DENIED` (it was `ReadDocumentDenied` with outcome `FAILURE`); the audit trail filters by outcome.
 
 ### Changed
 - **Every field with `x-code-list`** (131 in the core document) also has **`x-code-list-column`**: the column of that table holding the value the field carries. It is `code` where the table's own code is the value, and a named column where the table has one (`method_code` on `billing.ref_collection_methods`, `plan_code` / `option_code` on `health.cfg_plans_and_options`, `value_code` on `party.ref_personal_attribute_code_lists` with its `x-code-list-filter`, and so on). Offer the table's rows in force and send that column's value.

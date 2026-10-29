@@ -464,6 +464,23 @@ internal sealed class DisposeDocumentHandler(IDocumentRepository documents, IRec
     }
 }
 
+/// <summary>
+/// A refused read of a sensitive document: one entry, operation ReadDocument, outcome Denied, with why (DOC-003, IAM-006).
+/// It is written even though the command fails.
+/// </summary>
+internal static class DocumentReads
+{
+    public static AuditEntry Denied(Document doc, string reason, string? purpose) =>
+        Denied(doc.Id, reason, purpose, doc.Classification);
+
+    public static AuditEntry Denied(Guid documentId, string reason, string? purpose, string? classification = null) =>
+        new("DOCUMENT", "ReadDocument", nameof(Document), documentId.ToString(),
+            new Dictionary<string, string?> { ["refused"] = reason, ["purpose"] = purpose, ["classification"] = classification })
+        {
+            Outcome = AuditOutcome.Denied,
+        };
+}
+
 internal sealed class ReadDocumentContentHandler(IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentStorage storage, IUserRoleQuery roles,
     IExecutionContext execution, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<ReadDocumentContent, DocumentContent>
 {
@@ -486,6 +503,7 @@ internal sealed class ReadDocumentContentHandler(IDocumentRepository documents, 
         {
             if (string.IsNullOrWhiteSpace(command.Purpose))
             {
+                audit.Record(DocumentReads.Denied(doc, "PURPOSE_REQUIRED", null));
                 return Error.Validation(DocumentErrorCodes.PurposeRequired, "Reading a sensitive document needs a purpose, which is recorded (DOC-003).");
             }
 
@@ -495,7 +513,7 @@ internal sealed class ReadDocumentContentHandler(IDocumentRepository documents, 
                 var held = await roles.EffectiveRoles(tenant.RequireTenantId(), user.Value, cancellationToken);
                 if (category is null || !held.Intersect(category.Value.AllowedRoles, StringComparer.Ordinal).Any())
                 {
-                    audit.Record(new AuditEntry("DOCUMENT", "ReadDocumentDenied", nameof(Document), doc.Id.ToString()));
+                    audit.Record(DocumentReads.Denied(doc, "ROLE_REQUIRED", command.Purpose));
                     return Error.Forbidden(DocumentErrorCodes.RoleRequired, $"Documents of category {doc.CategoryCode} are read only by its allowed roles (DOC-004).");
                 }
             }

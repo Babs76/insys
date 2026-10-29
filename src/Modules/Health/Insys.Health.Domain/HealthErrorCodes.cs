@@ -33,6 +33,10 @@ public static class HealthErrorCodes
     [ErrorCode(422, "error.health.code_not_in_force")]
     public const string CodeNotInForce = "HEALTH_CODE_NOT_IN_FORCE";
 
+    /// <summary>Reading medical information needs a purpose, which is audited with the read (HLT-008).</summary>
+    [ErrorCode(422, "error.health.purpose_required")]
+    public const string PurposeRequired = "HEALTH_PURPOSE_REQUIRED";
+
     /// <summary>A provider portal request names a member number (and dependant suffix) that has no current membership.</summary>
     [ErrorCode(422, "error.health.member_not_found")]
     public const string MemberNotFound = "HEALTH_MEMBER_NOT_FOUND";

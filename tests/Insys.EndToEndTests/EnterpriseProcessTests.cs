@@ -723,6 +723,13 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         file.Content.Headers.ContentDisposition!.FileName!.Trim('"').ShouldBe($"RPT-GWPX-{exported:N}.csv");
         (await file.Content.ReadAsStringAsync()).ShouldBe($"report_code,from,to,metric,total\r\nRPT-GWPX,{Today:yyyy-MM-dd},{Today:yyyy-MM-dd},GWP,3050.00\r\n");
         (await (await _maker.GetAsync($"/api/v1/compliance/report-runs/{run}/export")).Code()).ShouldBe("REPORT_NOT_EXPORTED");
+        // Each download is audited once; one the catalogue doesn't allow your roles is DENIED.
+        (await (await _checker.GetAsync($"/api/v1/compliance/report-runs/{exported}/export")).Code()).ShouldBe("REPORT_NOT_ALLOWED");
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(concat_ws('|', outcome, coalesce(details->>'refused', '-')), ',' ORDER BY occurred_at)
+            FROM audit.audit_event WHERE tenant_id = @t AND operation = 'DownloadReportExport' AND target_id = @r
+            """, ("t", Tenant), ("r", exported.ToString()))).ShouldBe("SUCCESS|-,DENIED|REPORT_NOT_ALLOWED");
         (await (await _maker.Send(HttpMethod.Post, "/api/v1/compliance/report-runs", new { reportCode = "RPT-GWP", from = Today, to = Today, metrics = new[] { "GWP" }, export = true },
             idempotent: true)).Code()).ShouldBe("REPORT_NOT_ALLOWED");
         (await (await _checker.Send(HttpMethod.Post, "/api/v1/compliance/report-runs", new { reportCode = "RPT-GWP", from = Today, to = Today, metrics = new[] { "GWP" }, export = false },

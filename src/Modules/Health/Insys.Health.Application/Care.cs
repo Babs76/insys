@@ -62,8 +62,11 @@ public sealed record ConfirmConditionsMet(Guid PreauthorisationId) : ICommand<Pr
 
 public sealed record GetAuthorisation(Guid PreauthorisationId) : IQuery<PreauthorisationView>;
 
-/// <summary>A preauthorisation's diagnosis codes (BR-072), for a clinical purpose only (HLT-008).</summary>
-public sealed record GetAuthorisationClinical(Guid PreauthorisationId) : IQuery<PreauthorisationClinicalView>;
+/// <summary>
+/// Command ReadAuthorisationClinical: a preauthorisation's diagnosis codes (BR-072), for a stated clinical purpose only
+/// (HLT-008). A command, not a query, so its audit entry is written: every read, granted or refused, leaves exactly one.
+/// </summary>
+public sealed record ReadAuthorisationClinical(Guid PreauthorisationId, string? Purpose) : ICommand<PreauthorisationClinicalView>;
 
 public sealed record SubmitMedicalClaim(string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate, string FormatCode, string Currency,
     Guid? PreauthorisationId, IReadOnlyList<ClaimLineRequest> Lines) : ICommand<MedicalClaimView>;
@@ -332,25 +335,48 @@ internal sealed class AuthorisationHandlers(IHealthRepository health, IHealthCod
     }
 }
 
-internal sealed class GetAuthorisationHandler(IHealthRepository health, IAuditTrail audit) :
-    IQueryHandler<GetAuthorisation, PreauthorisationView>, IQueryHandler<GetAuthorisationClinical, PreauthorisationClinicalView>
+internal sealed class GetAuthorisationHandler(IHealthRepository health) : IQueryHandler<GetAuthorisation, PreauthorisationView>
 {
     public async Task<Result<PreauthorisationView>> Handle(GetAuthorisation query, CancellationToken cancellationToken) =>
         await health.Preauthorisation(query.PreauthorisationId, cancellationToken) is { } preauth
             ? PreauthorisationView.From(preauth, await health.MembershipCurrency(preauth.MembershipId, cancellationToken))
             : Error.NotFound(ErrorCodes.NotFound, "The authorisation was not found.");
+}
 
-    /// <summary>BR-072: the diagnosis codes are medical information, so each read is audited (HLT-008, IAM-006).</summary>
-    public async Task<Result<PreauthorisationClinicalView>> Handle(GetAuthorisationClinical query, CancellationToken cancellationToken)
+/// <summary>
+/// BR-072: the diagnosis codes are medical information, so each read is audited with its purpose (HLT-008, IAM-006): the
+/// actor and time come with the entry. A read refused here (no purpose, or a preauthorisation not found or outside the
+/// caller's scope) is audited as Denied; one refused for want of the permission is audited by the endpoint's policy.
+/// </summary>
+internal sealed class ReadAuthorisationClinicalHandler(IHealthRepository health, IAuditTrail audit) : ICommandHandler<ReadAuthorisationClinical, PreauthorisationClinicalView>
+{
+    public const int PurposeMaxLength = 200;
+
+    public async Task<Result<PreauthorisationClinicalView>> Handle(ReadAuthorisationClinical command, CancellationToken cancellationToken)
     {
-        if (await health.Preauthorisation(query.PreauthorisationId, cancellationToken) is not { } preauth)
+        var target = command.PreauthorisationId.ToString();
+        if (string.IsNullOrWhiteSpace(command.Purpose) || command.Purpose.Length > PurposeMaxLength)
         {
+            audit.Record(Denied(target, "PURPOSE_REQUIRED", null));
+            return Error.Validation(HealthErrorCodes.PurposeRequired, $"Reading clinical information needs a purpose of up to {PurposeMaxLength} characters, which is recorded (HLT-008).");
+        }
+
+        if (await health.Preauthorisation(command.PreauthorisationId, cancellationToken) is not { } preauth)
+        {
+            audit.Record(Denied(target, "NOT_FOUND", command.Purpose));
             return Error.NotFound(ErrorCodes.NotFound, "The authorisation was not found.");
         }
 
-        audit.Record(new AuditEntry("HEALTH", "ReadClinical", nameof(Preauthorisation), preauth.Id.ToString()));
+        audit.Record(new AuditEntry("HEALTH", "ReadClinical", nameof(Preauthorisation), target,
+            new Dictionary<string, string?> { ["purpose"] = command.Purpose }));
         return new PreauthorisationClinicalView(preauth.Id, preauth.AuthNumber, preauth.DiagnosisCodes, preauth.ClinicalReviewer);
     }
+
+    private static AuditEntry Denied(string target, string reason, string? purpose) =>
+        new("HEALTH", "ReadClinical", nameof(Preauthorisation), target, new Dictionary<string, string?> { ["refused"] = reason, ["purpose"] = purpose })
+        {
+            Outcome = AuditOutcome.Denied,
+        };
 }
 
 /// <summary>

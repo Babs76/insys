@@ -184,11 +184,14 @@ public sealed class HealthModule : IModule
         health.MapGet("/preauthorisations/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetAuthorisation(id), ct)).ToHttp(Results.Ok))
             .Produces<PreauthorisationView>(StatusCodes.Status200OK)
             .WithName("HealthGetAuthorisation").WithSummary("Get a preauthorisation").RequirePermission(HealthPermissions.PreauthRead);
-        health.MapGet("/preauthorisations/{id:guid}/clinical", async (Guid id, IDispatcher d, CancellationToken ct) =>
-                (await d.Query(new GetAuthorisationClinical(id), ct)).ToHttp(Results.Ok))
+        health.MapGet("/preauthorisations/{id:guid}/clinical", async (Guid id,
+                [System.ComponentModel.Description("Why the diagnosis codes are read (up to 200 characters), recorded with the read (HLT-008). Required.")] string? purpose,
+                IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new ReadAuthorisationClinical(id, purpose), ct)).ToHttp(Results.Ok))
             .Produces<PreauthorisationClinicalView>(StatusCodes.Status200OK)
             .WithName("HealthGetAuthorisationClinical")
-            .WithSummary("A preauthorisation's diagnosis codes, for clinical review only; each read is audited (BR-072, HLT-008)")
+            .WithSummary("A preauthorisation's diagnosis codes, for clinical review only; each read is audited with its purpose (BR-072, HLT-008)")
+            .WithDescription("Every read leaves one audit entry (operation ReadClinical): who, when, which preauthorisation and the purpose. A read with no purpose (422 HEALTH_PURPOSE_REQUIRED), or of a preauthorisation not found or outside your scope (404), is audited as DENIED; one without the permission (403) is audited as an access denial.")
             .RequirePermission(HealthPermissions.PreauthReview);
         health.MapPost("/preauthorisations/{id:guid}/review", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReviewAuthorisation(id), ct)).ToHttp(Results.Ok))
