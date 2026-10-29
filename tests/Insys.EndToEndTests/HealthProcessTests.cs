@@ -330,7 +330,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             .ShouldBe($"SUCCESS|{makerId}|Clinical review of the request|-,DENIED|{makerId}|-|PURPOSE_REQUIRED");
         (await _db.ScalarAsOwner<string>("SELECT string_agg(outcome || ':' || (details->>'refused'), ',') FROM audit.audit_event WHERE tenant_id = @t AND operation = 'ReadClinical' AND target_id = @p",
             ("t", Tenant), ("p", unknown.ToString()))).ShouldBe("DENIED:NOT_FOUND");
-        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE tenant_id = @t AND operation = 'AccessDenied' AND outcome = 'DENIED' AND target_id = @e",
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE tenant_id = @t AND operation = 'AccessDenied' AND outcome = 'DENIED' AND details->>'path' = @e",
             ("t", Tenant), ("e", $"GET {clinicalPath}"))).ShouldBe(1L);
 
         // MedicalClaimSubmitted; ValidateClaim; AdjudicateClaim (ADR-012): contract tariff 1 000, allowed 1 000, 10% co-payment 100, paid 900, the member pays 300.

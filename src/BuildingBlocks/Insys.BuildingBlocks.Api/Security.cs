@@ -237,7 +237,8 @@ public sealed class ProblemAuthorizationResultHandler : IAuthorizationMiddleware
         {
             await sink.Record(new AuditRecord(tenantId, execution.ActorId, "USER",
                 new AuditEntry("ACCESS", "AccessDenied", "Endpoint", $"{context.Request.Method} {context.Request.Path}",
-                    new Dictionary<string, string?> { ["requiredPermission"] = required }),
+                    // The target is cut to the column's 80 characters; the full path (never the query string) keeps which record was asked for.
+                    new Dictionary<string, string?> { ["requiredPermission"] = required, ["path"] = $"{context.Request.Method} {context.Request.Path}" }),
                 AuditOutcome.Denied, DateTimeOffset.UtcNow, execution.CorrelationId), context.RequestAborted);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

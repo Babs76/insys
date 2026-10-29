@@ -25974,7 +25974,8 @@
         "tags": [
           "Health"
         ],
-        "summary": "A preauthorisation\u0027s diagnosis codes, for clinical review only; each read is audited (BR-072, HLT-008)",
+        "summary": "A preauthorisation\u0027s diagnosis codes, for clinical review only; each read is audited with its purpose (BR-072, HLT-008)",
+        "description": "Every read leaves one audit entry (operation ReadClinical): who, when, which preauthorisation and the purpose. A read with no purpose (422 HEALTH_PURPOSE_REQUIRED), or of a preauthorisation not found or outside your scope (404), is audited as DENIED; one without the permission (403) is audited as an access denial.",
         "operationId": "HealthGetAuthorisationClinical",
         "parameters": [
           {
@@ -25984,6 +25985,14 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "description": "Why the diagnosis codes are read (up to 200 characters), recorded with the read (HLT-008). Required.",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -34879,6 +34888,7 @@
                 "cfg_scheme_renewal_rules",
                 "cfg_segregation_of_duties_conf",
                 "cfg_service_account_scopes",
+                "cfg_service_types",
                 "cfg_settlement_authority_limit",
                 "cfg_sla_definitions",
                 "cfg_special_conditions_and_cla",
@@ -35320,6 +35330,7 @@
                 "cfg_scheme_renewal_rules",
                 "cfg_segregation_of_duties_conf",
                 "cfg_service_account_scopes",
+                "cfg_service_types",
                 "cfg_settlement_authority_limit",
                 "cfg_sla_definitions",
                 "cfg_special_conditions_and_cla",
@@ -36800,7 +36811,8 @@
           },
           "collectionMethod": {
             "type": "string",
-            "x-code-list": "billing.ref_collection_methods"
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
           },
           "status": {
             "$ref": "#/components/schemas/BillingAccountStatus"
@@ -36873,7 +36885,8 @@
         "properties": {
           "bucketCode": {
             "type": "string",
-            "x-code-list": "billing.cfg_arrears_ageing_buckets"
+            "x-code-list": "billing.cfg_arrears_ageing_buckets",
+            "x-code-list-column": "bucket_code"
           },
           "daysOverdue": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -36942,7 +36955,8 @@
           },
           "frequency": {
             "type": "string",
-            "x-code-list": "billing.ref_billing_frequencies"
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           },
           "startDate": {
             "type": "string",
@@ -36982,7 +36996,8 @@
           },
           "reasonCode": {
             "type": "string",
-            "x-code-list": "billing.ref_adjustment_and_reversal_reason_codes"
+            "x-code-list": "billing.ref_adjustment_and_reversal_reason_codes",
+            "x-code-list-column": "code"
           }
         }
       },
@@ -37242,7 +37257,8 @@
           },
           "collectionMethod": {
             "type": "string",
-            "x-code-list": "billing.ref_collection_methods"
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
           },
           "mandateRef": {
             "type": [
@@ -37336,7 +37352,8 @@
           },
           "reasonCode": {
             "type": "string",
-            "x-code-list": "billing.ref_adjustment_and_reversal_reason_codes"
+            "x-code-list": "billing.ref_adjustment_and_reversal_reason_codes",
+            "x-code-list-column": "code"
           },
           "bankAccountId": {
             "type": "string",
@@ -37389,7 +37406,8 @@
           },
           "reasonCode": {
             "type": "string",
-            "x-code-list": "billing.ref_adjustment_and_reversal_reason_codes"
+            "x-code-list": "billing.ref_adjustment_and_reversal_reason_codes",
+            "x-code-list-column": "code"
           },
           "status": {
             "$ref": "#/components/schemas/BillingRefundStatus"
@@ -37486,7 +37504,8 @@
           },
           "frequency": {
             "type": "string",
-            "x-code-list": "billing.ref_billing_frequencies"
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           },
           "startDate": {
             "type": "string",
@@ -37767,7 +37786,8 @@
           },
           "reserveType": {
             "type": "string",
-            "x-code-list": "claims.ref_reserve_types"
+            "x-code-list": "claims.ref_reserve_types",
+            "x-code-list-column": "code"
           }
         }
       },
@@ -37779,7 +37799,8 @@
         "properties": {
           "evidenceType": {
             "type": "string",
-            "x-code-list": "claims.ref_evidence_types"
+            "x-code-list": "claims.ref_evidence_types",
+            "x-code-list-column": "code"
           }
         }
       },
@@ -37795,7 +37816,8 @@
         "properties": {
           "evidenceType": {
             "type": "string",
-            "x-code-list": "claims.ref_evidence_types"
+            "x-code-list": "claims.ref_evidence_types",
+            "x-code-list-column": "code"
           },
           "status": {
             "enum": [
@@ -38025,7 +38047,8 @@
           },
           "reserveType": {
             "type": "string",
-            "x-code-list": "claims.ref_reserve_types"
+            "x-code-list": "claims.ref_reserve_types",
+            "x-code-list-column": "code"
           },
           "status": {
             "$ref": "#/components/schemas/ClaimsFrameworkInstructionStatus"
@@ -38162,7 +38185,8 @@
           },
           "reserveType": {
             "type": "string",
-            "x-code-list": "claims.ref_reserve_types"
+            "x-code-list": "claims.ref_reserve_types",
+            "x-code-list-column": "code"
           },
           "amount": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -38240,7 +38264,8 @@
         "properties": {
           "evidenceType": {
             "type": "string",
-            "x-code-list": "claims.ref_evidence_types"
+            "x-code-list": "claims.ref_evidence_types",
+            "x-code-list-column": "code"
           },
           "documentId": {
             "type": "string",
@@ -38270,7 +38295,8 @@
           },
           "reserveType": {
             "type": "string",
-            "x-code-list": "claims.ref_reserve_types"
+            "x-code-list": "claims.ref_reserve_types",
+            "x-code-list-column": "code"
           },
           "amount": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -41173,7 +41199,8 @@
               "PORTAL"
             ],
             "type": "string",
-            "x-code-list": "document.cfg_delivery_channel_settings"
+            "x-code-list": "document.cfg_delivery_channel_settings",
+            "x-code-list-column": "channel"
           },
           "recipient": {
             "type": "string"
@@ -41268,7 +41295,8 @@
           },
           "categoryCode": {
             "type": "string",
-            "x-code-list": "document.ref_document_categories"
+            "x-code-list": "document.ref_document_categories",
+            "x-code-list-column": "category_code"
           },
           "classification": {
             "type": "string"
@@ -41436,7 +41464,8 @@
         "properties": {
           "reasonCode": {
             "type": "string",
-            "x-code-list": "document.ref_legal_hold_reason_codes"
+            "x-code-list": "document.ref_legal_hold_reason_codes",
+            "x-code-list-column": "code"
           }
         }
       },
@@ -41461,7 +41490,8 @@
           },
           "reasonCode": {
             "type": "string",
-            "x-code-list": "document.ref_legal_hold_reason_codes"
+            "x-code-list": "document.ref_legal_hold_reason_codes",
+            "x-code-list-column": "code"
           },
           "placedBy": {
             "type": "string",
@@ -41582,7 +41612,8 @@
           },
           "reasonCode": {
             "type": "string",
-            "x-code-list": "document.ref_legal_hold_reason_codes"
+            "x-code-list": "document.ref_legal_hold_reason_codes",
+            "x-code-list-column": "code"
           }
         }
       },
@@ -41627,7 +41658,8 @@
           },
           "reasonCode": {
             "type": "string",
-            "x-code-list": "document.ref_legal_hold_reason_codes"
+            "x-code-list": "document.ref_legal_hold_reason_codes",
+            "x-code-list-column": "code"
           },
           "placedBy": {
             "type": "string",
@@ -41705,7 +41737,8 @@
         "properties": {
           "categoryCode": {
             "type": "string",
-            "x-code-list": "document.ref_document_categories"
+            "x-code-list": "document.ref_document_categories",
+            "x-code-list-column": "category_code"
           },
           "businessRefType": {
             "type": "string"
@@ -42539,7 +42572,8 @@
         "properties": {
           "reasonCode": {
             "type": "string",
-            "x-code-list": "general.cfg_cancellation_reasons_and_refund_rules"
+            "x-code-list": "general.cfg_cancellation_reasons_and_refund_rules",
+            "x-code-list-column": "reason_code"
           },
           "effectiveDate": {
             "type": "string",
@@ -42561,7 +42595,8 @@
         "properties": {
           "reasonCode": {
             "type": "string",
-            "x-code-list": "general.cfg_cancellation_reasons_and_refund_rules"
+            "x-code-list": "general.cfg_cancellation_reasons_and_refund_rules",
+            "x-code-list-column": "reason_code"
           },
           "effectiveDate": {
             "type": "string",
@@ -42621,7 +42656,8 @@
           },
           "role": {
             "type": "string",
-            "x-code-list": "general.cfg_claim_party_roles"
+            "x-code-list": "general.cfg_claim_party_roles",
+            "x-code-list-column": "code"
           },
           "insurerRef": {
             "type": [
@@ -42742,18 +42778,21 @@
           },
           "causeCode": {
             "type": "string",
-            "x-code-list": "general.ref_loss_cause_codes"
+            "x-code-list": "general.ref_loss_cause_codes",
+            "x-code-list-column": "cause_code"
           },
           "perilCode": {
             "type": "string",
-            "x-code-list": "general.ref_peril_codes"
+            "x-code-list": "general.ref_peril_codes",
+            "x-code-list-column": "peril_code"
           },
           "catEventCode": {
             "type": [
               "null",
               "string"
             ],
-            "x-code-list": "general.mst_catastrophe_event_register"
+            "x-code-list": "general.mst_catastrophe_event_register",
+            "x-code-list-column": "event_code"
           },
           "status": {
             "$ref": "#/components/schemas/GeneralClaimStatus"
@@ -42763,7 +42802,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "claims.ref_claim_decision_reason_codes"
+            "x-code-list": "claims.ref_claim_decision_reason_codes",
+            "x-code-list-column": "code"
           },
           "decisionRationale": {
             "type": [
@@ -42974,7 +43014,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "billing.ref_billing_frequencies"
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           }
         }
       },
@@ -42987,7 +43028,8 @@
         "properties": {
           "decisionCode": {
             "type": "string",
-            "x-code-list": "claims.ref_claim_decision_reason_codes"
+            "x-code-list": "claims.ref_claim_decision_reason_codes",
+            "x-code-list-column": "code"
           },
           "rationale": {
             "type": "string"
@@ -43003,7 +43045,8 @@
         "properties": {
           "disposalMethod": {
             "type": "string",
-            "x-code-list": "general.ref_salvage_disposal_methods"
+            "x-code-list": "general.ref_salvage_disposal_methods",
+            "x-code-list-column": "code"
           },
           "proceeds": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -43065,7 +43108,8 @@
         "properties": {
           "endorsementType": {
             "type": "string",
-            "x-code-list": "general.cfg_endorsement_types"
+            "x-code-list": "general.cfg_endorsement_types",
+            "x-code-list-column": "code"
           },
           "effectiveDate": {
             "type": "string",
@@ -43121,7 +43165,8 @@
           },
           "endorsementType": {
             "type": "string",
-            "x-code-list": "general.cfg_endorsement_types"
+            "x-code-list": "general.cfg_endorsement_types",
+            "x-code-list-column": "code"
           },
           "effectiveDate": {
             "type": "string",
@@ -43281,11 +43326,13 @@
           },
           "billingFrequency": {
             "type": "string",
-            "x-code-list": "billing.ref_billing_frequencies"
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           },
           "collectionMethod": {
             "type": "string",
-            "x-code-list": "billing.ref_collection_methods"
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
           },
           "renewalOfPolicyId": {
             "type": [
@@ -43329,18 +43376,21 @@
           },
           "causeCode": {
             "type": "string",
-            "x-code-list": "general.ref_loss_cause_codes"
+            "x-code-list": "general.ref_loss_cause_codes",
+            "x-code-list-column": "cause_code"
           },
           "perilCode": {
             "type": "string",
-            "x-code-list": "general.ref_peril_codes"
+            "x-code-list": "general.ref_peril_codes",
+            "x-code-list-column": "peril_code"
           },
           "catEventCode": {
             "type": [
               "null",
               "string"
             ],
-            "x-code-list": "general.mst_catastrophe_event_register"
+            "x-code-list": "general.mst_catastrophe_event_register",
+            "x-code-list-column": "event_code"
           },
           "description": {
             "type": [
@@ -43364,7 +43414,8 @@
           },
           "role": {
             "type": "string",
-            "x-code-list": "general.cfg_claim_party_roles"
+            "x-code-list": "general.cfg_claim_party_roles",
+            "x-code-list-column": "code"
           },
           "insurerRef": {
             "type": [
@@ -43557,14 +43608,16 @@
               "null",
               "string"
             ],
-            "x-code-list": "billing.ref_billing_frequencies"
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           },
           "collectionMethod": {
             "type": [
               "null",
               "string"
             ],
-            "x-code-list": "billing.ref_collection_methods"
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
           },
           "renewalOfId": {
             "type": [
@@ -43674,11 +43727,13 @@
           },
           "causeCode": {
             "type": "string",
-            "x-code-list": "general.ref_loss_cause_codes"
+            "x-code-list": "general.ref_loss_cause_codes",
+            "x-code-list-column": "cause_code"
           },
           "perilCode": {
             "type": "string",
-            "x-code-list": "general.ref_peril_codes"
+            "x-code-list": "general.ref_peril_codes",
+            "x-code-list-column": "peril_code"
           },
           "description": {
             "type": [
@@ -43787,11 +43842,13 @@
         "properties": {
           "code": {
             "type": "string",
-            "x-code-list": "general.ref_loss_cause_codes"
+            "x-code-list": "general.ref_loss_cause_codes",
+            "x-code-list-column": "cause_code"
           },
           "perilCode": {
             "type": "string",
-            "x-code-list": "general.ref_peril_codes"
+            "x-code-list": "general.ref_peril_codes",
+            "x-code-list-column": "peril_code"
           },
           "label": {
             "type": "string"
@@ -43828,7 +43885,8 @@
         "properties": {
           "code": {
             "type": "string",
-            "x-code-list": "general.ref_peril_codes"
+            "x-code-list": "general.ref_peril_codes",
+            "x-code-list-column": "peril_code"
           },
           "label": {
             "type": "string"
@@ -43941,7 +43999,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "billing.ref_billing_frequencies"
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           }
         }
       },
@@ -44082,7 +44141,8 @@
           },
           "objectType": {
             "type": "string",
-            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas"
+            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas",
+            "x-code-list-column": "object_type"
           },
           "attributes": {
             "$ref": "#/components/schemas/JsonElement"
@@ -44101,7 +44161,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "general.ref_valuation_bases"
+            "x-code-list": "general.ref_valuation_bases",
+            "x-code-list-column": "code"
           },
           "valuationCurrency": {
             "type": [
@@ -44126,7 +44187,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "general.ref_risk_zones"
+            "x-code-list": "general.ref_risk_zones",
+            "x-code-list-column": "zone_code"
           }
         }
       },
@@ -44152,7 +44214,8 @@
           },
           "objectType": {
             "type": "string",
-            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas"
+            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas",
+            "x-code-list-column": "object_type"
           },
           "attributes": {
             "$ref": "#/components/schemas/JsonElement"
@@ -44171,7 +44234,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "general.ref_valuation_bases"
+            "x-code-list": "general.ref_valuation_bases",
+            "x-code-list-column": "code"
           },
           "valuationCurrency": {
             "type": [
@@ -44196,7 +44260,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "general.ref_risk_zones"
+            "x-code-list": "general.ref_risk_zones",
+            "x-code-list-column": "zone_code"
           },
           "status": {
             "$ref": "#/components/schemas/GeneralRiskObjectStatus"
@@ -44575,7 +44640,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "claims.ref_reserve_types"
+            "x-code-list": "claims.ref_reserve_types",
+            "x-code-list-column": "code"
           }
         }
       },
@@ -44589,7 +44655,8 @@
         "properties": {
           "recoveryType": {
             "type": "string",
-            "x-code-list": "general.ref_recovery_types"
+            "x-code-list": "general.ref_recovery_types",
+            "x-code-list-column": "code"
           },
           "counterpartyPartyId": {
             "type": [
@@ -44642,7 +44709,8 @@
           },
           "recoveryType": {
             "type": "string",
-            "x-code-list": "general.ref_recovery_types"
+            "x-code-list": "general.ref_recovery_types",
+            "x-code-list-column": "code"
           },
           "counterpartyPartyId": {
             "type": [
@@ -44697,7 +44765,8 @@
         "properties": {
           "reasonCode": {
             "type": "string",
-            "x-code-list": "general.ref_referral_reason_codes"
+            "x-code-list": "general.ref_referral_reason_codes",
+            "x-code-list-column": "code"
           }
         }
       },
@@ -44715,7 +44784,8 @@
           },
           "decisionCode": {
             "type": "string",
-            "x-code-list": "general.ref_underwriting_decision_codes"
+            "x-code-list": "general.ref_underwriting_decision_codes",
+            "x-code-list-column": "code"
           },
           "specialConditions": {
             "type": [
@@ -44753,7 +44823,8 @@
           },
           "reasonCode": {
             "type": "string",
-            "x-code-list": "general.ref_referral_reason_codes"
+            "x-code-list": "general.ref_referral_reason_codes",
+            "x-code-list-column": "code"
           },
           "status": {
             "enum": [
@@ -44782,7 +44853,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "general.ref_underwriting_decision_codes"
+            "x-code-list": "general.ref_underwriting_decision_codes",
+            "x-code-list-column": "code"
           },
           "specialConditions": {
             "type": "array",
@@ -44812,7 +44884,8 @@
         "properties": {
           "objectType": {
             "type": "string",
-            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas"
+            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas",
+            "x-code-list-column": "object_type"
           },
           "attributes": {
             "$ref": "#/components/schemas/JsonElement"
@@ -44831,7 +44904,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "general.ref_valuation_bases"
+            "x-code-list": "general.ref_valuation_bases",
+            "x-code-list-column": "code"
           },
           "subdivision": {
             "type": [
@@ -44850,7 +44924,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "general.ref_risk_zones"
+            "x-code-list": "general.ref_risk_zones",
+            "x-code-list-column": "zone_code"
           },
           "valuationCurrency": {
             "type": [
@@ -44912,7 +44987,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "general.ref_valuation_bases"
+            "x-code-list": "general.ref_valuation_bases",
+            "x-code-list-column": "code"
           },
           "valuationCurrency": {
             "type": [
@@ -44951,7 +45027,8 @@
           },
           "objectType": {
             "type": "string",
-            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas"
+            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas",
+            "x-code-list-column": "object_type"
           },
           "attributes": {
             "$ref": "#/components/schemas/JsonElement"
@@ -44978,7 +45055,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "general.ref_valuation_bases"
+            "x-code-list": "general.ref_valuation_bases",
+            "x-code-list-column": "code"
           },
           "valuationCurrency": {
             "type": [
@@ -45003,7 +45081,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "general.ref_risk_zones"
+            "x-code-list": "general.ref_risk_zones",
+            "x-code-list-column": "zone_code"
           },
           "status": {
             "$ref": "#/components/schemas/GeneralRiskObjectStatus"
@@ -45145,7 +45224,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "general.ref_salvage_disposal_methods"
+            "x-code-list": "general.ref_salvage_disposal_methods",
+            "x-code-list-column": "code"
           },
           "proceeds": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -45181,11 +45261,13 @@
           },
           "reserveType": {
             "type": "string",
-            "x-code-list": "claims.ref_reserve_types"
+            "x-code-list": "claims.ref_reserve_types",
+            "x-code-list-column": "code"
           },
           "decisionCode": {
             "type": "string",
-            "x-code-list": "claims.ref_claim_decision_reason_codes"
+            "x-code-list": "claims.ref_claim_decision_reason_codes",
+            "x-code-list-column": "code"
           },
           "rationale": {
             "type": "string"
@@ -45220,7 +45302,8 @@
           },
           "reserveType": {
             "type": "string",
-            "x-code-list": "claims.ref_reserve_types"
+            "x-code-list": "claims.ref_reserve_types",
+            "x-code-list-column": "code"
           },
           "pending": {
             "type": "boolean"
@@ -45484,7 +45567,8 @@
           },
           "serviceType": {
             "type": "string",
-            "x-code-list": "health.cfg_authorisation_validity_periods"
+            "x-code-list": "health.cfg_service_types",
+            "x-code-list-column": "service_type"
           },
           "serviceDate": {
             "type": [
@@ -45703,7 +45787,8 @@
           },
           "dependantType": {
             "type": "string",
-            "x-code-list": "health.cfg_dependant_types_and_age_limits"
+            "x-code-list": "health.cfg_dependant_types_and_age_limits",
+            "x-code-list-column": "type_code"
           },
           "student": {
             "type": "boolean"
@@ -45828,11 +45913,13 @@
           },
           "serviceType": {
             "type": "string",
-            "x-code-list": "health.cfg_authorisation_validity_periods"
+            "x-code-list": "health.cfg_service_types",
+            "x-code-list-column": "service_type"
           },
           "responseCode": {
             "type": "string",
-            "x-code-list": "health.ref_eligibility_response_codes"
+            "x-code-list": "health.ref_eligibility_response_codes",
+            "x-code-list-column": "code"
           },
           "decidedAt": {
             "type": "string",
@@ -45916,15 +46003,18 @@
               "null",
               "string"
             ],
-            "x-code-list": "health.cfg_scheme_member_categories"
+            "x-code-list": "health.cfg_scheme_member_categories",
+            "x-code-list-column": "category_code"
           },
           "planCode": {
             "type": "string",
-            "x-code-list": "health.cfg_plans_and_options"
+            "x-code-list": "health.cfg_plans_and_options",
+            "x-code-list-column": "plan_code"
           },
           "optionCode": {
             "type": "string",
-            "x-code-list": "health.cfg_plans_and_options"
+            "x-code-list": "health.cfg_plans_and_options",
+            "x-code-list-column": "option_code"
           },
           "startDate": {
             "type": "string",
@@ -45949,7 +46039,8 @@
           },
           "collectionMethod": {
             "type": "string",
-            "x-code-list": "billing.ref_collection_methods"
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
           },
           "facts": {
             "oneOf": [
@@ -46852,11 +46943,13 @@
         "properties": {
           "planCode": {
             "type": "string",
-            "x-code-list": "health.cfg_plans_and_options"
+            "x-code-list": "health.cfg_plans_and_options",
+            "x-code-list-column": "plan_code"
           },
           "optionCode": {
             "type": "string",
-            "x-code-list": "health.cfg_plans_and_options"
+            "x-code-list": "health.cfg_plans_and_options",
+            "x-code-list-column": "option_code"
           },
           "effectiveDate": {
             "type": "string",
@@ -47188,11 +47281,13 @@
             "items": {
               "type": "string"
             },
-            "x-code-list": "health.ref_diagnosis_codes"
+            "x-code-list": "health.ref_diagnosis_codes",
+            "x-code-list-column": "code"
           },
           "serviceType": {
             "type": "string",
-            "x-code-list": "health.cfg_authorisation_validity_periods"
+            "x-code-list": "health.cfg_authorisation_validity_periods",
+            "x-code-list-column": "service_type"
           },
           "lines": {
             "type": "array",
@@ -47443,7 +47538,8 @@
             "items": {
               "type": "string"
             },
-            "x-code-list": "health.ref_diagnosis_codes"
+            "x-code-list": "health.ref_diagnosis_codes",
+            "x-code-list-column": "code"
           },
           "clinicalReviewer": {
             "type": [
@@ -47674,7 +47770,8 @@
         "properties": {
           "sponsorCode": {
             "type": "string",
-            "x-code-list": "health.mst_sponsor_register"
+            "x-code-list": "health.mst_sponsor_register",
+            "x-code-list-column": "sponsor_code"
           },
           "startDate": {
             "type": "string",
@@ -47784,11 +47881,13 @@
             "items": {
               "type": "string"
             },
-            "x-code-list": "health.ref_diagnosis_codes"
+            "x-code-list": "health.ref_diagnosis_codes",
+            "x-code-list-column": "code"
           },
           "serviceType": {
             "type": "string",
-            "x-code-list": "health.cfg_authorisation_validity_periods"
+            "x-code-list": "health.cfg_authorisation_validity_periods",
+            "x-code-list-column": "service_type"
           },
           "lines": {
             "type": "array",
@@ -47843,7 +47942,8 @@
           },
           "sponsorCode": {
             "type": "string",
-            "x-code-list": "health.mst_sponsor_register"
+            "x-code-list": "health.mst_sponsor_register",
+            "x-code-list-column": "sponsor_code"
           },
           "status": {
             "$ref": "#/components/schemas/HealthSchemeStatus"
@@ -50134,7 +50234,8 @@
         "properties": {
           "alterationCode": {
             "type": "string",
-            "x-code-list": "life.cfg_alteration_types"
+            "x-code-list": "life.cfg_alteration_types",
+            "x-code-list-column": "alteration_code"
           },
           "effectiveDate": {
             "type": "string",
@@ -50195,7 +50296,8 @@
           },
           "relationshipCode": {
             "type": "string",
-            "x-code-list": "life.ref_beneficiary_relationship_types"
+            "x-code-list": "life.ref_beneficiary_relationship_types",
+            "x-code-list-column": "code"
           },
           "sharePct": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -50390,11 +50492,13 @@
           },
           "frequency": {
             "type": "string",
-            "x-code-list": "billing.ref_billing_frequencies"
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           },
           "collectionMethod": {
             "type": "string",
-            "x-code-list": "billing.ref_collection_methods"
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
           },
           "payerPartyId": {
             "type": [
@@ -50456,7 +50560,8 @@
           "decisionCode": {
             "maxLength": 15,
             "type": "string",
-            "x-code-list": "life.ref_underwriting_decision_codes"
+            "x-code-list": "life.ref_underwriting_decision_codes",
+            "x-code-list-column": "code"
           },
           "reason": {
             "maxLength": 20,
@@ -50669,12 +50774,14 @@
           "reserveType": {
             "maxLength": 15,
             "type": "string",
-            "x-code-list": "claims.ref_reserve_types"
+            "x-code-list": "claims.ref_reserve_types",
+            "x-code-list-column": "code"
           },
           "decisionReason": {
             "maxLength": 20,
             "type": "string",
-            "x-code-list": "claims.ref_claim_decision_reason_codes"
+            "x-code-list": "claims.ref_claim_decision_reason_codes",
+            "x-code-list-column": "code"
           },
           "rationale": {
             "type": "string"
@@ -50691,7 +50798,8 @@
           "decisionReason": {
             "maxLength": 20,
             "type": "string",
-            "x-code-list": "claims.ref_claim_decision_reason_codes"
+            "x-code-list": "claims.ref_claim_decision_reason_codes",
+            "x-code-list-column": "code"
           },
           "rationale": {
             "type": "string"
@@ -51128,7 +51236,8 @@
           },
           "decisionCode": {
             "type": "string",
-            "x-code-list": "life.ref_underwriting_decision_codes"
+            "x-code-list": "life.ref_underwriting_decision_codes",
+            "x-code-list-column": "code"
           },
           "loadingPct": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -51153,7 +51262,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "product.cfg_exclusion_library"
+            "x-code-list": "product.cfg_exclusion_library",
+            "x-code-list-column": "code"
           },
           "postponedUntil": {
             "type": [
@@ -51394,7 +51504,8 @@
           },
           "rateCode": {
             "type": "string",
-            "x-code-list": "life.cfg_policy_loan_rates"
+            "x-code-list": "life.cfg_policy_loan_rates",
+            "x-code-list-column": "rate_code"
           }
         }
       },
@@ -51729,7 +51840,8 @@
           },
           "claimType": {
             "type": "string",
-            "x-code-list": "life.ref_life_claim_types"
+            "x-code-list": "life.ref_life_claim_types",
+            "x-code-list-column": "code"
           },
           "eventDate": {
             "type": "string",
@@ -51740,7 +51852,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "life.ref_cause_of_event_codes"
+            "x-code-list": "life.ref_cause_of_event_codes",
+            "x-code-list-column": "code"
           },
           "claimantPartyId": {
             "type": "string",
@@ -52689,7 +52802,8 @@
           },
           "schemeType": {
             "type": "string",
-            "x-code-list": "life.ref_group_scheme_types"
+            "x-code-list": "life.ref_group_scheme_types",
+            "x-code-list-column": "code"
           },
           "startDate": {
             "type": "string",
@@ -52833,7 +52947,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "refdata.ref_country_subdivisions"
+            "x-code-list": "refdata.ref_country_subdivisions",
+            "x-code-list-column": "code"
           },
           "postalCode": {
             "type": [
@@ -52843,7 +52958,8 @@
           },
           "country": {
             "type": "string",
-            "x-code-list": "refdata.ref_countries"
+            "x-code-list": "refdata.ref_countries",
+            "x-code-list-column": "code"
           },
           "validFrom": {
             "type": "string",
@@ -52890,7 +53006,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "refdata.ref_country_subdivisions"
+            "x-code-list": "refdata.ref_country_subdivisions",
+            "x-code-list-column": "code"
           },
           "postalCode": {
             "type": [
@@ -52900,7 +53017,8 @@
           },
           "country": {
             "type": "string",
-            "x-code-list": "refdata.ref_countries"
+            "x-code-list": "refdata.ref_countries",
+            "x-code-list-column": "code"
           },
           "validFrom": {
             "type": "string",
@@ -53147,7 +53265,8 @@
         "properties": {
           "purposeCode": {
             "type": "string",
-            "x-code-list": "party.cfg_consent_purposes"
+            "x-code-list": "party.cfg_consent_purposes",
+            "x-code-list-column": "purpose_code"
           },
           "captureChannel": {
             "type": "string"
@@ -53173,7 +53292,8 @@
         "properties": {
           "purposeCode": {
             "type": "string",
-            "x-code-list": "party.cfg_consent_purposes"
+            "x-code-list": "party.cfg_consent_purposes",
+            "x-code-list-column": "purpose_code"
           },
           "granted": {
             "type": "boolean"
@@ -53210,7 +53330,8 @@
         "properties": {
           "channelType": {
             "type": "string",
-            "x-code-list": "party.ref_contact_channel_types"
+            "x-code-list": "party.ref_contact_channel_types",
+            "x-code-list-column": "code"
           },
           "value": {
             "type": "string"
@@ -53236,7 +53357,8 @@
           },
           "channelType": {
             "type": "string",
-            "x-code-list": "party.ref_contact_channel_types"
+            "x-code-list": "party.ref_contact_channel_types",
+            "x-code-list-column": "code"
           },
           "value": {
             "type": "string"
@@ -53678,11 +53800,13 @@
         "properties": {
           "docType": {
             "type": "string",
-            "x-code-list": "party.ref_identity_document_types"
+            "x-code-list": "party.ref_identity_document_types",
+            "x-code-list-column": "doc_type"
           },
           "country": {
             "type": "string",
-            "x-code-list": "refdata.ref_countries"
+            "x-code-list": "refdata.ref_countries",
+            "x-code-list-column": "code"
           },
           "number": {
             "type": "string"
@@ -53699,11 +53823,13 @@
         "properties": {
           "docType": {
             "type": "string",
-            "x-code-list": "party.ref_identity_document_types"
+            "x-code-list": "party.ref_identity_document_types",
+            "x-code-list-column": "doc_type"
           },
           "country": {
             "type": "string",
-            "x-code-list": "refdata.ref_countries"
+            "x-code-list": "refdata.ref_countries",
+            "x-code-list-column": "code"
           },
           "number": {
             "type": "string"
@@ -53727,11 +53853,13 @@
           },
           "docType": {
             "type": "string",
-            "x-code-list": "party.ref_identity_document_types"
+            "x-code-list": "party.ref_identity_document_types",
+            "x-code-list-column": "doc_type"
           },
           "country": {
             "type": "string",
-            "x-code-list": "refdata.ref_countries"
+            "x-code-list": "refdata.ref_countries",
+            "x-code-list-column": "code"
           },
           "maskedNumber": {
             "type": "string"
@@ -53766,7 +53894,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "party.ref_personal_attribute_code_lists"
+            "x-code-list": "party.ref_personal_attribute_code_lists",
+            "x-code-list-column": "value_code"
           },
           "firstNames": {
             "type": "string"
@@ -53783,7 +53912,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "party.ref_personal_attribute_code_lists"
+            "x-code-list": "party.ref_personal_attribute_code_lists",
+            "x-code-list-column": "value_code"
           },
           "maritalStatusCode": {
             "type": [
@@ -53791,6 +53921,7 @@
               "string"
             ],
             "x-code-list": "party.ref_personal_attribute_code_lists",
+            "x-code-list-column": "value_code",
             "x-code-list-filter": "list_code=MARITAL_STATUS"
           },
           "nationality": {
@@ -53798,14 +53929,16 @@
               "null",
               "string"
             ],
-            "x-code-list": "refdata.ref_countries"
+            "x-code-list": "refdata.ref_countries",
+            "x-code-list-column": "code"
           },
           "preferredLanguage": {
             "type": [
               "null",
               "string"
             ],
-            "x-code-list": "refdata.ref_languages"
+            "x-code-list": "refdata.ref_languages",
+            "x-code-list-column": "code"
           }
         }
       },
@@ -53897,7 +54030,8 @@
           },
           "legalFormCode": {
             "type": "string",
-            "x-code-list": "party.ref_party_types_and_legal_forms"
+            "x-code-list": "party.ref_party_types_and_legal_forms",
+            "x-code-list-column": "code"
           },
           "registrationNumber": {
             "type": [
@@ -53983,7 +54117,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "refdata.ref_languages"
+            "x-code-list": "refdata.ref_languages",
+            "x-code-list-column": "code"
           }
         }
       },
@@ -54062,7 +54197,8 @@
           },
           "relationshipCode": {
             "type": "string",
-            "x-code-list": "party.ref_relationship_types"
+            "x-code-list": "party.ref_relationship_types",
+            "x-code-list-column": "code"
           },
           "validFrom": {
             "type": "string",
@@ -54090,7 +54226,8 @@
           },
           "relationshipCode": {
             "type": "string",
-            "x-code-list": "party.ref_relationship_types"
+            "x-code-list": "party.ref_relationship_types",
+            "x-code-list-column": "code"
           },
           "validFrom": {
             "type": "string",
@@ -54181,7 +54318,8 @@
         "properties": {
           "roleCode": {
             "type": "string",
-            "x-code-list": "party.ref_party_role_types"
+            "x-code-list": "party.ref_party_role_types",
+            "x-code-list-column": "role_code"
           },
           "domain": {
             "type": "string"
@@ -54217,7 +54355,8 @@
           },
           "roleCode": {
             "type": "string",
-            "x-code-list": "party.ref_party_role_types"
+            "x-code-list": "party.ref_party_role_types",
+            "x-code-list-column": "role_code"
           },
           "domain": {
             "type": "string"
@@ -54572,7 +54711,8 @@
               "null",
               "string"
             ],
-            "x-code-list": "party.ref_party_role_types"
+            "x-code-list": "party.ref_party_role_types",
+            "x-code-list-column": "role_code"
           },
           "status": {
             "oneOf": [
@@ -56434,7 +56574,8 @@
           },
           "frequency": {
             "type": "string",
-            "x-code-list": "billing.ref_billing_frequencies"
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           },
           "ratingDate": {
             "type": [
@@ -56609,7 +56750,8 @@
           },
           "frequency": {
             "type": "string",
-            "x-code-list": "billing.ref_billing_frequencies"
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           },
           "ratingDate": {
             "type": [
