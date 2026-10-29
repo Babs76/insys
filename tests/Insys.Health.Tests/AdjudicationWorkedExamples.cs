@@ -391,4 +391,13 @@ public sealed class AdjudicationWorkedExamples
         // Without a window, a rule cannot read history, so it does not apply.
         One(context with { Edits = [dup30 with { WindowDays = null }] }, Line("0300", 1_000m)).Outcome.ShouldBe(LineOutcome.Pay);
     }
+
+    /// <summary>F006: a claim in contribution grace is held: every line pends with CONTRIBUTIONS_UNPAID, nothing is paid or consumed.</summary>
+    [Fact]
+    public void AClaimInContributionGrace_IsHeld_NotDeclined_F006()
+    {
+        var result = AdjudicationEngine.Adjudicate(Context() with { HeldForArrears = true }, [Line("0190", 400m), Line("0195", 150m)]);
+        result.Lines.ShouldAllBe(l => l.Outcome == LineOutcome.Pend && l.Reason == AdjudicationEngine.HeldForArrearsReason);
+        (result.Paid, result.Changes.Count, result.Pended).ShouldBe((0m, 0, true));
+    }
 }

@@ -104,6 +104,7 @@ public static class GeneralInfrastructure
         // F006: grace for General instalments.
         services.AddIntegrationEventHandler<Billing.Contracts.ArrearsDetected, GeneralGrace, GeneralDbContext>(schema, "Grace.ArrearsDetected");
         services.AddIntegrationEventHandler<InvoiceSettled, GeneralGrace, GeneralDbContext>(schema, "Grace.InvoiceSettled");
+        services.AddIntegrationEventHandler<GeneralPolicyLapsedUnpaid, DeclineClaimsOnLapse, GeneralDbContext>(schema);
         services.AddOptions<GeneralJobOptions>().BindConfiguration("General:Jobs");
         services.AddOptions<AggregationOptions>().BindConfiguration("General:Aggregation");
         services.AddSingleton<GeneralJobs>();

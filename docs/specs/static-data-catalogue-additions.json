@@ -1096,6 +1096,18 @@
      "logicalType": "Code(15)",
      "mandatory": true,
      "sample": "NON_PAYMENT"
+    },
+    {
+     "name": "claim_decline_reason",
+     "logicalType": "Code(15)",
+     "mandatory": true,
+     "sample": "NON_PAYMENT"
+    },
+    {
+     "name": "deduct_arrears_from_claims",
+     "logicalType": "Boolean",
+     "mandatory": false,
+     "sample": "false"
     }
    ]
   },
@@ -1168,6 +1180,12 @@
      "logicalType": "Integer",
      "mandatory": true,
      "sample": "30"
+    },
+    {
+     "name": "reinstate_on_payment",
+     "logicalType": "Boolean",
+     "mandatory": false,
+     "sample": "true"
     }
    ]
   }

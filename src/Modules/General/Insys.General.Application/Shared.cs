@@ -95,6 +95,9 @@ public interface IGeneralRepository
     /// <summary>Policies in force whose grace ended before the day with instalments still unpaid (F006): cancelled for non-payment.</summary>
     Task<IReadOnlyList<Guid>> PoliciesPastGrace(DateOnly day, int limit, CancellationToken cancellationToken);
 
+    /// <summary>A policy's claims, whatever their state.</summary>
+    Task<IReadOnlyList<Guid>> ClaimsOfPolicy(Guid policyId, CancellationToken cancellationToken);
+
     /// <summary>The policies billed on a billing account (Billing's ArrearsDetected names the account).</summary>
     Task<IReadOnlyList<Guid>> PoliciesOnAccount(Guid billingAccountRef, CancellationToken cancellationToken);
 
@@ -341,19 +344,26 @@ public sealed record PolicyEffectsView(Guid BillingAccountRef, IReadOnlyList<Gui
     }
 }
 
+/// <summary>
+/// A policy in grace (F006): the first unpaid instalment's due date, how many are unpaid, the last day of grace (cancelled
+/// for non-payment after it if still unpaid), and whether cover continues in grace. Null on the policy when none is unpaid.
+/// </summary>
+public sealed record PolicyGraceView(DateOnly ArrearsSince, int UnpaidInstalments, DateOnly GraceUntil, bool CoverDuringGrace);
+
 public sealed record PolicyView(Guid Id, string PolicyNumber, string ProductCode, int ProductVersion, int RatingVersion, Guid PolicyholderPartyId, PolicyStatus Status,
     DateOnly PeriodStart, DateOnly PeriodEnd, string Currency, decimal AnnualPremium, Guid BillingAccountRef,
     [property: CodeList(CodeLists.BillingFrequencies, "code")] string? BillingFrequency, [property: CodeList(CodeLists.CollectionMethods, "method_code")] string? CollectionMethod,
     Guid? RenewalOfId, [property: OneOf("ISSUE", "FIRST_PAYMENT")] string CoverStartsOn, DateOnly? FirstPaidOn, IReadOnlyList<RiskView> Risks,
     IReadOnlyList<CancellationView> Cancellations, long RowVersion,
-    Guid? QuoteId = null, Guid? ProposalId = null, PolicyEffectsView? Effects = null, decimal? InstalmentLoadingPct = null)
+    Guid? QuoteId = null, Guid? ProposalId = null, PolicyEffectsView? Effects = null, decimal? InstalmentLoadingPct = null, PolicyGraceView? Grace = null)
 {
     public static PolicyView From(GeneralPolicy p) => new(p.Id, p.PolicyNumber, p.ProductCode, p.ProductVersion, p.RatingVersion, p.PolicyholderPartyId, p.Status,
         p.PeriodStart, p.PeriodEnd, p.Currency, p.AnnualPremium, p.BillingAccountRef, p.BillingFrequency, p.CollectionMethod, p.RenewalOfId, p.CoverStartsOn, p.FirstPaidOn,
         p.Risks.Select(r => new RiskView(r.RiskObjectId, r.SumInsured, r.AttachedFrom, r.DetachedOn,
             r.Coverages.Select(c => new CoverageView(c.CoverageCode, c.SumInsured, c.ExcessScheduleCode, c.Premium)).ToList())).ToList(),
         p.Cancellations.Select(c => new CancellationView(c.ReasonCode, c.EffectiveDate, c.RefundAmount, c.RefundBasis, c.Fee, c.CancelledAt, c.ReinstatedAt)).ToList(),
-        p.RowVersion, p.QuoteId, InstalmentLoadingPct: p.InstalmentLoadingPct);
+        p.RowVersion, p.QuoteId, InstalmentLoadingPct: p.InstalmentLoadingPct,
+        Grace: p.ArrearsSince is { } since ? new PolicyGraceView(since, p.ArrearsCount, p.GraceUntil!.Value, p.CoverDuringGrace ?? false) : null);
 }
 
 public sealed record EndorsementView(Guid Id, string EndorsementNumber, Guid PolicyId, [property: CodeList(CodeLists.EndorsementTypes, "code")] string EndorsementType,

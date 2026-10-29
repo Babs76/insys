@@ -389,4 +389,55 @@ public sealed class HealthTests
         run.DecideApproval(false, Guid.CreateVersion7(), Guid.CreateVersion7(), run.SubjectHash).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
         run.Status.ShouldBe(RunStatus.Approved);
     }
+
+    /// <summary>
+    /// F006: missed contributions start grace from the oldest unpaid due date; a claim for a service from then is held, not
+    /// declined; on the suspension day the membership is suspended for arrears and the member told; after the notice a
+    /// person is asked to terminate (once); paying reinstates it and clears it all.
+    /// </summary>
+    [Fact]
+    public void ContributionGrace_HoldsClaims_SuspendsAfterItsDays_AsksAPersonToTerminate_AndPaymentReinstates_F006()
+    {
+        var membership = Membership();
+        membership.Activate(Today.AddMonths(-6));
+        var due = new DateOnly(2026, 11, 1);
+        var grace = new ContributionGrace(3, 30, 30);
+        membership.RecordArrears(1, due, grace, due.AddDays(1), Now).IsSuccess.ShouldBeTrue();
+        (membership.GraceUntil, membership.SuspendOn).ShouldBe(((DateOnly?)due.AddDays(3), (DateOnly?)due.AddDays(30)));
+        membership.HeldForArrears(due.AddDays(2)).ShouldBeTrue();
+        membership.HeldForArrears(due.AddDays(-1)).ShouldBeFalse("before the unpaid contribution");
+
+        membership.SuspendForArrears(grace, due.AddDays(29), Now).IsFailure.ShouldBeTrue("not yet");
+        membership.SuspendForArrears(grace, due.AddDays(30), Now).IsSuccess.ShouldBeTrue();
+        membership.Status.ShouldBe(MembershipStatus.Suspended);
+        membership.HeldForArrears(due.AddDays(2)).ShouldBeFalse("suspended: held claims are declined, not held");
+        membership.DomainEvents.OfType<MembershipSuspendedForArrears>().Single().TerminationNoticeEnds.ShouldBe(due.AddDays(60));
+
+        membership.RaiseTerminationDue(due.AddDays(60), Now).IsFailure.ShouldBeTrue("the notice's last day");
+        membership.RaiseTerminationDue(due.AddDays(61), Now).IsSuccess.ShouldBeTrue();
+        membership.RaiseTerminationDue(due.AddDays(62), Now).IsFailure.ShouldBeTrue("once");
+        membership.Status.ShouldBe(MembershipStatus.Suspended, "never terminated automatically");
+
+        membership.RecordArrears(0, null, grace, due.AddDays(63), Now).IsSuccess.ShouldBeTrue();
+        (membership.Status, membership.ArrearsSince, membership.SuspendedForArrearsOn).ShouldBe((MembershipStatus.Active, (DateOnly?)null, (DateOnly?)null));
+        membership.DomainEvents.OfType<MembershipArrearsCleared>().Count().ShouldBe(1);
+    }
+
+    /// <summary>F006 (Ade, 29 October 2026): with the tenant's reinstatement off, paying the arrears leaves a membership suspended for them suspended, for staff; no termination is asked for.</summary>
+    [Fact]
+    public void ContributionGrace_WithReinstatementOff_PaymentLeavesTheMembershipSuspendedForStaff_F006()
+    {
+        var membership = Membership();
+        membership.Activate(Today.AddMonths(-6));
+        var due = new DateOnly(2026, 11, 1);
+        var grace = new ContributionGrace(3, 30, 30, ReinstateOnPayment: false);
+        membership.RecordArrears(1, due, grace, due.AddDays(1), Now);
+        membership.SuspendForArrears(grace, due.AddDays(30), Now).IsSuccess.ShouldBeTrue();
+
+        membership.RecordArrears(0, null, grace, due.AddDays(40), Now).IsSuccess.ShouldBeTrue();
+        (membership.Status, membership.ArrearsSince).ShouldBe((MembershipStatus.Suspended, (DateOnly?)null));
+        membership.RaiseTerminationDue(due.AddDays(70), Now).IsFailure.ShouldBeTrue("paid: no termination for arrears");
+        membership.DomainEvents.OfType<MembershipArrearsCleared>().Count().ShouldBe(1, "a termination task is closed");
+        membership.ReinstateMembership(due.AddDays(41), "Staff reinstated", Now).IsSuccess.ShouldBeTrue();
+    }
 }

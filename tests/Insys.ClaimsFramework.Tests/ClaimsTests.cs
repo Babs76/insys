@@ -53,6 +53,8 @@ public sealed class ClaimsTests
             .Select(t => t.Replace("Approval granted", "ApprovalGranted", StringComparison.Ordinal).Replace("Approval rejected", "ApprovalRejected", StringComparison.Ordinal)
                 .Replace("Payment succeeded", "PaymentSucceeded", StringComparison.Ordinal).Replace("Payment failed", "PaymentFailed", StringComparison.Ordinal)
                 .Replace("Retried with new details", "RetriedWithNewDetails", StringComparison.Ordinal))
+            // F006 (Wave 4): a payment held for the policy's arrears is withdrawn when the claim is declined for non-payment.
+            .Append("Approved-WithdrawHeld->Rejected")
             .OrderBy(t => t, StringComparer.Ordinal).ToList();
         ClaimPaymentInstruction.Lifecycle.Transitions.Select(t => $"{t.From}-{t.Trigger}->{t.To}").OrderBy(t => t, StringComparer.Ordinal).ToList().ShouldBe(specified);
     }

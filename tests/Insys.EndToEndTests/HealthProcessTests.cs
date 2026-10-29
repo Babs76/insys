@@ -547,6 +547,118 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             ("m", membership))).ShouldBe(0L);
     }
 
+    /// <summary>
+    /// F006 (Wave 4 batch 4.1): contributions unpaid past their due date start grace. A claim for a service from then is held,
+    /// not declined, and is adjudicated once they are paid. Still unpaid on the suspension day, the membership is suspended
+    /// for arrears and the member told; its held claims are declined. When the notice runs out a person is asked whether to
+    /// terminate: never automatically.
+    /// </summary>
+    [Fact]
+    public async Task UnpaidContributions_HoldClaimsInGrace_ReleaseThemOncePaid_AndSuspendThenAskAPersonToTerminate_F006()
+    {
+        await _db.SeedEmailNotices(Tenant, Today.AddDays(-30), "HGR",
+            (Insys.Communications.Contracts.NotificationTypes.ContributionSuspension, "Suspended {member_number}", "{member_number} is suspended from {suspended_from}."));
+        await Seed("health.cfg_tariff_schedules", "EFFECTIVE", "REF-0190-G", ("tariff_code", "0190"), ("price", 400m), ("schedule_code", "REF"));
+        await Seed("health.cfg_contribution_grace_rules", "EFFECTIVE", "CGR-ALL", ("grace_days", 3), ("suspend_after_days", 30), ("terminate_notice_days", 30));
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var schemeNumber = (await Get($"/api/v1/health/schemes/{scheme}")).GetProperty("schemeNumber").GetString()!;
+        await Seed("health.cfg_contribution_rules", "EFFECTIVE", $"CR-{schemeNumber}", ("scheme", schemeNumber), ("member_category", "ALL_STAFF"), ("rate", 1_000m),
+            ("employer_share", 0m));
+
+        async Task<(Guid Membership, Guid Principal)> Unpaid(string name, DateOnly due)
+        {
+            var principal = await _maker.RegisterPerson(name);
+            await _db.AddContact(Tenant, principal, "EMAIL", $"{name.ToLowerInvariant()}@example.com");
+            var membership = await Created("/api/v1/health/memberships", new
+            {
+                principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+                currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+            });
+            await _factory.DrainOutbox();
+            await _db.ExecuteAsOwner("UPDATE billing.invoice SET due_date = @d, issue_date = @d WHERE source_domain LIKE 'HEALTH%' AND policy_ref = @m", ("d", due), ("m", membership));
+            await _db.ExecuteAsOwner("""
+                UPDATE billing.premium_instalment i SET due_date = @d FROM billing.premium_schedule s
+                WHERE s.id = i.schedule_id AND s.policy_ref = @m AND i.status = 'INVOICED'
+                """, ("d", due), ("m", membership));
+            return (membership, principal);
+        }
+
+        Task<Guid> MemberClaim(Guid membership, Guid principal, DateOnly serviceDate) => Created("/api/v1/health/claims", new
+        {
+            source = "MEMBER", membershipId = membership, patientPartyId = principal, serviceDate, formatCode = "API", currency = "ZAR",
+            lines = new[] { new { tariffCode = "0190", quantity = 1, claimedAmount = 400m } },
+        });
+
+        async Task<JsonElement> Adjudicated(Guid claim)
+        {
+            (await _maker.PostAsync($"/api/v1/health/claims/{claim}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+            return await (await _maker.PostAsync($"/api/v1/health/claims/{claim}/adjudicate", null)).Json();
+        }
+
+        var paying = await Unpaid("Paying", Today.AddDays(-5));
+        var lapsing = await Unpaid("Lapsing", Today.AddDays(-40));
+        await _factory.Services.GetRequiredService<Insys.Billing.Infrastructure.BillingJobs>().Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+
+        // In grace: the claims are held (pended), not declined.
+        var heldPaying = await MemberClaim(paying.Membership, paying.Principal, Today.AddDays(-3));
+        var heldLapsing = await MemberClaim(lapsing.Membership, lapsing.Principal, Today.AddDays(-35));
+        foreach (var claim in new[] { heldPaying, heldLapsing })
+        {
+            var held = await Adjudicated(claim);
+            (held.GetProperty("status").GetString(), held.GetProperty("pendReason").GetString()).ShouldBe(("Pended", "CONTRIBUTIONS_UNPAID"), held.ToString());
+        }
+
+        // The suspension day has passed for one: suspended for arrears, then its held claim is declined; the other stays in grace.
+        var jobs = _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>();
+        for (var run = 0; run < 2; run++)
+        {
+            await jobs.Run(CancellationToken.None);
+            await _factory.DrainOutbox();
+        }
+
+        (await Get($"/api/v1/health/memberships/{lapsing.Membership}")).GetProperty("status").GetString().ShouldBe("Suspended");
+        (await Get($"/api/v1/health/memberships/{paying.Membership}")).GetProperty("status").GetString().ShouldBe("Active");
+        var declined = await Get($"/api/v1/health/claims/{heldLapsing}");
+        (declined.GetProperty("status").GetString(), declined.GetProperty("pendReason").GetString()).ShouldBe(("Rejected", "CONTRIBUTIONS_ARREARS"));
+        (await Get($"/api/v1/health/claims/{heldPaying}")).GetProperty("status").GetString().ShouldBe("Pended");
+
+        // Paid: the held claim is adjudicated by the next job run.
+        foreach (var payment in await _db.ScalarAsOwner<Guid[]>("""
+                     SELECT array_agg(p.id) FROM payment.payment p JOIN billing.invoice i ON i.id = p.business_ref_id WHERE i.policy_ref = @m
+                     """, ("m", paying.Membership)) ?? [])
+        {
+            (await _maker.SimulatorCallback(_factory, _db, payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        await _factory.DrainOutbox();
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        var released = await Get($"/api/v1/health/claims/{heldPaying}");
+        released.GetProperty("status").GetString().ShouldBe("Adjudicated", released.ToString());
+        released.GetProperty("totalPaid").GetDecimal().ShouldBeGreaterThan(0m);
+
+        // The notice ran out: a person is asked whether to terminate (once); the membership stays suspended.
+        await _db.ExecuteAsOwner("UPDATE health.membership SET termination_notice_ends = @d WHERE id = @m", ("d", Today.AddDays(-1)), ("m", lapsing.Membership));
+        for (var run = 0; run < 2; run++)
+        {
+            await jobs.Run(CancellationToken.None);
+            await _factory.DrainOutbox();
+        }
+
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(p.status || ':' || t.queue_code, ',') FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
+            WHERE p.process_code = 'HEALTH_ARREARS_TERMINATION' AND p.business_ref_id = @m
+            """, ("m", lapsing.Membership))).ShouldBe("RUNNING:HEALTH_MEMBERSHIP");
+        (await Get($"/api/v1/health/memberships/{lapsing.Membership}")).GetProperty("status").GetString().ShouldBe("Suspended", "never terminated automatically");
+
+        await _factory.Services.GetRequiredService<Insys.Communications.Infrastructure.NotificationSender>().RunForTenant(Tenant, CancellationToken.None);
+        var memberNumber = (await Get($"/api/v1/health/memberships/{lapsing.Membership}")).GetProperty("memberNumber").GetString();
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(status || ':' || body, '|') FROM communication.notification WHERE recipient_party_id = @p AND type_code = 'CONTRIBUTION_SUSPENSION'
+            """, ("p", lapsing.Principal))).ShouldBe($"SENT:{memberNumber} is suspended from {Today:yyyy-MM-dd}.");
+    }
+
     /// <summary>Phase 5 review, item 5: member reimbursement on the plan's REFERENCE_TARIFF basis, paid to the principal's verified account through a run.</summary>
     [Fact]
     public async Task MemberClaim_IsPricedAtTheReferenceTariff_AndPaidToThePrincipalsVerifiedAccountInARun()

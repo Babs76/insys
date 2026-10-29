@@ -55,6 +55,9 @@ public static class ClaimsFrameworkInfrastructure
         services.AddScoped<IClaimsCodes, ClaimsCodes>();
         services.AddIntegrationEventHandler<ApprovalGranted, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<Party.Contracts.DueDiligenceChanged, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "DueDiligenceChanged"); // §5
+        // F006: payments held for a General policy's arrears are released when they are paid, withdrawn when the claim is declined.
+        services.AddIntegrationEventHandler<General.Contracts.GeneralPolicyArrearsCleared, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ArrearsCleared");
+        services.AddIntegrationEventHandler<General.Contracts.GeneralClaimDeclined, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "GeneralClaimDeclined");
         services.AddIntegrationEventHandler<Communications.Contracts.NotificationSent, LogClaimNotice, ClaimsFrameworkDbContext>(schema);
         services.AddIntegrationEventHandler<ApprovalRejected, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<PaymentSucceeded, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "PaymentSucceeded");

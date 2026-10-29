@@ -73,3 +73,29 @@ public sealed class GeneralGrace(IGeneralRepository general, IGeneralCodes codes
         policy.RecordArrears(overdue.OverdueInstalments, overdue.OldestDueDate, grace, clock.UtcNow);
     }
 }
+
+/// <summary>
+/// F006: grace ended unpaid and the policy was cancelled for non-payment: its claims for losses from the cancellation date
+/// are declined with the grace rule's claim decision, at whatever stage short of payment. Earlier losses are untouched.
+/// </summary>
+public sealed class DeclineClaimsOnLapse(IGeneralRepository general, IClock clock, ILogger<DeclineClaimsOnLapse> logger)
+    : IIntegrationEventHandler<General.Contracts.GeneralPolicyLapsedUnpaid>
+{
+    public async Task Handle(General.Contracts.GeneralPolicyLapsedUnpaid lapsed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        foreach (var id in await general.ClaimsOfPolicy(lapsed.PolicyId, cancellationToken))
+        {
+            if (await general.Claim(id, cancellationToken) is { } claim && claim.LossDate >= lapsed.CancelledFrom
+                && claim.Status is Domain.Claims.ClaimStatus.FirstNotification or Domain.Claims.ClaimStatus.Registered or Domain.Claims.ClaimStatus.UnderAssessment
+                    or Domain.Claims.ClaimStatus.Approved)
+            {
+                var declined = claim.DeclineForNonPayment(lapsed.ClaimDeclineReason, lapsed.CancelledFrom, clock.UtcNow);
+                if (declined.IsFailure)
+                {
+                    logger.LogWarning("Claim {ClaimId} not declined for non-payment: {Code}", id, declined.Error.Code);
+                }
+            }
+        }
+    }
+}
+

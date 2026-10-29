@@ -83,7 +83,10 @@ public sealed class GeneralTests
         Model(GeneralEndorsement.Lifecycle).ShouldBe(Spec("GeneralEndorsement", ("Policy updated", "PolicyUpdated")));
         // OQ-103 (Wave 2 cases) adds "Declined-ReopenClaim->Reopened" for an upheld dispute, not yet in domain-model.json.
         Model(GeneralClaim.Lifecycle).ShouldBe(string.Join("|", Spec("GeneralClaim", ("Payment completed", "PaymentCompleted"), ("Assessment resumes", "AssessmentResumes"))
-            .Split('|').Append("Declined-ReopenClaim->Reopened").OrderBy(t => t, StringComparer.Ordinal)));
+            .Split('|').Append("Declined-ReopenClaim->Reopened")
+            // F006 (Wave 4, Ade, 29 October 2026): grace ended unpaid declines a claim for a loss from the cancellation date, short of payment.
+            .Concat(new[] { "FirstNotification", "Registered", "UnderAssessment", "Approved" }.Select(from => $"{from}-DeclineForNonPayment->Declined"))
+            .OrderBy(t => t, StringComparer.Ordinal)));
         Model(LossAssessment.Lifecycle).ShouldBe(Spec("LossAssessment", ("Assessor starts", "AssessorStarts"), ("Further work requested", "FurtherWorkRequested")));
         Model(RecoveryCase.Lifecycle).ShouldBe(Spec("RecoveryCase", ("Demand sent", "DemandSent")));
     }
@@ -725,5 +728,136 @@ public sealed class GeneralTests
         (claim.Status, claim.SettlementAmount, claim.SettlementPending).ShouldBe((ClaimStatus.UnderAssessment, (decimal?)null, false));
         claim.SettlementEndingApplied(approval).ShouldBeTrue();
         claim.DecideSettlement(false, approval, checker, null, Now).IsFailure.ShouldBeTrue("the handler parks this, unless already applied");
+    }
+
+    /// <summary>
+    /// F006: a missed instalment starts grace from the oldest unpaid due date for the product's days, telling the policyholder
+    /// when cover ends unless paid; a later instalment missed in the same grace adds no second notice; a payment clears it.
+    /// </summary>
+    [Fact]
+    public void Grace_StartsAtTheOldestUnpaidInstalment_NoticeOnce_AndAPaymentClearsIt_F006()
+    {
+        var policy = Policy();
+        var due = new DateOnly(2026, 11, 1);
+        policy.RecordArrears(1, due, new GraceTerms(15, true, "NON_PAYMENT"), Now).IsSuccess.ShouldBeTrue();
+        (policy.ArrearsSince, policy.GraceUntil, policy.ArrearsCount).ShouldBe((due, due.AddDays(15), 1));
+        var notice = policy.DomainEvents.OfType<GeneralPolicyEnteredGrace>().Single();
+        (notice.GraceUntil, notice.CoverEndsOn, notice.CoverDuringGrace).ShouldBe((due.AddDays(15), due.AddDays(15), true));
+
+        policy.RecordArrears(2, due, new GraceTerms(15, true, "NON_PAYMENT"), Now).IsSuccess.ShouldBeTrue();
+        policy.ArrearsCount.ShouldBe(2);
+        policy.DomainEvents.OfType<GeneralPolicyEnteredGrace>().Count().ShouldBe(1, "the same grace");
+        policy.LossAwaitsArrears(due.AddDays(3)).ShouldBeFalse("cover continues in grace");
+
+        policy.RecordArrears(0, null, new GraceTerms(15, true, "NON_PAYMENT"), Now).IsSuccess.ShouldBeTrue();
+        (policy.ArrearsSince, policy.GraceUntil, policy.ArrearsCount).ShouldBe(((DateOnly?)null, (DateOnly?)null, 0));
+    }
+
+    /// <summary>
+    /// F006, addendum §5 (Ade, 29 October 2026): without cover in grace, a loss from the first unpaid due date is accepted;
+    /// its payment waits for the arrears. The notice says cover ended the day before.
+    /// </summary>
+    [Fact]
+    public void Grace_WithoutCover_ALossInItIsAccepted_ItsPaymentWaitsForTheArrears_F006()
+    {
+        var policy = Policy();
+        var due = Today.AddDays(-5);
+        policy.RecordArrears(1, due, new GraceTerms(15, false, "NON_PAYMENT"), Now).IsSuccess.ShouldBeTrue();
+        policy.DomainEvents.OfType<GeneralPolicyEnteredGrace>().Single().CoverEndsOn.ShouldBe(due.AddDays(-1));
+        policy.CoversLoss(null, "OWN_DAMAGE", Today).IsSuccess.ShouldBeTrue("notification and registration always succeed");
+        policy.LossAwaitsArrears(Today).ShouldBeTrue();
+        policy.LossAwaitsArrears(due.AddDays(-1)).ShouldBeFalse("before the unpaid instalment");
+
+        policy.RecordArrears(0, null, new GraceTerms(15, false, "NON_PAYMENT"), Now);
+        policy.LossAwaitsArrears(Today).ShouldBeFalse("paid");
+        policy.DomainEvents.OfType<GeneralPolicyArrearsCleared>().Count().ShouldBe(1, "held payments are released");
+    }
+
+    /// <summary>
+    /// F006: the approved settlement of a loss in grace without cover names the hold (PREMIUM_ARREARS), or, by the tenant's
+    /// rule, is paid less the arrears, which Billing settles from it.
+    /// </summary>
+    [Fact]
+    public void ASettlementInGrace_IsHeldForTheArrears_OrPaidLessThem_F006()
+    {
+        GeneralClaim Approved(GeneralPolicy policy, SettlementCondition? condition)
+        {
+            var claim = GeneralClaim.NotifyLoss(Guid.CreateVersion7(), policy.Id, Vehicle, "OWN_DAMAGE", Today, "COLLISION", "ACC", null, null, Today, Now).Value;
+            claim.RegisterClaim(policy, "GEN-G1", Now).IsSuccess.ShouldBeTrue();
+            claim.AppointAssessor(Guid.CreateVersion7(), Now);
+            claim.RequestSettlement(new SettlementRequest(40_000m, 5_000m, Guid.CreateVersion7(), Guid.CreateVersion7(), "bank-hash", "INDEMNITY", "SETTLE", "Repair quote"),
+                policy.Coverage(Vehicle, "OWN_DAMAGE")!, [], "ZAR", Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+            claim.DecideSettlement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), claim.SettlementSubjectHash, Now, condition).IsSuccess.ShouldBeTrue();
+            return claim;
+        }
+
+        var policy = Policy();
+        var held = Approved(policy, new SettlementCondition(policy.Id, true, 0m));
+        var approved = held.DomainEvents.OfType<GeneralClaimApproved>().Single();
+        (approved.HoldReason, approved.Amount, approved.PremiumOffset, approved.PolicyId).ShouldBe((SettlementCondition.PremiumArrears, held.SettlementAmount!.Value, 0m, (Guid?)policy.Id));
+        held.DomainEvents.OfType<GeneralPremiumOffsetFromClaim>().ShouldBeEmpty();
+
+        var netted = Approved(policy, new SettlementCondition(policy.Id, false, 1_250m));
+        var paid = netted.DomainEvents.OfType<GeneralClaimApproved>().Single();
+        (paid.HoldReason, paid.Amount, paid.PremiumOffset).ShouldBe(((string?)null, netted.SettlementAmount!.Value - 1_250m, 1_250m));
+        netted.DomainEvents.OfType<GeneralPremiumOffsetFromClaim>().Single().ShouldSatisfyAllConditions(e => e.Amount.ShouldBe(1_250m), e => e.PolicyId.ShouldBe(policy.Id));
+
+        // Grace ended unpaid: declined with the rule's claim decision even once approved; a later approval decision is moot.
+        held.DeclineForNonPayment("NON_PAYMENT", Today.AddDays(-5), Now).IsSuccess.ShouldBeTrue();
+        (held.Status, held.DecisionCode, held.DeclinedForNonPayment).ShouldBe((ClaimStatus.Declined, "NON_PAYMENT", true));
+        held.DomainEvents.OfType<GeneralClaimDeclined>().Single().DecisionCode.ShouldBe("NON_PAYMENT");
+        held.DecideSettlement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), null, Now).IsSuccess.ShouldBeTrue("moot");
+        netted.DeclineForNonPayment("NON_PAYMENT", Today.AddDays(1), Now).IsFailure.ShouldBeTrue("the loss is before the cancellation date");
+    }
+
+    /// <summary>
+    /// F006: grace ending unpaid cancels the policy with the grace rule's reason and tells the policyholder; not before grace
+    /// ends. Without cover in grace, from the first unpaid due date; with it, from the day after grace, as the notice said.
+    /// Claims for losses from then are declined.
+    /// </summary>
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 16)]
+    public void CancelForNonPayment_OnlyOnceGraceEnds_FromTheDateTheNoticeGave_F006(bool coverDuringGrace, int fromDaysAfterDue)
+    {
+        var policy = Policy();
+        var due = new DateOnly(2026, 11, 1);
+        var rule = new CancellationRule("NON_PAYMENT", "INSURER", "NONE", 0m);
+        var grace = new GraceTerms(15, coverDuringGrace, "NON_PAYMENT", "UNPAID");
+        policy.RecordArrears(1, due, grace, Now);
+
+        policy.CancelForNonPayment(rule, grace, due.AddDays(15), Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition, "the last day of grace");
+        policy.CancelForNonPayment(rule, grace, due.AddDays(16), Now).IsSuccess.ShouldBeTrue();
+        policy.Status.ShouldBe(PolicyStatus.Cancelled);
+        var from = due.AddDays(fromDaysAfterDue);
+        (policy.CancellationInEffect!.EffectiveDate, policy.CancellationInEffect.ReasonCode, policy.CancellationInEffect.CancelledBy).ShouldBe((from, "NON_PAYMENT", (Guid?)null));
+        var notice = policy.DomainEvents.OfType<GeneralPolicyCancelledForNonPayment>().Single();
+        (notice.EffectiveDate, notice.RefundAmount).ShouldBe((from, 0m));
+        var lapsed = policy.DomainEvents.OfType<GeneralPolicyLapsedUnpaid>().Single();
+        (lapsed.CancelledFrom, lapsed.ClaimDeclineReason).ShouldBe((from, "UNPAID"));
+        policy.ArrearsSince.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// F007, OQ-133: a short-period refund keeps the scale's per cent of the annual premium for the days in force (the first
+    /// band covering them, both edges), less the fee and never below zero; past the last band nothing is refunded; a reason
+    /// with no scale is still refused.
+    /// </summary>
+    [Theory]
+    [InlineData(10, 25, 27_375 - 100)]
+    [InlineData(30, 25, 27_375 - 100)]
+    [InlineData(31, 40, 21_900 - 100)]
+    [InlineData(180, 60, 14_600 - 100)]
+    [InlineData(200, 100, 0)]
+    public void ShortPeriodRefund_KeepsTheBandsPerCent_LessTheFee_NeverBelowZero_F007(int daysInForce, int retainedPct, int refund)
+    {
+        ShortPeriodBand[] scale = [new(30, 25m), new(90, 40m), new(180, 60m)];
+        var policy = Policy(36_500m);
+        policy.CancelPolicy(new CancellationRule("INS_SHORT", "INSURED", "SHORT_PERIOD", 100m, scale), Start.AddDays(daysInForce), Guid.CreateVersion7(), Now)
+            .IsSuccess.ShouldBeTrue();
+        policy.DomainEvents.OfType<GeneralPolicyCancelled>().Single().RefundAmount.ShouldBe(refund, $"{retainedPct}% retained");
+
+        Policy(36_500m).CancelPolicy(new CancellationRule("INS_SHORT", "INSURED", "SHORT_PERIOD", 0m), Start.AddDays(10), Guid.CreateVersion7(), Now)
+            .Error!.Code.ShouldBe(GeneralErrorCodes.RuleNotSpecified);
     }
 }

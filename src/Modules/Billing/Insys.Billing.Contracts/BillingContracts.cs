@@ -113,7 +113,8 @@ public interface IAllocationPlanner
 }
 
 /// <summary>A policy's instalments past their due date whose invoice is unpaid, and the oldest due date among them.</summary>
-public sealed record PolicyArrears(int OverdueInstalments, DateOnly? OldestDueDate);
+/// <param name="Outstanding">What remains unpaid on the overdue invoices (total less allocated and credited), in the policy's currency.</param>
+public sealed record PolicyArrears(int OverdueInstalments, DateOnly? OldestDueDate, decimal Outstanding = 0m);
 
 /// <summary>
 /// Public query interface: a policy's arrears on its invoices, read on Billing's own connection, for the domain that

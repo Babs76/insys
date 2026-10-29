@@ -59,6 +59,8 @@ CREATE TABLE general.cfg_grace_period_rules (
   grace_days                     integer NOT NULL,
   cover_during_grace             boolean NOT NULL,
   cancellation_reason            varchar(15) NOT NULL,
+  claim_decline_reason           varchar(15) NOT NULL,
+  deduct_arrears_from_claims     boolean,
   CONSTRAINT cfg_grace_period_rules_pk PRIMARY KEY (id),
   CONSTRAINT cfg_grace_period_rules_bkey UNIQUE NULLS NOT DISTINCT (tenant_id, code, version),
   CONSTRAINT cfg_grace_period_rules_stat CHECK (record_status IN ('DRAFT', 'VALIDATED', 'SUBMITTED', 'APPROVED', 'PUBLISHED', 'EFFECTIVE', 'WITHDRAWN', 'RETIRED')),
@@ -79,7 +81,7 @@ CREATE POLICY tenant_isolation ON general.cfg_grace_period_rules
   WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);
 CREATE TRIGGER guard_versions BEFORE UPDATE OR DELETE ON general.cfg_grace_period_rules
   FOR EACH ROW EXECUTE FUNCTION sdm.guard_static_version();
-COMMENT ON TABLE general.cfg_grace_period_rules IS 'General grace periods. CFG, scope T, Tier 2. Per product and billing frequency: the days of grace after a missed instalment, whether cover continues in them, and the cancellation reason used when grace ends unpaid. Added in Wave 4 batch 4.1.';
+COMMENT ON TABLE general.cfg_grace_period_rules IS 'General grace periods. CFG, scope T, Tier 2. Per product and billing frequency: the days of grace after a missed instalment, whether cover continues in them, and the cancellation reason used when grace ends unpaid. A claim for a loss in grace without cover is accepted; its payment is held until the arrears are paid (or, with deduct_arrears_from_claims, paid less them), and declined with claim_decline_reason if grace ends unpaid. Added in Wave 4 batch 4.1.';
 
 ALTER TABLE general.cfg_grace_period_rules ADD CONSTRAINT cfg_grace_period_rules_band CHECK (grace_days >= 0);
 CREATE TABLE general.cfg_short_period_scales (
@@ -166,6 +168,7 @@ CREATE TABLE health.cfg_contribution_grace_rules (
   grace_days                     integer NOT NULL,
   suspend_after_days             integer NOT NULL,
   terminate_notice_days          integer NOT NULL,
+  reinstate_on_payment           boolean,
   CONSTRAINT cfg_contribution_grace_rules_pk PRIMARY KEY (id),
   CONSTRAINT cfg_contribution_grace_rules_bkey UNIQUE NULLS NOT DISTINCT (tenant_id, code, version),
   CONSTRAINT cfg_contribution_grace_rules_stat CHECK (record_status IN ('DRAFT', 'VALIDATED', 'SUBMITTED', 'APPROVED', 'PUBLISHED', 'EFFECTIVE', 'WITHDRAWN', 'RETIRED')),
@@ -186,7 +189,7 @@ CREATE POLICY tenant_isolation ON health.cfg_contribution_grace_rules
   WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);
 CREATE TRIGGER guard_versions BEFORE UPDATE OR DELETE ON health.cfg_contribution_grace_rules
   FOR EACH ROW EXECUTE FUNCTION sdm.guard_static_version();
-COMMENT ON TABLE health.cfg_contribution_grace_rules IS 'Contribution grace rules. CFG, scope T, Tier 2. For a scheme (or, with none named, every scheme): the grace days after a missed contribution, in which claims are held; the days after which the membership is suspended for arrears; and the notice before a person may terminate it. Added in Wave 4 batch 4.1.';
+COMMENT ON TABLE health.cfg_contribution_grace_rules IS 'Contribution grace rules. CFG, scope T, Tier 2. For a scheme (or, with none named, every scheme): the grace days after a missed contribution, in which claims are held; the days after which the membership is suspended for arrears; and the notice before a person may terminate it. reinstate_on_payment (null: true): whether paying the arrears reinstates a membership suspended for them. Added in Wave 4 batch 4.1.';
 
 ALTER TABLE health.cfg_contribution_grace_rules ADD CONSTRAINT cfg_contribution_grace_rules_band CHECK (grace_days >= 0 AND suspend_after_days >= grace_days AND terminate_notice_days >= 0);
 -- The policy's arrears, from Billing (BR-103: as of its detection date), and the grace they started.

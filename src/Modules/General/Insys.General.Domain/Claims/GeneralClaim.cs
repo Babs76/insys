@@ -50,6 +50,9 @@ public enum ClaimTrigger
     ApproveSettlement,
     DeclineClaim,
     PaymentCompleted,
+
+    /// <summary>F006: grace ended unpaid; the policy was cancelled from before the loss.</summary>
+    DeclineForNonPayment,
     CloseClaim,
     ReopenClaim,
     AssessmentResumes,
@@ -64,8 +67,23 @@ public sealed record AssessorAppointed(Guid ClaimId, Guid AssessorPartyId, DateT
 public sealed record SettlementRequested(Guid ClaimId, string ClaimNumber, Guid RequestedBy, decimal Amount, string Currency, string SubjectHash, DateTimeOffset OccurredAt)
     : IDomainEvent;
 
+/// <param name="HoldReason">PREMIUM_ARREARS when the loss falls in grace without cover and the arrears are unpaid (F006): the payment waits for them.</param>
+/// <param name="PremiumOffset">The arrears taken from the settlement, by the tenant's grace rule (F006); <paramref name="Amount"/> is what is paid.</param>
 public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid PayeePartyId, Guid BankAccountId, string PayeeBankHash, decimal Amount, string Currency,
-    string ReserveType, Guid ApprovalId, Guid CheckerId, DateTimeOffset OccurredAt) : IDomainEvent;
+    string ReserveType, Guid ApprovalId, Guid CheckerId, DateTimeOffset OccurredAt, Guid? PolicyId = null, string? HoldReason = null, decimal PremiumOffset = 0m) : IDomainEvent;
+
+/// <summary>The policy's arrears were paid from a claim's settlement (F006, the tenant's rule): Billing settles them.</summary>
+public sealed record GeneralPremiumOffsetFromClaim(Guid PolicyId, Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>
+/// How an approved settlement is paid when the loss falls in grace without cover (F006): held for the arrears, or paid less
+/// <paramref name="PremiumOffset"/> (the arrears, which the settlement covers).
+/// </summary>
+public sealed record SettlementCondition(Guid PolicyId, bool HoldForArrears, decimal PremiumOffset)
+{
+    /// <summary>Why an instruction waits for a policy's arrears (the Claims Framework's hold reason).</summary>
+    public const string PremiumArrears = "PREMIUM_ARREARS";
+}
 
 public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, Guid PolicyId, decimal Amount, string Currency, DateOnly PaidOn, DateTimeOffset OccurredAt)
     : IDomainEvent;
@@ -172,6 +190,11 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
         .Allow(ClaimStatus.Registered, ClaimTrigger.AppointAssessor, ClaimStatus.UnderAssessment)
         .Allow(ClaimStatus.UnderAssessment, ClaimTrigger.ApproveSettlement, ClaimStatus.Approved)
         .Allow(ClaimStatus.UnderAssessment, ClaimTrigger.DeclineClaim, ClaimStatus.Declined)
+        // F006 (Wave 4): grace ended unpaid, so a claim for a loss from the cancellation date is declined at any stage short of payment.
+        .Allow(ClaimStatus.FirstNotification, ClaimTrigger.DeclineForNonPayment, ClaimStatus.Declined)
+        .Allow(ClaimStatus.Registered, ClaimTrigger.DeclineForNonPayment, ClaimStatus.Declined)
+        .Allow(ClaimStatus.UnderAssessment, ClaimTrigger.DeclineForNonPayment, ClaimStatus.Declined)
+        .Allow(ClaimStatus.Approved, ClaimTrigger.DeclineForNonPayment, ClaimStatus.Declined)
         .Allow(ClaimStatus.Approved, ClaimTrigger.PaymentCompleted, ClaimStatus.Settled)
         .Allow(ClaimStatus.Settled, ClaimTrigger.CloseClaim, ClaimStatus.Closed)
         .Allow(ClaimStatus.Declined, ClaimTrigger.CloseClaim, ClaimStatus.Closed)
@@ -400,8 +423,14 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
     /// Workflow's decision on the settlement. Approved, the claim is Approved; rejected, it stays under assessment. It
     /// applies only to the settlement it was asked for: the same payee, bank details, amount and reserve.
     /// </summary>
-    public Result DecideSettlement(bool approved, Guid approvalId, Guid checkerId, string? subjectHash, DateTimeOffset now)
+    public Result DecideSettlement(bool approved, Guid approvalId, Guid checkerId, string? subjectHash, DateTimeOffset now, SettlementCondition? condition = null)
     {
+        // F006: a claim declined because grace ended unpaid while its settlement waited for approval: the decision is moot.
+        if (!SettlementPending && Status == ClaimStatus.Declined && DeclinedForNonPayment)
+        {
+            return Result.Success();
+        }
+
         if (!SettlementPending)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "No settlement is waiting for approval.");
@@ -446,8 +475,14 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
             DecidedBy = checkerId;
             DecidedAt = now;
             DecisionOutcome = SettlementAmount < ClaimedAmount ? ClaimDecisionOutcomes.PartlyApproved : ClaimDecisionOutcomes.Approved;
-            Raise(new GeneralClaimApproved(Id, ClaimNumber!, SettlementPayeePartyId!.Value, SettlementBankAccountId!.Value, SettlementPayeeBankHash!, SettlementAmount!.Value,
-                SettlementCurrency!, SettlementReserveType!, approvalId, checkerId, now));
+            var offset = condition is { HoldForArrears: false, PremiumOffset: > 0 } ? Math.Min(condition.PremiumOffset, SettlementAmount!.Value) : 0m;
+            Raise(new GeneralClaimApproved(Id, ClaimNumber!, SettlementPayeePartyId!.Value, SettlementBankAccountId!.Value, SettlementPayeeBankHash!, SettlementAmount!.Value - offset,
+                SettlementCurrency!, SettlementReserveType!, approvalId, checkerId, now, PolicyId, condition is { HoldForArrears: true } ? SettlementCondition.PremiumArrears : null,
+                offset));
+            if (offset > 0)
+            {
+                Raise(new GeneralPremiumOffsetFromClaim(PolicyId, Id, ClaimNumber!, offset, SettlementCurrency!, now));
+            }
         }
 
         return result;
@@ -461,6 +496,43 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
     /// settlement is waiting (it was cleared), and the claim was not approved by that same approval.
     /// </summary>
     public bool SettlementEndingApplied(Guid approvalId) => !SettlementPending && SettlementApprovalId != approvalId;
+
+    /// <summary>Whether the claim was declined because its policy's grace ended unpaid (F006).</summary>
+    public bool DeclinedForNonPayment => Status == ClaimStatus.Declined && DecisionRationale?.StartsWith(NonPaymentRationale, StringComparison.Ordinal) == true;
+
+    private const string NonPaymentRationale = "Grace ended unpaid";
+
+    /// <summary>
+    /// Command DeclineForNonPayment (F006): the policy's grace ended unpaid and it was cancelled from <paramref name="cancelledFrom"/>,
+    /// so a claim for a loss from then is declined with the grace rule's claim decision, whatever stage it reached short of
+    /// payment. A settlement waiting for approval is dropped; a payment held for the arrears is withdrawn.
+    /// </summary>
+    public Result DeclineForNonPayment(string decisionCode, DateOnly cancelledFrom, DateTimeOffset now)
+    {
+        if (LossDate < cancelledFrom || Status is not (ClaimStatus.FirstNotification or ClaimStatus.Registered or ClaimStatus.UnderAssessment or ClaimStatus.Approved))
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Claim {ClaimNumber} is {Status} for a loss on {LossDate:yyyy-MM-dd}.");
+        }
+
+        var result = Fire(ClaimTrigger.DeclineForNonPayment);
+        if (result.IsSuccess)
+        {
+            SettlementAmount = null;
+            SettlementCurrency = null;
+            SettlementPayeePartyId = null;
+            SettlementBankAccountId = null;
+            SettlementPayeeBankHash = null;
+            SettlementReserveType = null;
+            SettlementRequestedBy = null;
+            DecisionCode = Guard.MaxLength(decisionCode, 15);
+            DecisionRationale = $"{NonPaymentRationale}: the policy was cancelled for non-payment from {cancelledFrom:yyyy-MM-dd}.";
+            DecidedAt = now;
+            DecisionOutcome = ClaimDecisionOutcomes.Declined;
+            Raise(new GeneralClaimDeclined(Id, ClaimNumber ?? "", DecisionCode, now));
+        }
+
+        return result;
+    }
 
     /// <summary>Command DeclineClaim, with the decision and its rationale (CLM-003).</summary>
     public Result DeclineClaim(string decisionCode, string rationale, Guid decidedBy, DateTimeOffset now)

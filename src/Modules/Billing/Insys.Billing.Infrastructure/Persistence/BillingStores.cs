@@ -63,6 +63,10 @@ internal sealed class BillingRepository(BillingDbContext db, IExecutionContext e
         return execution.InScope(invoice, invoice?.ProductCode, invoice?.OrgNodeCode);
     }
 
+    public async Task<IReadOnlyList<Invoice>> PolicyInvoices(string sourceDomain, Guid policyRef, CancellationToken cancellationToken) =>
+        await db.Invoices.Include(i => i.Lines).Include(i => i.Adjustments).Where(i => i.SourceDomain == sourceDomain && i.PolicyRef == policyRef)
+            .OrderBy(i => i.DueDate).ThenBy(i => i.Id).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Invoice>> Invoices(Guid accountId, CancellationToken cancellationToken) =>
         await db.Invoices.Include(i => i.Lines).Include(i => i.Adjustments).Where(i => i.BillingAccountId == accountId).OrderBy(i => i.DueDate).ThenBy(i => i.Id)
             .ToListAsync(cancellationToken);
@@ -283,12 +287,15 @@ internal sealed class PolicyArrearsQuery([FromKeyedServices(BillingDbContext.Sch
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT count(*), min(i.due_date)
-            FROM billing.premium_instalment i
-            JOIN billing.premium_schedule s ON s.tenant_id = i.tenant_id AND s.id = i.schedule_id
-            JOIN billing.invoice v ON v.tenant_id = i.tenant_id AND v.id = i.invoice_id
-            WHERE i.tenant_id = @t AND s.source_domain = @domain AND s.policy_ref = @policy AND i.status = 'INVOICED'
-              AND v.status IN ('ISSUED', 'PART_PAID', 'OVERDUE') AND i.due_date < @day
+            WITH overdue AS (
+              SELECT i.due_date, v.id AS invoice_id,
+                     v.total_amount - v.allocated_amount - coalesce((SELECT sum(a.amount) FROM billing.adjustment a WHERE a.tenant_id = v.tenant_id AND a.invoice_id = v.id), 0) AS outstanding
+              FROM billing.premium_instalment i
+              JOIN billing.premium_schedule s ON s.tenant_id = i.tenant_id AND s.id = i.schedule_id
+              JOIN billing.invoice v ON v.tenant_id = i.tenant_id AND v.id = i.invoice_id
+              WHERE i.tenant_id = @t AND s.source_domain = @domain AND s.policy_ref = @policy AND i.status = 'INVOICED'
+                AND v.status IN ('ISSUED', 'PART_PAID', 'OVERDUE') AND i.due_date < @day)
+            SELECT count(*), min(due_date), (SELECT coalesce(sum(outstanding), 0) FROM (SELECT DISTINCT invoice_id, outstanding FROM overdue) o) FROM overdue
             """, connection, transaction);
         command.Parameters.AddWithValue("t", tenantId);
         command.Parameters.AddWithValue("domain", sourceDomain);
@@ -298,7 +305,7 @@ internal sealed class PolicyArrearsQuery([FromKeyedServices(BillingDbContext.Sch
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
             await reader.ReadAsync(cancellationToken);
-            arrears = new PolicyArrears((int)reader.GetInt64(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<DateOnly>(1));
+            arrears = new PolicyArrears((int)reader.GetInt64(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<DateOnly>(1), reader.GetDecimal(2));
         }
 
         await transaction.CommitAsync(cancellationToken);

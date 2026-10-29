@@ -59,6 +59,9 @@ public interface IClaimsRepository
     /// <summary>The payee's instructions held for the reason (ReleaseHoldReasons).</summary>
     Task<IReadOnlyList<ClaimPaymentInstruction>> HeldFor(Guid payeePartyId, string reason, CancellationToken cancellationToken);
 
+    /// <summary>Instructions held for a reason on the claims of a policy (F006: PREMIUM_ARREARS), or of one claim when <paramref name="claimNumber"/> is given.</summary>
+    Task<IReadOnlyList<ClaimPaymentInstruction>> HeldOnPolicy(string domain, Guid? policyRef, string? claimNumber, string reason, CancellationToken cancellationToken);
+
     void Add(ClaimRegistration registration);
 
     void Add(FinancialMovement movement);
@@ -118,7 +121,7 @@ public sealed record InstructionView(Guid Id, string ClaimNumber, string Instruc
     [property: CodeList(CodeLists.ReserveTypes, "code")] string ReserveType, InstructionStatus Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId,
     string? PayeeBankHash, Guid? PendingPayeePartyId,
     Guid? PendingBankAccountId,
-    [property: OneOf("RESERVE_BELOW_ZERO", "PAYEE_ACCOUNT_CHANGED", "DUE_DILIGENCE_NOT_CLEARED")] string? HeldReason = null, string? HeldDetail = null, DateTimeOffset? HeldAt = null,
+    [property: OneOf("RESERVE_BELOW_ZERO", "PAYEE_ACCOUNT_CHANGED", "DUE_DILIGENCE_NOT_CLEARED", "PREMIUM_ARREARS")] string? HeldReason = null, string? HeldDetail = null, DateTimeOffset? HeldAt = null,
     LatestRejection? LatestRejection = null, long RowVersion = 0, string? MaskedAccount = null, string? PayeeName = null)
 {
     public static InstructionView From(ClaimPaymentInstruction i) => new(i.Id, i.ClaimNumber, i.InstructionRef, i.PayeePartyId, i.Amount, i.ApprovedAmount, i.Currency,
@@ -559,6 +562,12 @@ internal sealed class ChangeInstructionHandler(IClaimsRepository claims, IBankAc
                 return Error.Conflict(ClaimsErrorCodes.BankAccountChanged, "The payee's bank account changed after approval; redirect the instruction for a fresh approval.");
             }
 
+            // F006: a payment held for the policy's unpaid premium is released only when it is paid, never by hand.
+            if (instruction.HeldReason == ReleaseHoldReasons.PremiumArrears)
+            {
+                return Error.Conflict(ClaimsErrorCodes.PremiumArrears, "The policy's premium is unpaid for the loss date; the payment is released once it is paid.");
+            }
+
             // §5: a payee not cleared by due diligence is not paid; the instruction is released once Party clears them.
             var cleared = await dueDiligence.ClearedFor(tenant.RequireTenantId(), instruction.PayeePartyId, Party.Contracts.DueDiligenceSteps.ClaimPayout,
                 claim.Value.Domain, cancellationToken);
@@ -721,8 +730,44 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
     IIntegrationEventHandler<GeneralClaimApproved>,
     IIntegrationEventHandler<LifeClaimApproved>,
     IIntegrationEventHandler<RecoveryRecorded>,
-    IIntegrationEventHandler<Party.Contracts.DueDiligenceChanged>
+    IIntegrationEventHandler<Party.Contracts.DueDiligenceChanged>,
+    IIntegrationEventHandler<General.Contracts.GeneralPolicyArrearsCleared>,
+    IIntegrationEventHandler<General.Contracts.GeneralClaimDeclined>
 {
+    /// <summary>F006: the policy's arrears were paid: payments held for them are released (still subject to due diligence and the reserve).</summary>
+    public async Task Handle(General.Contracts.GeneralPolicyArrearsCleared cleared, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        foreach (var instruction in await claims.HeldOnPolicy("GENERAL", cleared.PolicyId, null, ReleaseHoldReasons.PremiumArrears, cancellationToken))
+        {
+            if (await claims.ByNumber(instruction.ClaimNumber, cancellationToken) is not { } claim)
+            {
+                continue;
+            }
+
+            if (!await Payees.Unchanged(bankAccounts, tenant, instruction.Payee, cancellationToken))
+            {
+                Hold(instruction, ReleaseHoldReasons.PayeeAccountChanged, "The payee's bank account changed after approval.", claim.Domain);
+                continue;
+            }
+
+            var financials = new ClaimFinancials(claim.ClaimNumber, claim.Domain, instruction.Currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
+            await Release(instruction, Guid.Empty, claim.Domain, financials.Outstanding(instruction.ReserveType), cancellationToken);
+        }
+    }
+
+    /// <summary>F006: a claim declined while its payment was held for the policy's arrears: the payment is withdrawn.</summary>
+    public async Task Handle(General.Contracts.GeneralClaimDeclined declined, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        foreach (var instruction in await claims.HeldOnPolicy("GENERAL", null, declined.ClaimNumber, ReleaseHoldReasons.PremiumArrears, cancellationToken))
+        {
+            var withdrawn = instruction.WithdrawHeld(clock.UtcNow);
+            if (withdrawn.IsFailure)
+            {
+                throw new InvalidOperationException($"The held payment of claim {declined.ClaimNumber} could not be withdrawn: {withdrawn.Error.Code}");
+            }
+        }
+    }
+
     /// <summary>
     /// The approval of a new instruction or of new payee details was granted: the instruction is approved, or takes the new
     /// payee details (and a failed payment is released again). One this approval already applied to is a redelivery; one
@@ -822,6 +867,14 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
         if (!await Payees.Unchanged(bankAccounts, tenant, instruction.Value.Payee, cancellationToken))
         {
             Hold(instruction.Value, ReleaseHoldReasons.PayeeAccountChanged, "The payee's bank account changed after approval.", claim.Domain);
+            return;
+        }
+
+        // F006: the loss fell in grace without cover and the premium is unpaid: the payment waits for it.
+        if (approved.HoldReason == ReleaseHoldReasons.PremiumArrears)
+        {
+            Hold(instruction.Value, ReleaseHoldReasons.PremiumArrears, "The policy's premium is unpaid for the loss date; the payment is released once it is paid.",
+                claim.Domain);
             return;
         }
 

@@ -27,6 +27,7 @@
 using FluentValidation;
 using Insys.Billing.Contracts;
 using Insys.Billing.Domain.Billing;
+using Microsoft.Extensions.Logging;
 using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
@@ -46,6 +47,9 @@ public interface IBillingRepository
     Task<Invoice?> Invoice(Guid id, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Invoice>> Invoices(Guid accountId, CancellationToken cancellationToken);
+
+    /// <summary>A policy's invoices from a source domain, oldest due first.</summary>
+    Task<IReadOnlyList<Invoice>> PolicyInvoices(string sourceDomain, Guid policyRef, CancellationToken cancellationToken);
 
     Task<RefundRequest?> Refund(Guid id, CancellationToken cancellationToken);
 
@@ -629,6 +633,36 @@ internal static class Views
 {
     public static RefundView From(RefundRequest r) => new(r.Id, r.BillingAccountId, r.Amount, r.Currency, r.ReasonCode, r.Status, r.PaymentId, r.RequestedBy,
         r.DecidedBy, r.BankAccountId, null, r.ApprovalId, r.RowVersion);
+}
+
+/// <summary>
+/// F006 (the tenant's grace rule): a General claim's settlement paid the policy's arrears. They are settled oldest due first,
+/// as an allocation would, so the policy's grace clears (InvoiceSettled). TODO(spec): Finance does not yet post the offset
+/// (claims payable against premium receivable); it needs its posting rule (OQ-137).
+/// </summary>
+public sealed class PremiumOffsets(IBillingRepository billing, IClock clock, Microsoft.Extensions.Logging.ILogger<PremiumOffsets> logger)
+    : IIntegrationEventHandler<General.Contracts.GeneralPremiumOffsetFromClaim>
+{
+    public async Task Handle(General.Contracts.GeneralPremiumOffsetFromClaim offset, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var left = offset.Amount;
+        foreach (var invoice in (await billing.PolicyInvoices(General.Contracts.GeneralRatingSubjects.SourceDomain, offset.PolicyId, cancellationToken))
+                 .Where(i => i.Currency == offset.Currency && i.Outstanding > 0))
+        {
+            if (left <= 0)
+            {
+                break;
+            }
+
+            left -= invoice.ApplyAllocation(left, clock.UtcNow);
+        }
+
+        if (left > 0)
+        {
+            logger.LogWarning("Claim {ClaimNumber}'s premium offset left {Amount} {Currency} unapplied on policy {PolicyId}", offset.ClaimNumber, left, offset.Currency,
+                offset.PolicyId);
+        }
+    }
 }
 
 /// <summary>

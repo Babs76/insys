@@ -61,8 +61,11 @@ public enum MembershipTrigger
     TerminateMembership,
 }
 
-/// <summary>A scheme's contribution grace (health.cfg_contribution_grace_rules, F006): grace days, suspension after, and the notice before termination.</summary>
-public sealed record ContributionGrace(int GraceDays, int SuspendAfterDays, int TerminateNoticeDays);
+/// <summary>
+/// A scheme's contribution grace (health.cfg_contribution_grace_rules, F006): grace days, suspension after, the notice
+/// before termination, and whether paying the arrears reinstates a membership suspended for them (a tenant setting, on by default).
+/// </summary>
+public sealed record ContributionGrace(int GraceDays, int SuspendAfterDays, int TerminateNoticeDays, bool ReinstateOnPayment = true);
 
 /// <summary>A membership was suspended for unpaid contributions (F006): the member is told, with the date a person may terminate it from.</summary>
 public sealed record MembershipSuspendedForArrears(Guid MembershipId, string MemberNumber, Guid PrincipalPartyId, DateOnly SuspendedFrom, DateOnly TerminationNoticeEnds,
@@ -492,8 +495,9 @@ public sealed class HealthMembership : AggregateRoot<Guid>
     /// <summary>
     /// Command RecordMissedContribution (F006): the contributions Billing finds unpaid past their due date, as of its
     /// detection date (BR-103). The first starts grace from the oldest unpaid due date, with suspension after the rule's
-    /// days. None left (a payment) clears it: a membership suspended for arrears is reinstated from the day, held claims are
-    /// released and any termination task is closed.
+    /// days. None left (a payment) clears it: held claims are released and any termination task is closed. A membership
+    /// suspended for arrears is reinstated from the day where the tenant's rule says so (the default); otherwise it stays
+    /// suspended for staff to reinstate. Claims declined during the suspension stay declined unless staff reopen them.
     /// </summary>
     public Result RecordArrears(int overdueContributions, DateOnly? oldestDue, ContributionGrace grace, DateOnly today, DateTimeOffset now)
     {
@@ -509,8 +513,20 @@ public sealed class HealthMembership : AggregateRoot<Guid>
                 return Result.Success();
             }
 
+            ArrearsSince = null;
+            GraceUntil = null;
+            SuspendOn = null;
             if (SuspendedForArrearsOn is not null && Status == MembershipStatus.Suspended)
             {
+                if (!grace.ReinstateOnPayment)
+                {
+                    // Paid: no termination for arrears is asked for, but staff decide whether to reinstate.
+                    TerminationDueRaised = true;
+                    MarkChanged();
+                    Raise(new MembershipArrearsCleared(Id, MemberNumber, now));
+                    return Result.Success();
+                }
+
                 var reinstated = ReinstateMembership(today, ArrearsReason, now);
                 if (reinstated.IsFailure)
                 {
@@ -518,9 +534,6 @@ public sealed class HealthMembership : AggregateRoot<Guid>
                 }
             }
 
-            ArrearsSince = null;
-            GraceUntil = null;
-            SuspendOn = null;
             SuspendedForArrearsOn = null;
             TerminationNoticeEnds = null;
             TerminationDueRaised = false;

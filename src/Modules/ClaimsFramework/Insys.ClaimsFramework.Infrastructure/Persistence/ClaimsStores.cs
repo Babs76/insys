@@ -114,6 +114,24 @@ internal sealed class ClaimsRepository(ClaimsFrameworkDbContext db, IExecutionCo
     public async Task<ClaimPaymentInstruction?> Instruction(string claimNumber, string instructionRef, CancellationToken cancellationToken) =>
         await OfClaim(await db.Instructions.SingleOrDefaultAsync(i => i.ClaimNumber == claimNumber && i.InstructionRef == instructionRef, cancellationToken), cancellationToken);
 
+    public async Task<IReadOnlyList<ClaimPaymentInstruction>> HeldOnPolicy(string domain, Guid? policyRef, string? claimNumber, string reason,
+        CancellationToken cancellationToken)
+    {
+        var numbers = db.Claims.Where(c => c.Domain == domain && (policyRef == null || c.PolicyRef == policyRef) && (claimNumber == null || c.ClaimNumber == claimNumber))
+            .Select(c => c.ClaimNumber);
+        var held = new List<ClaimPaymentInstruction>();
+        foreach (var instruction in await db.Instructions.Where(i => i.HeldReason == reason && i.Status == InstructionStatus.Approved && numbers.Contains(i.ClaimNumber))
+                     .OrderBy(i => i.Id).ToListAsync(cancellationToken))
+        {
+            if (await OfClaim(instruction, cancellationToken) is { } inScope)
+            {
+                held.Add(inScope);
+            }
+        }
+
+        return held;
+    }
+
     public async Task<IReadOnlyList<ClaimPaymentInstruction>> HeldFor(Guid payeePartyId, string reason, CancellationToken cancellationToken)
     {
         var held = new List<ClaimPaymentInstruction>();

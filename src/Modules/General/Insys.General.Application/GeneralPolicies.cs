@@ -45,8 +45,8 @@ namespace Insys.General.Application;
 /// General's policies (domain-model.json: general consumes PremiumCalculated, ApprovalGranted, ClaimPaymentCompleted),
 /// and the reactions that keep its own aggregates consistent with each other through its events.
 /// </summary>
-public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, IClaimDecisionReasons reasons, ITenantContext tenant,
-    IBusinessDate businessDate, IClock clock, ILogger<GeneralPolicies> logger) :
+public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, IClaimDecisionReasons reasons, IPolicyArrears arrears,
+    ITenantContext tenant, IBusinessDate businessDate, IClock clock, ILogger<GeneralPolicies> logger) :
     IIntegrationEventHandler<PremiumCalculated>,
     IIntegrationEventHandler<PremiumNotCalculated>,
     IIntegrationEventHandler<ApprovalGranted>,
@@ -240,7 +240,8 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
                 return;
             }
 
-            var decided = claim.DecideSettlement(approved, approvalId, checkerId, subjectHash, clock.UtcNow);
+            var decided = claim.DecideSettlement(approved, approvalId, checkerId, subjectHash, clock.UtcNow,
+                approved ? await ArrearsCondition(claim, cancellationToken) : null);
             NotApplied(decided, approved, GeneralApprovals.SettlementApprovalType, approvalId);
 
             // OQ-102: a partial approval sends the policyholder their rights on the declined part, with the reason's wording.
@@ -250,6 +251,24 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
                 claim.NoticeDecisionRights(policy.PolicyholderPartyId, reason?.CustomerWording, businessDate.Today, clock.UtcNow);
             }
         }
+    }
+
+    /// <summary>
+    /// F006: a loss in grace without cover, with the arrears unpaid, is paid only once they are: the payment is held for them,
+    /// or, where the tenant's grace rule says so and the settlement covers them, paid less them (Billing settles the arrears).
+    /// </summary>
+    private async Task<Domain.Claims.SettlementCondition?> ArrearsCondition(Domain.Claims.GeneralClaim claim, CancellationToken cancellationToken)
+    {
+        if (await general.Policy(claim.PolicyId, cancellationToken) is not { } policy || !policy.LossAwaitsArrears(claim.LossDate))
+        {
+            return null;
+        }
+
+        var owed = (await arrears.For(tenant.RequireTenantId(), GeneralRatingSubjects.SourceDomain, policy.Id, businessDate.Today, cancellationToken)).Outstanding;
+        var grace = await codes.GraceTerms(policy.ProductCode, policy.BillingFrequency ?? "", businessDate.Today, cancellationToken);
+        return grace is { DeductArrearsFromClaims: true } && owed > 0 && owed < claim.SettlementAmount
+            ? new Domain.Claims.SettlementCondition(policy.Id, false, owed)
+            : new Domain.Claims.SettlementCondition(policy.Id, true, 0m);
     }
 
     /// <summary>
@@ -397,7 +416,7 @@ internal sealed class RunDueHandler(IGeneralRepository general, IGeneralCodes co
                     // F006: grace ended unpaid. The grace rule names the reason, and its refund rule applies.
                     result = await codes.GraceTerms(policy.ProductCode, policy.BillingFrequency ?? "", command.Day, cancellationToken) is { } grace
                              && await codes.CancellationRule(grace.CancellationReason, command.Day, cancellationToken) is { } cancellation
-                        ? policy.CancelForNonPayment(cancellation, command.Day, clock.UtcNow)
+                        ? policy.CancelForNonPayment(cancellation, grace, command.Day, clock.UtcNow)
                         : BuildingBlocks.Domain.Error.Validation(Domain.GeneralErrorCodes.CodeNotInForce,
                             $"{policy.ProductCode} has no grace rule, or its cancellation reason, in force for {policy.BillingFrequency}.");
                     break;

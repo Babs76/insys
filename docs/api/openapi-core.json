@@ -34784,6 +34784,7 @@
                 "cfg_commission_plans",
                 "cfg_compliance_register_entrie",
                 "cfg_consent_purposes",
+                "cfg_contribution_grace_rules",
                 "cfg_contribution_rules",
                 "cfg_coverage_and_benefit_libra",
                 "cfg_credential_references",
@@ -34890,6 +34891,7 @@
                 "cfg_service_account_scopes",
                 "cfg_service_types",
                 "cfg_settlement_authority_limit",
+                "cfg_short_period_scales",
                 "cfg_sla_definitions",
                 "cfg_special_conditions_and_cla",
                 "cfg_statement_templates",
@@ -35226,6 +35228,7 @@
                 "cfg_commission_plans",
                 "cfg_compliance_register_entrie",
                 "cfg_consent_purposes",
+                "cfg_contribution_grace_rules",
                 "cfg_contribution_rules",
                 "cfg_coverage_and_benefit_libra",
                 "cfg_credential_references",
@@ -35332,6 +35335,7 @@
                 "cfg_service_account_scopes",
                 "cfg_service_types",
                 "cfg_settlement_authority_limit",
+                "cfg_short_period_scales",
                 "cfg_sla_definitions",
                 "cfg_special_conditions_and_cla",
                 "cfg_statement_templates",
@@ -43461,6 +43465,36 @@
           }
         }
       },
+      "GeneralPolicyGraceView": {
+        "required": [
+          "arrearsSince",
+          "unpaidInstalments",
+          "graceUntil",
+          "coverDuringGrace"
+        ],
+        "type": "object",
+        "properties": {
+          "arrearsSince": {
+            "type": "string",
+            "format": "date"
+          },
+          "unpaidInstalments": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "graceUntil": {
+            "type": "string",
+            "format": "date"
+          },
+          "coverDuringGrace": {
+            "type": "boolean"
+          }
+        }
+      },
       "GeneralPolicyStatus": {
         "enum": [
           "Issued",
@@ -43692,6 +43726,16 @@
               "string"
             ],
             "format": "double"
+          },
+          "grace": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GeneralPolicyGraceView"
+              }
+            ]
           }
         }
       },

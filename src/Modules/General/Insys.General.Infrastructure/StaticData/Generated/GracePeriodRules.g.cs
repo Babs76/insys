@@ -49,6 +49,10 @@ public sealed class GracePeriodRules : StaticRecord<GracePeriodRulesInput>
 
     public string CancellationReason { get; set; } = "";
 
+    public string ClaimDeclineReason { get; set; } = "";
+
+    public bool? DeductArrearsFromClaims { get; set; }
+
     public override void ApplyFields(GracePeriodRulesInput input, IFieldProtector protector)
     {
         ProductCode = input.ProductCode!;
@@ -56,6 +60,8 @@ public sealed class GracePeriodRules : StaticRecord<GracePeriodRulesInput>
         GraceDays = input.GraceDays.GetValueOrDefault();
         CoverDuringGrace = input.CoverDuringGrace.GetValueOrDefault();
         CancellationReason = input.CancellationReason!;
+        ClaimDeclineReason = input.ClaimDeclineReason!;
+        DeductArrearsFromClaims = input.DeductArrearsFromClaims;
     }
 }
 
@@ -77,6 +83,11 @@ public sealed record GracePeriodRulesInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? CancellationReason { get; init; }
 
+    [Insys.BuildingBlocks.Domain.RequiredField]
+    public string? ClaimDeclineReason { get; init; }
+
+    public bool? DeductArrearsFromClaims { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("productCode", ProductCode);
@@ -87,5 +98,7 @@ public sealed record GracePeriodRulesInput : StaticRecordInput
         errors.Required("coverDuringGrace", CoverDuringGrace);
         errors.Required("cancellationReason", CancellationReason);
         errors.MaxLength("cancellationReason", CancellationReason, 15);
+        errors.Required("claimDeclineReason", ClaimDeclineReason);
+        errors.MaxLength("claimDeclineReason", ClaimDeclineReason, 15);
     }
 }

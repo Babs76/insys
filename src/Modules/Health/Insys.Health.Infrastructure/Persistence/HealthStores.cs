@@ -248,7 +248,7 @@ internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
     public async Task<ContributionGrace?> ContributionGrace(string? schemeNumber, DateOnly day, CancellationToken cancellationToken)
     {
         var rules = await InForce<ContributionGraceRules>(day).Where(r => r.Scheme == null || r.Scheme == schemeNumber).ToListAsync(cancellationToken);
-        return rules.OrderBy(r => r.Scheme is null).Select(r => new ContributionGrace(r.GraceDays, r.SuspendAfterDays, r.TerminateNoticeDays)).FirstOrDefault();
+        return rules.OrderBy(r => r.Scheme is null).Select(r => new ContributionGrace(r.GraceDays, r.SuspendAfterDays, r.TerminateNoticeDays, r.ReinstateOnPayment ?? true)).FirstOrDefault();
     }
 
     public async Task<string?> MemberNumberPrefix(DateOnly day, CancellationToken cancellationToken) =>

@@ -83,10 +83,6 @@ public static class GeneralErrorCodes
     [ErrorCode(422, "error.general.outside_policy_period")]
     public const string OutsidePolicyPeriod = "OUTSIDE_POLICY_PERIOD";
 
-    /// <summary>F006: the loss falls in grace with instalments unpaid and no cover in grace; it is covered once they are paid.</summary>
-    [ErrorCode(409, "error.general.policy_in_grace")]
-    public const string PolicyInGrace = "GENERAL_POLICY_IN_GRACE";
-
     [ErrorCode(422, "error.general.rule_not_specified")]
     public const string RuleNotSpecified = "GENERAL_RULE_NOT_SPECIFIED";
 

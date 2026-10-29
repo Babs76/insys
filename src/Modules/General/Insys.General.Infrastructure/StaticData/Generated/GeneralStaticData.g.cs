@@ -156,6 +156,8 @@ public static class GeneralStaticData
             entity.Property(x => x.GraceDays).HasColumnName("grace_days");
             entity.Property(x => x.CoverDuringGrace).HasColumnName("cover_during_grace");
             entity.Property(x => x.CancellationReason).HasColumnName("cancellation_reason").HasMaxLength(15);
+            entity.Property(x => x.ClaimDeclineReason).HasColumnName("claim_decline_reason").HasMaxLength(15);
+            entity.Property(x => x.DeductArrearsFromClaims).HasColumnName("deduct_arrears_from_claims");
         });
         modelBuilder.Entity<IndemnityPeriodOptions>(entity =>
         {

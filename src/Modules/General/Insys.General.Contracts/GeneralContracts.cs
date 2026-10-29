@@ -187,8 +187,22 @@ public sealed record AssessorAppointed(Guid ClaimId, Guid AssessorPartyId) : IIn
 [IntegrationEvent("general.GeneralClaimApproved")]
 /// <param name="BankAccountId">The payee's bank account (party.bank_account) the approval covered.</param>
 /// <param name="PayeeBankHash">The keyed hash of that account's number, as approved.</param>
+/// <param name="HoldReason">PREMIUM_ARREARS: the loss falls in grace without cover and the arrears are unpaid; the payment waits for them (F006).</param>
+/// <param name="PremiumOffset">The arrears taken from the settlement by the tenant's rule (F006); <paramref name="Amount"/> is what is paid.</param>
 public sealed record GeneralClaimApproved(Guid ClaimId, string ClaimNumber, Guid PayeePartyId, Guid BankAccountId, string PayeeBankHash, decimal Amount, string Currency,
-    string ReserveType, Guid ApprovalId, Guid CheckerId) : IIntegrationEvent;
+    string ReserveType, Guid ApprovalId, Guid CheckerId, Guid? PolicyId = null, string? HoldReason = null, decimal PremiumOffset = 0m) : IIntegrationEvent;
+
+/// <summary>A policy's arrears were paid (F006): claim payments held for them (PREMIUM_ARREARS) are released.</summary>
+[IntegrationEvent("general.GeneralPolicyArrearsCleared")]
+public sealed record GeneralPolicyArrearsCleared(Guid PolicyId, string PolicyNumber) : IIntegrationEvent;
+
+/// <summary>Grace ended unpaid and the policy was cancelled from <paramref name="CancelledFrom"/> (F006): its claims for losses from then are declined.</summary>
+[IntegrationEvent("general.GeneralPolicyLapsedUnpaid")]
+public sealed record GeneralPolicyLapsedUnpaid(Guid PolicyId, string PolicyNumber, DateOnly CancelledFrom, string ClaimDeclineReason) : IIntegrationEvent;
+
+/// <summary>A claim's settlement paid the policy's arrears (F006, the tenant's rule): Billing settles the overdue invoices with it, oldest first.</summary>
+[IntegrationEvent("general.GeneralPremiumOffsetFromClaim")]
+public sealed record GeneralPremiumOffsetFromClaim(Guid PolicyId, Guid ClaimId, string ClaimNumber, decimal Amount, string Currency) : IIntegrationEvent;
 
 [IntegrationEvent("general.GeneralClaimSettled")]
 public sealed record GeneralClaimSettled(Guid ClaimId, string ClaimNumber, decimal Amount, string Currency, DateOnly PaidOn, Guid? PolicyId = null) : IIntegrationEvent;

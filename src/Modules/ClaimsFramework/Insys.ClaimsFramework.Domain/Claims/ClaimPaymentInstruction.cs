@@ -49,6 +49,9 @@ public enum InstructionTrigger
     PaymentSucceeded,
     PaymentFailed,
     RetriedWithNewDetails,
+
+    /// <summary>F006: the claim was declined while its payment was held for the policy's arrears.</summary>
+    WithdrawHeld,
 }
 
 /// <summary>Asks Workflow for a second person's approval, with the amount for authority limits (SRS-002, WFL-004).</summary>
@@ -79,6 +82,12 @@ public static class ReleaseHoldReasons
 
     /// <summary>The payee is not cleared by due diligence (addenda/due-diligence.md §5): released when Party clears them.</summary>
     public const string DueDiligenceNotCleared = "DUE_DILIGENCE_NOT_CLEARED";
+
+    /// <summary>
+    /// The loss fell in the policy's grace without cover and the premium is unpaid (F006, addenda/renewals-and-retention.md
+    /// §5): released when the arrears are paid; withdrawn if the claim is declined because grace ended unpaid.
+    /// </summary>
+    public const string PremiumArrears = "PREMIUM_ARREARS";
 }
 
 /// <summary>A payee held by due diligence is screened again before the payment (OQ-125): the payee only.</summary>
@@ -101,7 +110,9 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
         .Allow(InstructionStatus.Approved, InstructionTrigger.ReleaseInstruction, InstructionStatus.Released)
         .Allow(InstructionStatus.Released, InstructionTrigger.PaymentSucceeded, InstructionStatus.Paid)
         .Allow(InstructionStatus.Released, InstructionTrigger.PaymentFailed, InstructionStatus.Failed)
-        .Allow(InstructionStatus.Failed, InstructionTrigger.RetriedWithNewDetails, InstructionStatus.Released);
+        .Allow(InstructionStatus.Failed, InstructionTrigger.RetriedWithNewDetails, InstructionStatus.Released)
+        // F006 (Wave 4): a payment held for the policy's arrears is withdrawn when the claim is declined for non-payment.
+        .Allow(InstructionStatus.Approved, InstructionTrigger.WithdrawHeld, InstructionStatus.Rejected);
 
     private ClaimPaymentInstruction()
     {
@@ -262,6 +273,24 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
         if (result.IsSuccess)
         {
             ApprovalId = approvalId;
+        }
+
+        return result;
+    }
+
+    /// <summary>Command WithdrawHeldInstruction (F006): the claim was declined while its payment waited for the policy's arrears; nothing is paid.</summary>
+    public Result WithdrawHeld(DateTimeOffset now)
+    {
+        if (Status != InstructionStatus.Approved || HeldReason != ReleaseHoldReasons.PremiumArrears)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Instruction {InstructionRef} is {Status}, held for {HeldReason ?? "nothing"}.");
+        }
+
+        var result = Fire(InstructionTrigger.WithdrawHeld);
+        if (result.IsSuccess)
+        {
+            HeldDetail = "Withdrawn: the claim was declined because the policy's grace ended unpaid.";
+            HeldAt = now;
         }
 
         return result;

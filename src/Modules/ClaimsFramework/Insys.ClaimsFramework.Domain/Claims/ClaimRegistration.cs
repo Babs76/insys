@@ -330,6 +330,10 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
 
 public static class ClaimsErrorCodes
 {
+    /// <summary>F006: the payment waits for the policy's unpaid premium; it is released when it is paid, not by hand.</summary>
+    [ErrorCode(409, "error.claims.premium_arrears")]
+    public const string PremiumArrears = "PREMIUM_ARREARS";
+
     [ErrorCode(409, "error.claims.evidence_requested")]
     public const string EvidenceRequested = "EVIDENCE_ALREADY_REQUESTED";
 

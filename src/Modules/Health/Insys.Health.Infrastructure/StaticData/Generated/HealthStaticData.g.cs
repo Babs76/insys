@@ -169,6 +169,7 @@ public static class HealthStaticData
             entity.Property(x => x.GraceDays).HasColumnName("grace_days");
             entity.Property(x => x.SuspendAfterDays).HasColumnName("suspend_after_days");
             entity.Property(x => x.TerminateNoticeDays).HasColumnName("terminate_notice_days");
+            entity.Property(x => x.ReinstateOnPayment).HasColumnName("reinstate_on_payment");
         });
         modelBuilder.Entity<ContributionRules>(entity =>
         {

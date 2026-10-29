@@ -459,6 +459,138 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>
+    /// F006, Wave 4 addition 1 and Ade's decision of 29 October 2026: an instalment unpaid past its due date starts grace and
+    /// tells the policyholder when cover ends. A loss in grace without cover is always accepted (notified, registered,
+    /// assessed, approved); its payment is held until the arrears are paid, and is then released. By the tenant's rule it is
+    /// paid less the arrears instead, which settles them. If grace ends unpaid, the policy is cancelled for non-payment, the
+    /// policyholder told, and the claim declined with the rule's reason, its held payment withdrawn.
+    /// </summary>
+    [Fact]
+    public async Task ALossInGrace_IsAccepted_ItsPaymentHeldUntilPaid_OrPaidLessTheArrears_OrDeclinedIfGraceEndsUnpaid_F006()
+    {
+        await _db.SeedEmailNotices(Tenant, Today.AddDays(-30), "GRC",
+            (Insys.Communications.Contracts.NotificationTypes.GraceNotice, "Grace {policy_number}", "{policy_number}: cover ends on {cover_ends_on} unless paid."),
+            (Insys.Communications.Contracts.NotificationTypes.NonPaymentCancellation, "Cancelled {policy_number}", "{policy_number} was cancelled from {cancelled_from}."));
+        await Seed("general.cfg_cancellation_reasons_and_refund_rules", "EFFECTIVE", "NON_PAYMENT", ("reason_code", "NON_PAYMENT"), ("initiator", "INSURER"),
+            ("refund_basis", "NONE"), ("fee", 0m));
+        // Monthly: held until paid. Annual (the tenant's other rule): paid less the arrears. Neither keeps cover in grace.
+        await Seed("general.cfg_grace_period_rules", "EFFECTIVE", $"GRACE-{Product}-MONTHLY", ("product_code", Product), ("frequency", "MONTHLY"), ("grace_days", 15),
+            ("cover_during_grace", false), ("cancellation_reason", "NON_PAYMENT"), ("claim_decline_reason", "NON_PAYMENT"));
+        await Seed("general.cfg_grace_period_rules", "EFFECTIVE", $"GRACE-{Product}-ANNUAL", ("product_code", Product), ("frequency", "ANNUAL"), ("grace_days", 15),
+            ("cover_during_grace", false), ("cancellation_reason", "NON_PAYMENT"), ("claim_decline_reason", "NON_PAYMENT"), ("deduct_arrears_from_claims", true));
+
+        async Task<(Guid Policy, Guid Vehicle, Guid Holder, string Number)> Unpaid(string name, DateOnly due, string frequency)
+        {
+            var (policy, vehicle) = await IssuedPolicy();
+            var holder = await _maker.RegisterPerson(name);
+            await _db.AddContact(Tenant, holder, "EMAIL", $"{name.ToLowerInvariant()}@example.com");
+            await _db.ExecuteAsOwner("UPDATE general.policy SET policyholder_party_id = @h, billing_frequency = @f WHERE id = @p", ("h", holder), ("f", frequency), ("p", policy));
+            await _factory.DrainOutbox();
+            await _db.ExecuteAsOwner("UPDATE billing.invoice SET due_date = @d, issue_date = @d WHERE source_domain = 'GENERAL' AND policy_ref = @p", ("d", due), ("p", policy));
+            await _db.ExecuteAsOwner("""
+                UPDATE billing.premium_instalment i SET due_date = @d FROM billing.premium_schedule s
+                WHERE s.id = i.schedule_id AND s.policy_ref = @p AND i.status = 'INVOICED'
+                """, ("d", due), ("p", policy));
+            return (policy, vehicle, holder, (await Policy(policy)).GetProperty("policyNumber").GetString()!);
+        }
+
+        // A loss today: notified, registered, assessed and its settlement approved; returns the claim and its payment instruction.
+        async Task<(Guid Claim, Guid Instruction)> Approved(Guid policy, Guid vehicle, string payeeName)
+        {
+            var claim = await Created("/api/v1/general/claims", new
+            {
+                policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC", description = "In grace",
+            });
+            var registered = await (await _maker.PostAsync($"/api/v1/general/claims/{claim}/register", null)).Json();
+            registered.GetProperty("status").GetString().ShouldBe("Registered", "a loss in grace is always accepted");
+            var number = registered.GetProperty("claimNumber").GetString()!;
+            (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 50_000m, currency = "ZAR", reason = "Assessed" }))
+                .StatusCode.ShouldBe(HttpStatusCode.OK);
+            (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/assessor", new { assessorPartyId = Assessor })).StatusCode.ShouldBe(HttpStatusCode.OK);
+            await _factory.DrainOutbox();
+            var assessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{claim}/assessments")).Json()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+            (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/start", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+            (await _maker.PostAsJsonAsync($"/api/v1/general/assessments/{assessment}/report", new { assessedAmount = 20_000m })).StatusCode.ShouldBe(HttpStatusCode.OK);
+            (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+            var payee = await _maker.RegisterPerson(payeeName);
+            var account = await _maker.AddVerifiedBankAccount(_checker, _factory, payee, $"62 {Random.Shared.Next(1000, 9999)} {Random.Shared.Next(1000, 9999)}");
+            (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/settlement",
+                new { payeePartyId = payee, bankAccountId = account, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Within the assessed amount" }))
+                .StatusCode.ShouldBe(HttpStatusCode.OK);
+            await _factory.DrainOutbox();
+            await Decide(GeneralApprovals.SettlementBusinessRefType, claim, approve: true);
+            await _factory.DrainOutbox();
+            return (claim, await _db.ScalarAsOwner<Guid>("SELECT id FROM claims.claim_payment_instruction WHERE claim_number = @n", ("n", number)));
+        }
+
+        async Task<(string Status, string? Held, decimal Amount)> Instruction(Guid id)
+        {
+            var view = await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{id}")).Json();
+            return (view.GetProperty("status").GetString()!, view.GetProperty("heldReason").ValueKind == JsonValueKind.Null ? null : view.GetProperty("heldReason").GetString(),
+                view.GetProperty("amount").GetDecimal());
+        }
+
+        var held = await Unpaid("Held", Today.AddDays(-5), "MONTHLY");
+        var netted = await Unpaid("Netted", Today.AddDays(-5), "ANNUAL");
+        var lapsing = await Unpaid("Lapsing", Today.AddDays(-20), "MONTHLY");
+        await _factory.Services.GetRequiredService<Insys.Billing.Infrastructure.BillingJobs>().Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        var grace = (await Policy(held.Policy)).GetProperty("grace");
+        (grace.GetProperty("arrearsSince").GetString(), grace.GetProperty("graceUntil").GetString(), grace.GetProperty("coverDuringGrace").GetBoolean())
+            .ShouldBe((Today.AddDays(-5).ToString("yyyy-MM-dd"), Today.AddDays(10).ToString("yyyy-MM-dd"), false));
+
+        // Path 1: held until the arrears are paid, then released; a person cannot release it before.
+        var (_, heldInstruction) = await Approved(held.Policy, held.Vehicle, "Held Repairs");
+        (await Instruction(heldInstruction)).ShouldBe(("Approved", "PREMIUM_ARREARS", 15_000m));
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/claims/payment-instructions/{heldInstruction}/release",
+            ifMatch: (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{heldInstruction}")).ETag())).Code()).ShouldBe("PREMIUM_ARREARS");
+        foreach (var payment in await _db.ScalarAsOwner<Guid[]>("""
+                     SELECT array_agg(p.id) FROM payment.payment p JOIN billing.invoice i ON i.id = p.business_ref_id WHERE i.policy_ref = @p
+                     """, ("p", held.Policy)) ?? [])
+        {
+            (await Callback(payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        await _factory.DrainOutbox();
+        (await Policy(held.Policy)).GetProperty("grace").ValueKind.ShouldBe(JsonValueKind.Null);
+        (await Instruction(heldInstruction)).ShouldBe(("Released", null, 15_000m));
+
+        // Path 2: by the tenant's rule, paid less the arrears, which settles them.
+        var owed = await _db.ScalarAsOwner<decimal>("SELECT sum(total_amount - allocated_amount) FROM billing.invoice WHERE source_domain = 'GENERAL' AND policy_ref = @p",
+            ("p", netted.Policy));
+        owed.ShouldBeGreaterThan(0m);
+        var (_, nettedInstruction) = await Approved(netted.Policy, netted.Vehicle, "Netted Repairs");
+        (await Instruction(nettedInstruction)).ShouldBe(("Released", null, 15_000m - owed));
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE source_domain = 'GENERAL' AND policy_ref = @p AND status <> 'PAID'", ("p", netted.Policy)))
+            .ShouldBe(0L, "the arrears were settled from the claim");
+        (await Policy(netted.Policy)).GetProperty("grace").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        // Path 3: grace ends unpaid. The policy is cancelled for non-payment from the first unpaid due date; the claim, approved
+        // and held, is declined with the rule's reason and its payment withdrawn.
+        var (lapsedClaim, lapsedInstruction) = await Approved(lapsing.Policy, lapsing.Vehicle, "Lapsed Repairs");
+        (await Instruction(lapsedInstruction)).Held.ShouldBe("PREMIUM_ARREARS");
+        await _factory.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>().Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        var cancelled = await Policy(lapsing.Policy);
+        (cancelled.GetProperty("status").GetString(), cancelled.GetProperty("cancellations")[0].GetProperty("reasonCode").GetString(),
+            cancelled.GetProperty("cancellations")[0].GetProperty("effectiveDate").GetString()).ShouldBe(("Cancelled", "NON_PAYMENT", Today.AddDays(-20).ToString("yyyy-MM-dd")));
+        var declined = await Claim(lapsedClaim);
+        (declined.GetProperty("status").GetString(), declined.GetProperty("decisionCode").GetString()).ShouldBe(("Declined", "NON_PAYMENT"));
+        (await Instruction(lapsedInstruction)).ShouldBe(("Rejected", "PREMIUM_ARREARS", 15_000m));
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM payment.payment WHERE business_ref_id = @i", ("i", lapsedInstruction))).ShouldBe(0L, "nothing is paid");
+        (await Policy(held.Policy)).GetProperty("status").GetString().ShouldBe("InForce", "paid in time");
+
+        // The lapsed policy's notices, sent once each.
+        await _factory.Services.GetRequiredService<Insys.Communications.Infrastructure.NotificationSender>().RunForTenant(Tenant, CancellationToken.None);
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(type_code || ':' || status || ':' || body, '|' ORDER BY type_code) FROM communication.notification WHERE recipient_party_id = @h
+              AND type_code IN ('GRACE_NOTICE', 'NON_PAYMENT_CANCELLATION')
+            """, ("h", lapsing.Holder))).ShouldBe(string.Join('|',
+            $"GRACE_NOTICE:SENT:{lapsing.Number}: cover ends on {Today.AddDays(-21):yyyy-MM-dd} unless paid.",
+            $"NON_PAYMENT_CANCELLATION:SENT:{lapsing.Number} was cancelled from {Today.AddDays(-20):yyyy-MM-dd}."));
+    }
+
+    /// <summary>
     /// External-user access (addenda/external-user-access.md): brokers and members act only through their portal, on the
     /// records of their relationship. A broker cannot see another broker's client, nor quote for one; a member cannot open
     /// another member's policy, even by guessing its ID. Staff endpoints, the staff client and a token without MFA are refused.

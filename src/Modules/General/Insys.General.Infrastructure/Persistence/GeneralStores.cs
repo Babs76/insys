@@ -131,6 +131,9 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
         await db.Policies.AsNoTracking().Where(p => p.Status == PolicyStatus.InForce && p.GraceUntil != null && p.GraceUntil < day && p.ArrearsCount > 0)
             .OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> ClaimsOfPolicy(Guid policyId, CancellationToken cancellationToken) =>
+        await db.Claims.AsNoTracking().Where(c => c.PolicyId == policyId).Select(c => c.Id).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Guid>> PoliciesOnAccount(Guid billingAccountRef, CancellationToken cancellationToken) =>
         await db.Policies.AsNoTracking().Where(p => p.BillingAccountRef == billingAccountRef && p.Status == PolicyStatus.InForce).Select(p => p.Id)
             .ToListAsync(cancellationToken);
@@ -322,7 +325,8 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
 
     public async Task<GraceTerms?> GraceTerms(string productCode, string frequency, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<GracePeriodRules>(day).Where(r => r.ProductCode == productCode && r.Frequency == frequency)
-            .Select(r => new GraceTerms(r.GraceDays, r.CoverDuringGrace, r.CancellationReason)).FirstOrDefaultAsync(cancellationToken);
+            .Select(r => new GraceTerms(r.GraceDays, r.CoverDuringGrace, r.CancellationReason, r.ClaimDeclineReason, r.DeductArrearsFromClaims ?? false))
+            .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<EndorsementType?> EndorsementType(string code, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<EndorsementTypes>(day).Where(t => t.Code == code)
@@ -442,7 +446,10 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         SettlementRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.GeneralApprovals.SettlementBusinessRefType, e.ClaimId,
             Contracts.GeneralApprovals.SettlementApprovalType, e.RequestedBy, e.Amount, e.Currency, $"Settlement of claim {e.ClaimNumber}", e.SubjectHash),
         GeneralClaimApproved e => new Contracts.GeneralClaimApproved(e.ClaimId, e.ClaimNumber, e.PayeePartyId, e.BankAccountId, e.PayeeBankHash, e.Amount, e.Currency,
-            e.ReserveType, e.ApprovalId, e.CheckerId),
+            e.ReserveType, e.ApprovalId, e.CheckerId, e.PolicyId, e.HoldReason, e.PremiumOffset),
+        Domain.Claims.GeneralPremiumOffsetFromClaim e => new Contracts.GeneralPremiumOffsetFromClaim(e.PolicyId, e.ClaimId, e.ClaimNumber, e.Amount, e.Currency),
+        GeneralPolicyArrearsCleared e => new Contracts.GeneralPolicyArrearsCleared(e.PolicyId, e.PolicyNumber),
+        GeneralPolicyLapsedUnpaid e => new Contracts.GeneralPolicyLapsedUnpaid(e.PolicyId, e.PolicyNumber, e.CancelledFrom, e.ClaimDeclineReason),
         GeneralClaimSettled e => new Contracts.GeneralClaimSettled(e.ClaimId, e.ClaimNumber, e.Amount, e.Currency, e.PaidOn, e.PolicyId),
         GeneralClaimClosed e => new Contracts.GeneralClaimClosed(e.ClaimId, e.ClaimNumber),
         LossAssessed e => new Contracts.LossAssessed(e.AssessmentId, e.ClaimId, e.AssessedAmount, e.ExcessApplied),

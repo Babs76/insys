@@ -47,12 +47,15 @@ public sealed class ContributionGraceRules : StaticRecord<ContributionGraceRules
 
     public int TerminateNoticeDays { get; set; }
 
+    public bool? ReinstateOnPayment { get; set; }
+
     public override void ApplyFields(ContributionGraceRulesInput input, IFieldProtector protector)
     {
         Scheme = input.Scheme;
         GraceDays = input.GraceDays.GetValueOrDefault();
         SuspendAfterDays = input.SuspendAfterDays.GetValueOrDefault();
         TerminateNoticeDays = input.TerminateNoticeDays.GetValueOrDefault();
+        ReinstateOnPayment = input.ReinstateOnPayment;
     }
 }
 
@@ -69,6 +72,8 @@ public sealed record ContributionGraceRulesInput : StaticRecordInput
 
     [Insys.BuildingBlocks.Domain.RequiredField]
     public int? TerminateNoticeDays { get; init; }
+
+    public bool? ReinstateOnPayment { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

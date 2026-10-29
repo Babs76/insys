@@ -59,6 +59,7 @@ public static class BillingInfrastructure
         services.AddIntegrationEventHandler<Contracts.InvoiceOverdue, ArrearsOnOverdue, BillingDbContext>(schema, "InvoiceOverdue");
         services.AddIntegrationEventHandler<Contracts.ArrearsAgeingBlocked, ArrearsOnOverdue, BillingDbContext>(schema, "ArrearsAgeingBlocked");
         services.AddIntegrationEventHandler<PaymentAllocated, BillingPolicies, BillingDbContext>(schema, "PaymentAllocated");
+        services.AddIntegrationEventHandler<General.Contracts.GeneralPremiumOffsetFromClaim, PremiumOffsets, BillingDbContext>(schema); // F006
         services.AddIntegrationEventHandler<PaymentReversed, BillingPolicies, BillingDbContext>(schema, "PaymentReversed");
         services.AddIntegrationEventHandler<PaymentSucceeded, BillingPolicies, BillingDbContext>(schema, "PaymentSucceeded");
         services.AddIntegrationEventHandler<PaymentInitiated, BillingPolicies, BillingDbContext>(schema, "PaymentInitiated");
