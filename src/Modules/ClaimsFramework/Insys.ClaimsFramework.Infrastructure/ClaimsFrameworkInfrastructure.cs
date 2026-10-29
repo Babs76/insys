@@ -70,6 +70,7 @@ public static class ClaimsFrameworkInfrastructure
         services.AddIntegrationEventHandler<RecoveryRecorded, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "RecoveryRecorded");
         services.AddScoped<IClaimRegistry, ClaimRegistry>();
         services.AddSingleton<IClaimDecisionReasons, Persistence.ClaimDecisionReasons>();
+        services.AddSingleton<IClaimFraudReferrals, Persistence.ClaimFraudReferrals>(); // Wave 4, F015
         services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator, Persistence.FraudIndicatorValidator>();
         // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.ClaimsFrameworkDbContext.SchemaName, ClaimsFrameworkStaticData.Descriptors,

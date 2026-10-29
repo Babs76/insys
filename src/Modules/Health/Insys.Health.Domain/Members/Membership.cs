@@ -100,6 +100,10 @@ public sealed record DependantRule(string TypeCode, int MaxAge, int? StudentExte
 
 public sealed record HealthSchemeRenewed(Guid SchemeId, string SchemeNumber, DateOnly RenewalDate, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>A scheme's renewal is near (Wave 4 §4.5): the sponsor is told, by the scheme's renewal rule's notice.</summary>
+public sealed record HealthSchemeRenewalNoticeDue(Guid SchemeId, string SchemeNumber, Guid SponsorPartyId, DateOnly RenewalDate, string ReRatingBasis,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record HealthMemberEnrolled(Guid MembershipId, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode,
     DateOnly StartDate, Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, string Currency, decimal? MonthlyContribution, decimal? EmployerContribution,
     Guid? SponsorPartyId, DateTimeOffset OccurredAt, string? OrgNodeCode = null, string? ProductCode = null)
@@ -181,6 +185,26 @@ public sealed class HealthScheme : AggregateRoot<Guid>
     }
 
     public Result TerminateScheme() => Fire(SchemeTrigger.TerminateScheme);
+
+    /// <summary>The scheme year the renewal notice was sent for (its renewal date), so it is sent once a year.</summary>
+    public DateOnly? RenewalNoticeSentFor { get; private set; }
+
+    /// <summary>
+    /// Command NoticeSchemeRenewal (Wave 4 §4.5): the scheme's renewal rule's notice days before its renewal date, the sponsor
+    /// is told, with the next year's contribution table the tenant loads. Once per scheme year.
+    /// </summary>
+    public Result NoticeRenewal(int noticeDays, Guid sponsorPartyId, string reRatingBasis, DateOnly today, DateTimeOffset now)
+    {
+        if (Status != SchemeStatus.Active || RenewalNoticeSentFor == RenewalDate || today < RenewalDate.AddDays(-noticeDays))
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Scheme {SchemeNumber}'s renewal notice is not due.");
+        }
+
+        RenewalNoticeSentFor = RenewalDate;
+        MarkChanged();
+        Raise(new HealthSchemeRenewalNoticeDue(Id, SchemeNumber, Guard.NotEmpty(sponsorPartyId), RenewalDate, reRatingBasis, now));
+        return Result.Success();
+    }
 
     private Result Fire(SchemeTrigger trigger)
     {

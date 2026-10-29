@@ -105,6 +105,9 @@ public static class GeneralInfrastructure
         services.AddIntegrationEventHandler<Billing.Contracts.ArrearsDetected, GeneralGrace, GeneralDbContext>(schema, "Grace.ArrearsDetected");
         services.AddIntegrationEventHandler<InvoiceSettled, GeneralGrace, GeneralDbContext>(schema, "Grace.InvoiceSettled");
         services.AddIntegrationEventHandler<GeneralPolicyLapsedUnpaid, DeclineClaimsOnLapse, GeneralDbContext>(schema);
+        // Wave 4 §4.2: the renewal review's rule decisions and renewal quote.
+        services.AddIntegrationEventHandler<Rules.Contracts.RuleDecisionRecorded, RenewalReviewSteps, GeneralDbContext>(schema, "RuleDecision");
+        services.AddIntegrationEventHandler<GeneralRenewalRatingRequested, RenewalReviewSteps, GeneralDbContext>(schema, "Rating");
         services.AddOptions<GeneralJobOptions>().BindConfiguration("General:Jobs");
         services.AddOptions<AggregationOptions>().BindConfiguration("General:Aggregation");
         services.AddSingleton<GeneralJobs>();
@@ -141,6 +144,20 @@ public static class GeneralInfrastructure
                 SELECT DISTINCT 'general.cfg_short_period_scales: ' || r.reason_code FROM general.cfg_cancellation_reasons_and_refund_rules r
                 WHERE r.tenant_id = @t AND {InForce("r")} AND r.refund_basis = 'SHORT_PERIOD' AND NOT EXISTS (SELECT 1 FROM general.cfg_short_period_scales b
                   WHERE b.tenant_id = @t AND {InForce("b")} AND b.scale_code = r.short_period_scale)
+                UNION
+                -- Wave 4 §4.2: a reviewed product needs its review rule.
+                SELECT DISTINCT 'general.cfg_renewal_review_rules: ' || r.product_code FROM general.cfg_renewal_rules r
+                WHERE r.tenant_id = @t AND {InForce("r")} AND r.review AND NOT EXISTS (SELECT 1 FROM general.cfg_renewal_review_rules v
+                  WHERE v.tenant_id = @t AND {InForce("v")} AND v.product_code = r.product_code)
+                UNION
+                -- Wave 4 addition 2: a re-rated product's renewal notice is at least the tenant's notice for changed terms (31 days by default).
+                SELECT DISTINCT 'general.cfg_renewal_rules: ' || r.product_code || ' notice_days ' || r.notice_days || ' < ' ||
+                       coalesce((SELECT s.changed_terms_notice_days FROM general.cfg_renewal_settings s WHERE s.tenant_id = @t AND {InForce("s")}
+                                 ORDER BY s.effective_from DESC LIMIT 1), 31)
+                FROM general.cfg_renewal_rules r
+                WHERE r.tenant_id = @t AND {InForce("r")} AND r.re_rating
+                  AND r.notice_days < coalesce((SELECT s.changed_terms_notice_days FROM general.cfg_renewal_settings s WHERE s.tenant_id = @t AND {InForce("s")}
+                                               ORDER BY s.effective_from DESC LIMIT 1), 31)
                 ORDER BY 1
                 """, ct, ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day)));
             }
@@ -202,6 +219,21 @@ public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory te
                 else
                 {
                     logger.LogWarning("General job RenewPolicy on {Id} failed: {Code}", id, renewed.Error.Code);
+                }
+            }
+
+            // Wave 4 §4.2: renewal reviews open before their invitations.
+            foreach (var policyId in work.PoliciesToReview ?? [])
+            {
+                await using var scope = Scope(tenantId);
+                var reviewed = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new ReviewRenewal(policyId, day), cancellationToken);
+                if (reviewed.IsSuccess)
+                {
+                    done++;
+                }
+                else
+                {
+                    logger.LogWarning("General job ReviewRenewal on {Id} failed: {Code}", policyId, reviewed.Error.Code);
                 }
             }
 

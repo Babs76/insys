@@ -58,6 +58,8 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
 
     public DbSet<GeneralClaim> Claims => Set<GeneralClaim>();
 
+    public DbSet<Domain.Renewals.Renewal> Renewals => Set<Domain.Renewals.Renewal>();
+
     public DbSet<LossAssessment> Assessments => Set<LossAssessment>();
 
     public DbSet<RecoveryCase> Recoveries => Set<RecoveryCase>();
@@ -172,6 +174,41 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             policy.Navigation(p => p.Risks).UsePropertyAccessMode(PropertyAccessMode.Field);
             policy.HasMany(p => p.Cancellations).WithOne().HasForeignKey(c => new { c.TenantId, c.PolicyId });
             policy.Navigation(p => p.Cancellations).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<Domain.Renewals.Renewal>(renewal =>
+        {
+            renewal.ToTable("renewal"); // Wave 4 §3.2
+            Root(renewal);
+            renewal.Property(r => r.PolicyNumber).HasMaxLength(30);
+            renewal.Property(r => r.ProductCode).HasMaxLength(15);
+            renewal.Property(r => r.Status).HasConversion(new UpperCaseEnumConverter<Domain.Renewals.RenewalStatus>()).HasMaxLength(20);
+            renewal.Property(r => r.Currency).HasColumnType("char(3)");
+            foreach (var amount in new[] { nameof(Domain.Renewals.Renewal.CurrentPremium), nameof(Domain.Renewals.Renewal.SumInsured), nameof(Domain.Renewals.Renewal.ClaimsPaid),
+                         nameof(Domain.Renewals.Renewal.EarnedPremium), nameof(Domain.Renewals.Renewal.RatedPremium), nameof(Domain.Renewals.Renewal.OfferedPremium) })
+            {
+                renewal.Property(amount).HasPrecision(18, 2);
+            }
+
+            renewal.Property(r => r.LossRatio).HasPrecision(9, 4);
+            renewal.Property(r => r.Factor).HasPrecision(7, 4);
+            renewal.Property(r => r.LoadingPct).HasPrecision(7, 4);
+            renewal.Property(r => r.EligibilityOutcome).HasMaxLength(15);
+            renewal.Property(r => r.UnderwritingOutcome).HasMaxLength(15);
+            renewal.Property(r => r.ReferralReason).HasMaxLength(200);
+            renewal.Property(r => r.DecisionCode).HasMaxLength(15);
+            renewal.HasMany(r => r.Checks).WithOne().HasForeignKey(c => new { c.TenantId, c.RenewalId });
+            renewal.Navigation(r => r.Checks).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<Domain.Renewals.RenewalCheck>(check =>
+        {
+            check.ToTable("renewal_check");
+            check.HasKey(c => new { c.TenantId, c.Id });
+            check.HasAuditColumns(updatable: false);
+            check.Property(c => c.CheckCode).HasMaxLength(30);
+            check.Property(c => c.Outcome).HasMaxLength(15);
+            check.Property(c => c.Detail).HasMaxLength(200);
         });
 
         modelBuilder.Entity<PolicyRisk>(risk =>

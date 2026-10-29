@@ -5797,6 +5797,12 @@
       7
      ],
      "note": "Added by V0051 (OQ-089): days before the period ends on which a renewal reminder is sent."
+    },
+    {
+     "name": "review",
+     "logicalType": "Boolean",
+     "mandatory": false,
+     "sample": "true"
     }
    ]
   },

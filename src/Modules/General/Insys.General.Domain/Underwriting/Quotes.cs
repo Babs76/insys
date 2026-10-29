@@ -289,6 +289,16 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
     /// <summary>The recorded premium calculation (rating.premium_calculation) the premium comes from (PRD-008).</summary>
     public Guid? RatingRequestId { get; private set; }
 
+    /// <summary>The renewal this quote re-rates (Wave 4, F018): its rating sets the renewal's offered premium.</summary>
+    public Guid? RenewalId { get; private set; }
+
+    /// <summary>A renewal quote records the renewal it re-rates.</summary>
+    public void LinkRenewal(Guid renewalId)
+    {
+        RenewalId = Guard.NotEmpty(renewalId);
+        MarkChanged();
+    }
+
     public int? RatingVersion { get; private set; }
 
     /// <summary>

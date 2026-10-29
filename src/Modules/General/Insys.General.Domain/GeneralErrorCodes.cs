@@ -83,6 +83,10 @@ public static class GeneralErrorCodes
     [ErrorCode(422, "error.general.outside_policy_period")]
     public const string OutsidePolicyPeriod = "OUTSIDE_POLICY_PERIOD";
 
+    /// <summary>Wave 4 §4.2: a reviewed product's policy renews once its review offered terms.</summary>
+    [ErrorCode(409, "error.general.renewal_not_offered")]
+    public const string RenewalNotOffered = "GENERAL_RENEWAL_NOT_OFFERED";
+
     [ErrorCode(422, "error.general.rule_not_specified")]
     public const string RuleNotSpecified = "GENERAL_RULE_NOT_SPECIFIED";
 

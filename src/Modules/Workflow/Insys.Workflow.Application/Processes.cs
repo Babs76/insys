@@ -806,6 +806,78 @@ public sealed class OpenGeneralReferralTask(IProcessRepository processes, IProce
     }
 }
 
+/// <summary>
+/// Wave 4 §4.2: a renewal review referred a renewal, or found it ineligible. A task on the built-in process
+/// GENERAL_RENEWAL_REVIEW about the renewal (GENERAL_RENEWAL), due in one business day, goes to the role whose
+/// underwriting authority covers the product and sum insured, as a quote referral does. With no such role it goes to the
+/// task type's configured queue. The underwriter's decision closes it. One task is open per renewal.
+/// </summary>
+public sealed class GeneralRenewalReviewTasks(IProcessRepository processes, IProcessQueries queries, IWorkflowConfiguration configuration,
+    Rules.Contracts.IUnderwritingAuthorities authorities, Contracts.IBusinessTime businessTime, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
+    IAuditTrail audit) :
+    IIntegrationEventHandler<General.Contracts.GeneralRenewalReferred>,
+    IIntegrationEventHandler<General.Contracts.GeneralRenewalNotEligible>,
+    IIntegrationEventHandler<General.Contracts.GeneralRenewalDecided>
+{
+    public Task Handle(General.Contracts.GeneralRenewalReferred referred, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Open(referred.RenewalId, referred.PolicyNumber, referred.ProductCode, referred.SumInsured, "REFERRED", referred.Reason, cancellationToken);
+
+    public Task Handle(General.Contracts.GeneralRenewalNotEligible ineligible, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Open(ineligible.RenewalId, ineligible.PolicyNumber, ineligible.ProductCode, ineligible.SumInsured, "NOT_ELIGIBLE", ineligible.Reason, cancellationToken);
+
+    public async Task Handle(General.Contracts.GeneralRenewalDecided decided, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var definition = BuiltInProcesses.GeneralRenewalReview;
+        foreach (var running in await Running(decided.RenewalId, cancellationToken))
+        {
+            if (await processes.Get(running, cancellationToken) is not { OpenTask: { } task } process)
+            {
+                continue;
+            }
+
+            var completed = process.CompleteTask(task.Id, definition.States[^1], definition, new Dictionary<string, object?>(),
+                _ => new TaskRouting(task.QueueCode, null, clock.UtcNow), clock.UtcNow);
+            if (completed.IsFailure)
+            {
+                throw new InvalidOperationException($"The renewal task of {decided.PolicyNumber} cannot be closed: {completed.Error.Code}");
+            }
+
+            audit.Record(new AuditEntry("WORKFLOW", "CompleteTask", nameof(ProcessInstance), process.Id.ToString(),
+                new Dictionary<string, string?> { ["decision"] = decided.DecisionCode, ["offered"] = decided.Offered.ToString() }));
+        }
+    }
+
+    private async Task Open(Guid renewalId, string policyNumber, string productCode, decimal sumInsured, string why, string reason, CancellationToken cancellationToken)
+    {
+        if ((await Running(renewalId, cancellationToken)).Count > 0)
+        {
+            return;
+        }
+
+        var tenantId = tenant.RequireTenantId();
+        var now = clock.UtcNow;
+        var role = Rules.Contracts.ReferralRouting.RouteTo(await authorities.ForProduct(tenantId, productCode, businessDate.Today, cancellationToken), sumInsured);
+        var due = await businessTime.Add(tenantId, null, now, "P1D", cancellationToken);
+        var routing = role is null ? await configuration.Routing(businessDate.Today, now, cancellationToken) : null;
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.GeneralRenewalReview, General.Contracts.GeneralRenewals.BusinessRefType, renewalId,
+            taskType => role is null ? routing!(taskType) : new TaskRouting(role, null, due), now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
+            new Dictionary<string, string?>
+            {
+                ["process"] = $"{BuiltInProcesses.GeneralRenewalReview.ProcessCode}@{BuiltInProcesses.GeneralRenewalReview.Version}",
+                ["policy"] = policyNumber,
+                ["why"] = why,
+                ["reason"] = reason.Length > 200 ? reason[..200] : reason,
+                ["queue"] = role,
+            }));
+    }
+
+    private async Task<IReadOnlyList<Guid>> Running(Guid renewalId, CancellationToken cancellationToken) =>
+        (await queries.List(General.Contracts.GeneralRenewals.BusinessRefType, renewalId, null, 20, cancellationToken))
+        .Where(p => p.ProcessCode == BuiltInProcesses.GeneralRenewalReview.ProcessCode && p.Status == ProcessStatus.Running).Select(p => p.Id).ToList();
+}
+
 /// <summary>Closes a General quote's referral task once the referral is decided: the task moves to DECIDED, and the audit records the decision.</summary>
 public sealed class CloseGeneralReferralTask(IProcessRepository processes, IProcessQueries queries, IClock clock, IAuditTrail audit)
     : IIntegrationEventHandler<General.Contracts.GeneralQuoteReferralDecided>

@@ -68,6 +68,9 @@ public static class PrerequisiteCodes
     /// <summary>Item: the treaty code, or the error code when no single treaty is at fault.</summary>
     public const string TreatyNotApplicable = "TREATY_NOT_APPLICABLE";
 
+    /// <summary>Item: kind and code ("ELIGIBILITY:RS-REN"). A rule set asked for by a module (a renewal review) is not in force.</summary>
+    public const string RuleSetNotInForce = "RULE_SET_NOT_IN_FORCE";
+
     /// <summary>Item: the realm (insys). Keycloak's admin API could not be reached or failed (keycloak-user-provisioning §4).</summary>
     public const string KeycloakUnavailable = "KEYCLOAK_UNAVAILABLE";
 

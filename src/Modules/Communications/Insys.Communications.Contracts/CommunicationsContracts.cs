@@ -91,6 +91,9 @@ public static class NotificationTypes
 
     /// <summary>A Health membership was suspended for unpaid contributions, with the date the notice before termination ends (F006).</summary>
     public const string ContributionSuspension = "CONTRIBUTION_SUSPENSION";
+
+    /// <summary>A Health scheme's renewal is near: its sponsor is told, by the scheme's renewal rule's notice (Wave 4 §4.5).</summary>
+    public const string SchemeRenewalNotice = "SCHEME_RENEWAL_NOTICE";
 }
 
 /// <summary>

@@ -146,6 +146,12 @@ public sealed record ClaimDecisionReason(string Code, string DecisionType, strin
 /// Public query interface: the tenant's claim decision reasons (claims.ref_claim_decision_reason_codes), for a claim
 /// module's decision and the reasons its notices give (OQ-102). Read on the Claims Framework's own connection.
 /// </summary>
+/// <summary>How many of a policy's claims a fraud indicator referred (claims.fraud_indicator_hit), for a renewal review (Wave 4, F015).</summary>
+public interface IClaimFraudReferrals
+{
+    Task<int> ReferredClaims(Guid tenantId, string domain, IReadOnlyCollection<Guid> policyRefs, CancellationToken cancellationToken);
+}
+
 public interface IClaimDecisionReasons
 {
     /// <summary>The reason in force on the day, or null.</summary>

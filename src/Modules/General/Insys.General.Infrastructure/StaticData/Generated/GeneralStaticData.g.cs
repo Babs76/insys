@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.General.Infrastructure.StaticData;
 
-/// <summary>The 43 static data tables owned by the General module.</summary>
+/// <summary>The 46 static data tables owned by the General module.</summary>
 public static class GeneralStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -43,6 +43,7 @@ public static class GeneralStaticData
         new("general", "cfg_aggregation_zones_and_limits", "cfg_aggregation_zones_and_limits", "Aggregation zones and limits", "general", "aggregation-zones-and-limits", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(AggregationZonesAndLimits), typeof(AggregationZonesAndLimitsInput), "C · Risk Object Management"),
         new("general", "cfg_cancellation_reasons_and_refund_rules", "cfg_cancellation_reasons_and_re_048c3576", "Cancellation reasons and refund rules", "general", "cancellation-reasons-and-refund-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CancellationReasonsAndRefundRules), typeof(CancellationReasonsAndRefundRulesInput), "D · General Policy Administration"),
         new("general", "cfg_claim_party_roles", "cfg_claim_party_roles", "Claim party roles", "general", "claim-party-roles", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ClaimPartyRoles), typeof(ClaimPartyRolesInput), "J · General Claims"),
+        new("general", "cfg_claims_experience_factors", "cfg_claims_experience_factors", "Claims experience factors", "general", "claims-experience-factors", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ClaimsExperienceFactors), typeof(ClaimsExperienceFactorsInput), "Policy administration"),
         new("general", "cfg_endorsement_types", "cfg_endorsement_types", "Endorsement types", "general", "endorsement-types", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(EndorsementTypes), typeof(EndorsementTypesInput), "D · General Policy Administration"),
         new("general", "cfg_exposure_extract_layouts", "cfg_exposure_extract_layouts", "Exposure extract layouts", "general", "exposure-extract-layouts", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ExposureExtractLayouts), typeof(ExposureExtractLayoutsInput), "K · General Reinsurance and Actuarial Interfaces"),
         new("general", "cfg_extension_and_condition_library", "cfg_extension_and_condition_library", "Extension and condition library", "general", "extension-and-condition-library", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ExtensionAndConditionLibrary), typeof(ExtensionAndConditionLibraryInput), "E · Coverage Management"),
@@ -52,7 +53,9 @@ public static class GeneralStaticData
         new("general", "cfg_policy_numbering_schemes", "cfg_policy_numbering_schemes", "Policy numbering schemes", "general", "policy-numbering-schemes", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(PolicyNumberingSchemes), typeof(PolicyNumberingSchemesInput), "D · General Policy Administration"),
         new("general", "cfg_product_billing_frequencies", "cfg_product_billing_frequencies", "Product billing frequencies", "general", "product-billing-frequencies", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ProductBillingFrequencies), typeof(ProductBillingFrequenciesInput), "A · Quotation and Proposal"),
         new("general", "cfg_quote_validity_periods", "cfg_quote_validity_periods", "Quote validity periods", "general", "quote-validity-periods", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(QuoteValidityPeriods), typeof(QuoteValidityPeriodsInput), "A · Quotation and Proposal"),
+        new("general", "cfg_renewal_review_rules", "cfg_renewal_review_rules", "Renewal review rules", "general", "renewal-review-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(RenewalReviewRules), typeof(RenewalReviewRulesInput), "Policy administration"),
         new("general", "cfg_renewal_rules", "cfg_renewal_rules", "Renewal rules", "general", "renewal-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RenewalRules), typeof(RenewalRulesInput), "D · General Policy Administration"),
+        new("general", "cfg_renewal_settings", "cfg_renewal_settings", "Renewal settings", "general", "renewal-settings", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(RenewalSettings), typeof(RenewalSettingsInput), "Policy administration"),
         new("general", "cfg_risk_object_types_and_attribute_schemas", "cfg_risk_object_types_and_attri_e6795ca1", "Risk object types and attribute schemas", "general", "risk-object-types-and-attribute-schemas", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RiskObjectTypesAndAttributeSchemas), typeof(RiskObjectTypesAndAttributeSchemasInput), "C · Risk Object Management"),
         new("general", "cfg_settlement_authority_limits", "cfg_settlement_authority_limits", "Settlement authority limits", "general", "settlement-authority-limits", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(SettlementAuthorityLimits), typeof(SettlementAuthorityLimitsInput), "J · General Claims"),
         new("general", "cfg_short_period_scales", "cfg_short_period_scales", "Short-period scales", "general", "short-period-scales", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ShortPeriodScales), typeof(ShortPeriodScalesInput), "Policy administration"),
@@ -121,6 +124,17 @@ public static class GeneralStaticData
             entity.ToTable("cfg_claim_party_roles", "general");
             StaticModel.ConfigureCommon(entity);
             entity.Property(x => x.Label).HasColumnName("label").HasMaxLength(60);
+        });
+        modelBuilder.Entity<ClaimsExperienceFactors>(entity =>
+        {
+            entity.ToTable("cfg_claims_experience_factors", "general");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.ProductCode).HasColumnName("product_code").HasMaxLength(80);
+            entity.Property(x => x.ClaimsCountFrom).HasColumnName("claims_count_from");
+            entity.Property(x => x.ClaimsCountTo).HasColumnName("claims_count_to");
+            entity.Property(x => x.LossRatioFrom).HasColumnName("loss_ratio_from").HasPrecision(7, 4);
+            entity.Property(x => x.LossRatioTo).HasColumnName("loss_ratio_to").HasPrecision(7, 4);
+            entity.Property(x => x.Factor).HasColumnName("factor").HasPrecision(7, 4);
         });
         modelBuilder.Entity<EndorsementTypes>(entity =>
         {
@@ -201,6 +215,16 @@ public static class GeneralStaticData
             entity.Property(x => x.DaysValid).HasColumnName("days_valid");
             entity.Property(x => x.ReRateOnExpiry).HasColumnName("re_rate_on_expiry");
         });
+        modelBuilder.Entity<RenewalReviewRules>(entity =>
+        {
+            entity.ToTable("cfg_renewal_review_rules", "general");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.ProductCode).HasColumnName("product_code").HasMaxLength(80);
+            entity.Property(x => x.EligibilityRuleset).HasColumnName("eligibility_ruleset").HasMaxLength(15);
+            entity.Property(x => x.UnderwritingRules).HasColumnName("underwriting_rules");
+            entity.Property(x => x.ClaimsLookbackYears).HasColumnName("claims_lookback_years");
+            entity.Property(x => x.ReviewDaysBeforeInvitation).HasColumnName("review_days_before_invitation");
+        });
         modelBuilder.Entity<RenewalRules>(entity =>
         {
             entity.ToTable("cfg_renewal_rules", "general");
@@ -211,6 +235,14 @@ public static class GeneralStaticData
             entity.Property(x => x.ReRating).HasColumnName("re_rating");
             entity.Property(x => x.InvitationTemplate).HasColumnName("invitation_template").HasMaxLength(80);
             entity.Property(x => x.ReminderDays).HasColumnName("reminder_days");
+            entity.Property(x => x.Review).HasColumnName("review");
+        });
+        modelBuilder.Entity<RenewalSettings>(entity =>
+        {
+            entity.ToTable("cfg_renewal_settings", "general");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.WorseTermsPct).HasColumnName("worse_terms_pct").HasPrecision(5, 2);
+            entity.Property(x => x.ChangedTermsNoticeDays).HasColumnName("changed_terms_notice_days");
         });
         modelBuilder.Entity<RiskObjectTypesAndAttributeSchemas>(entity =>
         {

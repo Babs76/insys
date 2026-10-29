@@ -36,12 +36,23 @@ namespace Insys.Communications.Application.Triggers;
 /// <summary>Renewal invitations and reminders for General policies (F021, F100, addenda/communications.md §6.2, OQ-089).</summary>
 public static class RenewalNotices
 {
-    /// <summary>The invitation, to the policyholder; null when the event does not name one.</summary>
-    public static NotificationRequest? For(GeneralRenewalInvited invited) =>
-        invited.PolicyholderPartyId is { } policyholder
-            ? new NotificationRequest(NotificationTypes.RenewalInvitation, policyholder, TriggerSources.GeneralPolicy, invited.PolicyId,
-                Merge(invited.PolicyNumber, invited.ProductCode, invited.PeriodEnd), invited.ProductCode)
-            : null;
+    /// <summary>The invitation, to the policyholder, with a reviewed renewal's offered premium (Wave 4 §4.2); null when the event does not name one.</summary>
+    public static NotificationRequest? For(GeneralRenewalInvited invited)
+    {
+        if (invited.PolicyholderPartyId is not { } policyholder)
+        {
+            return null;
+        }
+
+        var merge = Merge(invited.PolicyNumber, invited.ProductCode, invited.PeriodEnd);
+        if (invited.OfferedPremium is { } offered && invited.Currency is { } currency)
+        {
+            merge["renewal_premium"] = TriggerFormats.Amount(offered);
+            merge["currency"] = currency;
+        }
+
+        return new NotificationRequest(NotificationTypes.RenewalInvitation, policyholder, TriggerSources.GeneralPolicy, invited.PolicyId, merge, invited.ProductCode);
+    }
 
     /// <summary>The reminder, to the policyholder, with the days left before the period ends.</summary>
     public static NotificationRequest For(GeneralRenewalReminderDue due)

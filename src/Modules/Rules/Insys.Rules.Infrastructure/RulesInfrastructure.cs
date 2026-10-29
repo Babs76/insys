@@ -45,6 +45,7 @@ public static class RulesInfrastructure
         services.AddScoped<IRuleDecisionRepository, RuleDecisionRepository>();
         services.AddScoped<IRuleDecisionQueries, RuleDecisionQueries>();
         services.AddSingleton<Contracts.IUnderwritingAuthorities, UnderwritingAuthorities>();
+        services.AddIntegrationEventHandler<Contracts.RuleEvaluationRequested, EvaluateRequestedRuleSet, RulesDbContext>(RulesDbContext.SchemaName); // Wave 4
         return services;
     }
 }

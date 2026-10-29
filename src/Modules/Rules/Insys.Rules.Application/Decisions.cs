@@ -28,6 +28,7 @@ using System.Text.Json;
 using FluentValidation;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.Rules.Domain.Decisions;
 
@@ -121,3 +122,32 @@ public static class RuleDecisionViews
         return new RuleDecisionView(d.Id, d.RulesetCode, d.RulesetVersion, d.SubjectType, d.SubjectId, inputs.RootElement.Clone(), d.Outcome, d.FiredRules, d.EvaluatedAt);
     }
 }
+
+/// <summary>
+/// A module's request to evaluate a rule set (Wave 4, a renewal review): recorded and announced as any decision is. A rule
+/// set not in force parks the delivery (ADR-022) for the tenant to configure it, never dropped.
+/// </summary>
+public sealed class EvaluateRequestedRuleSet(IRuleSetReader reader, IRuleDecisionRepository decisions, IBusinessDate businessDate, IClock clock)
+    : IIntegrationEventHandler<Contracts.RuleEvaluationRequested>
+{
+    public async Task Handle(Contracts.RuleEvaluationRequested requested, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var kind = requested.Kind == Contracts.RuleSetKinds.Underwriting ? RuleSetKind.Underwriting : RuleSetKind.Eligibility;
+        var ruleSet = await reader.Read(kind, requested.Code, businessDate.Today, cancellationToken);
+        if (ruleSet.IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.RuleSetNotInForce, $"{requested.Kind}:{requested.Code}");
+        }
+
+        var inputs = requested.Inputs.EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value.Clone(), StringComparer.Ordinal);
+        var decision = RuleDecision.EvaluateRuleSet(Guid.CreateVersion7(), ruleSet.Value, requested.SubjectType, requested.SubjectId, requested.Inputs.GetRawText(), inputs,
+            clock.UtcNow);
+        if (decision.IsFailure)
+        {
+            throw new InvalidOperationException($"Rule set {requested.Kind}:{requested.Code} could not be evaluated: {decision.Error.Code}");
+        }
+
+        decisions.Add(decision.Value);
+    }
+}
+

@@ -134,9 +134,13 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition HealthArrearsTermination = new("HEALTH_ARREARS_TERMINATION", 1, ["DECIDE_TERMINATION", "DECIDED"],
         [new TransitionDefinition("DECIDE_TERMINATION", "DECIDED", null)], null);
 
+    /// <summary>A renewal review referred a renewal, or found it ineligible (Wave 4 §4.2): an underwriter with authority offers it or not.</summary>
+    public static readonly ProcessDefinition GeneralRenewalReview = new("GENERAL_RENEWAL_REVIEW", 1, ["DECIDE_RENEWAL", "DECIDED"],
+        [new TransitionDefinition("DECIDE_RENEWAL", "DECIDED", null)], null);
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
         new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
-            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>

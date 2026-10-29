@@ -161,7 +161,7 @@ public sealed record GeneralPolicyEndorsed(Guid PolicyId, string PolicyNumber, G
 /// <summary>A renewal invitation is due: Documents generates it from <paramref name="TemplateCode"/> (general.cfg_renewal_rules.invitation_template).</summary>
 [IntegrationEvent("general.GeneralRenewalInvited")]
 public sealed record GeneralRenewalInvited(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, DateOnly PeriodEnd, string TemplateCode,
-    Guid? PolicyholderPartyId = null) : IIntegrationEvent;
+    Guid? PolicyholderPartyId = null, decimal? OfferedPremium = null, string? Currency = null) : IIntegrationEvent;
 
 [IntegrationEvent("general.GeneralPolicyRenewed")]
 public sealed record GeneralPolicyRenewed(Guid PolicyId, string PolicyNumber, Guid RenewalPolicyId) : IIntegrationEvent;
@@ -234,3 +234,31 @@ public interface IGeneralClaimRecipients
 {
     Task<NoticeRecipient?> ForClaim(Guid tenantId, Guid claimId, CancellationToken cancellationToken);
 }
+
+/// <summary>The Workflow reference and the rule decisions' subject for a renewal (Wave 4 §4.2).</summary>
+public static class GeneralRenewals
+{
+    public const string BusinessRefType = "GENERAL_RENEWAL";
+}
+
+/// <summary>A renewal review asks for its renewal quote to be priced (F018): General creates it and asks Rating.</summary>
+[IntegrationEvent("general.GeneralRenewalRatingRequested")]
+public sealed record GeneralRenewalRatingRequested(Guid RenewalId, Guid PolicyId) : IIntegrationEvent;
+
+/// <summary>The review refers the renewal to an underwriter (F019), with why: Workflow routes it by authority as a quote referral.</summary>
+[IntegrationEvent("general.GeneralRenewalReferred")]
+public sealed record GeneralRenewalReferred(Guid RenewalId, Guid PolicyId, string PolicyNumber, string ProductCode, decimal SumInsured, string Reason) : IIntegrationEvent;
+
+/// <summary>The review found the renewal not eligible (F015): a person proposes non-renewal or overrides it.</summary>
+[IntegrationEvent("general.GeneralRenewalNotEligible")]
+public sealed record GeneralRenewalNotEligible(Guid RenewalId, Guid PolicyId, string PolicyNumber, string ProductCode, decimal SumInsured, string Reason) : IIntegrationEvent;
+
+/// <summary>An underwriter decided a referred or ineligible renewal: its task closes.</summary>
+[IntegrationEvent("general.GeneralRenewalDecided")]
+public sealed record GeneralRenewalDecided(Guid RenewalId, Guid PolicyId, string PolicyNumber, bool Offered, string DecisionCode) : IIntegrationEvent;
+
+/// <summary>The review offered terms (F018): the invitation states them; changed terms are invited with the tenant's longer notice.</summary>
+[IntegrationEvent("general.GeneralRenewalOffered")]
+public sealed record GeneralRenewalOffered(Guid RenewalId, Guid PolicyId, string PolicyNumber, decimal CurrentPremium, decimal OfferedPremium, string Currency,
+    bool ChangedTerms) : IIntegrationEvent;
+

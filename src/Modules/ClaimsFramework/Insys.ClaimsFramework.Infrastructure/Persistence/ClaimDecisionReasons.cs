@@ -42,3 +42,14 @@ internal sealed class ClaimDecisionReasons([FromKeyedServices(ClaimsFrameworkDbC
             ORDER BY version DESC LIMIT 1
             """, r => new ClaimDecisionReason(r.GetString(0), r.GetString(1), r.GetString(2)), cancellationToken, ("t", tenantId), ("code", code), ("day", day));
 }
+
+/// <summary>The claims of policies a fraud indicator referred (Wave 4, F015): counted once per claim.</summary>
+internal sealed class ClaimFraudReferrals([FromKeyedServices(ClaimsFrameworkDbContext.SchemaName)] NpgsqlDataSource dataSource) : IClaimFraudReferrals
+{
+    public async Task<int> ReferredClaims(Guid tenantId, string domain, IReadOnlyCollection<Guid> policyRefs, CancellationToken cancellationToken) =>
+        await TenantReads.First(dataSource, tenantId, """
+            SELECT count(DISTINCT r.claim_number) FROM claims.claim_register r
+            JOIN claims.fraud_indicator_hit h ON h.tenant_id = r.tenant_id AND h.claim_number = r.claim_number
+            WHERE r.tenant_id = @t AND r.domain = @domain AND r.policy_ref = ANY(@policies) AND h.referred
+            """, r => (object)(int)r.GetInt64(0), cancellationToken, ("t", tenantId), ("domain", domain), ("policies", policyRefs.ToArray())) is int count ? count : 0;
+}

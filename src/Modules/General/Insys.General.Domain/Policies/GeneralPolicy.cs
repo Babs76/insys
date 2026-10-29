@@ -97,7 +97,7 @@ public sealed record GeneralRenewalReminderDue(Guid PolicyId, string PolicyNumbe
 public sealed record GeneralPolicyRenewed(Guid PolicyId, string PolicyNumber, Guid RenewalPolicyId, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record GeneralRenewalInvited(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, DateOnly PeriodEnd, string TemplateCode,
-    DateTimeOffset OccurredAt, Guid? PolicyholderPartyId = null) : IDomainEvent;
+    DateTimeOffset OccurredAt, Guid? PolicyholderPartyId = null, decimal? OfferedPremium = null, string? Currency = null) : IDomainEvent;
 
 public sealed record GeneralPolicyCancelled(Guid PolicyId, string PolicyNumber, string ReasonCode, DateOnly EffectiveDate, decimal RefundAmount, string Currency,
     string ProductCode, int ProductVersion, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -395,7 +395,8 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     }
 
     /// <summary>Command RenewPolicy without re-rating: the next period, with the same risks, coverages and premium. The renewed policy becomes Renewed.</summary>
-    public static Result<GeneralPolicy> RenewPolicy(Guid id, string policyNumber, GeneralPolicy expiring, DateOnly today, DateTimeOffset now)
+    /// <param name="premium">The renewal review's offered premium (Wave 4 §4.2), when it was reviewed; otherwise the expiring premium.</param>
+    public static Result<GeneralPolicy> RenewPolicy(Guid id, string policyNumber, GeneralPolicy expiring, DateOnly today, DateTimeOffset now, decimal? premium = null)
     {
         if (expiring.Status != PolicyStatus.InForce)
         {
@@ -414,7 +415,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
                 risk.Coverages.Select(c => new CoverageRequest(c.CoverageCode, c.SumInsured, c.ExcessScheduleCode)).ToList()), start));
         }
 
-        renewal.SetPremium(expiring.AnnualPremium);
+        renewal.SetPremium(premium ?? expiring.AnnualPremium);
         renewal.InstalmentLoadingPct = expiring.InstalmentLoadingPct;
         return renewal.Issued(today, now);
     }
@@ -470,7 +471,8 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     /// The renewal invitation (GEN-004, OQ-066 item 3): once, for a policy in force, from the rule's notice days before
     /// its period ends. Documents generates it from the rule's invitation template.
     /// </summary>
-    public Result InviteRenewal(int noticeDays, string templateCode, DateOnly today, DateTimeOffset now)
+    /// <param name="offeredPremium">The reviewed renewal's offered premium (Wave 4 §4.2), which the invitation states.</param>
+    public Result InviteRenewal(int noticeDays, string templateCode, DateOnly today, DateTimeOffset now, decimal? offeredPremium = null)
     {
         if (Status != PolicyStatus.InForce || RenewalInvitedOn is not null || today < PeriodEnd.AddDays(-noticeDays))
         {
@@ -478,7 +480,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         }
 
         RenewalInvitedOn = today;
-        Raise(new GeneralRenewalInvited(Id, PolicyNumber, ProductCode, ProductVersion, PeriodEnd, templateCode, now, PolicyholderPartyId));
+        Raise(new GeneralRenewalInvited(Id, PolicyNumber, ProductCode, ProductVersion, PeriodEnd, templateCode, now, PolicyholderPartyId, offeredPremium, Currency));
         return Result.Success();
     }
 

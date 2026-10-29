@@ -95,6 +95,21 @@ public interface IGeneralRepository
     /// <summary>Policies in force whose grace ended before the day with instalments still unpaid (F006): cancelled for non-payment.</summary>
     Task<IReadOnlyList<Guid>> PoliciesPastGrace(DateOnly day, int limit, CancellationToken cancellationToken);
 
+    Task<Domain.Renewals.Renewal?> Renewal(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>The renewal of a policy's period, if one was opened.</summary>
+    Task<Domain.Renewals.Renewal?> RenewalOfPeriod(Guid policyId, DateOnly periodEnd, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Domain.Renewals.Renewal>> Renewals(Domain.Renewals.RenewalStatus? status, Guid? policyId, Guid? beforeId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Policies of the product in force, not yet reviewed for this period, whose period ends on or before the date (Wave 4 §4.2).</summary>
+    Task<IReadOnlyList<Guid>> PoliciesToReview(string productCode, DateOnly lastPeriodEnd, int limit, CancellationToken cancellationToken);
+
+    /// <summary>The claims of the policies, with what was paid on each (a settled claim's settlement).</summary>
+    Task<IReadOnlyList<ClaimHistoryItem>> ClaimHistory(IReadOnlyCollection<Guid> policyIds, CancellationToken cancellationToken);
+
+    void Add(Domain.Renewals.Renewal renewal);
+
     /// <summary>A policy's claims, whatever their state.</summary>
     Task<IReadOnlyList<Guid>> ClaimsOfPolicy(Guid policyId, CancellationToken cancellationToken);
 
@@ -144,7 +159,23 @@ public sealed record RiskObjectTypeDefinition([property: CodeList(CodeLists.Risk
 /// <summary>A renewal rule (general.cfg_renewal_rules).</summary>
 /// <summary>A product's renewal rule (general.cfg_renewal_rules): the notice for the invitation, whether it renews by itself, and whether it is re-rated.</summary>
 /// <param name="ReminderDays">Days before the period ends to remind a policyholder who has not renewed (OQ-089); empty by default.</param>
-public sealed record RenewalRule(string ProductCode, int NoticeDays, bool AutoRenew, bool ReRating, string InvitationTemplate, IReadOnlyList<int>? ReminderDays = null);
+public sealed record RenewalRule(string ProductCode, int NoticeDays, bool AutoRenew, bool ReRating, string InvitationTemplate, IReadOnlyList<int>? ReminderDays = null,
+    bool Review = false);
+
+/// <summary>What a product's renewal review checks (general.cfg_renewal_review_rules, Wave 4 §4.2).</summary>
+public sealed record RenewalReviewRule(string ProductCode, string? EligibilityRuleset, bool UnderwritingRules, int ClaimsLookbackYears, int ReviewDaysBeforeInvitation);
+
+/// <summary>
+/// The tenant's renewal settings (general.cfg_renewal_settings): the worse-terms threshold (OQ-130, default 15 %) and the
+/// notice a renewal with changed terms is invited with at least (Wave 4 addition 2, default 31 days).
+/// </summary>
+public sealed record RenewalSettings(decimal WorseTermsPct, int ChangedTermsNoticeDays)
+{
+    public static readonly RenewalSettings Default = new(15m, 31);
+}
+
+/// <summary>A claim as a renewal review reads it: its loss date, state and what was paid on it (the gross).</summary>
+public sealed record ClaimHistoryItem(Guid ClaimId, Guid PolicyId, DateOnly LossDate, Domain.Claims.ClaimStatus Status, decimal Paid);
 
 public enum GeneralCode
 {
@@ -199,6 +230,14 @@ public interface IGeneralCodes
     Task<RenewalRule?> RenewalRule(string productCode, DateOnly day, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<RenewalRule>> RenewalRules(DateOnly day, CancellationToken cancellationToken);
+
+    Task<RenewalReviewRule?> RenewalReviewRule(string productCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The claims experience factor for the claims count and loss ratio (OQ-131): the first band that holds both; 1.0 when none does.</summary>
+    Task<decimal> ClaimsFactor(string productCode, int claimsCount, decimal? lossRatio, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The tenant's renewal settings in force, else the defaults.</summary>
+    Task<RenewalSettings> RenewalSettings(DateOnly day, CancellationToken cancellationToken);
 
     Task<bool> Exists(GeneralCode kind, string code, DateOnly day, CancellationToken cancellationToken);
 

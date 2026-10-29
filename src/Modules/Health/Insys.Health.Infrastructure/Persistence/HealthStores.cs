@@ -204,6 +204,11 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
         await db.Memberships.AsNoTracking().Where(m => m.Status == MembershipStatus.Pending && m.StartDate <= day).OrderBy(m => m.Id).Select(m => m.Id).Take(limit)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> SchemesToNotice(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.Schemes.AsNoTracking().Where(s => s.Status == SchemeStatus.Active && s.RenewalDate <= day.AddYears(1)
+                                                   && (s.RenewalNoticeSentFor == null || s.RenewalNoticeSentFor != s.RenewalDate))
+            .OrderBy(s => s.Id).Select(s => s.Id).Take(limit).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Guid>> SchemesToActivate(DateOnly day, int limit, CancellationToken cancellationToken) =>
         await db.Schemes.AsNoTracking().Where(s => s.Status == SchemeStatus.Registered && s.StartDate <= day).OrderBy(s => s.Id).Select(s => s.Id).Take(limit)
             .ToListAsync(cancellationToken);
@@ -245,6 +250,10 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
 
 internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
 {
+    public async Task<(int NoticeDays, string ReRatingBasis)?> SchemeRenewalRule(string schemeNumber, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<SchemeRenewalRules>(day).Where(r => r.Scheme == schemeNumber).Select(r => new { r.NoticeDays, r.ReRatingBasis }).FirstOrDefaultAsync(cancellationToken)
+            is { } rule ? (rule.NoticeDays, rule.ReRatingBasis) : null;
+
     public async Task<ContributionGrace?> ContributionGrace(string? schemeNumber, DateOnly day, CancellationToken cancellationToken)
     {
         var rules = await InForce<ContributionGraceRules>(day).Where(r => r.Scheme == null || r.Scheme == schemeNumber).ToListAsync(cancellationToken);
@@ -389,6 +398,13 @@ internal sealed class HealthEventMapper : IDomainEventMapper
             e.StartDate, e.PayerPartyId, e.BillingAccountRef, e.CollectionMethod, e.Currency, e.MonthlyContribution, e.EmployerContribution, e.SponsorPartyId,
             e.OrgNodeCode, e.ProductCode),
         Domain.Members.MembershipProductAssigned e => new Contracts.MembershipProductAssigned(e.MembershipId, e.MemberNumber, e.ProductCode),
+        // Wave 4 §4.5: the sponsor is told of the scheme's renewal.
+        Domain.Members.HealthSchemeRenewalNoticeDue e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.SchemeRenewalNotice,
+            e.SponsorPartyId, "HEALTH_SCHEME", e.SchemeId, new Dictionary<string, string>
+            {
+                ["scheme_number"] = e.SchemeNumber,
+                ["renewal_date"] = e.RenewalDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            }),
         // F006: a person decides termination; the member is told of the suspension.
         Domain.Members.MembershipTerminationDue e => new Contracts.MembershipTerminationDue(e.MembershipId, e.MemberNumber, e.ArrearsSince),
         Domain.Members.MembershipArrearsCleared e => new Contracts.MembershipArrearsCleared(e.MembershipId, e.MemberNumber),

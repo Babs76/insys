@@ -32,6 +32,7 @@ using Insys.General.Api.StaticData;
 using Insys.General.Application;
 using Insys.General.Contracts;
 using Insys.General.Domain.Policies;
+using Insys.General.Domain.Renewals;
 using Insys.General.Domain.Underwriting;
 using Insys.General.Infrastructure;
 using Microsoft.AspNetCore.Builder;
@@ -362,6 +363,27 @@ public sealed class GeneralModule : IModule
             .Produces<RecoveryView>(StatusCodes.Status201Created)
             .WithName("GeneralOpenRecovery").WithSummary("Open a salvage or third-party recovery (GEN-007)")
             .RequirePermission(GeneralPermissions.RecoveryUpdate).RequireIdempotencyKey();
+        // Wave 4 §4.2: renewal reviews, and the underwriter's decision on a referred or ineligible one.
+        general.MapGet("/renewals", async (RenewalStatus? status, Guid? policyId, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListRenewals(status, policyId, after, size), ct), r => r.Id))
+            .Produces<CursorPage<RenewalView>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("GeneralListRenewals")
+            .WithSummary("Renewal reviews, newest first: by status (REFERRED for the underwriting work list) and policy (Wave 4 §4.2)")
+            .RequirePermission(GeneralPermissions.PolicyRead);
+        general.MapGet("/renewals/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetRenewal(id), ct)).ToHttp(Results.Ok))
+            .Produces<RenewalView>(StatusCodes.Status200OK)
+            .WithName("GeneralGetRenewal")
+            .WithSummary("A renewal review: the claims history and risk changes it read, each check's result, the re-rating and the offered premium (Wave 4 §4.2)")
+            .RequirePermission(GeneralPermissions.PolicyRead);
+        general.MapPost("/renewals/{id:guid}/decision", async (Guid id, DecideRenewalRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new DecideRenewal(id, r.Offer, r.DecisionCode, r.LoadingPct), ct)).ToHttp(Results.Ok))
+            .Produces<RenewalView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName("GeneralDecideRenewal")
+            .WithSummary("Decide a referred or ineligible renewal (F019): offer it, with any loading in per cent, or not, within your underwriting authority")
+            .RequirePermission(GeneralPermissions.QuoteUnderwrite);
         general.MapGet("/aggregation-alerts", async (string? zone, string? peril, Guid? zoneReference, DateOnly? from, DateOnly? to, string? cursor, int? limit,
                 IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListAggregationAlerts(zone, peril, zoneReference, from, to, after, size), ct), a => a.Id))
@@ -547,3 +569,8 @@ public sealed record PortalQuoteRequest(string ProductCode, Guid ProposerPartyId
 public sealed record PortalClaimRequest(Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate,
     [property: BuildingBlocks.Domain.CodeList(CodeLists.LossCauses, "cause_code")] string CauseCode, [property: BuildingBlocks.Domain.CodeList(CodeLists.Perils, "peril_code")] string PerilCode,
     string? Description);
+
+/// <summary>An underwriter's decision on a renewal (F019): offer it or not, with an underwriting decision code and any loading in per cent.</summary>
+public sealed record DecideRenewalRequest(bool Offer, [property: BuildingBlocks.Domain.CodeList(CodeLists.UnderwritingDecisions, "code")] string DecisionCode,
+    decimal? LoadingPct = null);
+

@@ -34,6 +34,20 @@ public static class RulesPermissions
     public const string DecisionCreate = "rule_decision.create";
 }
 
+/// <summary>
+/// A module asks Rules to evaluate a rule set for a subject without a person (Wave 4: a renewal review). Rules records the
+/// decision and announces it as usual (RuleDecisionRecorded), with the subject. <paramref name="Kind"/> is ELIGIBILITY (the
+/// code is a rule set code) or UNDERWRITING (the code is a product code). The inputs are business figures only (INT-007).
+/// </summary>
+[IntegrationEvent("rules.RuleEvaluationRequested")]
+public sealed record RuleEvaluationRequested(string Kind, string Code, string SubjectType, Guid SubjectId, System.Text.Json.JsonElement Inputs) : IIntegrationEvent;
+
+public static class RuleSetKinds
+{
+    public const string Eligibility = "ELIGIBILITY";
+    public const string Underwriting = "UNDERWRITING";
+}
+
 /// <summary>A rule set was evaluated. The inputs stay in the decision log; they are not in the event (INT-007).</summary>
 [IntegrationEvent("rules.RuleDecisionRecorded")]
 public sealed record RuleDecisionRecorded(Guid DecisionId, string RulesetCode, int RulesetVersion, string SubjectType, Guid SubjectId, string Outcome,

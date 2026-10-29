@@ -58,6 +58,8 @@ internal static class GeneralFunctions
         .Screen("GENERAL_ENDORSEMENTS", "GENERAL_POLICY_ADMIN", "Endorsements (rated, approved)", "general/endorsements", "GeneralListPolicyEndorsements", "GeneralGetEndorsement")
         .Action("GENERAL_SUBMIT_ENDORSEMENT", "GENERAL_ENDORSEMENTS", "GeneralSubmitEndorsement")
         .Screen("GENERAL_POLICIES", "GENERAL_POLICY_ADMIN", "Policy issue", "general/policies", "GeneralListPolicies", "GeneralGetPolicy")
+        .Screen("GENERAL_RENEWALS", "GENERAL_RENEWALS", "Risk & claims review", "general/renewals", "GeneralListRenewals", "GeneralGetRenewal")
+        .Action("GENERAL_DECIDE_RENEWAL", "GENERAL_RENEWALS", "GeneralDecideRenewal")
         .Action("GENERAL_ISSUE_POLICY", "GENERAL_POLICIES", "GeneralIssuePolicy")
         .Action("GENERAL_RENEW_POLICY", "GENERAL_POLICIES", "GeneralRenewPolicy")
         .Action("GENERAL_CANCEL_POLICY", "GENERAL_POLICIES", "GeneralCancelPolicy")

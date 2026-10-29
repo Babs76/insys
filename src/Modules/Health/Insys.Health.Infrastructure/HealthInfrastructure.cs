@@ -128,6 +128,17 @@ public static class HealthInfrastructure
             {
                 missing.Add("health.cfg_contribution_grace_rules");
             }
+
+            // Wave 4 §4.5: a scheme re-rated on experience (or blended) needs the next year's contribution table loaded by hand.
+            static string InForce(string a) => $"{a}.record_status = ANY(@inForce) AND {a}.effective_from <= @day AND ({a}.effective_to IS NULL OR {a}.effective_to > @day)";
+            missing.AddRange(await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction, $"""
+                SELECT 'health.cfg_contribution_rules: ' || s.scheme_number || ' from ' || to_char(s.renewal_date, 'YYYY-MM-DD') || ' (' || r.re_rating_basis || ')'
+                FROM health.scheme s JOIN health.cfg_scheme_renewal_rules r ON r.tenant_id = s.tenant_id AND r.scheme = s.scheme_number AND {InForce("r")}
+                WHERE s.tenant_id = @t AND s.status = 'ACTIVE' AND r.re_rating_basis IN ('EXPERIENCE', 'BLENDED')
+                  AND NOT EXISTS (SELECT 1 FROM health.cfg_contribution_rules c WHERE c.tenant_id = @t AND c.scheme = s.scheme_number
+                                  AND c.record_status = ANY(@inForce) AND c.effective_from = s.renewal_date)
+                ORDER BY 1
+                """, ct, ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day)));
             }
 
             return [BuildingBlocks.Application.ReadinessResult.Of("DOMAIN_REFERENCE_DATA", "DOMAIN_CODES",
@@ -187,7 +198,8 @@ public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory ten
                          .Concat(work.SchemesToActivate.Select(id => (id, HealthDueAction.ActivateScheme)))
                          .Concat((work.MembershipsToSuspend ?? []).Select(id => (id, HealthDueAction.SuspendForArrears)))
                          .Concat((work.TerminationsDue ?? []).Select(id => (id, HealthDueAction.RaiseTerminationDue)))
-                         .Concat((work.HeldClaimsToDecline ?? []).Select(id => (id, HealthDueAction.DeclineHeldClaim))))
+                         .Concat((work.HeldClaimsToDecline ?? []).Select(id => (id, HealthDueAction.DeclineHeldClaim)))
+                         .Concat((work.SchemesToNotice ?? []).Select(id => (id, HealthDueAction.NoticeSchemeRenewal))))
             {
                 await using var scope = Scope(tenantId);
                 var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RunHealthDue(id, action, day), cancellationToken);

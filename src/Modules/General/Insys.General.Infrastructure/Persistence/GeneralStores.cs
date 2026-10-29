@@ -256,6 +256,45 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
 
     public void Add(GeneralPolicy policy) => db.Policies.Add(policy);
 
+    public void Add(Domain.Renewals.Renewal renewal) => db.Renewals.Add(renewal);
+
+    public async Task<Domain.Renewals.Renewal?> Renewal(Guid id, CancellationToken cancellationToken) =>
+        await db.Renewals.Include(r => r.Checks).SingleOrDefaultAsync(r => r.Id == id, cancellationToken) is { } renewal && await Policy(renewal.PolicyId, cancellationToken) is not null
+            ? renewal
+            : null;
+
+    public async Task<Domain.Renewals.Renewal?> RenewalOfPeriod(Guid policyId, DateOnly periodEnd, CancellationToken cancellationToken) =>
+        await db.Renewals.Include(r => r.Checks).SingleOrDefaultAsync(r => r.PolicyId == policyId && r.PeriodEnd == periodEnd, cancellationToken);
+
+    public async Task<IReadOnlyList<Domain.Renewals.Renewal>> Renewals(Domain.Renewals.RenewalStatus? status, Guid? policyId, Guid? beforeId, int limit,
+        CancellationToken cancellationToken)
+    {
+        var listed = new List<Domain.Renewals.Renewal>();
+        foreach (var renewal in await db.Renewals.AsNoTracking().Include(r => r.Checks)
+                     .Where(r => (status == null || r.Status == status) && (policyId == null || r.PolicyId == policyId) && (beforeId == null || r.Id < beforeId))
+                     .OrderByDescending(r => r.Id).Take(limit).ToListAsync(cancellationToken))
+        {
+            // F103: a renewal is listed only where its policy is in the caller's scope.
+            if (await Policy(renewal.PolicyId, cancellationToken) is not null)
+            {
+                listed.Add(renewal);
+            }
+        }
+
+        return listed;
+    }
+
+    public async Task<IReadOnlyList<Guid>> PoliciesToReview(string productCode, DateOnly lastPeriodEnd, int limit, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.ProductCode == productCode && p.Status == PolicyStatus.InForce && p.PeriodEnd <= lastPeriodEnd
+                                                    && !db.Renewals.Any(r => r.PolicyId == p.Id && r.PeriodEnd == p.PeriodEnd))
+            .OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ClaimHistoryItem>> ClaimHistory(IReadOnlyCollection<Guid> policyIds, CancellationToken cancellationToken) =>
+        (await db.Claims.AsNoTracking().Where(c => policyIds.Contains(c.PolicyId))
+            .Select(c => new { c.Id, c.PolicyId, c.LossDate, c.Status, c.SettlementAmount }).ToListAsync(cancellationToken))
+        .Select(c => new ClaimHistoryItem(c.Id, c.PolicyId, c.LossDate, c.Status,
+            c.Status is Domain.Claims.ClaimStatus.Settled or Domain.Claims.ClaimStatus.Closed ? c.SettlementAmount ?? 0m : 0m)).ToList();
+
     public void Add(GeneralEndorsement endorsement) => db.Endorsements.Add(endorsement);
 
     public void Add(GeneralClaim claim) => db.Claims.Add(claim);
@@ -334,11 +373,31 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
 
     public async Task<RenewalRule?> RenewalRule(string productCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<RenewalRules>(day).Where(r => r.ProductCode == productCode)
-            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate, r.ReminderDays)).FirstOrDefaultAsync(cancellationToken);
+            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate, r.ReminderDays, r.Review ?? false))
+            .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<IReadOnlyList<RenewalRule>> RenewalRules(DateOnly day, CancellationToken cancellationToken) =>
         await InForce<RenewalRules>(day).OrderBy(r => r.ProductCode)
-            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate, r.ReminderDays)).ToListAsync(cancellationToken);
+            .Select(r => new RenewalRule(r.ProductCode, r.NoticeDays, r.AutoRenew, r.ReRating, r.InvitationTemplate, r.ReminderDays, r.Review ?? false))
+            .ToListAsync(cancellationToken);
+
+    public async Task<RenewalReviewRule?> RenewalReviewRule(string productCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<RenewalReviewRules>(day).Where(r => r.ProductCode == productCode)
+            .Select(r => new RenewalReviewRule(r.ProductCode, r.EligibilityRuleset, r.UnderwritingRules ?? true, r.ClaimsLookbackYears, r.ReviewDaysBeforeInvitation))
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<decimal> ClaimsFactor(string productCode, int claimsCount, decimal? lossRatio, DateOnly day, CancellationToken cancellationToken)
+    {
+        var bands = await InForce<ClaimsExperienceFactors>(day).Where(f => f.ProductCode == productCode).OrderBy(f => f.ClaimsCountFrom).ThenBy(f => f.Code)
+            .ToListAsync(cancellationToken);
+        return bands.FirstOrDefault(f => claimsCount >= f.ClaimsCountFrom && (f.ClaimsCountTo is null || claimsCount <= f.ClaimsCountTo)
+                                         && (f.LossRatioFrom is null || (lossRatio ?? 0) >= f.LossRatioFrom) && (f.LossRatioTo is null || (lossRatio ?? 0) <= f.LossRatioTo))
+            ?.Factor ?? 1m;
+    }
+
+    public async Task<Application.RenewalSettings> RenewalSettings(DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<StaticData.RenewalSettings>(day).Select(s => new Application.RenewalSettings(s.WorseTermsPct, s.ChangedTermsNoticeDays))
+            .FirstOrDefaultAsync(cancellationToken) ?? Application.RenewalSettings.Default;
 
     public Task<bool> Exists(GeneralCode kind, string code, DateOnly day, CancellationToken cancellationToken) => kind switch
     {
@@ -418,7 +477,16 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
             e.RecipientPartyId, "GENERAL_CLAIM", e.ClaimId, DecisionRightsMerge.Of(e.ClaimNumber, e.DecidedOn, e.DecisionReasons, e.Amount, e.ClaimedAmount, e.Currency),
             e.ProductCode, e.OrgNodeCode),
         GeneralRenewalInvited e => new Contracts.GeneralRenewalInvited(e.PolicyId, e.PolicyNumber, e.ProductCode, e.ProductVersion, e.PeriodEnd, e.TemplateCode,
-            e.PolicyholderPartyId),
+            e.PolicyholderPartyId, e.OfferedPremium, e.Currency),
+        // Wave 4 §4.2: the renewal review asks Rules and Rating, and tells Workflow what a person must decide.
+        Domain.Renewals.RenewalRuleEvaluationRequested e => new Rules.Contracts.RuleEvaluationRequested(e.Kind, e.Code, Domain.Renewals.RenewalSubjects.SubjectType,
+            e.RenewalId, System.Text.Json.JsonSerializer.SerializeToElement(e.Inputs)),
+        Domain.Renewals.RenewalRatingRequested e => new Contracts.GeneralRenewalRatingRequested(e.RenewalId, e.PolicyId),
+        Domain.Renewals.GeneralRenewalReferred e => new Contracts.GeneralRenewalReferred(e.RenewalId, e.PolicyId, e.PolicyNumber, e.ProductCode, e.SumInsured, e.Reason),
+        Domain.Renewals.GeneralRenewalNotEligible e => new Contracts.GeneralRenewalNotEligible(e.RenewalId, e.PolicyId, e.PolicyNumber, e.ProductCode, e.SumInsured, e.Reason),
+        Domain.Renewals.GeneralRenewalDecided e => new Contracts.GeneralRenewalDecided(e.RenewalId, e.PolicyId, e.PolicyNumber, e.Offered, e.DecisionCode),
+        Domain.Renewals.GeneralRenewalOffered e => new Contracts.GeneralRenewalOffered(e.RenewalId, e.PolicyId, e.PolicyNumber, e.CurrentPremium, e.OfferedPremium, e.Currency,
+            e.ChangedTerms),
         GeneralPolicyCancelled e => new Contracts.GeneralPolicyCancelled(e.PolicyId, e.PolicyNumber, e.ReasonCode, e.EffectiveDate, e.RefundAmount, e.Currency, e.ProductCode,
             e.ProductVersion),
         GeneralPolicyReinstated e => new Contracts.GeneralPolicyReinstated(e.PolicyId, e.PolicyNumber),

@@ -106,6 +106,9 @@ public interface IHealthRepository
 
     Task<IReadOnlyList<Guid>> SchemesToActivate(DateOnly day, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Active schemes renewing within a year whose renewal notice has not been sent for this year (Wave 4 §4.5).</summary>
+    Task<IReadOnlyList<Guid>> SchemesToNotice(DateOnly day, int limit, CancellationToken cancellationToken);
+
     void Add(HealthScheme scheme);
 
     void Add(HealthMembership membership);
@@ -169,6 +172,9 @@ public interface IHealthCodes
 
     /// <summary>The sponsor's party (health.mst_sponsor_register.party), when it holds a party id.</summary>
     Task<Guid?> SponsorParty(string sponsorCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>A scheme's renewal rule (health.cfg_scheme_renewal_rules): its notice days and re-rating basis; null when none is in force.</summary>
+    Task<(int NoticeDays, string ReRatingBasis)?> SchemeRenewalRule(string schemeNumber, DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>The remittance advice template: the format in force first by sort order, then code (health.cfg_remittance_advice_formats).</summary>
     Task<string?> RemittanceTemplate(DateOnly day, CancellationToken cancellationToken);

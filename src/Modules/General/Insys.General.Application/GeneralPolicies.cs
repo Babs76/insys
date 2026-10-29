@@ -84,6 +84,12 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
         {
             result = quote.RateQuote(calculated.CalculationId, calculated.ProductCode, calculated.ProductVersion, calculated.RatingVersion, calculated.Premium, calculated.Currency);
 
+            // Wave 4 §4.2: a renewal quote's rating is its renewal's re-rated premium.
+            if (result.IsSuccess && quote.RenewalId is { } renewalId && await general.Renewal(renewalId, cancellationToken) is { Status: Domain.Renewals.RenewalStatus.Reviewing } renewal)
+            {
+                renewal.RecordRating(quote.Id, calculated.Premium, clock.UtcNow);
+            }
+
             // BR-095: a quote priced as it is made is checked against its zone and peril limits (F062) as soon as it is
             // rated, as its issue would check it, so a broker never sees a price the rules then withdraw.
             if (result.IsSuccess && quote.PricedOnCreation
@@ -120,9 +126,18 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
     public async Task Handle(PremiumNotCalculated failed, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         if (failed.SourceDomain == GeneralRatingSubjects.SourceDomain && failed.SubjectType == GeneralRatingSubjects.Quote
-            && await general.Quote(failed.SubjectId, cancellationToken) is { } quote && quote.RecordRatingIssue(failed.ErrorCode, failed.Reason) is { IsFailure: true } refused)
+            && await general.Quote(failed.SubjectId, cancellationToken) is { } quote)
         {
-            logger.LogWarning("Rating issue {Code} not recorded on quote {QuoteId}: {Refusal}", failed.ErrorCode, failed.SubjectId, refused.Error.Code);
+            if (quote.RecordRatingIssue(failed.ErrorCode, failed.Reason) is { IsFailure: true } refused)
+            {
+                logger.LogWarning("Rating issue {Code} not recorded on quote {QuoteId}: {Refusal}", failed.ErrorCode, failed.SubjectId, refused.Error.Code);
+            }
+
+            // Wave 4 §4.2: a renewal quote Rating could not price refers its renewal to an underwriter.
+            if (quote.RenewalId is { } renewalId && await general.Renewal(renewalId, cancellationToken) is { Status: Domain.Renewals.RenewalStatus.Reviewing } renewal)
+            {
+                renewal.RecordRatingIssue(quote.Id, $"Rating could not price the renewal: {failed.Reason}", clock.UtcNow);
+            }
         }
     }
 
@@ -288,7 +303,7 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
 
 public sealed record DueWork(IReadOnlyList<Guid> PoliciesToStart, IReadOnlyList<Guid> PoliciesToExpire, IReadOnlyList<Guid> QuotesToExpire,
     IReadOnlyList<Guid> PoliciesToInvite, IReadOnlyList<Guid> PoliciesToRenew, IReadOnlyList<RenewalReminder>? RenewalReminders = null,
-    IReadOnlyList<Guid>? PoliciesPastGrace = null);
+    IReadOnlyList<Guid>? PoliciesPastGrace = null, IReadOnlyList<Guid>? PoliciesToReview = null);
 
 /// <summary>A renewal reminder due today: the policy, and how many days before its period ends (OQ-089).</summary>
 public sealed record RenewalReminder(Guid PolicyId, int DaysBefore);
@@ -339,16 +354,26 @@ internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCod
         var invite = new List<Guid>();
         var renew = new List<Guid>();
         var remind = new List<RenewalReminder>();
+        var review = new List<Guid>();
+        var settings = await codes.RenewalSettings(query.Day, cancellationToken);
         foreach (var rule in await codes.RenewalRules(query.Day, cancellationToken))
         {
-            invite.AddRange(await general.PoliciesToInvite(rule.ProductCode, query.Day.AddDays(rule.NoticeDays), query.Limit, cancellationToken));
+            // Wave 4 §4.2: a reviewed product's renewal is reviewed before its invitation, which may need the longer notice of changed terms.
+            var notice = rule.Review ? Math.Max(rule.NoticeDays, settings.ChangedTermsNoticeDays) : rule.NoticeDays;
+            if (rule.Review && await codes.RenewalReviewRule(rule.ProductCode, query.Day, cancellationToken) is { } reviewRule)
+            {
+                review.AddRange(await general.PoliciesToReview(rule.ProductCode, query.Day.AddDays(notice + reviewRule.ReviewDaysBeforeInvitation), query.Limit,
+                    cancellationToken));
+            }
+
+            invite.AddRange(await general.PoliciesToInvite(rule.ProductCode, query.Day.AddDays(notice), query.Limit, cancellationToken));
             foreach (var days in (rule.ReminderDays ?? []).Where(d => d > 0).Distinct())
             {
                 remind.AddRange((await general.PoliciesToRemind(rule.ProductCode, query.Day.AddDays(days), query.Limit, cancellationToken))
                     .Select(id => new RenewalReminder(id, days)));
             }
 
-            if (rule.AutoRenew && !rule.ReRating)
+            if (rule.AutoRenew && (!rule.ReRating || rule.Review))
             {
                 renew.AddRange(await general.PoliciesToRenew(rule.ProductCode, query.Day, query.Limit, cancellationToken));
             }
@@ -356,7 +381,7 @@ internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCod
 
         return new DueWork(await general.PoliciesToStart(query.Day, query.Limit, cancellationToken), await general.PoliciesToExpire(query.Day, query.Limit, cancellationToken),
             await general.QuotesToExpire(query.Day, query.Limit, cancellationToken), invite, renew, remind,
-            await general.PoliciesPastGrace(query.Day, query.Limit, cancellationToken));
+            await general.PoliciesPastGrace(query.Day, query.Limit, cancellationToken), review);
     }
 }
 
@@ -424,9 +449,34 @@ internal sealed class RunDueHandler(IGeneralRepository general, IGeneralCodes co
 
                 if (command.Action == DueAction.InviteRenewal)
                 {
-                    result = await codes.RenewalRule(policy.ProductCode, command.Day, cancellationToken) is { } rule
-                        ? policy.InviteRenewal(rule.NoticeDays, rule.InvitationTemplate, command.Day, clock.UtcNow)
-                        : BuildingBlocks.Domain.Error.Validation(Domain.GeneralErrorCodes.CodeNotInForce, $"{policy.ProductCode} has no renewal rule in force.");
+                    if (await codes.RenewalRule(policy.ProductCode, command.Day, cancellationToken) is not { } rule)
+                    {
+                        result = BuildingBlocks.Domain.Error.Validation(Domain.GeneralErrorCodes.CodeNotInForce, $"{policy.ProductCode} has no renewal rule in force.");
+                        break;
+                    }
+
+                    if (!rule.Review)
+                    {
+                        result = policy.InviteRenewal(rule.NoticeDays, rule.InvitationTemplate, command.Day, clock.UtcNow);
+                        break;
+                    }
+
+                    // Wave 4 §4.2 and addition 2: a reviewed renewal is invited once offered, with its terms; changed terms at least the
+                    // tenant's notice before the renewal date, unchanged ones the rule's.
+                    if (await general.RenewalOfPeriod(policy.Id, policy.PeriodEnd, cancellationToken) is not { Status: Domain.Renewals.RenewalStatus.Offered } offered)
+                    {
+                        return false;
+                    }
+
+                    var notice = offered.ChangedTerms
+                        ? Math.Max(rule.NoticeDays, (await codes.RenewalSettings(command.Day, cancellationToken)).ChangedTermsNoticeDays)
+                        : rule.NoticeDays;
+                    if (command.Day < policy.PeriodEnd.AddDays(-notice))
+                    {
+                        return false;
+                    }
+
+                    result = policy.InviteRenewal(notice, rule.InvitationTemplate, command.Day, clock.UtcNow, offered.OfferedPremium);
                     break;
                 }
 

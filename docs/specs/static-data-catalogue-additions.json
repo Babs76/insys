@@ -1188,6 +1188,129 @@
      "sample": "true"
     }
    ]
+  },
+  {
+   "layer": "Insurance Domains · General",
+   "module": "Policy administration",
+   "subModule": "Renewal",
+   "entity": "Renewal review rules",
+   "table": "general.cfg_renewal_review_rules",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "General Product Manager",
+   "provenance": "Wave 4 addendum (addenda/renewals-and-retention.md), signed off by Ade, 29 October 2026",
+   "basis": "F015-F019; addendum §4.2",
+   "fields": [
+    {
+     "name": "product_code",
+     "logicalType": "Ref Product",
+     "mandatory": true,
+     "sample": "GEN-MOTOR-PV"
+    },
+    {
+     "name": "eligibility_ruleset",
+     "logicalType": "Code(15)",
+     "mandatory": false,
+     "sample": "RS-REN-ELIG"
+    },
+    {
+     "name": "underwriting_rules",
+     "logicalType": "Boolean",
+     "mandatory": false,
+     "sample": "true"
+    },
+    {
+     "name": "claims_lookback_years",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "3"
+    },
+    {
+     "name": "review_days_before_invitation",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "14"
+    }
+   ]
+  },
+  {
+   "layer": "Insurance Domains · General",
+   "module": "Policy administration",
+   "subModule": "Renewal",
+   "entity": "Claims experience factors",
+   "table": "general.cfg_claims_experience_factors",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "General Product Manager",
+   "provenance": "Wave 4 addendum (addenda/renewals-and-retention.md), signed off by Ade, 29 October 2026 (OQ-131: 1.0 by default)",
+   "basis": "F017, F018; addendum §4.3",
+   "fields": [
+    {
+     "name": "product_code",
+     "logicalType": "Ref Product",
+     "mandatory": true,
+     "sample": "GEN-MOTOR-PV"
+    },
+    {
+     "name": "claims_count_from",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "2"
+    },
+    {
+     "name": "claims_count_to",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": "3"
+    },
+    {
+     "name": "loss_ratio_from",
+     "logicalType": "Decimal(7,4)",
+     "mandatory": false,
+     "sample": "0.6"
+    },
+    {
+     "name": "loss_ratio_to",
+     "logicalType": "Decimal(7,4)",
+     "mandatory": false,
+     "sample": "1.0"
+    },
+    {
+     "name": "factor",
+     "logicalType": "Decimal(7,4)",
+     "mandatory": true,
+     "sample": "1.15"
+    }
+   ]
+  },
+  {
+   "layer": "Insurance Domains · General",
+   "module": "Policy administration",
+   "subModule": "Renewal",
+   "entity": "Renewal settings",
+   "table": "general.cfg_renewal_settings",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "General Product Manager",
+   "provenance": "Wave 4 addendum (addenda/renewals-and-retention.md), signed off by Ade, 29 October 2026 (OQ-130 threshold; addition 2 notice)",
+   "basis": "F018, F022; addendum §4.4",
+   "fields": [
+    {
+     "name": "worse_terms_pct",
+     "logicalType": "Decimal(5,2)",
+     "mandatory": true,
+     "sample": "15.00"
+    },
+    {
+     "name": "changed_terms_notice_days",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "31"
+    }
+   ]
   }
  ]
 }

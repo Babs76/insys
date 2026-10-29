@@ -113,7 +113,7 @@ public static partial class MergeFields
     {
         [NotificationTypes.PaymentReminder] = ["account_number", "policy_number", "amount_overdue", "currency", "days_overdue", "due_date"],
         [NotificationTypes.PaymentFinalNotice] = ["account_number", "policy_number", "amount_overdue", "currency", "days_overdue", "due_date"],
-        [NotificationTypes.RenewalInvitation] = ["policy_number", "product_code", "period_end"],
+        [NotificationTypes.RenewalInvitation] = ["policy_number", "product_code", "period_end", "renewal_premium", "currency"],
         [NotificationTypes.RenewalReminder] = ["policy_number", "product_code", "period_end", "days_to_renewal"],
         [NotificationTypes.ClaimStatus] = ["claim_number", "status", "status_date", "amount", "currency", "premium_deducted", "net_amount"],
         [NotificationTypes.HealthClaimDecision] = ["claim_number", "status", "status_date", "total_paid", "currency"],
@@ -125,6 +125,7 @@ public static partial class MergeFields
         [NotificationTypes.GraceNotice] = ["policy_number", "product_code", "unpaid_since", "grace_until", "cover_ends_on"],
         [NotificationTypes.NonPaymentCancellation] = ["policy_number", "product_code", "cancelled_from", "refund_amount", "currency"],
         [NotificationTypes.ContributionSuspension] = ["member_number", "suspended_from", "notice_ends"],
+        [NotificationTypes.SchemeRenewalNotice] = ["scheme_number", "renewal_date"],
     };
 
     /// <summary>Whether the type is one the platform triggers (a service notice); any other is a tenant's marketing type.</summary>

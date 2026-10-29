@@ -212,7 +212,7 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
 
 public sealed record HealthDueWork(IReadOnlyList<Guid> AuthorisationsToExpire, IReadOnlyList<Guid> MembershipsToActivate, IReadOnlyList<Guid> SchemesToActivate,
     IReadOnlyList<Guid>? MembershipsToSuspend = null, IReadOnlyList<Guid>? TerminationsDue = null, IReadOnlyList<Guid>? HeldClaimsToRelease = null,
-    IReadOnlyList<Guid>? HeldClaimsToDecline = null);
+    IReadOnlyList<Guid>? HeldClaimsToDecline = null, IReadOnlyList<Guid>? SchemesToNotice = null);
 
 public sealed record FindHealthDueWork(DateOnly Day, int Limit) : IQuery<HealthDueWork>;
 
@@ -243,6 +243,9 @@ public enum HealthDueAction
 
     /// <summary>F006: a claim held for arrears, declined once the membership is suspended for them.</summary>
     DeclineHeldClaim,
+
+    /// <summary>Wave 4 §4.5: the scheme's renewal notice to its sponsor, by its renewal rule's notice.</summary>
+    NoticeSchemeRenewal,
 }
 
 public sealed record RunHealthDue(Guid Id, HealthDueAction Action, DateOnly Day) : ICommand<bool>;
@@ -255,7 +258,7 @@ internal sealed class FindHealthDueWorkHandler(IHealthRepository health) : IQuer
         return new HealthDueWork(await health.PreauthorisationsToExpire(query.Day, query.Limit, cancellationToken),
             await health.MembershipsToActivate(query.Day, query.Limit, cancellationToken), await health.SchemesToActivate(query.Day, query.Limit, cancellationToken),
             await health.MembershipsToSuspendForArrears(query.Day, query.Limit, cancellationToken), await health.MembershipsTerminationDue(query.Day, query.Limit, cancellationToken),
-            release, decline);
+            release, decline, await health.SchemesToNotice(query.Day, query.Limit, cancellationToken));
     }
 }
 
@@ -277,6 +280,12 @@ internal sealed class RunHealthDueHandler(IHealthRepository health, IHealthCodes
                 : Result.Success(),
             HealthDueAction.RaiseTerminationDue => await health.Membership(command.Id, cancellationToken) is { } due
                 ? due.RaiseTerminationDue(command.Day, clock.UtcNow)
+                : Result.Success(),
+            HealthDueAction.NoticeSchemeRenewal => await health.Scheme(command.Id, cancellationToken) is { } scheme
+                ? await codes.SchemeRenewalRule(scheme.SchemeNumber, command.Day, cancellationToken) is { } rule
+                    && await codes.SponsorParty(scheme.SponsorCode, command.Day, cancellationToken) is { } sponsor
+                    ? scheme.NoticeRenewal(rule.NoticeDays, sponsor, rule.ReRatingBasis, command.Day, clock.UtcNow)
+                    : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Scheme {scheme.SchemeNumber} has no renewal rule or sponsor party in force.")
                 : Result.Success(),
             HealthDueAction.DeclineHeldClaim => await health.Claim(command.Id, cancellationToken) is { Status: Domain.Care.MedicalClaimStatus.Pended } claim
                 ? claim.RejectClaim(ArrearsDeclineReason, clock.UtcNow) is { IsSuccess: true } ? await rights.Notice(claim, ArrearsDeclineReason, cancellationToken)

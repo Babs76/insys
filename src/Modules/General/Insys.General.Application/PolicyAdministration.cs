@@ -179,7 +179,14 @@ internal sealed class RenewPolicyHandler(IGeneralRepository general, IGeneralCod
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{expiring.ProductCode} has no renewal rule in force.");
         }
 
-        if (rule.ReRating)
+        // Wave 4 §4.2: a reviewed product renews on its review's offered terms (re-rated or not), and only once offered.
+        var review = rule.Review ? await general.RenewalOfPeriod(expiring.Id, expiring.PeriodEnd, cancellationToken) : null;
+        if (rule.Review && review is not { Status: Domain.Renewals.RenewalStatus.Offered })
+        {
+            return Error.Conflict(GeneralErrorCodes.RenewalNotOffered, $"Policy {expiring.PolicyNumber}'s renewal is {review?.Status.ToString() ?? "not reviewed"}; it renews once offered.");
+        }
+
+        if (rule.ReRating && review is null)
         {
             return Error.Validation(GeneralErrorCodes.RenewalNeedsRating, $"{expiring.ProductCode} renewals are re-rated: quote again and issue with renewalOfPolicyId.");
         }
@@ -191,11 +198,13 @@ internal sealed class RenewPolicyHandler(IGeneralRepository general, IGeneralCod
             return number.Error;
         }
 
-        var renewal = GeneralPolicy.RenewPolicy(id, number.Value, expiring, businessDate.Today, clock.UtcNow);
+        var renewal = GeneralPolicy.RenewPolicy(id, number.Value, expiring, businessDate.Today, clock.UtcNow, review?.OfferedPremium);
         if (renewal.IsFailure)
         {
             return renewal.Error;
         }
+
+        review?.MarkRenewed();
 
         general.Add(renewal.Value);
         audit.Record(new AuditEntry("GENERAL", "RenewPolicy", nameof(GeneralPolicy), expiring.Id.ToString(), new Dictionary<string, string?> { ["renewal"] = id.ToString() }));
