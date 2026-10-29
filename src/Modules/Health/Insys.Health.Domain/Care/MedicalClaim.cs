@@ -191,6 +191,8 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
         .Allow(MedicalClaimStatus.Adjudicated, MedicalClaimTrigger.ApproveForPayment, MedicalClaimStatus.ApprovedForPayment)
         .Allow(MedicalClaimStatus.ApprovedForPayment, MedicalClaimTrigger.PaymentRunReleased, MedicalClaimStatus.Paid)
         .Allow(MedicalClaimStatus.Validated, MedicalClaimTrigger.RejectClaim, MedicalClaimStatus.Rejected)
+        // F006 (Wave 4.1): a claim held for unpaid contributions is declined when the membership is suspended for arrears.
+        .Allow(MedicalClaimStatus.Pended, MedicalClaimTrigger.RejectClaim, MedicalClaimStatus.Rejected)
         .Allow(MedicalClaimStatus.Paid, MedicalClaimTrigger.ReverseClaim, MedicalClaimStatus.Reversed)
         .Allow(MedicalClaimStatus.Rejected, MedicalClaimTrigger.ReopenClaim, MedicalClaimStatus.Validated);
 

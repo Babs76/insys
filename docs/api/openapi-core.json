@@ -38111,6 +38111,7 @@
               "RESERVE_BELOW_ZERO",
               "PAYEE_ACCOUNT_CHANGED",
               "DUE_DILIGENCE_NOT_CLEARED",
+              "PREMIUM_ARREARS",
               null
             ],
             "type": [
@@ -38161,6 +38162,15 @@
               "null",
               "string"
             ]
+          },
+          "premiumOffset": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
           }
         }
       },
@@ -38206,6 +38216,24 @@
           "movementAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "premiumOffset": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "netAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -42671,6 +42699,40 @@
           }
         }
       },
+      "GeneralClaimPaymentSplitView": {
+        "required": [
+          "gross",
+          "premiumDeducted",
+          "net"
+        ],
+        "type": "object",
+        "properties": {
+          "gross": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "premiumDeducted": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "net": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "GeneralClaimStatus": {
         "enum": [
           "FirstNotification",
@@ -42880,6 +42942,16 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "paymentSplit": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GeneralClaimPaymentSplitView"
+              }
+            ]
           }
         }
       },
