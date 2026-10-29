@@ -291,7 +291,7 @@ internal static class Ageing
     {
         var overdue = invoices.Where(i => i.Outstanding > 0 && i.DueDate < today).ToList();
         var days = DaysOverdue(overdue, today);
-        return account.DetectArrears(days, overdue.Sum(i => i.Outstanding), await codes.AgeingBuckets(today, cancellationToken), now);
+        return account.DetectArrears(days, overdue.Sum(i => i.Outstanding), await codes.AgeingBuckets(today, cancellationToken), now, today, overdue.Count);
     }
 
     public static int DaysOverdue(IReadOnlyList<Invoice> overdue, DateOnly today) => overdue.Count == 0 ? 0 : today.DayNumber - overdue.Min(i => i.DueDate).DayNumber;

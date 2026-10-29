@@ -2,7 +2,13 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 3 batch 1 (branch `wave3-1`): identity verification, staff duplicates, front-end requests
+## BR-103 (branch `br-103`): arrears counted as of their detection date
+
+### Changed
+- **`billing.ArrearsDetected`** gains `detectedOn` (the business date Billing's ageing ran on) and `overdueInvoices` (the account's invoices unpaid past due that day). Both are null on events raised before BR-103.
+- **Life** counts a policy's missed premiums, and takes the grace rule, as of `detectedOn`, never the date it processes the event. A late, retried or parked delivery therefore gives the same count and grace period. An instalment paid since is not counted; an event without `detectedOn` is counted as of the business date it occurred on.
+
+## Wave 3 batch 1 (branch `wave3-1`, merged at `7eeed73`): identity verification, staff duplicates, front-end requests
 
 ### Breaking
 - **`PartyVerifyIdentifier`** requires `documentId`: the identity document the person checked the number against, filed against the party (422 otherwise). It is recorded as a due diligence check (F001).

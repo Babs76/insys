@@ -175,18 +175,24 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
         Decide(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.ApprovalId, rejected.CheckerId, rejected.ApprovalType, rejected.SubjectHash,
             cancellationToken);
 
-    /// <summary>ArrearsDetected → RecordMissedPremium on each of the account's policies: their overdue invoices, and the grace period from the oldest.</summary>
+    /// <summary>
+    /// ArrearsDetected → RecordMissedPremium on each of the account's policies: their overdue invoices, and the grace period
+    /// from the oldest. BR-103: counted as of the business date Billing detected the arrears, never the date this delivery
+    /// is processed, so a late, retried or parked delivery counts what Billing saw. An invoice paid since is not counted
+    /// (its settlement cleared it). An event raised before BR-103 is counted as of the business date it occurred on.
+    /// </summary>
     public async Task Handle(ArrearsDetected detected, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        var detectedOn = detected.DetectedOn ?? businessDate.DateOf(envelope.OccurredAt);
         foreach (var policyId in await life.PoliciesOnAccount(detected.AccountId, cancellationToken))
         {
-            await RefreshArrears(policyId, cancellationToken);
+            await RefreshArrears(policyId, detectedOn, cancellationToken);
         }
     }
 
     /// <summary>An invoice of a Life policy was paid: a payment received in grace clears the missed premium it covered.</summary>
     public Task Handle(InvoiceSettled settled, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        settled.SourceDomain == LifeSubjects.SourceDomain ? RefreshArrears(settled.PolicyRef, cancellationToken) : Task.CompletedTask;
+        settled.SourceDomain == LifeSubjects.SourceDomain ? RefreshArrears(settled.PolicyRef, businessDate.Today, cancellationToken) : Task.CompletedTask;
 
     /// <summary>ClaimPaymentCompleted → mark the claim settled once the approved amount is paid.</summary>
     public async Task Handle(ClaimPaymentCompleted completed, EventEnvelope envelope, CancellationToken cancellationToken)
@@ -220,19 +226,19 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
         }
     }
 
-    private async Task RefreshArrears(Guid policyId, CancellationToken cancellationToken)
+    private async Task RefreshArrears(Guid policyId, DateOnly asOf, CancellationToken cancellationToken)
     {
         if (await life.Policy(policyId, cancellationToken) is not { } policy)
         {
             return;
         }
 
-        if (await codes.GraceRule(policy.PremiumFrequency, businessDate.Today, cancellationToken) is not { } grace)
+        if (await codes.GraceRule(policy.PremiumFrequency, asOf, cancellationToken) is not { } grace)
         {
             throw new InvalidOperationException($"No grace period rule is in force for {policy.PremiumFrequency}; policy {policy.PolicyNumber}'s arrears are not recorded.");
         }
 
-        var overdue = await arrears.For(tenant.RequireTenantId(), LifeSubjects.SourceDomain, policy.Id, businessDate.Today, cancellationToken);
+        var overdue = await arrears.For(tenant.RequireTenantId(), LifeSubjects.SourceDomain, policy.Id, asOf, cancellationToken);
         policy.RecordArrears(overdue.OverdueInstalments, overdue.OldestDueDate, grace);
     }
 

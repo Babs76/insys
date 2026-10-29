@@ -58,8 +58,11 @@ public sealed record AgeingBucket(string BucketCode, int DaysFrom, int DaysTo, s
 
 public sealed record BillingAccountOpened(Guid AccountId, string AccountNumber, Guid PayerPartyId, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <param name="DetectedOn">The business date the ageing ran on (BR-103): consumers count overdue items as of it, never the date they process the event.</param>
+/// <param name="OverdueInvoices">The account's invoices unpaid past their due date on that day.</param>
 public sealed record ArrearsDetected(Guid AccountId, string BucketCode, int DaysOverdue, decimal AmountOverdue, string Currency, DateTimeOffset OccurredAt,
-    string? AccountNumber = null, Guid? PayerPartyId = null, string? NextAction = null, string? ProductCode = null, string? OrgNodeCode = null) : IDomainEvent;
+    string? AccountNumber = null, Guid? PayerPartyId = null, string? NextAction = null, string? ProductCode = null, string? OrgNodeCode = null,
+    DateOnly? DetectedOn = null, int? OverdueInvoices = null) : IDomainEvent;
 
 /// <summary>An open arrears case aged past every ageing bucket in force: it stays in its bucket until one covers its days (request 46).</summary>
 public sealed record ArrearsAgeingBlocked(Guid AccountId, string BucketCode, int DaysOverdue, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -433,7 +436,8 @@ public sealed class BillingAccount : AggregateRoot<Guid>
     /// Command DetectArrears: the oldest overdue amount decides the bucket. No overdue amount clears the arrears and
     /// returns the account to Active (transition "Arrears cleared").
     /// </summary>
-    public Result DetectArrears(int daysOverdue, decimal amountOverdue, IReadOnlyList<AgeingBucket> buckets, DateTimeOffset now)
+    public Result DetectArrears(int daysOverdue, decimal amountOverdue, IReadOnlyList<AgeingBucket> buckets, DateTimeOffset now, DateOnly? detectedOn = null,
+        int? overdueInvoices = null)
     {
         var open = _arrears.SingleOrDefault(a => a.Status == "OPEN");
         if (amountOverdue <= 0 || daysOverdue <= 0)
@@ -488,7 +492,8 @@ public sealed class BillingAccount : AggregateRoot<Guid>
 
         if (changed)
         {
-            Raise(new ArrearsDetected(Id, bucket.BucketCode, daysOverdue, amountOverdue, Currency, now, AccountNumber, PayerPartyId, bucket.Action));
+            Raise(new ArrearsDetected(Id, bucket.BucketCode, daysOverdue, amountOverdue, Currency, now, AccountNumber, PayerPartyId, bucket.Action,
+                DetectedOn: detectedOn, OverdueInvoices: overdueInvoices));
         }
 
         MarkChanged();

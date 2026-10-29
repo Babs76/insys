@@ -28,6 +28,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Insys.Billing.Contracts;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.ClaimsFramework.Contracts;
 using Insys.Documents.Contracts;
 using Insys.Finance.Contracts;
@@ -358,6 +359,52 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
             WHERE s.policy_ref = @p AND i.status IN ('SCHEDULED', 'INVOICED') AND i.due_date >= @today
             """, ("p", policy), ("today", Today))).ShouldBeGreaterThan(0L);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.dead_letter_message")).ShouldBe(0L);
+    }
+
+    /// <summary>
+    /// BR-103 (found by the front end's Phase 8 run): Billing detects arrears on one business date, and Life processes the
+    /// event on a later one (a late, retried or parked delivery). Life counts the missed premiums Billing saw on the date it
+    /// detected them, not those that fell due since, so the count and the grace period are the same however late it is.
+    /// </summary>
+    [Fact]
+    public async Task ArrearsDetected_DeliveredOnALaterBusinessDate_CountsWhatWasOverdueWhenBillingDetectedIt_BR103()
+    {
+        var applicant = await _maker.RegisterPerson("Late");
+        var spouse = await _maker.RegisterPerson("Delivery");
+        var policy = await IssuedPolicy(applicant, spouse, Today.AddMonths(-3));
+        var instalments = await _db.ScalarAsOwner<Guid[]>("""
+            SELECT array_agg(i.id ORDER BY i.due_date, i.id) FROM billing.premium_instalment i JOIN billing.premium_schedule s ON s.id = i.schedule_id
+            WHERE s.policy_ref = @p AND i.status = 'INVOICED'
+            """, ("p", policy));
+        instalments!.Length.ShouldBeGreaterThan(1);
+
+        // One instalment was overdue when Billing ran on the detection date; the others fell due after it, before the delivery.
+        var detectedOn = Today.AddDays(-30);
+        var oldest = Today.AddDays(-60);
+        await _db.ExecuteAsOwner("UPDATE billing.invoice SET due_date = @d, issue_date = @d WHERE source_domain = 'LIFE' AND policy_ref = @p", ("d", oldest), ("p", policy));
+        await _db.ExecuteAsOwner("UPDATE billing.premium_instalment SET due_date = @d WHERE id = @i", ("d", oldest), ("i", instalments[0]));
+        await _db.ExecuteAsOwner("UPDATE billing.premium_instalment SET due_date = @d WHERE id = ANY(@rest)", ("d", Today.AddDays(-5)), ("rest", instalments[1..]));
+        var collection = await _db.ScalarAsOwner<Guid>("""
+            SELECT p.id FROM payment.payment p JOIN billing.invoice i ON i.id = p.business_ref_id WHERE i.policy_ref = @p LIMIT 1
+            """, ("p", policy));
+        (await _maker.SimulatorCallback(_factory, _db, collection, "BOUNCED")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+
+        // Billing ages the account as of the detection date; nothing is delivered until the business date has moved on.
+        using (BusinessDateOverride.Use(detectedOn))
+        {
+            await _factory.Services.GetRequiredService<Insys.Billing.Infrastructure.BillingJobs>().Run(CancellationToken.None);
+        }
+
+        (await _db.ScalarAsOwner<string>("""
+            SELECT payload ->> 'detectedOn' FROM billing.outbox_event WHERE event_type = 'billing.ArrearsDetected' ORDER BY occurred_at DESC LIMIT 1
+            """)).ShouldBe(detectedOn.ToString("yyyy-MM-dd"), customMessage: "the event carries the date Billing detected the arrears on");
+        await _factory.DrainOutbox();
+
+        var schedule = (await Get($"/api/v1/life/policies/{policy}")).GetProperty("schedule");
+        (schedule.GetProperty("missedCount").GetInt32(), schedule.GetProperty("arrearsSince").GetString())
+            .ShouldBe((1, oldest.ToString("yyyy-MM-dd")), "only the instalment overdue on the detection date, not those due since");
+        schedule.GetProperty("graceUntil").GetString().ShouldBe(oldest.AddDays(30).ToString("yyyy-MM-dd"));
     }
 
     [Fact]
