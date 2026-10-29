@@ -27,3 +27,12 @@ Work decided but not yet planned into a batch, by the wave it is meant for. Each
 - **What:** wellness programme benefits (F089), monitoring treatment compliance (F090), and monitoring treatment outcomes where the data exists (F091). They are not in the SRS.
 - **Until then:** benefit categories and limits cover what a plan configures; Wave 5b.4 builds disease management, preventive screening and vaccinations (F086 to F088).
 
+## Engineering, for a quiet stretch (Ade, 29 October 2026)
+
+### B-005: one end-to-end test host per class
+- **Decided by:** Ade, 29 October 2026, after measuring CI (OQ-129).
+- **What:** the end-to-end process tests start a host per test (38 per dated job, each building its router in about 79 seconds on a runner). One host per test class, with each test in its own tenant and codes, as the integration tests already share theirs, would cut the dated jobs from about 22 minutes to 8 to 10.
+- **Why not now:** a CI run is bounded by the integration shards (about 18 to 20 minutes), so it saves about 3 minutes a run, for 1 to 2 days of work and some isolation risk. Paid 8-core runners were also declined (about $300 to $400 a month for about 8 minutes a run).
+- **When:** a quiet stretch, such as while an addendum awaits review, or the hardening phase. Sooner only if the OQ-129 stall recurs or an integration shard passes 30 minutes.
+- **Until then:** the stall logging stays on the dated jobs, and their 30-minute limit is unchanged.
+

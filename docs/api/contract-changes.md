@@ -2,6 +2,13 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 3 batch 3 (branch `wave3-3`): the API descriptions
+
+### Changed
+- **`GET /openapi/{core|static-data|platform-operator}.json`** serves the committed documents (`docs/api`), built into the host, never generated on request. Their content is unchanged.
+- **Outside Development and Testing** (staging, production) they are served only to a signed-in user: without a valid token, 401. In Development and Testing anyone may read them, as before.
+- Any other document name is 404.
+
 ## Wave 3 batch 2 (branch `wave3-2`): customer due diligence (addenda/due-diligence.md)
 
 ### Changed (gates, OQ-123, §5)
