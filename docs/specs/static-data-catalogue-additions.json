@@ -837,6 +837,201 @@
      "sample": "5.0000"
     }
    ]
+  },
+  {
+   "layer": "Shared Insurance Services",
+   "module": "Party Management",
+   "class": "CFG",
+   "tier": 1,
+   "proposedOwner": "Compliance Officer",
+   "subModule": "Due diligence",
+   "entity": "Due diligence requirements",
+   "table": "party.cfg_due_diligence_requirements",
+   "scope": "GT",
+   "provenance": "Due diligence addendum (addenda/due-diligence.md), signed off by Ade on 29 October 2026",
+   "basis": "F002; FICA s21 to s21H; §4.2",
+   "fields": [
+    {
+     "name": "party_type",
+     "logicalType": "Enum{Individual,Organisation}",
+     "mandatory": true,
+     "sample": "INDIVIDUAL"
+    },
+    {
+     "name": "dd_level",
+     "logicalType": "Enum{Simplified,Standard,Enhanced}",
+     "mandatory": true,
+     "sample": "STANDARD"
+    },
+    {
+     "name": "domain",
+     "logicalType": "Enum{Life,General,Health}",
+     "mandatory": true,
+     "sample": "LIFE"
+    },
+    {
+     "name": "check_type",
+     "logicalType": "Code(25)",
+     "mandatory": true,
+     "sample": "SANCTIONS"
+    },
+    {
+     "name": "basis",
+     "logicalType": "String(200)",
+     "mandatory": false,
+     "sample": "FICA s21"
+    }
+   ]
+  },
+  {
+   "layer": "Shared Insurance Services",
+   "module": "Party Management",
+   "class": "CFG",
+   "tier": 1,
+   "proposedOwner": "Compliance Officer",
+   "subModule": "Customer risk",
+   "entity": "Customer risk factors",
+   "table": "party.cfg_customer_risk_factors",
+   "scope": "GT",
+   "provenance": "Due diligence addendum (addenda/due-diligence.md), signed off by Ade on 29 October 2026",
+   "basis": "F077; FICA s42; §4.4",
+   "fields": [
+    {
+     "name": "factor",
+     "logicalType": "Code(20)",
+     "mandatory": true,
+     "sample": "COUNTRY"
+    },
+    {
+     "name": "match_values",
+     "logicalType": "List<String>",
+     "mandatory": true,
+     "sample": "KP, IR, MM"
+    },
+    {
+     "name": "weight",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "60"
+    }
+   ]
+  },
+  {
+   "layer": "Shared Insurance Services",
+   "module": "Party Management",
+   "class": "CFG",
+   "tier": 1,
+   "proposedOwner": "Compliance Officer",
+   "subModule": "Customer risk",
+   "entity": "Customer risk classes",
+   "table": "party.cfg_customer_risk_classes",
+   "scope": "GT",
+   "provenance": "Due diligence addendum (addenda/due-diligence.md), signed off by Ade on 29 October 2026 (OQ-124)",
+   "basis": "F077; OQ-124; §4.4",
+   "fields": [
+    {
+     "name": "risk_class",
+     "logicalType": "Enum{Low,Medium,High}",
+     "mandatory": true,
+     "sample": "HIGH"
+    },
+    {
+     "name": "min_score",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "60"
+    },
+    {
+     "name": "max_score",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": ""
+    },
+    {
+     "name": "dd_level",
+     "logicalType": "Enum{Simplified,Standard,Enhanced}",
+     "mandatory": true,
+     "sample": "ENHANCED"
+    },
+    {
+     "name": "review_interval",
+     "logicalType": "ISO 8601 duration",
+     "mandatory": true,
+     "sample": "P1Y"
+    }
+   ]
+  },
+  {
+   "layer": "Shared Insurance Services",
+   "module": "Party Management",
+   "class": "CFG",
+   "tier": 1,
+   "proposedOwner": "Compliance Officer",
+   "subModule": "Due diligence",
+   "entity": "Due diligence gates",
+   "table": "party.cfg_due_diligence_gates",
+   "scope": "GT",
+   "provenance": "Due diligence addendum (addenda/due-diligence.md), signed off by Ade on 29 October 2026 (OQ-123)",
+   "basis": "OQ-123; FICA s21E, s26B; §5",
+   "fields": [
+    {
+     "name": "domain",
+     "logicalType": "Enum{Life,General,Health,Any}",
+     "mandatory": true,
+     "sample": "LIFE"
+    },
+    {
+     "name": "step",
+     "logicalType": "Enum{Quote,Issue,Payout,ClaimPayout}",
+     "mandatory": true,
+     "sample": "ISSUE"
+    },
+    {
+     "name": "requirement",
+     "logicalType": "Enum{None,Screened,Cleared}",
+     "mandatory": true,
+     "sample": "CLEARED"
+    },
+    {
+     "name": "screening_max_age",
+     "logicalType": "ISO 8601 duration",
+     "mandatory": false,
+     "sample": "P30D"
+    }
+   ]
+  },
+  {
+   "layer": "Shared Insurance Services",
+   "module": "Party Management",
+   "class": "CFG",
+   "tier": 1,
+   "proposedOwner": "Compliance Officer",
+   "subModule": "Due diligence",
+   "entity": "Due diligence settings",
+   "table": "party.cfg_due_diligence_settings",
+   "scope": "T",
+   "provenance": "Due diligence addendum (addenda/due-diligence.md), signed off by Ade on 29 October 2026",
+   "basis": "OQ-123; POPIA s26 to s33; §1, §5",
+   "fields": [
+    {
+     "name": "gates_enabled",
+     "logicalType": "Boolean",
+     "mandatory": true,
+     "sample": "true"
+    },
+    {
+     "name": "adverse_media_enabled",
+     "logicalType": "Boolean",
+     "mandatory": true,
+     "sample": "false"
+    },
+    {
+     "name": "adverse_media_basis",
+     "logicalType": "String(200)",
+     "mandatory": false,
+     "sample": ""
+    }
+   ]
   }
  ]
 }
