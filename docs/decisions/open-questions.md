@@ -1188,3 +1188,14 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Working position:** the role is free text, as before. Tests use `CLAIMANT` and `WITNESS`.
 - **Open, for the business:** whether claim party roles are a fixed list (an enum) or come from `party.ref_party_role_types` (its `GENERAL` domain roles), which would then also be checked.
 - **Decided (28 October 2026, Ade):** a tenant-maintained static data table (CFG, tenant scope), seeded with a starter list for the claims team to confirm; the field names that table. **Built (Wave 2 batch 5):** V0075 adds `general.cfg_claim_party_roles` (`code`, `label`), seeded as drafts in each existing tenant: `CLAIMANT`, `INSURED`, `THIRD_PARTY`, `DRIVER`, `WITNESS`, `ASSESSOR`, `REPAIRER`, `LEGAL_REP` (a role is at most 15 characters, so "legal representative" is the label) and `PAYEE`. `GeneralAddClaimParty` accepts only a role in force (422 `GENERAL_CODE_NOT_IN_FORCE`), and the field declares `x-code-list`. **Open, for the claims team:** confirm or change the starter list. A tenant created after V0075 starts with no roles, so it adds or imports them during onboarding.
+
+### OQ-123 to OQ-128 Customer due diligence (Wave 3, `addenda/due-diligence.md`, 29 October 2026)
+- **The gap:** KYC, CDD with sanctions and PEP screening, and customer risk classification (F002, F003, F077) are not in the SRS. Identity verification (F001) has only a hand-recorded reference.
+- **Proposed:** the addendum. It puts due diligence in Party, uses provider adapters with stubs, reviews hits in Workflow, and gates steps by configuration.
+- **Open, for Ade (addendum §8):**
+  - **OQ-123:** the gates, by domain and step.
+  - **OQ-124:** the risk classes and review intervals.
+  - **OQ-125:** when to re-screen.
+  - **OQ-126:** who approves enhanced due diligence.
+  - **OQ-127:** how staff are told of a duplicate.
+  - **OQ-128:** how long due diligence records are kept.
