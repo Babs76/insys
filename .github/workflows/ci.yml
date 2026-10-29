@@ -113,7 +113,7 @@ jobs:
           fi
 
       - name: Every integration class is in exactly one shard
-        run: python3 tools/integration-shards.py --check 3
+        run: python3 tools/integration-shards.py --check 4
 
       - uses: actions/upload-artifact@v4
         with:
@@ -124,12 +124,13 @@ jobs:
     needs: integration-plan
     runs-on: ubuntu-latest
     # 30 minutes in one job on Wave 1 batch 3, two shards from then, three from Wave 2 batch 4 (two passed 42 minutes),
-    # each with its own PostgreSQL container. The 45-minute limit is the alarm: the timings job warns past 35.
+    # four from 29 October 2026 (a shard reached 29.5 minutes; Ade: every job well under 20), each with its own
+    # PostgreSQL container. The 45-minute limit is the alarm: the timings job warns past 35.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
-    name: integration (${{ matrix.shard }} of 3)
+        shard: [1, 2, 3, 4]
+    name: integration (${{ matrix.shard }} of 4)
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
@@ -140,7 +141,7 @@ jobs:
           path: tests/Insys.IntegrationTests
 
       - name: Every integration class is in exactly one shard
-        run: python3 tools/integration-shards.py --check 3
+        run: python3 tools/integration-shards.py --check 4
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -153,14 +154,14 @@ jobs:
         run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
 
       - name: Every compiled integration class runs in a shard or the sweeps job
-        run: tests/Insys.IntegrationTests/bin/Release/net10.0/Insys.IntegrationTests -list classes | python3 tools/integration-shards.py --check-listed 3
+        run: tests/Insys.IntegrationTests/bin/Release/net10.0/Insys.IntegrationTests -list classes | python3 tools/integration-shards.py --check-listed 4
 
       # Testcontainers starts postgres:18 (Docker is available on ubuntu-latest). The endpoint sweeps run in their own job.
       # The xUnit report gives each class's measured time to the timings job.
       - name: Integration tests
         run: >-
           eval dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release --results-directory "$RUNNER_TEMP/results"
-          -- --report-xunit-xml --report-xunit-xml-filename shard-${{ matrix.shard }}.xml $(python3 tools/integration-shards.py ${{ matrix.shard }} 3)
+          -- --report-xunit-xml --report-xunit-xml-filename shard-${{ matrix.shard }}.xml $(python3 tools/integration-shards.py ${{ matrix.shard }} 4)
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -219,9 +220,20 @@ jobs:
             if [ "$seconds" -gt 2100 ]; then echo "::warning title=Integration shard over 35 minutes::$name took $minutes minutes (limit 45)."; fi
           done
 
+  # Two jobs from 29 October 2026 (one took 27.6 minutes; Ade: every job well under 20), split by end-to-end test class.
+  # Every end-to-end class runs in exactly one group (checked below), so a new class cannot be left out.
   sweeps-and-end-to-end:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: 1
+            classes: GeneralProcessTests ProductPublicationTests ProcessTests
+          - group: 2
+            classes: LifeProcessTests HealthProcessTests EnterpriseProcessTests
+    name: sweeps-and-end-to-end (${{ matrix.group }} of 2)
     steps:
       - uses: actions/checkout@v5
 
@@ -235,15 +247,28 @@ jobs:
       - name: Build
         run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
 
+      - name: Every end-to-end class runs in exactly one group
+        run: |
+          listed=$(tests/Insys.EndToEndTests/bin/Release/net10.0/Insys.EndToEndTests -list classes | grep -oE 'Insys\.EndToEndTests\.[A-Za-z]+' | sed 's/.*\.//' | sort -u)
+          grouped=$(echo "GeneralProcessTests ProductPublicationTests ProcessTests LifeProcessTests HealthProcessTests EnterpriseProcessTests" | tr ' ' '\n' | sort)
+          if [ "$listed" != "$grouped" ]; then
+            echo "End-to-end classes and the groups differ:"; diff <(echo "$listed") <(echo "$grouped"); exit 1
+          fi
+
       - name: Endpoint security sweeps (§27.4)
+        if: matrix.group == 1
         run: dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release -- --filter-class "*EndpointSecuritySweepTests"
 
-      - name: End-to-end processes
-        run: dotnet test --project tests/Insys.EndToEndTests --no-build --configuration Release
+      - name: End-to-end processes (${{ matrix.classes }})
+        run: >-
+          dotnet test --project tests/Insys.EndToEndTests --no-build --configuration Release --
+          $(for c in ${{ matrix.classes }}; do printf -- '--filter-class "*.%s" ' "$c"; done)
 
   # The process flows that turn on dates (billing, Life, Health, General) on fixed clocks (Wave 3 batch 1), so a result
   # never depends on the day CI runs: the 28th, 30th and 31st of a month, 29 February in a leap year, and 23:30 UTC on a
   # month end (the next business day in Johannesburg). The names are WindowClock.Dates; the job name says the date.
+  # Each date runs as two jobs from 29 October 2026, by class (General alone, then Life, Health and Enterprise), so each
+  # runs well under 20 minutes (OQ-129: one ran into the 30-minute limit).
   end-to-end-dates:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -251,7 +276,8 @@ jobs:
       fail-fast: false
       matrix:
         clock: [28th, 30th, 31st, leap-29-feb, 2330-utc-month-end]
-    name: end-to-end on ${{ matrix.clock }}
+        group: [general, life-health-enterprise]
+    name: end-to-end on ${{ matrix.clock }} (${{ matrix.group }})
     steps:
       - uses: actions/checkout@v5
 
@@ -268,15 +294,15 @@ jobs:
       - name: Process flows on ${{ matrix.clock }}
         env:
           INSYS_TEST_CLOCK: ${{ matrix.clock }}
-          INSYS_STALL_LOG: ${{ runner.temp }}/stall-${{ matrix.clock }}.log
+          INSYS_STALL_LOG: ${{ runner.temp }}/stall-${{ matrix.clock }}-${{ matrix.group }}.log
         run: >-
           dotnet test --project tests/Insys.EndToEndTests --no-build --configuration Release --
-          --filter-class "*LifeProcessTests" --filter-class "*HealthProcessTests" --filter-class "*GeneralProcessTests" --filter-class "*EnterpriseProcessTests"
+          ${{ matrix.group == 'general' && '--filter-class "*.GeneralProcessTests"' || '--filter-class "*.LifeProcessTests" --filter-class "*.HealthProcessTests" --filter-class "*.EnterpriseProcessTests"' }}
 
       # Stall logging (OQ-129, the 30th-clock slowness): what each test that ran past 90 seconds waited on, kept even when the job is cancelled.
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: stall-${{ matrix.clock }}
-          path: ${{ runner.temp }}/stall-${{ matrix.clock }}.log
+          name: stall-${{ matrix.clock }}-${{ matrix.group }}
+          path: ${{ runner.temp }}/stall-${{ matrix.clock }}-${{ matrix.group }}.log
           if-no-files-found: ignore
