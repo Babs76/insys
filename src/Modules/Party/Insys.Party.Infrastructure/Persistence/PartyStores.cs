@@ -186,6 +186,26 @@ internal sealed class PartyEventMapper : IDomainEventMapper
         SearchLogHoldReleaseRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.PartyApprovals.SearchLogHoldBusinessRefType, e.HoldId,
             Contracts.PartyApprovals.LegalHoldReleaseType, e.RequestedBy, null, null,
             $"Release legal hold on the party search log ({(e.SearchedBy is null ? "whole log" : "one searcher's entries")}): {e.Reason}"),
+        DueDiligenceStatusChanged e => new Contracts.DueDiligenceChanged(e.PartyId, e.Status),
+        DueDiligenceReached e => e.Status switch
+        {
+            DueDiligenceCodes.Cleared => new Contracts.DueDiligenceCleared(e.PartyId, e.Status),
+            DueDiligenceCodes.Referred => new Contracts.DueDiligenceReferred(e.PartyId, e.Status),
+            DueDiligenceCodes.Blocked => new Contracts.DueDiligenceBlocked(e.PartyId, e.Status),
+            DueDiligenceCodes.Expired => new Contracts.DueDiligenceExpired(e.PartyId, e.Status),
+            _ => null,
+        },
+
+        // OQ-126, §4.3, §4.4: the reasons stay on the due diligence record; the approval names the party only.
+        EnhancedDueDiligenceApprovalRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.PartyApprovals.DueDiligenceBusinessRefType, e.PartyId,
+            Contracts.PartyApprovals.EnhancedDueDiligenceType, e.RequestedBy, null, null, $"Clear enhanced due diligence of party {e.PartyId}", null,
+            Contracts.PartyPermissions.DueDiligenceApproveEnhanced),
+        RiskClassOverrideRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.PartyApprovals.RiskOverrideBusinessRefType, e.PartyId,
+            Contracts.PartyApprovals.RiskClassOverrideType, e.RequestedBy, null, null, $"Set the risk class of party {e.PartyId} to {e.RiskClass}", null,
+            Contracts.PartyPermissions.DueDiligenceOverrideRisk),
+        DueDiligenceUnblockRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.PartyApprovals.UnblockBusinessRefType, e.PartyId,
+            Contracts.PartyApprovals.UnblockType, e.RequestedBy, null, null, $"Unblock the due diligence of party {e.PartyId}", null,
+            Contracts.PartyPermissions.DueDiligenceUnblock),
         BankAccountVerificationWithdrawn e => new BuildingBlocks.Contracts.Approvals.ApprovalWithdrawn(Contracts.PartyApprovals.BankAccountBusinessRefType, e.BankAccountId,
             "The account was changed before it was verified."),
         _ => null,

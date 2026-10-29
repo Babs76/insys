@@ -47,6 +47,10 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
 
     public DbSet<DueDiligenceCheck> DueDiligenceChecks => Set<DueDiligenceCheck>();
 
+    public DbSet<DueDiligence> DueDiligences => Set<DueDiligence>();
+
+    public DbSet<BeneficialOwner> BeneficialOwners => Set<BeneficialOwner>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         PartyStaticData.Configure(modelBuilder);
@@ -228,6 +232,42 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             check.Ignore(c => c.DomainEvents);
             check.Ignore(c => c.HasChanges);
             check.HasOne<Domain.Parties.Party>().WithMany().HasForeignKey(c => new { c.TenantId, c.PartyId });
+        });
+
+        // F002, F003, F077 (addenda/due-diligence.md §3).
+        modelBuilder.Entity<DueDiligence>(dd =>
+        {
+            dd.ToTable("due_diligence");
+            dd.HasKey(d => new { d.TenantId, d.Id });
+            dd.HasAuditColumns();
+            dd.Ignore(d => d.DomainEvents);
+            dd.Ignore(d => d.HasChanges);
+            dd.Ignore(d => d.HasOpenHit);
+            dd.Ignore(d => d.IsPep);
+            dd.Property(d => d.Level).HasColumnName("dd_level");
+            dd.HasOne<Domain.Parties.Party>().WithOne().HasForeignKey<DueDiligence>(d => new { d.TenantId, d.PartyId });
+            dd.HasMany(d => d.Hits).WithOne().HasForeignKey(h => new { h.TenantId, h.DueDiligenceId }).OnDelete(DeleteBehavior.Cascade);
+            dd.Navigation(d => d.Hits).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<ScreeningHit>(hit =>
+        {
+            hit.ToTable("screening_hit");
+            hit.HasKey(h => new { h.TenantId, h.Id });
+            hit.HasAuditColumns();
+            hit.Ignore(h => h.Open);
+            hit.Property(h => h.Score).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<BeneficialOwner>(owner =>
+        {
+            owner.ToTable("beneficial_owner");
+            owner.HasKey(o => new { o.TenantId, o.Id });
+            owner.HasAuditColumns();
+            owner.Ignore(o => o.DomainEvents);
+            owner.Ignore(o => o.HasChanges);
+            owner.Property(o => o.Established).HasColumnName("established_by");
+            owner.Property(o => o.SharePercent).HasPrecision(5, 2);
         });
     }
 

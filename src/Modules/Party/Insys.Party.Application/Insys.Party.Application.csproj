@@ -35,5 +35,6 @@
     <ProjectReference Include="..\..\Workflow\Insys.Workflow.Contracts\Insys.Workflow.Contracts.csproj" />
     <ProjectReference Include="..\..\StaticData\Insys.StaticData.Contracts\Insys.StaticData.Contracts.csproj" />
     <ProjectReference Include="..\..\Communications\Insys.Communications.Contracts\Insys.Communications.Contracts.csproj" />
+    <ProjectReference Include="..\..\Tenancy\Insys.Tenancy.Contracts\Insys.Tenancy.Contracts.csproj" />
   </ItemGroup>
 </Project>

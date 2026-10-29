@@ -44,6 +44,25 @@ public static class PartyApprovals
 
     /// <summary>Releasing a legal hold needs a second person (OQ-111, 25 October 2026); the compliance officer is the checker.</summary>
     public const string LegalHoldReleaseType = "LEGAL_HOLD_RELEASE";
+
+    /// <summary>
+    /// A party's due diligence (addenda/due-diligence.md §4.3, §4.4): the business reference is the party. Each kind has its
+    /// own reference type, since Workflow keeps one waiting approval per reference.
+    /// </summary>
+    public const string DueDiligenceBusinessRefType = "DUE_DILIGENCE";
+
+    public const string RiskOverrideBusinessRefType = "DUE_DILIGENCE_RISK_OVERRIDE";
+
+    public const string UnblockBusinessRefType = "DUE_DILIGENCE_UNBLOCK";
+
+    /// <summary>OQ-126: enhanced due diligence is cleared by a holder of PARTY_APPROVE_ENHANCED_DD ("senior management", FICA s21F).</summary>
+    public const string EnhancedDueDiligenceType = "DUE_DILIGENCE_ENHANCED";
+
+    /// <summary>§4.4: an override of a party's risk class needs a second person.</summary>
+    public const string RiskClassOverrideType = "DUE_DILIGENCE_RISK_OVERRIDE";
+
+    /// <summary>§4.3: unblocking a party after a true sanctions match is privileged and needs a second person.</summary>
+    public const string UnblockType = "DUE_DILIGENCE_UNBLOCK";
 }
 
 public static class PartyPermissions
@@ -67,6 +86,23 @@ public static class PartyPermissions
 
     public const string ConsentRead = "consent.read";
     public const string ConsentUpdate = "consent.update";
+
+    /// <summary>Due diligence (addenda/due-diligence.md §9): reading it is audited; hits are shown only with DueDiligenceReviewHit.</summary>
+    public const string DueDiligenceRead = "due_diligence.read";
+
+    public const string DueDiligenceCheck = "due_diligence.check";
+
+    public const string DueDiligenceReviewHit = "due_diligence.review_hit";
+
+    public const string DueDiligenceOverrideRisk = "due_diligence.override_risk";
+
+    public const string DueDiligenceReport = "due_diligence.report";
+
+    /// <summary>OQ-126, privileged: the approver of enhanced due diligence holds it.</summary>
+    public const string DueDiligenceApproveEnhanced = "due_diligence.approve_enhanced";
+
+    /// <summary>§4.3, privileged: asking to unblock a party, and approving it, need it.</summary>
+    public const string DueDiligenceUnblock = "due_diligence.unblock";
 }
 
 /// <summary>Party events carry identifiers only, never personal data (INT-007).</summary>
@@ -194,3 +230,57 @@ public interface IPartyConsent
     /// <summary>The ID of the party's current consent record for the purpose when it grants it, else null: the proof of consent a marketing message keeps.</summary>
     Task<Guid?> GrantingRecord(Guid tenantId, Guid partyId, string purposeCode, CancellationToken cancellationToken);
 }
+
+/// <summary>The steps a due diligence gate covers (addenda/due-diligence.md §5).</summary>
+public static class DueDiligenceSteps
+{
+    public const string Quote = "QUOTE";
+    public const string Issue = "ISSUE";
+    public const string Payout = "PAYOUT";
+    public const string ClaimPayout = "CLAIM_PAYOUT";
+
+    /// <summary>The domain of a payout whose domain is not known (a premium refund, case redress).</summary>
+    public const string AnyDomain = "ANY";
+
+    /// <summary>The reason a payout or claim payment is held while its payee is not cleared.</summary>
+    public const string HeldReason = "DUE_DILIGENCE_NOT_CLEARED";
+}
+
+/// <summary>Whether a party is cleared for a step, and what is outstanding when not: check types and HIT_REVIEW, BLOCKED, SCREENING or ENHANCED_APPROVAL, never a hit.</summary>
+public sealed record DueDiligenceAnswer(bool Cleared, IReadOnlyList<string> Outstanding)
+{
+    public static readonly DueDiligenceAnswer Yes = new(true, []);
+}
+
+/// <summary>
+/// Public query interface (addenda/due-diligence.md §5, OQ-123): whether a party is cleared for a step in a domain, by
+/// the tenant's gates (party.cfg_due_diligence_gates) when its gates apply. Read-only; a step it refuses is refused with
+/// DUE_DILIGENCE_NOT_CLEARED (PORTAL_UNDER_REVIEW to a portal user), and a payout is held, not refused.
+/// </summary>
+public interface IDueDiligenceStatus
+{
+    Task<DueDiligenceAnswer> ClearedFor(Guid tenantId, Guid partyId, string step, string domain, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// A party's due diligence changed: its status, or a screening ran, so a gated step may now pass (§5). Holders of payouts
+/// held for it ask IDueDiligenceStatus again. Party and status only (§3).
+/// </summary>
+[IntegrationEvent("party.DueDiligenceChanged")]
+public sealed record DueDiligenceChanged(Guid PartyId, string Status) : IIntegrationEvent;
+
+/// <summary>A party's due diligence is cleared (§9). Party and status only.</summary>
+[IntegrationEvent("party.DueDiligenceCleared")]
+public sealed record DueDiligenceCleared(Guid PartyId, string Status) : IIntegrationEvent;
+
+/// <summary>A true sanctions match blocked the party (§4.3): Workflow opens a compliance case. Party and status only.</summary>
+[IntegrationEvent("party.DueDiligenceBlocked")]
+public sealed record DueDiligenceBlocked(Guid PartyId, string Status) : IIntegrationEvent;
+
+/// <summary>A cleared party passed its review date (§4.3): Workflow opens a review task. Party and status only.</summary>
+[IntegrationEvent("party.DueDiligenceExpired")]
+public sealed record DueDiligenceExpired(Guid PartyId, string Status) : IIntegrationEvent;
+
+/// <summary>A screening hit waits for review (§4.3): Workflow opens DUE_DILIGENCE_HIT_REVIEW. Party and status only; the hit stays in Party.</summary>
+[IntegrationEvent("party.DueDiligenceReferred")]
+public sealed record DueDiligenceReferred(Guid PartyId, string Status) : IIntegrationEvent;

@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using Insys.BuildingBlocks.Api.Functions;
+using Insys.Party.Contracts;
 
 namespace Insys.Party.Api;
 
@@ -63,6 +64,14 @@ internal static class PartyFunctions
         .Screen("PARTY_CONSENTS", "CONSENT_PREFERENCES", "Consent", "party/consents", "PartyGetConsents")
         .Action("PARTY_GRANT_CONSENT", "PARTY_CONSENTS", "PartyGrantConsent")
         .Action("PARTY_WITHDRAW_CONSENT", "PARTY_CONSENTS", "PartyWithdrawConsent")
+        .Screen("PARTY_DUE_DILIGENCE", "PARTIES", "Customer due diligence", "party/due-diligence", "PartyGetDueDiligence", "PartyListDueDiligence")
+        .Action("PARTY_RUN_DUE_DILIGENCE_CHECK", "PARTY_DUE_DILIGENCE", ["PartyRunDueDiligenceCheck", "PartyRecordBeneficialOwner"])
+        .Action("PARTY_REVIEW_SCREENING_HIT", "PARTY_DUE_DILIGENCE", "PartyReviewScreeningHit")
+        .Action("PARTY_OVERRIDE_RISK_CLASS", "PARTY_DUE_DILIGENCE", "PartyOverrideRiskClass")
+        .Action("PARTY_RECORD_FIC_REPORT", "PARTY_DUE_DILIGENCE", "PartyRecordFicReport")
+        .Action("PARTY_UNBLOCK_DUE_DILIGENCE", "PARTY_DUE_DILIGENCE", "PartyRequestDueDiligenceUnblock", privileged: true)
+        .Permission("PARTY_APPROVE_ENHANCED_DD", "PARTY_DUE_DILIGENCE", PartyPermissions.DueDiligenceApproveEnhanced, privileged: true)
+        .Job("PARTY_DUE_DILIGENCE_JOBS", "PARTIES", "Background processing")
             .Functions,
         .. new FunctionMap([Audiences.Broker], Features.BrokerPortal)
         .Screen("BROKER_PORTAL_PARTY_PARTIES", "BROKER_PORTAL", "Clients", "portal/party/parties", "PortalPartyListClients", "PortalPartyGetClient")

@@ -609,7 +609,7 @@ internal sealed class AddIdentifierHandler(IPartyRepository parties, IPartyCodes
 }
 
 internal sealed class VerifyIdentifierHandler(IPartyRepository parties, Documents.Contracts.IDocumentOwnership documents, IExecutionContext execution, IClock clock,
-    IAuditTrail audit) : ICommandHandler<VerifyIdentifier, long>, IQueryHandler<ListIdentityChecks, IReadOnlyList<DueDiligenceCheckView>>
+    IAuditTrail audit, DueDiligenceService dueDiligence) : ICommandHandler<VerifyIdentifier, long>, IQueryHandler<ListIdentityChecks, IReadOnlyList<DueDiligenceCheckView>>
 {
     public async Task<Result<long>> Handle(VerifyIdentifier command, CancellationToken cancellationToken)
     {
@@ -629,7 +629,13 @@ internal sealed class VerifyIdentifierHandler(IPartyRepository parties, Document
             p => p.VerifyIdentifier(command.IdentifierId, command.VerificationRef, clock.UtcNow), cancellationToken);
         if (changed.IsSuccess)
         {
-            parties.Add(DueDiligenceCheck.ByPerson(command.PartyId, command.IdentifierId, command.DocumentId, user.Value, command.VerificationRef, clock.UtcNow));
+            var check = DueDiligenceCheck.ByPerson(command.PartyId, command.IdentifierId, command.DocumentId, user.Value, command.VerificationRef, clock.UtcNow);
+            parties.Add(check);
+            if (await parties.Get(command.PartyId, cancellationToken) is { } party)
+            {
+                await dueDiligence.Reassess(party, await dueDiligence.For(party.Id, cancellationToken), user.Value, [check], cancellationToken);
+            }
+
             audit.Record(new AuditEntry("PARTY", "VerifyIdentifier", nameof(Domain.Parties.Party), command.PartyId.ToString(),
                 new Dictionary<string, string?> { ["identifier"] = command.IdentifierId.ToString(), ["document"] = command.DocumentId.ToString() }));
         }
@@ -644,7 +650,8 @@ internal sealed class VerifyIdentifierHandler(IPartyRepository parties, Document
             return Error.NotFound(ErrorCodes.NotFound, "The party was not found.");
         }
 
-        return (await parties.Checks(query.PartyId, cancellationToken)).Select(DueDiligenceCheckView.From).ToList();
+        // The identity checks only (F001); screening and the other checks are on the due diligence view, for its permission.
+        return (await parties.Checks(query.PartyId, cancellationToken)).Where(c => c.CheckType == DueDiligenceCheck.Identity).Select(DueDiligenceCheckView.From).ToList();
     }
 }
 

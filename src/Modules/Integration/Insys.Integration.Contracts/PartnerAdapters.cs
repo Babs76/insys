@@ -64,6 +64,37 @@ public interface IIdentityVerificationAdapter
         DateOnly? birthDate, CancellationToken cancellationToken);
 }
 
+/// <summary>The lists a screening runs against (F003): SANCTIONS, PEP and, where the tenant switched it on, ADVERSE_MEDIA.</summary>
+public static class ScreeningLists
+{
+    public const string Sanctions = "SANCTIONS";
+    public const string Pep = "PEP";
+    public const string AdverseMedia = "ADVERSE_MEDIA";
+}
+
+/// <summary>Who is screened: a person (with a birth date) or an organisation, by name and country.</summary>
+public sealed record ScreeningSubject(bool IsOrganisation, string Name, DateOnly? BirthDate, string? Country);
+
+/// <summary>A match on a list: the list, the name matched, how strongly, and the provider's reference for it.</summary>
+public sealed record ScreeningMatch(string ListType, string ListName, string MatchedName, decimal Score, string ProviderRef);
+
+/// <summary>A screening's answer: the provider's reference, the list version screened against, and any matches.</summary>
+public sealed record ScreeningResult(string ProviderRef, string ListVersion, IReadOnlyList<ScreeningMatch> Matches);
+
+/// <summary>
+/// Partner adapter to screening providers (F003, addenda/due-diligence.md §4.3): a party is screened against sanctions,
+/// PEP and adverse media lists. Only the partner and operation are logged, never the subject. The stub matches names
+/// containing SANCTIONLIST, PEPLIST or MEDIALIST (any case) on the list named, and reports the list version a test set
+/// (StubScreeningLists), so tests can see hits and list updates.
+/// </summary>
+public interface IScreeningAdapter
+{
+    Task<ScreeningResult> Screen(Guid tenantId, string partnerCode, ScreeningSubject subject, IReadOnlyCollection<string> listTypes, CancellationToken cancellationToken);
+
+    /// <summary>The version of the provider's lists now; a party screened against an older one is screened again (OQ-125).</summary>
+    Task<string> ListVersion(Guid tenantId, string partnerCode, CancellationToken cancellationToken);
+}
+
 /// <summary>Public query interface: the tenant's active partner of a type in force on the day, if any (integration.mst_partner_register).</summary>
 public interface IPartnerDirectory
 {

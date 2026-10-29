@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
 using Insys.BuildingBlocks.Application.Context;
@@ -40,8 +41,23 @@ namespace Insys.Integration.Infrastructure.Partners;
 /// integration.external_call_log, on Integration's own connection. Only codes and references are logged, never content.
 /// </summary>
 internal sealed class StubPartnerAdapters([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IClock clock)
-    : IReinsurerAdapter, IRegulatorAdapter, IGeneralLedgerAdapter, IIdentityVerificationAdapter
+    : IReinsurerAdapter, IRegulatorAdapter, IGeneralLedgerAdapter, IIdentityVerificationAdapter, IScreeningAdapter
 {
+    /// <summary>F003: a match on each list named whose marker the name contains. Only the partner and operation are logged, never the name.</summary>
+    public async Task<ScreeningResult> Screen(Guid tenantId, string partnerCode, ScreeningSubject subject, IReadOnlyCollection<string> listTypes,
+        CancellationToken cancellationToken)
+    {
+        var call = await Call(tenantId, partnerCode, "party.Screen", cancellationToken);
+        var matches = listTypes
+            .Where(list => StubScreeningLists.Markers.TryGetValue(list, out var marker) && subject.Name.Contains(marker, StringComparison.OrdinalIgnoreCase))
+            .Select(list => new ScreeningMatch(list, $"STUB {list} LIST", subject.Name, 92.5m, $"{call.PartnerRef}-{list[..3]}"))
+            .ToList();
+        return new ScreeningResult(call.PartnerRef!, StubScreeningLists.Version(tenantId), matches);
+    }
+
+    public Task<string> ListVersion(Guid tenantId, string partnerCode, CancellationToken cancellationToken) =>
+        Task.FromResult(StubScreeningLists.Version(tenantId));
+
     /// <summary>F001: verified, except a number ending 0000 (NO_MATCH). Only the partner and operation are logged, never the number or names.</summary>
     public async Task<IdentityVerificationResult> Verify(Guid tenantId, string partnerCode, string docType, string country, string number, string? firstNames,
         string? surname, DateOnly? birthDate, CancellationToken cancellationToken)
@@ -90,4 +106,26 @@ internal sealed class StubPartnerAdapters([FromKeyedServices(IntegrationDbContex
         await transaction.CommitAsync(cancellationToken);
         return new PartnerCallResult(true, reference, null);
     }
+}
+
+/// <summary>
+/// The stub screening provider's lists (OQ-125): the names it matches and each tenant's list version. A test moves a
+/// tenant's version on to simulate the provider updating its lists.
+/// </summary>
+public static class StubScreeningLists
+{
+    public const string InitialVersion = "STUB-1";
+
+    private static readonly ConcurrentDictionary<Guid, string> Versions = new();
+
+    internal static readonly IReadOnlyDictionary<string, string> Markers = new Dictionary<string, string>
+    {
+        [ScreeningLists.Sanctions] = "SANCTIONLIST",
+        [ScreeningLists.Pep] = "PEPLIST",
+        [ScreeningLists.AdverseMedia] = "MEDIALIST",
+    };
+
+    public static string Version(Guid tenantId) => Versions.GetValueOrDefault(tenantId, InitialVersion);
+
+    public static void Update(Guid tenantId, string version) => Versions[tenantId] = version;
 }
