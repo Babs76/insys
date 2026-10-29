@@ -64,7 +64,8 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate, ClaimsPermissions.InstructionRead,
         ClaimsPermissions.InstructionRelease, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate, WorkflowPermissions.ApprovalRead,
         WorkflowPermissions.ApprovalApprove, IntegrationPermissions.DeadLetterRead, DocumentPermissions.DocumentRead, PartyPermissions.PartyCreate,
-        PartyPermissions.BankAccountCreate, PartyPermissions.BankAccountRead, PartyPermissions.BankAccountVerify,
+        PartyPermissions.BankAccountCreate, PartyPermissions.BankAccountRead, PartyPermissions.BankAccountVerify, PartyPermissions.PartyRead, PartyPermissions.PartyUpdate,
+        PartyPermissions.DueDiligenceRead, PartyPermissions.DueDiligenceCheck, DocumentPermissions.DocumentCreate,
     ];
 
     private TestDatabase _db = null!;
@@ -511,6 +512,58 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
     private Task<Guid> UserId(string subject) =>
         _db.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = @s", ("t", Tenant), ("s", subject));
 
+    /// <summary>
+    /// OQ-123 (addenda/due-diligence.md §5, FICA): with its due diligence gates on, as a new LIFE tenant has them, the tenant
+    /// does not issue a Life policy for a policyholder whose due diligence is not cleared, and says what is outstanding.
+    /// Once the provider has verified their identity and screened them, and their address is verified against a document,
+    /// the policy issues.
+    /// </summary>
+    [Fact]
+    public async Task ALifePolicy_ForAnUnclearedPolicyholder_IsRefused_AndIssuesOnceTheyAreCleared_OQ123()
+    {
+        await Seed("party.cfg_due_diligence_settings", "EFFECTIVE", "GATES-ON", ("gates_enabled", true), ("adverse_media_enabled", false));
+        foreach (var (partner, type) in new[] { ("SCR-1", "SCREENING"), ("IDV-1", "IDENTITY_VERIFICATION") })
+        {
+            await Seed("integration.mst_partner_register", "ACTIVE", partner, ("partner_code", partner), ("partner_type", type), ("legal_name", $"{type} (stub)"),
+                ("status", "ACTIVE"));
+        }
+
+        await _db.ExecuteAsOwner("""
+            INSERT INTO party.ref_identity_document_types (tenant_id, code, version, effective_from, record_status, created_by, change_reason, country, doc_type, label, format_pattern)
+            VALUES (@t, 'ZA-NID', 1, @from, 'ACTIVE', 'seed', 'test seed', 'ZA', 'NATIONAL_ID', 'National identity number', '^[0-9]{13}$')
+            """, ("t", Tenant), ("from", Today.AddYears(-1)));
+        await Seed("document.ref_document_categories", "ACTIVE", "KYC", ("category_code", "KYC"), ("label", "Due diligence evidence"), ("classification", "PERSONAL"),
+            ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+        var applicant = await _maker.RegisterPerson("Gated");
+        var spouse = await _maker.RegisterPerson("Spouse");
+        await _factory.DrainOutbox();
+        var proposal = await Underwritten(applicant, spouse, Today);
+
+        var refused = await _maker.Send(HttpMethod.Post, "/api/v1/life/policies", new { proposalId = proposal }, idempotent: true);
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        var problem = await refused.Json();
+        problem.GetProperty("code").GetString().ShouldBe("DUE_DILIGENCE_NOT_CLEARED");
+        problem.GetProperty("errors").GetProperty("outstanding").EnumerateArray().Select(o => o.GetString()).ShouldBe(["IDENTITY", "ADDRESS"], ignoreOrder: true,
+            customMessage: "screened when registered; identity and address are still needed");
+
+        var etag = (await _maker.GetAsync($"/api/v1/party/parties/{applicant}")).ETag();
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/party/parties/{applicant}/identifiers", new { docType = "NATIONAL_ID", country = "ZA", number = "8506155009084" },
+            ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.Created);
+        await _factory.DrainOutbox();
+        var document = await Created("/api/v1/documents/documents", new
+        {
+            categoryCode = "KYC", businessRefType = "PARTY", businessRefId = applicant, mimeType = "text/plain", contentBase64 = Convert.ToBase64String("utility bill"u8.ToArray()),
+        });
+        var checkedAddress = await _maker.Send(HttpMethod.Post, $"/api/v1/party/parties/{applicant}/due-diligence/checks", new { checkType = "ADDRESS", documentId = document },
+            idempotent: true);
+        checkedAddress.StatusCode.ShouldBe(HttpStatusCode.OK, await checkedAddress.Content.ReadAsStringAsync());
+        (await checkedAddress.Json()).GetProperty("status").GetString().ShouldBe("CLEARED");
+        await _factory.DrainOutbox();
+
+        var policy = await Created("/api/v1/life/policies", new { proposalId = proposal });
+        (await Get($"/api/v1/life/policies/{policy}")).GetProperty("policyNumber").GetString().ShouldNotBeNullOrEmpty();
+    }
+
     private async Task Organisation()
     {
         foreach (var (code, type, parent) in new[] { ("ORG-ROOT", "LEGAL_ENTITY", (string?)null), ("ORG-NORTH", "REGION", "ORG-ROOT"), ("ORG-BR-A", "BRANCH", "ORG-NORTH"),
@@ -632,6 +685,15 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
 
     private async Task<Guid> IssuedPolicy(Guid applicant, Guid spouse, DateOnly inception, string? orgNodeCode = null)
     {
+        var proposal = await Underwritten(applicant, spouse, inception, orgNodeCode);
+        var policy = await Created("/api/v1/life/policies", new { proposalId = proposal });
+        await _factory.DrainOutbox();
+        return policy;
+    }
+
+    /// <summary>A proposal rated, found eligible, submitted and accepted on standard terms by the underwriter alone: ready to issue.</summary>
+    private async Task<Guid> Underwritten(Guid applicant, Guid spouse, DateOnly inception, string? orgNodeCode = null)
+    {
         var proposal = await Proposal(applicant, spouse, inception, orgNodeCode);
         await Rate(proposal, 1_500_000m);
         await Eligibility(proposal, Ages(inception));
@@ -653,9 +715,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM workflow.approval WHERE business_ref_id = @c", ("c", caseId))).ShouldBe(0L);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'DecideCase' AND target_id = @c", ("c", caseId.ToString()))).ShouldBe(1L);
-        var policy = await Created("/api/v1/life/policies", new { proposalId = proposal });
-        await _factory.DrainOutbox();
-        return policy;
+        return proposal;
     }
 
     private async Task Rate(Guid proposal, decimal sumAssured)
