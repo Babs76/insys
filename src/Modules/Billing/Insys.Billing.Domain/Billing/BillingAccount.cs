@@ -192,7 +192,9 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
         var months = 12 / frequency.PeriodsPerYear;
         var last = EndDate ?? from.AddYears(1).AddDays(-1);
         var dueDates = new List<DateOnly>();
-        for (var due = StartDate; due <= last; due = due.AddMonths(months))
+        // Each due date is counted from the start, not from the last one: stepping from the last would keep a 30th start
+        // on the 28th after February, and give a year starting late in a month a thirteenth instalment.
+        for (var (k, due) = (0, StartDate); due <= last; k++, due = StartDate.AddMonths(months * k))
         {
             if (due >= from && _instalments.All(i => i.DueDate != due || i.Status == InstalmentStatus.Cancelled))
             {

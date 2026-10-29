@@ -36,6 +36,8 @@ public sealed class BillingTests
     private static readonly DateOnly Start = new(2026, 11, 1);
     private static readonly BillingFrequency Monthly = new("MONTHLY", 12);
 
+    private static readonly BillingFrequency Quarterly = new("QUARTERLY", 4);
+
     private static (BillingAccount Account, Invoice Invoice) Issued(decimal instalment = 300m)
     {
         var account = BillingAccount.OpenAccount(Guid.CreateVersion7(), Guid.CreateVersion7(), "ZAR", "DEBIT_ORDER", null, Now);
@@ -81,6 +83,28 @@ public sealed class BillingTests
         // A schedule of a fixed instalment (Life, Health) is unchanged.
         var fixedSchedule = account.CreateSchedule("LIFE", Guid.CreateVersion7(), "FUN-v2", Monthly, Start, Start.AddYears(1).AddDays(-1), 254.17m).Value;
         fixedSchedule.Instalments.ShouldAllBe(i => i.Amount == 254.17m);
+    }
+
+    /// <summary>
+    /// A schedule starting late in a month keeps its day: from 30 October, twelve monthly instalments on the 30th (the
+    /// 28th in February, as the month allows), totalling the annual premium; never a thirteenth on 28 October.
+    /// </summary>
+    [Fact]
+    public void AMonthlyScheduleStartingOnThe30th_KeepsItsDay_AndHasTwelveInstalmentsAYear()
+    {
+        var account = BillingAccount.OpenAccount(Guid.CreateVersion7(), Guid.CreateVersion7(), "ZAR", "DEBIT_ORDER", null, Now);
+        var start = new DateOnly(2026, 10, 30);
+        var schedule = account.CreateSchedule("GENERAL", Guid.CreateVersion7(), "MOTOR-v1", Monthly, start, start.AddYears(1).AddDays(-1), 254.17m, 3_050m).Value;
+
+        var dates = schedule.Instalments.OrderBy(i => i.DueDate).Select(i => i.DueDate).ToList();
+        dates.Count.ShouldBe(12);
+        dates[4].ShouldBe(new DateOnly(2027, 2, 28));
+        dates[5].ShouldBe(new DateOnly(2027, 3, 30));
+        dates[^1].ShouldBe(new DateOnly(2027, 9, 30));
+        schedule.Instalments.Sum(i => i.Amount).ShouldBe(3_050.00m);
+
+        var quarterly = account.CreateSchedule("LIFE", Guid.CreateVersion7(), "FUN-v2", Quarterly, new DateOnly(2026, 11, 30), new DateOnly(2027, 11, 29), 300m).Value;
+        quarterly.Instalments.Select(i => i.DueDate.Day).ShouldBe([30, 28, 30, 30]);
     }
 
     [Fact]
