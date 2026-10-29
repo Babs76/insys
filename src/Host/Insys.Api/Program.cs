@@ -73,7 +73,7 @@ var app = builder.Build();
 
 app.UseInsysApi();
 app.MapInsysHealth();
-app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
+app.MapApiDescriptions();
 
 var v1 = app.MapInsysV1();
 foreach (var module in modules)

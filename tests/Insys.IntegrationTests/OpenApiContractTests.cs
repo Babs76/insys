@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Insys.BuildingBlocks.Api;
@@ -34,8 +35,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Insys.IntegrationTests;
 
 /// <summary>
-/// The three OpenAPI documents (core, static-data, platform-operator) are contracts. Each must match its snapshot in
-/// docs/api; to accept a change on purpose, run the tests with INSYS_UPDATE_OPENAPI=1 and commit the updated files.
+/// The three OpenAPI documents (core, static-data, platform-operator) are contracts. The build generates each from the code
+/// (obj/openapi), and each must match its snapshot in docs/api; to accept a change on purpose, run the tests with
+/// INSYS_UPDATE_OPENAPI=1, commit the updated files and build the host again. The host serves the committed copies, never
+/// building them on request, and outside Development and Testing only to a signed-in user (Ade, 29 October 2026).
 /// </summary>
 public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
@@ -47,19 +50,19 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    /// <summary>The static data document has over 1 400 paths; building it takes longer than HttpClient's default 100 seconds on CI runners.</summary>
-    private HttpClient Client()
+    /// <summary>The document the build generated from the code (obj/openapi): what the contract tests inspect.</summary>
+    private static async Task<string> Generated(string document)
     {
-        var client = _factory.CreateClient();
-        client.Timeout = TimeSpan.FromMinutes(10);
-        return client;
+        var generated = Path.Combine(RepositoryPaths.Root, "src", "Host", "Insys.Api", "obj", "openapi", $"openapi_{document}.json");
+        File.Exists(generated).ShouldBeTrue($"Build the host first; it writes obj/openapi/openapi_{document}.json.");
+        return await File.ReadAllTextAsync(generated);
     }
 
     [Theory]
     [MemberData(nameof(Documents))]
     public async Task OpenApiDocument_MatchesItsCommittedSnapshot(string document)
     {
-        var current = Normalise(await Client().GetStringAsync($"/openapi/{document}.json"));
+        var current = Normalise(await Generated(document));
         if (Environment.GetEnvironmentVariable("INSYS_UPDATE_OPENAPI") == "1")
         {
             await File.WriteAllTextAsync(Snapshot(document), current);
@@ -67,25 +70,49 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
 
         File.Exists(Snapshot(document)).ShouldBeTrue($"{Snapshot(document)} is missing; run the tests once with INSYS_UPDATE_OPENAPI=1.");
         Normalise(await File.ReadAllTextAsync(Snapshot(document))).ShouldBe(current,
-            $"The {document} API contract changed. If intended, run with INSYS_UPDATE_OPENAPI=1 and commit {Snapshot(document)}.");
+            $"The {document} API contract changed. If intended, run with INSYS_UPDATE_OPENAPI=1, commit {Snapshot(document)} and build the host again.");
     }
 
+    /// <summary>The host serves the committed copy as it is, built into the host, never generated on request (Ade, 29 October 2026).</summary>
     [Theory]
     [MemberData(nameof(Documents))]
-    public async Task BuildTimeOpenApiDocument_MatchesItsCommittedSnapshot(string document)
+    public async Task TheServedDocument_IsTheCommittedCopy(string document)
     {
-        var generated = Path.Combine(RepositoryPaths.Root, "src", "Host", "Insys.Api", "obj", "openapi", $"openapi_{document}.json");
-        File.Exists(generated).ShouldBeTrue("Build the host first; it writes obj/openapi/openapi_{document}.json.");
+        var served = await _factory.CreateClient().GetAsync($"/openapi/{document}.json");
+        served.StatusCode.ShouldBe(HttpStatusCode.OK, "in Testing, as in Development, anyone may read it");
+        served.Content.Headers.ContentType!.MediaType.ShouldBe("application/json");
+        (await served.Content.ReadAsStringAsync()).ShouldBe(await File.ReadAllTextAsync(Snapshot(document)),
+            "the host serves docs/api as committed; build the host again after updating it");
+        (await _factory.CreateClient().GetAsync("/openapi/other.json")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
 
-        Normalise(await File.ReadAllTextAsync(generated)).ShouldBe(Normalise(await File.ReadAllTextAsync(Snapshot(document))),
-            $"The build-time {document} document differs from its snapshot.");
+    /// <summary>
+    /// Ade, 29 October 2026: in production the API description is not public. A host outside Development and Testing serves
+    /// none of the documents without sign-in; here no token is accepted, so every request is refused.
+    /// </summary>
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public async Task OutsideDevelopmentAndTesting_NoDocumentIsServed_WithoutSignIn(string environment)
+    {
+        await using var factory = new InsysApiFactory(fixture.Database,
+            new Dictionary<string, string?>
+            {
+                ["Authentication:DevelopmentSigningKey"] = "", ["Testing:DailyJobRunner:Enabled"] = "false",
+                ["Identity:PermissionCache:AllowMultipleInstances"] = "true", // the class's shared host runs on the same database
+            }, environment);
+        var anonymous = factory.CreateClient();
+        foreach (var (name, _, _) in ApiDocuments.All)
+        {
+            (await anonymous.GetAsync($"/openapi/{name}.json")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized, name);
+        }
     }
 
     [Theory]
     [MemberData(nameof(Documents))]
     public async Task OpenApiDocument_ListsVersionedPaths_WithBearerSecurity(string document)
     {
-        using var json = JsonDocument.Parse(await Client().GetStringAsync($"/openapi/{document}.json"));
+        using var json = JsonDocument.Parse(await Generated(document));
 
         json.RootElement.GetProperty("paths").EnumerateObject().ShouldNotBeEmpty();
         json.RootElement.GetProperty("paths").EnumerateObject().Select(p => p.Name).ShouldAllBe(p => p.StartsWith("/api/v1/"));
@@ -97,7 +124,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     [MemberData(nameof(Documents))]
     public async Task OpenApiDocument_DeclaresTheErrorContract_GAP005(string document)
     {
-        using var json = JsonDocument.Parse(await Client().GetStringAsync($"/openapi/{document}.json"));
+        using var json = JsonDocument.Parse(await Generated(document));
         var components = json.RootElement.GetProperty("components");
 
         var problem = components.GetProperty("schemas").GetProperty("ProblemDetails").GetProperty("properties");
@@ -119,7 +146,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     [Fact]
     public async Task CoreDocument_KeepsSameNamedModuleTypesApart_AndDeclaresStateEnums_GAP008()
     {
-        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        using var core = JsonDocument.Parse(await Generated("core"));
         var schemas = core.RootElement.GetProperty("components").GetProperty("schemas");
 
         foreach (var name in new[] { "LifeProposalStatus", "GeneralProposalStatus", "LifeProposalView", "GeneralProposalView" })
@@ -140,7 +167,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     [Fact]
     public async Task PartyContract_DeclaresKindMaskedNumbersCodeListsAndInstants_BR026()
     {
-        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        using var core = JsonDocument.Parse(await Generated("core"));
         var schemas = core.RootElement.GetProperty("components").GetProperty("schemas");
         string Property(string schema, string property, string extension) =>
             schemas.GetProperty(schema).GetProperty("properties").GetProperty(property).GetProperty(extension).GetString()!;
@@ -180,7 +207,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     [Fact]
     public async Task DocumentsContract_DeclaresChannelsHoldReasonsAndWhatReadingNeeds_BR027()
     {
-        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        using var core = JsonDocument.Parse(await Generated("core"));
         var schemas = core.RootElement.GetProperty("components").GetProperty("schemas");
         JsonElement Property(string schema, string property) => schemas.GetProperty(schema).GetProperty("properties").GetProperty(property);
 
@@ -219,7 +246,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
             "coverStartsOn", "causeCode", "perilCode", "catEventCode", "reserveType", "recoveryType", "disposalMethod", "evidenceType", "channel", "domain",
             "movementType",
         ];
-        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        using var core = JsonDocument.Parse(await Generated("core"));
         var undeclared = new List<string>();
         var checkedFields = 0;
         foreach (var schema in core.RootElement.GetProperty("components").GetProperty("schemas").EnumerateObject()
@@ -256,7 +283,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     public async Task BillingCodeFields_DeclareTheirValuesOrTable_BR056()
     {
         string[] codes = ["collectionMethod", "frequency", "sourceDomain", "reasonCode", "bucketCode", "nextAction", "chargeType", "documentType", "status"];
-        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        using var core = JsonDocument.Parse(await Generated("core"));
         var undeclared = new List<string>();
         var checkedFields = 0;
         foreach (var schema in core.RootElement.GetProperty("components").GetProperty("schemas").EnumerateObject().Where(s => s.Name.StartsWith("Billing", StringComparison.Ordinal)))
@@ -291,7 +318,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     [Fact]
     public async Task AuditActorsAndAsynchronousEffects_AreDeclared_BR023_BR038()
     {
-        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        using var core = JsonDocument.Parse(await Generated("core"));
         core.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("AuditEventView").GetProperty("properties").GetProperty("actorType")
             .GetProperty("enum").EnumerateArray().Select(v => v.GetString()).ShouldBe(["USER", "SERVICE"]);
         var operations = core.RootElement.GetProperty("paths").EnumerateObject().SelectMany(p => p.Value.EnumerateObject())
@@ -306,7 +333,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     [Fact]
     public async Task DocumentsList_DeclaresTheKnownBusinessReferenceTypes_GAP033()
     {
-        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        using var core = JsonDocument.Parse(await Generated("core"));
         var parameter = core.RootElement.GetProperty("paths").GetProperty("/api/v1/documents/documents").GetProperty("get").GetProperty("parameters")
             .EnumerateArray().Single(p => p.GetProperty("name").GetString() == "businessRefType");
 
@@ -317,7 +344,7 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     [Fact]
     public async Task CoreDocument_HasNoStaticDataOperations()
     {
-        using var core = JsonDocument.Parse(await Client().GetStringAsync("/openapi/core.json"));
+        using var core = JsonDocument.Parse(await Generated("core"));
 
         // Tenancy is the platform operator's, except a tenant's own staff reading their tenant's readiness (BR-012).
         core.RootElement.GetProperty("paths").EnumerateObject().Select(p => p.Name)
@@ -327,11 +354,10 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
     [Fact]
     public async Task EveryEndpoint_IsInExactlyOneDocument()
     {
-        var client = Client();
         var operations = 0;
         foreach (var (name, _, _) in ApiDocuments.All)
         {
-            using var json = JsonDocument.Parse(await client.GetStringAsync($"/openapi/{name}.json"));
+            using var json = JsonDocument.Parse(await Generated(name));
             operations += json.RootElement.GetProperty("paths").EnumerateObject().Sum(p => p.Value.EnumerateObject().Count(o => o.Name != "parameters"));
         }
 
