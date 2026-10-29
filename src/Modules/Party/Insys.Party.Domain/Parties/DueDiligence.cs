@@ -491,7 +491,7 @@ public sealed class DueDiligence : AggregateRoot<Guid>
             return approved ? Error.Conflict(ErrorCodes.InvalidStateTransition, "No enhanced due diligence approval is waiting.") : Result.Success();
         }
 
-        if (approved && maker == checkerId)
+        if (approved && (maker == checkerId || MakerChecker.IsSystem(checkerId)))
         {
             return MakerChecker.EnsureDifferentPeople(maker.ToString(), checkerId.ToString());
         }

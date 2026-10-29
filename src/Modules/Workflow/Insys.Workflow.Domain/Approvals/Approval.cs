@@ -340,7 +340,8 @@ public sealed class Approval : AggregateRoot<Guid>
 
     private Result CheckChecker(Guid checkerId, DateTimeOffset now)
     {
-        if (checkerId == Guid.Empty)
+        // BR-109: the system requester is reserved; it never decides anything.
+        if (checkerId == Guid.Empty || MakerChecker.IsSystem(checkerId))
         {
             return Error.Forbidden(ErrorCodes.Forbidden, "Approvals are decided by an identified user.");
         }

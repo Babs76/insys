@@ -200,7 +200,8 @@ internal static class Checker
 /// permission on the route is the authority, with maker and checker still different (SDM-003; OQ-050).
 /// </summary>
 public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader authority, IEnumerable<IApprovalAuthoritySource> sources, ITenantContext tenant,
-    IExecutionContext execution, IBusinessDate businessDate, Tenancy.Contracts.ITenantBaseCurrency baseCurrency, IClock clock, IAuditTrail audit)
+    IExecutionContext execution, IBusinessDate businessDate, Tenancy.Contracts.ITenantBaseCurrency baseCurrency, IClock clock, IAuditTrail audit,
+    IEnumerable<IApprovalCheckerExclusions> exclusions)
 {
     private const string PermissionAuthority = "(static_data.approve)";
 
@@ -220,6 +221,12 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
             return Error.Forbidden(ErrorCodes.Forbidden, $"Deciding this approval needs the {permission} permission.");
         }
 
+        // SRS-002, BR-109: nor anyone the owning module excludes (for enhanced due diligence, everyone who contributed to the assessment).
+        if (await Excluded(approval, checkerId, cancellationToken))
+        {
+            return Error.Forbidden(ErrorCodes.MakerCheckerSamePerson, "You contributed to what this approval is about, so another person must decide it.");
+        }
+
         if (!approve)
         {
             return approval.Reject(checkerId, reason ?? "", clock.UtcNow);
@@ -235,7 +242,21 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
     public async Task<bool> CanApprove(Approval approval, Guid checkerId, CancellationToken cancellationToken) =>
         (!approval.IsScoped || execution.CurrentScope.Allows(approval.ProductCode, approval.OrgNodeCode))
         && (approval.RequiredPermission is not { } permission || execution.HasPermission(permission))
+        && !await Excluded(approval, checkerId, cancellationToken)
         && approval.CanApprove(checkerId, await GrantsFor(approval, checkerId, cancellationToken), clock.UtcNow, await BaseCurrency(cancellationToken)).IsSuccess;
+
+    private async Task<bool> Excluded(Approval approval, Guid checkerId, CancellationToken cancellationToken)
+    {
+        foreach (var source in exclusions.Where(e => e.Covers(approval.ApprovalType)))
+        {
+            if (await source.Excludes(tenant.RequireTenantId(), approval.BusinessRefType, approval.BusinessRefId, checkerId, cancellationToken))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>The user's authority from the delegation table, for their roles today (BR-002).</summary>
     public async Task<IReadOnlyList<AuthorityGrant>> Authority(Guid userId, CancellationToken cancellationToken) =>

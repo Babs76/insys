@@ -352,7 +352,8 @@ public sealed class ExecutionScopeMiddleware(RequestDelegate next)
                 context.Items[IdentityNotLinkedItem] = true;
             }
 
-            if (principal is not null)
+            // BR-109: the system requester is reserved (no account may have it, V0097), so it never acts as a signed-in user.
+            if (principal is not null && !MakerChecker.IsSystem(principal.UserId))
             {
                 actor = principal.UserId.ToString();
                 permissions = principal.Permissions;

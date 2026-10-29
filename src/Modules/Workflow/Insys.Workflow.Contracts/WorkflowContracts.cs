@@ -71,6 +71,18 @@ public sealed record ApprovalAuthority(string RoleCode, decimal Limit);
 public sealed record ListedAuthority(string ApprovalType, string RoleCode, decimal Limit, string AppliesTo);
 
 /// <summary>
+/// People a module excludes from deciding one of its approvals besides the maker (SRS-002): for enhanced due diligence,
+/// everyone who contributed to the party's current assessment (BR-109, Ade 30 October 2026). Workflow refuses them, and
+/// leaves the approval off their list of approvals to decide.
+/// </summary>
+public interface IApprovalCheckerExclusions
+{
+    bool Covers(string approvalType);
+
+    Task<bool> Excludes(Guid tenantId, string businessRefType, Guid businessRefId, Guid checkerId, CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// Authority a module keeps in its own static data, for its own approval types (Life claims: life.cfg_claims_authority_limits
 /// by claim type). For an approval type a source decides, Workflow uses the source's authority instead of the
 /// delegation table; maker and checker still differ (SRS-002, WFL-004).

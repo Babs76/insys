@@ -71,6 +71,18 @@ public sealed class ApprovalTests
             Now, Now.AddDays(14)));
     }
 
+    /// <summary>BR-109: the system requester is reserved; an attempt to approve or reject as it is refused, whoever raised the approval.</summary>
+    [Fact]
+    public void TheSystemRequester_NeverDecidesAnApproval_BR109()
+    {
+        Requested().Approve(MakerChecker.SystemMaker, Authority(1000), Now).Error!.Code.ShouldBe(ErrorCodes.Forbidden);
+        Requested().Reject(MakerChecker.SystemMaker, "No", Now).Error!.Code.ShouldBe(ErrorCodes.Forbidden);
+        var raised = Approval.RequestApproval(Guid.CreateVersion7(), "CLAIM", Guid.CreateVersion7(), "CLAIM_PAYMENT", MakerChecker.SystemMaker, null, null, "Pay", Now,
+            Now.AddDays(14));
+        raised.Approve(MakerChecker.SystemMaker, Authority(1000), Now).Error!.Code.ShouldBe(ErrorCodes.Forbidden);
+        raised.Status.ShouldBe(ApprovalStatus.Requested);
+    }
+
     [Fact]
     public void Rejection_ByItsMaker_IsForbidden_SRS002() =>
         Requested().Reject(Maker, "No", Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);

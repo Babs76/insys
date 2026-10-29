@@ -174,11 +174,13 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         (view.GetProperty("status").GetString(), Outstanding(view).Single()).ShouldBe(("IN_PROGRESS", "ENHANCED_APPROVAL"));
         var approval = await Waiting(w, PartyApprovals.DueDiligenceBusinessRefType, party);
         (await (await w.Clerk.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
-        (await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await (await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).Code())
+            .ShouldBe("MAKER_CHECKER_SAME_PERSON", "BR-109: the reviewer of the PEP hit contributed to the assessment");
+        (await w.Approver.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         await w.Factory.DrainOutbox();
 
         view = await DueDiligence(w.Clerk, party);
-        (view.GetProperty("status").GetString(), view.GetProperty("clearedBy").GetGuid()).ShouldBe(("CLEARED", w.ReviewerId));
+        (view.GetProperty("status").GetString(), view.GetProperty("clearedBy").GetGuid()).ShouldBe(("CLEARED", w.ApproverId));
         view.GetProperty("nextReviewOn").GetString().ShouldBe(Today.AddYears(1).ToString("yyyy-MM-dd"), "OQ-124: HIGH is reviewed every year");
     }
 
@@ -188,7 +190,7 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
     /// person with authority approves it; the party is cleared.
     /// </summary>
     [Fact]
-    public async Task APep_WhoseProvidersCheckFinishesLast_GetsItsEnhancedApproval_RaisedByTheSystem_AndAPersonWithAuthorityApprovesIt_BR109()
+    public async Task APep_WhoseProvidersCheckFinishesLast_GetsOneEnhancedApproval_RaisedByTheSystem_AskedAgainOnExpiry_NoContributorMayApprove_BR109()
     {
         var w = await World();
         var party = await w.Clerk.RegisterPerson("Peplist");
@@ -213,10 +215,32 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM integration.parked_delivery WHERE tenant_id = @t AND status IN ('FAILING', 'DEAD_LETTERED')",
             ("t", w.Tenant))).ShouldBe(0, "no delivery failed on the way");
 
-        (await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        // It expires unanswered: Party asks again, and exactly one enhanced approval is open for the party, raised by the system
+        // again. Nobody gets a requester follow-up task, since no person requested it.
+        await fixture.Database.ExecuteAsOwner("UPDATE workflow.approval SET expires_at = now() - interval '1 minute' WHERE id = @id", ("id", approval));
+        await w.Factory.Services.GetRequiredService<Insys.Workflow.Infrastructure.WorkflowJobs>().Run(CancellationToken.None);
+        await w.Factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT string_agg(status, ',' ORDER BY requested_at) FROM workflow.approval WHERE tenant_id = @t AND business_ref_type = @r AND business_ref_id = @p
+            """, ("t", w.Tenant), ("r", PartyApprovals.DueDiligenceBusinessRefType), ("p", party))).ShouldBe("EXPIRED,REQUESTED");
+        var expired = approval;
+        approval = await Waiting(w, PartyApprovals.DueDiligenceBusinessRefType, party);
+        approval.ShouldNotBe(expired);
+        (await (await w.Approver.GetAsync($"/api/v1/workflow/approvals/{approval}")).Json()).GetProperty("raisedBySystem").GetBoolean().ShouldBeTrue();
+        (await Running(w, "APPROVAL_FOLLOW_UP", party)).ShouldBe(0);
+        (await DueDiligence(w.Clerk, party)).GetProperty("status").GetString().ShouldBe("IN_PROGRESS");
+
+        // BR-109 (Ade, 30 October 2026): nobody who contributed may approve it, whatever order the results came in: not the clerk who
+        // recorded the source of funds, nor the reviewer of the PEP hit. A compliance officer who took no part does.
+        foreach (var contributor in new[] { w.Clerk, w.Reviewer })
+        {
+            (await (await contributor.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        }
+
+        (await w.Approver.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         await w.Factory.DrainOutbox();
         view = await DueDiligence(w.Clerk, party);
-        (view.GetProperty("status").GetString(), view.GetProperty("clearedBy").GetGuid()).ShouldBe(("CLEARED", w.ReviewerId));
+        (view.GetProperty("status").GetString(), view.GetProperty("clearedBy").GetGuid()).ShouldBe(("CLEARED", w.ApproverId));
     }
 
     /// <summary>
@@ -244,6 +268,17 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         await fixture.Database.UserWithPermissions(w.Tenant, "dd-ops", Integration.Contracts.IntegrationPermissions.DeadLetterRead);
         var listed = await (await w.Factory.ClientFor(w.Tenant, "dd-ops").GetAsync("/api/v1/integration/parked-deliveries?status=Failing")).Json();
         listed.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("eventType").GetString()).ShouldContain("workflow.ApprovalRequested");
+    }
+
+    /// <summary>BR-109: the system requester is reserved: no user account may have its ID (V0097), so it cannot be given a role, sign in or decide.</summary>
+    [Fact]
+    public async Task TheSystemRequester_IsReserved_NoUserAccountMayHaveIt_BR109()
+    {
+        var w = await World();
+        var user = await fixture.Database.UserWithPermissions(w.Tenant, "dd-plain-" + Guid.NewGuid().ToString("N")[..8]);
+        var refused = await Should.ThrowAsync<Npgsql.PostgresException>(() => fixture.Database.ExecuteAsOwner(
+            "UPDATE iam.user_account SET id = @s WHERE tenant_id = @t AND id = @u", ("s", MakerChecker.SystemMaker), ("t", w.Tenant), ("u", user)));
+        (refused.SqlState, refused.ConstraintName).ShouldBe(("23514", "ck_user_account_not_system_requester"));
     }
 
     [Fact]
@@ -417,7 +452,7 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         }
     }
 
-    private sealed record DdWorld(InsysApiFactory Factory, Guid Tenant, HttpClient Clerk, HttpClient Reviewer, Guid ReviewerId);
+    private sealed record DdWorld(InsysApiFactory Factory, Guid Tenant, HttpClient Clerk, HttpClient Reviewer, Guid ReviewerId, HttpClient Approver, Guid ApproverId);
 
     private async Task<DdWorld> World()
     {
@@ -428,9 +463,12 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         await db.SeedTenant(tenant, "DD" + suffix.ToUpperInvariant(), dueDiligenceGates: true);
         var clerk = await db.UserWithPermissions(tenant, $"dd-clerk-{suffix}", Permissions);
         var reviewer = await db.UserWithPermissions(tenant, $"dd-review-{suffix}", [.. Permissions, PartyPermissions.DueDiligenceReviewHit]);
+        // BR-109: a compliance officer who took no part in the assessment, for the enhanced approval.
+        var approver = await db.UserWithPermissions(tenant, $"dd-approve-{suffix}", Permissions);
         var officer = await db.RoleWithPermissions(tenant);
         await db.AssignRole(tenant, clerk, officer);
         await db.AssignRole(tenant, reviewer, officer);
+        await db.AssignRole(tenant, approver, officer);
         foreach (var type in new[] { PartyApprovals.EnhancedDueDiligenceType, PartyApprovals.RiskClassOverrideType, PartyApprovals.UnblockType })
         {
             await db.SeedStatic(tenant, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", Today.AddYears(-1), ("role_code", officer),
@@ -449,7 +487,8 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
             """, ("t", tenant));
         await db.SeedStatic(tenant, "document.ref_document_categories", "ACTIVE", "KYC", Today.AddDays(-1), ("category_code", "KYC"), ("label", "Due diligence evidence"),
             ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
-        return new DdWorld(factory, tenant, factory.ClientFor(tenant, $"dd-clerk-{suffix}"), factory.ClientFor(tenant, $"dd-review-{suffix}"), reviewer);
+        return new DdWorld(factory, tenant, factory.ClientFor(tenant, $"dd-clerk-{suffix}"), factory.ClientFor(tenant, $"dd-review-{suffix}"), reviewer,
+            factory.ClientFor(tenant, $"dd-approve-{suffix}"), approver);
     }
 
     private static async Task<JsonElement> DueDiligence(HttpClient client, Guid party)

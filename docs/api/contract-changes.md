@@ -10,6 +10,9 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`ApprovalView.raisedBySystem`** (new, always present): true for such an approval, so the screen can show "System" instead of a person.
 - **Parties already stuck** are asked again at their next assessment, which a change to the party's details or any check or hit review recorded for it starts: a request recorded with no requester is treated as never sent. The daily jobs do not reassess them.
 - **A request Workflow cannot create** still fails its delivery: it is listed at once in `GET /integration/parked-deliveries?status=Failing` and retried with back-off, then dead-lettered (ADR-022). Nothing is swallowed.
+- **Nobody who contributed to the assessment approves the enhanced approval** (Ade, 30 October 2026): anyone who recorded a check or reviewed a hit since the party was last cleared gets 403 `MAKER_CHECKER_SAME_PERSON`, and the approval is not in their decidable list.
+- **The system requester is reserved**: no user account may have it (V0097); it never signs in, approves or rejects.
+- **One waiting approval per record** is now enforced by a unique index (V0097), as Workflow already assumed.
 - **No requester follow-up task** for a system-raised approval that expires or is withdrawn: the raising module receives the ending (for due diligence, the party is assessed again and a new approval requested).
 
 ### Changed (OQ-102, Ade, 29 October 2026: any decision that declines all or part of a claim sends `CLAIM_DECISION_RIGHTS`)
