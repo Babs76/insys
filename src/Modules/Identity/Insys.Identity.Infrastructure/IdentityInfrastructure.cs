@@ -43,6 +43,8 @@ public static class IdentityInfrastructure
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Identity.Contracts.IdentityApprovals.BusinessRefType, "IDENTITY_ROLE_ASSIGNMENTS", Insys.Identity.Contracts.IdentityApprovals.ApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorBusinessRefType, "IDENTITY_TENANT_ADMINISTRATORS", Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.RaisedWith(BuildingBlocks.Contracts.Approvals.ApprovalKinds.PlatformOperator,
+            Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Identity.Contracts.IdentityApprovals.SubjectLinkBusinessRefType, "IDENTITY_USERS", Insys.Identity.Contracts.IdentityApprovals.SubjectLinkApprovalType);
         services.AddModuleDbContext<IdentityDbContext>(IdentityDbContext.SchemaName, "Identity");
         services.AddStaticData<IdentityDbContext>(IdentityDbContext.SchemaName, IdentityStaticData.Descriptors);

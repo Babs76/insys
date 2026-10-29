@@ -52,3 +52,16 @@ public interface IReadinessCheck
 
     Task<IReadOnlyList<ReadinessResult>> Check(ReadinessContext context, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Whether a tenant can raise an approval type now, for approval types whose raising depends on more than a feature (a
+/// switched-on gate), and the permission its checker needs besides authority. Onboarding readiness (APPROVAL_AUTHORITY)
+/// asks for authority over every type a tenant can raise, so no approval sits undecidable.
+/// </summary>
+public sealed record ApprovalTypeCondition(string ApprovalType, bool Raisable, string? RequiredPermission = null);
+
+public interface IApprovalTypeConditions
+{
+    Task<IReadOnlyList<ApprovalTypeCondition>> For(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+}
+

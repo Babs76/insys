@@ -46,8 +46,33 @@ namespace Insys.Party.Infrastructure;
 /// </list>
 /// </summary>
 internal sealed class DueDiligenceReadiness([FromKeyedServices(PartyDbContext.SchemaName)] NpgsqlDataSource dataSource, ITenantFunctionSettings tenants,
-    IPartnerDirectory partners, IStaffRoles roles) : IReadinessCheck
+    IPartnerDirectory partners, IStaffRoles roles) : IReadinessCheck, IApprovalTypeConditions
 {
+    /// <summary>
+    /// The due diligence approvals (OQ-126) are raised only with the gates on, and their checkers need each type's permission
+    /// besides authority: enhanced due diligence, a risk class override, an unblock.
+    /// </summary>
+    public async Task<IReadOnlyList<ApprovalTypeCondition>> For(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
+    {
+        var gatesOn = await GatesOn(tenantId, day, cancellationToken);
+        return
+        [
+            new(Contracts.PartyApprovals.EnhancedDueDiligenceType, gatesOn, Contracts.PartyPermissions.DueDiligenceApproveEnhanced),
+            new(Contracts.PartyApprovals.RiskClassOverrideType, gatesOn, Contracts.PartyPermissions.DueDiligenceOverrideRisk),
+            new(Contracts.PartyApprovals.UnblockType, gatesOn, Contracts.PartyPermissions.DueDiligenceUnblock),
+        ];
+    }
+
+    /// <summary>The settings row in force says; with none, the gates are on for a tenant entitled to LIFE (OQ-123).</summary>
+    private async Task<bool> GatesOn(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
+    {
+        var life = (await tenants.For(tenantId, day, cancellationToken)).EntitledFeatures.Contains("LIFE");
+        var setting = await ReadinessSql.InTenant(dataSource, tenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction, $"""
+            SELECT gates_enabled::text FROM party.cfg_due_diligence_settings WHERE tenant_id = @t AND {ReadinessSql.InForce} ORDER BY effective_from DESC, version DESC LIMIT 1
+            """, cancellationToken, ("t", tenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", day)), cancellationToken);
+        return setting.Count == 0 ? life : setting[0] == "true";
+    }
+
     private const string Step = "SHARED_OPERATIONAL_SETUP";
 
     public IReadOnlyCollection<string> Steps { get; } = [Step];
@@ -55,10 +80,7 @@ internal sealed class DueDiligenceReadiness([FromKeyedServices(PartyDbContext.Sc
     public async Task<IReadOnlyList<ReadinessResult>> Check(ReadinessContext context, CancellationToken cancellationToken)
     {
         var life = (await tenants.For(context.TenantId, context.Day, cancellationToken)).EntitledFeatures.Contains("LIFE");
-        var setting = await ReadinessSql.InTenant(dataSource, context.TenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction, $"""
-            SELECT gates_enabled::text FROM party.cfg_due_diligence_settings WHERE tenant_id = @t AND {ReadinessSql.InForce} ORDER BY effective_from DESC, version DESC LIMIT 1
-            """, cancellationToken, ("t", context.TenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", context.Day)), cancellationToken);
-        var gatesOn = setting.Count == 0 ? life : setting[0] == "true";
+        var gatesOn = await GatesOn(context.TenantId, context.Day, cancellationToken);
 
         var providers = new List<string>();
         var reviewers = new List<string>();

@@ -120,6 +120,9 @@ public sealed record AdministratorGranted(Guid UserId, string RoleCode) : IInteg
 /// </summary>
 public interface IStaffRoles
 {
+    /// <summary>The staff roles in force with the permissions their functions grant (ADR-026 §2): who can act, for onboarding readiness.</summary>
+    Task<IReadOnlyDictionary<string, IReadOnlySet<string>>> Permissions(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+
     /// <summary>The staff roles in force with the functions they grant (ADR-026).</summary>
     Task<IReadOnlyList<(string RoleCode, IReadOnlyList<string> Functions)>> InForce(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
 }

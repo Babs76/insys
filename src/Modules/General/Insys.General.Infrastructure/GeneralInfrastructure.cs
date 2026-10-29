@@ -52,6 +52,8 @@ public static class GeneralInfrastructure
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.General.Contracts.GeneralApprovals.EndorsementBusinessRefType, "GENERAL_ENDORSEMENTS", Insys.General.Contracts.GeneralApprovals.EndorsementApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.General.Contracts.GeneralApprovals.SettlementBusinessRefType, "GENERAL_CLAIMS", Insys.General.Contracts.GeneralApprovals.SettlementApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.RaisedWith("GENERAL", Insys.General.Contracts.GeneralApprovals.EndorsementApprovalType,
+            Insys.General.Contracts.GeneralApprovals.SettlementApprovalType);
         // ADR-026 §2: this module's event consumers run under its JOB function.
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.GeneralDbContext.SchemaName, "GENERAL_EVENT_PROCESSING");
         const string schema = GeneralDbContext.SchemaName;

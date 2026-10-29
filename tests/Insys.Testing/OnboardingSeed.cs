@@ -209,11 +209,22 @@ public static class OnboardingSeed
                 ("step", step), ("duration", duration), ("basis", "CALENDAR"), ("extension_allowed", false));
         }
 
-        foreach (var type in new[] { "REFUND", "PAYOUT_RELEASE", "CLAIM_PAYMENT", "ENDORSEMENT", "CLAIM_SETTLEMENT" })
+        // APPROVAL_AUTHORITY: the clerk decides every approval type a tenant can raise (the static data types by its static_data.approve),
+        // with the due diligence types' own permissions, and its back-office channel rows (CHANNELS).
+        foreach (var type in BuildingBlocks.Contracts.Approvals.ApprovalKinds.ApprovalTypes.Where(t => !t.StartsWith("STATIC_DATA_T", StringComparison.Ordinal)))
         {
             await database.SeedStaticFilled(tenantId, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", from, ("role_code", "CLERK"),
                 ("transaction_type", type), ("limit_value", 1_000m), ("delegation_allowed", false));
         }
+
+        string[] approving = ["approval.approve", "static_data.approve", "due_diligence.approve_enhanced", "due_diligence.override_risk", "due_diligence.unblock"];
+        await database.GrantFunctionsWithin(tenantId, "CLERK", from, approving);
+        await database.ExecuteAsOwner("""
+            INSERT INTO channel.cfg_channel_transaction_permissions (tenant_id, code, version, effective_from, record_status, created_by, change_reason,
+                                                                     channel_code, role_code, function_code, allowed)
+            SELECT @t, 'CTP-CLERK-' || f, 1, @from, 'EFFECTIVE', 'seed', 'test seed', 'STF', 'CLERK', f, true FROM iam.functions_within(@permissions) AS f
+            ON CONFLICT DO NOTHING
+            """, ("t", tenantId), ("from", from), ("permissions", approving));
 
         await database.SeedStaticFilled(tenantId, "document.cfg_document_templates", "EFFECTIVE", "TPL-1", from, ("template_code", "TPL-1"), ("language", "en"),
             ("document_type", "POLICY_SCHEDULE"));

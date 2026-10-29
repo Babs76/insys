@@ -97,6 +97,7 @@ public static class PartyInfrastructure
         services.AddOptions<DueDiligenceJobOptions>().BindConfiguration("Party:DueDiligenceJobs");
         services.AddSingleton<DueDiligenceJobs>();
         services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, DueDiligenceReadiness>(); // §7
+        services.AddSingleton<BuildingBlocks.Application.IApprovalTypeConditions, DueDiligenceReadiness>(); // APPROVAL_AUTHORITY: the due diligence approvals, with the gates on
         if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {
             services.AddHostedService<DueDiligenceJobsService>();

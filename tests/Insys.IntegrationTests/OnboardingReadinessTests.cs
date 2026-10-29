@@ -210,6 +210,41 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         Check(await Readiness(url), "PRODUCT_FACTORY", "GENERAL_REFERRAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
     }
 
+    /// <summary>
+    /// Every approval type the tenant can raise has a role that can decide it (Ade, 29 October 2026). With due diligence on,
+    /// the enhanced due diligence approval is listed while no role holds authority for it, or while the role with authority
+    /// lacks its permission; with the gates off it cannot be raised, and is not listed.
+    /// </summary>
+    [Fact]
+    public async Task AnApprovalTypeTheTenantCanRaise_WithNoRoleToDecideIt_IsListed_DueDiligenceOn()
+    {
+        const string enhanced = Party.Contracts.PartyApprovals.EnhancedDueDiligenceType;
+        var (tenantId, url) = await Register("UNDECIDABLE");
+        await fixture.Database.SeedReadyTenant(tenantId, From);
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "APPROVAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
+
+        // No authority for the enhanced approval: the delegation row retired.
+        await fixture.Database.ExecuteAsOwner("UPDATE workflow.cfg_delegation_and_approval_authority SET record_status = 'RETIRED' WHERE tenant_id = @t AND code = @c",
+            ("t", tenantId), ("c", $"AUTH-{enhanced}"));
+        var check = Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "APPROVAL_AUTHORITY");
+        check.GetProperty("ready").GetBoolean().ShouldBeFalse();
+        check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe([enhanced]);
+
+        // Authority again, but the role no longer holds due_diligence.approve_enhanced: still undecidable.
+        await fixture.Database.ExecuteAsOwner("UPDATE workflow.cfg_delegation_and_approval_authority SET record_status = 'EFFECTIVE' WHERE tenant_id = @t AND code = @c",
+            ("t", tenantId), ("c", $"AUTH-{enhanced}"));
+        await fixture.Database.ExecuteAsOwner("""
+            UPDATE iam.cfg_role_function_assignments SET record_status = 'RETIRED'
+            WHERE tenant_id = @t AND role_code = 'CLERK' AND function_code IN (SELECT iam.functions_within(ARRAY['due_diligence.approve_enhanced']))
+            """, ("t", tenantId));
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "APPROVAL_AUTHORITY").GetProperty("missing").EnumerateArray().Select(m => m.GetString())
+            .ShouldBe([enhanced]);
+
+        // With the gates off the due diligence approvals are never raised.
+        await fixture.Database.ExecuteAsOwner("UPDATE party.cfg_due_diligence_settings SET gates_enabled = false WHERE tenant_id = @t", ("t", tenantId));
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "APPROVAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
+    }
+
     private async Task<(Guid TenantId, string Url)> Register(string code)
     {
         var registered = await _operator.Send(HttpMethod.Post, "/api/v1/tenancy/tenants",

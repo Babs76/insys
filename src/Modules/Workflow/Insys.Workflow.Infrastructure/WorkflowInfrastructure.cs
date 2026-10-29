@@ -105,17 +105,7 @@ public static class WorkflowInfrastructure
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.WorkflowDbContext.SchemaName, WorkflowStaticData.Descriptors,
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("SHARED_OPERATIONAL_SETUP", "BUSINESS_CALENDAR", "workflow.ref_business_calendars", "A business calendar, the tenant's or global", null, GlobalRows: true),
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("SHARED_OPERATIONAL_SETUP", "WORK_QUEUES", "workflow.cfg_task_types_and_work_queues", "Task types and work queues"));
-        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.WorkflowDbContext.SchemaName, ["SHARED_OPERATIONAL_SETUP"], async (context, connection, transaction, ct) =>
-        {
-            // The maker-checker approval types in use (onboarding readiness §2): refunds, payout batches, claim payment
-            // instructions, endorsements and claim settlements.
-            string[] used = ["REFUND", "PAYOUT_RELEASE", "CLAIM_PAYMENT", "ENDORSEMENT", "CLAIM_SETTLEMENT"];
-            var authorised = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction,
-                $"SELECT DISTINCT transaction_type FROM workflow.cfg_delegation_and_approval_authority WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
-                ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day));
-            return [BuildingBlocks.Application.ReadinessResult.Of("SHARED_OPERATIONAL_SETUP", "APPROVAL_AUTHORITY",
-                "Approval authority for every maker-checker approval type in use", used.Except(authorised).ToList())];
-        });
+        services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, ApprovalAuthorityReadiness>(); // every approval type the tenant can raise is decidable
         return services;
     }
 

@@ -32,8 +32,16 @@ using Npgsql;
 
 namespace Insys.Identity.Infrastructure.Persistence;
 
-internal sealed class StaffRoles([FromKeyedServices(IdentityDbContext.SchemaName)] NpgsqlDataSource dataSource) : IStaffRoles
+internal sealed class StaffRoles([FromKeyedServices(IdentityDbContext.SchemaName)] NpgsqlDataSource dataSource, FunctionCatalogueReader catalogue) : IStaffRoles
 {
+    public async Task<IReadOnlyDictionary<string, IReadOnlySet<string>>> Permissions(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
+    {
+        var functions = await catalogue.Functions(day, cancellationToken);
+        return (await InForce(tenantId, day, cancellationToken)).ToDictionary(r => r.RoleCode,
+            r => (IReadOnlySet<string>)r.Functions.Where(functions.ContainsKey).SelectMany(f => functions[f].Permissions).ToHashSet(StringComparer.Ordinal),
+            StringComparer.Ordinal);
+    }
+
     public async Task<IReadOnlyList<(string RoleCode, IReadOnlyList<string> Functions)>> InForce(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

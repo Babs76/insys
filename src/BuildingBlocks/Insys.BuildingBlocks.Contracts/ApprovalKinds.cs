@@ -37,6 +37,25 @@ public static class ApprovalKinds
 {
     private static readonly ConcurrentDictionary<string, string> Screens = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, byte> Types = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, string> Features = new(StringComparer.Ordinal);
+
+    /// <summary>The marker of approval types raised only in the platform operator tenant (a new tenant's first administrator).</summary>
+    public const string PlatformOperator = "PLATFORM_OPERATOR";
+
+    /// <summary>
+    /// The approval types are raised only by a tenant entitled to the feature (LIFE, GENERAL, HEALTH), or only in the
+    /// operator tenant (<see cref="PlatformOperator"/>): onboarding readiness asks for authority over the types a tenant can raise.
+    /// </summary>
+    public static void RaisedWith(string feature, params string[] approvalTypes)
+    {
+        foreach (var type in approvalTypes)
+        {
+            Features[type] = feature;
+        }
+    }
+
+    /// <summary>The feature an approval type needs, or null when any tenant may raise it.</summary>
+    public static string? FeatureOf(string approvalType) => Features.GetValueOrDefault(approvalType);
 
     /// <param name="screenFunction">The SCREEN function that opens the record (ADR-026), for example PAYMENT_PAYOUT_BATCHES.</param>
     public static void Declare(string businessRefType, string screenFunction, params string[] approvalTypes)
