@@ -58,7 +58,10 @@ internal sealed class PaymentRepository(PaymentsDbContext db) : IPaymentReposito
 
     public async Task<IReadOnlyList<Payment>> AwaitingBatch(string purpose, string currency, CancellationToken cancellationToken) =>
         await Payments().Where(p => p.Direction == Direction.Out && p.Status == PaymentStatus.Initiated && p.PayoutBatchId == null && p.Purpose == purpose
-            && p.Currency == currency).OrderBy(p => p.Id).ToListAsync(cancellationToken);
+            && p.Currency == currency && p.HeldReason == null).OrderBy(p => p.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Payment>> HeldFor(Guid payeePartyId, CancellationToken cancellationToken) =>
+        await Payments().Where(p => p.CounterpartyPartyId == payeePartyId && p.HeldReason != null).OrderBy(p => p.Id).ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<Payment>> ForBusinessRef(string businessRefType, Guid businessRefId, Guid? afterId, int limit, CancellationToken cancellationToken) =>
         await Payments().Where(p => p.BusinessRefType == businessRefType && p.BusinessRefId == businessRefId && (afterId == null || p.Id.CompareTo(afterId.Value) > 0))
@@ -238,6 +241,7 @@ internal sealed class PaymentsEventMapper : IDomainEventMapper
         Domain.Payments.PaymentFailed e => new Contracts.PaymentFailed(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency, e.BusinessRefType,
             e.BusinessRefId, e.Reason),
         Domain.Payments.PaymentOutcomeUnknown e => new Contracts.PaymentOutcomeUnknown(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency),
+        Domain.Payments.PayoutPayeeScreeningNeeded e => new BuildingBlocks.Contracts.Payouts.PayeeScreeningRequested(e.PartyId),
         Domain.Payments.PaymentInitiated e => new Contracts.PaymentInitiated(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency,
             e.BusinessRefType, e.BusinessRefId),
         Domain.Payments.PaymentAllocated e => new Contracts.PaymentAllocated(e.PaymentId, e.AllocationId, e.InvoiceId, e.Amount, e.Currency),

@@ -217,6 +217,48 @@ public sealed class Payment : AggregateRoot<Guid>
 
     public bool ResolutionPending => ResolutionRequestedBy is not null;
 
+    /// <summary>Why the payout waits outside the batches (DUE_DILIGENCE_NOT_CLEARED, addenda/due-diligence.md §5); null when it may be batched.</summary>
+    public string? HeldReason { get; private set; }
+
+    public DateTimeOffset? HeldAt { get; private set; }
+
+    public const string DueDiligenceNotCleared = "DUE_DILIGENCE_NOT_CLEARED";
+
+    /// <summary>
+    /// §5: the payee is not cleared by due diligence, so the payout is held, not refused: it stays out of the batches, and
+    /// the payee is screened again. Only a payout not yet batched; one already held is left as it is.
+    /// </summary>
+    public void HoldForDueDiligence(DateTimeOffset now)
+    {
+        if (Direction != Direction.Out || Status != PaymentStatus.Initiated || PayoutBatchId is not null || HeldReason is not null)
+        {
+            return;
+        }
+
+        HeldReason = DueDiligenceNotCleared;
+        HeldAt = now;
+        if (CounterpartyPartyId is { } payee)
+        {
+            Raise(new PayoutPayeeScreeningNeeded(payee, now));
+        }
+
+        MarkChanged();
+    }
+
+    /// <summary>The payee is cleared: the payout may be batched again.</summary>
+    public bool ReleaseHold()
+    {
+        if (HeldReason is null)
+        {
+            return false;
+        }
+
+        HeldReason = null;
+        HeldAt = null;
+        MarkChanged();
+        return true;
+    }
+
     /// <summary>What a resolution approval covers: this payment, its amount and the request.</summary>
     public string ResolutionSubjectHash =>
         ApprovalSubject.Hash("UNKNOWN_PAYMENT_RESOLUTION", Id, Amount, Currency, ResolutionRequestedBy, ResolutionEvidence);
@@ -555,3 +597,6 @@ public static class PaymentErrorCodes
     [ErrorCode(409, "error.payment.batch_empty")]
     public const string BatchEmpty = "PAYOUT_BATCH_EMPTY";
 }
+
+/// <summary>A payee held by due diligence is screened again before the payout (OQ-125): the payee only.</summary>
+public sealed record PayoutPayeeScreeningNeeded(Guid PartyId, DateTimeOffset OccurredAt) : IDomainEvent;

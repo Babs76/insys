@@ -76,7 +76,13 @@ public static class ReleaseHoldReasons
 {
     public const string ReserveBelowZero = "RESERVE_BELOW_ZERO";
     public const string PayeeAccountChanged = "PAYEE_ACCOUNT_CHANGED";
+
+    /// <summary>The payee is not cleared by due diligence (addenda/due-diligence.md §5): released when Party clears them.</summary>
+    public const string DueDiligenceNotCleared = "DUE_DILIGENCE_NOT_CLEARED";
 }
+
+/// <summary>A payee held by due diligence is screened again before the payment (OQ-125): the payee only.</summary>
+public sealed record PayeeScreeningNeeded(Guid PartyId, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record ClaimPaymentCompleted(Guid InstructionId, Guid MovementId, string ClaimNumber, string Domain, string ReserveType, decimal Amount, string Currency,
     DateOnly PaidOn, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -293,6 +299,21 @@ public sealed class ClaimPaymentInstruction : AggregateRoot<Guid>
         HeldAt = now;
         Raise(new ClaimPaymentReleaseHeld(Id, ClaimNumber, domain, reason, Amount, Currency, ReserveType, now));
         MarkChanged();
+    }
+
+    /// <summary>
+    /// §5: the payee is not cleared by due diligence, so the release is held, not refused; nothing is paid. The payee is
+    /// screened again, and the instruction is released once Party clears them. Held already for it, it is left as it is.
+    /// </summary>
+    public void HoldForDueDiligence(string detail, string domain, DateTimeOffset now)
+    {
+        if (HeldReason == ReleaseHoldReasons.DueDiligenceNotCleared)
+        {
+            return;
+        }
+
+        HoldRelease(ReleaseHoldReasons.DueDiligenceNotCleared, detail, domain, now);
+        Raise(new PayeeScreeningNeeded(PayeePartyId, now));
     }
 
     /// <summary>

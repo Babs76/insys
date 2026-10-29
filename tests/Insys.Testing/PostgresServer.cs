@@ -226,14 +226,26 @@ public sealed record TestDatabase(string Name, string OwnerConnectionString, str
         return result is null or DBNull ? default : (T)Convert.ChangeType(result, Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T));
     }
 
-    /// <summary>An Active tenant entitled to every feature (ADR-026 §2), so a test needs no entitlement unless it is about them.</summary>
-    public async Task SeedTenant(Guid tenantId, string code)
+    /// <summary>
+    /// An Active tenant entitled to every feature (ADR-026 §2), so a test needs no entitlement unless it is about them. Like
+    /// a tenant that existed before due diligence (V0092, addenda/due-diligence.md §5), its gates are off unless the test
+    /// asks for them: with <paramref name="dueDiligenceGates"/>, it has no settings row, as a new LIFE tenant (OQ-123).
+    /// </summary>
+    public async Task SeedTenant(Guid tenantId, string code, bool dueDiligenceGates = false)
     {
         await ExecuteAsOwner("""
             INSERT INTO tenant.tenant (id, tenant_code, legal_name, isolation_profile, status, created_at)
             VALUES (@id, @code, @name, 'A', 'ACTIVE', now())
             """, ("id", tenantId), ("code", code), ("name", $"Test tenant {code}"));
         await EntitleToAllFeatures(code);
+        if (!dueDiligenceGates)
+        {
+            await ExecuteAsOwner("""
+                INSERT INTO party.cfg_due_diligence_settings (tenant_id, code, version, effective_from, record_status, created_by, change_reason, gates_enabled,
+                  adverse_media_enabled)
+                VALUES (@id, 'DEFAULT', 1, DATE '2000-01-01', 'EFFECTIVE', 'seed', 'test seed: a tenant from before due diligence (§5)', false, false)
+                """, ("id", tenantId));
+        }
     }
 
     /// <summary>Global entitlement rows naming the tenant by its code, one per feature (OQ-091).</summary>

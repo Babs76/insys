@@ -73,6 +73,7 @@ public static class PaymentsInfrastructure
         services.AddIntegrationEventHandler<PaymentSucceeded, PaymentPolicies, PaymentsDbContext>(schema, "PaymentSucceeded");
         services.AddIntegrationEventHandler<PaymentFailed, PaymentPolicies, PaymentsDbContext>(schema, "PaymentFailed");
         services.AddIntegrationEventHandler<PaymentOutcomeUnknown, PaymentPolicies, PaymentsDbContext>(schema, "PaymentOutcomeUnknown");
+        services.AddIntegrationEventHandler<Party.Contracts.DueDiligenceChanged, PaymentPolicies, PaymentsDbContext>(schema, "DueDiligenceChanged"); // §5
         services.AddOptions<PaymentJobOptions>().BindConfiguration("Payments:Jobs");
         services.AddSingleton<PaymentJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)

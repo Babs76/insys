@@ -118,8 +118,21 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition ApprovalFollowUp = new("APPROVAL_FOLLOW_UP", 1, ["FOLLOW_UP", "DONE"],
         [new TransitionDefinition("FOLLOW_UP", "DONE", null)], null);
 
+    /// <summary>A screening hit waits for review (due diligence §4.3): a holder of PARTY_REVIEW_SCREENING_HIT decides it on the party.</summary>
+    public static readonly ProcessDefinition DueDiligenceHitReview = new("DUE_DILIGENCE_HIT_REVIEW", 1, ["REVIEW_HITS", "REVIEWED"],
+        [new TransitionDefinition("REVIEW_HITS", "REVIEWED", null)], null);
+
+    /// <summary>A true sanctions match blocked a party (§4.3): compliance reports it to the FIC and decides whether to unblock. The compliance case.</summary>
+    public static readonly ProcessDefinition DueDiligenceSanctionsMatch = new("DUE_DILIGENCE_SANCTIONS", 1, ["REPORT_AND_DECIDE", "DECIDED"],
+        [new TransitionDefinition("REPORT_AND_DECIDE", "DECIDED", null)], null);
+
+    /// <summary>A cleared party passed its review date (ongoing due diligence, §4.3): its due diligence is reviewed.</summary>
+    public static readonly ProcessDefinition DueDiligenceReview = new("DUE_DILIGENCE_REVIEW", 1, ["REVIEW_DUE_DILIGENCE", "REVIEWED"],
+        [new TransitionDefinition("REVIEW_DUE_DILIGENCE", "REVIEWED", null)], null);
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
-        new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+        new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
+            DueDiligenceSanctionsMatch, DueDiligenceReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>

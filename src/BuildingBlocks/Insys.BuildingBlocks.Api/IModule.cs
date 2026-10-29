@@ -208,7 +208,14 @@ public static class RequestAccessScope
                 }
             }
 
-            return await next(context);
+            var result = await next(context);
+
+            // Due diligence §6: a portal user never learns that, or why, a step waits on due diligence; they are told it is under review.
+            return http.RequestServices.GetRequiredService<ExecutionScope>().External is not null
+                   && result is Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult { ProblemDetails.Extensions: var extensions }
+                   && extensions.TryGetValue("code", out var problemCode) && problemCode as string == Domain.ErrorCodes.DueDiligenceNotCleared
+                ? Problems.For(Domain.DueDiligenceRefusal.For([], true))
+                : result;
         });
         return group;
     }

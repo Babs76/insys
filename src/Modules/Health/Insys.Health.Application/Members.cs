@@ -152,7 +152,8 @@ internal sealed class GetHealthSchemeHandler(IHealthRepository health) : IQueryH
 }
 
 internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit,
-    ITenantContext tenant, IExecutionContext execution, IOrganisationStructure organisation, ISellableProducts products) : ICommandHandler<EnrolHealthMember, MembershipView>
+    ITenantContext tenant, IExecutionContext execution, IOrganisationStructure organisation, ISellableProducts products, Party.Contracts.IDueDiligenceStatus dueDiligence)
+    : ICommandHandler<EnrolHealthMember, MembershipView>
 {
     public async Task<Result<MembershipView>> Handle(EnrolHealthMember command, CancellationToken cancellationToken)
     {
@@ -167,6 +168,13 @@ internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealth
         if (product.IsFailure)
         {
             return product.Error;
+        }
+
+        // §5 (OQ-123): enrolment is Health's issue, allowed by default; a tenant may gate it for the principal member.
+        var cleared = await dueDiligence.ClearedFor(tenant.RequireTenantId(), command.PrincipalPartyId, Party.Contracts.DueDiligenceSteps.Issue, "HEALTH", cancellationToken);
+        if (!cleared.Cleared)
+        {
+            return DueDiligenceRefusal.For(cleared.Outstanding, false);
         }
 
         // F103 (addenda/access-scopes.md §2): the owning node, and the product, in the caller's scope.

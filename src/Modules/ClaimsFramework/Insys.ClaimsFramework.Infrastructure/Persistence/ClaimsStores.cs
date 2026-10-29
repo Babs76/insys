@@ -114,6 +114,20 @@ internal sealed class ClaimsRepository(ClaimsFrameworkDbContext db, IExecutionCo
     public async Task<ClaimPaymentInstruction?> Instruction(string claimNumber, string instructionRef, CancellationToken cancellationToken) =>
         await OfClaim(await db.Instructions.SingleOrDefaultAsync(i => i.ClaimNumber == claimNumber && i.InstructionRef == instructionRef, cancellationToken), cancellationToken);
 
+    public async Task<IReadOnlyList<ClaimPaymentInstruction>> HeldFor(Guid payeePartyId, string reason, CancellationToken cancellationToken)
+    {
+        var held = new List<ClaimPaymentInstruction>();
+        foreach (var instruction in await db.Instructions.Where(i => i.PayeePartyId == payeePartyId && i.HeldReason == reason).OrderBy(i => i.Id).ToListAsync(cancellationToken))
+        {
+            if (await OfClaim(instruction, cancellationToken) is { } inScope)
+            {
+                held.Add(inScope);
+            }
+        }
+
+        return held;
+    }
+
     private async Task<ClaimPaymentInstruction?> OfClaim(ClaimPaymentInstruction? instruction, CancellationToken cancellationToken)
     {
         if (instruction is null || execution.CurrentScope.IsUnrestricted)
@@ -181,6 +195,7 @@ internal sealed class ClaimsEventMapper(Microsoft.Extensions.Options.IOptions<Cl
         ClaimRecoveryRecorded e => new Contracts.ClaimRecoveryRecorded(e.MovementId, e.ClaimNumber, e.Domain, e.ReserveType, e.Amount, e.Currency, e.MovementDate),
         ClaimPaymentReleaseHeld e => new Contracts.ClaimPaymentReleaseHeld(e.InstructionId, e.ClaimNumber, e.Domain, e.Reason, e.Amount, e.Currency, e.ReserveType,
             heldReleaseRole.Value.HeldReleaseRole),
+        PayeeScreeningNeeded e => new BuildingBlocks.Contracts.Payouts.PayeeScreeningRequested(e.PartyId),
         ClaimPaymentInstructed e => new Contracts.ClaimPaymentInstructed(e.InstructionId, e.ClaimNumber, e.Domain, e.PayeePartyId, e.BankAccountId, e.Amount, e.Currency,
             e.Attempt),
         ClaimPaymentCompleted e => new Contracts.ClaimPaymentCompleted(e.InstructionId, e.MovementId, e.ClaimNumber, e.Domain, e.ReserveType, e.Amount, e.Currency, e.PaidOn),

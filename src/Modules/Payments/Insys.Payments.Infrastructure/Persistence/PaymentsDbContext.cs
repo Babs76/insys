@@ -77,6 +77,7 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
             payment.Property(p => p.BusinessRefType).HasMaxLength(30);
             payment.Property(p => p.ResolutionEvidence).HasMaxLength(500);
             payment.Property(p => p.FailureReason).HasMaxLength(200);
+            payment.Property(p => p.HeldReason).HasMaxLength(30);
             payment.Ignore(p => p.ResolutionPending);
             payment.Ignore(p => p.ResolutionSubjectHash);
             // So a batch is inserted before the payments assigned to it (fk_payment_payout_batch_id).
