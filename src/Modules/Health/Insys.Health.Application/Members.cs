@@ -41,7 +41,7 @@ using Insys.Tenancy.Contracts;
 
 namespace Insys.Health.Application;
 
-public sealed record RegisterHealthScheme([property: CodeList(HealthCodeLists.Sponsors)] string SponsorCode, DateOnly StartDate, DateOnly RenewalDate, string Currency) : ICommand<SchemeView>;
+public sealed record RegisterHealthScheme([property: CodeList(HealthCodeLists.Sponsors, "sponsor_code")] string SponsorCode, DateOnly StartDate, DateOnly RenewalDate, string Currency) : ICommand<SchemeView>;
 
 public enum SchemeAction
 {
@@ -58,11 +58,11 @@ public sealed record GetHealthScheme(Guid SchemeId) : IQuery<SchemeView>;
 /// The organisation node (normally a branch) that owns the membership and its claims (F103); when omitted, the caller's one
 /// node, else the tenant's root legal entity.
 /// </param>
-public sealed record EnrolHealthMember(Guid PrincipalPartyId, Guid? SchemeId, [property: CodeList(HealthCodeLists.SchemeCategories)] string? MemberCategory,
-    [property: CodeList(HealthCodeLists.PlansAndOptions)] string PlanCode, [property: CodeList(HealthCodeLists.PlansAndOptions)] string OptionCode, DateOnly StartDate, string Currency,
-    Guid? PayerPartyId, Guid? BillingAccountId, [property: CodeList(HealthCodeLists.CollectionMethods)] string CollectionMethod, JsonElement? Facts, string? OrgNodeCode = null) : ICommand<MembershipView>;
+public sealed record EnrolHealthMember(Guid PrincipalPartyId, Guid? SchemeId, [property: CodeList(HealthCodeLists.SchemeCategories, "category_code")] string? MemberCategory,
+    [property: CodeList(HealthCodeLists.PlansAndOptions, "plan_code")] string PlanCode, [property: CodeList(HealthCodeLists.PlansAndOptions, "option_code")] string OptionCode, DateOnly StartDate, string Currency,
+    Guid? PayerPartyId, Guid? BillingAccountId, [property: CodeList(HealthCodeLists.CollectionMethods, "method_code")] string CollectionMethod, JsonElement? Facts, string? OrgNodeCode = null) : ICommand<MembershipView>;
 
-public sealed record AddHealthDependant(Guid MembershipId, Guid PartyId, [property: CodeList(HealthCodeLists.DependantTypes)] string DependantType, bool Student, DateOnly StartDate) : ICommand<MembershipView>;
+public sealed record AddHealthDependant(Guid MembershipId, Guid PartyId, [property: CodeList(HealthCodeLists.DependantTypes, "type_code")] string DependantType, bool Student, DateOnly StartDate) : ICommand<MembershipView>;
 
 public sealed record RemoveHealthDependant(Guid MembershipId, Guid DependantId, DateOnly LastDay) : ICommand<MembershipView>;
 
@@ -82,7 +82,7 @@ public sealed record GetMembership(Guid MembershipId) : IQuery<MembershipView>;
 public sealed record GetAccumulators(Guid MembershipId) : IQuery<IReadOnlyList<AccumulatorView>>;
 
 /// <summary>Command CheckEligibility (HLT-003): is the member (by number and suffix) covered for a service on a day.</summary>
-public sealed record CheckEligibility(string MemberNumber, string DependantSuffix, string? ProviderId, [property: CodeList(HealthCodeLists.ServiceTypes)] string ServiceType, DateOnly? ServiceDate) : ICommand<EligibilityView>;
+public sealed record CheckEligibility(string MemberNumber, string DependantSuffix, string? ProviderId, [property: CodeList(HealthCodeLists.ServiceTypes, "service_type")] string ServiceType, DateOnly? ServiceDate) : ICommand<EligibilityView>;
 
 public sealed class EnrolHealthMemberValidator : AbstractValidator<EnrolHealthMember>
 {
@@ -444,6 +444,13 @@ internal sealed class CheckEligibilityHandler(IHealthRepository health, IHealthC
     public async Task<Result<EligibilityView>> Handle(CheckEligibility command, CancellationToken cancellationToken)
     {
         var day = command.ServiceDate ?? businessDate.Today;
+
+        // The service is one the tenant offers (health.cfg_service_types), not only one that needs authorisation (V0094).
+        if (!await codes.ServiceTypeInForce(command.ServiceType, day, cancellationToken))
+        {
+            return Error.Validation(HealthErrorCodes.CodeNotInForce, $"{command.ServiceType} is not a service type in force.");
+        }
+
         var membership = await health.MembershipByNumber(command.MemberNumber, cancellationToken);
         var outcome = membership is null || membership.PartyFor(command.DependantSuffix) is not { } party ? "NOT_FOUND"
             : !membership.Covers(party, day) ? "NOT_ELIGIBLE"

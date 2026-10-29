@@ -40,8 +40,8 @@ using Insys.ProductFactory.Contracts;
 namespace Insys.Life.Application;
 
 /// <summary>Command NotifyClaim: an event on an insured life of the policy, by a claimant.</summary>
-public sealed record NotifyLifeClaim(Guid PolicyId, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ClaimTypes)] string ClaimType, DateOnly EventDate,
-    [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.CausesOfEvent)] string? CauseCode, Guid ClaimantPartyId, Guid InsuredLifeId)
+public sealed record NotifyLifeClaim(Guid PolicyId, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ClaimTypes, "code")] string ClaimType, DateOnly EventDate,
+    [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.CausesOfEvent, "code")] string? CauseCode, Guid ClaimantPartyId, Guid InsuredLifeId)
     : ICommand<LifeClaimView>;
 
 public sealed record RegisterLifeClaim(Guid ClaimId) : ICommand<LifeClaimView>;

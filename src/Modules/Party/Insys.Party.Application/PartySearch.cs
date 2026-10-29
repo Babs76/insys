@@ -34,7 +34,7 @@ using Insys.Party.Domain.Parties;
 namespace Insys.Party.Application;
 
 /// <summary>An identifier to search by: an exact number of a document type and country, matched by keyed hash.</summary>
-public sealed record IdentifierFilter([property: CodeList(Tables.IdentityDocuments)] string DocType, [property: CodeList(Tables.Countries)] string Country, string Number);
+public sealed record IdentifierFilter([property: CodeList(Tables.IdentityDocuments, "doc_type")] string DocType, [property: CodeList(Tables.Countries, "code")] string Country, string Number);
 
 /// <summary>
 /// Command SearchParties (GAP-022): find parties by name (at least 3 characters, anywhere in the display name), an exact

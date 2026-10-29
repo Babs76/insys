@@ -57,14 +57,14 @@ public sealed record ListMemberships(Guid? PrincipalPartyId, string? MemberNumbe
     : IQuery<IReadOnlyList<MembershipSummary>>;
 
 /// <summary>A Health scheme in a list (BR-067).</summary>
-public sealed record SchemeSummary(Guid Id, string SchemeNumber, [property: CodeList(HealthCodeLists.Sponsors)] string SponsorCode, SchemeStatus Status,
+public sealed record SchemeSummary(Guid Id, string SchemeNumber, [property: CodeList(HealthCodeLists.Sponsors, "sponsor_code")] string SponsorCode, SchemeStatus Status,
     DateOnly StartDate, DateOnly RenewalDate, string? Currency);
 
 public sealed record ListHealthSchemes(string? SchemeNumber, string? SponsorCode, SchemeStatus? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<SchemeSummary>>;
 
 /// <summary>A recorded eligibility decision (BR-072, HLT-003); its response code is the tenant's for the outcome.</summary>
 public sealed record EligibilityDecisionSummary(Guid Id, string MemberNumber, string DependantSuffix, string? ProviderId,
-    [property: CodeList(HealthCodeLists.ServiceTypes)] string ServiceType, [property: CodeList("health.ref_eligibility_response_codes")] string ResponseCode,
+    [property: CodeList(HealthCodeLists.ServiceTypes, "service_type")] string ServiceType, [property: CodeList("health.ref_eligibility_response_codes", "code")] string ResponseCode,
     DateTimeOffset DecidedAt);
 
 /// <summary>Recorded eligibility decisions, newest first by ID, for memberships in the caller's scope; the member number travels in the body (BR-069).</summary>

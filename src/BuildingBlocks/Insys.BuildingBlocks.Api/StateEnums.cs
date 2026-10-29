@@ -59,6 +59,9 @@ public static class StateEnums
     /// <summary>The rows of a shared code table that make the field's list, as column=value (<see cref="Domain.CodeListAttribute.Filter"/>).</summary>
     public const string CodeListFilterExtension = "x-code-list-filter";
 
+    /// <summary>The column of the code list's table holding the field's value (<see cref="Domain.CodeListAttribute.Column"/>, BR-105).</summary>
+    public const string CodeListColumnExtension = "x-code-list-column";
+
     private static readonly ConcurrentDictionary<(Type Type, string Property), (string Description, string? Format)> Fields = new();
 
     /// <summary>
@@ -110,6 +113,7 @@ public static class StateEnums
             {
                 schema.Extensions ??= new Dictionary<string, IOpenApiExtension>();
                 schema.Extensions[CodeListExtension] = new JsonNodeExtension(JsonValue.Create(codeList.Table));
+                schema.Extensions[CodeListColumnExtension] = new JsonNodeExtension(JsonValue.Create(codeList.Column));
                 if (codeList.Filter is { } filter)
                 {
                     schema.Extensions[CodeListFilterExtension] = new JsonNodeExtension(JsonValue.Create(filter));

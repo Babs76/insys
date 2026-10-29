@@ -46,15 +46,15 @@ public sealed record GenerateDocumentRequest(string TemplateCode, string Languag
 
 /// <param name="ContentBase64">The file, base64-encoded; at most 10 MB.</param>
 /// <param name="FileName">The uploaded file's name, kept on the document (BR-027); any path before it is dropped. At most 255 characters.</param>
-public sealed record StoreDocumentRequest([property: BuildingBlocks.Domain.CodeList("document.ref_document_categories")] string CategoryCode, string BusinessRefType,
+public sealed record StoreDocumentRequest([property: BuildingBlocks.Domain.CodeList("document.ref_document_categories", "category_code")] string CategoryCode, string BusinessRefType,
     Guid BusinessRefId, string MimeType, string ContentBase64, string? ProductVersionRef, string? Jurisdiction, string? FileName = null);
 
 /// <param name="Channel">A channel the tenant has configured (document.cfg_delivery_channel_settings); others are refused with CODE_NOT_IN_FORCE.</param>
 public sealed record DeliverDocumentRequest(
     [property: BuildingBlocks.Domain.OneOf(DeliveryChannels.Email, DeliveryChannels.Sms, DeliveryChannels.Post, DeliveryChannels.Portal),
-               BuildingBlocks.Domain.CodeList(DeliveryChannels.Settings)] string Channel, string Recipient);
+               BuildingBlocks.Domain.CodeList(DeliveryChannels.Settings, "channel")] string Channel, string Recipient);
 
-public sealed record LegalHoldRequest([property: BuildingBlocks.Domain.CodeList(DeliveryChannels.LegalHoldReasons)] string ReasonCode);
+public sealed record LegalHoldRequest([property: BuildingBlocks.Domain.CodeList(DeliveryChannels.LegalHoldReasons, "code")] string ReasonCode);
 
 /// <param name="Reason">Why the hold may be released (at most 200 characters); the checker sees it.</param>
 /// <summary>A legal hold on a record itself (D-34).</summary>
@@ -63,7 +63,7 @@ public sealed record LegalHoldRequest([property: BuildingBlocks.Domain.CodeList(
 /// <param name="ReasonCode">A legal hold reason in force (documents/static/legal-hold-reason-codes).</param>
 public sealed record RecordHoldRequest(
     [property: Insys.BuildingBlocks.Domain.OneOf("PARTY", "LIFE_POLICY", "GENERAL_POLICY", "HEALTH_MEMBERSHIP", "LIFE_CLAIM", "GENERAL_CLAIM", "HEALTH_CLAIM", "CASE")]
-    string ScopeType, Guid ScopeId, [property: Insys.BuildingBlocks.Domain.CodeList(DeliveryChannels.LegalHoldReasons)] string ReasonCode);
+    string ScopeType, Guid ScopeId, [property: Insys.BuildingBlocks.Domain.CodeList(DeliveryChannels.LegalHoldReasons, "code")] string ReasonCode);
 
 public sealed record LegalHoldReleaseRequest([property: System.ComponentModel.DataAnnotations.MinLength(1), System.ComponentModel.DataAnnotations.MaxLength(200)] string Reason);
 

@@ -110,10 +110,17 @@ public static class HealthInfrastructure
             {
                 missing.Add("health.cfg_plans_and_options");
             }
+
+            // V0094: eligibility checks the service against the tenant's service types.
+            if (await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, $"SELECT count(*) FROM health.cfg_service_types WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                    ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day)) == 0)
+            {
+                missing.Add("health.cfg_service_types");
+            }
             }
 
             return [BuildingBlocks.Application.ReadinessResult.Of("DOMAIN_REFERENCE_DATA", "DOMAIN_CODES",
-                "Each domain the tenant sets up has its own reference data: Life claim and benefit types, General cancellation reasons, Health plans", missing)];
+                "Each domain the tenant sets up has its own reference data: Life claim and benefit types, General cancellation reasons, Health plans and service types", missing)];
         });
         return services;
     }

@@ -45,42 +45,42 @@ namespace Insys.General.Api;
 public sealed record AttributesRequest(JsonElement Attributes);
 
 /// <param name="ValuationCurrency">The valuation's currency (BR-033), a 3-letter code: required with a valuation, and only with one.</param>
-public sealed record RevalueRequest(decimal? Valuation, [property: BuildingBlocks.Domain.CodeList(CodeLists.ValuationBases)] string? ValuationBasis,
+public sealed record RevalueRequest(decimal? Valuation, [property: BuildingBlocks.Domain.CodeList(CodeLists.ValuationBases, "code")] string? ValuationBasis,
     string? ValuationCurrency = null);
 
-public sealed record ReferRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.ReferralReasons)] string ReasonCode);
+public sealed record ReferRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.ReferralReasons, "code")] string ReasonCode);
 
-public sealed record ReferralDecisionRequest(bool Approved, [property: BuildingBlocks.Domain.CodeList(CodeLists.UnderwritingDecisions)] string DecisionCode,
+public sealed record ReferralDecisionRequest(bool Approved, [property: BuildingBlocks.Domain.CodeList(CodeLists.UnderwritingDecisions, "code")] string DecisionCode,
     string[]? SpecialConditions, string? DeclineReason);
 
-public sealed record CancelRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.CancellationReasons)] string ReasonCode, DateOnly EffectiveDate);
+public sealed record CancelRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.CancellationReasons, "reason_code")] string ReasonCode, DateOnly EffectiveDate);
 
-public sealed record EndorsementRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EndorsementTypes)] string EndorsementType, DateOnly EffectiveDate,
+public sealed record EndorsementRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EndorsementTypes, "code")] string EndorsementType, DateOnly EffectiveDate,
     IReadOnlyList<EndorsementChange> Changes);
 
 /// <param name="Role">The party's role on the claim, in force in general.cfg_claim_party_roles (OQ-122).</param>
-public sealed record PartyRequest(Guid PartyId, [property: BuildingBlocks.Domain.CodeList(CodeLists.ClaimPartyRoles)] string Role, string? InsurerRef);
+public sealed record PartyRequest(Guid PartyId, [property: BuildingBlocks.Domain.CodeList(CodeLists.ClaimPartyRoles, "code")] string Role, string? InsurerRef);
 
 public sealed record AssessorRequest(Guid AssessorPartyId);
 
 public sealed record SettlementRequestBody(Guid PayeePartyId, Guid BankAccountId,
-    [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes)] string ReserveType,
-    [property: BuildingBlocks.Domain.CodeList(CodeLists.ClaimDecisionReasons)] string DecisionCode, string Rationale);
+    [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes, "code")] string ReserveType,
+    [property: BuildingBlocks.Domain.CodeList(CodeLists.ClaimDecisionReasons, "code")] string DecisionCode, string Rationale);
 
-public sealed record DeclineRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.ClaimDecisionReasons)] string DecisionCode, string Rationale);
+public sealed record DeclineRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.ClaimDecisionReasons, "code")] string DecisionCode, string Rationale);
 
 public sealed record EstimateRequest(Guid RepairerPartyId, decimal Amount);
 
 public sealed record ReportRequest(decimal AssessedAmount, Guid? ReportDocumentId);
 
-public sealed record RecoveryRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.RecoveryTypes)] string RecoveryType, Guid? CounterpartyPartyId,
+public sealed record RecoveryRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.RecoveryTypes, "code")] string RecoveryType, Guid? CounterpartyPartyId,
     decimal ExpectedAmount);
 
 public sealed record SalvageRequest(string Description);
 
-public sealed record DisposalRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.DisposalMethods)] string DisposalMethod, decimal Proceeds);
+public sealed record DisposalRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.DisposalMethods, "code")] string DisposalMethod, decimal Proceeds);
 
-public sealed record RecoveredRequest(decimal Amount, [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes)] string? ReserveType);
+public sealed record RecoveredRequest(decimal Amount, [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes, "code")] string? ReserveType);
 
 /// <summary>
 /// The General module (§10): risk objects, quotes and underwriting referrals, proposals, policies with their risks and
@@ -533,17 +533,17 @@ public sealed class GeneralModule : IModule
 public sealed record RiskOwnerRequest(Guid? OwnerPartyId);
 
 /// <param name="ClientPartyId">The client the item belongs to: one the broker services, or one it registered.</param>
-public sealed record PortalRiskObjectRequest(Guid ClientPartyId, [property: BuildingBlocks.Domain.CodeList(CodeLists.RiskObjectTypes)] string ObjectType,
-    JsonElement Attributes, decimal? Valuation, [property: BuildingBlocks.Domain.CodeList(CodeLists.ValuationBases)] string? ValuationBasis, string? ValuationCurrency,
-    string? Subdivision, string? PostalCode, [property: BuildingBlocks.Domain.CodeList(CodeLists.RiskZones)] string? RiskZone);
+public sealed record PortalRiskObjectRequest(Guid ClientPartyId, [property: BuildingBlocks.Domain.CodeList(CodeLists.RiskObjectTypes, "object_type")] string ObjectType,
+    JsonElement Attributes, decimal? Valuation, [property: BuildingBlocks.Domain.CodeList(CodeLists.ValuationBases, "code")] string? ValuationBasis, string? ValuationCurrency,
+    string? Subdivision, string? PostalCode, [property: BuildingBlocks.Domain.CodeList(CodeLists.RiskZones, "zone_code")] string? RiskZone);
 
 /// <param name="Frequency">
 /// The billing frequency the client wants to pay in: when the product allows it, the quote shows each instalment beside the
 /// annual premium; otherwise it shows the annual premium, labelled ANNUAL.
 /// </param>
 public sealed record PortalQuoteRequest(string ProductCode, Guid ProposerPartyId, string Currency, DateOnly PeriodStart, DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks,
-    [property: BuildingBlocks.Domain.CodeList(CodeLists.BillingFrequencies)] string? Frequency = null);
+    [property: BuildingBlocks.Domain.CodeList(CodeLists.BillingFrequencies, "code")] string? Frequency = null);
 
 public sealed record PortalClaimRequest(Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate,
-    [property: BuildingBlocks.Domain.CodeList(CodeLists.LossCauses)] string CauseCode, [property: BuildingBlocks.Domain.CodeList(CodeLists.Perils)] string PerilCode,
+    [property: BuildingBlocks.Domain.CodeList(CodeLists.LossCauses, "cause_code")] string CauseCode, [property: BuildingBlocks.Domain.CodeList(CodeLists.Perils, "peril_code")] string PerilCode,
     string? Description);

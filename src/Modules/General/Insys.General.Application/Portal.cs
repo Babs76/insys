@@ -74,19 +74,19 @@ public sealed record PortalQuoteView(Guid Id, string QuoteNumber, int QuoteVersi
 }
 
 /// <summary>A broker's view of an insured item (BR-092): what it registered or may quote on, without the schema version or row version.</summary>
-public sealed record PortalRiskObjectView(Guid Id, [property: CodeList(CodeLists.RiskObjectTypes)] string ObjectType, System.Text.Json.JsonElement Attributes,
-    decimal? Valuation, [property: CodeList(CodeLists.ValuationBases)] string? ValuationBasis, string? ValuationCurrency, string? Subdivision, string? PostalCode,
-    [property: CodeList(CodeLists.RiskZones)] string? RiskZone, RiskObjectStatus Status, Guid OwnerPartyId)
+public sealed record PortalRiskObjectView(Guid Id, [property: CodeList(CodeLists.RiskObjectTypes, "object_type")] string ObjectType, System.Text.Json.JsonElement Attributes,
+    decimal? Valuation, [property: CodeList(CodeLists.ValuationBases, "code")] string? ValuationBasis, string? ValuationCurrency, string? Subdivision, string? PostalCode,
+    [property: CodeList(CodeLists.RiskZones, "zone_code")] string? RiskZone, RiskObjectStatus Status, Guid OwnerPartyId)
 {
     public static PortalRiskObjectView From(RiskObject r) => new(r.Id, r.ObjectType, System.Text.Json.JsonDocument.Parse(r.Attributes).RootElement.Clone(), r.Valuation,
         r.ValuationBasis, r.ValuationCurrency, r.Subdivision, r.PostalCode, r.RiskZone, r.Status, r.OwnerPartyId!.Value);
 }
 
 /// <summary>A peril a member can report a loss under (BR-093).</summary>
-public sealed record PortalPerilView([property: CodeList(CodeLists.Perils)] string Code, string Label);
+public sealed record PortalPerilView([property: CodeList(CodeLists.Perils, "peril_code")] string Code, string Label);
 
 /// <summary>A loss cause a member can report, with the peril it falls under (BR-093).</summary>
-public sealed record PortalLossCauseView([property: CodeList(CodeLists.LossCauses)] string Code, [property: CodeList(CodeLists.Perils)] string PerilCode, string Label);
+public sealed record PortalLossCauseView([property: CodeList(CodeLists.LossCauses, "cause_code")] string Code, [property: CodeList(CodeLists.Perils, "peril_code")] string PerilCode, string Label);
 
 /// <summary>The perils and loss causes in force for a policy's product (its line), for the member to choose from when notifying a loss (BR-093).</summary>
 public sealed record PortalLossCodesView(IReadOnlyList<PortalPerilView> Perils, IReadOnlyList<PortalLossCauseView> Causes);

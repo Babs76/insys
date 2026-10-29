@@ -40,19 +40,19 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Billing.Api;
 
-public sealed record OpenAccountRequest(Guid PayerPartyId, string Currency, [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.CollectionMethods)] string CollectionMethod,
+public sealed record OpenAccountRequest(Guid PayerPartyId, string Currency, [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.CollectionMethods, "method_code")] string CollectionMethod,
     string? MandateRef);
 
 public sealed record CreateScheduleRequest([property: BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")] string SourceDomain, Guid PolicyRef, string ProductVersionRef,
-    [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.Frequencies)] string Frequency, DateOnly StartDate, DateOnly? EndDate, decimal InstalmentAmount);
+    [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.Frequencies, "code")] string Frequency, DateOnly StartDate, DateOnly? EndDate, decimal InstalmentAmount);
 
 public sealed record AmendScheduleRequest(decimal InstalmentAmount, DateOnly EffectiveFrom);
 
 public sealed record IssueInvoicesRequest(DateOnly AsOf);
 
-public sealed record CreditNoteRequest(decimal Amount, [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.AdjustmentReasons)] string ReasonCode);
+public sealed record CreditNoteRequest(decimal Amount, [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.AdjustmentReasons, "code")] string ReasonCode);
 
-public sealed record RefundRequestBody(decimal Amount, [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.AdjustmentReasons)] string ReasonCode, Guid BankAccountId);
+public sealed record RefundRequestBody(decimal Amount, [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.AdjustmentReasons, "code")] string ReasonCode, Guid BankAccountId);
 
 /// <summary>The Billing module: accounts, premium schedules, invoices and credit notes, arrears and refunds (BIL-001 to BIL-004).</summary>
 public sealed class BillingModule : IModule

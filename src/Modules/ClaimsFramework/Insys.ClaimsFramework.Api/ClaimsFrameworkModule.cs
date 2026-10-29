@@ -40,19 +40,19 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Insys.ClaimsFramework.Api;
 
 /// <summary>Asking for evidence of a type (BR-039: its own schema; it takes no document).</summary>
-public sealed record EvidenceRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EvidenceTypes)] string EvidenceType);
+public sealed record EvidenceRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EvidenceTypes, "code")] string EvidenceType);
 
 /// <summary>Recording evidence received (BR-039): always as a stored document.</summary>
 /// <param name="DocumentId">The stored document that is the evidence (Documents); required.</param>
-public sealed record RecordEvidenceRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EvidenceTypes)] string EvidenceType,
+public sealed record RecordEvidenceRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EvidenceTypes, "code")] string EvidenceType,
     [property: BuildingBlocks.Domain.RequiredField] Guid DocumentId);
 
 /// <param name="Reason">Why the reserve moves; required (OQ-079: an assessor adjusts a claim's reserve with a reason).</param>
-public sealed record ReserveRequest(ReserveAction Action, [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes)] string ReserveType, decimal Amount,
+public sealed record ReserveRequest(ReserveAction Action, [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes, "code")] string ReserveType, decimal Amount,
     string Currency, string Reason);
 
 public sealed record DraftInstructionRequest(string InstructionRef, Guid PayeePartyId, Guid BankAccountId, decimal Amount, decimal ApprovedAmount, string Currency,
-    [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes)] string ReserveType);
+    [property: BuildingBlocks.Domain.CodeList(CodeLists.ReserveTypes, "code")] string ReserveType);
 
 public sealed record PayeeRequest(Guid PayeePartyId, Guid BankAccountId);
 

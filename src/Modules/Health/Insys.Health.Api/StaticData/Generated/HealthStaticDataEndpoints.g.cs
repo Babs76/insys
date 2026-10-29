@@ -68,20 +68,21 @@ public static class HealthStaticDataEndpoints
         api.MapStaticEntity<HealthDbContext, RepeatServiceIntervals, RepeatServiceIntervalsInput>(HealthStaticData.Descriptors[23], Tag);
         api.MapStaticEntity<HealthDbContext, SchemeMemberCategories, SchemeMemberCategoriesInput>(HealthStaticData.Descriptors[24], Tag);
         api.MapStaticEntity<HealthDbContext, SchemeRenewalRules, SchemeRenewalRulesInput>(HealthStaticData.Descriptors[25], Tag);
-        api.MapStaticEntity<HealthDbContext, TariffModifiers, TariffModifiersInput>(HealthStaticData.Descriptors[26], Tag);
-        api.MapStaticEntity<HealthDbContext, TariffSchedules, TariffSchedulesInput>(HealthStaticData.Descriptors[27], Tag);
-        api.MapStaticEntity<HealthDbContext, UtilisationRules, UtilisationRulesInput>(HealthStaticData.Descriptors[28], Tag);
-        api.MapStaticEntity<HealthDbContext, ProviderPaymentDetails, ProviderPaymentDetailsInput>(HealthStaticData.Descriptors[29], Tag);
-        api.MapStaticEntity<HealthDbContext, ProviderRegister, ProviderRegisterInput>(HealthStaticData.Descriptors[30], Tag);
-        api.MapStaticEntity<HealthDbContext, SponsorRegister, SponsorRegisterInput>(HealthStaticData.Descriptors[31], Tag);
-        api.MapStaticEntity<HealthDbContext, BenefitCategoryTaxonomy, BenefitCategoryTaxonomyInput>(HealthStaticData.Descriptors[32], Tag);
-        api.MapStaticEntity<HealthDbContext, ClaimAdjustmentReasonCodes, ClaimAdjustmentReasonCodesInput>(HealthStaticData.Descriptors[33], Tag);
-        api.MapStaticEntity<HealthDbContext, DiagnosisCodes, DiagnosisCodesInput>(HealthStaticData.Descriptors[34], Tag);
-        api.MapStaticEntity<HealthDbContext, EligibilityResponseCodes, EligibilityResponseCodesInput>(HealthStaticData.Descriptors[35], Tag);
-        api.MapStaticEntity<HealthDbContext, InvestigationOutcomeCodes, InvestigationOutcomeCodesInput>(HealthStaticData.Descriptors[36], Tag);
-        api.MapStaticEntity<HealthDbContext, MedicineFormulary, MedicineFormularyInput>(HealthStaticData.Descriptors[37], Tag);
-        api.MapStaticEntity<HealthDbContext, MembershipStatusCodes, MembershipStatusCodesInput>(HealthStaticData.Descriptors[38], Tag);
-        api.MapStaticEntity<HealthDbContext, ProcedureAndServiceCodes, ProcedureAndServiceCodesInput>(HealthStaticData.Descriptors[39], Tag);
-        api.MapStaticEntity<HealthDbContext, ProviderTypesAndSpecialties, ProviderTypesAndSpecialtiesInput>(HealthStaticData.Descriptors[40], Tag);
+        api.MapStaticEntity<HealthDbContext, ServiceTypes, ServiceTypesInput>(HealthStaticData.Descriptors[26], Tag);
+        api.MapStaticEntity<HealthDbContext, TariffModifiers, TariffModifiersInput>(HealthStaticData.Descriptors[27], Tag);
+        api.MapStaticEntity<HealthDbContext, TariffSchedules, TariffSchedulesInput>(HealthStaticData.Descriptors[28], Tag);
+        api.MapStaticEntity<HealthDbContext, UtilisationRules, UtilisationRulesInput>(HealthStaticData.Descriptors[29], Tag);
+        api.MapStaticEntity<HealthDbContext, ProviderPaymentDetails, ProviderPaymentDetailsInput>(HealthStaticData.Descriptors[30], Tag);
+        api.MapStaticEntity<HealthDbContext, ProviderRegister, ProviderRegisterInput>(HealthStaticData.Descriptors[31], Tag);
+        api.MapStaticEntity<HealthDbContext, SponsorRegister, SponsorRegisterInput>(HealthStaticData.Descriptors[32], Tag);
+        api.MapStaticEntity<HealthDbContext, BenefitCategoryTaxonomy, BenefitCategoryTaxonomyInput>(HealthStaticData.Descriptors[33], Tag);
+        api.MapStaticEntity<HealthDbContext, ClaimAdjustmentReasonCodes, ClaimAdjustmentReasonCodesInput>(HealthStaticData.Descriptors[34], Tag);
+        api.MapStaticEntity<HealthDbContext, DiagnosisCodes, DiagnosisCodesInput>(HealthStaticData.Descriptors[35], Tag);
+        api.MapStaticEntity<HealthDbContext, EligibilityResponseCodes, EligibilityResponseCodesInput>(HealthStaticData.Descriptors[36], Tag);
+        api.MapStaticEntity<HealthDbContext, InvestigationOutcomeCodes, InvestigationOutcomeCodesInput>(HealthStaticData.Descriptors[37], Tag);
+        api.MapStaticEntity<HealthDbContext, MedicineFormulary, MedicineFormularyInput>(HealthStaticData.Descriptors[38], Tag);
+        api.MapStaticEntity<HealthDbContext, MembershipStatusCodes, MembershipStatusCodesInput>(HealthStaticData.Descriptors[39], Tag);
+        api.MapStaticEntity<HealthDbContext, ProcedureAndServiceCodes, ProcedureAndServiceCodesInput>(HealthStaticData.Descriptors[40], Tag);
+        api.MapStaticEntity<HealthDbContext, ProviderTypesAndSpecialties, ProviderTypesAndSpecialtiesInput>(HealthStaticData.Descriptors[41], Tag);
     }
 }

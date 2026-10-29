@@ -120,6 +120,9 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             ("value", 10m), ("network_status", "IN_NETWORK"), ("cap", 500m), ("rule_kind", "CO_PAYMENT"), ("cap_basis", "PER_LINE"));
         await Seed("health.cfg_preauthorisation_required_lists", "EFFECTIVE", "PAR-SPEC", ("plan", "HLT-CORE"), ("service", "SPECIALIST"), ("threshold", 0m));
         await Seed("health.cfg_authorisation_validity_periods", "EFFECTIVE", "AV-PROC", ("service_type", "PROCEDURE"), ("days_valid", 30));
+        // V0094: every service the tenant offers, for eligibility; only PROCEDURE needs authorisation (above).
+        await Seed("health.cfg_service_types", "EFFECTIVE", "ST-CONS", ("service_type", "CONSULTATION"));
+        await Seed("health.cfg_service_types", "EFFECTIVE", "ST-PROC", ("service_type", "PROCEDURE"));
         await Seed("health.cfg_benefit_category_mappings", "EFFECTIVE", "M-SPEC", ("code_system", "NRPL"), ("code_from", "0300"), ("code_to", "0399"),
             ("benefit_category", "SPECIALIST"));
         await Seed("health.cfg_high_cost_thresholds", "EFFECTIVE", "HC-SPEC", ("service", "SPECIALIST"), ("amount", 750m), ("review_queue", "UTILISATION"));
@@ -261,6 +264,12 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await Eligibility(number, "07")).ShouldBe("E02");
         (await Eligibility(number, "00", Today.AddMonths(-6).AddDays(10))).ShouldBe("E03");
         (await Eligibility(number, "00", Today.AddMonths(-7))).ShouldBe("E01");
+
+        // V0094: a general consultation (needs no authorisation) is checked above; a service the tenant doesn't offer is refused.
+        var unoffered = await _maker.PostAsJsonAsync("/api/v1/health/eligibility",
+            new { memberNumber = number, dependantSuffix = "00", providerId = "PR-1", serviceType = "DENTAL" });
+        unoffered.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await unoffered.Content.ReadAsStringAsync());
+        (await unoffered.Code()).ShouldBe("HEALTH_CODE_NOT_IN_FORCE");
 
         // BR-069: a membership is found by its number in the body; BR-072: its recorded eligibility decisions are read the same way.
         var found = await (await _maker.PostAsJsonAsync("/api/v1/health/memberships/search", new { memberNumber = number })).Json();

@@ -37,13 +37,17 @@ public sealed class KnownValuesAttribute(params string[] values) : Attribute
 }
 
 /// <summary>
-/// The static data table a code field takes its codes from (BR-025, BR-036), as schema.table: the OpenAPI documents name
-/// it as x-code-list, so a client offers the table's codes in force and their labels.
+/// The static data table a code field takes its codes from (BR-025, BR-036), as schema.table, and the column holding the
+/// value the field carries (BR-105): the OpenAPI documents name them as x-code-list and x-code-list-column, so a client
+/// offers the table's values in force and their labels.
 /// </summary>
 [AttributeUsage(AttributeTargets.Property)]
-public sealed class CodeListAttribute(string table) : Attribute
+public sealed class CodeListAttribute(string table, string column) : Attribute
 {
     public string Table { get; } = table;
+
+    /// <summary>The table's column the field's value is (its code, or a named value column such as method_code).</summary>
+    public string Column { get; } = column;
 
     /// <summary>For a table holding several lists, the rows of this one, as column=value (BR-026): published as x-code-list-filter.</summary>
     public string? Filter { get; init; }

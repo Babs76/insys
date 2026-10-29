@@ -40,7 +40,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Health.Api;
 
-public sealed record DependantRequest(Guid PartyId, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.DependantTypes)] string DependantType, bool Student, DateOnly StartDate);
+public sealed record DependantRequest(Guid PartyId, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.DependantTypes, "type_code")] string DependantType, bool Student, DateOnly StartDate);
 
 public sealed record DependantRemovalRequest(DateOnly LastDay);
 
@@ -51,7 +51,7 @@ public sealed record MembershipSearchRequest(Guid? PrincipalPartyId, string? Mem
 /// <summary>BR-072: recorded eligibility decisions, by member number (in the body, BR-069) and dependant suffix.</summary>
 public sealed record EligibilityDecisionSearchRequest(string? MemberNumber, string? DependantSuffix, string? Cursor, int? Limit);
 
-public sealed record PlanChangeRequest([property: BuildingBlocks.Domain.CodeList(HealthCodeLists.PlansAndOptions)] string PlanCode, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.PlansAndOptions)] string OptionCode, DateOnly EffectiveDate, string Reason);
+public sealed record PlanChangeRequest([property: BuildingBlocks.Domain.CodeList(HealthCodeLists.PlansAndOptions, "plan_code")] string PlanCode, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.PlansAndOptions, "option_code")] string OptionCode, DateOnly EffectiveDate, string Reason);
 
 public sealed record MembershipStatusRequest(DateOnly EffectiveDate, string Reason);
 
@@ -454,7 +454,7 @@ public sealed class HealthModule : IModule
 public sealed record PortalMedicalClaimRequest(string MemberNumber, string? DependantSuffix, DateOnly ServiceDate, string Currency, Guid? PreauthorisationId,
     IReadOnlyList<Domain.Care.ClaimLineRequest> Lines);
 
-public sealed record PortalPreauthorisationRequest(string MemberNumber, string? DependantSuffix, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.Diagnoses)] IReadOnlyList<string> DiagnosisCodes,
-    [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.ServiceTypes)] string ServiceType,
+public sealed record PortalPreauthorisationRequest(string MemberNumber, string? DependantSuffix, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.Diagnoses, "code")] IReadOnlyList<string> DiagnosisCodes,
+    [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.AuthorisationServiceTypes, "service_type")] string ServiceType,
     IReadOnlyList<Domain.Care.PreauthLineRequest> Lines);
 

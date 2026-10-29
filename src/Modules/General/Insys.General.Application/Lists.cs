@@ -57,7 +57,7 @@ public sealed record ListClaims(Guid? PolicyId, string? ClaimNumber, Guid? After
 /// cursor paging. A risk object belongs to no product, so it is not scoped itself; filtered by a policy, only a policy in
 /// the caller's scope.
 /// </summary>
-public sealed record ListRiskObjects([property: CodeList(CodeLists.RiskObjectTypes)] string? ObjectType, [property: CodeList(CodeLists.RiskZones)] string? RiskZone,
+public sealed record ListRiskObjects([property: CodeList(CodeLists.RiskObjectTypes, "object_type")] string? ObjectType, [property: CodeList(CodeLists.RiskZones, "zone_code")] string? RiskZone,
     Guid? PolicyId, Guid? AfterId, int Limit, Guid? OwnerPartyId = null) : IQuery<IReadOnlyList<RiskObjectView>>;
 
 /// <summary>Query ListProposals (BR-034): by quote or status, within the caller's scope through the proposal's quote.</summary>

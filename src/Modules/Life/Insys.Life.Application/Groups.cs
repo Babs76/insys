@@ -39,7 +39,7 @@ using Insys.Tenancy.Contracts;
 namespace Insys.Life.Application;
 
 /// <param name="OrgNodeCode">The organisation node (normally a branch) that owns the scheme (F103); when omitted, the caller's one node, else the root.</param>
-public sealed record SetUpGroupScheme(Guid EmployerPartyId, string ProductCode, int? ProductVersion, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.SchemeTypes)] string SchemeType, DateOnly StartDate, DateOnly RenewalDate,
+public sealed record SetUpGroupScheme(Guid EmployerPartyId, string ProductCode, int? ProductVersion, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.SchemeTypes, "code")] string SchemeType, DateOnly StartDate, DateOnly RenewalDate,
     string Currency, string? OrgNodeCode = null) : ICommand<SchemeView>;
 
 /// <param name="Facts">The member's facts the category's eligibility rule reads (for example their grade), as a JSON object.</param>

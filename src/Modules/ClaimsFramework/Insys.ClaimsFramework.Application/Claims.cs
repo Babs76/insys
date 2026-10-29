@@ -79,7 +79,7 @@ public interface IClaimsCodes
     Task<Result<IReadOnlyList<FraudIndicator>>> FraudIndicators(DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record EvidenceView([property: CodeList(CodeLists.EvidenceTypes)] string EvidenceType, [property: OneOf("REQUESTED", "RECEIVED")] string Status,
+public sealed record EvidenceView([property: CodeList(CodeLists.EvidenceTypes, "code")] string EvidenceType, [property: OneOf("REQUESTED", "RECEIVED")] string Status,
     Guid? DocumentId, DateTimeOffset? RequestedAt, DateTimeOffset? ReceivedAt);
 
 public sealed record FraudHitView(string IndicatorCode, int Score, bool Referred, DateTimeOffset EvaluatedAt);
@@ -103,7 +103,7 @@ public sealed record ClaimView(Guid Id, string ClaimNumber, [property: OneOf("LI
 }
 
 public sealed record MovementView(Guid Id, [property: OneOf("Reserve", "Payment", "Recovery")] string MovementType,
-    [property: CodeList(CodeLists.ReserveTypes)] string ReserveType, decimal Amount, string Currency, DateTimeOffset MovementAt);
+    [property: CodeList(CodeLists.ReserveTypes, "code")] string ReserveType, decimal Amount, string Currency, DateTimeOffset MovementAt);
 
 /// <param name="OutstandingReserves">Each reserve type's outstanding amount, in <paramref name="Currency"/>.</param>
 /// <param name="Currency">The claim's currency (BR-033): of every movement and every outstanding reserve; null until the first movement.</param>
@@ -115,7 +115,7 @@ public sealed record FinancialsView(string ClaimNumber, IReadOnlyList<MovementVi
 }
 
 public sealed record InstructionView(Guid Id, string ClaimNumber, string InstructionRef, Guid PayeePartyId, decimal Amount, decimal ApprovedAmount, string Currency,
-    [property: CodeList(CodeLists.ReserveTypes)] string ReserveType, InstructionStatus Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId,
+    [property: CodeList(CodeLists.ReserveTypes, "code")] string ReserveType, InstructionStatus Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId,
     string? PayeeBankHash, Guid? PendingPayeePartyId,
     Guid? PendingBankAccountId,
     [property: OneOf("RESERVE_BELOW_ZERO", "PAYEE_ACCOUNT_CHANGED", "DUE_DILIGENCE_NOT_CLEARED")] string? HeldReason = null, string? HeldDetail = null, DateTimeOffset? HeldAt = null,
@@ -145,9 +145,9 @@ public sealed record InstructionView(Guid Id, string ClaimNumber, string Instruc
 public sealed record AllocateClaimNumber([property: OneOf("LIFE", "GENERAL", "HEALTH")] string Domain, Guid DomainClaimId, Guid PolicyRef, string? ProductCode = null,
     string? OrgNodeCode = null) : ICommand<ClaimView>;
 
-public sealed record RequestEvidence(string ClaimNumber, [property: CodeList(CodeLists.EvidenceTypes)] string EvidenceType) : ICommand<ClaimView>;
+public sealed record RequestEvidence(string ClaimNumber, [property: CodeList(CodeLists.EvidenceTypes, "code")] string EvidenceType) : ICommand<ClaimView>;
 
-public sealed record RecordEvidence(string ClaimNumber, [property: CodeList(CodeLists.EvidenceTypes)] string EvidenceType, Guid DocumentId) : ICommand<ClaimView>;
+public sealed record RecordEvidence(string ClaimNumber, [property: CodeList(CodeLists.EvidenceTypes, "code")] string EvidenceType, Guid DocumentId) : ICommand<ClaimView>;
 
 public sealed record RecordCommunication(string ClaimNumber, string Direction, [property: KnownValues("EMAIL", "SMS", "PUSH", "WHATSAPP")] string Channel,
     Guid? DocumentId) : ICommand<ClaimView>;
@@ -182,7 +182,7 @@ public enum ReserveAction
 
 /// <summary>Commands SetReserve, ChangeReserve and RecordRecovery (CLM-004).</summary>
 /// <param name="Reason">Why the reserve moves; recorded in the audit trail. The initial reserve gives its basis (OQ-079).</param>
-public sealed record MoveReserve(string ClaimNumber, ReserveAction Action, [property: CodeList(CodeLists.ReserveTypes)] string ReserveType, decimal Amount,
+public sealed record MoveReserve(string ClaimNumber, ReserveAction Action, [property: CodeList(CodeLists.ReserveTypes, "code")] string ReserveType, decimal Amount,
     string Currency, string? Reason = null)
     : ICommand<FinancialsView>;
 
@@ -198,7 +198,7 @@ public sealed class ClaimsPaymentOptions
 /// <summary>Command DraftInstruction; a repeat for the same claim and reference returns the same instruction (PAY-001).</summary>
 /// <param name="BankAccountId">The payee's verified bank account (party.bank_account); the approval covers it.</param>
 public sealed record DraftInstruction(string ClaimNumber, string InstructionRef, Guid PayeePartyId, Guid BankAccountId, decimal Amount, decimal ApprovedAmount,
-    string Currency, [property: CodeList(CodeLists.ReserveTypes)] string ReserveType) : ICommand<InstructionView>;
+    string Currency, [property: CodeList(CodeLists.ReserveTypes, "code")] string ReserveType) : ICommand<InstructionView>;
 
 public enum InstructionAction
 {

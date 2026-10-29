@@ -54,7 +54,7 @@ public sealed record DisclosureInput(Guid InsuredPartyId, string QuestionCode, i
 /// When omitted: the caller's one node, else the tenant's root legal entity.
 /// </param>
 public sealed record CaptureProposal(string ProductCode, int? ProductVersion, Guid ApplicantPartyId, string? IntermediaryCode, string ChannelCode, string Currency,
-    DateOnly InceptionDate, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.Frequencies)] string Frequency, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.CollectionMethods)] string CollectionMethod, Guid? PayerPartyId, IReadOnlyList<InsuredLifeInput> Lives, IReadOnlyList<CoverRequest> Covers,
+    DateOnly InceptionDate, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.Frequencies, "code")] string Frequency, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.CollectionMethods, "method_code")] string CollectionMethod, Guid? PayerPartyId, IReadOnlyList<InsuredLifeInput> Lives, IReadOnlyList<CoverRequest> Covers,
     IReadOnlyList<DisclosureInput>? Disclosures, IReadOnlyList<BeneficiaryNomination>? Nominations, string? OrgNodeCode = null) : ICommand<ProposalView>;
 
 public sealed record SubmitLifeProposal(Guid ProposalId) : ICommand<ProposalView>;

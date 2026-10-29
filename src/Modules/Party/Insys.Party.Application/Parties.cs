@@ -85,16 +85,16 @@ public interface IPartyCodes
     Task<bool> ConsentPurposeExists(string purposeCode, DateOnly day, CancellationToken cancellationToken);
 }
 
-public sealed record AddressView(Guid Id, string AddressType, string Line1, string? Line2, string City, [property: CodeList(Tables.Subdivisions)] string? Subdivision,
-    string? PostalCode, [property: CodeList(Tables.Countries)] string Country, DateOnly ValidFrom, DateOnly? ValidTo);
+public sealed record AddressView(Guid Id, string AddressType, string Line1, string? Line2, string City, [property: CodeList(Tables.Subdivisions, "code")] string? Subdivision,
+    string? PostalCode, [property: CodeList(Tables.Countries, "code")] string Country, DateOnly ValidFrom, DateOnly? ValidTo);
 
-public sealed record ContactPointView(Guid Id, [property: CodeList(Tables.ContactChannels)] string ChannelType, string Value, bool IsPrimary, DateTimeOffset? VerifiedAt);
+public sealed record ContactPointView(Guid Id, [property: CodeList(Tables.ContactChannels, "code")] string ChannelType, string Value, bool IsPrimary, DateTimeOffset? VerifiedAt);
 
 /// <summary>
 /// An identifier without its number, which is never returned (PTY-005): only masked, with at most its last four characters
 /// ("•••• 1234"; "••••" for a number of four or fewer), BR-026.
 /// </summary>
-public sealed record IdentifierView(Guid Id, [property: CodeList(Tables.IdentityDocuments)] string DocType, [property: CodeList(Tables.Countries)] string Country,
+public sealed record IdentifierView(Guid Id, [property: CodeList(Tables.IdentityDocuments, "doc_type")] string DocType, [property: CodeList(Tables.Countries, "code")] string Country,
     string MaskedNumber, bool Verified, DateTimeOffset? VerifiedAt)
 {
     public const string Mask = "••••";
@@ -106,9 +106,9 @@ public sealed record IdentifierView(Guid Id, [property: CodeList(Tables.Identity
     public static string LastFour(string number) => number.Length > 4 ? number[^4..] : "";
 }
 
-public sealed record RoleView(Guid Id, [property: CodeList(Tables.RoleTypes)] string RoleCode, string Domain, string ContextType, Guid ContextId, DateOnly ValidFrom, DateOnly? ValidTo);
+public sealed record RoleView(Guid Id, [property: CodeList(Tables.RoleTypes, "role_code")] string RoleCode, string Domain, string ContextType, Guid ContextId, DateOnly ValidFrom, DateOnly? ValidTo);
 
-public sealed record RelationshipView(Guid Id, Guid ToPartyId, [property: CodeList(Tables.RelationshipTypes)] string RelationshipCode, DateOnly ValidFrom, DateOnly? ValidTo);
+public sealed record RelationshipView(Guid Id, Guid ToPartyId, [property: CodeList(Tables.RelationshipTypes, "code")] string RelationshipCode, DateOnly ValidFrom, DateOnly? ValidTo);
 
 /// <summary>A portal registration's review (external-user access §6): its status, who registered it, the party it matched and the resolution.</summary>
 public sealed record PartyReviewView([property: OneOf("PENDING_REVIEW", "PROPOSED", "LINKED", "CONFIRMED_NEW")] string Status, string? RegisteredBy, Guid? MatchedPartyId,
@@ -133,7 +133,7 @@ public sealed record PartyView(Guid Id, string PartyNumber, PartyKind Kind, stri
         p.ReviewStatus is null ? null : new PartyReviewView(p.ReviewStatus, p.RegisteredBy, p.MatchedPartyId, p.MatchResolution));
 }
 
-public sealed record ConsentView([property: CodeList(Tables.ConsentPurposes)] string PurposeCode, bool Granted, DateTimeOffset CapturedAt, string CaptureChannel, string? EvidenceRef, DateTimeOffset? WithdrawnAt);
+public sealed record ConsentView([property: CodeList(Tables.ConsentPurposes, "purpose_code")] string PurposeCode, bool Granted, DateTimeOffset CapturedAt, string CaptureChannel, string? EvidenceRef, DateTimeOffset? WithdrawnAt);
 
 /// <summary>
 /// Command RegisterParty: exactly one of individual and organisation (PTY-001). A person matching an existing party (a close

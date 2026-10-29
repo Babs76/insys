@@ -34,7 +34,11 @@ public static class HealthCodeLists
 {
     public const string PlansAndOptions = "health.cfg_plans_and_options";
     public const string DependantTypes = "health.cfg_dependant_types_and_age_limits";
-    public const string ServiceTypes = "health.cfg_authorisation_validity_periods";
+    /// <summary>Every service a member may ask eligibility for, maintained by the tenant (V0094).</summary>
+    public const string ServiceTypes = "health.cfg_service_types";
+
+    /// <summary>The services that need authorisation, with how long an authorisation lasts: what a preauthorisation names.</summary>
+    public const string AuthorisationServiceTypes = "health.cfg_authorisation_validity_periods";
     public const string Sponsors = "health.mst_sponsor_register";
     public const string SchemeCategories = "health.cfg_scheme_member_categories";
     public const string CollectionMethods = "billing.ref_collection_methods";

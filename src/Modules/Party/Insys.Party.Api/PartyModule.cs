@@ -43,22 +43,22 @@ namespace Insys.Party.Api;
 /// <param name="ConfirmNew">After a PARTY_POSSIBLE_DUPLICATE: the person is not any of the candidates; Reason says why (OQ-127).</param>
 public sealed record RegisterPartyRequest(IndividualData? Individual, OrganisationData? Organisation, bool ConfirmNew = false, string? Reason = null);
 
-public sealed record ContactPointRequest([property: BuildingBlocks.Domain.CodeList(Tables.ContactChannels)] string ChannelType, string Value, bool IsPrimary);
+public sealed record ContactPointRequest([property: BuildingBlocks.Domain.CodeList(Tables.ContactChannels, "code")] string ChannelType, string Value, bool IsPrimary);
 
 /// <param name="Number">The document number. It is stored encrypted and never returned.</param>
-public sealed record IdentifierRequest([property: BuildingBlocks.Domain.CodeList(Tables.IdentityDocuments)] string DocType,
-    [property: BuildingBlocks.Domain.CodeList(Tables.Countries)] string Country, string Number);
+public sealed record IdentifierRequest([property: BuildingBlocks.Domain.CodeList(Tables.IdentityDocuments, "doc_type")] string DocType,
+    [property: BuildingBlocks.Domain.CodeList(Tables.Countries, "code")] string Country, string Number);
 
-public sealed record PreferredLanguageRequest([property: BuildingBlocks.Domain.CodeList(Tables.Languages)] string? Language);
+public sealed record PreferredLanguageRequest([property: BuildingBlocks.Domain.CodeList(Tables.Languages, "code")] string? Language);
 
 public sealed record BankAccountRequest(string AccountNumber, string BankCode, string? BranchCode, string AccountHolderName, string AccountType, string Currency);
 
 /// <param name="DocumentId">The identity document the person checked the number against, filed against the party (F001).</param>
 public sealed record VerifyIdentifierRequest(string VerificationRef, Guid DocumentId);
 
-public sealed record RelationshipRequest(Guid ToPartyId, [property: BuildingBlocks.Domain.CodeList(Tables.RelationshipTypes)] string RelationshipCode, DateOnly ValidFrom);
+public sealed record RelationshipRequest(Guid ToPartyId, [property: BuildingBlocks.Domain.CodeList(Tables.RelationshipTypes, "code")] string RelationshipCode, DateOnly ValidFrom);
 
-public sealed record PartyRoleRequest([property: BuildingBlocks.Domain.CodeList(Tables.RoleTypes)] string RoleCode, string Domain, string ContextType, Guid ContextId, DateOnly ValidFrom);
+public sealed record PartyRoleRequest([property: BuildingBlocks.Domain.CodeList(Tables.RoleTypes, "role_code")] string RoleCode, string Domain, string ContextType, Guid ContextId, DateOnly ValidFrom);
 
 /// <param name="Resolution">LINK or NEW.</param>
 public sealed record MatchResolutionRequest([property: BuildingBlocks.Domain.OneOf("LINK", "NEW")] string Resolution, Guid? ExistingPartyId);
@@ -90,10 +90,10 @@ public sealed record BeneficialOwnerRequest(Guid OwnerPartyId, [property: Buildi
 
 /// <summary>Party search filters (GAP-022): any combination, at least one. The body carries them, so an identifier number never appears in a URL.</summary>
 /// <param name="PartyNumber">An exact party number (BR-029), P and 9 digits; its check digit is checked.</param>
-public sealed record PartySearchRequest(string? Name, IdentifierFilter? Identifier, [property: BuildingBlocks.Domain.CodeList(Tables.RoleTypes)] string? RoleCode, PartyStatus? Status, string? Cursor, int? Limit,
+public sealed record PartySearchRequest(string? Name, IdentifierFilter? Identifier, [property: BuildingBlocks.Domain.CodeList(Tables.RoleTypes, "role_code")] string? RoleCode, PartyStatus? Status, string? Cursor, int? Limit,
     [property: System.ComponentModel.DataAnnotations.RegularExpression(PartyNumbers.Pattern)] string? PartyNumber = null);
 
-public sealed record ConsentRequest([property: BuildingBlocks.Domain.CodeList(Tables.ConsentPurposes)] string PurposeCode, string CaptureChannel, string? EvidenceRef);
+public sealed record ConsentRequest([property: BuildingBlocks.Domain.CodeList(Tables.ConsentPurposes, "purpose_code")] string PurposeCode, string CaptureChannel, string? EvidenceRef);
 
 /// <summary>The Party module: people and organisations, their details, identifiers, relationships, roles and consent (SRS PTY-001 to PTY-005).</summary>
 /// <summary>The outcome of a merge: the merged party and the survivor it is now read through.</summary>

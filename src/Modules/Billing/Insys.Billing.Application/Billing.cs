@@ -98,12 +98,12 @@ public interface IBillingCodes
 public sealed record InstalmentView(Guid Id, DateOnly DueDate, decimal Amount, InstalmentStatus Status, Guid? InvoiceId);
 
 public sealed record ScheduleView(Guid Id, [property: OneOf("LIFE", "GENERAL", "HEALTH")] string SourceDomain, Guid PolicyRef, string ProductVersionRef,
-    [property: CodeList(BillingCodeLists.Frequencies)] string Frequency, DateOnly StartDate, DateOnly? EndDate, decimal InstalmentAmount, string Currency,
+    [property: CodeList(BillingCodeLists.Frequencies, "code")] string Frequency, DateOnly StartDate, DateOnly? EndDate, decimal InstalmentAmount, string Currency,
     IReadOnlyList<InstalmentView> Instalments);
 
 /// <param name="NextAction">The ageing bucket's action (billing.cfg_arrears_ageing_buckets.action), for the arrears case's next step.</param>
 /// <param name="Currency">The account's currency, which the amount overdue is in (BR-056).</param>
-public sealed record ArrearsView([property: CodeList(BillingCodeLists.AgeingBuckets)] string BucketCode, int DaysOverdue, decimal AmountOverdue,
+public sealed record ArrearsView([property: CodeList(BillingCodeLists.AgeingBuckets, "bucket_code")] string BucketCode, int DaysOverdue, decimal AmountOverdue,
     [property: KnownValues("None", "Reminder", "Final notice", "Lapse", "Cancel")] string NextAction, [property: OneOf("OPEN", "CLEARED")] string Status, string Currency);
 
 /// <summary>The tables Billing's code fields come from (BR-056).</summary>
@@ -123,7 +123,7 @@ public sealed record AccountRefundView(Guid Id, decimal Amount, string Currency,
 /// shown, and the account-level arrears are left out, so no other branch's or product's figures show through it.
 /// </param>
 /// <param name="Refunds">The account's refunds (BR-055), on the read by ID, when the caller covers the whole account; null otherwise.</param>
-public sealed record AccountView(Guid Id, string AccountNumber, Guid PayerPartyId, string Currency, [property: CodeList(BillingCodeLists.CollectionMethods)] string CollectionMethod,
+public sealed record AccountView(Guid Id, string AccountNumber, Guid PayerPartyId, string Currency, [property: CodeList(BillingCodeLists.CollectionMethods, "method_code")] string CollectionMethod,
     AccountStatus Status, IReadOnlyList<ScheduleView> Schedules, IReadOnlyList<ArrearsView> Arrears, long RowVersion, bool PartlyInScope,
     IReadOnlyList<AccountRefundView>? Refunds = null)
 {
@@ -191,7 +191,7 @@ public sealed record InvoiceView(Guid Id, string InvoiceNumber, [property: OneOf
 }
 
 /// <param name="ApprovalId">The Workflow approval that approved the refund (BR-055); null until approved, and for refunds approved before V0084.</param>
-public sealed record RefundView(Guid Id, Guid BillingAccountId, decimal Amount, string Currency, [property: CodeList(BillingCodeLists.AdjustmentReasons)] string ReasonCode,
+public sealed record RefundView(Guid Id, Guid BillingAccountId, decimal Amount, string Currency, [property: CodeList(BillingCodeLists.AdjustmentReasons, "code")] string ReasonCode,
     RefundStatus Status, Guid? PaymentId, Guid? RequestedBy, Guid? DecidedBy, Guid? BankAccountId, LatestRejection? LatestRejection = null, Guid? ApprovalId = null,
     long RowVersion = 0);
 

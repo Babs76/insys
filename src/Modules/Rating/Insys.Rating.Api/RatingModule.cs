@@ -46,12 +46,12 @@ namespace Insys.Rating.Api;
 public sealed record CalculatePremiumRequest(string RequestRef,
     [property: System.ComponentModel.DataAnnotations.AllowedValues("LIFE", "GENERAL", "HEALTH", "PRODUCT")] string SourceDomain,
     [property: BuildingBlocks.Domain.KnownValues("GENERAL_QUOTE", "GENERAL_ENDORSEMENT", "LIFE_PROPOSAL")] string SubjectType, Guid SubjectId, string ProductCode,
-    int ProductVersion, string Currency, [property: BuildingBlocks.Domain.CodeList("billing.ref_billing_frequencies")] string Frequency, DateOnly? RatingDate,
+    int ProductVersion, string Currency, [property: BuildingBlocks.Domain.CodeList("billing.ref_billing_frequencies", "code")] string Frequency, DateOnly? RatingDate,
     JsonElement Values);
 
 /// <param name="Frequency">The premium frequency rated: a code of billing.ref_billing_frequencies (BR-025).</param>
 public sealed record SimulatePremiumRequest(string ProductCode, int ProductVersion, string Currency,
-    [property: BuildingBlocks.Domain.CodeList("billing.ref_billing_frequencies")] string Frequency, DateOnly? RatingDate, JsonElement Values);
+    [property: BuildingBlocks.Domain.CodeList("billing.ref_billing_frequencies", "code")] string Frequency, DateOnly? RatingDate, JsonElement Values);
 
 /// <summary>The Rating module: premiums from rating factors, tables and parameters, each calculation recorded with its versions (SRS §7.3).</summary>
 public sealed class RatingModule : IModule

@@ -51,25 +51,25 @@ public sealed record WaiverRequest(string Reason);
 
 public sealed record CaseReferralRequest(string ToRole);
 
-public sealed record CaseDecisionRequest(UnderwritingOutcome Outcome, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.UnderwritingDecisions), System.ComponentModel.DataAnnotations.MaxLength(15)] string DecisionCode,
+public sealed record CaseDecisionRequest(UnderwritingOutcome Outcome, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.UnderwritingDecisions, "code"), System.ComponentModel.DataAnnotations.MaxLength(15)] string DecisionCode,
     [property: System.ComponentModel.DataAnnotations.MaxLength(20)] string Reason, IReadOnlyList<DecisionItemRequest>? Items);
 
 public sealed record BeneficiariesRequest(DateOnly EffectiveDate, IReadOnlyList<BeneficiaryNomination> Nominations);
 
-public sealed record AlterationRequest([property: BuildingBlocks.Domain.CodeList(LifeCodeLists.AlterationTypes)] string AlterationCode, DateOnly EffectiveDate, string? IntermediaryCode);
+public sealed record AlterationRequest([property: BuildingBlocks.Domain.CodeList(LifeCodeLists.AlterationTypes, "alteration_code")] string AlterationCode, DateOnly EffectiveDate, string? IntermediaryCode);
 
 public sealed record ReinstatementRequest(Guid? EvidenceRef);
 
-public sealed record LoanRequest(decimal Principal, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.LoanRates)] string RateCode);
+public sealed record LoanRequest(decimal Principal, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.LoanRates, "rate_code")] string RateCode);
 
 public sealed record RepaymentRequest(decimal Amount, Guid? PaymentRef);
 
 public sealed record AssessmentRequest(IReadOnlyList<BenefitLineRequest> Lines);
 
-public sealed record ClaimApprovalRequest(IReadOnlyList<PayeeInput> Payees, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ReserveTypes), System.ComponentModel.DataAnnotations.MaxLength(15)] string ReserveType,
-    [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ClaimDecisionReasons), System.ComponentModel.DataAnnotations.MaxLength(20)] string DecisionReason, string Rationale);
+public sealed record ClaimApprovalRequest(IReadOnlyList<PayeeInput> Payees, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ReserveTypes, "code"), System.ComponentModel.DataAnnotations.MaxLength(15)] string ReserveType,
+    [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ClaimDecisionReasons, "code"), System.ComponentModel.DataAnnotations.MaxLength(20)] string DecisionReason, string Rationale);
 
-public sealed record ClaimDeclineRequest([property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ClaimDecisionReasons), System.ComponentModel.DataAnnotations.MaxLength(20)] string DecisionReason, string Rationale);
+public sealed record ClaimDeclineRequest([property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ClaimDecisionReasons, "code"), System.ComponentModel.DataAnnotations.MaxLength(20)] string DecisionReason, string Rationale);
 
 public sealed record MemberRequest(Guid PartyId, string CategoryCode, decimal? AnnualSalary, DateOnly JoinedOn, JsonElement? Facts);
 

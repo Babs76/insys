@@ -61,8 +61,8 @@ public enum UnderwritingOutcome
 /// Value object DecisionItem's terms for one benefit: a loading (percent or per mille), an exclusion, or a
 /// postponement. A decision code that requires terms (requires_terms) needs at least one.
 /// </summary>
-public sealed record DecisionItemRequest(string BenefitCode, [property: BuildingBlocks.Domain.CodeList("life.ref_underwriting_decision_codes")] string DecisionCode, decimal? LoadingPct, decimal? LoadingPerMille,
-    [property: BuildingBlocks.Domain.CodeList("product.cfg_exclusion_library")] string? ExclusionCode,
+public sealed record DecisionItemRequest(string BenefitCode, [property: BuildingBlocks.Domain.CodeList("life.ref_underwriting_decision_codes", "code")] string DecisionCode, decimal? LoadingPct, decimal? LoadingPerMille,
+    [property: BuildingBlocks.Domain.CodeList("product.cfg_exclusion_library", "code")] string? ExclusionCode,
     DateOnly? PostponedUntil)
 {
     public bool HasTerms => LoadingPct is not null || LoadingPerMille is not null || ExclusionCode is not null || PostponedUntil is not null;

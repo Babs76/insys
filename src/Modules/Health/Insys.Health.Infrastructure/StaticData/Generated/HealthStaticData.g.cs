@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Health.Infrastructure.StaticData;
 
-/// <summary>The 41 static data tables owned by the Health module.</summary>
+/// <summary>The 42 static data tables owned by the Health module.</summary>
 public static class HealthStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -65,6 +65,7 @@ public static class HealthStaticData
         new("health", "cfg_repeat_service_intervals", "cfg_repeat_service_intervals", "Repeat-service intervals", "health", "repeat-service-intervals", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RepeatServiceIntervals), typeof(RepeatServiceIntervalsInput), "I · Utilisation Management"),
         new("health", "cfg_scheme_member_categories", "cfg_scheme_member_categories", "Scheme member categories", "health", "scheme-member-categories", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(SchemeMemberCategories), typeof(SchemeMemberCategoriesInput), "B · Scheme and Group Administration"),
         new("health", "cfg_scheme_renewal_rules", "cfg_scheme_renewal_rules", "Scheme renewal rules", "health", "scheme-renewal-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(SchemeRenewalRules), typeof(SchemeRenewalRulesInput), "B · Scheme and Group Administration"),
+        new("health", "cfg_service_types", "cfg_service_types", "Service types", "health", "service-types", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ServiceTypes), typeof(ServiceTypesInput), "Membership and eligibility"),
         new("health", "cfg_tariff_modifiers", "cfg_tariff_modifiers", "Tariff modifiers", "health", "tariff-modifiers", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(TariffModifiers), typeof(TariffModifiersInput), "Provider network management"),
         new("health", "cfg_tariff_schedules", "cfg_tariff_schedules", "Tariff schedules", "health", "tariff-schedules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(TariffSchedules), typeof(TariffSchedulesInput), "F · Provider Network Management"),
         new("health", "cfg_utilisation_rules", "cfg_utilisation_rules", "Utilisation rules", "health", "utilisation-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(UtilisationRules), typeof(UtilisationRulesInput), "I · Utilisation Management"),
@@ -320,6 +321,12 @@ public static class HealthStaticData
             entity.Property(x => x.Scheme).HasColumnName("scheme").HasMaxLength(80);
             entity.Property(x => x.NoticeDays).HasColumnName("notice_days");
             entity.Property(x => x.ReRatingBasis).HasColumnName("re_rating_basis").HasMaxLength(40);
+        });
+        modelBuilder.Entity<ServiceTypes>(entity =>
+        {
+            entity.ToTable("cfg_service_types", "health");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.ServiceType).HasColumnName("service_type").HasMaxLength(20);
         });
         modelBuilder.Entity<TariffModifiers>(entity =>
         {

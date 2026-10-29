@@ -40,7 +40,7 @@ namespace Insys.IntegrationTests;
 /// INSYS_UPDATE_OPENAPI=1, commit the updated files and build the host again. The host serves the committed copies, never
 /// building them on request, and outside Development and Testing only to a signed-in user (Ade, 29 October 2026).
 /// </summary>
-public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
+public sealed partial class OpenApiContractTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>, IAsyncLifetime
 {
     public static TheoryData<string> Documents => new(ApiDocuments.All.Select(d => d.Name));
 
@@ -372,6 +372,149 @@ public sealed class OpenApiContractTests(DatabaseFixture fixture) : IClassFixtur
 
         endpoints.ShouldNotBeEmpty();
         endpoints.Where(e => e.Metadata.GetMetadata<RequiredPermissionMetadata>() is null).Select(e => e.DisplayName).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// BR-105: a code field that names its static data table (x-code-list) also names the column holding its value
+    /// (x-code-list-column), and the table has that column, and the filter's column, in the database.
+    /// </summary>
+    [Fact]
+    public async Task CodeListFields_NameAValueColumn_ThatExistsOnTheirTable_BR105()
+    {
+        var problems = new List<string>();
+        var declared = 0;
+        foreach (var document in ApiDocuments.All.Select(d => d.Name))
+        {
+            using var json = JsonDocument.Parse(await Generated(document));
+            foreach (var (path, field) in CodeListFields(json.RootElement, document))
+            {
+                declared++;
+                var table = field.GetProperty("x-code-list").GetString()!;
+                if (!field.TryGetProperty("x-code-list-column", out var column) || string.IsNullOrEmpty(column.GetString()))
+                {
+                    problems.Add($"{path}: {table} names no column");
+                    continue;
+                }
+
+                var columns = await Columns(table);
+                if (columns.Count == 0)
+                {
+                    problems.Add($"{path}: {table} is not a table");
+                }
+                else if (!columns.Contains(column.GetString()!))
+                {
+                    problems.Add($"{path}: {table} has no column {column.GetString()}");
+                }
+
+                if (field.TryGetProperty("x-code-list-filter", out var filter) && !columns.Contains(filter.GetString()!.Split('=')[0]))
+                {
+                    problems.Add($"{path}: {table} has no filter column {filter.GetString()}");
+                }
+            }
+        }
+
+        declared.ShouldBeGreaterThan(130);
+        problems.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// BR-105 (Ade, 29 October 2026): a code-named string field (…Code, …Type and their plurals) in the core and
+    /// platform-operator documents declares its values (an enum, a reference, x-known-values) or its code list, or is on
+    /// the reviewed list docs/api/code-field-allowances.tsv with its reason ("to declare" until a wave declares it). An
+    /// entry that is declared, or gone, comes off the list; the list is empty by the hardening phase.
+    /// </summary>
+    [Fact]
+    public async Task UndeclaredCodeFields_AreOnTheReviewedAllowanceList_BR105()
+    {
+        var file = Path.Combine(RepositoryPaths.Root, "docs", "api", "code-field-allowances.tsv");
+        var entries = (await File.ReadAllLinesAsync(file)).Where(l => l.Length > 0 && !l.StartsWith('#')).Select(l => l.Split('\t')).ToList();
+        entries.Where(e => e.Length != 3 || string.IsNullOrWhiteSpace(e[2])).Select(e => string.Join(" ", e)).ShouldBeEmpty("Each entry is document, Schema.property and its reason.");
+        var allowed = entries.Select(e => $"{e[0]} {e[1]}").ToHashSet();
+
+        var undeclared = new HashSet<string>();
+        foreach (var document in new[] { "core", "platform-operator" })
+        {
+            using var json = JsonDocument.Parse(await Generated(document));
+            foreach (var schema in json.RootElement.GetProperty("components").GetProperty("schemas").EnumerateObject())
+            {
+                if (!schema.Value.TryGetProperty("properties", out var properties))
+                {
+                    continue;
+                }
+
+                foreach (var property in properties.EnumerateObject().Where(p => CodeNamed().IsMatch(p.Name) && Undeclared(p.Value)))
+                {
+                    undeclared.Add($"{document} {schema.Name}.{property.Name}");
+                }
+            }
+        }
+
+        undeclared.Except(allowed).Order().ShouldBeEmpty("Declare the field's code list or values, or add it to docs/api/code-field-allowances.tsv with its reason.");
+        allowed.Except(undeclared).Order().ShouldBeEmpty("These are declared now, or gone: take them off docs/api/code-field-allowances.tsv.");
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex("[a-z](Code|Codes|Type|Types)$")]
+    private static partial System.Text.RegularExpressions.Regex CodeNamed();
+
+    /// <summary>A string field (or list of strings) that declares neither its values nor its code list.</summary>
+    private static bool Undeclared(JsonElement field)
+    {
+        string[] declaring = ["enum", "$ref", "x-known-values", "x-code-list", "allOf", "oneOf"];
+        var items = field.TryGetProperty("items", out var i) ? i : default;
+        if (declaring.Any(k => field.TryGetProperty(k, out _)) || (items.ValueKind == JsonValueKind.Object && declaring.Any(k => items.TryGetProperty(k, out _))))
+        {
+            return false;
+        }
+
+        static bool IsString(JsonElement e) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty("type", out var t) && t.GetRawText().Contains("\"string\"", StringComparison.Ordinal);
+        return IsString(field) || IsString(items);
+    }
+
+    /// <summary>Every object in the document carrying x-code-list, with where it is.</summary>
+    private static IEnumerable<(string Path, JsonElement Field)> CodeListFields(JsonElement element, string path)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            if (element.TryGetProperty("x-code-list", out _))
+            {
+                yield return (path, element);
+            }
+
+            foreach (var child in element.EnumerateObject())
+            {
+                foreach (var found in CodeListFields(child.Value, $"{path}/{child.Name}"))
+                {
+                    yield return found;
+                }
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            var index = 0;
+            foreach (var child in element.EnumerateArray())
+            {
+                foreach (var found in CodeListFields(child, $"{path}/{index++}"))
+                {
+                    yield return found;
+                }
+            }
+        }
+    }
+
+    private readonly Dictionary<string, HashSet<string>> _columns = [];
+
+    private async Task<HashSet<string>> Columns(string table)
+    {
+        if (!_columns.TryGetValue(table, out var columns))
+        {
+            var (schema, name) = (table.Split('.')[0], table.Split('.')[1]);
+            columns = [.. (await fixture.Database.ScalarAsOwner<string>(
+                "SELECT string_agg(column_name, ',') FROM information_schema.columns WHERE table_schema = @s AND table_name = @t", ("s", schema), ("t", name)) ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)];
+            _columns[table] = columns;
+        }
+
+        return columns;
     }
 
     private List<RouteEndpoint> ApiEndpoints()

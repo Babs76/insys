@@ -46,6 +46,7 @@
 | 9 Wave 2 batch 7 | The front end's Life and Health requests: BR-062, 063, 065 to 070, 072, 074 to 081, 086; month-end billing defect | **Merged, `67576bc`** (29 Oct 2026) |
 | 10 Wave 3 batch 1 | Due diligence addendum signed off; F001 identity verification; staff duplicate check (OQ-127); BR-089, 090, 096, 097, 101; fixed test clocks with dated CI runs; ledger partitions for open periods; cession months in business time | **Merged, `7eeed73`** (29 Oct 2026) |
 | 10 BR-103 | Life counts arrears as of Billing's detection date, not the processing date (found by the front end's Phase 8 run) | Branch `br-103` |
+| 10 Wave 3 batch 4 | BR-105 part 1: code lists name their value column, checked against the database; reviewed allowance list for undeclared code fields; Health service types for eligibility (V0094) | Branch `wave3-4` |
 | 10 Wave 3 batch 3 | The API descriptions: the committed documents, signed-in only outside development and test; B-005 on the backlog | Branch `wave3-3` |
 | 10 Wave 3 batch 2 | Due diligence: KYC requirement sets (F002), screening, hit review, enhanced due diligence and FIC reports (F003), risk classes and reviews (F077), the gates with held payouts (OQ-123), readiness | Branch `wave3-2` |
 

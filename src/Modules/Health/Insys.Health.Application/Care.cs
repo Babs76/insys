@@ -40,8 +40,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Insys.Health.Application;
 
-public sealed record RequestAuthorisation(Guid MembershipId, Guid PatientPartyId, string ProviderId, [property: CodeList(HealthCodeLists.Diagnoses)] IReadOnlyList<string> DiagnosisCodes,
-    [property: CodeList(HealthCodeLists.ServiceTypes)] string ServiceType,
+public sealed record RequestAuthorisation(Guid MembershipId, Guid PatientPartyId, string ProviderId, [property: CodeList(HealthCodeLists.Diagnoses, "code")] IReadOnlyList<string> DiagnosisCodes,
+    [property: CodeList(HealthCodeLists.AuthorisationServiceTypes, "service_type")] string ServiceType,
     IReadOnlyList<PreauthLineRequest> Lines) : ICommand<PreauthorisationView>;
 
 public sealed record ReviewAuthorisation(Guid PreauthorisationId) : ICommand<PreauthorisationView>;

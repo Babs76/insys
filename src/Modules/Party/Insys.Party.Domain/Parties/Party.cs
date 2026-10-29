@@ -55,10 +55,10 @@ public enum PartyTrigger
 
 /// <summary>PersonName and the other details of an individual (party.individual).</summary>
 /// <remarks>Each code names its static data table (BR-026). The title and gender lists are not named in the catalogue (OQ-121).</remarks>
-public sealed record IndividualData([property: CodeList(Tables.PersonalAttributes)] string? TitleCode, string FirstNames, string Surname, DateOnly BirthDate,
-    [property: CodeList(Tables.PersonalAttributes)] string? GenderCode,
-    [property: CodeList(Tables.PersonalAttributes, Filter = "list_code=MARITAL_STATUS")] string? MaritalStatusCode,
-    [property: CodeList(Tables.Countries)] string? Nationality, [property: CodeList(Tables.Languages)] string? PreferredLanguage);
+public sealed record IndividualData([property: CodeList(Tables.PersonalAttributes, "value_code")] string? TitleCode, string FirstNames, string Surname, DateOnly BirthDate,
+    [property: CodeList(Tables.PersonalAttributes, "value_code")] string? GenderCode,
+    [property: CodeList(Tables.PersonalAttributes, "value_code", Filter = "list_code=MARITAL_STATUS")] string? MaritalStatusCode,
+    [property: CodeList(Tables.Countries, "code")] string? Nationality, [property: CodeList(Tables.Languages, "code")] string? PreferredLanguage);
 
 /// <summary>
 /// The party number (BR-029, decided 28 October 2026): "P", 8 digits from the tenant's counter, and a Luhn (mod 10) check
@@ -109,12 +109,12 @@ public sealed record PartyMatchResolved(Guid PartyId, string Resolution, Guid? E
 public sealed record PartyMatchResolutionProposed(Guid PartyId, string Resolution, Guid ExistingPartyId, Guid RequestedBy, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>The details of an organisation (party.organisation).</summary>
-public sealed record OrganisationData(string LegalName, string? TradingName, [property: CodeList(Tables.LegalForms)] string LegalFormCode, string? RegistrationNumber,
+public sealed record OrganisationData(string LegalName, string? TradingName, [property: CodeList(Tables.LegalForms, "code")] string LegalFormCode, string? RegistrationNumber,
     string? IndustryCode);
 
 /// <summary>A postal address (party.address).</summary>
-public sealed record AddressData(string AddressType, string Line1, string? Line2, string City, [property: CodeList(Tables.Subdivisions)] string? Subdivision, string? PostalCode,
-    [property: CodeList(Tables.Countries)] string Country, DateOnly ValidFrom);
+public sealed record AddressData(string AddressType, string Line1, string? Line2, string City, [property: CodeList(Tables.Subdivisions, "code")] string? Subdivision, string? PostalCode,
+    [property: CodeList(Tables.Countries, "code")] string Country, DateOnly ValidFrom);
 
 public sealed record PartyRegistered(Guid PartyId, PartyKind Kind, DateTimeOffset OccurredAt) : IDomainEvent;
 

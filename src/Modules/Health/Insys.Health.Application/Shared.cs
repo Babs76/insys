@@ -146,6 +146,9 @@ public interface IHealthCodes
 
     Task<SchemeCategory?> SchemeCategory(string categoryCode, DateOnly day, CancellationToken cancellationToken);
 
+    /// <summary>Whether the service type is one the tenant offers, in force on the day (health.cfg_service_types, V0094).</summary>
+    Task<bool> ServiceTypeInForce(string serviceType, DateOnly day, CancellationToken cancellationToken);
+
     /// <summary>The monthly contribution per member for a scheme's category, and the employer's share (health.cfg_contribution_rules).</summary>
     Task<ContributionRule?> Contribution(string schemeNumber, string categoryCode, DateOnly day, CancellationToken cancellationToken);
 
@@ -259,7 +262,7 @@ public sealed record PreauthorisationView(Guid Id, string AuthNumber, Guid Membe
 }
 
 /// <summary>A preauthorisation's medical information (BR-072, HLT-008), for holders of the clinical review permission only.</summary>
-public sealed record PreauthorisationClinicalView(Guid Id, string AuthNumber, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.Diagnoses)] IReadOnlyList<string> DiagnosisCodes,
+public sealed record PreauthorisationClinicalView(Guid Id, string AuthNumber, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.Diagnoses, "code")] IReadOnlyList<string> DiagnosisCodes,
     Guid? ClinicalReviewer);
 
 public sealed record ClaimLineView(int LineNo, string TariffCode, int Quantity, decimal ClaimedAmount, [property: BuildingBlocks.Domain.OneOf("PAY", "PEND", "REJECT")] string? Outcome, string? AdjustmentReason, string? BenefitCategory,

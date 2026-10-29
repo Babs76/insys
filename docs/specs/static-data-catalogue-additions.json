@@ -1032,6 +1032,27 @@
      "sample": ""
     }
    ]
+  },
+  {
+   "layer": "Insurance Domains · Health",
+   "module": "Membership and eligibility",
+   "subModule": "Eligibility",
+   "entity": "Service types",
+   "table": "health.cfg_service_types",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "Health Product Manager",
+   "provenance": "Front-end request, 29 October 2026 (Ade): eligibility names any service, not only those needing authorisation",
+   "basis": "HLT-003; health.eligibility_decision.service_type",
+   "fields": [
+    {
+     "name": "service_type",
+     "logicalType": "Code(20)",
+     "mandatory": true,
+     "sample": "CONSULTATION"
+    }
+   ]
   }
  ]
 }

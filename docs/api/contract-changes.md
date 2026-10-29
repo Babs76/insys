@@ -2,6 +2,17 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 3 batch 4 (branch `wave3-4`): code lists name their column (BR-105), Health service types
+
+### Changed
+- **Every field with `x-code-list`** (131 in the core document) also has **`x-code-list-column`**: the column of that table holding the value the field carries. It is `code` where the table's own code is the value, and a named column where the table has one (`method_code` on `billing.ref_collection_methods`, `plan_code` / `option_code` on `health.cfg_plans_and_options`, `value_code` on `party.ref_personal_attribute_code_lists` with its `x-code-list-filter`, and so on). Offer the table's rows in force and send that column's value.
+- **Health eligibility** (`POST /health/eligibility`, `HealthCheckEligibility`, and `EligibilityDecisionSummary.serviceType`): `serviceType` now comes from the new tenant table **`health.cfg_service_types`** (column `service_type`), every service the tenant offers, a general consultation included. A service type not in force there is 422 `HEALTH_CODE_NOT_IN_FORCE`; before, it was not checked.
+- **Preauthorisation** (`HealthRequestAuthorisation`, the portal preauthorisation request) keeps `health.cfg_authorisation_validity_periods` (column `service_type`): the services that need authorisation.
+
+### New
+- Static data `health.cfg_service_types` (scope T, Tier 2): `serviceType` (Code(20), required). Its endpoints and functions come from the generator like every Health table. Health readiness (`DOMAIN_CODES`) lists it while a tenant has none in force.
+- `docs/api/code-field-allowances.tsv`: the reviewed list of code-named fields (…Code, …Type and plurals) in the core and platform-operator documents that do not yet declare a code list or values, each with its reason or "to declare". A wave declares a field when it touches it and takes it off the list; the list is empty by the hardening phase.
+
 ## Wave 3 batch 3 (branch `wave3-3`): the API descriptions
 
 ### Changed

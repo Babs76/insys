@@ -238,6 +238,9 @@ internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
         await InForce<ContributionRules>(day).Where(r => r.Scheme == schemeNumber && r.MemberCategory == categoryCode)
             .Select(r => new ContributionRule(r.Rate, r.EmployerShare)).FirstOrDefaultAsync(cancellationToken);
 
+    public Task<bool> ServiceTypeInForce(string serviceType, DateOnly day, CancellationToken cancellationToken) =>
+        InForce<ServiceTypes>(day).AnyAsync(t => t.ServiceType == serviceType, cancellationToken);
+
     public async Task<string?> EligibilityResponseCode(string outcome, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<EligibilityResponseCodes>(day).Where(c => c.Outcome == outcome).OrderBy(c => c.TenantId == null).ThenBy(c => c.Code).Select(c => c.Code)
             .FirstOrDefaultAsync(cancellationToken);

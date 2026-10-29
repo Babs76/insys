@@ -41,16 +41,16 @@ namespace Insys.General.Application;
 /// <summary>Command RegisterRiskObject: its attributes conform to the type's schema version (GEN-005).</summary>
 /// <param name="ValuationCurrency">The valuation's currency (BR-033), a 3-letter code: required with a valuation, and only with one.</param>
 /// <param name="OwnerPartyId">The client the item belongs to (BR-092), a registered party; none when not known.</param>
-public sealed record RegisterRiskObject([property: CodeList(CodeLists.RiskObjectTypes)] string ObjectType, JsonElement Attributes, decimal? Valuation,
-    [property: CodeList(CodeLists.ValuationBases)] string? ValuationBasis, string? Subdivision, string? PostalCode,
-    [property: CodeList(CodeLists.RiskZones)] string? RiskZone, string? ValuationCurrency = null, Guid? OwnerPartyId = null) : ICommand<RiskObjectView>;
+public sealed record RegisterRiskObject([property: CodeList(CodeLists.RiskObjectTypes, "object_type")] string ObjectType, JsonElement Attributes, decimal? Valuation,
+    [property: CodeList(CodeLists.ValuationBases, "code")] string? ValuationBasis, string? Subdivision, string? PostalCode,
+    [property: CodeList(CodeLists.RiskZones, "zone_code")] string? RiskZone, string? ValuationCurrency = null, Guid? OwnerPartyId = null) : ICommand<RiskObjectView>;
 
 /// <summary>Command ChangeRiskObjectOwner (BR-092): staff set, change or clear the client an item belongs to; audited with the owner before and after.</summary>
 public sealed record ChangeRiskObjectOwner(Guid RiskObjectId, Guid? OwnerPartyId) : ICommand<RiskObjectView>;
 
 public sealed record UpdateRiskAttributes(Guid RiskObjectId, JsonElement Attributes) : ICommand<RiskObjectView>;
 
-public sealed record RevalueRiskObject(Guid RiskObjectId, decimal? Valuation, [property: CodeList(CodeLists.ValuationBases)] string? ValuationBasis,
+public sealed record RevalueRiskObject(Guid RiskObjectId, decimal? Valuation, [property: CodeList(CodeLists.ValuationBases, "code")] string? ValuationBasis,
     string? ValuationCurrency = null) : ICommand<RiskObjectView>;
 
 public sealed record DeactivateRiskObject(Guid RiskObjectId) : ICommand<RiskObjectView>;
@@ -68,7 +68,7 @@ public sealed record GetRiskObject(Guid RiskObjectId) : IQuery<RiskObjectView>;
 /// </param>
 public sealed record CreateQuote(string ProductCode, int? ProductVersion, Guid ProposerPartyId, string? IntermediaryCode, string Currency, DateOnly PeriodStart,
     DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks, Guid? FromQuoteId, string? OrgNodeCode = null,
-    [property: CodeList(CodeLists.BillingFrequencies)] string? Frequency = null) : ICommand<QuoteView>;
+    [property: CodeList(CodeLists.BillingFrequencies, "code")] string? Frequency = null) : ICommand<QuoteView>;
 
 public enum QuoteAction
 {
@@ -79,10 +79,10 @@ public enum QuoteAction
 
 public sealed record ChangeQuote(Guid QuoteId, QuoteAction Action) : ICommand<QuoteView>;
 
-public sealed record ReferQuote(Guid QuoteId, [property: CodeList(CodeLists.ReferralReasons)] string ReasonCode) : ICommand<QuoteView>;
+public sealed record ReferQuote(Guid QuoteId, [property: CodeList(CodeLists.ReferralReasons, "code")] string ReasonCode) : ICommand<QuoteView>;
 
 /// <param name="DeclineReason">Why, when declined: the quote is then Declined for good.</param>
-public sealed record DecideReferral(Guid QuoteId, bool Approved, [property: CodeList(CodeLists.UnderwritingDecisions)] string DecisionCode,
+public sealed record DecideReferral(Guid QuoteId, bool Approved, [property: CodeList(CodeLists.UnderwritingDecisions, "code")] string DecisionCode,
     IReadOnlyList<string> SpecialConditions, string? DeclineReason = null) : ICommand<QuoteView>;
 
 public sealed record GetQuote(Guid QuoteId) : IQuery<QuoteView>;

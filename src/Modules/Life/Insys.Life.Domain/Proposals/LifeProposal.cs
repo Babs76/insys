@@ -66,7 +66,7 @@ public sealed record CoverRequest(Guid InsuredPartyId, string BenefitCode, decim
 public sealed record DisclosureRequest(Guid InsuredPartyId, string QuestionCode, int QuestionVersion, string Answer);
 
 /// <summary>Value object BeneficiaryNomination: who is nominated, how related, and their share in percent.</summary>
-public sealed record BeneficiaryNomination(Guid PartyId, [property: BuildingBlocks.Domain.CodeList("life.ref_beneficiary_relationship_types")] string RelationshipCode,
+public sealed record BeneficiaryNomination(Guid PartyId, [property: BuildingBlocks.Domain.CodeList("life.ref_beneficiary_relationship_types", "code")] string RelationshipCode,
     decimal SharePct);
 
 /// <summary>A product's nomination rule (life.cfg_nomination_rules).</summary>
