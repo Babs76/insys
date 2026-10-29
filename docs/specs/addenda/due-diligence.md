@@ -1,6 +1,6 @@
 # Addendum: customer due diligence (Wave 3: F001–F003, F077, and the staff duplicate check)
 
-**Signed off (Ade, 29 October 2026), with these decisions; being built in Wave 3 (§10).**
+**Signed off (Ade, 29 October 2026), with these decisions. Built in Wave 3: batch 1 (merged at `7eeed73`) and batch 2 (branch `wave3-2`).**
 - **OQ-123:** the §5 defaults are accepted. For a tenant with the LIFE feature, the Life issue gate is on by default, and onboarding readiness flags it if it is switched off.
 - **OQ-124:** LOW every 5 years, MEDIUM every 3 and HIGH every year, as defaults each tenant can change.
 - **OQ-125:** re-screen on list updates and before each payout. A monthly full re-screen is the fallback for providers that do not tell INSYS when lists change.

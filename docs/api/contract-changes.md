@@ -2,6 +2,39 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 3 batch 2 (branch `wave3-2`): customer due diligence (addenda/due-diligence.md)
+
+### Changed (gates, OQ-123, §5)
+- **A tenant's due diligence gates** apply when its settings say so (`party.cfg_due_diligence_settings.gates_enabled`) and, with no settings row, when it is entitled to LIFE. Every tenant that existed before V0092 has a row with the gates **off**.
+- **With the gates on**, by the platform defaults (`party.cfg_due_diligence_gates`, tenant-configurable):
+  - `LifeIssuePolicy` is refused with 422 `DUE_DILIGENCE_NOT_CLEARED` unless the policyholder's due diligence is `CLEARED`. The problem's `errors.outstanding` lists what is missing (check types, `HIT_REVIEW`, `ENHANCED_APPROVAL`, `SCREENING`, `BLOCKED`, `NOT_STARTED`), never a hit.
+  - `LifeIssueLoan` is refused the same way (a loan advance is a payout to the policyholder).
+  - A claim payment instruction is **held, not refused**, when its payee is not cleared (Life: CDD cleared and screened in 30 days; General and Health: screened in 30 days, no hit waiting). `InstructionView.heldReason` is `DUE_DILIGENCE_NOT_CLEARED`, nothing is paid, and it is released automatically once Party clears the payee. `ClaimsReleaseInstruction` on it is 422 `DUE_DILIGENCE_NOT_CLEARED`.
+  - A refund or case redress payout is created but **held out of payout batches** while its payee is not screened (`PaymentView.heldReason`), and joins the next batch once cleared.
+  - Quotes (Life proposals, General quotes) and General and Health issue are allowed by default; a tenant may gate them.
+- **A portal user** never sees `DUE_DILIGENCE_NOT_CLEARED`: any portal operation answers 422 `PORTAL_UNDER_REVIEW`, which says only that their details are being reviewed (§6).
+
+### New
+- `GET /party/parties/{id}/due-diligence` (`PartyGetDueDiligence`): status (`NOT_STARTED`, `IN_PROGRESS`, `CLEARED`, `REFERRED`, `BLOCKED`, `EXPIRED`), risk class and score, level, `outstanding`, clearance, `nextReviewOn`, `lastScreenedAt`, checks and beneficial owners. `hits` only for holders of `due_diligence.review_hit` (else null). Each read is audited.
+- `POST .../due-diligence/checks` (`PartyRunDueDiligenceCheck`, Idempotency-Key): `SCREENING` or `IDENTITY` through the provider, or `ADDRESS`, `BENEFICIAL_OWNERSHIP`, `SOURCE_OF_FUNDS` recorded against a document filed against the party.
+- `POST .../due-diligence/hits/{hitId}/review` (`PartyReviewScreeningHit`, If-Match): `TRUE_MATCH` or `FALSE_POSITIVE` with a reason.
+- `POST .../due-diligence/risk-class` (`PartyOverrideRiskClass`): through Workflow approval `DUE_DILIGENCE_RISK_OVERRIDE`.
+- `POST .../due-diligence/report` (`PartyRecordFicReport`): the FIC reference of an s28A or s29 report.
+- `POST .../due-diligence/unblock` (`PartyRequestDueDiligenceUnblock`, privileged): through Workflow approval `DUE_DILIGENCE_UNBLOCK`.
+- `POST /party/parties/{id}/beneficial-owners` (`PartyRecordBeneficialOwner`, Idempotency-Key).
+- `GET /party/due-diligence` (`PartyListDueDiligence`): the compliance work list, by status, risk class, review date and open hits.
+- Approval types `DUE_DILIGENCE_ENHANCED` (reference `DUE_DILIGENCE`), `DUE_DILIGENCE_RISK_OVERRIDE` and `DUE_DILIGENCE_UNBLOCK`, opening the `PARTY_DUE_DILIGENCE` screen. `WorkflowApprove` and `WorkflowReject` also check their required permissions.
+- Functions: `PARTY_DUE_DILIGENCE` (screen); `PARTY_RUN_DUE_DILIGENCE_CHECK`, `PARTY_REVIEW_SCREENING_HIT`, `PARTY_OVERRIDE_RISK_CLASS`, `PARTY_RECORD_FIC_REPORT`; privileged `PARTY_UNBLOCK_DUE_DILIGENCE` and `PARTY_APPROVE_ENHANCED_DD`; job `PARTY_DUE_DILIGENCE_JOBS`.
+- Workflow tasks in queue `COMPLIANCE`: `DUE_DILIGENCE_HIT_REVIEW`, `DUE_DILIGENCE_SANCTIONS` (the compliance case for a true sanctions match) and `DUE_DILIGENCE_REVIEW` (an expired party).
+- Events (party ID and status only): `party.DueDiligenceChanged`, `party.DueDiligenceCleared`, `party.DueDiligenceReferred`, `party.DueDiligenceBlocked`, `party.DueDiligenceExpired`; `party.PayeeScreeningRequested`.
+- Readiness (SHARED_OPERATIONAL_SETUP): `DUE_DILIGENCE_LIFE_GATE`, `DUE_DILIGENCE_PROVIDER`, `DUE_DILIGENCE_REVIEWER`.
+- Static data: `party.cfg_due_diligence_requirements`, `cfg_customer_risk_factors`, `cfg_customer_risk_classes`, `cfg_due_diligence_gates` (GT, with platform defaults) and `cfg_due_diligence_settings` (T).
+- The test-only daily job runner's result gains `dueDiligence`.
+- `PartyListIdentityChecks` lists identity checks only; screening and the other checks are on the due diligence view.
+
+### Migrations
+- **V0092:** the five configuration tables with their defaults, `party.due_diligence`, `party.screening_hit`, `party.beneficial_owner`, `payment.payment.held_reason`, and `workflow.process_instance.process_code` widened to 30.
+
 ## BR-103 (branch `br-103`): arrears counted as of their detection date
 
 ### Changed
