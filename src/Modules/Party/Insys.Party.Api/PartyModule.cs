@@ -441,7 +441,7 @@ public sealed class PartyModule : IModule
     private static void MapDueDiligence(RouteGroupBuilder parties)
     {
         parties.MapGet("/{id:guid}/due-diligence", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Query(new GetDueDiligence(id), ct)).ToHttp(Results.Ok))
+                (await dispatcher.Send(new GetDueDiligence(id), ct)).ToHttp(Results.Ok))
             .ETagsFromRowVersion()
             .Produces<DueDiligenceView>(StatusCodes.Status200OK)
             .WithName("PartyGetDueDiligence")

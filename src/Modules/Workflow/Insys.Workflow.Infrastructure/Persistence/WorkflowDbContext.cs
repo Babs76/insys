@@ -122,7 +122,7 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
             process.Ignore(p => p.Status);
             process.Ignore(p => p.DefinitionState);
             process.Ignore(p => p.OpenTask);
-            process.Property(p => p.ProcessCode).HasMaxLength(20);
+            process.Property(p => p.ProcessCode).HasMaxLength(30);
             process.Property(p => p.BusinessRefType).HasMaxLength(30);
             process.Property(p => p.State).HasMaxLength(30);
             process.HasMany(p => p.Tasks).WithOne().HasForeignKey(t => new { t.TenantId, t.ProcessInstanceId });

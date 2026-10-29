@@ -13127,6 +13127,3501 @@
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
       }
     },
+    "/api/v1/party/static/customer-risk-classes": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "List Customer risk classes in force",
+        "description": "Customer risk classes records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListPartyCustomerRiskClasses",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartyCustomerRiskClasses"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Create a tenant Customer risk classes draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreatePartyCustomerRiskClassesDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyCustomerRiskClassesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyCustomerRiskClasses"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-classes/{code}": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Get the Customer risk classes version in force",
+        "operationId": "GetPartyCustomerRiskClasses",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyCustomerRiskClasses"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-classes/{code}/versions": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "List every tenant version of a Customer risk classes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
+        "operationId": "ListPartyCustomerRiskClassesVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyCustomerRiskClasses"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-classes/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Edit a tenant Customer risk classes draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditPartyCustomerRiskClassesDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyCustomerRiskClassesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyCustomerRiskClasses"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-classes/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Customer risk classes version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangePartyCustomerRiskClassesLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyCustomerRiskClasses"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/party/static/customer-risk-classes/imports": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Import tenant Customer risk classes drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the import\u0027s lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.",
+        "operationId": "ImportPartyCustomerRiskClasses",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfPartyCustomerRiskClassesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-classes/imports/{batchId}": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Every line of a tenant Customer risk classes import, in code order",
+        "description": "What the checker approves as one change (BR-016): each line\u0027s proposed record, its status, and its change request once submitted.",
+        "operationId": "GetPartyCustomerRiskClassesImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyCustomerRiskClasses"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-classes/imports/{batchId}/{action}": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Submit a tenant Customer risk classes import as one change, or put an approved one in force",
+        "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
+        "operationId": "ChangePartyCustomerRiskClassesImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportSubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
+      }
+    },
+    "/api/v1/party/static/customer-risk-factors": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "List Customer risk factors in force",
+        "description": "Customer risk factors records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListPartyCustomerRiskFactors",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartyCustomerRiskFactors"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Create a tenant Customer risk factors draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreatePartyCustomerRiskFactorsDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyCustomerRiskFactorsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyCustomerRiskFactors"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-factors/{code}": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Get the Customer risk factors version in force",
+        "operationId": "GetPartyCustomerRiskFactors",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyCustomerRiskFactors"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-factors/{code}/versions": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "List every tenant version of a Customer risk factors code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
+        "operationId": "ListPartyCustomerRiskFactorsVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyCustomerRiskFactors"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-factors/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Edit a tenant Customer risk factors draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditPartyCustomerRiskFactorsDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyCustomerRiskFactorsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyCustomerRiskFactors"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-factors/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Customer risk factors version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangePartyCustomerRiskFactorsLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyCustomerRiskFactors"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/party/static/customer-risk-factors/imports": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Import tenant Customer risk factors drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the import\u0027s lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.",
+        "operationId": "ImportPartyCustomerRiskFactors",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfPartyCustomerRiskFactorsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-factors/imports/{batchId}": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Every line of a tenant Customer risk factors import, in code order",
+        "description": "What the checker approves as one change (BR-016): each line\u0027s proposed record, its status, and its change request once submitted.",
+        "operationId": "GetPartyCustomerRiskFactorsImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyCustomerRiskFactors"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/customer-risk-factors/imports/{batchId}/{action}": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Submit a tenant Customer risk factors import as one change, or put an approved one in force",
+        "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
+        "operationId": "ChangePartyCustomerRiskFactorsImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportSubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
+      }
+    },
+    "/api/v1/party/static/due-diligence-gates": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "List Due diligence gates in force",
+        "description": "Due diligence gates records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListPartyDueDiligenceGates",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartyDueDiligenceGates"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Create a tenant Due diligence gates draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreatePartyDueDiligenceGatesDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyDueDiligenceGatesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceGates"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-gates/{code}": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Get the Due diligence gates version in force",
+        "operationId": "GetPartyDueDiligenceGates",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceGates"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-gates/{code}/versions": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "List every tenant version of a Due diligence gates code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
+        "operationId": "ListPartyDueDiligenceGatesVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyDueDiligenceGates"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-gates/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Edit a tenant Due diligence gates draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditPartyDueDiligenceGatesDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyDueDiligenceGatesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceGates"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-gates/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Due diligence gates version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangePartyDueDiligenceGatesLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceGates"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/party/static/due-diligence-gates/imports": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Import tenant Due diligence gates drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the import\u0027s lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.",
+        "operationId": "ImportPartyDueDiligenceGates",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfPartyDueDiligenceGatesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-gates/imports/{batchId}": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Every line of a tenant Due diligence gates import, in code order",
+        "description": "What the checker approves as one change (BR-016): each line\u0027s proposed record, its status, and its change request once submitted.",
+        "operationId": "GetPartyDueDiligenceGatesImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyDueDiligenceGates"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-gates/imports/{batchId}/{action}": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Submit a tenant Due diligence gates import as one change, or put an approved one in force",
+        "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
+        "operationId": "ChangePartyDueDiligenceGatesImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportSubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
+      }
+    },
+    "/api/v1/party/static/due-diligence-requirements": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "List Due diligence requirements in force",
+        "description": "Due diligence requirements records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListPartyDueDiligenceRequirements",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartyDueDiligenceRequirements"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Create a tenant Due diligence requirements draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreatePartyDueDiligenceRequirementsDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyDueDiligenceRequirementsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceRequirements"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-requirements/{code}": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Get the Due diligence requirements version in force",
+        "operationId": "GetPartyDueDiligenceRequirements",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceRequirements"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-requirements/{code}/versions": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "List every tenant version of a Due diligence requirements code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
+        "operationId": "ListPartyDueDiligenceRequirementsVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyDueDiligenceRequirements"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-requirements/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Edit a tenant Due diligence requirements draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditPartyDueDiligenceRequirementsDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyDueDiligenceRequirementsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceRequirements"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-requirements/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Due diligence requirements version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangePartyDueDiligenceRequirementsLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceRequirements"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/party/static/due-diligence-requirements/imports": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Import tenant Due diligence requirements drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the import\u0027s lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.",
+        "operationId": "ImportPartyDueDiligenceRequirements",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfPartyDueDiligenceRequirementsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-requirements/imports/{batchId}": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Every line of a tenant Due diligence requirements import, in code order",
+        "description": "What the checker approves as one change (BR-016): each line\u0027s proposed record, its status, and its change request once submitted.",
+        "operationId": "GetPartyDueDiligenceRequirementsImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyDueDiligenceRequirements"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-requirements/imports/{batchId}/{action}": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Submit a tenant Due diligence requirements import as one change, or put an approved one in force",
+        "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
+        "operationId": "ChangePartyDueDiligenceRequirementsImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportSubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
+      }
+    },
+    "/api/v1/party/static/due-diligence-settings": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "List Due diligence settings in force",
+        "description": "Due diligence settings records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListPartyDueDiligenceSettings",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartyDueDiligenceSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Create a tenant Due diligence settings draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreatePartyDueDiligenceSettingsDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyDueDiligenceSettingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-settings/{code}": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Get the Due diligence settings version in force",
+        "operationId": "GetPartyDueDiligenceSettings",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-settings/{code}/versions": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "List every tenant version of a Due diligence settings code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
+        "operationId": "ListPartyDueDiligenceSettingsVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyDueDiligenceSettings"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-settings/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Edit a tenant Due diligence settings draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditPartyDueDiligenceSettingsDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyDueDiligenceSettingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceSettings"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-settings/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Due diligence settings version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangePartyDueDiligenceSettingsLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceSettings"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/party/static/due-diligence-settings/imports": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Import tenant Due diligence settings drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the import\u0027s lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.",
+        "operationId": "ImportPartyDueDiligenceSettings",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfPartyDueDiligenceSettingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-settings/imports/{batchId}": {
+      "get": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Every line of a tenant Due diligence settings import, in code order",
+        "description": "What the checker approves as one change (BR-016): each line\u0027s proposed record, its status, and its change request once submitted.",
+        "operationId": "GetPartyDueDiligenceSettingsImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyDueDiligenceSettings"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_VIEW"
+        ]
+      }
+    },
+    "/api/v1/party/static/due-diligence-settings/imports/{batchId}/{action}": {
+      "post": {
+        "tags": [
+          "Party static data"
+        ],
+        "summary": "Submit a tenant Due diligence settings import as one change, or put an approved one in force",
+        "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
+        "operationId": "ChangePartyDueDiligenceSettingsImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportSubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_PARTY_MANAGEMENT_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
+      }
+    },
     "/api/v1/party/static/matching-rules-and-thresholds": {
       "get": {
         "tags": [
@@ -181595,6 +185090,48 @@
           }
         }
       },
+      "CursorPageOfPartyCustomerRiskClasses": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyCustomerRiskClasses"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfPartyCustomerRiskFactors": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyCustomerRiskFactors"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfPartyCustomerStatusCodes": {
         "required": [
           "items",
@@ -181606,6 +185143,69 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PartyCustomerStatusCodes"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfPartyDueDiligenceGates": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyDueDiligenceGates"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfPartyDueDiligenceRequirements": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyDueDiligenceRequirements"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfPartyDueDiligenceSettings": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyDueDiligenceSettings"
             }
           },
           "nextCursor": {
@@ -234293,6 +237893,703 @@
           }
         }
       },
+      "PartyCustomerRiskClasses": {
+        "type": "object",
+        "properties": {
+          "riskClass": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "minScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maxScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "ddLevel": {
+            "enum": [
+              "SIMPLIFIED",
+              "STANDARD",
+              "ENHANCED"
+            ],
+            "type": "string"
+          },
+          "reviewInterval": {
+            "type": "string",
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "PUBLISHED",
+              "EFFECTIVE",
+              "WITHDRAWN",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PartyCustomerRiskClassesInput": {
+        "required": [
+          "riskClass",
+          "minScore",
+          "ddLevel",
+          "reviewInterval",
+          "code",
+          "changeReason"
+        ],
+        "type": "object",
+        "properties": {
+          "riskClass": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "minScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maxScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "ddLevel": {
+            "enum": [
+              "SIMPLIFIED",
+              "STANDARD",
+              "ENHANCED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewInterval": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
+      "PartyCustomerRiskFactors": {
+        "type": "object",
+        "properties": {
+          "factor": {
+            "enum": [
+              "COUNTRY",
+              "PARTY_TYPE",
+              "LEGAL_FORM",
+              "OCCUPATION",
+              "INDUSTRY",
+              "PEP",
+              "DOMAIN",
+              "CHANNEL",
+              "SOURCE_OF_FUNDS"
+            ],
+            "type": "string"
+          },
+          "matchValues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "weight": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "PUBLISHED",
+              "EFFECTIVE",
+              "WITHDRAWN",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PartyCustomerRiskFactorsInput": {
+        "required": [
+          "factor",
+          "matchValues",
+          "weight",
+          "code",
+          "changeReason"
+        ],
+        "type": "object",
+        "properties": {
+          "factor": {
+            "enum": [
+              "COUNTRY",
+              "PARTY_TYPE",
+              "LEGAL_FORM",
+              "OCCUPATION",
+              "INDUSTRY",
+              "PEP",
+              "DOMAIN",
+              "CHANNEL",
+              "SOURCE_OF_FUNDS",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "matchValues": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "weight": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
       "PartyCustomerStatusCodes": {
         "type": "object",
         "properties": {
@@ -234512,6 +238809,1031 @@
             "type": [
               "null",
               "boolean"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
+      "PartyDueDiligenceGates": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH",
+              "ANY"
+            ],
+            "type": "string"
+          },
+          "step": {
+            "enum": [
+              "QUOTE",
+              "ISSUE",
+              "PAYOUT",
+              "CLAIM_PAYOUT"
+            ],
+            "type": "string"
+          },
+          "requirement": {
+            "enum": [
+              "NONE",
+              "SCREENED",
+              "CLEARED"
+            ],
+            "type": "string"
+          },
+          "screeningMaxAge": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "PUBLISHED",
+              "EFFECTIVE",
+              "WITHDRAWN",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PartyDueDiligenceGatesInput": {
+        "required": [
+          "domain",
+          "step",
+          "requirement",
+          "code",
+          "changeReason"
+        ],
+        "type": "object",
+        "properties": {
+          "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH",
+              "ANY",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "step": {
+            "enum": [
+              "QUOTE",
+              "ISSUE",
+              "PAYOUT",
+              "CLAIM_PAYOUT",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "requirement": {
+            "enum": [
+              "NONE",
+              "SCREENED",
+              "CLEARED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "screeningMaxAge": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
+      "PartyDueDiligenceRequirements": {
+        "type": "object",
+        "properties": {
+          "partyType": {
+            "enum": [
+              "INDIVIDUAL",
+              "ORGANISATION"
+            ],
+            "type": "string"
+          },
+          "ddLevel": {
+            "enum": [
+              "SIMPLIFIED",
+              "STANDARD",
+              "ENHANCED"
+            ],
+            "type": "string"
+          },
+          "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH"
+            ],
+            "type": "string"
+          },
+          "checkType": {
+            "enum": [
+              "IDENTITY",
+              "ADDRESS",
+              "SANCTIONS",
+              "PEP",
+              "ADVERSE_MEDIA",
+              "BENEFICIAL_OWNERSHIP",
+              "SOURCE_OF_FUNDS"
+            ],
+            "type": "string"
+          },
+          "basis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "PUBLISHED",
+              "EFFECTIVE",
+              "WITHDRAWN",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PartyDueDiligenceRequirementsInput": {
+        "required": [
+          "partyType",
+          "ddLevel",
+          "domain",
+          "checkType",
+          "code",
+          "changeReason"
+        ],
+        "type": "object",
+        "properties": {
+          "partyType": {
+            "enum": [
+              "INDIVIDUAL",
+              "ORGANISATION",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ddLevel": {
+            "enum": [
+              "SIMPLIFIED",
+              "STANDARD",
+              "ENHANCED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "checkType": {
+            "enum": [
+              "IDENTITY",
+              "ADDRESS",
+              "SANCTIONS",
+              "PEP",
+              "ADVERSE_MEDIA",
+              "BENEFICIAL_OWNERSHIP",
+              "SOURCE_OF_FUNDS",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "basis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
+      "PartyDueDiligenceSettings": {
+        "type": "object",
+        "properties": {
+          "gatesEnabled": {
+            "type": "boolean"
+          },
+          "adverseMediaEnabled": {
+            "type": "boolean"
+          },
+          "adverseMediaBasis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "PUBLISHED",
+              "EFFECTIVE",
+              "WITHDRAWN",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PartyDueDiligenceSettingsInput": {
+        "required": [
+          "gatesEnabled",
+          "adverseMediaEnabled",
+          "code",
+          "changeReason"
+        ],
+        "type": "object",
+        "properties": {
+          "gatesEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "adverseMediaEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "adverseMediaBasis": {
+            "type": [
+              "null",
+              "string"
             ]
           },
           "code": {
@@ -254784,6 +260106,42 @@
           }
         }
       },
+      "StaticDataImportOfPartyCustomerRiskClassesInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyCustomerRiskClassesInput"
+            }
+          }
+        }
+      },
+      "StaticDataImportOfPartyCustomerRiskFactorsInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyCustomerRiskFactorsInput"
+            }
+          }
+        }
+      },
       "StaticDataImportOfPartyCustomerStatusCodesInput": {
         "required": [
           "fileRef",
@@ -254798,6 +260156,60 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PartyCustomerStatusCodesInput"
+            }
+          }
+        }
+      },
+      "StaticDataImportOfPartyDueDiligenceGatesInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyDueDiligenceGatesInput"
+            }
+          }
+        }
+      },
+      "StaticDataImportOfPartyDueDiligenceRequirementsInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyDueDiligenceRequirementsInput"
+            }
+          }
+        }
+      },
+      "StaticDataImportOfPartyDueDiligenceSettingsInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyDueDiligenceSettingsInput"
             }
           }
         }
@@ -262822,6 +268234,9 @@
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
               "COMMISSION_STATEMENT",
+              "DUE_DILIGENCE_ENHANCED",
+              "DUE_DILIGENCE_RISK_OVERRIDE",
+              "DUE_DILIGENCE_UNBLOCK",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
               "LEGAL_HOLD_RELEASE",

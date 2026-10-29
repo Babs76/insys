@@ -63,6 +63,59 @@ public static class DocumentedSchema
         return problems;
     }
 
+    /// <summary>
+    /// Every property name in the 2xx responses of the portal operations (paths under /api/v1/portal/) of the core document,
+    /// followed through references: what a portal user can be shown (due diligence §6).
+    /// </summary>
+    public static IReadOnlySet<string> PortalResponseProperties()
+    {
+        var root = Load("core");
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var operation in root["paths"]!.AsObject().Where(p => p.Key.StartsWith("/api/v1/portal/", StringComparison.Ordinal))
+                     .SelectMany(p => p.Value!.AsObject().Select(m => m.Value)))
+        {
+            foreach (var response in operation?["responses"]?.AsObject().Where(r => r.Key.StartsWith('2')) ?? [])
+            {
+                if (response.Value?["content"]?["application/json"]?["schema"] is { } schema)
+                {
+                    Collect(root, schema, names, seen);
+                }
+            }
+        }
+
+        return names;
+    }
+
+    private static void Collect(JsonObject root, JsonNode schema, HashSet<string> names, HashSet<string> seen)
+    {
+        if (schema["$ref"]?.GetValue<string>() is { } reference)
+        {
+            if (seen.Add(reference))
+            {
+                Collect(root, root["components"]!["schemas"]![reference["#/components/schemas/".Length..]]!, names, seen);
+            }
+
+            return;
+        }
+
+        foreach (var nested in new[] { schema["oneOf"], schema["anyOf"], schema["allOf"] }.OfType<JsonArray>().SelectMany(a => a))
+        {
+            Collect(root, nested!, names, seen);
+        }
+
+        if (schema["items"] is { } items)
+        {
+            Collect(root, items, names, seen);
+        }
+
+        foreach (var (name, property) in schema["properties"]?.AsObject() ?? [])
+        {
+            names.Add(name);
+            Collect(root, property!, names, seen);
+        }
+    }
+
     private static JsonObject Load(string document) => Documents.GetOrAdd(document, d =>
         JsonNode.Parse(File.ReadAllText(Path.Combine(RepositoryPaths.Root, "docs", "api", $"openapi-{d}.json")))!.AsObject());
 

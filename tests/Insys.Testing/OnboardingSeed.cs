@@ -218,6 +218,19 @@ public static class OnboardingSeed
         await database.SeedStaticFilled(tenantId, "document.cfg_document_templates", "EFFECTIVE", "TPL-1", from, ("template_code", "TPL-1"), ("language", "en"),
             ("document_type", "POLICY_SCHEDULE"));
 
+        // Due diligence (addenda/due-diligence.md §7): the gates on, a screening and an identity verification partner, and a staff role that reviews hits
+        // (with its back-office channel row, CHANNELS).
+        await database.SeedStaticFilled(tenantId, "party.cfg_due_diligence_settings", "EFFECTIVE", "GATES-ON", from, ("gates_enabled", true), ("adverse_media_enabled", false));
+        foreach (var (partner, type) in new[] { ("SCR-READY", "SCREENING"), ("IDV-READY", "IDENTITY_VERIFICATION") })
+        {
+            await database.SeedStaticFilled(tenantId, "integration.mst_partner_register", "ACTIVE", partner, from, ("partner_code", partner), ("partner_type", type),
+                ("status", "ACTIVE"));
+        }
+
+        await database.GrantFunctionsWithin(tenantId, "CLERK", from, "due_diligence.review_hit");
+        await database.SeedStaticFilled(tenantId, "channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CTP-CLERK-DD", from, ("channel_code", "STF"),
+            ("role_code", "CLERK"), ("function_code", "PARTY_REVIEW_SCREENING_HIT"), ("allowed", true));
+
         // OQ-110: the case notification types, each with a template.
         foreach (var type in new[] { "CASE_ACKNOWLEDGED", "CASE_UPDATE", "CASE_DECISION" })
         {
