@@ -43,7 +43,8 @@
 | 9 Wave 2 batch 4 | Legal holds (D-34); concurrency sweep over General, claims, billing, distribution, Life and Health (BR-031, 057, 064, 071); BR-073 defect; static data import approved as one change (BR-016); BR-084, 085, 088; BR-087 shipped alone | **Merged, `ef5a85c`** |
 | 9 Wave 2 batch 5 | Phases 1 to 3 requests (BR-021, 023 to 030, 032 to 039); OQ-122 claim party roles; BR-091 and portal privacy shipped alone | **Merged, `99ac395`** |
 | 9 Wave 2 batch 6 | BR-095, BR-092 (group A, `80d9a3f`); referral authority and routing; frequencies, loading and instalments; BR-093 loss codes; phase 4 money requests (BR-041, 043 to 056, 058, 059); BR-094 shipped alone | **Merged, `c2a5870`** (29 Oct 2026) |
-| 9 Wave 2 batch 7 | The front end's Life and Health requests: BR-062, 063, 065 to 070, 072, 074 to 081, 086 (plan: `docs/specs/addenda/wave2-7-plan.md`) | Branch `wave2-7` |
+| 9 Wave 2 batch 7 | The front end's Life and Health requests: BR-062, 063, 065 to 070, 072, 074 to 081, 086; month-end billing defect | **Merged, `67576bc`** (29 Oct 2026) |
+| 10 Wave 3 batch 1 | Due diligence addendum signed off; F001 identity verification; staff duplicate check (OQ-127); BR-089, 090, 096, 097, 101; fixed test clocks with dated CI runs; ledger partitions for open periods; cession months in business time | Branch `wave3-1` |
 
 ## Phase 1 review items
 

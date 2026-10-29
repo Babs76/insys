@@ -2,7 +2,32 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Wave 2 batch 7 (branch `wave2-7`): the front end's Life and Health requests
+## Wave 3 batch 1 (branch `wave3-1`): identity verification, staff duplicates, front-end requests
+
+### Breaking
+- **`PartyVerifyIdentifier`** requires `documentId`: the identity document the person checked the number against, filed against the party (422 otherwise). It is recorded as a due diligence check (F001).
+- **`PartyRegisterParty`** refuses a person who matches an existing party, by the same names (ignoring case) and birth date, with 409 `PARTY_POSSIBLE_DUPLICATE` and `candidates` (`partyId`, `partyNumber`, `displayName`, `identifierLastFour`). Registering again with `confirmNew: true` and a `reason` creates the party, records the override as `CONFIRMED_NEW`, and audits it as `OverrideDuplicateMatch` (OQ-127).
+
+### New
+- `PartyListIdentityChecks` (`GET /party/parties/{id}/identity-checks`): each check by a provider (`partnerCode`, `providerRef`) or a person (`documentId`, `checkedBy`), with its outcome.
+- With an active `IDENTITY_VERIFICATION` partner (a new partner type, as is `SCREENING`), every identifier added is checked by the provider. A pass marks it verified, and a failure leaves it unverified with the reason.
+- **BR-101:** `PortalRaiseCase` accepts a `CLAIM` link to a claim the member's portal read shows (General, Life or Health). Any other claim gives 404.
+- **BR-089:** `ComplianceGetReturn`, `CompliancePrepareReturn` and the return actions declare their ETag. `CommunicationsSetPreference` returns the preference's version as its ETag. The list and preference reads say each row's `rowVersion` is its If-Match.
+- **BR-090:** `CommunicationsListNotifications` says `sourceId` needs `sourceType` (422 otherwise).
+- **BR-096:** a workflow definition's `domainValidation` is optional (V0088): a definition made through the static data API can name none.
+- **BR-097:** `PortalQuoteView.pricedOnCreation`.
+
+### Fixed
+- **Cessions by period** (`ReinsuranceListCessions` with `periodCode`) and the cessions a bordereau takes now use the tenant's business month, not the UTC month. A cession at 23:30 UTC on the 31st belongs to the next month in Johannesburg.
+- **Ledger partitions:** opening an accounting period creates its partitions (V0089), so a reversal or a retried posting dated in any open period posts.
+
+### Migrations
+- **V0088:** `domainValidation` is optional.
+- **V0089:** ledger partitions for open periods.
+- **V0090:** `party.duplicate_candidate.status` widened, with `CONFIRMED_NEW`.
+- **V0091:** the partner types and `party.due_diligence_check`.
+
+## Wave 2 batch 7 (branch `wave2-7`, merged at `67576bc`): the front end's Life and Health requests
 
 ### Changed: my-authority lists all the authority approving checks (BR-081)
 - `WorkflowMyAuthority` rows gain `basis` (`DELEGATION`, `MODULE_LIMIT`, `PERMISSION`) and `appliesTo` (`claimType=DEATH`, or null).

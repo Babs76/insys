@@ -256,5 +256,7 @@ public sealed class LedgerTests
         public void Add(AccountingPeriod added)
         {
         }
+
+        public Task EnsurePartitions(DateOnly from, DateOnly until, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }
