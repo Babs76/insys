@@ -261477,7 +261477,10 @@
             "$ref": "#/components/schemas/JsonElement"
           },
           "domainValidation": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "id": {
             "type": "string",
@@ -261659,7 +261662,6 @@
           "processCode",
           "states",
           "transitions",
-          "domainValidation",
           "code",
           "changeReason"
         ],

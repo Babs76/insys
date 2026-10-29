@@ -692,6 +692,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             quoted.StatusCode.ShouldBe(HttpStatusCode.Created, await quoted.Content.ReadAsStringAsync());
             var made = await quoted.Json();
             (made.GetProperty("status").GetString(), made.GetProperty("premium").ValueKind).ShouldBe(("Draft", JsonValueKind.Null), "the price arrives after the quote");
+            made.GetProperty("pricedOnCreation").GetBoolean().ShouldBeTrue("BR-097: the broker's screen shows it is being priced");
             await _factory.DrainOutbox();
             return await BrokersQuote(made.GetProperty("id").GetGuid());
         }
@@ -815,6 +816,12 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
         var draft = await (await _maker.GetAsync($"/api/v1/general/quotes/{staffQuote}")).Json();
         (draft.GetProperty("status").GetString(), draft.GetProperty("pricedOnCreation").GetBoolean()).ShouldBe(("Draft", false));
+
+        // BR-097: a staff quote under the broker's code shows the broker it waits for staff (pricedOnCreation false).
+        await _db.ExecuteAsOwner("UPDATE general.quote SET intermediary_code = 'BRK-A', proposer_party_id = @c WHERE id = @q", ("c", client), ("q", staffQuote));
+        var waiting = await BrokersQuote(staffQuote);
+        (waiting.GetProperty("status").GetString(), waiting.GetProperty("pricedOnCreation").GetBoolean()).ShouldBe(("Draft", false));
+        DocumentedSchema.ResponseProblems(waiting, "core", "PortalGeneralGetQuote").ShouldBeEmpty();
     }
 
     /// <summary>

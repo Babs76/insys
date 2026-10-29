@@ -80,7 +80,9 @@ public sealed class CommunicationsModule : IModule
             .WithSummary("Notifications, by recipient party, type, status or source record, oldest first (§5)")
             .WithDescription("Within the caller's scope (F103): a notification is in scope when the product and organisation node of the record it is about are. "
                 + "from/to filter on requestedAt. sourceType is GENERAL_CLAIM, LIFE_CLAIM, HEALTH_CLAIM, HEALTH_PREAUTH, GENERAL_POLICY or BILLING_ACCOUNT; "
-                + "sourceReference is that record's own number.")
+                + "sourceReference is that record's own number. sourceId needs sourceType (BR-090): sourceId alone is refused with 422 "
+                + "VALIDATION_FAILED, since record IDs are unique only within a source type.")
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .RequirePermission(CommunicationPermissions.NotificationRead);
 
         communications.MapGet("/notifications/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetNotification(id), ct)).ToHttp(Results.Ok))
@@ -96,14 +98,25 @@ public sealed class CommunicationsModule : IModule
             .Produces<IReadOnlyList<PreferenceView>>(StatusCodes.Status200OK)
             .WithName("CommunicationsGetPreferences")
             .WithSummary("Every notification type the party can receive, with their channels, whether they can opt out, and their consent for marketing (§4)")
+            .WithDescription("Each preference is its own record: its rowVersion, quoted (\"2\"), is the If-Match for setting that type's preference, and the set "
+                + "returns the new one in its ETag. rowVersion is null for a type the party has no preference for yet, which is set without If-Match (BR-089).")
             .RequirePermission(CommunicationPermissions.PreferenceRead);
 
         communications.MapPut("/parties/{partyId:guid}/preferences/{typeCode}", async (Guid partyId, string typeCode, PreferenceRequest r, IDispatcher d, HttpContext http,
                 CancellationToken ct) =>
                 Concurrency.OptionalExpectedVersion(http.Request) is { IsSuccess: true } expected
-                    ? (await d.Send(new SetPreference(partyId, typeCode, r.Channels ?? [], r.OptedOut, expected.Value), ct)).ToHttp(Results.Ok)
+                    ? (await d.Send(new SetPreference(partyId, typeCode, r.Channels ?? [], r.OptedOut, expected.Value), ct)).ToHttp(view =>
+                    {
+                        if (view.RowVersion is { } version)
+                        {
+                            Concurrency.SetETag(http, version);
+                        }
+
+                        return Results.Ok(view);
+                    })
                     : Problems.For(BuildingBlocks.Domain.ErrorCodes.PreconditionFailed, "If-Match is not a version ETag.", StatusCodes.Status412PreconditionFailed))
             .Produces<PreferenceView>(StatusCodes.Status200OK)
+            .ReturnsETag()
             .AllowIfMatch()
             .WithName("CommunicationsSetPreference")
             .WithSummary("Set a party's channels for a type, in order, or opt out of a marketing type (§4)")

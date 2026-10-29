@@ -62,6 +62,7 @@ public sealed class ComplianceModule : IModule
         compliance.MapPost("/returns", async (PrepareReturn r, IDispatcher d, HttpContext http, CancellationToken ct) =>
                 (await d.Send(r, ct)).ToHttp(view => Tagged(http, view, Results.Created($"/api/v1/compliance/returns/{view.Id}", view))))
             .Produces<ReturnView>(StatusCodes.Status201Created)
+            .ReturnsETag()
             .RequireIdempotencyKey()
             .WithName("CompliancePrepareReturn")
             .WithSummary("Prepare a regulatory return for the period it ends with, from its definition's field mapping; one per code and period")
@@ -72,6 +73,7 @@ public sealed class ComplianceModule : IModule
             .Produces<IReadOnlyList<ReturnView>>(StatusCodes.Status200OK)
             .WithName("ComplianceListReturns")
             .WithSummary("Regulatory returns, by period or status")
+            .WithDescription("Each row's rowVersion is the version a return action's If-Match takes, quoted (\"3\"), as the return's own read gives it in its ETag (BR-089).")
             .RequirePermission(CompliancePermissions.ReturnRead);
 
         compliance.MapGet("/returns/summary", async (string fromPeriod, string toPeriod, IDispatcher d, CancellationToken ct) =>
@@ -86,6 +88,7 @@ public sealed class ComplianceModule : IModule
         compliance.MapGet("/returns/{id:guid}", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) =>
                 (await d.Query(new GetReturn(id), ct)).ToHttp(view => Tagged(http, view, Results.Ok(view))))
             .Produces<ReturnView>(StatusCodes.Status200OK)
+            .ReturnsETag()
             .WithName("ComplianceGetReturn")
             .WithSummary("A regulatory return and its values")
             .RequirePermission(CompliancePermissions.ReturnRead);
@@ -142,6 +145,7 @@ public sealed class ComplianceModule : IModule
                 return (await d.Send(new ChangeReturn(id, action, r?.Reason, expected.Value), ct)).ToHttp(view => Tagged(http, view, Results.Ok(view)));
             })
             .Produces<ReturnView>(StatusCodes.Status200OK)
+            .ReturnsETag()
             .RequireIfMatch()
             .WithName($"Compliance{action}Return")
             .WithSummary(summary)

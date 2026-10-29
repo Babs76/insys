@@ -2593,7 +2593,7 @@
     {
      "name": "domain_validation",
      "logicalType": "Ref Service",
-     "mandatory": true,
+     "mandatory": false,
      "sample": "general.endorsement.validate"
     }
    ]

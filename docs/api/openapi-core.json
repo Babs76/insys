@@ -30457,6 +30457,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -30500,6 +30508,7 @@
           "Compliance"
         ],
         "summary": "Regulatory returns, by period or status",
+        "description": "Each row\u0027s rowVersion is the version a return action\u0027s If-Match takes, quoted (\u00223\u0022), as the return\u0027s own read gives it in its ETag (BR-089).",
         "operationId": "ComplianceListReturns",
         "parameters": [
           {
@@ -30633,6 +30642,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -30715,6 +30732,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -30809,6 +30834,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -30903,6 +30936,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -30997,6 +31038,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -31091,6 +31140,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -31185,6 +31242,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -34661,7 +34726,7 @@
           "Communications"
         ],
         "summary": "Notifications, by recipient party, type, status or source record, oldest first (\u00A75)",
-        "description": "Within the caller\u0027s scope (F103): a notification is in scope when the product and organisation node of the record it is about are. from/to filter on requestedAt. sourceType is GENERAL_CLAIM, LIFE_CLAIM, HEALTH_CLAIM, HEALTH_PREAUTH, GENERAL_POLICY or BILLING_ACCOUNT; sourceReference is that record\u0027s own number.",
+        "description": "Within the caller\u0027s scope (F103): a notification is in scope when the product and organisation node of the record it is about are. from/to filter on requestedAt. sourceType is GENERAL_CLAIM, LIFE_CLAIM, HEALTH_CLAIM, HEALTH_PREAUTH, GENERAL_POLICY or BILLING_ACCOUNT; sourceReference is that record\u0027s own number. sourceId needs sourceType (BR-090): sourceId alone is refused with 422 VALIDATION_FAILED, since record IDs are unique only within a source type.",
         "operationId": "CommunicationsListNotifications",
         "parameters": [
           {
@@ -34842,6 +34907,7 @@
           "Communications"
         ],
         "summary": "Every notification type the party can receive, with their channels, whether they can opt out, and their consent for marketing (\u00A74)",
+        "description": "Each preference is its own record: its rowVersion, quoted (\u00222\u0022), is the If-Match for setting that type\u0027s preference, and the set returns the new one in its ETag. rowVersion is null for a type the party has no preference for yet, which is set without If-Match (BR-089).",
         "operationId": "CommunicationsGetPreferences",
         "parameters": [
           {
@@ -34944,6 +35010,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -43160,6 +43234,10 @@
               "string"
             ],
             "format": "double"
+          },
+          "pricedOnCreation": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

@@ -59,15 +59,17 @@ public sealed record PortalPolicyView(Guid Id, string PolicyNumber, string Produ
 /// <param name="TotalPayable">When a loading applies: what the instalments come to over the year. Hidden with the premium.</param>
 public sealed record PortalQuoteView(Guid Id, string QuoteNumber, int QuoteVersion, string ProductCode, Guid ProposerPartyId, string? IntermediaryCode, QuoteStatus Status,
     DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Premium, string Currency, DateOnly ValidUntil, IReadOnlyList<PortalRiskView> Risks, RatingIssueView? RatingIssue = null,
-    string PremiumFrequency = QuotePricing.Annual, decimal? InstalmentPremium = null, decimal? TotalPayable = null)
+    string PremiumFrequency = QuotePricing.Annual, decimal? InstalmentPremium = null, decimal? TotalPayable = null, bool PricedOnCreation = false)
 {
+    /// <summary>BR-097: PricedOnCreation tells "being priced" (true while Draft) from "waiting for the insurer's staff to price it" (false).</summary>
     public static PortalQuoteView From(GeneralQuote q)
     {
         var shown = q.Status is not (QuoteStatus.Referred or QuoteStatus.Declined);
         return new(q.Id, q.QuoteNumber, q.QuoteVersion, q.ProductCode, q.ProposerPartyId, q.IntermediaryCode, q.Status, q.PeriodStart, q.PeriodEnd,
             shown ? q.Premium : null, q.Currency, q.ValidUntil,
             q.Risks.Select(r => new PortalRiskView(r.RiskObjectId, r.SumInsured, r.Coverages.Select(c => new PortalCoverageView(c.CoverageCode, c.SumInsured, null)).ToList())).ToList(),
-            RatingIssueView.Of(q), q.PremiumFrequency ?? QuotePricing.Annual, shown ? q.InstalmentPremium ?? q.Premium : null, shown ? q.TotalPayable : null);
+            RatingIssueView.Of(q), q.PremiumFrequency ?? QuotePricing.Annual, shown ? q.InstalmentPremium ?? q.Premium : null, shown ? q.TotalPayable : null,
+            q.PricedOnCreation);
     }
 }
 

@@ -306,6 +306,32 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
     }
 
     /// <summary>
+    /// BR-096: a process definition made through the governed static data API may name no domain validation (no module
+    /// provides one for cases), and a process on such a definition moves on its guards alone.
+    /// </summary>
+    [Fact]
+    public async Task AProcessDefinition_MadeThroughTheApi_NeedsNoDomainValidation_AndItsTasksMove_BR096()
+    {
+        var db = fixture.Database;
+        await db.UserWithPermissions(DatabaseFixture.TenantA, "wf-static", [.. All, "static_data.read", "static_data.create", "static_data.update"]);
+        var admin = _factory.ClientFor(DatabaseFixture.TenantA, "wf-static");
+        var draft = await admin.Send(HttpMethod.Post, "/api/v1/workflow/static/workflow-definitions", new
+        {
+            code = "API_PROC", processCode = "API_PROC", states = new[] { "OPEN", "DONE" },
+            transitions = new[] { new { from = "OPEN", to = "DONE" } }, changeReason = "set up through the API",
+        }, idempotent: true);
+        draft.StatusCode.ShouldBe(HttpStatusCode.Created, await draft.Content.ReadAsStringAsync());
+
+        // An existing definition with none, as the onboarding seed writes it: its process completes its task.
+        await Static("cfg_workflow_definitions", "NO_CHECK", "process_code, states, transitions, domain_validation",
+            "'NO_CHECK', ARRAY['Open','Closed'], '[{\"from\":\"Open\",\"to\":\"Closed\"}]', NULL");
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, "wf-maker");
+        var (url, taskId) = await Start(client, "NO_CHECK");
+        var moved = await client.Send(HttpMethod.Post, $"{url}/tasks/{taskId}/complete", new { toState = "Closed" }, ifMatch: "\"1\"");
+        moved.IsSuccessStatusCode.ShouldBeTrue(await moved.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>
     /// BR-081: my-authority lists all the authority approving checks: Life's claims limits by claim type (which replace
     /// the delegation table for Life claims), and the static data approval types the delegation table does not configure,
     /// for a holder of static_data.approve. A user without the role or the permission sees neither.

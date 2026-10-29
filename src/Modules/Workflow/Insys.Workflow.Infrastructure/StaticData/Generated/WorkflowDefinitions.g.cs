@@ -45,14 +45,14 @@ public sealed class WorkflowDefinitions : StaticRecord<WorkflowDefinitionsInput>
 
     public JsonElement Transitions { get; set; }
 
-    public string DomainValidation { get; set; } = "";
+    public string? DomainValidation { get; set; }
 
     public override void ApplyFields(WorkflowDefinitionsInput input, IFieldProtector protector)
     {
         ProcessCode = input.ProcessCode!;
         States = input.States!;
         Transitions = input.Transitions.GetValueOrDefault();
-        DomainValidation = input.DomainValidation!;
+        DomainValidation = input.DomainValidation;
     }
 }
 
@@ -68,7 +68,6 @@ public sealed record WorkflowDefinitionsInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.RequiredField]
     public JsonElement? Transitions { get; init; }
 
-    [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DomainValidation { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
@@ -77,7 +76,6 @@ public sealed record WorkflowDefinitionsInput : StaticRecordInput
         errors.MaxLength("processCode", ProcessCode, 20);
         errors.Required("states", States);
         errors.Required("transitions", Transitions);
-        errors.Required("domainValidation", DomainValidation);
         errors.MaxLength("domainValidation", DomainValidation, 80);
     }
 }

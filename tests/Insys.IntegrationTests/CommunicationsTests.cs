@@ -116,6 +116,11 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
         var sent = await Single(party);
         Documented(sent, "CommunicationsGetNotification");
         Documented(await (await _staff.GetAsync($"/api/v1/communications/notifications?partyId={party}")).Json(), "CommunicationsListNotifications");
+        // BR-090: sourceId alone is refused, as the contract now says; with its sourceType it filters.
+        var alone = await _staff.GetAsync($"/api/v1/communications/notifications?sourceId={Guid.CreateVersion7()}");
+        alone.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await alone.Code()).ShouldBe("VALIDATION_FAILED");
+        (await _staff.GetAsync($"/api/v1/communications/notifications?sourceType=GENERAL_CLAIM&sourceId={Guid.CreateVersion7()}")).StatusCode.ShouldBe(HttpStatusCode.OK);
         Documented(await (await _staff.GetAsync($"/api/v1/communications/parties/{party}/preferences")).Json(), "CommunicationsGetPreferences");
         sent.GetProperty("status").GetString().ShouldBe("Sent");
         sent.GetProperty("channel").GetString().ShouldBe("EMAIL");
@@ -165,8 +170,10 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
         var promo = listed.Single(p => p.GetProperty("typeCode").GetString() == "PROMO_SMS");
         (promo.GetProperty("canOptOut").GetBoolean(), promo.GetProperty("consentGranted").GetBoolean()).ShouldBe((true, false), "every type is listed, set or not");
 
-        var set = await (await _staff.Send(HttpMethod.Put, url, new { channels = new[] { "SMS", "EMAIL" }, optedOut = false })).Json();
+        var setResponse = await _staff.Send(HttpMethod.Put, url, new { channels = new[] { "SMS", "EMAIL" }, optedOut = false });
+        var set = await setResponse.Json();
         var version = set.GetProperty("rowVersion").GetInt64();
+        setResponse.Headers.ETag!.Tag.ShouldBe($"\"{version}\"", "BR-089: the set gives the preference's version as its ETag");
         (await _staff.Send(HttpMethod.Put, url, new { channels = new[] { "SMS", "EMAIL" }, optedOut = false }, ifMatch: $"\"{version + 5}\"")).StatusCode
             .ShouldBe(HttpStatusCode.PreconditionFailed, "a stale If-Match is refused");
         (await _staff.Send(HttpMethod.Put, url, new { channels = new[] { "SMS", "EMAIL" }, optedOut = false }, ifMatch: $"\"{version}\"")).StatusCode
