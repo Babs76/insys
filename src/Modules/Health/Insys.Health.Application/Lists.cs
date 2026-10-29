@@ -56,6 +56,20 @@ public sealed record PaymentRunSummary(Guid Id, string RunCode, DateTimeOffset C
 public sealed record ListMemberships(Guid? PrincipalPartyId, string? MemberNumber, Guid? SchemeId, MembershipStatus? Status, Guid? AfterId, int Limit)
     : IQuery<IReadOnlyList<MembershipSummary>>;
 
+/// <summary>A Health scheme in a list (BR-067).</summary>
+public sealed record SchemeSummary(Guid Id, string SchemeNumber, [property: CodeList(HealthCodeLists.Sponsors)] string SponsorCode, SchemeStatus Status,
+    DateOnly StartDate, DateOnly RenewalDate, string? Currency);
+
+public sealed record ListHealthSchemes(string? SchemeNumber, string? SponsorCode, SchemeStatus? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<SchemeSummary>>;
+
+/// <summary>A recorded eligibility decision (BR-072, HLT-003); its response code is the tenant's for the outcome.</summary>
+public sealed record EligibilityDecisionSummary(Guid Id, string MemberNumber, string DependantSuffix, string? ProviderId,
+    [property: CodeList(HealthCodeLists.ServiceTypes)] string ServiceType, [property: CodeList("health.ref_eligibility_response_codes")] string ResponseCode,
+    DateTimeOffset DecidedAt);
+
+/// <summary>Recorded eligibility decisions, newest first by ID, for memberships in the caller's scope; the member number travels in the body (BR-069).</summary>
+public sealed record ListEligibilityDecisions(string? MemberNumber, string? DependantSuffix, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<EligibilityDecisionSummary>>;
+
 public sealed record ListPreauthorisations(Guid? MembershipId, Guid? PatientPartyId, string? AuthNumber, PreauthStatus? Status, Guid? AfterId, int Limit)
     : IQuery<IReadOnlyList<PreauthorisationSummary>>;
 
@@ -82,6 +96,10 @@ public interface IHealthLists
     Task<IReadOnlyList<FraudCaseSummary>> FraudCases(ListFraudCases query, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<PaymentRunSummary>> Runs(ListPaymentRuns query, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<SchemeSummary>> Schemes(ListHealthSchemes query, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<EligibilityDecisionSummary>> EligibilityDecisions(ListEligibilityDecisions query, CancellationToken cancellationToken);
 }
 
 internal sealed class HealthListHandlers(IHealthLists lists) :
@@ -90,7 +108,9 @@ internal sealed class HealthListHandlers(IHealthLists lists) :
     IQueryHandler<ListMedicalClaims, IReadOnlyList<MedicalClaimSummary>>,
     IQueryHandler<ListUtilisationCases, IReadOnlyList<UtilisationCaseSummary>>,
     IQueryHandler<ListFraudCases, IReadOnlyList<FraudCaseSummary>>,
-    IQueryHandler<ListPaymentRuns, IReadOnlyList<PaymentRunSummary>>
+    IQueryHandler<ListPaymentRuns, IReadOnlyList<PaymentRunSummary>>,
+    IQueryHandler<ListHealthSchemes, IReadOnlyList<SchemeSummary>>,
+    IQueryHandler<ListEligibilityDecisions, IReadOnlyList<EligibilityDecisionSummary>>
 {
     public async Task<Result<IReadOnlyList<MembershipSummary>>> Handle(ListMemberships query, CancellationToken cancellationToken) =>
         Result.Success(await lists.Memberships(query, cancellationToken));
@@ -109,4 +129,10 @@ internal sealed class HealthListHandlers(IHealthLists lists) :
 
     public async Task<Result<IReadOnlyList<PaymentRunSummary>>> Handle(ListPaymentRuns query, CancellationToken cancellationToken) =>
         Result.Success(await lists.Runs(query, cancellationToken));
+
+    public async Task<Result<IReadOnlyList<SchemeSummary>>> Handle(ListHealthSchemes query, CancellationToken cancellationToken) =>
+        Result.Success(await lists.Schemes(query, cancellationToken));
+
+    public async Task<Result<IReadOnlyList<EligibilityDecisionSummary>>> Handle(ListEligibilityDecisions query, CancellationToken cancellationToken) =>
+        Result.Success(await lists.EligibilityDecisions(query, cancellationToken));
 }

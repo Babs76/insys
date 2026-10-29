@@ -49,6 +49,9 @@ public interface IHealthRepository
 
     Task<HealthMembership?> Membership(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The membership's currency (BR-068), for records already read within the caller's scope.</summary>
+    Task<string?> MembershipCurrency(Guid id, CancellationToken cancellationToken);
+
     Task<HealthMembership?> MembershipByNumber(string memberNumber, CancellationToken cancellationToken);
 
     /// <summary>Locks the membership row, then its accumulators in id order, for the current transaction (SELECT … FOR UPDATE).</summary>
@@ -210,18 +213,28 @@ public sealed record DependantView(Guid Id, Guid PartyId, string DependantType, 
 /// <param name="ProductVersion">That product's version at the time; null with <paramref name="ProductCode"/>.</param>
 public sealed record MembershipView(Guid Id, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode, int PlanVersion,
     string? ProductCode, int? ProductVersion, MembershipStatus Status,
-    DateOnly StartDate, DateOnly? EndDate, string? MemberCategory, IReadOnlyList<WaitingPeriod> WaitingPeriods, IReadOnlyList<DependantView> Dependants, long RowVersion)
+    DateOnly StartDate, DateOnly? EndDate, string? MemberCategory, IReadOnlyList<WaitingPeriod> WaitingPeriods, IReadOnlyList<DependantView> Dependants, long RowVersion,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] IReadOnlyList<MembershipEventView>? Events = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? PayerPartyId = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? BillingAccountRef = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] string? Currency = null)
 {
+    /// <summary>BR-070: the membership's lifecycle events in date order, its payer, billing account and currency (BR-068).</summary>
     public static MembershipView From(HealthMembership m) => new(m.Id, m.MemberNumber, m.PrincipalPartyId, m.SchemeId, m.PlanCode, m.OptionCode, m.PlanVersion,
         m.ProductCode, m.ProductVersion, m.Status, m.StartDate, m.EndDate, m.MemberCategory, m.WaitingPeriods,
-        m.Dependants.Select(d => new DependantView(d.Id, d.PartyId, d.DependantType, d.Suffix, d.StartDate, d.EndDate, d.Status)).ToList(), m.RowVersion);
+        m.Dependants.Select(d => new DependantView(d.Id, d.PartyId, d.DependantType, d.Suffix, d.StartDate, d.EndDate, d.Status)).ToList(), m.RowVersion,
+        m.Events.OrderBy(e => e.EffectiveDate).Select(e => new MembershipEventView(e.EventType, e.EffectiveDate, e.Reason)).ToList(), m.PayerPartyId, m.BillingAccountRef,
+        m.Currency);
 }
 
+/// <param name="EventType">ENROL, ADD_DEPENDANT, REMOVE_DEPENDANT, CHANGE_PLAN, SUSPEND, REINSTATE or TERMINATE.</param>
+/// <param name="Reason">The reason given, or the dependant's suffix for a dependant's event.</param>
+public sealed record MembershipEventView(string EventType, DateOnly EffectiveDate, string Reason);
+
 public sealed record AccumulatorView(Guid Id, Guid BeneficiaryPartyId, string BenefitCategory, string Scope, DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Limit,
-    decimal Used, decimal Reserved, decimal? Remaining, decimal DeductibleMet, decimal CopayTaken, long RowVersion)
+    decimal Used, decimal Reserved, decimal? Remaining, decimal DeductibleMet, decimal CopayTaken, long RowVersion, [property: BuildingBlocks.Contracts.AlwaysPresent] string? Currency = null)
 {
-    public static AccumulatorView From(BenefitAccumulator a) => new(a.Id, a.BeneficiaryPartyId, a.BenefitCategory, a.Scope, a.PeriodStart, a.PeriodEnd, a.LimitAmount,
-        a.UsedAmount, a.ReservedAmount, a.Remaining, a.DeductibleMet, a.CopayTaken, a.RowVersion);
+    /// <summary>BR-068: amounts are in the membership's currency.</summary>
+    public static AccumulatorView From(BenefitAccumulator a, string? currency) => new(a.Id, a.BeneficiaryPartyId, a.BenefitCategory, a.Scope, a.PeriodStart, a.PeriodEnd,
+        a.LimitAmount, a.UsedAmount, a.ReservedAmount, a.Remaining, a.DeductibleMet, a.CopayTaken, a.RowVersion, currency);
 }
 
 public sealed record EligibilityView(Guid Id, string MemberNumber, string DependantSuffix, string? ProviderId, string ServiceType, string ResponseCode,
@@ -232,13 +245,22 @@ public sealed record PreauthLineView(Guid Id, string ProcedureCode, int Quantity
 
 public sealed record PreauthorisationView(Guid Id, string AuthNumber, Guid MembershipId, Guid PatientPartyId, string ProviderId, PreauthStatus Status, decimal RequestedAmount,
     decimal? AuthorisedAmount, DateOnly? ValidFrom, DateOnly? ValidTo, string? ServiceType, string? Conditions, string? DecisionReason,
-    IReadOnlyList<PreauthLineView> Lines, long RowVersion)
+    IReadOnlyList<PreauthLineView> Lines, long RowVersion, [property: BuildingBlocks.Contracts.AlwaysPresent] string? Currency = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ClinicalReviewer = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? DecidedBy = null)
 {
-    public static PreauthorisationView From(Preauthorisation p) => new(p.Id, p.AuthNumber, p.MembershipId, p.PatientPartyId, p.ProviderId, p.Status,
+    /// <summary>
+    /// BR-068, BR-072: amounts in the membership's currency; the clinical reviewer and the decider. The diagnosis codes are
+    /// medical information (HLT-008): only the clinical read gives them (HealthGetAuthorisationClinical).
+    /// </summary>
+    public static PreauthorisationView From(Preauthorisation p, string? currency) => new(p.Id, p.AuthNumber, p.MembershipId, p.PatientPartyId, p.ProviderId, p.Status,
         p.RequestedAmount, p.AuthorisedAmount, p.ValidFrom, p.ValidTo, p.ServiceType, p.Conditions, p.DecisionReason,
         p.Lines.Select(l => new PreauthLineView(l.Id, l.ProcedureCode, l.Quantity, l.AuthorisedAmount, l.BenefitCategory, l.ReservedAmount, l.ConsumedAmount)).ToList(),
-        p.RowVersion);
+        p.RowVersion, currency, p.ClinicalReviewer, p.DecidedBy);
 }
+
+/// <summary>A preauthorisation's medical information (BR-072, HLT-008), for holders of the clinical review permission only.</summary>
+public sealed record PreauthorisationClinicalView(Guid Id, string AuthNumber, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.Diagnoses)] IReadOnlyList<string> DiagnosisCodes,
+    Guid? ClinicalReviewer);
 
 public sealed record ClaimLineView(int LineNo, string TariffCode, int Quantity, decimal ClaimedAmount, [property: BuildingBlocks.Domain.OneOf("PAY", "PEND", "REJECT")] string? Outcome, string? AdjustmentReason, string? BenefitCategory,
     string? NetworkStatus, decimal? TariffAmount, decimal AllowedAmount, decimal DeductibleAmount, decimal CopayAmount, decimal PaidAmount, decimal MemberLiability,
@@ -248,42 +270,50 @@ public sealed record ClaimLineView(int LineNo, string TariffCode, int Quantity, 
 public sealed record MedicalClaimView(Guid Id, string ClaimNumber, string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate,
     MedicalClaimStatus Status, string Currency, decimal TotalClaimed, decimal? TotalPaid, string? PendReason, Guid? PaymentRunId, IReadOnlyList<ClaimLineView> Lines, long RowVersion,
     [property: BuildingBlocks.Domain.OneOf(MedicalClaimOutcomes.Approved, MedicalClaimOutcomes.PartlyApproved), BuildingBlocks.Contracts.AlwaysPresent] string? Outcome = null,
-    [property: BuildingBlocks.Contracts.AlwaysPresent] string? DecisionReasonCode = null)
+    [property: BuildingBlocks.Contracts.AlwaysPresent] string? DecisionReasonCode = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovedBy = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ApprovedAt = null)
 {
+    /// <summary>BR-079: who approved the claim, and when.</summary>
     public static MedicalClaimView From(MedicalClaim c) => new(c.Id, c.ClaimNumber, c.Source, c.ProviderId, c.MembershipId, c.PatientPartyId, c.ServiceDate,
         c.Status, c.Currency, c.TotalClaimed, c.TotalPaid, c.PendReason, c.PaymentRunId,
         c.Lines.OrderBy(l => l.LineNo).Select(l => new ClaimLineView(l.LineNo, l.TariffCode, l.Quantity, l.ClaimedAmount, l.Outcome, l.AdjustmentReason, l.BenefitCategory,
             l.NetworkStatus, l.TariffAmount, l.AllowedAmount, l.DeductibleAmount, l.CopayAmount, l.PaidAmount, l.MemberLiability, l.PreauthLineId)).ToList(), c.RowVersion,
-        c.DecisionOutcome, c.DecisionReasonCode);
+        c.DecisionOutcome, c.DecisionReasonCode, c.ApprovedBy, c.ApprovedAt);
 }
 
-public sealed record UtilisationCaseView(Guid Id, Guid MembershipId, string RuleCode, UtilisationStatus Status, Guid? ReviewerId, string? Outcome, Guid? ClaimId, long RowVersion)
+public sealed record UtilisationCaseView(Guid Id, Guid MembershipId, string RuleCode, UtilisationStatus Status, Guid? ReviewerId, string? Outcome, Guid? ClaimId, long RowVersion,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? OpenedAt = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ConcludedAt = null)
 {
-    public static UtilisationCaseView From(UtilisationCase c) => new(c.Id, c.MembershipId, c.RuleCode, c.Status, c.ReviewerId, c.Outcome, c.ClaimId, c.RowVersion);
+    /// <summary>BR-079: when the case was opened and concluded.</summary>
+    public static UtilisationCaseView From(UtilisationCase c) => new(c.Id, c.MembershipId, c.RuleCode, c.Status, c.ReviewerId, c.Outcome, c.ClaimId, c.RowVersion,
+        c.OpenedAt, c.ConcludedAt);
 }
 
 public sealed record FraudCaseView(Guid Id, string SubjectType, string SubjectRef, IReadOnlyList<string> IndicatorCodes, FraudStatus Status, string? OutcomeCode,
-    Guid? InvestigatorId, long RowVersion)
+    Guid? InvestigatorId, long RowVersion, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? OpenedAt = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ConcludedAt = null)
 {
+    /// <summary>BR-079: when the case was opened and concluded.</summary>
     public static FraudCaseView From(HealthFraudCase c) => new(c.Id, c.SubjectType, c.SubjectRef, c.IndicatorCodes, c.Status, c.OutcomeCode, c.InvestigatorId,
-        c.RowVersion);
+        c.RowVersion, c.OpenedAt, c.ConcludedAt);
 }
 
-public sealed record RemittanceView(Guid Id, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, int ClaimCount, Guid? PaymentId, DateOnly? PaidOn);
+/// <param name="DocumentId">The remittance advice document, once produced (BR-079).</param>
+public sealed record RemittanceView(Guid Id, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, int ClaimCount, Guid? PaymentId, DateOnly? PaidOn,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? DocumentId = null);
 
 /// <param name="PartlyInScope">
 /// True when the run also pays claims outside the caller's scope (F103): only the remittances whose claims are all in scope
 /// are listed, and the count and total are of those, so no other branch's or product's figures show through the run.
 /// </param>
 public sealed record PaymentRunView(Guid Id, string RunCode, DateTimeOffset CutOff, RunStatus Status, string Currency, int ClaimCount, decimal TotalAmount,
-    IReadOnlyList<RemittanceView> Remittances, long RowVersion, bool PartlyInScope, Workflow.Contracts.LatestRejection? LatestRejection = null)
+    IReadOnlyList<RemittanceView> Remittances, long RowVersion, bool PartlyInScope, Workflow.Contracts.LatestRejection? LatestRejection = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovalId = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovedBy = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ReleasedAt = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? PayoutBatchRef = null)
 {
     public static PaymentRunView From(ProviderPaymentRun r) => Of(r, r.Remittances, false);
 
     public static PaymentRunView Of(ProviderPaymentRun r, IReadOnlyList<RemittanceAdvice> visible, bool partly) => new(r.Id, r.RunCode, r.CutOff, r.Status, r.Currency,
         partly ? visible.Sum(x => x.ClaimCount) : r.ClaimCount, partly ? visible.Sum(x => x.Amount) : r.TotalAmount,
-        visible.Select(x => new RemittanceView(x.Id, x.ProviderId, x.ProviderPartyId, x.BankAccountId, x.Amount, x.ClaimCount, x.PaymentId, x.PaidOn)).ToList(),
-        r.RowVersion, partly);
+        visible.Select(x => new RemittanceView(x.Id, x.ProviderId, x.ProviderPartyId, x.BankAccountId, x.Amount, x.ClaimCount, x.PaymentId, x.PaidOn, x.DocumentId)).ToList(),
+        r.RowVersion, partly, null, r.ApprovalId, r.ApprovedBy, r.ReleasedAt, r.PayoutBatchRef);
 }
 
 /// <summary>A membership's number, product and node: what scopes the claims a payment run pays (F103).</summary>

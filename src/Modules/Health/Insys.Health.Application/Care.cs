@@ -40,7 +40,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Insys.Health.Application;
 
-public sealed record RequestAuthorisation(Guid MembershipId, Guid PatientPartyId, string ProviderId, IReadOnlyList<string> DiagnosisCodes, string ServiceType,
+public sealed record RequestAuthorisation(Guid MembershipId, Guid PatientPartyId, string ProviderId, [property: CodeList(HealthCodeLists.Diagnoses)] IReadOnlyList<string> DiagnosisCodes,
+    [property: CodeList(HealthCodeLists.ServiceTypes)] string ServiceType,
     IReadOnlyList<PreauthLineRequest> Lines) : ICommand<PreauthorisationView>;
 
 public sealed record ReviewAuthorisation(Guid PreauthorisationId) : ICommand<PreauthorisationView>;
@@ -60,6 +61,9 @@ public sealed record CancelAuthorisation(Guid PreauthorisationId) : ICommand<Pre
 public sealed record ConfirmConditionsMet(Guid PreauthorisationId) : ICommand<PreauthorisationView>;
 
 public sealed record GetAuthorisation(Guid PreauthorisationId) : IQuery<PreauthorisationView>;
+
+/// <summary>A preauthorisation's diagnosis codes (BR-072), for a clinical purpose only (HLT-008).</summary>
+public sealed record GetAuthorisationClinical(Guid PreauthorisationId) : IQuery<PreauthorisationClinicalView>;
 
 public sealed record SubmitMedicalClaim(string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate, string FormatCode, string Currency,
     Guid? PreauthorisationId, IReadOnlyList<ClaimLineRequest> Lines) : ICommand<MedicalClaimView>;
@@ -229,7 +233,7 @@ internal sealed class RequestAuthorisationHandler(IHealthRepository health, IHea
 
         health.Add(preauth.Value);
         audit.Record(new AuditEntry("HEALTH", "RequestAuthorisation", nameof(Preauthorisation), id.ToString()));
-        return PreauthorisationView.From(preauth.Value);
+        return PreauthorisationView.From(preauth.Value, membership.Currency);
     }
 }
 
@@ -324,16 +328,29 @@ internal sealed class AuthorisationHandlers(IHealthRepository health, IHealthCod
 
         audit.Record(new AuditEntry("HEALTH", operation, nameof(Preauthorisation), preauth.Id.ToString()));
         var result = await change(preauth, user.Value);
-        return result.IsFailure ? result.Error : PreauthorisationView.From(preauth);
+        return result.IsFailure ? result.Error : PreauthorisationView.From(preauth, await health.MembershipCurrency(preauth.MembershipId, cancellationToken));
     }
 }
 
-internal sealed class GetAuthorisationHandler(IHealthRepository health) : IQueryHandler<GetAuthorisation, PreauthorisationView>
+internal sealed class GetAuthorisationHandler(IHealthRepository health, IAuditTrail audit) :
+    IQueryHandler<GetAuthorisation, PreauthorisationView>, IQueryHandler<GetAuthorisationClinical, PreauthorisationClinicalView>
 {
     public async Task<Result<PreauthorisationView>> Handle(GetAuthorisation query, CancellationToken cancellationToken) =>
         await health.Preauthorisation(query.PreauthorisationId, cancellationToken) is { } preauth
-            ? PreauthorisationView.From(preauth)
+            ? PreauthorisationView.From(preauth, await health.MembershipCurrency(preauth.MembershipId, cancellationToken))
             : Error.NotFound(ErrorCodes.NotFound, "The authorisation was not found.");
+
+    /// <summary>BR-072: the diagnosis codes are medical information, so each read is audited (HLT-008, IAM-006).</summary>
+    public async Task<Result<PreauthorisationClinicalView>> Handle(GetAuthorisationClinical query, CancellationToken cancellationToken)
+    {
+        if (await health.Preauthorisation(query.PreauthorisationId, cancellationToken) is not { } preauth)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The authorisation was not found.");
+        }
+
+        audit.Record(new AuditEntry("HEALTH", "ReadClinical", nameof(Preauthorisation), preauth.Id.ToString()));
+        return new PreauthorisationClinicalView(preauth.Id, preauth.AuthNumber, preauth.DiagnosisCodes, preauth.ClinicalReviewer);
+    }
 }
 
 /// <summary>

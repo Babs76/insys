@@ -37,8 +37,11 @@ namespace Insys.ArchitectureTests;
 /// </summary>
 public sealed partial class ConcurrencyContractTests
 {
-    /// <summary>Writes that change nothing: an eligibility check answers a question.</summary>
-    private static readonly HashSet<string> ChangeNothing = ["HealthCheckEligibility"];
+    /// <summary>
+    /// Writes that change nothing: an eligibility check answers a question, and a search reads with its filters in the
+    /// body so a member number stays out of the address (BR-069).
+    /// </summary>
+    private static readonly HashSet<string> ChangeNothing = ["HealthCheckEligibility", "HealthSearchMemberships", "HealthListEligibilityDecisions"];
 
     private static readonly JsonElement Paths =
         JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryPaths.Root, "docs", "api", "openapi-core.json"))).RootElement.GetProperty("paths");

@@ -41,7 +41,7 @@ using Insys.Tenancy.Contracts;
 
 namespace Insys.Health.Application;
 
-public sealed record RegisterHealthScheme(string SponsorCode, DateOnly StartDate, DateOnly RenewalDate, string Currency) : ICommand<SchemeView>;
+public sealed record RegisterHealthScheme([property: CodeList(HealthCodeLists.Sponsors)] string SponsorCode, DateOnly StartDate, DateOnly RenewalDate, string Currency) : ICommand<SchemeView>;
 
 public enum SchemeAction
 {
@@ -58,10 +58,11 @@ public sealed record GetHealthScheme(Guid SchemeId) : IQuery<SchemeView>;
 /// The organisation node (normally a branch) that owns the membership and its claims (F103); when omitted, the caller's one
 /// node, else the tenant's root legal entity.
 /// </param>
-public sealed record EnrolHealthMember(Guid PrincipalPartyId, Guid? SchemeId, string? MemberCategory, string PlanCode, string OptionCode, DateOnly StartDate, string Currency,
-    Guid? PayerPartyId, Guid? BillingAccountId, string CollectionMethod, JsonElement? Facts, string? OrgNodeCode = null) : ICommand<MembershipView>;
+public sealed record EnrolHealthMember(Guid PrincipalPartyId, Guid? SchemeId, [property: CodeList(HealthCodeLists.SchemeCategories)] string? MemberCategory,
+    [property: CodeList(HealthCodeLists.PlansAndOptions)] string PlanCode, [property: CodeList(HealthCodeLists.PlansAndOptions)] string OptionCode, DateOnly StartDate, string Currency,
+    Guid? PayerPartyId, Guid? BillingAccountId, [property: CodeList(HealthCodeLists.CollectionMethods)] string CollectionMethod, JsonElement? Facts, string? OrgNodeCode = null) : ICommand<MembershipView>;
 
-public sealed record AddHealthDependant(Guid MembershipId, Guid PartyId, string DependantType, bool Student, DateOnly StartDate) : ICommand<MembershipView>;
+public sealed record AddHealthDependant(Guid MembershipId, Guid PartyId, [property: CodeList(HealthCodeLists.DependantTypes)] string DependantType, bool Student, DateOnly StartDate) : ICommand<MembershipView>;
 
 public sealed record RemoveHealthDependant(Guid MembershipId, Guid DependantId, DateOnly LastDay) : ICommand<MembershipView>;
 
@@ -81,7 +82,7 @@ public sealed record GetMembership(Guid MembershipId) : IQuery<MembershipView>;
 public sealed record GetAccumulators(Guid MembershipId) : IQuery<IReadOnlyList<AccumulatorView>>;
 
 /// <summary>Command CheckEligibility (HLT-003): is the member (by number and suffix) covered for a service on a day.</summary>
-public sealed record CheckEligibility(string MemberNumber, string DependantSuffix, string? ProviderId, string ServiceType, DateOnly? ServiceDate) : ICommand<EligibilityView>;
+public sealed record CheckEligibility(string MemberNumber, string DependantSuffix, string? ProviderId, [property: CodeList(HealthCodeLists.ServiceTypes)] string ServiceType, DateOnly? ServiceDate) : ICommand<EligibilityView>;
 
 public sealed class EnrolHealthMemberValidator : AbstractValidator<EnrolHealthMember>
 {
@@ -416,8 +417,12 @@ internal sealed class GetMembershipHandler(IHealthRepository health) : IQueryHan
 
 internal sealed class GetAccumulatorsHandler(IHealthRepository health) : IQueryHandler<GetAccumulators, IReadOnlyList<AccumulatorView>>
 {
-    public async Task<Result<IReadOnlyList<AccumulatorView>>> Handle(GetAccumulators query, CancellationToken cancellationToken) =>
-        (await health.AccumulatorsOf(query.MembershipId, cancellationToken)).OrderBy(a => a.BenefitCategory).ThenBy(a => a.Scope).Select(AccumulatorView.From).ToList();
+    public async Task<Result<IReadOnlyList<AccumulatorView>>> Handle(GetAccumulators query, CancellationToken cancellationToken)
+    {
+        var currency = await health.MembershipCurrency(query.MembershipId, cancellationToken);
+        return (await health.AccumulatorsOf(query.MembershipId, cancellationToken)).OrderBy(a => a.BenefitCategory).ThenBy(a => a.Scope)
+            .Select(a => AccumulatorView.From(a, currency)).ToList();
+    }
 }
 
 /// <summary>

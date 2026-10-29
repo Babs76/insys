@@ -142,6 +142,33 @@ internal sealed class HealthLists(HealthDbContext db, IExecutionContext executio
 
         return summaries;
     }
+
+    /// <summary>BR-067: schemes are the sponsors' arrangements, not scoped by product or node (as their read).</summary>
+    public async Task<IReadOnlyList<SchemeSummary>> Schemes(ListHealthSchemes q, CancellationToken cancellationToken)
+    {
+        var rows = db.Schemes.AsNoTracking();
+        if (q.SchemeNumber is { } number) rows = rows.Where(s => s.SchemeNumber == number);
+        if (q.SponsorCode is { } sponsor) rows = rows.Where(s => s.SponsorCode == sponsor);
+        if (q.Status is { } status) rows = rows.Where(s => s.Status == status);
+        if (q.AfterId is { } after) rows = rows.Where(s => s.Id.CompareTo(after) > 0);
+        return await rows.OrderBy(s => s.Id).Take(q.Limit)
+            .Select(s => new SchemeSummary(s.Id, s.SchemeNumber, s.SponsorCode, s.Status, s.StartDate, s.RenewalDate, s.Currency))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>BR-072: decisions about members of memberships in the caller's scope (F103), by member number.</summary>
+    public async Task<IReadOnlyList<EligibilityDecisionSummary>> EligibilityDecisions(ListEligibilityDecisions q, CancellationToken cancellationToken)
+    {
+        var numbers = db.Memberships.AsNoTracking().InScope(execution.CurrentScope, m => m.ProductCode, m => m.OrgNodeCode).Select(m => m.MemberNumber);
+        var rows = db.EligibilityDecisions.AsNoTracking().Where(e => numbers.Contains(e.MemberNumber));
+        if (q.MemberNumber is { } number) rows = rows.Where(e => e.MemberNumber == number);
+        if (q.DependantSuffix is { } suffix) rows = rows.Where(e => e.DependantSuffix == suffix);
+        if (q.AfterId is { } after) rows = rows.Where(e => e.Id.CompareTo(after) > 0);
+        return await rows.OrderBy(e => e.Id).Take(q.Limit)
+            .Select(e => new EligibilityDecisionSummary(e.Id, e.MemberNumber, e.DependantSuffix, e.ProviderId, e.ServiceType, e.ResponseCode, e.DecidedAt))
+            .ToListAsync(cancellationToken);
+    }
+
 }
 
 /// <summary>A member's memberships and claims, and a provider's own claims and remittances, for the portals (external-user access §2).</summary>

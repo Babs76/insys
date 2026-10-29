@@ -49,7 +49,8 @@ internal static class HealthFunctions
         .Screen("HEALTH_FRAUD_CASES", "HEALTH_FRAUD_UTILISATION", "Fraud cases", "health/fraud-cases", "HealthListFraudCases", "HealthGetFraudCase")
         .Action("HEALTH_INVESTIGATE_FRAUD_CASE", "HEALTH_FRAUD_CASES", "HealthInvestigateFraudCase")
         .Action("HEALTH_CONCLUDE_FRAUD_CASE", "HEALTH_FRAUD_CASES", "HealthConcludeFraudCase")
-        .Screen("HEALTH_MEMBERSHIPS", "HEALTH_MEMBERSHIP", "Enrolment", "health/memberships", "HealthListMemberships", "HealthGetMembership")
+        .Screen("HEALTH_MEMBERSHIPS", "HEALTH_MEMBERSHIP", "Enrolment", "health/memberships", "HealthListMemberships", "HealthSearchMemberships", "HealthGetMembership",
+            "HealthListEligibilityDecisions")
         .Action("HEALTH_ENROL_MEMBER", "HEALTH_MEMBERSHIPS", "HealthEnrolMember")
         .Action("HEALTH_ADD_DEPENDANT", "HEALTH_MEMBERSHIPS", "HealthAddDependant")
         .Action("HEALTH_REMOVE_DEPENDANT", "HEALTH_MEMBERSHIPS", "HealthRemoveDependant")
@@ -71,7 +72,7 @@ internal static class HealthFunctions
         .Action("HEALTH_MODIFY_AUTHORISATION", "HEALTH_PREAUTHORISATIONS", "HealthModifyAuthorisation")
         .Action("HEALTH_CONFIRM_CONDITIONS_MET", "HEALTH_PREAUTHORISATIONS", "HealthConfirmConditionsMet")
         .Action("HEALTH_CANCEL_AUTHORISATION", "HEALTH_PREAUTHORISATIONS", "HealthCancelAuthorisation")
-        .Screen("HEALTH_SCHEMES", "HEALTH_SCHEMES_PLANS", "Schemes", "health/schemes", "HealthGetScheme")
+        .Screen("HEALTH_SCHEMES", "HEALTH_SCHEMES_PLANS", "Schemes", "health/schemes", "HealthListSchemes", "HealthGetScheme")
         .Action("HEALTH_REGISTER_SCHEME", "HEALTH_SCHEMES", "HealthRegisterScheme")
         .Action("HEALTH_SCHEME_RENEW", "HEALTH_SCHEMES", "HealthSchemeRenew")
         .Action("HEALTH_SCHEME_TERMINATE", "HEALTH_SCHEMES", "HealthSchemeTerminate")
@@ -80,6 +81,7 @@ internal static class HealthFunctions
         .Action("HEALTH_REVIEW_UTILISATION_CASE", "HEALTH_UTILISATION_CASES", "HealthReviewUtilisationCase")
         .Action("HEALTH_CONCLUDE_UTILISATION_CASE", "HEALTH_UTILISATION_CASES", "HealthConcludeUtilisationCase")
         .Action("HEALTH_CHECK_ELIGIBILITY", "HEALTH_PREAUTHORISATIONS", "HealthCheckEligibility")
+        .Action("HEALTH_READ_AUTHORISATION_CLINICAL", "HEALTH_PREAUTHORISATIONS", "HealthGetAuthorisationClinical")
         .Job("HEALTH_EVENT_PROCESSING", "HEALTH_MEMBERSHIP", "Background processing")
         .Job("HEALTH_DAILY_JOBS", "HEALTH_MEMBERSHIP", "Background processing")
             .Functions,

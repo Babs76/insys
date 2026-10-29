@@ -1819,7 +1819,8 @@
       "CutOffRun",
       "CalculateRun",
       "ApproveRun",
-      "ReleaseRun"
+      "ReleaseRun",
+      "RejectRun"
      ],
      "events": [
       {
@@ -1842,6 +1843,11 @@
        "from": "Calculated",
        "to": "Approved",
        "trigger": "ApproveRun"
+      },
+      {
+       "from": "Calculated",
+       "to": "Rejected",
+       "trigger": "RejectRun"
       },
       {
        "from": "Approved",

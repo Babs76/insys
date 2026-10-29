@@ -106,6 +106,9 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
         await db.Accumulators.Where(a => a.MembershipId == membershipId && a.BenefitCategory == category && a.PeriodStart <= day && a.PeriodEnd >= day)
             .ToListAsync(cancellationToken);
 
+    public async Task<string?> MembershipCurrency(Guid id, CancellationToken cancellationToken) =>
+        await db.Memberships.AsNoTracking().Where(m => m.Id == id).Select(m => m.Currency).SingleOrDefaultAsync(cancellationToken);
+
     public async Task<IReadOnlyList<BenefitAccumulator>> AccumulatorsOf(Guid membershipId, CancellationToken cancellationToken) =>
         await db.Accumulators.AsNoTracking().Where(a => a.MembershipId == membershipId).ToListAsync(cancellationToken);
 

@@ -205,6 +205,11 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         // RegisterScheme; the scheme's contribution per member; EnrolMember (HealthMemberEnrolled) → Billing's contribution schedule.
         var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
         var schemeNumber = (await Get($"/api/v1/health/schemes/{scheme}")).GetProperty("schemeNumber").GetString()!;
+        // BR-067: schemes are listed, by number and by sponsor.
+        var schemes = await Get($"/api/v1/health/schemes?schemeNumber={schemeNumber}");
+        DocumentedSchema.ResponseProblems(schemes, "core", "HealthListSchemes").ShouldBeEmpty();
+        schemes.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid().ShouldBe(scheme);
+        (await Get("/api/v1/health/schemes?sponsorCode=S-ACME")).GetProperty("items").EnumerateArray().Select(x => x.GetProperty("id").GetGuid()).ShouldContain(scheme);
         await Seed("health.cfg_contribution_rules", "EFFECTIVE", "CR-ACME", ("scheme", schemeNumber), ("member_category", "ALL_STAFF"), ("rate", 1_850m),
             ("employer_share", 50m));
         var principal = await _maker.RegisterPerson("Member");
@@ -231,6 +236,14 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
         (await Schedules(membership)).ShouldBe([("HEALTH", principal, 1_850m), ("HEALTH_ER", SponsorParty, 1_850m)]);
 
+        // BR-068, BR-070: the membership shows its lifecycle events, payer, billing account and currency.
+        var history = await Get($"/api/v1/health/memberships/{membership}");
+        DocumentedSchema.ResponseProblems(history, "core", "HealthGetMembership").ShouldBeEmpty();
+        history.GetProperty("events").EnumerateArray().Select(e => e.GetProperty("eventType").GetString()).ShouldBe(["ENROL", "ADD_DEPENDANT"]);
+        (history.GetProperty("payerPartyId").GetGuid(), history.GetProperty("currency").GetString()).ShouldBe((principal, "ZAR"));
+        history.GetProperty("billingAccountRef").ValueKind.ShouldBe(JsonValueKind.String);
+        (await Get($"/api/v1/health/memberships/{membership}/accumulators")).EnumerateArray().ShouldAllBe(a => a.GetProperty("currency").GetString() == "ZAR");
+
         // CheckEligibility → EligibilityDecisionRecorded (HLT-003).
         var number = member.GetProperty("memberNumber").GetString()!;
         (await Eligibility(number, "00")).ShouldBe("E00");
@@ -238,6 +251,16 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await Eligibility(number, "07")).ShouldBe("E02");
         (await Eligibility(number, "00", Today.AddMonths(-6).AddDays(10))).ShouldBe("E03");
         (await Eligibility(number, "00", Today.AddMonths(-7))).ShouldBe("E01");
+
+        // BR-069: a membership is found by its number in the body; BR-072: its recorded eligibility decisions are read the same way.
+        var found = await (await _maker.PostAsJsonAsync("/api/v1/health/memberships/search", new { memberNumber = number })).Json();
+        DocumentedSchema.ResponseProblems(found, "core", "HealthSearchMemberships").ShouldBeEmpty();
+        found.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid().ShouldBe(membership);
+        var decisions = await (await _maker.PostAsJsonAsync("/api/v1/health/eligibility-decisions/search", new { memberNumber = number })).Json();
+        DocumentedSchema.ResponseProblems(decisions, "core", "HealthListEligibilityDecisions").ShouldBeEmpty();
+        decisions.GetProperty("items").EnumerateArray().Select(d => d.GetProperty("responseCode").GetString()).ShouldBe(["E00", "E00", "E02", "E03", "E01"]);
+        (await (await _maker.PostAsJsonAsync("/api/v1/health/eligibility-decisions/search", new { memberNumber = number, dependantSuffix = "07" })).Json())
+            .GetProperty("items").EnumerateArray().Single().GetProperty("responseCode").GetString().ShouldBe("E02");
 
         // Compensation: a rejected authorisation reserves nothing.
         var rejected = await Authorisation(membership, principal);
@@ -260,6 +283,20 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await Accumulator(membership, "MEMBER")).ShouldBe((0m, 1_000m));
         (await Accumulator(membership, "FAMILY")).ShouldBe((0m, 1_000m));
 
+        // BR-068, BR-072: the authorisation names its clinical reviewer and decider, in the membership's currency; its diagnosis codes
+        // come only from the clinical read, to a holder of the clinical review permission (HLT-008).
+        var authorised = await Get($"/api/v1/health/preauthorisations/{preauth}");
+        var makerId = await UserId("health-administrator");
+        (authorised.GetProperty("clinicalReviewer").GetGuid(), authorised.GetProperty("decidedBy").GetGuid(), authorised.GetProperty("currency").GetString())
+            .ShouldBe((makerId, makerId, "ZAR"));
+        authorised.TryGetProperty("diagnosisCodes", out _).ShouldBeFalse();
+        var clinical = await Get($"/api/v1/health/preauthorisations/{preauth}/clinical");
+        clinical.GetProperty("diagnosisCodes").EnumerateArray().Select(d => d.GetString()).ShouldNotBeEmpty();
+        await _db.UserWithPermissions(Tenant, "no-clinical", HealthPermissions.PreauthRead);
+        var notClinical = _factory.ClientFor(Tenant, "no-clinical");
+        (await notClinical.GetAsync($"/api/v1/health/preauthorisations/{preauth}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await notClinical.GetAsync($"/api/v1/health/preauthorisations/{preauth}/clinical")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
         // MedicalClaimSubmitted; ValidateClaim; AdjudicateClaim (ADR-012): contract tariff 1 000, allowed 1 000, 10% co-payment 100, paid 900, the member pays 300.
         var claim = await Claim(membership, principal, 1_200m);
         (await _maker.PostAsync($"/api/v1/health/claims/{claim}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -276,6 +313,10 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await Accumulator(membership, "FAMILY")).ShouldBe((900m, 0m));
         (await Get($"/api/v1/health/preauthorisations/{preauth}")).GetProperty("status").GetString().ShouldBe("Utilised");
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM health.utilisation_case WHERE claim_id = @c AND rule_code = 'HC-SPEC'", ("c", claim))).ShouldBe(1L);
+        // BR-079: the case says when it was opened, and is not concluded yet.
+        var caseId = (await Get($"/api/v1/health/utilisation-cases?claimId={claim}")).GetProperty("items")[0].GetProperty("id").GetGuid();
+        var openCase = await Get($"/api/v1/health/utilisation-cases/{caseId}");
+        (openCase.GetProperty("openedAt").ValueKind, openCase.GetProperty("concludedAt").ValueKind).ShouldBe((JsonValueKind.String, JsonValueKind.Null));
 
         // A duplicate pends for a person, who rejects it; it changes no accumulator.
         var duplicate = await Claim(membership, principal, 1_200m);
@@ -288,6 +329,8 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
 
         // ApproveForPayment; the run is cut off, calculated (one remittance to the provider's verified account), approved in Workflow and released.
         (await _maker.PostAsync($"/api/v1/health/claims/{claim}/approve", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var approvedClaim = await Get($"/api/v1/health/claims/{claim}");
+        (approvedClaim.GetProperty("approvedBy").GetGuid(), approvedClaim.GetProperty("approvedAt").ValueKind).ShouldBe((makerId, JsonValueKind.String), "BR-079");
         var run = await Created("/api/v1/health/payment-runs", new { runCode = "PRV-WEEKLY", currency = "ZAR" });
         (await _maker.PostAsync($"/api/v1/health/payment-runs/{run}/cut-off", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var calculated = await (await _maker.PostAsync($"/api/v1/health/payment-runs/{run}/calculate", null)).Json();
@@ -327,7 +370,15 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<Guid>("SELECT bank_account_id FROM payment.payment WHERE id = @p", ("p", payment))).ShouldBe(providerAccount);
         (await _maker.SimulatorCallback(_factory, _db, payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
-        (await Get($"/api/v1/health/payment-runs/{run}")).GetProperty("status").GetString().ShouldBe("Reconciled");
+        // BR-079: the run names its approval, approver, release time and payout batch, and each remittance its advice document.
+        var paidRun = await Get($"/api/v1/health/payment-runs/{run}");
+        paidRun.GetProperty("status").GetString().ShouldBe("Reconciled");
+        DocumentedSchema.ResponseProblems(paidRun, "core", "HealthGetRun").ShouldBeEmpty();
+        paidRun.GetProperty("approvedBy").GetGuid().ShouldBe(await UserId("health-manager"));
+        (paidRun.GetProperty("approvalId").ValueKind, paidRun.GetProperty("releasedAt").ValueKind).ShouldBe((JsonValueKind.String, JsonValueKind.String));
+        paidRun.GetProperty("payoutBatchRef").GetGuid().ShouldBe(await _db.ScalarAsOwner<Guid>("SELECT payout_batch_ref FROM health.provider_payment_run WHERE id = @r",
+            ("r", run)));
+        paidRun.GetProperty("remittances")[0].GetProperty("documentId").GetGuid().ShouldBe(advice);
 
         // The remittance's payment follows its claims' branch too.
         var byRemittance = $"/api/v1/payments/payments?businessRefType={HealthReferences.RemittanceRefType}&businessRefId={remittance}";
@@ -729,6 +780,9 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _factory.ClientFor(Tenant, "member-1", "member-portal", multiFactor: true).GetAsync($"/api/v1/portal/health/memberships/{mine}")).StatusCode
             .ShouldBe(HttpStatusCode.OK);
     }
+
+    private Task<Guid> UserId(string subject) =>
+        _db.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = @s", ("t", Tenant), ("s", subject));
 
     private async Task Organisation()
     {

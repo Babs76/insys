@@ -67,9 +67,8 @@ public sealed class HealthTests
             .Split('|').Append("Rejected-ReopenClaim->Validated").OrderBy(t => t, StringComparer.Ordinal)));
         Model(UtilisationCase.Lifecycle).ShouldBe(Spec("UtilisationCase"));
         Model(HealthFraudCase.Lifecycle).ShouldBe(Spec("HealthFraudCase"));
-        // D-2 (Wave 2 batch 1, V0056) adds "Calculated-RejectRun->Rejected", not yet in domain-model.json.
-        Model(ProviderPaymentRun.Lifecycle).ShouldBe(string.Join("|", Spec("ProviderPaymentRun", ("Payments matched", "PaymentsMatched")).Split('|')
-            .Append("Calculated-RejectRun->Rejected").OrderBy(t => t, StringComparer.Ordinal)));
+        // D-2 (Wave 2 batch 1, V0056): "Calculated-RejectRun->Rejected" is in domain-model.json since BR-080.
+        Model(ProviderPaymentRun.Lifecycle).ShouldBe(Spec("ProviderPaymentRun", ("Payments matched", "PaymentsMatched")));
     }
 
     [Fact]

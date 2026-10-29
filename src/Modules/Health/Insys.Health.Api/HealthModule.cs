@@ -40,11 +40,18 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Health.Api;
 
-public sealed record DependantRequest(Guid PartyId, string DependantType, bool Student, DateOnly StartDate);
+public sealed record DependantRequest(Guid PartyId, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.DependantTypes)] string DependantType, bool Student, DateOnly StartDate);
 
 public sealed record DependantRemovalRequest(DateOnly LastDay);
 
-public sealed record PlanChangeRequest(string PlanCode, string OptionCode, DateOnly EffectiveDate, string Reason);
+/// <summary>BR-069: the membership list's filters, with the member number in the body so it stays out of addresses and logs.</summary>
+public sealed record MembershipSearchRequest(Guid? PrincipalPartyId, string? MemberNumber, Guid? SchemeId, Domain.Members.MembershipStatus? Status, string? Cursor,
+    int? Limit);
+
+/// <summary>BR-072: recorded eligibility decisions, by member number (in the body, BR-069) and dependant suffix.</summary>
+public sealed record EligibilityDecisionSearchRequest(string? MemberNumber, string? DependantSuffix, string? Cursor, int? Limit);
+
+public sealed record PlanChangeRequest([property: BuildingBlocks.Domain.CodeList(HealthCodeLists.PlansAndOptions)] string PlanCode, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.PlansAndOptions)] string OptionCode, DateOnly EffectiveDate, string Reason);
 
 public sealed record MembershipStatusRequest(DateOnly EffectiveDate, string Reason);
 
@@ -102,6 +109,11 @@ public sealed class HealthModule : IModule
                 (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/health/schemes/{v.Id}", v)))
             .Produces<SchemeView>(StatusCodes.Status201Created)
             .WithName("HealthRegisterScheme").WithSummary("Register a sponsor's scheme").RequirePermission(HealthPermissions.SchemeCreate).RequireIdempotencyKey();
+        health.MapGet("/schemes", async (string? schemeNumber, string? sponsorCode, Domain.Members.SchemeStatus? status, string? cursor, int? limit, IDispatcher d,
+                CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListHealthSchemes(schemeNumber, sponsorCode, status, after, size), ct), s => s.Id))
+            .Produces<CursorPage<SchemeSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListSchemes").WithSummary("List schemes, by number, sponsor or status (BR-067)").RequirePermission(HealthPermissions.SchemeRead);
         health.MapGet("/schemes/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetHealthScheme(id), ct)).ToHttp(Results.Ok))
             .Produces<SchemeView>(StatusCodes.Status200OK)
             .WithName("HealthGetScheme").WithSummary("Get a scheme").RequirePermission(HealthPermissions.SchemeRead);
@@ -150,6 +162,12 @@ public sealed class HealthModule : IModule
                 .WithName($"HealthMembership{action}").WithSummary($"{action} the membership").RequirePermission(HealthPermissions.MembershipUpdate);
         }
 
+        health.MapPost("/eligibility-decisions/search", async (EligibilityDecisionSearchRequest r, IDispatcher d, CancellationToken ct) =>
+                await Page(r.Cursor, r.Limit, (after, size) => d.Query(new ListEligibilityDecisions(r.MemberNumber, r.DependantSuffix, after, size), ct), e => e.Id))
+            .Produces<CursorPage<EligibilityDecisionSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListEligibilityDecisions")
+            .WithSummary("Find recorded eligibility decisions, by member number and dependant, for memberships in your scope (BR-072, HLT-003)")
+            .RequirePermission(HealthPermissions.MembershipRead);
         health.MapPost("/eligibility", async (CheckEligibility r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(Results.Ok))
             .Produces<EligibilityView>(StatusCodes.Status200OK)
             .WithName("HealthCheckEligibility").WithSummary("An authorised member-eligibility enquiry; the decision is recorded (HLT-003)")
@@ -166,6 +184,12 @@ public sealed class HealthModule : IModule
         health.MapGet("/preauthorisations/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetAuthorisation(id), ct)).ToHttp(Results.Ok))
             .Produces<PreauthorisationView>(StatusCodes.Status200OK)
             .WithName("HealthGetAuthorisation").WithSummary("Get a preauthorisation").RequirePermission(HealthPermissions.PreauthRead);
+        health.MapGet("/preauthorisations/{id:guid}/clinical", async (Guid id, IDispatcher d, CancellationToken ct) =>
+                (await d.Query(new GetAuthorisationClinical(id), ct)).ToHttp(Results.Ok))
+            .Produces<PreauthorisationClinicalView>(StatusCodes.Status200OK)
+            .WithName("HealthGetAuthorisationClinical")
+            .WithSummary("A preauthorisation's diagnosis codes, for clinical review only; each read is audited (BR-072, HLT-008)")
+            .RequirePermission(HealthPermissions.PreauthReview);
         health.MapPost("/preauthorisations/{id:guid}/review", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ReviewAuthorisation(id), ct)).ToHttp(Results.Ok))
             .Produces<PreauthorisationView>(StatusCodes.Status200OK)
@@ -308,6 +332,13 @@ public sealed class HealthModule : IModule
             .Produces<CursorPage<MembershipSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("HealthListMemberships").WithSummary("List memberships, by principal member, number, scheme or status (GAP-040)")
             .RequirePermission(HealthPermissions.MembershipRead);
+        health.MapPost("/memberships/search", async (MembershipSearchRequest r, IDispatcher d, CancellationToken ct) =>
+                await Page(r.Cursor, r.Limit, (after, size) => d.Query(new ListMemberships(r.PrincipalPartyId, r.MemberNumber, r.SchemeId, r.Status, after, size), ct),
+                    m => m.Id))
+            .Produces<CursorPage<MembershipSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthSearchMemberships")
+            .WithSummary("Find memberships as the list does, with the member number in the body rather than the address (BR-069)")
+            .RequirePermission(HealthPermissions.MembershipRead);
         health.MapGet("/preauthorisations", async (Guid? membershipId, Guid? patientPartyId, string? authNumber, Domain.Care.PreauthStatus? status, string? cursor, int? limit,
                 IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPreauthorisations(membershipId, patientPartyId, authNumber, status, after, size), ct), p => p.Id))
@@ -423,6 +454,7 @@ public sealed class HealthModule : IModule
 public sealed record PortalMedicalClaimRequest(string MemberNumber, string? DependantSuffix, DateOnly ServiceDate, string Currency, Guid? PreauthorisationId,
     IReadOnlyList<Domain.Care.ClaimLineRequest> Lines);
 
-public sealed record PortalPreauthorisationRequest(string MemberNumber, string? DependantSuffix, IReadOnlyList<string> DiagnosisCodes, string ServiceType,
+public sealed record PortalPreauthorisationRequest(string MemberNumber, string? DependantSuffix, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.Diagnoses)] IReadOnlyList<string> DiagnosisCodes,
+    [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.ServiceTypes)] string ServiceType,
     IReadOnlyList<Domain.Care.PreauthLineRequest> Lines);
 
